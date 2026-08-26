@@ -1,0 +1,80 @@
+services:
+  - type: web
+    name: real-estate-uat-api
+    runtime: docker
+    plan: free
+    rootDir: backend-api-runtime
+    dockerfilePath: ./Dockerfile.uat
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: APP_NAME
+        value: Real Estate UAT
+      - key: APP_ENV
+        value: staging
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false
+      # Render assigns the public HTTPS URL; mirror it into Laravel APP_URL.
+      - key: APP_URL
+        fromService:
+          name: real-estate-uat-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: info
+
+      # Supabase PostgreSQL session-pooler connection string. Keep secret in Render.
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_URL
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: DB_SEARCH_PATH
+        value: public,gis,extensions
+
+      - key: CACHE_STORE
+        value: database
+      - key: SESSION_DRIVER
+        value: database
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: FILESYSTEM_DISK
+        value: local
+
+      # Supabase Storage is accessed by Laravel only through the Storage REST API.
+      - key: UAT_CLOUD_STORAGE_ENABLED
+        value: "true"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_STORAGE_SERVER_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: real-estate-uat
+      - key: UAT_PUBLIC_STORAGE_PREFIX
+        value: public
+      - key: UAT_PRIVATE_STORAGE_PREFIX
+        value: private
+      - key: UAT_STORAGE_CONNECT_TIMEOUT
+        value: "15"
+      - key: UAT_STORAGE_TIMEOUT
+        value: "90"
+
+      # Test OTP is staging-only and allowlisted. Never expose these in Flutter.
+      - key: UAT_TEST_OTP_ENABLED
+        value: "true"
+      - key: UAT_TEST_OTP_CODE
+        sync: false
+      - key: UAT_TEST_PHONE_NUMBERS
+        sync: false
+
+      # Cloud API deployment may run Laravel migrations after cloud checks pass.
+      - key: UAT_RUN_MIGRATIONS
+        value: "true"

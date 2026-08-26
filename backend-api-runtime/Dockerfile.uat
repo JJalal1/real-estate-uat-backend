@@ -1,0 +1,45 @@
+FROM php:8.4.23-apache-bookworm
+
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
+
+RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
+    && mkdir -p /var/lib/apt/lists/partial \
+    && apt-get clean \
+    && apt-get -o Acquire::Retries=3 update \
+    && DEBIAN_FRONTEND=noninteractive apt-get \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold" \
+        install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        unzip \
+        libcurl4-openssl-dev \
+        libonig-dev \
+        libxml2-dev \
+        libpq-dev \
+        libzip-dev \
+    && docker-php-ext-install curl dom mbstring pdo_pgsql zip opcache \
+    && a2enmod rewrite headers \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+WORKDIR /var/www/html
+
+COPY docker/uat-apache.conf /etc/apache2/sites-available/000-default.conf
+COPY docker/uat-php.ini /usr/local/etc/php/conf.d/uat.ini
+COPY . /var/www/html
+
+RUN mkdir -p \
+        storage/app/public \
+        storage/framework/cache \
+        storage/framework/sessions \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache \
+    && composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod +x docker/uat-entrypoint.sh
+
+EXPOSE 10000
+ENTRYPOINT ["/var/www/html/docker/uat-entrypoint.sh"]

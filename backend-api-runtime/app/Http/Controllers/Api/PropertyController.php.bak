@@ -1,0 +1,124 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Property;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+class PropertyController extends Controller
+{
+    public function nearby(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'radius_km' => ['nullable', 'numeric', 'min:0.1', 'max:100'],
+            'purpose' => ['nullable', Rule::in(['sale', 'rent'])],
+            'type' => ['nullable', Rule::in(['apartment', 'house', 'villa', 'land', 'shop', 'office', 'farm'])],
+            'min_price' => ['nullable', 'numeric', 'min:0'],
+            'max_price' => ['nullable', 'numeric', 'gte:min_price'],
+        ]);
+
+        $latitude = (float) $validated['latitude'];
+        $longitude = (float) $validated['longitude'];
+        $radiusKm = (float) ($validated['radius_km'] ?? 5);
+
+        $query = Property::query()->where('status', 'published');
+
+        foreach (['purpose', 'type'] as $field) {
+            if (!empty($validated[$field])) {
+                $query->where($field, $validated[$field]);
+            }
+        }
+
+        if (isset($validated['min_price'])) {
+            $query->where('price', '>=', $validated['min_price']);
+        }
+        if (isset($validated['max_price'])) {
+            $query->where('price', '<=', $validated['max_price']);
+        }
+
+        $properties = $query->limit(1000)->get()
+            ->map(function (Property $property) use ($latitude, $longitude) {
+                $distanceKm = $this->distanceKm(
+                    $latitude,
+                    $longitude,
+                    (float) $property->latitude,
+                    (float) $property->longitude,
+                );
+
+                return [
+                    'id' => $property->id,
+                    'title' => $property->title,
+                    'purpose' => $property->purpose,
+                    'type' => $property->type,
+                    'price' => (float) $property->price,
+                    'currency' => $property->currency,
+                    'latitude' => (float) $property->latitude,
+                    'longitude' => (float) $property->longitude,
+                    'distance_km' => round($distanceKm, 2),
+                    'main_image' => null,
+                ];
+            })
+            ->filter(fn (array $property) => $property['distance_km'] <= $radiusKm)
+            ->sortBy('distance_km')
+            ->values()
+            ->take(200);
+
+        return response()->json(['data' => $properties]);
+    }
+
+    public function show(Property $property): JsonResponse
+    {
+        abort_unless($property->status === 'published', 404);
+
+        $property->load('images');
+        $baseUrl = request()->getSchemeAndHttpHost();
+
+        return response()->json([
+            'data' => [
+                'id' => $property->id,
+                'title' => $property->title,
+                'description' => $property->description,
+                'purpose' => $property->purpose,
+                'type' => $property->type,
+                'price' => (float) $property->price,
+                'currency' => $property->currency,
+                'area_m2' => $property->area_m2,
+                'bedrooms' => $property->bedrooms,
+                'bathrooms' => $property->bathrooms,
+                'address' => $property->address,
+                'latitude' => (float) $property->latitude,
+                'longitude' => (float) $property->longitude,
+                'images' => $property->images->map(function ($image) use ($baseUrl) {
+                    $rawUrl = $image->cdn_url ?: $image->path;
+                    $url = str_starts_with($rawUrl, 'http://') || str_starts_with($rawUrl, 'https://')
+                        ? $rawUrl
+                        : $baseUrl.'/'.ltrim($rawUrl, '/');
+
+                    return [
+                        'id' => $image->id,
+                        'url' => $url,
+                        'is_primary' => (bool) $image->is_primary,
+                        'sort_order' => (int) $image->sort_order,
+                    ];
+                })->values(),
+            ],
+        ]);
+    }
+
+    private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadiusKm = 6371.0088;
+        $latDelta = deg2rad($lat2 - $lat1);
+        $lngDelta = deg2rad($lng2 - $lng1);
+
+        $a = sin($latDelta / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($lngDelta / 2) ** 2;
+
+        return $earthRadiusKm * 2 * atan2(sqrt($a), sqrt(1 - $a));
+    }
+}
