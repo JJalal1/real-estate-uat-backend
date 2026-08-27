@@ -72,9 +72,14 @@ jobs:
         working-directory: mobile_app
         run: flutter test test/uat_cloud_readiness_test.dart
 
-      - name: Full Flutter test suite
+      - name: Full Flutter test suite excluding compile-time UAT guard
         working-directory: mobile_app
-        run: flutter test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          test "${#tests[@]}" -gt 0
+          flutter test "${tests[@]}"
 
       - name: Verify compile-time UAT endpoint
         working-directory: mobile_app
