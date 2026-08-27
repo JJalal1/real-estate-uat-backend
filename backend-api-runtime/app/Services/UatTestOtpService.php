@@ -16,7 +16,7 @@ class UatTestOtpService
             throw new RuntimeException('UAT test OTP must never be enabled in production.');
         }
 
-        if (! app()->environment('staging', 'testing')) {
+        if (! app()->environment('uat', 'staging', 'testing')) {
             return null;
         }
 
