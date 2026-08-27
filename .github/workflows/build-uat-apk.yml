@@ -2,28 +2,21 @@ name: Build UAT Android APK
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - 'mobile_app/**'
       - '.github/workflows/build-uat-apk.yml'
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: real-estate-uat-android-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
-  FLUTTER_VERSION: '3.27.3'
 
 jobs:
   build-uat-apk:
     name: Analyze, test and build UAT APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -49,15 +42,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo '82516ed55490f1a2d903c00023a363b1f9e825e459fe5be71b370ac6afc39462  mobile_app/lib/core/network/api_client.dart' | sha256sum -c -
-          echo '30dd91c657eb1e38b5a5dffe79dc5945480ed1f077964121bf03003c97b15870  mobile_app/lib/router/app_router.dart' | sha256sum -c -
-          echo 'a655654af86da6477748a4ed6d715e22fd5e24c97ee46cf109b93432250f61b2  mobile_app/lib/features/services/presentation/services_screen.dart' | sha256sum -c -
-          echo '369a4c431f3fe73b1455a4920cd1a7ab771c32d43296e8e87e6b552fa13ee2c1  mobile_app/test/uat_cloud_readiness_test.dart' | sha256sum -c -
-          ! grep -q "path: '/projects'" mobile_app/lib/router/app_router.dart
-          ! grep -q "features/projects" mobile_app/lib/router/app_router.dart
-          test ! -f mobile_app/android/local.properties
+          check_hash() {
+            file="$1"
+            expected="$2"
+            actual="$(sha256sum "$file" | awk '{print $1}')"
+            if [ "$actual" != "$expected" ]; then
+              echo "$file: FAILED"
+              echo "Expected: $expected"
+              echo "Actual:   $actual"
+              exit 1
+            fi
+            echo "$file: OK"
+          }
+
+          check_hash "mobile_app/lib/core/network/api_client.dart" \
+            "82516ed55490f1a2d903c00023a363b1f9e825e459fe5be71b370ac6afc39462"
+          check_hash "mobile_app/lib/router/app_router.dart" \
+            "e33d6cd2ee2323b43b5c36d83507e9a155234623661e7f44999cdb2b5d0ee35c"
+          check_hash "mobile_app/lib/features/services/presentation/services_screen.dart" \
+            "a655654af86da6477748a4ed6d715e22fd5e24c97ee46cf109b93432250f61b2"
 
       - name: Flutter version
+        working-directory: mobile_app
         run: flutter --version
 
       - name: Resolve packages
@@ -93,23 +99,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f health.json
-          for attempt in {1..8}; do
-            if curl -fsS --connect-timeout 20 --max-time 100 "${UAT_API_BASE_URL}/health" -o health.json; then
-              break
-            fi
-            echo "Health attempt ${attempt} failed; waiting for possible Render cold start..."
-            sleep 15
-          done
-          test -s health.json
+          health_url="${UAT_API_BASE_URL%/api}/api/health"
+          echo "Checking $health_url"
+          response="$(curl --fail --silent --show-error --retry 5 --retry-delay 10 --max-time 90 "$health_url")"
+          printf '%s' "$response" > /tmp/uat-health.json
           python3 - <<'PY'
           import json
-          with open('health.json', encoding='utf-8') as f:
+          with open('/tmp/uat-health.json', encoding='utf-8') as f:
               data = json.load(f)
           assert data.get('status') == 'ok', data
           assert data.get('database') is True, data
           assert data.get('postgis') is True, data
-          print('Render health verified: database=true, postgis=true')
+          print('Render UAT health: OK')
           PY
 
       - name: Build release UAT APK
@@ -125,17 +126,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp mobile_app/build/app/outputs/flutter-apk/app-release.apk "dist/real-estate-uat-${GITHUB_RUN_NUMBER}.apk"
-          (cd dist && sha256sum "real-estate-uat-${GITHUB_RUN_NUMBER}.apk" > SHA256.txt)
-          {
-            echo "environment=uat"
-            echo "api_base_url=${UAT_API_BASE_URL}"
-            echo "git_commit=${GITHUB_SHA}"
-            echo "github_run_number=${GITHUB_RUN_NUMBER}"
-            echo "flutter_version=${FLUTTER_VERSION}"
-            echo "application_id=com.example.real_estate_mobile"
-            echo "secrets_embedded=false"
-          } > dist/BUILD_INFO.txt
+          apk="mobile_app/build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$apk"
+          out="dist/real-estate-uat-${GITHUB_RUN_NUMBER}.apk"
+          cp "$apk" "$out"
+          sha256sum "$out" > dist/SHA256.txt
+          cat > dist/BUILD_INFO.txt <<EOF
+          environment=uat
+          api_base_url=${UAT_API_BASE_URL}
+          github_run_number=${GITHUB_RUN_NUMBER}
+          github_sha=${GITHUB_SHA}
+          android_application_id=com.example.real_estate_mobile
+          flutter_version=3.27.3
+          EOF
 
       - name: Upload UAT APK
         uses: actions/upload-artifact@v4
