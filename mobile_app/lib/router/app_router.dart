@@ -147,7 +147,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin/support',
         builder: (context, state) => Stage6AuthGate(
           child: SupportAdminScreen(
-              initialKind: state.uri.queryParameters['kind']),
+            initialKind: state.uri.queryParameters['kind'],
+            initialCaseId: int.tryParse(state.uri.queryParameters['case'] ?? ''),
+          ),
         ),
       ),
       GoRoute(

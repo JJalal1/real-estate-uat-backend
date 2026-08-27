@@ -35,6 +35,7 @@ class AdminWorkspaceController extends Controller
         $overdueListings=$canListings?Property::query()->whereIn('review_status',['submitted','under_review'])->where('submitted_at','<=',now()->subHours($reviewWarningHours))->count():0;
         $publishedListings=$canListings?Property::query()->where('status','published')->count():0;
         $openSupport=$canSupport?SupportCase::query()->whereIn('status',['open','in_progress','waiting_requester'])->count():0;
+        $openTickets=$canSupport?SupportCase::query()->where('kind','support_ticket')->whereIn('status',['open','in_progress','waiting_requester'])->count():0;
         $openReports=$canSupport?SupportCase::query()->where('kind','report')->whereIn('status',['open','in_progress','waiting_requester'])->count():0;
         $requestedBookings=$canBookings?ViewingBooking::query()->where('status','requested')->count():0;
         $activeBookings=$canBookings?ViewingBooking::query()->whereIn('status',['requested','confirmed'])->count():0;
@@ -52,7 +53,7 @@ class AdminWorkspaceController extends Controller
         return response()->json(['data'=>[
             'users'=>['total'=>$canUsers?User::query()->where('email','<>','stage5-owner@local.invalid')->count():0,'active'=>$canUsers?User::query()->where('account_status','active')->whereNotNull('phone_verified_at')->count():0],
             'listings'=>['pending_review'=>$pendingListings,'published'=>$publishedListings],
-            'support'=>['open'=>$openSupport,'reports_open'=>$openReports,'overdue'=>$overdue],
+            'support'=>['open'=>$openSupport,'tickets_open'=>$openTickets,'reports_open'=>$openReports,'overdue'=>$overdue],
             'bookings'=>['requested'=>$requestedBookings,'active'=>$activeBookings],
             'broker_kyc_pending'=>$pendingKyc,
             'payments_pending'=>$pendingPayments,

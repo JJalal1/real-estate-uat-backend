@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../account/data/access_control_repository.dart';
@@ -59,9 +60,13 @@ class _SupportUsersScreenState extends ConsumerState<SupportUsersScreen> {
       if (!mounted) {
         return;
       }
-      await showDialog<void>(
-          context: context,
-          builder: (_) => _UserContextDialog(contextData: data));
+      final caseId = await showDialog<int>(
+        context: context,
+        builder: (_) => _UserContextDialog(contextData: data),
+      );
+      if (caseId != null && mounted) {
+        context.push('/admin/support?case=$caseId');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -75,7 +80,7 @@ class _SupportUsersScreenState extends ConsumerState<SupportUsersScreen> {
   Widget build(BuildContext context) => Directionality(
         textDirection: TextDirection.rtl,
         child: Scaffold(
-          appBar: AppBar(title: const Text('مستخدمو الدعم')),
+          appBar: AppBar(title: const Text('المستخدمون - الدعم')),
           body: Column(children: [
             Padding(
                 padding: const EdgeInsets.all(12),
@@ -152,10 +157,16 @@ class _UserContextDialog extends StatelessWidget {
                     'تذاكر: ${contextData.counts['tickets'] ?? 0} • بلاغات: ${contextData.counts['reports'] ?? 0} • مفتوحة: ${contextData.counts['open'] ?? 0}',
                     style: const TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
+                if (contextData.cases.isNotEmpty)
+                  const Text(
+                    'اضغط على التذكرة أو البلاغ لفتح إجراءات الدعم المسموحة لك.',
+                  ),
                 ...contextData.cases.map((item) => ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(item.subject),
-                    subtitle: Text('${item.reference} • ${item.status}'))),
+                    subtitle: Text('${item.reference} • ${item.status}'),
+                    trailing: const Icon(Icons.chevron_left),
+                    onTap: () => Navigator.pop(context, item.id))),
               ]))),
       actions: [
         FilledButton(

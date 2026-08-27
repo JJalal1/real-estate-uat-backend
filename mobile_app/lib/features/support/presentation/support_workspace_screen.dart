@@ -24,7 +24,7 @@ class SupportWorkspaceScreen extends ConsumerWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(isManager ? 'لوحة مدير الدعم' : 'لوحة الدعم'),
+          title: Text(isManager ? 'لوحة مدير الدعم' : 'لوحة موظف الدعم'),
           actions: [
             IconButton(
                 onPressed: () => ref.invalidate(_supportSummaryProvider),

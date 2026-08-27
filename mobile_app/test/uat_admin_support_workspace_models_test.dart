@@ -11,7 +11,12 @@ void main() {
     final admin = AdminDashboardSummary.fromJson({
       'users': {'total': 14, 'active': 11},
       'listings': {'pending_review': 3, 'published': 25},
-      'support': {'open': 4, 'reports_open': 2, 'overdue': 1},
+      'support': {
+        'open': 4,
+        'tickets_open': 2,
+        'reports_open': 2,
+        'overdue': 1
+      },
       'bookings': {'requested': 2, 'active': 5},
       'broker_kyc_pending': 1,
       'payments_pending': 2,
@@ -26,6 +31,8 @@ void main() {
     });
     expect(admin.usersTotal, 14);
     expect(admin.pendingListings, 3);
+    expect(admin.supportTicketsOpen, 2);
+    expect(admin.reportsOpen, 2);
     expect(admin.alerts.single.route, '/admin/listing-review');
 
     final support = SupportAdminSummary.fromJson({

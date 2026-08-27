@@ -250,6 +250,9 @@ class _ReviewDetailsDialog extends ConsumerWidget {
                       Text('النوع: ${item.type}'),
                       Text('السعر: ${item.price.toStringAsFixed(0)}'),
                       Text('العنوان: ${item.address}'),
+                      Text(
+                        'الموقع: ${item.latitude.toStringAsFixed(6)}, ${item.longitude.toStringAsFixed(6)}',
+                      ),
                       if (item.areaValue != null || item.areaM2 != null)
                         Text(
                           'المساحة: ${formatPropertyAreaValue(item.areaValue ?? item.areaM2!.toDouble())} ${propertyAreaUnitLabel(item.areaUnit ?? 'sqm')}',

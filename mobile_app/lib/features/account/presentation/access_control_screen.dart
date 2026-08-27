@@ -115,7 +115,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                       children: [
-                        _CurrentAccessCard(user: current),
+                        _CurrentAccessCard(user: current, catalog: _catalog),
                         if (current?.hasPermission('users.view') == true) ...[
                           const SizedBox(height: 18),
                           Text('المستخدمون',
@@ -198,12 +198,24 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                           style: const TextStyle(fontWeight: FontWeight.w900)),
                       Text(user.email,
                           style: Theme.of(context).textTheme.bodySmall),
+                      if ((user.phone ?? '').trim().isNotEmpty)
+                        Text(user.phone!,
+                            style: Theme.of(context).textTheme.bodySmall),
+                      Text(
+                        user.accountType == 'broker'
+                            ? 'نوع الحساب: دلال • التوثيق: ${_brokerStatusLabel(user.brokerVerificationStatus)}'
+                            : 'نوع الحساب: مستخدم عادي',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),
                 _StatusChip(status: user.accountStatus),
               ],
             ),
+            const SizedBox(height: 6),
+            Text('الصلاحيات الفعالة: ${user.permissions.length}',
+                style: Theme.of(context).textTheme.bodySmall),
             if (user.roles.isNotEmpty) ...[
               const SizedBox(height: 10),
               Wrap(
@@ -444,6 +456,14 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
     return key;
   }
 
+  String _brokerStatusLabel(String value) => switch (value) {
+        'approved' => 'موثق',
+        'pending' => 'قيد المراجعة',
+        'rejected' => 'مرفوض',
+        'not_submitted' => 'غير موثق',
+        _ => value,
+      };
+
   String _actionName(String action) => switch (action) {
         'auth.login_succeeded' => 'تسجيل دخول ناجح',
         'auth.login_failed' => 'محاولة دخول فاشلة',
@@ -458,16 +478,30 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
         'regions.governorate_updated' => 'تعديل محافظة',
         'regions.cell_created' => 'إنشاء خلية جغرافية',
         'regions.cell_updated' => 'تعديل خلية جغرافية',
-        'brokers.assignment_created' => 'تعيين دلال لخلية',
-        'brokers.assignment_replaced' => 'استبدال دلال الخلية',
-        'brokers.assignment_ended' => 'إنهاء تعيين دلال',
         _ => action,
       };
 }
 
 class _CurrentAccessCard extends StatelessWidget {
-  const _CurrentAccessCard({required this.user});
+  const _CurrentAccessCard({required this.user, required this.catalog});
   final AuthUser? user;
+  final AccessCatalog? catalog;
+
+  String _roleLabel(String key) {
+    for (final role in catalog?.roles ?? const <AccessRole>[]) {
+      if (role.key == key) return role.nameAr;
+    }
+    return switch (key) {
+      'super_admin' => 'المدير العام',
+      'platform_admin' => 'مدير',
+      'support_manager' => 'مدير الدعم',
+      'support_agent' => 'موظف الدعم',
+      'content_moderator' => 'مشرف المحتوى',
+      'broker' => 'دلال',
+      'registered_user' => 'مستخدم عادي',
+      _ => key,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -482,7 +516,7 @@ class _CurrentAccessCard extends StatelessWidget {
           children: [
             Text(
                 user!.isPlatformOwner
-                    ? 'مالك التطبيق — Super Admin'
+                    ? 'المدير العام / صاحب النظام'
                     : 'صلاحيات حسابك',
                 style: Theme.of(context)
                     .textTheme
@@ -493,7 +527,7 @@ class _CurrentAccessCard extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: user!.roles
-                    .map((role) => Chip(label: Text(role)))
+                    .map((role) => Chip(label: Text(_roleLabel(role))))
                     .toList()),
             const SizedBox(height: 8),
             Text('${user!.permissions.length} صلاحية فعالة',

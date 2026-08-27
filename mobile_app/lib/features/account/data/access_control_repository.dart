@@ -77,7 +77,7 @@ class AccessControlRepository {
         .map((entry) => {
               'permission_key': entry.key,
               'effect': entry.value,
-              'reason': 'Updated from Stage 7 admin console',
+              'reason': 'Updated from admin access control',
             })
         .toList(growable: false);
     await _dio.put<void>(

@@ -124,7 +124,7 @@ class _SupportWorkLogScreenState extends ConsumerState<SupportWorkLogScreen> {
       'support.status_changed': 'تغيير حالة',
       'support.case_assigned': 'إسناد حالة',
       'support.case_reopened': 'إعادة فتح حالة',
-      'conversation.report_content_opened': 'فتح محتوى محادثة مبلّغ عنها',
+      'conversations.private_content_opened': 'فتح محتوى محادثة مبلّغ عنها',
     };
     return labels[action] ?? action;
   }

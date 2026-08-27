@@ -8,8 +8,9 @@ import '../data/support_repository.dart';
 import '../domain/support_models.dart';
 
 class SupportAdminScreen extends ConsumerStatefulWidget {
-  const SupportAdminScreen({super.key, this.initialKind});
+  const SupportAdminScreen({super.key, this.initialKind, this.initialCaseId});
   final String? initialKind;
+  final int? initialCaseId;
 
   @override
   ConsumerState<SupportAdminScreen> createState() => _SupportAdminScreenState();
@@ -24,12 +25,16 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
   String? _status;
   bool _escalatedOnly = false;
   bool _assignedToMe = false;
+  bool _initialCaseOpened = false;
 
   @override
   void initState() {
     super.initState();
     _kind = widget.initialKind;
-    Future.microtask(_load);
+    Future.microtask(() async {
+      await _load();
+      await _openInitialCaseIfNeeded();
+    });
   }
 
   Future<void> _load() async {
@@ -139,6 +144,26 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                     ),
                   ),
       ),
+    );
+  }
+
+  Future<void> _openInitialCaseIfNeeded() async {
+    final caseId = widget.initialCaseId;
+    if (_initialCaseOpened || caseId == null || !mounted) return;
+    _initialCaseOpened = true;
+    final user = ref.read(authControllerProvider).asData?.value;
+    await _openCase(
+      caseId,
+      canReassign: user?.isPlatformOwner == true ||
+          user?.hasPermission('support.reassign') == true,
+      canReopen: user?.isPlatformOwner == true ||
+          user?.hasPermission('support.reopen') == true,
+      canEscalate: user?.isPlatformOwner == true ||
+          user?.hasPermission('support.escalate') == true,
+      canModerate: user?.isPlatformOwner == true ||
+          user?.hasPermission('content.moderate') == true,
+      canReviewListings: user?.isPlatformOwner == true ||
+          user?.hasPermission('listings.moderate') == true,
     );
   }
 

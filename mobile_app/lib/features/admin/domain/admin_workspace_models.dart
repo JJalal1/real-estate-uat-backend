@@ -5,6 +5,7 @@ class AdminDashboardSummary {
     required this.pendingListings,
     required this.publishedListings,
     required this.supportOpen,
+    required this.supportTicketsOpen,
     required this.reportsOpen,
     required this.supportOverdue,
     required this.bookingsRequested,
@@ -19,6 +20,7 @@ class AdminDashboardSummary {
   final int pendingListings;
   final int publishedListings;
   final int supportOpen;
+  final int supportTicketsOpen;
   final int reportsOpen;
   final int supportOverdue;
   final int bookingsRequested;
@@ -32,14 +34,19 @@ class AdminDashboardSummary {
     final listings = _map(json['listings']);
     final support = _map(json['support']);
     final bookings = _map(json['bookings']);
+    final supportOpen = _int(support['open']);
+    final reportsOpen = _int(support['reports_open']);
     final alerts = json['alerts'] as List<dynamic>? ?? const [];
     return AdminDashboardSummary(
       usersTotal: _int(users['total']),
       usersActive: _int(users['active']),
       pendingListings: _int(listings['pending_review']),
       publishedListings: _int(listings['published']),
-      supportOpen: _int(support['open']),
-      reportsOpen: _int(support['reports_open']),
+      supportOpen: supportOpen,
+      supportTicketsOpen: support.containsKey('tickets_open')
+          ? _int(support['tickets_open'])
+          : (supportOpen > reportsOpen ? supportOpen - reportsOpen : 0),
+      reportsOpen: reportsOpen,
       supportOverdue: _int(support['overdue']),
       bookingsRequested: _int(bookings['requested']),
       bookingsActive: _int(bookings['active']),

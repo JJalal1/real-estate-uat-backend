@@ -20,8 +20,12 @@ class UatAdminSupportWorkspaceApiTest extends TestCase
         [$owner,$headers]=$this->user('workspace-owner@example.test','+967733330001');
         app(AccessControlService::class)->bootstrapPlatformOwner($owner);
 
+        $catalog=$this->withHeaders($headers)->getJson('/api/admin/access/catalog')->assertOk();
+        $this->assertSame('المدير العام', collect($catalog->json('data.roles'))->firstWhere('key','super_admin')['name_ar']);
+        $this->assertSame('مشرف المحتوى', collect($catalog->json('data.roles'))->firstWhere('key','content_moderator')['name_ar']);
+
         $this->withHeaders($headers)->getJson('/api/admin/dashboard')
-            ->assertOk()->assertJsonStructure(['data'=>['users','listings','support','bookings','alerts']]);
+            ->assertOk()->assertJsonStructure(['data'=>['users','listings','support'=>['open','tickets_open','reports_open','overdue'],'bookings','alerts']]);
 
         \Illuminate\Support\Facades\DB::table('platform_settings')->insert([
             'key'=>'internal.api_secret','value'=>'must-not-leak','value_type'=>'string','group_key'=>'internal','label_ar'=>'سري',
@@ -43,6 +47,40 @@ class UatAdminSupportWorkspaceApiTest extends TestCase
             'settings'=>[['key'=>'platform.name','value'=>'منصة العقارات اليمنية']],
         ])->assertOk();
         $this->assertDatabaseHas('audit_logs',['actor_user_id'=>$owner->id,'action'=>'platform.settings_updated']);
+    }
+
+    public function test_general_manager_can_turn_a_regular_user_into_a_broker_and_back_by_role_assignment(): void
+    {
+        [$owner,$headers]=$this->user('workspace-owner-role@example.test','+967733330021');
+        app(AccessControlService::class)->bootstrapPlatformOwner($owner);
+        [$target]=$this->user('workspace-role-target@example.test','+967733330022');
+
+        $this->assertSame(User::ACCOUNT_TYPE_REGULAR,$target->account_type);
+
+        $this->withHeaders($headers)->putJson('/api/admin/access/users/'.$target->id.'/roles',[
+            'role_keys'=>['broker'],
+        ])->assertOk();
+
+        $target=$target->fresh();
+        $this->assertTrue($target->hasRole('broker'));
+        $this->assertTrue($target->hasRole('registered_user'));
+        $this->assertSame(User::ACCOUNT_TYPE_BROKER,$target->account_type);
+        $this->assertSame(User::BROKER_VERIFICATION_NOT_SUBMITTED,$target->broker_verification_status);
+
+        $this->withHeaders($headers)->putJson('/api/admin/access/users/'.$target->id.'/roles',[
+            'role_keys'=>[],
+        ])->assertOk();
+
+        $target=$target->fresh();
+        $this->assertFalse($target->hasRole('broker'));
+        $this->assertTrue($target->hasRole('registered_user'));
+        $this->assertSame(User::ACCOUNT_TYPE_REGULAR,$target->account_type);
+        $this->assertSame(User::BROKER_VERIFICATION_NOT_REQUIRED,$target->broker_verification_status);
+        $this->assertDatabaseHas('audit_logs',[
+            'actor_user_id'=>$owner->id,
+            'action'=>'access.roles_changed',
+            'subject_id'=>$target->id,
+        ]);
     }
 
     public function test_support_agent_can_work_cases_but_cannot_grant_roles_reassign_or_open_system_settings(): void

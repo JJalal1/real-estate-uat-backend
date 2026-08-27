@@ -143,7 +143,7 @@ class AccountScreen extends ConsumerWidget {
                     onPressed: () => context.push('/admin/dashboard'),
                     icon: const Icon(Icons.dashboard_customize_outlined),
                     label: Text(user.isPlatformOwner
-                        ? 'لوحة صاحب النظام'
+                        ? 'لوحة المدير العام / صاحب النظام'
                         : 'لوحة إدارة النظام'),
                   ),
                 ],
@@ -154,7 +154,7 @@ class AccountScreen extends ConsumerWidget {
                     icon: const Icon(Icons.support_agent_outlined),
                     label: Text(user.hasPermission('support.view_team_metrics')
                         ? 'لوحة مدير الدعم'
-                        : 'لوحة الدعم'),
+                        : 'لوحة موظف الدعم'),
                   ),
                 ],
                 const SizedBox(height: 8),

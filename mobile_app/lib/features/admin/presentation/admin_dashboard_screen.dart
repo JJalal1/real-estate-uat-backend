@@ -24,8 +24,8 @@ class AdminDashboardScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: Text(user?.isPlatformOwner == true
-              ? 'لوحة صاحب النظام'
-              : 'لوحة الإدارة'),
+              ? 'لوحة المدير العام / صاحب النظام'
+              : 'لوحة إدارة النظام'),
           actions: [
             IconButton(
                 onPressed: () => ref.invalidate(_adminDashboardProvider),
@@ -105,20 +105,20 @@ class _SummaryGrid extends StatelessWidget {
         visible: _can('listings.moderate')
       ),
       (
-        label: 'الدعم المفتوح',
-        value: summary.supportOpen,
+        label: 'طلبات دعم مفتوحة',
+        value: summary.supportTicketsOpen,
         icon: Icons.support_agent_outlined,
         visible: _can('support.handle_reports')
       ),
       (
-        label: 'البلاغات',
+        label: 'بلاغات مفتوحة',
         value: summary.reportsOpen,
         icon: Icons.report_outlined,
         visible: _can('support.handle_reports')
       ),
       (
-        label: 'الحجوزات النشطة',
-        value: summary.bookingsActive,
+        label: 'طلبات معاينة تنتظر الإجراء',
+        value: summary.bookingsRequested,
         icon: Icons.event_available_outlined,
         visible: _can('bookings.manage')
       ),
