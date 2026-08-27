@@ -1,0 +1,115 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/network/api_error_message.dart';
+import '../data/message_repository.dart';
+import '../domain/message_models.dart';
+import 'conversation_screen.dart';
+
+class NotificationsScreen extends ConsumerStatefulWidget {
+  const NotificationsScreen({super.key});
+  @override
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  bool _loading = true;
+  String? _error;
+  List<AppNotificationItem> _items = const [];
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_load);
+  }
+
+  Future<void> _load() async {
+    try {
+      final items = await ref.read(messageRepositoryProvider).notifications();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _items = items;
+        _loading = false;
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _error = friendlyApiError(error);
+      });
+    }
+  }
+
+  Future<void> _readAll() async {
+    await ref.read(messageRepositoryProvider).readAllNotifications();
+    await _load();
+  }
+
+  Future<void> _open(AppNotificationItem item) async {
+    if (!item.isRead) {
+      await ref.read(messageRepositoryProvider).readNotification(item.id);
+    }
+    if (!mounted) {
+      return;
+    }
+    if (item.entityType == 'message_thread' && item.entityId != null) {
+      await Navigator.of(context).push<void>(MaterialPageRoute<void>(
+          builder: (_) => ConversationScreen(threadId: item.entityId!)));
+    }
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('الإشعارات'), actions: [
+          TextButton(
+              onPressed: _items.any((e) => !e.isRead) ? _readAll : null,
+              child: const Text('قراءة الكل'))
+        ]),
+        body: RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (_loading)
+                    const Padding(
+                        padding: EdgeInsets.all(36),
+                        child: Center(child: CircularProgressIndicator()))
+                  else if (_error != null)
+                    Card(
+                        child: Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: Text(_error!)))
+                  else if (_items.isEmpty)
+                    const Card(
+                        child: Padding(
+                            padding: EdgeInsets.all(22),
+                            child: Text('لا توجد إشعارات بعد.')))
+                  else
+                    ..._items.map((item) => Card(
+                            child: ListTile(
+                          leading: Icon(item.isRead
+                              ? Icons.notifications_none
+                              : Icons.notifications_active_outlined),
+                          title: Text(item.title,
+                              style: TextStyle(
+                                  fontWeight: item.isRead
+                                      ? FontWeight.w600
+                                      : FontWeight.w900)),
+                          subtitle: item.body == null ? null : Text(item.body!),
+                          onTap: () => _open(item),
+                        ))),
+                ])),
+      ),
+    );
+  }
+}
