@@ -15,18 +15,8 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   @override
   Future<AuthUser?> build() => _repository.restoreSession();
 
-  Future<WhatsAppAuthPending> startWhatsApp({
-    required String intent,
-    required String accountType,
-    String? name,
-    required String phone,
-  }) async {
-    final pending = await _repository.startWhatsApp(
-      intent: intent,
-      accountType: accountType,
-      name: name,
-      phone: phone,
-    );
+  Future<WhatsAppAuthPending> startWhatsApp({required String phone}) async {
+    final pending = await _repository.startWhatsApp(phone: phone);
     ref.read(whatsAppAuthPendingProvider.notifier).state = pending;
     return pending;
   }
@@ -76,6 +66,10 @@ class AuthController extends AsyncNotifier<AuthUser?> {
 
   Future<void> verifyPhone(String code) async {
     state = AsyncData(await _repository.verifyPhone(code));
+  }
+
+  Future<void> completeProfile(String name) async {
+    state = AsyncData(await _repository.completeProfile(name));
   }
 
   Future<void> updateProfile({

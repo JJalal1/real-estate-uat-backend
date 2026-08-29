@@ -3,6 +3,7 @@ package com.example.real_estate_mobile
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -10,6 +11,7 @@ import android.util.Base64
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
 import java.security.KeyStore
@@ -23,6 +25,7 @@ class MainActivity : FlutterActivity() {
         private const val MEDIA_CHANNEL = "real_estate/media"
         private const val SECURE_CHANNEL = "real_estate/secure_store"
         private const val PICK_IMAGES_REQUEST = 7419
+        private const val TAKE_PHOTO_REQUEST = 7420
         private const val MAX_IMAGES = 12
         private const val KEY_ALIAS = "real_estate_stage6_auth_key"
         private const val PREFS_NAME = "real_estate_stage6_secure"
@@ -31,6 +34,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private var pendingResult: MethodChannel.Result? = null
+    private var pendingCameraFile: File? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -39,6 +43,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "pickImages" -> openImagePicker(result)
+                    "takePhoto" -> openCamera(result)
                     "clearTemporaryFiles" -> clearTemporaryFiles(call.arguments, result)
                     else -> result.notImplemented()
                 }
@@ -147,10 +152,58 @@ class MainActivity : FlutterActivity() {
         startActivityForResult(intent, PICK_IMAGES_REQUEST)
     }
 
+    private fun openCamera(result: MethodChannel.Result) {
+        if (pendingResult != null) {
+            result.error("PICKER_BUSY", "The media picker is already open.", null)
+            return
+        }
+
+        val directory = File(cacheDir, "stage5_uploads")
+        if (!directory.exists() && !directory.mkdirs()) {
+            result.error("CAMERA_CACHE_FAILED", "Unable to prepare the temporary camera folder.", null)
+            return
+        }
+
+        val output = File(directory, "selfie_${System.currentTimeMillis()}.jpg")
+        val uri = try {
+            FileProvider.getUriForFile(this, "$packageName.fileprovider", output)
+        } catch (error: Exception) {
+            result.error("CAMERA_FILE_FAILED", error.message, null)
+            return
+        }
+
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+        if (intent.resolveActivity(packageManager) == null) {
+            output.delete()
+            result.error("CAMERA_UNAVAILABLE", "No camera application is available.", null)
+            return
+        }
+
+        pendingResult = result
+        pendingCameraFile = output
+        try {
+            startActivityForResult(intent, TAKE_PHOTO_REQUEST)
+        } catch (error: Exception) {
+            pendingResult = null
+            pendingCameraFile = null
+            output.delete()
+            result.error("CAMERA_OPEN_FAILED", error.message, null)
+        }
+    }
+
     @Deprecated("Deprecated in Android SDK but required by the current FlutterActivity API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != PICK_IMAGES_REQUEST) return
+        when (requestCode) {
+            PICK_IMAGES_REQUEST -> handleImagePickerResult(resultCode, data)
+            TAKE_PHOTO_REQUEST -> handleCameraResult(resultCode)
+        }
+    }
+
+    private fun handleImagePickerResult(resultCode: Int, data: Intent?) {
         val result = pendingResult
         pendingResult = null
         if (result == null) return
@@ -172,6 +225,23 @@ class MainActivity : FlutterActivity() {
         } catch (error: Exception) {
             result.error("PICKER_COPY_FAILED", error.message, null)
         }
+    }
+
+    private fun handleCameraResult(resultCode: Int) {
+        val result = pendingResult
+        val output = pendingCameraFile
+        pendingResult = null
+        pendingCameraFile = null
+        if (result == null) {
+            if (resultCode != Activity.RESULT_OK) output?.delete()
+            return
+        }
+        if (resultCode != Activity.RESULT_OK || output == null || !output.isFile || output.length() <= 0) {
+            output?.delete()
+            result.success(null)
+            return
+        }
+        result.success(output.absolutePath)
     }
 
     private fun copyUriToCache(uri: Uri, index: Int): String {

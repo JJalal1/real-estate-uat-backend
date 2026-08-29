@@ -53,10 +53,59 @@ class ListingReviewController extends Controller
 
     private function data(Property $p,bool $full): array
     {
-        $p->loadMissing(['user','propertyAsset','documents','images']);$block=$p->propertyAsset?->publicationBlocks()->where('purpose',$p->purpose)->where('is_active',true)->latest('id')->first();
-        $data=['id'=>$p->id,'title'=>$p->title,'purpose'=>$p->purpose,'type'=>$p->type,'price'=>(float)$p->price,'status'=>$p->status,'review_status'=>$p->review_status,'submitted_at'=>$p->submitted_at?->toIso8601String(),'published_at'=>$p->published_at?->toIso8601String(),'last_review_reason'=>$p->last_review_reason,'owner'=>['id'=>$p->user?->id,'name'=>$p->user?->name,'email'=>$p->user?->email,'phone'=>$p->user?->phone],'property_asset'=>['id'=>$p->propertyAsset?->id,'identity_hash'=>$p->propertyAsset?->identity_hash,'latitude'=>$p->propertyAsset?->canonical_latitude,'longitude'=>$p->propertyAsset?->canonical_longitude],'images'=>$p->images->map(fn($image)=>['id'=>$image->id,'url'=>'/api/property-media/'.$image->id,'is_primary'=>(bool)$image->is_primary,'sort_order'=>(int)$image->sort_order])->values(),'proof_documents'=>$p->documents->map(fn($d)=>['id'=>$d->id,'kind'=>$d->kind,'original_name'=>$d->original_name,'mime_type'=>$d->mime_type,'size_bytes'=>$d->size_bytes,'url'=>'/api/listing-documents/'.$d->id])->values(),'active_publication_block'=>$block?$this->blockData($block):null,'broker_verification'=>['required'=>false,'approval_allowed'=>true,'reason'=>'broker_region_verification_retired','geo_cell_id'=>null,'geo_cell_name'=>null,'broker'=>null,'latest'=>null]];
+        $p->loadMissing(['user.accountVerificationProfile.documents','propertyAsset','documents','images']);$block=$p->propertyAsset?->publicationBlocks()->where('purpose',$p->purpose)->where('is_active',true)->latest('id')->first();
+        $profile=$p->user?->accountVerificationProfile;
+        $data=[
+            'id'=>$p->id,
+            'title'=>$p->title,
+            'purpose'=>$p->purpose,
+            'type'=>$p->type,
+            'price'=>(float)$p->price,
+            'status'=>$p->status,
+            'review_status'=>$p->review_status,
+            'submitted_at'=>$p->submitted_at?->toIso8601String(),
+            'published_at'=>$p->published_at?->toIso8601String(),
+            'last_review_reason'=>$p->last_review_reason,
+            'owner'=>[
+                'id'=>$p->user?->id,
+                'name'=>$p->user?->name,
+                'email'=>$p->user?->email,
+                'phone'=>$p->user?->phone,
+                'verification_type'=>$profile?->type,
+                'verification_status'=>$profile?->status ?? 'not_submitted',
+                'identity_reviewed'=>$profile?->isApproved() === true,
+            ],
+            'ownership_relationship'=>[
+                'document_type'=>$p->ownership_document_type,
+                'document_owner_name'=>$p->document_owner_name,
+                'relationship_type'=>$p->owner_relationship_type,
+                'relationship_note'=>$p->owner_relationship_note,
+                'name_matches_account'=>$p->document_owner_name !== null && $p->user !== null
+                    ? $this->normalizedName($p->document_owner_name) === $this->normalizedName($p->user->name)
+                    : null,
+                'document_present'=>$p->documents->contains(fn($d)=>$d->kind==='ownership_proof'),
+            ],
+            'property_asset'=>[
+                'id'=>$p->propertyAsset?->id,
+                'identity_hash'=>$p->propertyAsset?->identity_hash,
+                'latitude'=>$p->propertyAsset?->canonical_latitude,
+                'longitude'=>$p->propertyAsset?->canonical_longitude,
+            ],
+            'images'=>$p->images->map(fn($image)=>['id'=>$image->id,'url'=>'/api/property-media/'.$image->id,'is_primary'=>(bool)$image->is_primary,'sort_order'=>(int)$image->sort_order])->values(),
+            'proof_documents'=>$p->documents->map(fn($d)=>['id'=>$d->id,'kind'=>$d->kind,'original_name'=>$d->original_name,'mime_type'=>$d->mime_type,'size_bytes'=>$d->size_bytes,'url'=>'/api/listing-documents/'.$d->id])->values(),
+            'active_publication_block'=>$block?$this->blockData($block):null,
+            'broker_verification'=>['required'=>false,'approval_allowed'=>true,'reason'=>'broker_region_verification_retired','geo_cell_id'=>null,'geo_cell_name'=>null,'broker'=>null,'latest'=>null],
+        ];
         if($full){$p->loadMissing('reviews.actor');$data['review_history']=$p->reviews->map(fn($r)=>['id'=>$r->id,'action'=>$r->action,'from'=>$r->from_review_status,'to'=>$r->to_review_status,'reason'=>$r->reason,'actor_name'=>$r->actor?->name,'created_at'=>$r->created_at?->toIso8601String()])->values();$data['address']=$p->address;$data['latitude']=(float)$p->latitude;$data['longitude']=(float)$p->longitude;$data['description']=$p->description;$data['area_m2']=$p->area_m2;$data['area_value']=$p->area_value!==null?(float)$p->area_value:null;$data['area_unit']=$p->area_unit;$data['bedrooms']=$p->bedrooms;$data['bathrooms']=$p->bathrooms;$data['has_parking']=$p->has_parking;$data['building_facade']=$p->building_facade;}
         return $data;
     }
+    private function normalizedName(?string $value): string
+    {
+        $text=mb_strtolower(trim((string)$value));
+        $text=preg_replace('/[\x{064B}-\x{065F}\x{0670}\x{0640}]/u','',$text)??$text;
+        $text=strtr($text,['أ'=>'ا','إ'=>'ا','آ'=>'ا','ى'=>'ي','ؤ'=>'و','ئ'=>'ي','ة'=>'ه']);
+        return preg_replace('/\s+/u',' ',$text)??$text;
+    }
+
     private function blockData(PropertyPublicationBlock $b): array {return ['id'=>$b->id,'property_asset_id'=>$b->property_asset_id,'purpose'=>$b->purpose,'is_active'=>(bool)$b->is_active,'reason'=>$b->reason,'blocked_by_user_id'=>$b->blocked_by_user_id,'blocked_at'=>$b->blocked_at?->toIso8601String(),'lifted_by_user_id'=>$b->lifted_by_user_id,'lifted_reason'=>$b->lifted_reason,'lifted_at'=>$b->lifted_at?->toIso8601String()];}
 }

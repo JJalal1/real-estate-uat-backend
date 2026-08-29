@@ -93,19 +93,41 @@ class AdvertiserCommunitySummary {
     required this.name,
     required this.ratingAverage,
     required this.ratingCount,
+    this.verificationType,
+    this.verificationLabel = 'معلن',
+    this.verificationStatus = 'not_submitted',
+    this.verificationFlags = const <String, bool>{},
   });
 
   final int id;
   final String name;
   final double ratingAverage;
   final int ratingCount;
+  final String? verificationType;
+  final String verificationLabel;
+  final String verificationStatus;
+  final Map<String, bool> verificationFlags;
+
+  bool verificationFlag(String key) => verificationFlags[key] == true;
 
   factory AdvertiserCommunitySummary.fromJson(Map<String, dynamic> json) {
+    final rawFlags = json['verification_flags'];
+    final flags = <String, bool>{};
+    if (rawFlags is Map) {
+      for (final entry in rawFlags.entries) {
+        flags[entry.key.toString()] = entry.value == true || entry.value == 1;
+      }
+    }
     return AdvertiserCommunitySummary(
       id: _asInt(json['id']) ?? 0,
       name: json['name']?.toString() ?? 'المعلن',
       ratingAverage: _asDouble(json['rating_average']) ?? 0,
       ratingCount: _asInt(json['rating_count']) ?? 0,
+      verificationType: _nullableString(json['verification_type']),
+      verificationLabel: json['verification_label']?.toString() ?? 'معلن',
+      verificationStatus:
+          json['verification_status']?.toString() ?? 'not_submitted',
+      verificationFlags: Map.unmodifiable(flags),
     );
   }
 }
@@ -140,6 +162,11 @@ class PropertyDetails {
     this.contactPhone,
     this.contactWhatsapp,
     this.isOwner = false,
+    this.ownershipDocumentType,
+    this.documentOwnerName,
+    this.ownerRelationshipType,
+    this.ownerRelationshipNote,
+    this.ownershipProofPresent = false,
     this.advertiser,
     this.commentsCount = 0,
     this.similar = const <PropertySummary>[],
@@ -172,6 +199,11 @@ class PropertyDetails {
   final String? contactPhone;
   final String? contactWhatsapp;
   final bool isOwner;
+  final String? ownershipDocumentType;
+  final String? documentOwnerName;
+  final String? ownerRelationshipType;
+  final String? ownerRelationshipNote;
+  final bool ownershipProofPresent;
   final AdvertiserCommunitySummary? advertiser;
   final int commentsCount;
   final List<PropertyImageItem> images;
@@ -227,6 +259,12 @@ class PropertyDetails {
       contactPhone: _nullableString(json['contact_phone']),
       contactWhatsapp: _nullableString(json['contact_whatsapp']),
       isOwner: json['is_owner'] == true || json['is_owner'] == 1,
+      ownershipDocumentType: _nullableString(json['ownership_document_type']),
+      documentOwnerName: _nullableString(json['document_owner_name']),
+      ownerRelationshipType: _nullableString(json['owner_relationship_type']),
+      ownerRelationshipNote: _nullableString(json['owner_relationship_note']),
+      ownershipProofPresent: json['ownership_proof_present'] == true ||
+          json['ownership_proof_present'] == 1,
       advertiser: json['advertiser'] is Map<String, dynamic>
           ? AdvertiserCommunitySummary.fromJson(
               json['advertiser'] as Map<String, dynamic>,
@@ -289,6 +327,10 @@ class PropertyListingInput {
     this.address,
     this.contactPhone,
     this.contactWhatsapp,
+    this.ownershipDocumentType,
+    this.documentOwnerName,
+    this.ownerRelationshipType,
+    this.ownerRelationshipNote,
   });
 
   final String title;
@@ -309,6 +351,10 @@ class PropertyListingInput {
   final double longitude;
   final String? contactPhone;
   final String? contactWhatsapp;
+  final String? ownershipDocumentType;
+  final String? documentOwnerName;
+  final String? ownerRelationshipType;
+  final String? ownerRelationshipNote;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -337,6 +383,15 @@ class PropertyListingInput {
       'longitude': longitude,
       'contact_phone': contactPhone?.trim() ?? '',
       'contact_whatsapp': contactWhatsapp?.trim() ?? '',
+      if (ownershipDocumentType != null && ownershipDocumentType!.isNotEmpty)
+        'ownership_document_type': ownershipDocumentType,
+      if (documentOwnerName != null && documentOwnerName!.trim().isNotEmpty)
+        'document_owner_name': documentOwnerName!.trim(),
+      if (ownerRelationshipType != null && ownerRelationshipType!.isNotEmpty)
+        'owner_relationship_type': ownerRelationshipType,
+      if (ownerRelationshipNote != null &&
+          ownerRelationshipNote!.trim().isNotEmpty)
+        'owner_relationship_note': ownerRelationshipNote!.trim(),
     };
   }
 }

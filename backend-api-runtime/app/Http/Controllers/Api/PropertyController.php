@@ -326,6 +326,10 @@ class PropertyController extends Controller
             'longitude' => array_merge($required, ['numeric', 'between:-180,180']),
             'contact_phone' => ['nullable', 'string', 'max:32'],
             'contact_whatsapp' => ['nullable', 'string', 'max:32'],
+            'ownership_document_type' => ['nullable', 'string', Rule::in(['purchase_deed','registry_record','partition_deed','court_judgment','inheritance_document','ownership_contract','other'])],
+            'document_owner_name' => ['nullable', 'string', 'max:160'],
+            'owner_relationship_type' => ['nullable', 'string', Rule::in(['owner','agent','heir','co_owner','other'])],
+            'owner_relationship_note' => ['nullable', 'string', 'max:255'],
             'replace_images' => ['nullable', 'boolean'],
             'images' => ['nullable', 'array', 'max:12'],
             'images.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
@@ -344,6 +348,7 @@ class PropertyController extends Controller
             'title', 'description', 'purpose', 'type', 'price', 'currency',
             'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude',
             'contact_phone', 'contact_whatsapp',
+            'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note',
         ];
 
         $payload = [];
@@ -469,6 +474,10 @@ class PropertyController extends Controller
             'longitude' => $property->longitude,
             'contact_phone' => $property->contact_phone,
             'contact_whatsapp' => $property->contact_whatsapp,
+            'ownership_document_type' => $property->ownership_document_type,
+            'document_owner_name' => $property->document_owner_name,
+            'owner_relationship_type' => $property->owner_relationship_type,
+            'owner_relationship_note' => $property->owner_relationship_note,
         ];
     }
 
@@ -647,6 +656,22 @@ class PropertyController extends Controller
 
     private function assertAdvertiserCanCreateDraft(User $user): void
     {
+        $profile = $user->verificationProfile();
+        if ($profile) {
+            if (! $profile->isApproved()) {
+                throw new ConflictHttpException('طلب نوع الحساب ما زال غير معتمد. أكمل التحقق قبل إنشاء إعلان جديد.');
+            }
+            return;
+        }
+
+        // Current WhatsApp UAT accounts must choose and verify a publishing
+        // identity (owner/broker/office). A base researcher/browser/buyer account
+        // can browse and buy, but cannot bypass verification by calling the API.
+        if ((int) $user->identity_policy_version >= 1) {
+            throw new ConflictHttpException('اختر نوع الحساب من حسابي وأكمل التحقق قبل إنشاء إعلان جديد.');
+        }
+
+        // Historical local/test compatibility only.
         if ($user->isBrokerAccount() && ! $user->isBrokerVerified()) {
             throw new ConflictHttpException('يجب توثيق حساب الدلال من فريق الدعم قبل رفع إعلان.');
         }
@@ -703,13 +728,13 @@ class PropertyController extends Controller
 
     private function detailData(Property $property, Request $request): array
     {
-        $property->loadMissing(['images','user']);
+        $property->loadMissing(['images','user.accountVerificationProfile.documents']);
         $ratingQuery=AdvertiserRating::query()->where('advertiser_user_id',$property->user_id)->where('status','visible');
         $ratingCount=(clone $ratingQuery)->count();
         $ratingAverage=$ratingCount>0?round((float)(clone $ratingQuery)->avg('rating'),2):0.0;
         $commentCount=ListingComment::query()->where('property_id',$property->id)->where('status','visible')->count();
 
-        return array_merge($this->summaryData($property, $request), [
+        $data = array_merge($this->summaryData($property, $request), [
             'description' => $property->description,
             'contact_phone' => $property->contact_phone,
             'contact_whatsapp' => $property->contact_whatsapp,
@@ -717,12 +742,12 @@ class PropertyController extends Controller
             'proof_document_count' => $property->documents()->count(),
             'can_submit' => in_array($property->review_status, ['draft','returned_for_correction'], true),
             'can_edit' => ! in_array($property->review_status, ['submitted','under_review','rejected_blocked'], true),
-            'advertiser' => [
+            'advertiser' => array_merge([
                 'id'=>(int)$property->user_id,
-                'name'=>$property->user?->name ?? 'Advertiser',
+                'name'=>$this->advertiserDisplayName($property->user),
                 'rating_average'=>$ratingAverage,
                 'rating_count'=>$ratingCount,
-            ],
+            ], $this->advertiserVerificationData($property)),
             'community' => ['comments_count'=>$commentCount],
             'images' => $property->images
                 ->map(fn (PropertyImage $image) => [
@@ -733,6 +758,72 @@ class PropertyController extends Controller
                 ])
                 ->values(),
         ]);
+
+        $viewer = $this->tokens->authenticate($request, false);
+        if ($viewer !== null && (int) $viewer->id === (int) $property->user_id) {
+            $data['ownership_document_type'] = $property->ownership_document_type;
+            $data['document_owner_name'] = $property->document_owner_name;
+            $data['owner_relationship_type'] = $property->owner_relationship_type;
+            $data['owner_relationship_note'] = $property->owner_relationship_note;
+            $data['ownership_proof_present'] = $property->documents()->where('kind', 'ownership_proof')->exists();
+        }
+        return $data;
+    }
+
+    private function advertiserDisplayName(?User $user): string
+    {
+        if (! $user) return 'Advertiser';
+        $profile = $user->accountVerificationProfile;
+        if ($profile?->isApproved() && $profile->type === 'office') {
+            $officeName = trim((string) (($profile->details ?? [])['office_name'] ?? ''));
+            if ($officeName !== '') return $officeName;
+        }
+        return $user->name;
+    }
+
+    private function advertiserVerificationData(Property $property): array
+    {
+        $profile = $property->user?->accountVerificationProfile;
+        if (! $profile || ! $profile->isApproved()) {
+            return [
+                'verification_type' => null,
+                'verification_label' => 'معلن',
+                'verification_status' => $profile?->status ?? 'not_submitted',
+                'verification_flags' => [
+                    'identity_reviewed' => false,
+                    'relationship_document_reviewed' => false,
+                    'professional_document_reviewed' => false,
+                    'commercial_register_reviewed' => false,
+                    'office_documents_reviewed' => false,
+                    'office_location_registered' => false,
+                ],
+            ];
+        }
+
+        $kinds = $profile->documents->pluck('kind');
+        $details = $profile->details ?? [];
+        $professional = $profile->type === 'broker' && $kinds->contains('professional_license');
+        $label = match ($profile->type) {
+            'owner' => 'مالك العقار',
+            'broker' => $professional ? 'دلال مهني' : 'دلال',
+            'office' => 'مكتب عقاري',
+            default => 'معلن',
+        };
+        return [
+            'verification_type' => $profile->type,
+            'verification_label' => $label,
+            'verification_status' => $profile->status,
+            'verification_flags' => [
+                'identity_reviewed' => true,
+                'relationship_document_reviewed' => $profile->type === 'owner'
+                    && $property->status === 'published'
+                    && $property->documents()->where('kind', 'ownership_proof')->exists(),
+                'professional_document_reviewed' => $professional,
+                'commercial_register_reviewed' => $profile->type === 'office' && $kinds->contains('commercial_register'),
+                'office_documents_reviewed' => $profile->type === 'office' && $kinds->contains('office_license'),
+                'office_location_registered' => $profile->type === 'office' && isset($details['latitude'], $details['longitude']),
+            ],
+        ];
     }
 
     private function imageUrl(PropertyImage $image, Request $request): string

@@ -51,16 +51,24 @@ class Stage6AuthGate extends ConsumerWidget {
                 onPressed: () => context.push('/verify-phone'),
               );
             }
-            if (requireListingEligible &&
-                user.isBroker &&
-                !user.isBrokerVerified) {
+            if (requireListingEligible && user.needsProfileCompletion) {
+              return _GateMessage(
+                icon: Icons.person_edit_outlined,
+                title: 'أكمل الاسم الرباعي أولاً',
+                message:
+                    'أكمل بيانات الحساب الأساسية قبل اختيار نوع الحساب وبدء إجراءات النشر.',
+                button: 'إكمال البيانات',
+                onPressed: () => context.push('/complete-profile'),
+              );
+            }
+            if (requireListingEligible && !user.hasVerifiedPublishingProfile) {
               return _GateMessage(
                 icon: Icons.badge_outlined,
-                title: 'توثيق حساب الدلال مطلوب',
+                title: 'توثيق نوع الحساب مطلوب',
                 message:
-                    'يمكنك تصفح الإعلانات الآن، لكن رفع إعلان يتطلب موافقة فريق الدعم على صورة البطاقة الأمامية والخلفية وصورة السلفي.',
-                button: 'إرسال بيانات التوثيق',
-                onPressed: () => context.push('/broker/account-verification'),
+                    'للنشر اختر من حسابي نوع الحساب: مالك أو دلال أو مكتب عقارات، ثم أرسل مستندات التحقق وانتظر اعتماد فريق التحقق.',
+                button: 'اختيار نوع الحساب والتحقق',
+                onPressed: () => context.push('/account-verification'),
               );
             }
             return child;

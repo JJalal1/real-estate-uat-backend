@@ -24,10 +24,12 @@ class PropertyLocationPickerScreen extends StatefulWidget {
     this.initialLatitude,
     this.initialLongitude,
     this.reverseLookup,
+    this.title = 'تحديد موقع العقار',
   });
 
   final double? initialLatitude;
   final double? initialLongitude;
+  final String title;
   final Future<PropertyLocationAddress> Function(
     double latitude,
     double longitude,
@@ -228,7 +230,7 @@ class _PropertyLocationPickerScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('تحديد موقع العقار'),
+          title: Text(widget.title),
           centerTitle: true,
         ),
         body: LayoutBuilder(

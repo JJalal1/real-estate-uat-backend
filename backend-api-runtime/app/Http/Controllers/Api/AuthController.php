@@ -2,6 +2,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AccountVerificationProfile;
 use App\Models\User;
 use App\Models\VerificationChallenge;
 use App\Services\AccessControlService;
@@ -32,8 +33,8 @@ class AuthController extends Controller
     public function register(Request $request): JsonResponse
     {
         // Legacy email/password registration remains available only to the local/test
-        // regression harness. Production account creation must use the two explicit
-        // WhatsApp account types so the KYC/ownership policy cannot be bypassed.
+        // regression harness. Current account creation uses the unified WhatsApp flow;
+        // publishing identity is selected later through account verification.
         abort_unless(app()->environment('local', 'testing'), 410, 'Legacy registration is retired. Use WhatsApp registration.');
         $this->normalizeIdentityInput($request);
         $v = $request->validate([
@@ -79,17 +80,37 @@ class AuthController extends Controller
     {
         $this->normalizeIdentityInput($request);
         $v = $request->validate([
-            'intent'=>['required',Rule::in(['register','login'])],
-            'account_type'=>['required',Rule::in([User::ACCOUNT_TYPE_REGULAR,User::ACCOUNT_TYPE_BROKER])],
+            'intent'=>['required',Rule::in(['continue','register','login'])],
+            'account_type'=>['nullable',Rule::in([User::ACCOUNT_TYPE_REGULAR,User::ACCOUNT_TYPE_BROKER])],
             'name'=>['nullable','string','max:120'],
             'phone'=>['required','string','max:32','regex:/^\+?[0-9]{7,20}$/'],
         ]);
         $intent=(string)$v['intent'];
-        $accountType=(string)$v['account_type'];
         $phone=$this->normalizePhone((string)$v['phone']);
+        $accountType=(string)($v['account_type'] ?? User::ACCOUNT_TYPE_REGULAR);
         $createdNow=false;
 
-        if($intent==='register'){
+        if($intent==='continue'){
+            $user=User::query()->where('phone',$phone)->first();
+            if(!$user){
+                $createdNow=true;
+                $user=DB::transaction(function()use($phone){
+                    $user=User::query()->create([
+                        'name'=>'مستخدم جديد',
+                        'email'=>$this->phoneOnlyPlaceholderEmail($phone),
+                        'phone'=>$phone,
+                        'password'=>Hash::make(Str::random(64)),
+                        'account_type'=>User::ACCOUNT_TYPE_REGULAR,
+                        'identity_policy_version'=>2,
+                        'account_status'=>User::STATUS_PENDING_VERIFICATION,
+                        'broker_verification_status'=>User::BROKER_VERIFICATION_NOT_REQUIRED,
+                        'profile_completed_at'=>null,
+                    ]);
+                    $this->access->ensureRegisteredUser($user);
+                    return $user;
+                });
+            }
+        }elseif($intent==='register'){
             $name=trim((string)($v['name']??''));
             $this->validateFullName($name,$accountType);
             $user=User::query()->where('phone',$phone)->first();
@@ -100,7 +121,7 @@ class AuthController extends Controller
                 if($user->phone_verified_at!==null){
                     throw ValidationException::withMessages(['phone'=>['هذا الرقم مسجل مسبقاً. اختر تسجيل الدخول.']]);
                 }
-                $user->forceFill(['name'=>$name,'identity_policy_version'=>1])->save();
+                $user->forceFill(['name'=>$name,'identity_policy_version'=>1,'profile_completed_at'=>now()])->save();
             }else{
                 $user=DB::transaction(function()use($name,$phone,$accountType,&$createdNow){
                     $createdNow=true;
@@ -115,6 +136,7 @@ class AuthController extends Controller
                         'broker_verification_status'=>$accountType===User::ACCOUNT_TYPE_BROKER
                             ? User::BROKER_VERIFICATION_NOT_SUBMITTED
                             : User::BROKER_VERIFICATION_NOT_REQUIRED,
+                        'profile_completed_at'=>now(),
                     ]);
                     $this->access->ensureRegisteredUser($user);
                     return $user;
@@ -125,15 +147,16 @@ class AuthController extends Controller
             if(!$user){
                 throw ValidationException::withMessages(['phone'=>['لا يوجد حساب بهذا الرقم. أنشئ حساباً جديداً أولاً.']]);
             }
-            if($user->account_type!==$accountType){
+            if(array_key_exists('account_type',$v) && $user->account_type!==$accountType){
                 throw ValidationException::withMessages(['account_type'=>['نوع الحساب لا يطابق الحساب المسجل لهذا الرقم.']]);
             }
-            if($user->account_status===User::STATUS_SUSPENDED){
-                return response()->json(['message'=>'This account is suspended.','code'=>'ACCOUNT_SUSPENDED'],403);
-            }
-            if($user->account_status===User::STATUS_BANNED){
-                return response()->json(['message'=>'This account is banned.','code'=>'ACCOUNT_BANNED'],403);
-            }
+        }
+
+        if($user->account_status===User::STATUS_SUSPENDED){
+            return response()->json(['message'=>'This account is suspended.','code'=>'ACCOUNT_SUSPENDED'],403);
+        }
+        if($user->account_status===User::STATUS_BANNED){
+            return response()->json(['message'=>'This account is banned.','code'=>'ACCOUNT_BANNED'],403);
         }
 
         try{
@@ -146,15 +169,17 @@ class AuthController extends Controller
             throw $e;
         }
         $this->audit->record($user,'auth.whatsapp_code_requested',$user,[
-            'intent'=>$intent,'account_type'=>$accountType,
+            'intent'=>$intent,
+            'unified_login'=>$intent==='continue',
         ],$request,$user->id);
 
         return response()->json([
             'message'=>'Verification code sent by WhatsApp.',
             'data'=>[
                 'phone'=>$phone,
-                'account_type'=>$accountType,
                 'intent'=>$intent,
+                'account_type'=>$user->account_type,
+                'is_new_account'=>$createdNow,
                 'expires_in_minutes'=>VerificationCodeService::EXPIRES_MINUTES,
                 'debug_code'=>$created['debug_code'],
             ],
@@ -166,13 +191,13 @@ class AuthController extends Controller
         $this->normalizeIdentityInput($request);
         $v=$request->validate([
             'phone'=>['required','string','max:32','regex:/^\+?[0-9]{7,20}$/'],
-            'account_type'=>['required',Rule::in([User::ACCOUNT_TYPE_REGULAR,User::ACCOUNT_TYPE_BROKER])],
+            'account_type'=>['nullable',Rule::in([User::ACCOUNT_TYPE_REGULAR,User::ACCOUNT_TYPE_BROKER])],
             'code'=>['required','digits:6'],
             'legacy_owner_key'=>['nullable','string','min:32','max:96'],
         ]);
         $phone=$this->normalizePhone((string)$v['phone']);
         $user=User::query()->where('phone',$phone)->first();
-        if(!$user || $user->account_type!==(string)$v['account_type']){
+        if(!$user || (array_key_exists('account_type',$v) && $user->account_type!==(string)$v['account_type'])){
             throw ValidationException::withMessages(['code'=>['رمز التحقق غير صالح أو انتهت صلاحيته.']]);
         }
         if($user->account_status===User::STATUS_SUSPENDED){
@@ -192,11 +217,12 @@ class AuthController extends Controller
         $claimed=$this->legacyOwnership->claim($user,$v['legacy_owner_key']??null);
         $token=$this->tokens->issue($user,$request);
         $this->audit->record($user,'auth.whatsapp_verified',$user,[
-            'account_type'=>$user->account_type,'legacy_listings_claimed'=>$claimed,
+            'unified_login'=>!array_key_exists('account_type',$v),
+            'legacy_listings_claimed'=>$claimed,
         ],$request,$user->id);
 
         return response()->json(['message'=>'WhatsApp verification completed.','data'=>[
-            'user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission'])),
+            'user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission','accountVerificationProfile.documents'])),
             'token'=>$token['plain_text_token'],
             'token_expires_at'=>$token['expires_at'],
             'legacy_listings_claimed'=>$claimed,
@@ -266,7 +292,22 @@ class AuthController extends Controller
         $changed=[];
         if (array_key_exists('name',$v)) {
             $name=trim((string)$v['name']);
-            $this->validateFullName($name,$user->account_type ?? User::ACCOUNT_TYPE_REGULAR);
+            $profile=$user->verificationProfile();
+            $nameChanged=preg_replace('/\s+/u',' ',$name)!==preg_replace('/\s+/u',' ',trim((string)$user->name));
+            if ($nameChanged && $profile && in_array($profile->status,[
+                AccountVerificationProfile::STATUS_PENDING,
+                AccountVerificationProfile::STATUS_APPROVED,
+            ],true)) {
+                throw ValidationException::withMessages([
+                    'name'=>['لا يمكن تغيير الاسم أثناء مراجعة الهوية أو بعد اعتمادها. اطلب من فريق الدعم إعادة فتح التحقق إذا احتجت تصحيح الاسم.'],
+                ]);
+            }
+            if ((int) $user->identity_policy_version >= 2 || $user->profile_completed_at === null) {
+                $this->validateUnifiedFullName($name);
+                $user->profile_completed_at = now();
+            } else {
+                $this->validateFullName($name,$user->account_type ?? User::ACCOUNT_TYPE_REGULAR);
+            }
             $user->name=$name;
             $changed[]='name';
         }
@@ -404,6 +445,51 @@ class AuthController extends Controller
         }
     }
 
+    private function validateUnifiedFullName(string $name): void
+    {
+        $parts=preg_split('/\s+/u',trim($name),-1,PREG_SPLIT_NO_EMPTY)?:[];
+        if(count($parts)!==4){
+            throw ValidationException::withMessages(['name'=>['أدخل الاسم الرباعي كما هو في وثيقة الهوية.']]);
+        }
+    }
+
+    private function verificationProfileData(User $user): array
+    {
+        $profile=$user->accountVerificationProfile;
+        if(!$profile){
+            return [
+                'type'=>null,
+                'status'=>'not_submitted',
+                'submitted_at'=>null,
+                'reviewed_at'=>null,
+                'note'=>null,
+                'flags'=>[
+                    'identity_reviewed'=>false,
+                    'professional_document_reviewed'=>false,
+                    'commercial_register_reviewed'=>false,
+                    'office_documents_reviewed'=>false,
+                    'office_location_registered'=>false,
+                ],
+            ];
+        }
+        $kinds=$profile->documents->pluck('kind');
+        $approved=$profile->isApproved();
+        return [
+            'type'=>$profile->type,
+            'status'=>$profile->status,
+            'submitted_at'=>$profile->submitted_at?->toIso8601String(),
+            'reviewed_at'=>$profile->reviewed_at?->toIso8601String(),
+            'note'=>$profile->review_note,
+            'flags'=>[
+                'identity_reviewed'=>$approved,
+                'professional_document_reviewed'=>$approved && $profile->type==='broker' && $kinds->contains('professional_license'),
+                'commercial_register_reviewed'=>$approved && $profile->type==='office' && $kinds->contains('commercial_register'),
+                'office_documents_reviewed'=>$approved && $profile->type==='office' && $kinds->contains('office_license'),
+                'office_location_registered'=>$approved && $profile->type==='office' && isset(($profile->details ?? [])['latitude'],($profile->details ?? [])['longitude']),
+            ],
+        ];
+    }
+
     private function phoneOnlyPlaceholderEmail(string $phone): string
     {
         return 'wa_'.substr(hash('sha256',$phone.'|'.Str::uuid()->toString()),0,32).'@phone.local.invalid';
@@ -411,7 +497,7 @@ class AuthController extends Controller
 
     private function userData(User $user): array
     {
-        $user->loadMissing(['roles','permissionOverrides.permission']);
+        $user->loadMissing(['roles','permissionOverrides.permission','accountVerificationProfile.documents']);
         return [
             'id'=>(int)$user->id,
             'name'=>$user->name,
@@ -419,6 +505,7 @@ class AuthController extends Controller
             'phone'=>$user->phone,
             'account_type'=>$user->account_type ?? User::ACCOUNT_TYPE_REGULAR,
             'phone_verified_at'=>$user->phone_verified_at?->toIso8601String(),
+            'profile_completed_at'=>$user->profile_completed_at?->toIso8601String(),
             'account_status'=>$user->account_status,
             'broker_verification_status'=>$user->broker_verification_status ?? User::BROKER_VERIFICATION_NOT_REQUIRED,
             'broker_verification_submitted_at'=>$user->broker_verification_submitted_at?->toIso8601String(),
@@ -427,6 +514,7 @@ class AuthController extends Controller
             'last_login_at'=>$user->last_login_at?->toIso8601String(),
             'created_at'=>$user->created_at?->toIso8601String(),
             'is_platform_owner'=>(bool)$user->is_platform_owner,
+            'verification_profile'=>$this->verificationProfileData($user),
             'roles'=>$user->roleKeys(),
             'permissions'=>$user->effectivePermissionKeys(),
         ];

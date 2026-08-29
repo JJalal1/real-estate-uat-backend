@@ -57,6 +57,8 @@ class AccessUserSummary {
     required this.accountStatus,
     required this.accountType,
     required this.brokerVerificationStatus,
+    required this.verificationType,
+    required this.verificationStatus,
     required this.isPlatformOwner,
     required this.roles,
     required this.permissions,
@@ -69,6 +71,8 @@ class AccessUserSummary {
   final String accountStatus;
   final String accountType;
   final String brokerVerificationStatus;
+  final String? verificationType;
+  final String verificationStatus;
   final bool isPlatformOwner;
   final List<String> roles;
   final List<String> permissions;
@@ -86,6 +90,9 @@ class AccessUserSummary {
         accountType: json['account_type']?.toString() ?? 'regular',
         brokerVerificationStatus:
             json['broker_verification_status']?.toString() ?? 'not_required',
+        verificationType: _nullableAccessText(json['verification_type']),
+        verificationStatus:
+            json['verification_status']?.toString() ?? 'not_submitted',
         isPlatformOwner: json['is_platform_owner'] == true,
         roles: _strings(json['roles']),
         permissions: _strings(json['permissions']),
@@ -144,4 +151,9 @@ class AuditEntry {
             : null,
         createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
       );
+}
+
+String? _nullableAccessText(dynamic value) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty ? null : text;
 }

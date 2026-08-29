@@ -5,6 +5,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use LogicException;
@@ -29,7 +30,7 @@ class User extends Authenticatable
     public const BROKER_VERIFICATION_REJECTED = 'rejected';
 
     protected $fillable = [
-        'name','email','phone','password','account_type','identity_policy_version','account_status','phone_verified_at','last_login_at','is_platform_owner',
+        'name','email','phone','password','account_type','identity_policy_version','account_status','phone_verified_at','profile_completed_at','last_login_at','is_platform_owner',
         'broker_verification_status','broker_verification_submitted_at','broker_verified_at','broker_verified_by_user_id','broker_verification_note',
     ];
 
@@ -40,6 +41,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
+            'profile_completed_at' => 'datetime',
             'last_login_at' => 'datetime',
             'broker_verification_submitted_at' => 'datetime',
             'broker_verified_at' => 'datetime',
@@ -65,6 +67,7 @@ class User extends Authenticatable
     public function permissionOverrides(): HasMany { return $this->hasMany(UserPermissionOverride::class); }
     public function brokerCellAssignments(): HasMany { return $this->hasMany(BrokerCellAssignment::class, 'broker_user_id'); }
     public function brokerVerificationDocuments(): HasMany { return $this->hasMany(BrokerVerificationDocument::class, 'user_id'); }
+    public function accountVerificationProfile(): HasOne { return $this->hasOne(AccountVerificationProfile::class, 'user_id'); }
     public function listingComments(): HasMany { return $this->hasMany(ListingComment::class, 'author_user_id'); }
     public function supportCases(): HasMany { return $this->hasMany(SupportCase::class, 'requester_user_id'); }
     public function messageParticipants(): HasMany { return $this->hasMany(MessageThreadParticipant::class, 'user_id'); }
@@ -75,8 +78,35 @@ class User extends Authenticatable
         return $this->account_status === self::STATUS_ACTIVE && $this->phone_verified_at !== null;
     }
 
+    public function verificationProfile(): ?AccountVerificationProfile
+    {
+        if ($this->relationLoaded('accountVerificationProfile')) {
+            return $this->accountVerificationProfile;
+        }
+        return $this->accountVerificationProfile()->first();
+    }
+
+    public function verificationProfileType(): ?string
+    {
+        return $this->verificationProfile()?->type;
+    }
+
+    public function verificationStatus(): string
+    {
+        return $this->verificationProfile()?->status ?? AccountVerificationProfile::STATUS_NOT_SUBMITTED;
+    }
+
+    public function hasApprovedVerificationProfile(?string $type = null): bool
+    {
+        $profile = $this->verificationProfile();
+        if (! $profile || ! $profile->isApproved()) return false;
+        return $type === null || $profile->type === $type;
+    }
+
     public function isBrokerAccount(): bool
     {
+        $profile = $this->verificationProfile();
+        if ($profile) return $profile->type === AccountVerificationProfile::TYPE_BROKER;
         return $this->account_type === self::ACCOUNT_TYPE_BROKER;
     }
 
@@ -87,15 +117,35 @@ class User extends Authenticatable
 
     public function isBrokerVerified(): bool
     {
-        return $this->isBrokerAccount()
+        $profile = $this->verificationProfile();
+        if ($profile) {
+            return $profile->type === AccountVerificationProfile::TYPE_BROKER && $profile->isApproved();
+        }
+        return $this->account_type === self::ACCOUNT_TYPE_BROKER
             && $this->broker_verification_status === self::BROKER_VERIFICATION_APPROVED
             && $this->broker_verified_at !== null;
+    }
+
+    public function isOwnerVerified(): bool
+    {
+        return $this->hasApprovedVerificationProfile(AccountVerificationProfile::TYPE_OWNER);
+    }
+
+    public function isOfficeVerified(): bool
+    {
+        return $this->hasApprovedVerificationProfile(AccountVerificationProfile::TYPE_OFFICE);
     }
 
     public function canCreateListings(): bool
     {
         if (! $this->isActive()) return false;
-        return $this->isRegularAccount() || $this->isBrokerVerified();
+        if ($this->profile_completed_at === null) return false;
+        if ($this->hasApprovedVerificationProfile()) return true;
+
+        // Compatibility for historical local/test accounts that predate the
+        // account-verification profile policy. UAT WhatsApp accounts use policy >= 1.
+        if ((int) $this->identity_policy_version === 0) return true;
+        return $this->isBrokerVerified();
     }
 
     public function hasRole(string $key): bool

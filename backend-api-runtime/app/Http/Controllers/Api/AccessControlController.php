@@ -31,7 +31,7 @@ class AccessControlController extends Controller
     public function users(Request $request): JsonResponse
     {
         $v=$request->validate(['search'=>['nullable','string','max:120'],'per_page'=>['nullable','integer','min:1','max:50']]);
-        $query=User::query()->with(['roles','permissionOverrides.permission'])->where('email','<>','stage5-owner@local.invalid');
+        $query=User::query()->with(['roles','permissionOverrides.permission','accountVerificationProfile'])->where('email','<>','stage5-owner@local.invalid');
         $search=trim((string)($v['search'] ?? ''));
         if ($search !== '') $query->where(fn($q)=>$q->where('name','like','%'.$search.'%')->orWhere('email','like','%'.$search.'%')->orWhere('phone','like','%'.$search.'%'));
         $page=$query->orderByDesc('is_platform_owner')->orderBy('id')->paginate((int)($v['per_page'] ?? 25));
@@ -91,11 +91,14 @@ class AccessControlController extends Controller
 
     private function userData(User $user): array
     {
-        $user->loadMissing(['roles','permissionOverrides.permission']);
+        $user->loadMissing(['roles','permissionOverrides.permission','accountVerificationProfile']);
         return [
             'id'=>(int)$user->id,'name'=>$user->name,'email'=>$user->email,'phone'=>$user->phone,
             'account_status'=>$user->account_status,'phone_verified_at'=>$user->phone_verified_at?->toIso8601String(),
-            'account_type'=>$user->account_type,'broker_verification_status'=>$user->broker_verification_status,'created_at'=>$user->created_at?->toIso8601String(),
+            'account_type'=>$user->account_type,'broker_verification_status'=>$user->broker_verification_status,
+            'verification_type'=>$user->accountVerificationProfile?->type,
+            'verification_status'=>$user->accountVerificationProfile?->status ?? 'not_submitted',
+            'created_at'=>$user->created_at?->toIso8601String(),
             'is_platform_owner'=>(bool)$user->is_platform_owner,'roles'=>$user->roleKeys(),
             'permissions'=>$user->effectivePermissionKeys(),'permission_overrides'=>$user->permissionOverrides->map(fn($o)=>[
                 'permission_key'=>$o->permission->key,'effect'=>$o->effect,'reason'=>$o->reason,

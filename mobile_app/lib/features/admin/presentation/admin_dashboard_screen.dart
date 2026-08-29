@@ -123,10 +123,10 @@ class _SummaryGrid extends StatelessWidget {
         visible: _can('bookings.manage')
       ),
       (
-        label: 'توثيق دلالين',
-        value: summary.brokerKycPending,
-        icon: Icons.badge_outlined,
-        visible: _can('brokers.verify_accounts')
+        label: 'طلبات توثيق الحسابات',
+        value: summary.accountVerificationsPending,
+        icon: Icons.verified_user_outlined,
+        visible: _can('accounts.verify_profiles')
       ),
       (
         label: 'مدفوعات معلقة',
@@ -196,6 +196,13 @@ class _AdminMenu extends StatelessWidget {
         icon: Icons.fact_check_outlined,
         route: '/admin/listing-review',
         visible: _can('listings.moderate')
+      ),
+      (
+        title: 'توثيق أنواع الحسابات',
+        subtitle: 'مراجعة طلبات المالك والدلال ومكتب العقارات ومستنداتهم.',
+        icon: Icons.verified_user_outlined,
+        route: '/admin/account-verifications',
+        visible: _can('accounts.verify_profiles')
       ),
       (
         title: 'الخريطة والمناطق',

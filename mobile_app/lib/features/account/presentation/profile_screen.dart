@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../data/auth_controller.dart';
+import '../domain/auth_user.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -44,11 +45,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   TextField(
                     controller: _name,
+                    enabled: !_nameLocked(user),
                     decoration: const InputDecoration(
-                      labelText: 'الاسم',
+                      labelText: 'الاسم الرباعي',
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  if (_nameLocked(user)) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'الاسم مرتبط بمراجعة الهوية ولا يمكن تغييره أثناء قيد المراجعة أو بعد الاعتماد. عند الحاجة إلى تصحيح الاسم تواصل مع الدعم لإعادة فتح التحقق.',
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   TextField(
                     controller: _phone,
@@ -73,6 +81,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
     );
   }
+
+  bool _nameLocked(AuthUser user) =>
+      user.verificationProfile.status == 'pending' ||
+      user.verificationProfile.status == 'approved';
 
   Future<void> _save() async {
     setState(() => _busy = true);

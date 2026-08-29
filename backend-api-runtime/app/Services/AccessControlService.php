@@ -58,37 +58,15 @@ class AccessControlService
             $sync=[];
             foreach($roles as $role) $sync[$role->id]=['assigned_by_user_id'=>$actor->id,'created_at'=>now()];
             $before=$target->roles()->pluck('key')->sort()->values()->all();
-            $beforeAccountType=$target->account_type;
             $target->roles()->sync($sync);
 
-            $wantsBroker=in_array('broker',$roleKeys,true);
-            if ($wantsBroker && ! $target->isBrokerAccount()) {
-                $target->forceFill([
-                    'account_type'=>User::ACCOUNT_TYPE_BROKER,
-                    'broker_verification_status'=>User::BROKER_VERIFICATION_NOT_SUBMITTED,
-                    'broker_verification_submitted_at'=>null,
-                    'broker_verified_at'=>null,
-                    'broker_verified_by_user_id'=>null,
-                    'broker_verification_note'=>null,
-                ])->save();
-            } elseif (! $wantsBroker && $target->isBrokerAccount()) {
-                $target->forceFill([
-                    'account_type'=>User::ACCOUNT_TYPE_REGULAR,
-                    'broker_verification_status'=>User::BROKER_VERIFICATION_NOT_REQUIRED,
-                    'broker_verification_submitted_at'=>null,
-                    'broker_verified_at'=>null,
-                    'broker_verified_by_user_id'=>null,
-                    'broker_verification_note'=>null,
-                ])->save();
-            }
-
+            // Administrative roles/permissions are intentionally independent from
+            // the public account verification type (owner/broker/office). Assigning
+            // a role must never silently change a user's verified public identity.
             $after=$target->roles()->pluck('key')->sort()->values()->all();
-            $afterAccountType=$target->fresh()->account_type;
             $this->audit->record($actor,'access.roles_changed',$target,[
                 'before'=>$before,
                 'after'=>$after,
-                'account_type_before'=>$beforeAccountType,
-                'account_type_after'=>$afterAccountType,
             ],$request,$target->id);
             return $target->fresh(['roles','permissionOverrides.permission']);
         });

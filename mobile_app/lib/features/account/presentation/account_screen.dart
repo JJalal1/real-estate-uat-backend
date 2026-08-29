@@ -81,13 +81,7 @@ class AccountScreen extends ConsumerWidget {
                 FilledButton.icon(
                   onPressed: () => context.push('/auth'),
                   icon: const Icon(Icons.login),
-                  label: const Text('تسجيل الدخول'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => context.push('/auth?register=1'),
-                  icon: const Icon(Icons.person_add_alt_1),
-                  label: const Text('إنشاء حساب جديد'),
+                  label: const Text('تسجيل الدخول أو إنشاء حساب'),
                 ),
               ] else ...[
                 if (!user.isActive)
@@ -100,6 +94,20 @@ class AccountScreen extends ConsumerWidget {
                       onTap: () => context.push('/verify-phone'),
                     ),
                   ),
+                if (user.needsProfileCompletion) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.person_edit_outlined),
+                      title: const Text('أكمل الاسم الرباعي'),
+                      subtitle: const Text(
+                        'أكمل بيانات الحساب الأساسية قبل إرسال طلب تحقق نوع الحساب.',
+                      ),
+                      trailing: const Icon(Icons.chevron_left),
+                      onTap: () => context.push('/complete-profile'),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: () => context.push('/profile'),
@@ -109,22 +117,28 @@ class AccountScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 Card(
                   child: ListTile(
-                    leading: Icon(user.isBroker
-                        ? Icons.real_estate_agent_outlined
-                        : Icons.person_outline),
-                    title: Text('نوع الحساب: ${user.accountTypeLabel}',
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: user.isBroker
-                        ? Text(user.isBrokerVerified
-                            ? 'حساب الدلال موثق ويمكنه رفع الإعلانات.'
-                            : 'التصفح متاح، ورفع الإعلانات يتطلب توثيق الحساب من الدعم.')
-                        : const Text(
-                            'يمكنك نشر عقارك الخاص بعد إرفاق مستندات إثبات الملكية.'),
-                    trailing:
-                        user.isBroker ? const Icon(Icons.chevron_left) : null,
-                    onTap: user.isBroker
-                        ? () => context.push('/broker/account-verification')
-                        : null,
+                    leading: Icon(
+                      user.isOwner
+                          ? Icons.home_work_outlined
+                          : user.isBroker
+                              ? Icons.real_estate_agent_outlined
+                              : user.isOffice
+                                  ? Icons.apartment_outlined
+                                  : Icons.manage_accounts_outlined,
+                    ),
+                    title: Text(
+                      'نوع الحساب: ${user.accountTypeLabel}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text(
+                      user.verificationProfile.status == 'approved'
+                          ? 'الحساب موثق. ${user.verificationProfile.statusLabel}'
+                          : user.verificationProfile.status == 'pending'
+                              ? 'طلب التحقق قيد المراجعة من فريق التحقق.'
+                              : 'اختر مالك أو دلال أو مكتب عقارات وارفع مستندات التحقق المطلوبة.',
+                    ),
+                    trailing: const Icon(Icons.chevron_left),
+                    onTap: () => context.push('/account-verification'),
                   ),
                 ),
                 if (user.roles.isNotEmpty) ...[

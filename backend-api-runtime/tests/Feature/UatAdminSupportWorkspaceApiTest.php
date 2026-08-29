@@ -49,13 +49,14 @@ class UatAdminSupportWorkspaceApiTest extends TestCase
         $this->assertDatabaseHas('audit_logs',['actor_user_id'=>$owner->id,'action'=>'platform.settings_updated']);
     }
 
-    public function test_general_manager_can_turn_a_regular_user_into_a_broker_and_back_by_role_assignment(): void
+    public function test_general_manager_role_assignment_does_not_change_public_account_verification_type(): void
     {
         [$owner,$headers]=$this->user('workspace-owner-role@example.test','+967733330021');
         app(AccessControlService::class)->bootstrapPlatformOwner($owner);
         [$target]=$this->user('workspace-role-target@example.test','+967733330022');
 
         $this->assertSame(User::ACCOUNT_TYPE_REGULAR,$target->account_type);
+        $this->assertNull($target->accountVerificationProfile()->first());
 
         $this->withHeaders($headers)->putJson('/api/admin/access/users/'.$target->id.'/roles',[
             'role_keys'=>['broker'],
@@ -64,8 +65,8 @@ class UatAdminSupportWorkspaceApiTest extends TestCase
         $target=$target->fresh();
         $this->assertTrue($target->hasRole('broker'));
         $this->assertTrue($target->hasRole('registered_user'));
-        $this->assertSame(User::ACCOUNT_TYPE_BROKER,$target->account_type);
-        $this->assertSame(User::BROKER_VERIFICATION_NOT_SUBMITTED,$target->broker_verification_status);
+        $this->assertSame(User::ACCOUNT_TYPE_REGULAR,$target->account_type);
+        $this->assertNull($target->accountVerificationProfile()->first());
 
         $this->withHeaders($headers)->putJson('/api/admin/access/users/'.$target->id.'/roles',[
             'role_keys'=>[],
@@ -75,7 +76,7 @@ class UatAdminSupportWorkspaceApiTest extends TestCase
         $this->assertFalse($target->hasRole('broker'));
         $this->assertTrue($target->hasRole('registered_user'));
         $this->assertSame(User::ACCOUNT_TYPE_REGULAR,$target->account_type);
-        $this->assertSame(User::BROKER_VERIFICATION_NOT_REQUIRED,$target->broker_verification_status);
+        $this->assertNull($target->accountVerificationProfile()->first());
         $this->assertDatabaseHas('audit_logs',[
             'actor_user_id'=>$owner->id,
             'action'=>'access.roles_changed',

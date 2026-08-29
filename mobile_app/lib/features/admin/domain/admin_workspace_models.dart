@@ -10,6 +10,7 @@ class AdminDashboardSummary {
     required this.supportOverdue,
     required this.bookingsRequested,
     required this.bookingsActive,
+    required this.accountVerificationsPending,
     required this.brokerKycPending,
     required this.paymentsPending,
     required this.alerts,
@@ -25,6 +26,7 @@ class AdminDashboardSummary {
   final int supportOverdue;
   final int bookingsRequested;
   final int bookingsActive;
+  final int accountVerificationsPending;
   final int brokerKycPending;
   final int paymentsPending;
   final List<AdminAlertItem> alerts;
@@ -50,6 +52,9 @@ class AdminDashboardSummary {
       supportOverdue: _int(support['overdue']),
       bookingsRequested: _int(bookings['requested']),
       bookingsActive: _int(bookings['active']),
+      accountVerificationsPending: json.containsKey('account_verifications_pending')
+          ? _int(json['account_verifications_pending'])
+          : _int(json['broker_kyc_pending']),
       brokerKycPending: _int(json['broker_kyc_pending']),
       paymentsPending: _int(json['payments_pending']),
       alerts: alerts

@@ -2,10 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/account/presentation/access_control_screen.dart';
+import '../features/account/presentation/account_verification_admin_screen.dart';
+import '../features/account/presentation/account_verification_screen.dart';
 import '../features/account/presentation/auth_gate.dart';
 import '../features/account/presentation/auth_screen.dart';
 import '../features/account/presentation/broker_account_verification_screen.dart';
 import '../features/account/presentation/broker_verification_admin_screen.dart';
+import '../features/account/presentation/complete_profile_screen.dart';
 import '../features/account/presentation/forgot_password_screen.dart';
 import '../features/account/presentation/phone_verification_screen.dart';
 import '../features/account/presentation/profile_screen.dart';
@@ -45,6 +48,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/verify-phone',
         builder: (context, state) => const PhoneVerificationScreen(),
+      ),
+      GoRoute(
+        path: '/complete-profile',
+        builder: (context, state) => const Stage6AuthGate(
+          requireActive: false,
+          child: CompleteProfileScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/account-verification',
+        builder: (context, state) => const Stage6AuthGate(
+          child: AccountVerificationScreen(),
+        ),
       ),
       GoRoute(
         path: '/forgot-password',
@@ -97,6 +113,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin/broker-account-verifications',
         builder: (context, state) => const Stage6AuthGate(
           child: BrokerVerificationAdminScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/admin/account-verifications',
+        builder: (context, state) => const Stage6AuthGate(
+          child: AccountVerificationAdminScreen(),
         ),
       ),
       GoRoute(

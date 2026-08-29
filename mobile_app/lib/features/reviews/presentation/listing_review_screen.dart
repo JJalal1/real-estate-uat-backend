@@ -92,6 +92,7 @@ class _ReviewCard extends ConsumerWidget {
                 style:
                     const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
             Text('المعلن: ${item.ownerName}'),
+            Text('نوع الحساب: ${_verificationType(item.ownerVerificationType)} • التحقق: ${_verificationStatus(item.ownerVerificationStatus)}'),
             Text(
               'الحالة: ${_status(item.reviewStatus)} • مستندات الإثبات: ${item.proofCount}',
             ),
@@ -243,6 +244,10 @@ class _ReviewDetailsDialog extends ConsumerWidget {
                     padding: const EdgeInsets.all(16),
                     children: [
                       Text('المعلن: ${item.ownerName}'),
+                      Text('نوع الحساب: ${_verificationType(item.ownerVerificationType)}'),
+                      Text('حالة التحقق: ${_verificationStatus(item.ownerVerificationStatus)}'),
+                      if (item.ownerIdentityReviewed)
+                        const Text('✓ الهوية تمت مراجعتها'),
                       Text('البريد: ${item.ownerEmail}'),
                       Text('الهاتف: ${item.ownerPhone}'),
                       Text(
@@ -274,6 +279,34 @@ class _ReviewDetailsDialog extends ConsumerWidget {
                       if (item.reason != null) ...[
                         const SizedBox(height: 8),
                         Text('آخر ملاحظة مراجعة: ${item.reason}'),
+                      ],
+                      if (item.ownerVerificationType == 'owner') ...[
+                        const SizedBox(height: 16),
+                        const Text('علاقة المالك بهذا العقار',
+                            style: TextStyle(fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 6),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('نوع المستند: ${_ownershipDocumentType(item.ownershipDocumentType)}'),
+                                Text('الاسم في المستند: ${item.documentOwnerName ?? '-'}'),
+                                Text('صفة صاحب الحساب: ${_relationshipType(item.ownerRelationshipType)}'),
+                                if (item.ownerRelationshipNote != null)
+                                  Text('التوضيح: ${item.ownerRelationshipNote}'),
+                                Text(item.ownershipDocumentPresent
+                                    ? '✓ مستند العلاقة بالعقار مرفوع'
+                                    : '✗ مستند العلاقة بالعقار غير موجود'),
+                                if (item.ownerNameMatchesDocument != null)
+                                  Text(item.ownerNameMatchesDocument!
+                                      ? '✓ الاسم المدخل يطابق اسم الحساب'
+                                      : 'تنبيه: الاسم المدخل لا يطابق اسم الحساب؛ يجب مراجعة الصفة والتفويض/الإرث/الشراكة.'),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                       const SizedBox(height: 18),
                       Text('صور الإعلان (${item.images.length})',
@@ -352,6 +385,41 @@ class _ReviewDetailsDialog extends ConsumerWidget {
     );
   }
 }
+
+String _verificationType(String? value) => switch (value) {
+      'owner' => 'مالك',
+      'broker' => 'دلال',
+      'office' => 'مكتب عقارات',
+      _ => 'حساب أساسي',
+    };
+
+String _verificationStatus(String value) => switch (value) {
+      'approved' => 'موثق',
+      'pending' => 'قيد المراجعة',
+      'needs_more_info' => 'يحتاج معلومات إضافية',
+      'rejected' => 'مرفوض',
+      _ => 'غير موثق',
+    };
+
+String _ownershipDocumentType(String? value) => switch (value) {
+      'purchase_deed' => 'بصيرة شراء',
+      'registry_record' => 'سند / قيد سجل عقاري',
+      'partition_deed' => 'فصل قسمة',
+      'court_judgment' => 'حكم قضائي',
+      'inheritance_document' => 'مستند إرث',
+      'ownership_contract' => 'عقد تمليك',
+      'other' => 'مستند آخر',
+      _ => '-',
+    };
+
+String _relationshipType(String? value) => switch (value) {
+      'owner' => 'مالك مباشر',
+      'agent' => 'وكيل',
+      'heir' => 'وارث',
+      'co_owner' => 'شريك في الملكية',
+      'other' => 'صفة أخرى',
+      _ => '-',
+    };
 
 String _proofDocumentLabel(ReviewMediaItem media) {
   return switch (media.kind) {

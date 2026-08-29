@@ -35,18 +35,11 @@ class AuthRepository {
     }
   }
 
-  Future<WhatsAppAuthPending> startWhatsApp({
-    required String intent,
-    required String accountType,
-    String? name,
-    required String phone,
-  }) async {
+  Future<WhatsAppAuthPending> startWhatsApp({required String phone}) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/whatsapp/start',
       data: {
-        'intent': intent,
-        'account_type': accountType,
-        if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+        'intent': 'continue',
         'phone': phone.trim(),
       },
     );
@@ -56,9 +49,7 @@ class AuthRepository {
     }
     return WhatsAppAuthPending(
       phone: data['phone']?.toString() ?? phone.trim(),
-      accountType: data['account_type']?.toString() ?? accountType,
-      intent: data['intent']?.toString() ?? intent,
-      name: name?.trim(),
+      isNewAccount: data['is_new_account'] == true || data['is_new_account'] == 1,
       debugCode: _nullableText(data['debug_code']),
     );
   }
@@ -70,7 +61,6 @@ class AuthRepository {
       '/auth/whatsapp/verify',
       data: {
         'phone': pending.phone,
-        'account_type': pending.accountType,
         'code': code.trim(),
         'legacy_owner_key': legacyKey,
       },
@@ -144,6 +134,15 @@ class AuthRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/phone/verify',
       data: {'code': code.trim()},
+      options: await requiredAuthOptions(),
+    );
+    return _userFromData(response.data);
+  }
+
+  Future<AuthUser> completeProfile(String name) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/auth/profile',
+      data: {'name': name.trim()},
       options: await requiredAuthOptions(),
     );
     return _userFromData(response.data);

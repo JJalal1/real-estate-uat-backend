@@ -1,5 +1,6 @@
 <?php
 use App\Http\Controllers\Api\AccessControlController;
+use App\Http\Controllers\Api\AccountVerificationController;
 use App\Http\Controllers\Api\AdminWorkspaceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
@@ -83,6 +84,10 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/properties/{property}/proof-documents', [PropertyController::class, 'uploadProofDocuments']);
     Route::delete('/properties/{property}/proof-documents/{document}', [PropertyController::class, 'deleteProofDocument']);
     Route::get('/listing-documents/{document}', [ListingReviewController::class, 'document']);
+
+    Route::get('/account-verification', [AccountVerificationController::class, 'status']);
+    Route::post('/account-verification', [AccountVerificationController::class, 'submit'])->middleware('throttle:4,1');
+    Route::get('/account-verification/users/{user}/documents/{kind}', [AccountVerificationController::class, 'document']);
 
     Route::get('/broker/account-verification', [BrokerAccountVerificationController::class, 'status']);
     Route::post('/broker/account-verification', [BrokerAccountVerificationController::class, 'submit'])->middleware('throttle:4,1');
@@ -173,6 +178,13 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::post('/comments/{comment}/unhide', [CommunityController::class, 'unhideComment'])->middleware('permission:content.moderate');
         Route::post('/ratings/{rating}/hide', [CommunityController::class, 'hideRating'])->middleware('permission:content.moderate');
         Route::post('/ratings/{rating}/unhide', [CommunityController::class, 'unhideRating'])->middleware('permission:content.moderate');
+    });
+
+    Route::prefix('admin/account-verifications')->group(function () {
+        Route::get('/', [AccountVerificationController::class, 'adminIndex'])->middleware('permission:accounts.verify_profiles');
+        Route::post('/{user}/approve', [AccountVerificationController::class, 'approve'])->middleware('permission:accounts.verify_profiles');
+        Route::post('/{user}/more-info', [AccountVerificationController::class, 'requestMoreInfo'])->middleware('permission:accounts.verify_profiles');
+        Route::post('/{user}/reject', [AccountVerificationController::class, 'reject'])->middleware('permission:accounts.verify_profiles');
     });
 
     Route::prefix('admin/broker-account-verifications')->group(function () {

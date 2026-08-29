@@ -7,6 +7,9 @@ import '../data/auth_controller.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key, this.startWithRegister = false});
+
+  // Retained for route compatibility with older deep links. The unified flow
+  // no longer exposes separate login/register modes.
   final bool startWithRegister;
 
   @override
@@ -14,28 +17,12 @@ class AuthScreen extends ConsumerStatefulWidget {
 }
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
-  final _name = TextEditingController();
   final _phone = TextEditingController(text: '+967');
-  final _legacyLogin = TextEditingController();
-  final _legacyPassword = TextEditingController();
-  late bool _register;
-  String _accountType = 'regular';
   bool _busy = false;
-  bool _legacyMode = false;
-  bool _obscure = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _register = widget.startWithRegister;
-  }
 
   @override
   void dispose() {
-    _name.dispose();
     _phone.dispose();
-    _legacyLogin.dispose();
-    _legacyPassword.dispose();
     super.dispose();
   }
 
@@ -44,159 +31,67 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: Text(_register ? 'إنشاء حساب' : 'تسجيل الدخول')),
+        appBar: AppBar(title: const Text('تسجيل الدخول أو إنشاء حساب')),
         body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            const Text('نوع الحساب',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+            const Icon(Icons.home_work_outlined, size: 72),
+            const SizedBox(height: 18),
+            Text(
+              'حساب واحد للجميع',
+              textAlign: TextAlign.center,
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 8),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                    value: 'regular',
-                    icon: Icon(Icons.person_outline),
-                    label: Text('مستخدم عادي')),
-                ButtonSegment(
-                    value: 'broker',
-                    icon: Icon(Icons.real_estate_agent_outlined),
-                    label: Text('دلال')),
-              ],
-              selected: {_accountType},
-              onSelectionChanged: _busy || _legacyMode
-                  ? null
-                  : (value) => setState(() => _accountType = value.first),
+            const Text(
+              'أدخل رقم واتساب. إذا كان لديك حساب سنسجل دخولك، وإذا كان الرقم جديدًا سننشئ حسابًا أساسيًا كباحث أو متصفح أو مشتري.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: _phone,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.done,
+              onSubmitted: _busy ? null : (_) => _submit(),
+              decoration: const InputDecoration(
+                labelText: 'رقم واتساب',
+                hintText: '+9677xxxxxxxx',
+                prefixIcon: Icon(Icons.chat_outlined),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'سيتم إرسال رمز تحقق مكوّن من 6 أرقام عبر واتساب. الحساب الجديد سيُطلب منه إدخال الاسم الرباعي بعد التحقق.',
+              style: TextStyle(color: Colors.black54),
             ),
             const SizedBox(height: 18),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('دخول')),
-                ButtonSegment(value: true, label: Text('حساب جديد')),
-              ],
-              selected: {_register},
-              onSelectionChanged: _busy || _legacyMode
-                  ? null
-                  : (value) => setState(() => _register = value.first),
+            FilledButton.icon(
+              onPressed: _busy ? null : _submit,
+              icon: _busy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.mark_chat_read_outlined),
+              label: const Text('إرسال رمز واتساب'),
             ),
-            const SizedBox(height: 22),
-            if (!_legacyMode) ...[
-              if (_register) ...[
-                TextField(
-                  controller: _name,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: _accountType == 'broker'
-                        ? 'الاسم الثلاثي أو الرباعي'
-                        : 'الاسم الثلاثي',
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              TextField(
-                controller: _phone,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.done,
-                onSubmitted: _busy ? null : (_) => _submitWhatsApp(),
-                decoration: const InputDecoration(
-                  labelText: 'رقم واتساب',
-                  hintText: '+9677xxxxxxxx',
-                  prefixIcon: Icon(Icons.chat_outlined),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text('سيصلك رمز تحقق مكوّن من 6 أرقام عبر واتساب.',
-                  style: TextStyle(color: Colors.black54)),
-              if (_register && _accountType == 'broker') ...[
-                const SizedBox(height: 12),
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Text(
-                        'بعد الدخول يمكنك تصفح الإعلانات مباشرة. ولرفع إعلان يجب توثيق حساب الدلال من الإعدادات بإرسال صورة البطاقة الأمامية والخلفية وصورة سلفي إلى فريق الدعم.'),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: _busy ? null : _submitWhatsApp,
-                icon: _busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.mark_chat_read_outlined),
-                label: Text(_register
-                    ? 'إرسال رمز واتساب وإنشاء الحساب'
-                    : 'إرسال رمز واتساب'),
-              ),
-            ] else ...[
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Text(
-                      'دخول إداري/قديم فقط للحسابات التي ما زالت تستخدم البريد أو كلمة المرور.'),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _legacyLogin,
-                decoration: const InputDecoration(
-                    labelText: 'البريد أو الهاتف',
-                    border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _legacyPassword,
-                obscureText: _obscure,
-                decoration: InputDecoration(
-                  labelText: 'كلمة المرور',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                    icon: Icon(_obscure
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              FilledButton(
-                  onPressed: _busy ? null : _submitLegacy,
-                  child: const Text('دخول قديم')),
-            ],
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _busy
-                  ? null
-                  : () => setState(() => _legacyMode = !_legacyMode),
-              child: Text(
-                  _legacyMode ? 'العودة للدخول عبر واتساب' : 'دخول إداري/قديم'),
-            ),
-            if (!_register && _legacyMode)
-              TextButton(
-                onPressed:
-                    _busy ? null : () => context.push('/forgot-password'),
-                child: const Text('نسيت كلمة المرور؟'),
-              ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _submitWhatsApp() async {
+  Future<void> _submit() async {
     setState(() => _busy = true);
     try {
-      await ref.read(authControllerProvider.notifier).startWhatsApp(
-            intent: _register ? 'register' : 'login',
-            accountType: _accountType,
-            name: _register ? _name.text : null,
-            phone: _phone.text,
-          );
-      if (!mounted) {
-        return;
-      }
+      await ref
+          .read(authControllerProvider.notifier)
+          .startWhatsApp(phone: _phone.text);
+      if (!mounted) return;
       context.push('/verify-phone');
     } catch (error) {
       if (mounted) {
@@ -204,32 +99,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
       }
     } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
-  }
-
-  Future<void> _submitLegacy() async {
-    setState(() => _busy = true);
-    try {
-      final result = await ref.read(authControllerProvider.notifier).login(
-            login: _legacyLogin.text,
-            password: _legacyPassword.text,
-          );
-      if (!mounted) {
-        return;
-      }
-      context.go(result.user.needsPhoneVerification ? '/verify-phone' : '/');
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
+      if (mounted) setState(() => _busy = false);
     }
   }
 }

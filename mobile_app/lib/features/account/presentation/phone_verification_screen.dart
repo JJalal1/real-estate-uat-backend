@@ -99,12 +99,9 @@ class _PhoneVerificationScreenState
     }
     setState(() => _busy = true);
     try {
-      await ref.read(authControllerProvider.notifier).startWhatsApp(
-            intent: pending.intent,
-            accountType: pending.accountType,
-            name: pending.name,
-            phone: pending.phone,
-          );
+      await ref
+          .read(authControllerProvider.notifier)
+          .startWhatsApp(phone: pending.phone);
       if (mounted) {
         setState(() {});
       }
@@ -146,18 +143,24 @@ class _PhoneVerificationScreenState
     try {
       final pending = ref.read(whatsAppAuthPendingProvider);
       if (pending != null) {
-        await ref
+        final result = await ref
             .read(authControllerProvider.notifier)
             .verifyWhatsApp(_code.text);
-      } else {
-        await ref.read(authControllerProvider.notifier).verifyPhone(_code.text);
-      }
-      if (!mounted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم التحقق من رقم واتساب بنجاح.')),
+        );
+        context.go(result.user.needsProfileCompletion ? '/complete-profile' : '/');
         return;
       }
+
+      await ref.read(authControllerProvider.notifier).verifyPhone(_code.text);
+      if (!mounted) return;
+      final user = ref.read(authControllerProvider).asData?.value;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم التحقق والدخول إلى الحساب.')));
-      context.go('/');
+        const SnackBar(content: Text('تم التحقق من رقم واتساب بنجاح.')),
+      );
+      context.go(user?.needsProfileCompletion == true ? '/complete-profile' : '/');
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)

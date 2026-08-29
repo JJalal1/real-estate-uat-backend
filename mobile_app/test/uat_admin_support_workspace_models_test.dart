@@ -18,6 +18,7 @@ void main() {
         'overdue': 1
       },
       'bookings': {'requested': 2, 'active': 5},
+      'account_verifications_pending': 3,
       'broker_kyc_pending': 1,
       'payments_pending': 2,
       'alerts': [
@@ -33,6 +34,7 @@ void main() {
     expect(admin.pendingListings, 3);
     expect(admin.supportTicketsOpen, 2);
     expect(admin.reportsOpen, 2);
+    expect(admin.accountVerificationsPending, 3);
     expect(admin.alerts.single.route, '/admin/listing-review');
 
     final support = SupportAdminSummary.fromJson({
@@ -61,26 +63,30 @@ void main() {
   });
 
   test('workspace visibility is permission driven', () {
-    final user = AuthUser(
-      id: 10,
-      name: 'موظف دعم تجريبي',
-      email: 'support@example.test',
-      phone: '+967700000000',
-      accountType: 'regular',
-      accountStatus: 'active',
-      phoneVerifiedAt: DateTime(2026, 8, 25),
-      brokerVerificationStatus: 'not_required',
-      brokerVerificationSubmittedAt: null,
-      brokerVerifiedAt: null,
-      brokerVerificationNote: null,
-      isPlatformOwner: false,
-      roles: const ['support_agent'],
-      permissions: const [
+    final user = AuthUser.fromJson({
+      'id': 10,
+      'name': 'موظف دعم تجريبي',
+      'email': 'support@example.test',
+      'phone': '+967700000000',
+      'account_type': 'regular',
+      'account_status': 'active',
+      'phone_verified_at': '2026-08-25T00:00:00Z',
+      'profile_completed_at': '2026-08-25T00:00:00Z',
+      'broker_verification_status': 'not_required',
+      'verification_profile': {
+        'type': null,
+        'status': 'not_submitted',
+        'flags': <String, bool>{},
+      },
+      'is_platform_owner': false,
+      'roles': ['support_agent'],
+      'permissions': [
         'users.view',
         'support.handle_reports',
-        'support.view_worklog'
+        'support.view_worklog',
+        'accounts.verify_profiles',
       ],
-    );
+    });
     expect(user.canAccessSupportWorkspace, isTrue);
     expect(user.canAccessSystemWorkspace, isFalse);
     expect(user.hasPermission('users.manage_roles'), isFalse);

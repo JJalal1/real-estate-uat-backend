@@ -258,6 +258,53 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                   _SectionCard(
                     child: Column(
                       children: [
+                        if (property.advertiser!.verificationStatus == 'approved') ...[
+                          Row(
+                            children: [
+                              const Icon(Icons.verified_outlined),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      property.advertiser!.verificationLabel,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    Text(property.advertiser!.name),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          if (property.advertiser!
+                              .verificationFlag('identity_reviewed'))
+                            const _VerificationLine('الهوية تمت مراجعتها'),
+                          if (property.advertiser!
+                              .verificationFlag('relationship_document_reviewed'))
+                            const _VerificationLine(
+                                'مستند العلاقة بالعقار تمت مراجعته'),
+                          if (property.advertiser!
+                              .verificationFlag('professional_document_reviewed'))
+                            const _VerificationLine(
+                                'الوثيقة المهنية تمت مراجعتها'),
+                          if (property.advertiser!
+                              .verificationFlag('commercial_register_reviewed'))
+                            const _VerificationLine(
+                                'السجل التجاري تمت مراجعته'),
+                          if (property.advertiser!
+                              .verificationFlag('office_documents_reviewed'))
+                            const _VerificationLine(
+                                'مستندات المكتب المهنية تمت مراجعتها'),
+                          if (property.advertiser!
+                              .verificationFlag('office_location_registered'))
+                            const _VerificationLine('موقع المكتب مسجل'),
+                          const Divider(height: 24),
+                        ],
                         Row(
                           children: [
                             const Icon(Icons.star_outline),
@@ -572,6 +619,24 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       const SnackBar(content: Text('تم نسخ الرقم.')),
     );
   }
+}
+
+class _VerificationLine extends StatelessWidget {
+  const _VerificationLine(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle, size: 18),
+            const SizedBox(width: 6),
+            Expanded(child: Text(text)),
+          ],
+        ),
+      );
 }
 
 class _ContactRow extends StatelessWidget {

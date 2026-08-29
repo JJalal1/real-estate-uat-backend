@@ -105,6 +105,8 @@ class ReviewListingItem {
     required this.price,
     required this.reviewStatus,
     required this.ownerName,
+    required this.ownerVerificationType,
+    required this.ownerVerificationStatus,
     required this.proofCount,
     required this.brokerVerification,
     this.reason,
@@ -117,6 +119,8 @@ class ReviewListingItem {
   final double price;
   final String reviewStatus;
   final String ownerName;
+  final String? ownerVerificationType;
+  final String ownerVerificationStatus;
   final int proofCount;
   final BrokerVerificationState brokerVerification;
   final String? reason;
@@ -133,6 +137,12 @@ class ReviewListingItem {
       reviewStatus: json['review_status']?.toString() ?? '',
       ownerName:
           owner is Map<String, dynamic> ? owner['name']?.toString() ?? '' : '',
+      ownerVerificationType: owner is Map<String, dynamic>
+          ? _nullable(owner['verification_type'])
+          : null,
+      ownerVerificationStatus: owner is Map<String, dynamic>
+          ? owner['verification_status']?.toString() ?? 'not_submitted'
+          : 'not_submitted',
       proofCount: documents is List ? documents.length : 0,
       brokerVerification:
           BrokerVerificationState.fromJson(json['broker_verification']),
@@ -202,6 +212,15 @@ class ReviewListingDetail {
     required this.ownerName,
     required this.ownerEmail,
     required this.ownerPhone,
+    required this.ownerVerificationType,
+    required this.ownerVerificationStatus,
+    required this.ownerIdentityReviewed,
+    required this.ownershipDocumentType,
+    required this.documentOwnerName,
+    required this.ownerRelationshipType,
+    required this.ownerRelationshipNote,
+    required this.ownerNameMatchesDocument,
+    required this.ownershipDocumentPresent,
     required this.description,
     required this.address,
     required this.latitude,
@@ -229,6 +248,15 @@ class ReviewListingDetail {
   final String ownerName;
   final String ownerEmail;
   final String ownerPhone;
+  final String? ownerVerificationType;
+  final String ownerVerificationStatus;
+  final bool ownerIdentityReviewed;
+  final String? ownershipDocumentType;
+  final String? documentOwnerName;
+  final String? ownerRelationshipType;
+  final String? ownerRelationshipNote;
+  final bool? ownerNameMatchesDocument;
+  final bool ownershipDocumentPresent;
   final String description;
   final String address;
   final double latitude;
@@ -250,6 +278,10 @@ class ReviewListingDetail {
     final owner = json['owner'];
     final ownerMap =
         owner is Map<String, dynamic> ? owner : const <String, dynamic>{};
+    final ownership = json['ownership_relationship'];
+    final ownershipMap = ownership is Map<String, dynamic>
+        ? ownership
+        : const <String, dynamic>{};
     final imageRows = json['images'];
     final proofRows = json['proof_documents'];
     final historyRows = json['review_history'];
@@ -263,6 +295,18 @@ class ReviewListingDetail {
       ownerName: ownerMap['name']?.toString() ?? '',
       ownerEmail: ownerMap['email']?.toString() ?? '',
       ownerPhone: ownerMap['phone']?.toString() ?? '',
+      ownerVerificationType: _nullable(ownerMap['verification_type']),
+      ownerVerificationStatus:
+          ownerMap['verification_status']?.toString() ?? 'not_submitted',
+      ownerIdentityReviewed: ownerMap['identity_reviewed'] == true ||
+          ownerMap['identity_reviewed'] == 1,
+      ownershipDocumentType: _nullable(ownershipMap['document_type']),
+      documentOwnerName: _nullable(ownershipMap['document_owner_name']),
+      ownerRelationshipType: _nullable(ownershipMap['relationship_type']),
+      ownerRelationshipNote: _nullable(ownershipMap['relationship_note']),
+      ownerNameMatchesDocument: _nullableBool(ownershipMap['name_matches_account']),
+      ownershipDocumentPresent: ownershipMap['document_present'] == true ||
+          ownershipMap['document_present'] == 1,
       description: json['description']?.toString() ?? '',
       address: json['address']?.toString() ?? '',
       latitude: _asDouble(json['latitude']),

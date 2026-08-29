@@ -58,7 +58,7 @@ jobs:
           check_hash "mobile_app/lib/core/network/api_client.dart" \
             "82516ed55490f1a2d903c00023a363b1f9e825e459fe5be71b370ac6afc39462"
           check_hash "mobile_app/lib/router/app_router.dart" \
-            "e33d6cd2ee2323b43b5c36d83507e9a155234623661e7f44999cdb2b5d0ee35c"
+            "ea33a25db0ca9041bd0b49b6906e82154ecfdf6e0ba6a04e0b932492a23c3c5a"
           check_hash "mobile_app/lib/features/services/presentation/services_screen.dart" \
             "a655654af86da6477748a4ed6d715e22fd5e24c97ee46cf109b93432250f61b2"
 

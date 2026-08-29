@@ -1,6 +1,7 @@
 <?php
 namespace App\Services;
 
+use App\Models\AccountVerificationProfile;
 use App\Models\ListingReview;
 use App\Models\Property;
 use App\Models\PropertyAsset;
@@ -98,24 +99,68 @@ class ListingWorkflowService
 
     private function assertAdvertiserCanPublish(User $advertiser, Property $property): void
     {
-        if ($advertiser->isBrokerAccount()) {
-            if (! $advertiser->isBrokerVerified()) {
-                throw new ConflictHttpException('يجب توثيق حساب الدلال من فريق الدعم قبل رفع أو نشر الإعلانات.');
+        $profile = $advertiser->verificationProfile();
+        if ($profile) {
+            if (! $profile->isApproved()) {
+                throw new ConflictHttpException('يجب اعتماد نوع الحساب من فريق التحقق قبل إرسال إعلان للمراجعة.');
+            }
+
+            if (in_array($profile->type, [
+                AccountVerificationProfile::TYPE_BROKER,
+                AccountVerificationProfile::TYPE_OFFICE,
+            ], true)) {
+                return;
+            }
+
+            if ($profile->type === AccountVerificationProfile::TYPE_OWNER) {
+                if (! $property->documents()->where('kind', 'ownership_proof')->exists()) {
+                    throw ValidationException::withMessages([
+                        'ownership_proof' => ['يجب إرفاق مستند يثبت الملكية أو العلاقة بهذا العقار قبل الإرسال للمراجعة.'],
+                    ]);
+                }
+                if (! $property->ownership_document_type || ! $property->document_owner_name || ! $property->owner_relationship_type) {
+                    throw ValidationException::withMessages([
+                        'ownership_relationship' => ['حدد نوع مستند الملكية واسم صاحب الحق وصفة علاقتك بالعقار.'],
+                    ]);
+                }
+                if ($property->owner_relationship_type === 'owner'
+                    && $this->normalizedName($property->document_owner_name) !== $this->normalizedName($advertiser->name)) {
+                    throw ValidationException::withMessages([
+                        'owner_relationship_type' => ['الاسم المدخل من مستند العقار لا يطابق اسم الحساب. اختر صفتك الصحيحة مثل وكيل أو وارث أو شريك.'],
+                    ]);
+                }
+                if ($property->owner_relationship_type === 'other' && trim((string) $property->owner_relationship_note) === '') {
+                    throw ValidationException::withMessages([
+                        'owner_relationship_note' => ['وضح صفتك أو علاقتك بالعقار.'],
+                    ]);
+                }
+                return;
+            }
+        }
+
+        // Compatibility with historical test/local identities that predate the
+        // unified owner/broker/office verification policy. Current WhatsApp UAT
+        // accounts use identity policy >= 1 and therefore must select a profile.
+        if ((int) $advertiser->identity_policy_version === 0) {
+            if (! $property->documents()->where('kind', 'ownership_or_authorization')->exists()) {
+                throw ValidationException::withMessages([
+                    'proof_documents' => ['أرفق إثبات ملكية أو تفويض قبل إرسال الإعلان للمراجعة.'],
+                ]);
             }
             return;
         }
 
-        $requiredKinds = ((int) $advertiser->identity_policy_version >= 1)
-            ? ['owner_id_front', 'owner_id_back', 'owner_selfie', 'ownership_proof']
-            : ['ownership_or_authorization'];
+        if ($advertiser->isBrokerVerified()) return;
 
-        $presentKinds = $property->documents()->whereIn('kind', $requiredKinds)->pluck('kind')->unique();
-        $missing = collect($requiredKinds)->diff($presentKinds);
-        if ($missing->isNotEmpty()) {
-            throw ValidationException::withMessages([
-                'proof_documents' => ['يجب إرفاق هوية المالك من الأمام والخلف وصورة سلفي وإثبات ملكية العقار قبل إرسال الإعلان للمراجعة.'],
-            ]);
-        }
+        throw new ConflictHttpException('اختر نوع الحساب من حسابي وأكمل التحقق قبل إرسال إعلان للمراجعة.');
+    }
+
+    private function normalizedName(?string $value): string
+    {
+        $text = mb_strtolower(trim((string) $value));
+        $text = preg_replace('/[\x{064B}-\x{065F}\x{0670}\x{0640}]/u', '', $text) ?? $text;
+        $text = strtr($text, ['أ'=>'ا','إ'=>'ا','آ'=>'ا','ى'=>'ي','ؤ'=>'و','ئ'=>'ي','ة'=>'ه']);
+        return preg_replace('/\s+/u', ' ', $text) ?? $text;
     }
 
     private function assertReviewable(Property $listing): void { if(!in_array($listing->review_status,['submitted','under_review'],true)) throw new ConflictHttpException('Listing is not reviewable in its current state.'); }

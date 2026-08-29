@@ -105,15 +105,14 @@ class SupportWorkspaceScreen extends ConsumerWidget {
                           'سجل العمل والمتابعة',
                           'الإجراءات والتذاكر المحولة والمغلقة ووقت كل إجراء.',
                           '/support/worklog'),
-                    if (user?.hasPermission('brokers.verify_accounts') ==
-                            true ||
+                    if (user?.hasPermission('accounts.verify_profiles') == true ||
                         user?.isPlatformOwner == true)
                       _row(
                           context,
-                          Icons.badge_outlined,
-                          'توثيق حسابات الدلالين',
-                          'مراجعة الهوية والسلفي وتفعيل حساب الدلال.',
-                          '/admin/broker-account-verifications',
+                          Icons.verified_user_outlined,
+                          'توثيق أنواع الحسابات',
+                          'مراجعة المالك والدلال ومكتب العقارات ومستندات كل نوع.',
+                          '/admin/account-verifications',
                           last: true),
                   ]),
                 ),

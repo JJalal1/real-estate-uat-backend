@@ -2,6 +2,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AccountVerificationProfile;
 use App\Models\PlatformSetting;
 use App\Models\Property;
 use App\Models\ServiceOrder;
@@ -27,7 +28,7 @@ class AdminWorkspaceController extends Controller
         $canListings=$actor->hasPermission('listings.moderate');
         $canSupport=$actor->hasPermission('support.handle_reports');
         $canBookings=$actor->hasPermission('bookings.manage');
-        $canKyc=$actor->hasPermission('brokers.verify_accounts');
+        $canKyc=$actor->hasPermission('accounts.verify_profiles');
         $canPayments=$actor->hasPermission('payments.manage');
 
         $pendingListings=$canListings?Property::query()->whereIn('review_status',['submitted','under_review'])->count():0;
@@ -39,14 +40,14 @@ class AdminWorkspaceController extends Controller
         $openReports=$canSupport?SupportCase::query()->where('kind','report')->whereIn('status',['open','in_progress','waiting_requester'])->count():0;
         $requestedBookings=$canBookings?ViewingBooking::query()->where('status','requested')->count():0;
         $activeBookings=$canBookings?ViewingBooking::query()->whereIn('status',['requested','confirmed'])->count():0;
-        $pendingKyc=$canKyc?User::query()->where('account_type','broker')->where('broker_verification_status','pending')->count():0;
+        $pendingKyc=$canKyc?AccountVerificationProfile::query()->where('status','pending')->count():0;
         $pendingPayments=$canPayments?ServiceOrder::query()->where('status','pending')->count():0;
         $overdue=$canSupport?SupportCase::query()->whereIn('status',['open','in_progress'])->where('sla_due_at','<=',now())->count():0;
         $showAlerts=(bool)$this->settings->get('notifications.dashboard_alerts_enabled',true);
         if($showAlerts){
             if($actor->hasPermission('listings.moderate') && $overdueListings>0) $alerts[]=['key'=>'listing_review','label'=>'إعلانات تجاوزت مدة المراجعة','count'=>$overdueListings,'route'=>'/admin/listing-review'];
             if($actor->hasPermission('support.handle_reports') && $overdue>0) $alerts[]=['key'=>'support_overdue','label'=>'حالات دعم متأخرة','count'=>$overdue,'route'=>'/support/workspace'];
-            if($actor->hasPermission('brokers.verify_accounts') && $pendingKyc>0) $alerts[]=['key'=>'broker_kyc','label'=>'طلبات توثيق دلالين','count'=>$pendingKyc,'route'=>'/admin/broker-account-verifications'];
+            if($actor->hasPermission('accounts.verify_profiles') && $pendingKyc>0) $alerts[]=['key'=>'account_verification','label'=>'طلبات توثيق حسابات','count'=>$pendingKyc,'route'=>'/admin/account-verifications'];
             if($actor->hasPermission('bookings.manage') && $requestedBookings>0) $alerts[]=['key'=>'bookings','label'=>'طلبات معاينة تنتظر الإجراء','count'=>$requestedBookings,'route'=>'/bookings'];
             if($actor->hasPermission('payments.manage') && $pendingPayments>0) $alerts[]=['key'=>'payments','label'=>'طلبات دفع معلقة','count'=>$pendingPayments,'route'=>'/services'];
         }
@@ -55,6 +56,7 @@ class AdminWorkspaceController extends Controller
             'listings'=>['pending_review'=>$pendingListings,'published'=>$publishedListings],
             'support'=>['open'=>$openSupport,'tickets_open'=>$openTickets,'reports_open'=>$openReports,'overdue'=>$overdue],
             'bookings'=>['requested'=>$requestedBookings,'active'=>$activeBookings],
+            'account_verifications_pending'=>$pendingKyc,
             'broker_kyc_pending'=>$pendingKyc,
             'payments_pending'=>$pendingPayments,
             'alerts'=>$alerts,

@@ -22,163 +22,209 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         Storage::fake('local');
     }
 
-
-    public function test_kyc_migration_preserves_multiple_non_owner_users_on_sqlite(): void
-    {
-        User::query()->create([
-            'name' => 'First Regular User',
-            'email' => 'sqlite-regular-1@example.test',
-            'phone' => '+967711111181',
-            'phone_verified_at' => now(),
-            'account_status' => User::STATUS_ACTIVE,
-            'password' => Hash::make('StrongPass123!'),
-        ]);
-        User::query()->create([
-            'name' => 'Second Regular User',
-            'email' => 'sqlite-regular-2@example.test',
-            'phone' => '+967711111182',
-            'phone_verified_at' => now(),
-            'account_status' => User::STATUS_ACTIVE,
-            'password' => Hash::make('StrongPass123!'),
-        ]);
-
-        $this->assertDatabaseHas('users', ['email' => 'sqlite-regular-1@example.test']);
-        $this->assertDatabaseHas('users', ['email' => 'sqlite-regular-2@example.test']);
-    }
-
-    public function test_whatsapp_registration_enforces_account_specific_full_name_length(): void
-    {
-        $this->postJson('/api/auth/whatsapp/start', [
-            'intent' => 'register',
-            'account_type' => 'regular',
-            'name' => 'أحمد محمد',
-            'phone' => '+967711111105',
-        ])->assertStatus(422)->assertJsonValidationErrors('name');
-
-        $this->postJson('/api/auth/whatsapp/start', [
-            'intent' => 'register',
-            'account_type' => 'broker',
-            'name' => 'محمد أحمد',
-            'phone' => '+967711111106',
-        ])->assertStatus(422)->assertJsonValidationErrors('name');
-
-        $this->postJson('/api/auth/whatsapp/start', [
-            'intent' => 'register',
-            'account_type' => 'broker',
-            'name' => 'محمد أحمد علي صالح حسن',
-            'phone' => '+967711111107',
-        ])->assertStatus(422)->assertJsonValidationErrors('name');
-    }
-
-    public function test_regular_whatsapp_account_requires_four_owner_documents_before_submit(): void
+    public function test_unified_whatsapp_login_creates_base_account_then_requires_exact_four_part_name(): void
     {
         $start = $this->postJson('/api/auth/whatsapp/start', [
-            'intent' => 'register',
-            'account_type' => 'regular',
-            'name' => 'أحمد محمد علي',
+            'intent' => 'continue',
             'phone' => '+967711111101',
-        ])->assertOk()->assertJsonPath('data.account_type', 'regular');
-        $code = (string) $start->json('data.debug_code');
+        ])->assertOk()
+            ->assertJsonPath('data.is_new_account', true)
+            ->assertJsonPath('data.account_type', 'regular');
+
         $verify = $this->postJson('/api/auth/whatsapp/verify', [
-            'account_type' => 'regular',
             'phone' => '+967711111101',
-            'code' => $code,
-        ])->assertOk()->assertJsonPath('data.user.account_type', 'regular');
+            'code' => (string) $start->json('data.debug_code'),
+        ])->assertOk()
+            ->assertJsonPath('data.user.name', 'مستخدم جديد')
+            ->assertJsonPath('data.user.profile_completed_at', null)
+            ->assertJsonPath('data.user.verification_profile.type', null)
+            ->assertJsonPath('data.user.verification_profile.status', 'not_submitted');
+
         $headers = $this->bearer((string) $verify->json('data.token'));
 
-        $listingId = (int) $this->withHeaders($headers)->post('/api/properties', $this->listingPayload('Regular missing docs'))
-            ->assertCreated()->json('data.id');
-        $this->withHeaders($headers)->postJson("/api/properties/$listingId/submit")
-            ->assertStatus(422)->assertJsonValidationErrors('proof_documents');
+        $this->withHeaders($headers)->patchJson('/api/auth/profile', [
+            'name' => 'أحمد محمد علي',
+        ])->assertStatus(422)->assertJsonValidationErrors('name');
 
-        $strictPayload = $this->listingPayload('Regular verified ownership') + [
-            'owner_id_front' => UploadedFile::fake()->image('id-front.jpg'),
-            'owner_id_back' => UploadedFile::fake()->image('id-back.jpg'),
-            'owner_selfie' => UploadedFile::fake()->image('selfie.jpg'),
-            'ownership_proof' => UploadedFile::fake()->image('ownership.jpg'),
-        ];
-        $second = (int) $this->withHeaders($headers)->post('/api/properties', $strictPayload)
-            ->assertCreated()->json('data.id');
-        $this->withHeaders($headers)->postJson("/api/properties/$second/submit")
-            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $this->withHeaders($headers)->patchJson('/api/auth/profile', [
+            'name' => 'أحمد محمد علي صالح',
+        ])->assertOk()
+            ->assertJsonPath('data.user.name', 'أحمد محمد علي صالح');
 
         $this->assertDatabaseHas('users', [
             'phone' => '+967711111101',
             'account_type' => 'regular',
-            'identity_policy_version' => 1,
+            'identity_policy_version' => 2,
         ]);
-        foreach (['owner_id_front', 'owner_id_back', 'owner_selfie', 'ownership_proof'] as $kind) {
-            $this->assertDatabaseHas('listing_documents', ['property_id' => $second, 'kind' => $kind]);
-        }
+        $this->assertNotNull(User::query()->where('phone', '+967711111101')->value('profile_completed_at'));
     }
 
-    public function test_broker_can_browse_but_cannot_create_until_support_approves_account_kyc(): void
+    public function test_base_account_cannot_create_listing_until_public_account_type_is_verified(): void
     {
-        $start = $this->postJson('/api/auth/whatsapp/start', [
-            'intent' => 'register',
-            'account_type' => 'broker',
-            'name' => 'محمد أحمد علي صالح',
-            'phone' => '+967711111102',
-        ])->assertOk();
-        $verify = $this->postJson('/api/auth/whatsapp/verify', [
-            'account_type' => 'broker',
-            'phone' => '+967711111102',
-            'code' => (string) $start->json('data.debug_code'),
-        ])->assertOk();
-        $brokerId = (int) $verify->json('data.user.id');
-        $brokerHeaders = $this->bearer((string) $verify->json('data.token'));
+        [, $headers] = $this->unifiedUser('+967711111102', 'أمين أحمد محمد علي');
 
-        $this->getJson('/api/properties')->assertOk();
-        $this->withHeaders($brokerHeaders)->post('/api/properties', $this->listingPayload('Blocked broker'))
+        $this->withHeaders($headers)->post('/api/properties', $this->listingPayload('Blocked base account'))
             ->assertStatus(409);
+    }
 
-        $this->withHeaders($brokerHeaders)->post('/api/broker/account-verification', [
-            'id_front' => UploadedFile::fake()->image('broker-front.jpg'),
-            'id_back' => UploadedFile::fake()->image('broker-back.jpg'),
-            'selfie' => UploadedFile::fake()->image('broker-selfie.jpg'),
-        ])->assertOk()->assertJsonPath('data.status', 'pending');
+    public function test_owner_identity_is_verified_once_and_property_relationship_is_verified_per_listing(): void
+    {
+        [$owner, $ownerHeaders] = $this->unifiedUser('+967711111103', 'أحمد محمد علي صالح');
+
+        $this->withHeaders($ownerHeaders)->post('/api/account-verification', [
+            'type' => 'owner',
+            'governorate' => 'صنعاء',
+            'district' => 'السبعين',
+            'identity_document' => UploadedFile::fake()->image('identity.jpg'),
+            'selfie' => UploadedFile::fake()->image('selfie.jpg'),
+        ])->assertOk()
+            ->assertJsonPath('data.type', 'owner')
+            ->assertJsonPath('data.status', 'pending');
+
+        $this->withHeaders($ownerHeaders)->post('/api/properties', $this->listingPayload('Owner before approval'))
+            ->assertStatus(409);
 
         [, $supportHeaders] = $this->supportUser();
-        $this->withHeaders($supportHeaders)->getJson('/api/admin/broker-account-verifications')
-            ->assertOk()->assertJsonPath('data.0.user_id', $brokerId);
-        foreach (['id_front', 'id_back', 'selfie'] as $kind) {
+        $this->withHeaders($supportHeaders)->getJson('/api/admin/account-verifications?status=pending&type=owner')
+            ->assertOk()->assertJsonPath('data.0.user_id', $owner->id);
+        foreach (['identity_document', 'selfie'] as $kind) {
             $this->withHeaders($supportHeaders)
-                ->get("/api/broker/account-verification/users/$brokerId/documents/$kind")
+                ->get("/api/account-verification/users/{$owner->id}/documents/$kind")
                 ->assertOk();
         }
-        $this->withHeaders($supportHeaders)->postJson("/api/admin/broker-account-verifications/$brokerId/approve")
-            ->assertOk()->assertJsonPath('data.status', 'approved');
+        $this->withHeaders($supportHeaders)
+            ->postJson("/api/admin/account-verifications/{$owner->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'approved')
+            ->assertJsonPath('data.verification_flags.identity_reviewed', true);
 
-        $listingId = (int) $this->withHeaders($brokerHeaders)->post('/api/properties', $this->listingPayload('Verified broker listing'))
+        $this->withHeaders($ownerHeaders)->patchJson('/api/auth/profile', [
+            'name' => 'اسم مختلف بعد التوثيق',
+        ])->assertStatus(422)->assertJsonValidationErrors('name');
+
+        $listingId = (int) $this->withHeaders($ownerHeaders)
+            ->post('/api/properties', $this->listingPayload('Owner property relation'))
             ->assertCreated()->json('data.id');
-        $this->withHeaders($brokerHeaders)->postJson("/api/properties/$listingId/submit")
+
+        $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
+            ->assertStatus(422)->assertJsonValidationErrors('ownership_proof');
+
+        $this->withHeaders($ownerHeaders)->post("/api/properties/$listingId", [
+            'ownership_document_type' => 'purchase_deed',
+            'document_owner_name' => 'شخص مختلف تماماً',
+            'owner_relationship_type' => 'owner',
+            'ownership_proof' => UploadedFile::fake()->image('purchase-deed.jpg'),
+        ])->assertOk();
+
+        $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
+            ->assertStatus(422)->assertJsonValidationErrors('owner_relationship_type');
+
+        $this->withHeaders($ownerHeaders)->post("/api/properties/$listingId", [
+            'ownership_document_type' => 'purchase_deed',
+            'document_owner_name' => 'شخص مختلف تماماً',
+            'owner_relationship_type' => 'agent',
+        ])->assertOk();
+
+        $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
             ->assertOk()->assertJsonPath('data.review_status', 'submitted');
-        $this->assertDatabaseHas('users', [
-            'id' => $brokerId,
-            'account_type' => 'broker',
-            'broker_verification_status' => 'approved',
+
+        $this->assertDatabaseHas('account_verification_profiles', [
+            'user_id' => $owner->id,
+            'type' => 'owner',
+            'status' => 'approved',
+        ]);
+        $this->assertDatabaseHas('listing_documents', [
+            'property_id' => $listingId,
+            'kind' => 'ownership_proof',
         ]);
     }
 
-    public function test_duplicate_published_physical_property_is_rejected_for_another_listing(): void
+    public function test_verified_broker_can_publish_without_property_title_document_and_optional_professional_license_is_flagged(): void
     {
-        [$broker, $brokerHeaders] = $this->verifiedBroker('duplicate-broker@example.test', '+967711111103');
-        [, $supportHeaders] = $this->supportUser('duplicate-support@example.test', '+967711111104');
+        [$broker, $headers] = $this->unifiedUser('+967711111104', 'محمد أحمد علي صالح');
 
-        $first = (int) $this->withHeaders($brokerHeaders)->post('/api/properties', $this->listingPayload('First publication'))
+        $this->withHeaders($headers)->post('/api/account-verification', [
+            'type' => 'broker',
+            'governorate' => 'صنعاء',
+            'district' => 'الوحدة',
+            'work_areas_json' => json_encode(['صنعاء', 'حدة', 'شملان'], JSON_UNESCAPED_UNICODE),
+            'specialties_json' => json_encode(['أراضٍ', 'منازل'], JSON_UNESCAPED_UNICODE),
+            'identity_document' => UploadedFile::fake()->image('broker-id.jpg'),
+            'selfie' => UploadedFile::fake()->image('broker-selfie.jpg'),
+            'professional_license' => UploadedFile::fake()->image('broker-license.jpg'),
+        ])->assertOk()->assertJsonPath('data.status', 'pending');
+
+        [, $supportHeaders] = $this->supportUser('broker-support@example.test', '+967711119998');
+        $this->withHeaders($supportHeaders)
+            ->postJson("/api/admin/account-verifications/{$broker->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.verification_flags.identity_reviewed', true)
+            ->assertJsonPath('data.verification_flags.professional_document_reviewed', true);
+
+        $listingId = (int) $this->withHeaders($headers)
+            ->post('/api/properties', $this->listingPayload('Professional broker listing'))
             ->assertCreated()->json('data.id');
-        $this->withHeaders($brokerHeaders)->postJson("/api/properties/$first/submit")->assertOk();
-        $this->withHeaders($supportHeaders)->postJson("/api/admin/listing-review/listings/$first/approve")
-            ->assertOk()->assertJsonPath('data.status', 'published');
+        $this->withHeaders($headers)->postJson("/api/properties/$listingId/submit")
+            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
 
-        $duplicatePayload = $this->listingPayload('Same physical property');
-        $duplicatePayload['purpose'] = 'rent';
-        $second = (int) $this->withHeaders($brokerHeaders)->post('/api/properties', $duplicatePayload)
+        $this->assertDatabaseMissing('listing_documents', [
+            'property_id' => $listingId,
+            'kind' => 'ownership_proof',
+        ]);
+    }
+
+    public function test_real_estate_office_requires_office_identity_registration_license_frontage_and_map_location(): void
+    {
+        [$office, $headers] = $this->unifiedUser('+967711111105', 'خالد محمد علي حسن');
+
+        $this->withHeaders($headers)->post('/api/account-verification', [
+            'type' => 'office',
+            'governorate' => 'صنعاء',
+            'district' => 'معين',
+            'office_name' => 'مكتب الثقة للعقارات',
+            'commercial_register_number' => 'UAT-CR-1001',
+            'neighborhood' => 'حدة',
+            'street' => 'شارع حدة',
+            'landmark' => 'جوار المعلم التجريبي',
+            'latitude' => 15.3355,
+            'longitude' => 44.1762,
+            'office_phone' => '+967711223344',
+            'responsible_identity' => UploadedFile::fake()->image('responsible-id.jpg'),
+            'selfie' => UploadedFile::fake()->image('responsible-selfie.jpg'),
+            'commercial_register' => UploadedFile::fake()->image('commercial-register.jpg'),
+            'office_license' => UploadedFile::fake()->image('office-license.jpg'),
+            'office_frontage' => UploadedFile::fake()->image('frontage.jpg'),
+            'office_logo' => UploadedFile::fake()->image('logo.jpg'),
+        ])->assertOk()->assertJsonPath('data.status', 'pending');
+
+        [, $supportHeaders] = $this->supportUser('office-support@example.test', '+967711119997');
+        $this->withHeaders($supportHeaders)
+            ->postJson("/api/admin/account-verifications/{$office->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.verification_flags.commercial_register_reviewed', true)
+            ->assertJsonPath('data.verification_flags.office_documents_reviewed', true)
+            ->assertJsonPath('data.verification_flags.office_location_registered', true);
+
+        $listingId = (int) $this->withHeaders($headers)
+            ->post('/api/properties', $this->listingPayload('Office listing'))
             ->assertCreated()->json('data.id');
-        $this->withHeaders($brokerHeaders)->postJson("/api/properties/$second/submit")
-            ->assertStatus(409);
+        $this->withHeaders($headers)->postJson("/api/properties/$listingId/submit")
+            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+    }
 
-        $this->assertSame($broker->id, User::query()->findOrFail($broker->id)->id);
+    private function unifiedUser(string $phone, string $name): array
+    {
+        $start = $this->postJson('/api/auth/whatsapp/start', [
+            'intent' => 'continue',
+            'phone' => $phone,
+        ])->assertOk();
+        $verify = $this->postJson('/api/auth/whatsapp/verify', [
+            'phone' => $phone,
+            'code' => (string) $start->json('data.debug_code'),
+        ])->assertOk();
+        $headers = $this->bearer((string) $verify->json('data.token'));
+        $this->withHeaders($headers)->patchJson('/api/auth/profile', ['name' => $name])->assertOk();
+        return [User::query()->where('phone', $phone)->firstOrFail(), $headers];
     }
 
     private function listingPayload(string $title): array
@@ -186,7 +232,7 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         return [
             'listing_input_version' => 2,
             'title' => $title,
-            'description' => 'Account type and KYC workflow test.',
+            'description' => 'Unified account verification workflow test.',
             'purpose' => 'sale',
             'type' => 'house',
             'price' => 45000000,
@@ -197,54 +243,42 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             'bathrooms' => 3,
             'has_parking' => true,
             'building_facade' => 'east',
-            'address' => 'Sanaa, Test Property',
-            'latitude' => 15.401234,
-            'longitude' => 44.401234,
+            'address' => 'Sanaa, UAT Property',
+            'latitude' => 15.401234 + (random_int(1, 900) / 1000000),
+            'longitude' => 44.401234 + (random_int(1, 900) / 1000000),
             'images' => [UploadedFile::fake()->image('home.jpg')],
         ];
     }
 
-    private function supportUser(string $email = 'kyc-support@example.test', string $phone = '+967711119999'): array
+    private function supportUser(string $email = 'verification-support@example.test', string $phone = '+967711119999'): array
     {
         return $this->legacyUser($email, $phone, ['support_agent']);
-    }
-
-    private function verifiedBroker(string $email, string $phone): array
-    {
-        [$user, $headers] = $this->legacyUser($email, $phone, ['broker']);
-        $user->forceFill([
-            'account_type' => User::ACCOUNT_TYPE_BROKER,
-            'broker_verification_status' => User::BROKER_VERIFICATION_APPROVED,
-            'broker_verified_at' => now(),
-        ])->save();
-        return [$user->fresh(), $headers];
     }
 
     private function legacyUser(string $email, string $phone, array $roles): array
     {
         $user = User::query()->create([
-            'name' => 'Legacy Test User',
+            'name' => 'مستخدم دعم اختبار',
             'email' => $email,
             'phone' => $phone,
             'phone_verified_at' => now(),
+            'profile_completed_at' => now(),
             'account_status' => User::STATUS_ACTIVE,
             'password' => Hash::make('StrongPass123!'),
         ]);
         app(AccessControlService::class)->ensureRegisteredUser($user);
         foreach ($roles as $key) {
             $role = Role::query()->where('key', $key)->firstOrFail();
-            $user->roles()->syncWithoutDetaching([
-                $role->id => ['assigned_by_user_id' => null, 'created_at' => now()],
-            ]);
+            $user->roles()->syncWithoutDetaching([$role->id => ['assigned_by_user_id' => null, 'created_at' => now()]]);
         }
-        $plain = 're6_'.substr(hash('sha512', $email), 0, 80);
+        $plain = 're_verify_'.substr(hash('sha512', $email), 0, 72);
         $user->apiTokens()->create([
-            'name' => 'kyc-test',
+            'name' => 'account-verification-test',
             'token_hash' => hash('sha256', $plain),
             'token_prefix' => substr($plain, 0, 12),
             'expires_at' => now()->addHour(),
         ]);
-        return [$user->fresh(), $this->bearer($plain)];
+        return [$user->fresh(), ['Authorization' => 'Bearer '.$plain, 'Accept' => 'application/json']];
     }
 
     private function bearer(string $token): array

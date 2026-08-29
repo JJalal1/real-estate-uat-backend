@@ -13,6 +13,12 @@ class Stage5MediaPicker {
         .toList(growable: false);
   }
 
+  Future<String?> takePhoto() async {
+    final path = await _channel.invokeMethod<String>('takePhoto');
+    if (path == null || path.trim().isEmpty) return null;
+    return path;
+  }
+
   Future<void> clearTemporaryFiles(Iterable<String> paths) async {
     final values = paths
         .where((path) => path.trim().isNotEmpty)

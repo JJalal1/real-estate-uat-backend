@@ -43,6 +43,8 @@ class _AddPropertyWizardScreenState
   final _streetController = TextEditingController();
   final _phoneController = TextEditingController();
   final _whatsappController = TextEditingController();
+  final _documentOwnerNameController = TextEditingController();
+  final _ownerRelationshipNoteController = TextEditingController();
 
   int _step = 0;
   String _purpose = 'sale';
@@ -58,10 +60,9 @@ class _AddPropertyWizardScreenState
   bool _replaceImages = false;
   List<String> _imagePaths = <String>[];
   List<String> _proofPaths = <String>[];
-  String? _ownerIdFrontPath;
-  String? _ownerIdBackPath;
-  String? _ownerSelfiePath;
   String? _ownershipProofPath;
+  String? _ownershipDocumentType;
+  String? _ownerRelationshipType;
 
   bool get _isEditing => widget.existingProperty != null;
 
@@ -95,6 +96,10 @@ class _AddPropertyWizardScreenState
     _longitude = property.longitude;
     _phoneController.text = property.contactPhone ?? '';
     _whatsappController.text = property.contactWhatsapp ?? '';
+    _ownershipDocumentType = property.ownershipDocumentType;
+    _documentOwnerNameController.text = property.documentOwnerName ?? '';
+    _ownerRelationshipType = property.ownerRelationshipType;
+    _ownerRelationshipNoteController.text = property.ownerRelationshipNote ?? '';
   }
 
   @override
@@ -103,9 +108,6 @@ class _AddPropertyWizardScreenState
       _mediaPicker.clearTemporaryFiles(<String>[
         ..._imagePaths,
         ..._proofPaths,
-        if (_ownerIdFrontPath != null) _ownerIdFrontPath!,
-        if (_ownerIdBackPath != null) _ownerIdBackPath!,
-        if (_ownerSelfiePath != null) _ownerSelfiePath!,
         if (_ownershipProofPath != null) _ownershipProofPath!,
       ]).catchError((_) {}),
     );
@@ -120,6 +122,8 @@ class _AddPropertyWizardScreenState
     _streetController.dispose();
     _phoneController.dispose();
     _whatsappController.dispose();
+    _documentOwnerNameController.dispose();
+    _ownerRelationshipNoteController.dispose();
     super.dispose();
   }
 
@@ -561,6 +565,11 @@ class _AddPropertyWizardScreenState
 
   Widget _stepImagesAndReview() {
     final existingCount = widget.existingProperty?.images.length ?? 0;
+    final user = ref.watch(authControllerProvider).asData?.value;
+    final isOwnerProfile = user?.isOwner == true;
+    final isProfessionalAdvertiser = user?.isBroker == true || user?.isOffice == true;
+    final existingOwnershipProof = widget.existingProperty?.ownershipProofPresent == true;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -597,38 +606,109 @@ class _AddPropertyWizardScreenState
           ),
         ],
         const SizedBox(height: 18),
-        if (ref.watch(authControllerProvider).asData?.value?.isBroker == true)
-          const Card(
+        if (isProfessionalAdvertiser)
+          Card(
             child: Padding(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               child: Text(
-                  'حساب الدلال الموثق لا يحتاج رفع إثبات ملكية لكل إعلان. يمكنه نشر أي عقار غير منشور مسبقاً، ويظل الإعلان خاضعاً لمراجعة الدعم.'),
+                user?.isOffice == true
+                    ? 'حساب مكتب العقارات الموثق لا يرفع مستند ملكية كجزء من توثيق المكتب. الإعلان نفسه سيظل خاضعاً للمراجعة وقواعد منع التكرار.'
+                    : 'حساب الدلال الموثق لا يرفع بصائر العقارات عند توثيق حسابه؛ لأنه لا يُعامل كمالك للعقار. الإعلان نفسه سيظل خاضعاً للمراجعة وقواعد منع التكرار.',
+              ),
             ),
           )
-        else ...[
+        else if (isOwnerProfile) ...[
           const Text(
-            'إثبات هوية المالك وملكية العقار',
-            style: TextStyle(fontWeight: FontWeight.w800),
+            'إثبات علاقة المالك بهذا العقار',
+            style: TextStyle(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 6),
-          const Text('هذه الصور خاصة بفريق الدعم ولا تظهر للعامة.'),
-          const SizedBox(height: 8),
+          const Text(
+            'هويتك موثقة مرة واحدة في حسابك. هنا نتحقق بشكل مستقل من علاقتك بهذا العقار فقط.',
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: _ownershipDocumentType,
+            decoration: const InputDecoration(
+              labelText: 'نوع مستند العقار',
+              border: OutlineInputBorder(),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'purchase_deed', child: Text('بصيرة شراء')),
+              DropdownMenuItem(value: 'registry_record', child: Text('سند / قيد سجل عقاري')),
+              DropdownMenuItem(value: 'partition_deed', child: Text('فصل قسمة')),
+              DropdownMenuItem(value: 'court_judgment', child: Text('حكم قضائي')),
+              DropdownMenuItem(value: 'inheritance_document', child: Text('مستند إرث')),
+              DropdownMenuItem(value: 'ownership_contract', child: Text('عقد تمليك')),
+              DropdownMenuItem(value: 'other', child: Text('مستند آخر مناسب')),
+            ],
+            onChanged: _submitting
+                ? null
+                : (value) => setState(() => _ownershipDocumentType = value),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _documentOwnerNameController,
+            enabled: !_submitting,
+            decoration: const InputDecoration(
+              labelText: 'اسم صاحب الحق كما يظهر في مستند العقار',
+              hintText: 'اكتب الاسم الموجود في المستند',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: _ownerRelationshipType,
+            decoration: const InputDecoration(
+              labelText: 'صفتك بالنسبة للعقار',
+              border: OutlineInputBorder(),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'owner', child: Text('مالك مباشر')),
+              DropdownMenuItem(value: 'agent', child: Text('وكيل')),
+              DropdownMenuItem(value: 'heir', child: Text('وارث')),
+              DropdownMenuItem(value: 'co_owner', child: Text('شريك في الملكية')),
+              DropdownMenuItem(value: 'other', child: Text('صفة أخرى')),
+            ],
+            onChanged: _submitting
+                ? null
+                : (value) => setState(() => _ownerRelationshipType = value),
+          ),
+          if (_ownerRelationshipType != null &&
+              _ownerRelationshipType != 'owner') ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _ownerRelationshipNoteController,
+              enabled: !_submitting,
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: _ownerRelationshipType == 'other'
+                    ? 'وضح صفتك وعلاقتك بالعقار'
+                    : 'تفاصيل العلاقة أو التفويض (اختياري)',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
           _RequiredDocumentPicker(
-              label: 'صورة البطاقة الأمامية',
-              selected: _ownerIdFrontPath != null,
-              onTap: () => _pickRequiredDocument('owner_id_front')),
-          _RequiredDocumentPicker(
-              label: 'صورة البطاقة الخلفية',
-              selected: _ownerIdBackPath != null,
-              onTap: () => _pickRequiredDocument('owner_id_back')),
-          _RequiredDocumentPicker(
-              label: 'صورة سلفي لصاحب العقار',
-              selected: _ownerSelfiePath != null,
-              onTap: () => _pickRequiredDocument('owner_selfie')),
-          _RequiredDocumentPicker(
-              label: 'ما يثبت ملكية العقار',
-              selected: _ownershipProofPath != null,
-              onTap: () => _pickRequiredDocument('ownership_proof')),
+            label: 'مستند ملكية / علاقة العقار',
+            selected: _ownershipProofPath != null || existingOwnershipProof,
+            onTap: () => _pickRequiredDocument('ownership_proof'),
+          ),
+          if (existingOwnershipProof && _ownershipProofPath == null)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text('يوجد مستند علاقة مرفوع سابقاً لهذا العقار.'),
+            ),
+          if (_ownerRelationshipType == 'owner')
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'عند اختيار «مالك مباشر» سيقارن النظام الاسم الذي أدخلته من المستند مع الاسم الرباعي في حسابك. إذا لم يتطابق، اختر الصفة الصحيحة مثل وكيل أو وارث أو شريك.',
+                ),
+              ),
+            ),
         ],
         if (_imagePaths.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -697,52 +777,6 @@ class _AddPropertyWizardScreenState
     );
   }
 
-  Widget _buildActions() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x16000000),
-            blurRadius: 12,
-            offset: Offset(0, -3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          if (_step > 0)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _submitting ? null : () => setState(() => _step--),
-                child: const Text('السابق'),
-              ),
-            ),
-          if (_step > 0) const SizedBox(width: 10),
-          Expanded(
-            flex: 2,
-            child: FilledButton(
-              onPressed: _submitting
-                  ? null
-                  : _step == 4
-                      ? _submit
-                      : _next,
-              child: _submitting
-                  ? const SizedBox.square(
-                      dimension: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_step == 4
-                      ? (_isEditing ? 'حفظ التعديلات' : 'نشر الإعلان')
-                      : 'التالي'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _next() {
     final message = _validationMessageForStep(_step);
     if (message != null) {
@@ -793,6 +827,33 @@ class _AddPropertyWizardScreenState
       final price = double.tryParse(_priceController.text.trim());
       if (price == null || price <= 0) {
         return 'أدخل سعراً صحيحاً.';
+      }
+    }
+    if (step == 4) {
+      final user = ref.read(authControllerProvider).asData?.value;
+      if (user?.isOwner == true) {
+        if (_ownershipDocumentType == null) {
+          return 'اختر نوع مستند ملكية أو علاقة العقار.';
+        }
+        if (_documentOwnerNameController.text.trim().length < 3) {
+          return 'اكتب اسم صاحب الحق كما يظهر في مستند العقار.';
+        }
+        if (_ownerRelationshipType == null) {
+          return 'حدد صفتك بالنسبة للعقار.';
+        }
+        if (_ownershipProofPath == null &&
+            widget.existingProperty?.ownershipProofPresent != true) {
+          return 'ارفع مستند ملكية أو علاقة هذا العقار.';
+        }
+        if (_ownerRelationshipType == 'owner' &&
+            _normalizedName(_documentOwnerNameController.text) !=
+                _normalizedName(user!.name)) {
+          return 'الاسم في مستند العقار لا يطابق الاسم الرباعي في الحساب. اختر صفتك الصحيحة مثل وكيل أو وارث أو شريك.';
+        }
+        if (_ownerRelationshipType == 'other' &&
+            _ownerRelationshipNoteController.text.trim().length < 3) {
+          return 'وضح صفتك أو علاقتك بالعقار.';
+        }
       }
     }
     return null;
@@ -1036,35 +1097,17 @@ class _AddPropertyWizardScreenState
   }
 
   Future<void> _pickRequiredDocument(String kind) async {
+    if (kind != 'ownership_proof') return;
     try {
       final paths = await _mediaPicker.pickImages();
       if (!mounted || paths.isEmpty) return;
       final selected = paths.first;
       await _mediaPicker.clearTemporaryFiles(paths.skip(1));
       if (!mounted) return;
-      String? old;
-      setState(() {
-        switch (kind) {
-          case 'owner_id_front':
-            old = _ownerIdFrontPath;
-            _ownerIdFrontPath = selected;
-            break;
-          case 'owner_id_back':
-            old = _ownerIdBackPath;
-            _ownerIdBackPath = selected;
-            break;
-          case 'owner_selfie':
-            old = _ownerSelfiePath;
-            _ownerSelfiePath = selected;
-            break;
-          case 'ownership_proof':
-            old = _ownershipProofPath;
-            _ownershipProofPath = selected;
-            break;
-        }
-      });
+      final old = _ownershipProofPath;
+      setState(() => _ownershipProofPath = selected);
       if (old != null && old != selected) {
-        await _mediaPicker.clearTemporaryFiles([old!]);
+        await _mediaPicker.clearTemporaryFiles([old]);
       }
     } on PlatformException {
       _showMessage('تعذر فتح معرض الصور لاختيار المستند.');
@@ -1087,7 +1130,7 @@ class _AddPropertyWizardScreenState
   }
 
   Future<void> _submit() async {
-    for (var step = 0; step <= 3; step++) {
+    for (var step = 0; step <= 4; step++) {
       final message = _validationMessageForStep(step);
       if (message != null) {
         setState(() => _step = step);
@@ -1097,17 +1140,6 @@ class _AddPropertyWizardScreenState
     }
 
     final user = ref.read(authControllerProvider).asData?.value;
-    if (!_isEditing &&
-        user?.isRegular == true &&
-        (_ownerIdFrontPath == null ||
-            _ownerIdBackPath == null ||
-            _ownerSelfiePath == null ||
-            _ownershipProofPath == null)) {
-      setState(() => _step = 4);
-      _showMessage(
-          'يلزم رفع صورة البطاقة الأمامية والخلفية وصورة سلفي وما يثبت ملكية العقار.');
-      return;
-    }
 
     final input = PropertyListingInput(
       title: _titleController.text.trim(),
@@ -1130,6 +1162,15 @@ class _AddPropertyWizardScreenState
       longitude: _longitude!,
       contactPhone: _phoneController.text.trim(),
       contactWhatsapp: _whatsappController.text.trim(),
+      ownershipDocumentType:
+          user?.isOwner == true ? _ownershipDocumentType : null,
+      documentOwnerName:
+          user?.isOwner == true ? _documentOwnerNameController.text.trim() : null,
+      ownerRelationshipType:
+          user?.isOwner == true ? _ownerRelationshipType : null,
+      ownerRelationshipNote: user?.isOwner == true
+          ? _ownerRelationshipNoteController.text.trim()
+          : null,
     );
 
     setState(() => _submitting = true);
@@ -1142,18 +1183,12 @@ class _AddPropertyWizardScreenState
               imagePaths: _imagePaths,
               replaceImages: _replaceImages,
               proofPaths: _proofPaths,
-              ownerIdFrontPath: _ownerIdFrontPath,
-              ownerIdBackPath: _ownerIdBackPath,
-              ownerSelfiePath: _ownerSelfiePath,
               ownershipProofPath: _ownershipProofPath,
             )
           : await repository.createListing(
               input,
               imagePaths: _imagePaths,
               proofPaths: _proofPaths,
-              ownerIdFrontPath: _ownerIdFrontPath,
-              ownerIdBackPath: _ownerIdBackPath,
-              ownerSelfiePath: _ownerSelfiePath,
               ownershipProofPath: _ownershipProofPath,
             );
 
@@ -1164,16 +1199,10 @@ class _AddPropertyWizardScreenState
       final uploadedPaths = <String>[
         ..._imagePaths,
         ..._proofPaths,
-        if (_ownerIdFrontPath != null) _ownerIdFrontPath!,
-        if (_ownerIdBackPath != null) _ownerIdBackPath!,
-        if (_ownerSelfiePath != null) _ownerSelfiePath!,
         if (_ownershipProofPath != null) _ownershipProofPath!,
       ];
       _imagePaths = <String>[];
       _proofPaths = <String>[];
-      _ownerIdFrontPath = null;
-      _ownerIdBackPath = null;
-      _ownerSelfiePath = null;
       _ownershipProofPath = null;
       try {
         await _mediaPicker.clearTemporaryFiles(uploadedPaths);
@@ -1210,6 +1239,24 @@ class _AddPropertyWizardScreenState
       return null;
     }
     return int.tryParse(text);
+  }
+
+  String _normalizedName(String value) {
+    var text = value.trim().toLowerCase();
+    const replacements = <String, String>{
+      'أ': 'ا',
+      'إ': 'ا',
+      'آ': 'ا',
+      'ى': 'ي',
+      'ؤ': 'و',
+      'ئ': 'ي',
+      'ة': 'ه',
+    };
+    for (final entry in replacements.entries) {
+      text = text.replaceAll(entry.key, entry.value);
+    }
+    text = text.replaceAll(RegExp(r'[\u064B-\u065F\u0670\u0640]'), '');
+    return text.replaceAll(RegExp(r'\s+'), ' ');
   }
 
   void _showMessage(String message) {

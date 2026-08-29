@@ -202,9 +202,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                         Text(user.phone!,
                             style: Theme.of(context).textTheme.bodySmall),
                       Text(
-                        user.accountType == 'broker'
-                            ? 'نوع الحساب: دلال • التوثيق: ${_brokerStatusLabel(user.brokerVerificationStatus)}'
-                            : 'نوع الحساب: مستخدم عادي',
+                        'نوع الحساب العام: ${_publicAccountTypeLabel(user.verificationType)} • التحقق: ${_verificationStatusLabel(user.verificationStatus)}',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -456,13 +454,21 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
     return key;
   }
 
-  String _brokerStatusLabel(String value) => switch (value) {
+  String _publicAccountTypeLabel(String? value) => switch (value) {
+        'owner' => 'مالك',
+        'broker' => 'دلال',
+        'office' => 'مكتب عقارات',
+        _ => 'باحث / متصفح / مشتري',
+      };
+
+  String _verificationStatusLabel(String value) => switch (value) {
         'approved' => 'موثق',
         'pending' => 'قيد المراجعة',
+        'needs_more_info' => 'يحتاج معلومات إضافية',
         'rejected' => 'مرفوض',
-        'not_submitted' => 'غير موثق',
-        _ => value,
+        _ => 'غير موثق',
       };
+
 
   String _actionName(String action) => switch (action) {
         'auth.login_succeeded' => 'تسجيل دخول ناجح',
