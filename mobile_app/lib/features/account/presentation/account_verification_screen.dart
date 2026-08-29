@@ -437,6 +437,7 @@ class _AccountVerificationScreenState
       final uploaded = _files.values.toList(growable: false);
       _files.clear();
       await _picker.clearTemporaryFiles(uploaded).catchError((_) {});
+      if (!mounted) return;
       _application = result;
       setState(() => _future = Future.value(result));
       await showDialog<void>(

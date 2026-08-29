@@ -98,7 +98,7 @@ class AccountScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Card(
                     child: ListTile(
-                      leading: const Icon(Icons.person_edit_outlined),
+                      leading: const Icon(Icons.edit_outlined),
                       title: const Text('أكمل الاسم الرباعي'),
                       subtitle: const Text(
                         'أكمل بيانات الحساب الأساسية قبل إرسال طلب تحقق نوع الحساب.',

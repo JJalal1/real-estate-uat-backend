@@ -53,7 +53,7 @@ class Stage6AuthGate extends ConsumerWidget {
             }
             if (requireListingEligible && user.needsProfileCompletion) {
               return _GateMessage(
-                icon: Icons.person_edit_outlined,
+                icon: Icons.edit_outlined,
                 title: 'أكمل الاسم الرباعي أولاً',
                 message:
                     'أكمل بيانات الحساب الأساسية قبل اختيار نوع الحساب وبدء إجراءات النشر.',

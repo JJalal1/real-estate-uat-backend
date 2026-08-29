@@ -777,6 +777,52 @@ class _AddPropertyWizardScreenState
     );
   }
 
+  Widget _buildActions() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x16000000),
+            blurRadius: 12,
+            offset: Offset(0, -3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (_step > 0)
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _submitting ? null : () => setState(() => _step--),
+                child: const Text('السابق'),
+              ),
+            ),
+          if (_step > 0) const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: FilledButton(
+              onPressed: _submitting
+                  ? null
+                  : _step == 4
+                      ? _submit
+                      : _next,
+              child: _submitting
+                  ? const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(_step == 4
+                      ? (_isEditing ? 'حفظ التعديلات' : 'نشر الإعلان')
+                      : 'التالي'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _next() {
     final message = _validationMessageForStep(_step);
     if (message != null) {
