@@ -135,6 +135,8 @@ String? _validationMessage(dynamic data) {
         return 'أدخل عدد الحمامات لهذا النوع من العقارات.';
       case 'has_parking':
         return 'حدد هل يوجد موقف سيارة أم لا.';
+      case 'tenure_type':
+        return 'حدد نوع الملكية: حر أو وقف.';
       case 'building_facade':
         return 'اختر واجهة البناء.';
       case 'latitude':

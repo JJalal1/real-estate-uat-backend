@@ -64,6 +64,7 @@ class UatChangePhase3BrokerVerificationApiTest extends TestCase
             'description' => 'Broker-region verification is retired.',
             'purpose' => 'sale',
             'type' => 'house',
+            'tenure_type' => 'freehold',
             'price' => 50000000,
             'currency' => 'YER',
             'area_value' => 220,

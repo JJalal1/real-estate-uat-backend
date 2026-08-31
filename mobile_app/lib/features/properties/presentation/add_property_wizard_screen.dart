@@ -11,6 +11,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/property_repository.dart';
+import '../domain/arabic_price_words.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import '../domain/property_location_address.dart';
@@ -50,7 +51,8 @@ class _AddPropertyWizardScreenState
   String _purpose = 'sale';
   String _type = 'apartment';
   String _areaUnit = 'sqm';
-  bool? _hasParking;
+  String? _parkingChoice;
+  String? _tenureType;
   String? _buildingFacade;
   double? _latitude;
   double? _longitude;
@@ -83,7 +85,10 @@ class _AddPropertyWizardScreenState
         ? formatPropertyAreaValue(property.areaValue!)
         : property.areaM2?.toString() ?? '';
     _areaUnit = property.areaUnit ?? 'sqm';
-    _hasParking = property.hasParking;
+    _parkingChoice = property.hasParking == null
+        ? null
+        : (property.hasParking! ? 'yes' : 'no');
+    _tenureType = property.tenureType;
     _buildingFacade = property.buildingFacade;
     _bedroomsController.text = property.bedrooms?.toString() ?? '';
     _bathroomsController.text = property.bathrooms?.toString() ?? '';
@@ -210,6 +215,32 @@ class _AddPropertyWizardScreenState
               )
               .toList(growable: false),
         ),
+        if (_requiresSaleTenure) ...[
+          const SizedBox(height: 18),
+          const Text(
+            'نوع ملكية العقار *',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            emptySelectionAllowed: true,
+            segments: const [
+              ButtonSegment<String>(value: 'freehold', label: Text('حر')),
+              ButtonSegment<String>(value: 'waqf', label: Text('وقف')),
+            ],
+            selected: _tenureType == null ? <String>{} : <String>{_tenureType!},
+            onSelectionChanged: (value) {
+              if (value.isNotEmpty) {
+                setState(() => _tenureType = value.first);
+              }
+            },
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'يظهر هذا الخيار للعقارات المعروضة للبيع من نوع شقة أو منزل أو فيلا أو أرض أو مزرعة.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         const SizedBox(height: 14),
         TextField(
           controller: _titleController,
@@ -462,21 +493,28 @@ class _AddPropertyWizardScreenState
           const Text('هل يوجد موقف سيارة؟ *',
               style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          SegmentedButton<bool>(
+          SegmentedButton<String>(
             emptySelectionAllowed: true,
             segments: const [
-              ButtonSegment<bool>(
-                  value: true,
+              ButtonSegment<String>(
+                  value: 'yes',
                   label: Text('يوجد'),
                   icon: Icon(Icons.local_parking)),
-              ButtonSegment<bool>(
-                  value: false,
+              ButtonSegment<String>(
+                  value: 'no',
                   label: Text('لا يوجد'),
                   icon: Icon(Icons.block)),
             ],
-            selected: _hasParking == null ? <bool>{} : <bool>{_hasParking!},
-            onSelectionChanged: (value) => setState(
-                () => _hasParking = value.isEmpty ? null : value.first),
+            selected: _parkingChoice == null
+                ? <String>{}
+                : <String>{_parkingChoice!},
+            onSelectionChanged: (value) {
+              // Once the user chooses yes/no, do not let a second tap silently
+              // clear the required value. This fixes the false "حدد الموقف" error.
+              if (value.isNotEmpty) {
+                setState(() => _parkingChoice = value.first);
+              }
+            },
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
@@ -520,6 +558,15 @@ class _AddPropertyWizardScreenState
   bool get _requiresStructureDetails =>
       const {'apartment', 'house', 'villa', 'shop', 'office'}.contains(_type);
 
+  bool get _requiresSaleTenure =>
+      _purpose == 'sale' &&
+      const {'apartment', 'house', 'villa', 'land', 'farm'}.contains(_type);
+
+  bool? get _parkingValue {
+    if (!_requiresStructureDetails || _parkingChoice == null) return null;
+    return _parkingChoice == 'yes';
+  }
+
   Widget _stepPriceAndContact() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,11 +579,15 @@ class _AddPropertyWizardScreenState
         const SizedBox(height: 18),
         TextField(
           controller: _priceController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
+          keyboardType: TextInputType.number,
+          inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
             labelText: 'السعر بالريال اليمني',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.payments_outlined),
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.payments_outlined),
+            helperText: arabicRiyalAmountInWords(_priceController.text),
+            helperMaxLines: 2,
           ),
         ),
         const SizedBox(height: 12),
@@ -755,6 +806,11 @@ class _AddPropertyWizardScreenState
         _ReviewRow(
             label: 'الغرض', value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
         _ReviewRow(label: 'النوع', value: _types[_type] ?? _type),
+        if (_requiresSaleTenure)
+          _ReviewRow(
+            label: 'الملكية',
+            value: _tenureType == 'waqf' ? 'وقف' : 'حر',
+          ),
         _ReviewRow(
             label: 'السعر', value: '${_priceController.text.trim()} YER'),
         _ReviewRow(label: 'الموقع', value: _composedAddress),
@@ -766,7 +822,7 @@ class _AddPropertyWizardScreenState
         if (_requiresStructureDetails)
           _ReviewRow(
             label: 'الموقف',
-            value: _hasParking == true ? 'يوجد' : 'لا يوجد',
+            value: _parkingChoice == 'yes' ? 'يوجد' : 'لا يوجد',
           ),
         if (_requiresStructureDetails)
           _ReviewRow(
@@ -814,7 +870,7 @@ class _AddPropertyWizardScreenState
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(_step == 4
-                      ? (_isEditing ? 'حفظ التعديلات' : 'نشر الإعلان')
+                      ? (_isEditing ? 'حفظ وإرسال للمراجعة' : 'نشر الإعلان')
                       : 'التالي'),
             ),
           ),
@@ -833,8 +889,13 @@ class _AddPropertyWizardScreenState
   }
 
   String? _validationMessageForStep(int step) {
-    if (step == 0 && _titleController.text.trim().length < 4) {
-      return 'اكتب عنواناً واضحاً من 4 أحرف على الأقل.';
+    if (step == 0) {
+      if (_titleController.text.trim().length < 4) {
+        return 'اكتب عنواناً واضحاً من 4 أحرف على الأقل.';
+      }
+      if (_requiresSaleTenure && _tenureType == null) {
+        return 'حدد نوع الملكية: حر أو وقف.';
+      }
     }
     if (step == 1) {
       if (_governorateController.text.trim().length < 2) {
@@ -862,7 +923,7 @@ class _AddPropertyWizardScreenState
           return 'أدخل عدد الحمامات.';
         }
       }
-      if (_requiresStructureDetails && _hasParking == null) {
+      if (_requiresStructureDetails && _parkingChoice == null) {
         return 'حدد هل يوجد موقف سيارة أم لا.';
       }
       if (_requiresStructureDetails && _buildingFacade == null) {
@@ -1192,6 +1253,7 @@ class _AddPropertyWizardScreenState
       description: _descriptionController.text.trim(),
       purpose: _purpose,
       type: _type,
+      tenureType: _requiresSaleTenure ? _tenureType : null,
       price: double.parse(_priceController.text.trim()),
       areaValue: double.parse(_areaController.text.trim()),
       areaUnit: _areaUnit,
@@ -1201,7 +1263,7 @@ class _AddPropertyWizardScreenState
       bathrooms: _requiresResidentialDetails
           ? _optionalInt(_bathroomsController)
           : null,
-      hasParking: _requiresStructureDetails ? _hasParking : null,
+      hasParking: _parkingValue,
       buildingFacade: _requiresStructureDetails ? _buildingFacade : null,
       address: _composedAddress,
       latitude: _latitude!,
@@ -1228,12 +1290,14 @@ class _AddPropertyWizardScreenState
               input,
               imagePaths: _imagePaths,
               replaceImages: _replaceImages,
+              submitForReview: true,
               proofPaths: _proofPaths,
               ownershipProofPath: _ownershipProofPath,
             )
           : await repository.createListing(
               input,
               imagePaths: _imagePaths,
+              submitForReview: true,
               proofPaths: _proofPaths,
               ownershipProofPath: _ownershipProofPath,
             );
@@ -1260,8 +1324,8 @@ class _AddPropertyWizardScreenState
       }
       _showMessage(
         _isEditing
-            ? 'تم حفظ التعديلات كمسودة وتحتاج إعادة إرسال للمراجعة.'
-            : 'تم حفظ الإعلان كمسودة. أرسله للمراجعة من شاشة إعلاناتي.',
+            ? 'تم حفظ التعديلات وإرسال الإعلان مباشرة إلى فريق المراجعة.'
+            : 'تم استلام الإعلان وإرساله مباشرة إلى فريق المراجعة. حالة الإعلان: قيد المراجعة.',
       );
       if (_isEditing) {
         Navigator.of(context).pop(property);

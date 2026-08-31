@@ -29,11 +29,17 @@ class Stage13BookingsApiTest extends TestCase
         $property=$this->property($owner,'Stage 13 listing A');$window=$this->window(2,10);
         $response=$this->withHeaders($requesterHeaders)->postJson("/api/properties/{$property->id}/viewings",$window+['note'=>'Please confirm this viewing.'])->assertCreated()->assertJsonPath('data.status','requested');
         $bookingId=(int)$response->json('data.id');
+        $threadId=(int)$response->json('data.message_thread_id');
+        $this->assertGreaterThan(0,$threadId);
         $this->withHeaders($ownerHeaders)->postJson("/api/properties/{$property->id}/viewings",$window)->assertConflict();
         $this->withHeaders($outsiderHeaders)->getJson("/api/bookings/$bookingId")->assertNotFound();
         $this->withHeaders($requesterHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertForbidden();
         $this->assertDatabaseHas('viewing_booking_events',['viewing_booking_id'=>$bookingId,'event'=>'requested']);
-        $this->assertDatabaseHas('user_notifications',['user_id'=>$owner->id,'type'=>'viewing_requested','entity_id'=>$bookingId]);
+        $this->assertDatabaseHas('viewing_bookings',['id'=>$bookingId,'message_thread_id'=>$threadId]);
+        $this->assertDatabaseHas('message_thread_participants',['thread_id'=>$threadId,'user_id'=>$requester->id]);
+        $this->assertDatabaseHas('message_thread_participants',['thread_id'=>$threadId,'user_id'=>$owner->id]);
+        $this->assertDatabaseHas('private_messages',['thread_id'=>$threadId,'sender_user_id'=>$requester->id]);
+        $this->assertDatabaseHas('user_notifications',['user_id'=>$owner->id,'type'=>'viewing_requested','entity_type'=>'message_thread','entity_id'=>$threadId]);
         $this->assertSame($requester->id,(int)ViewingBooking::query()->findOrFail($bookingId)->requester_user_id);
     }
 
@@ -49,7 +55,7 @@ class Stage13BookingsApiTest extends TestCase
         $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$two/confirm")->assertConflict();
         $this->withHeaders($firstHeaders)->postJson("/api/bookings/$one/cancel",['reason'=>'Schedule changed'])->assertOk()->assertJsonPath('data.status','cancelled');
         $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$two/confirm")->assertOk()->assertJsonPath('data.status','confirmed');
-        $this->assertDatabaseHas('user_notifications',['user_id'=>$first->id,'type'=>'booking_confirmed','entity_id'=>$one]);
+        $threadId=(int)ViewingBooking::query()->findOrFail($one)->message_thread_id;$this->assertDatabaseHas('user_notifications',['user_id'=>$first->id,'type'=>'booking_confirmed','entity_type'=>'message_thread','entity_id'=>$threadId]);
     }
 
     public function test_development_manager_can_confirm_unit_viewing_and_requester_conflicts_are_blocked(): void
@@ -82,7 +88,8 @@ class Stage13BookingsApiTest extends TestCase
 
     public function test_booking_permission_and_prior_stage_protections_exist(): void
     {
-        foreach(['viewing_bookings','viewing_booking_events','developers','private_message_access_events','support_case_events'] as $table)$this->assertTrue(Schema::hasTable($table));
+        foreach(['viewing_bookings','viewing_booking_events','message_threads','message_thread_participants','private_messages','developers','private_message_access_events','support_case_events'] as $table)$this->assertTrue(Schema::hasTable($table));
+        $this->assertTrue(Schema::hasColumn('viewing_bookings','message_thread_id'));
         $this->assertDatabaseHas('permissions',['key'=>'bookings.manage']);
         $support=Role::query()->where('key','support_manager')->firstOrFail();$permission=DB::table('permissions')->where('key','bookings.manage')->value('id');
         $this->assertTrue(DB::table('role_permission')->where('role_id',$support->id)->where('permission_id',$permission)->exists());

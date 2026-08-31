@@ -10,6 +10,7 @@ void main() {
       'requester_name': 'Requester',
       'host_user_id': 1,
       'host_name': 'Owner',
+      'message_thread_id': 91,
       'target_type': 'property',
       'target_id': 7,
       'target_title': 'Apartment',
@@ -24,6 +25,7 @@ void main() {
       'can_reschedule': true,
     });
     expect(booking.id, 13);
+    expect(booking.messageThreadId, 91);
     expect(booking.statusLabel, 'مؤكد');
     expect(booking.targetLabel, 'عقار');
     expect(booking.isActive, isTrue);

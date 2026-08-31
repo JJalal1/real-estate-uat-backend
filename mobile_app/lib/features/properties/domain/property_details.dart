@@ -27,6 +27,7 @@ class PropertySummary {
     required this.title,
     required this.purpose,
     required this.type,
+    this.tenureType,
     required this.price,
     required this.currency,
     required this.latitude,
@@ -47,6 +48,7 @@ class PropertySummary {
   final String title;
   final String purpose;
   final String type;
+  final String? tenureType;
   final double price;
   final String currency;
   final double latitude;
@@ -68,6 +70,7 @@ class PropertySummary {
       title: json['title']?.toString() ?? '',
       purpose: json['purpose']?.toString() ?? '',
       type: json['type']?.toString() ?? '',
+      tenureType: _nullableString(json['tenure_type']),
       price: _asDouble(json['price']) ?? 0,
       currency: json['currency']?.toString() ?? 'YER',
       latitude: _asDouble(json['latitude']) ?? 0,
@@ -138,6 +141,7 @@ class PropertyDetails {
     required this.title,
     required this.purpose,
     required this.type,
+    this.tenureType,
     required this.price,
     required this.currency,
     required this.latitude,
@@ -177,6 +181,7 @@ class PropertyDetails {
   final String? description;
   final String purpose;
   final String type;
+  final String? tenureType;
   final double price;
   final String currency;
   final int? areaM2;
@@ -233,6 +238,7 @@ class PropertyDetails {
       description: _nullableString(json['description']),
       purpose: json['purpose']?.toString() ?? '',
       type: json['type']?.toString() ?? '',
+      tenureType: _nullableString(json['tenure_type']),
       price: _asDouble(json['price']) ?? 0,
       currency: json['currency']?.toString() ?? 'YER',
       areaM2: _asInt(json['area_m2']),
@@ -289,6 +295,7 @@ class PropertyDetails {
       title: title,
       purpose: purpose,
       type: type,
+      tenureType: tenureType,
       price: price,
       currency: currency,
       latitude: latitude,
@@ -315,6 +322,7 @@ class PropertyListingInput {
     required this.price,
     required this.latitude,
     required this.longitude,
+    this.tenureType,
     this.description,
     this.currency = 'YER',
     this.areaM2,
@@ -337,6 +345,7 @@ class PropertyListingInput {
   final String? description;
   final String purpose;
   final String type;
+  final String? tenureType;
   final double price;
   final String currency;
   final int? areaM2;
@@ -363,6 +372,8 @@ class PropertyListingInput {
         'description': description!.trim(),
       'purpose': purpose,
       'type': type,
+      if (tenureType != null && tenureType!.trim().isNotEmpty)
+        'tenure_type': tenureType,
       'price': price,
       'currency': currency.toUpperCase(),
       'listing_input_version': 2,

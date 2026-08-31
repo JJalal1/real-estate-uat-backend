@@ -330,7 +330,7 @@ class _AccountVerificationScreenState
               selected: _files.containsKey(spec.$1),
               alreadyStored:
                   application.type == _type && application.hasDocument(spec.$1),
-              cameraOnly: spec.$1 == 'selfie',
+              selfieSourceChoice: spec.$1 == 'selfie',
               onTap: _busy ? null : () => _pickDocument(spec.$1),
             ))
         .toList(growable: false);
@@ -365,7 +365,16 @@ class _AccountVerificationScreenState
     try {
       String? selected;
       if (kind == 'selfie') {
-        selected = await _picker.takePhoto();
+        final source = await _chooseSelfieSource();
+        if (!mounted || source == null) return;
+        if (source == 'camera') {
+          selected = await _picker.takePhoto();
+        } else {
+          final paths = await _picker.pickImages();
+          if (paths.isEmpty) return;
+          selected = paths.first;
+          await _picker.clearTemporaryFiles(paths.skip(1));
+        }
       } else {
         final paths = await _picker.pickImages();
         if (paths.isEmpty) return;
@@ -380,13 +389,53 @@ class _AccountVerificationScreenState
       }
     } on PlatformException {
       _message(kind == 'selfie'
-          ? 'تعذر فتح الكاميرا لالتقاط السيلفي.'
+          ? 'تعذر فتح الكاميرا أو اختيار صورة السيلفي من الملفات.'
           : 'تعذر فتح معرض الصور.');
     } catch (_) {
       _message(kind == 'selfie'
-          ? 'تعذر التقاط صورة السيلفي.'
+          ? 'تعذر اختيار صورة السيلفي.'
           : 'تعذر اختيار المستند.');
     }
+  }
+
+  Future<String?> _chooseSelfieSource() {
+    return showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'صورة السيلفي',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 6),
+              const Text('اختر التقاط صورة الآن أو رفع صورة موجودة من الملفات.'),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(sheetContext, 'camera'),
+                icon: const Icon(Icons.photo_camera_outlined),
+                label: const Text('فتح الكاميرا'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(sheetContext, 'files'),
+                icon: const Icon(Icons.folder_open_outlined),
+                label: const Text('اختيار من الملفات'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _pickOfficeLocation() async {
@@ -613,7 +662,7 @@ class _DocumentTile extends StatelessWidget {
     required this.requiredDocument,
     required this.selected,
     required this.alreadyStored,
-    required this.cameraOnly,
+    required this.selfieSourceChoice,
     required this.onTap,
   });
 
@@ -621,7 +670,7 @@ class _DocumentTile extends StatelessWidget {
   final bool requiredDocument;
   final bool selected;
   final bool alreadyStored;
-  final bool cameraOnly;
+  final bool selfieSourceChoice;
   final VoidCallback? onTap;
 
   @override
@@ -641,8 +690,8 @@ class _DocumentTile extends StatelessWidget {
               ? 'تم اختيار ملف جديد'
               : alreadyStored
                   ? 'مرفوع سابقًا ويمكن استبداله'
-                  : cameraOnly
-                      ? 'اضغط لالتقاط صورة مباشرة بالكاميرا'
+                  : selfieSourceChoice
+                      ? 'اضغط لاختيار الكاميرا أو الملفات'
                       : 'اضغط لاختيار الصورة',
         ),
         trailing: const Icon(Icons.chevron_left),

@@ -102,6 +102,7 @@ class ReviewListingItem {
     required this.title,
     required this.purpose,
     required this.type,
+    required this.tenureType,
     required this.price,
     required this.reviewStatus,
     required this.ownerName,
@@ -116,6 +117,7 @@ class ReviewListingItem {
   final String title;
   final String purpose;
   final String type;
+  final String? tenureType;
   final double price;
   final String reviewStatus;
   final String ownerName;
@@ -133,6 +135,7 @@ class ReviewListingItem {
       title: json['title']?.toString() ?? '',
       purpose: json['purpose']?.toString() ?? '',
       type: json['type']?.toString() ?? '',
+      tenureType: _nullable(json['tenure_type']),
       price: _asDouble(json['price']),
       reviewStatus: json['review_status']?.toString() ?? '',
       ownerName:
@@ -207,6 +210,7 @@ class ReviewListingDetail {
     required this.title,
     required this.purpose,
     required this.type,
+    required this.tenureType,
     required this.price,
     required this.reviewStatus,
     required this.ownerName,
@@ -243,6 +247,7 @@ class ReviewListingDetail {
   final String title;
   final String purpose;
   final String type;
+  final String? tenureType;
   final double price;
   final String reviewStatus;
   final String ownerName;
@@ -290,6 +295,7 @@ class ReviewListingDetail {
       title: json['title']?.toString() ?? '',
       purpose: json['purpose']?.toString() ?? '',
       type: json['type']?.toString() ?? '',
+      tenureType: _nullable(json['tenure_type']),
       price: _asDouble(json['price']),
       reviewStatus: json['review_status']?.toString() ?? '',
       ownerName: ownerMap['name']?.toString() ?? '',

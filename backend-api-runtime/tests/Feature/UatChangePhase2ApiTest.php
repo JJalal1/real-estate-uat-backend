@@ -54,6 +54,39 @@ class UatChangePhase2ApiTest extends TestCase
             ->assertJsonValidationErrors(['has_parking', 'building_facade']);
     }
 
+    public function test_v2_sale_tenure_is_required_only_for_supported_sale_property_types(): void
+    {
+        [, $headers] = $this->verifiedUser('phase2-tenure@example.test', '+967700002206');
+
+        $missingTenure = $this->v2Payload();
+        unset($missingTenure['tenure_type']);
+        $this->withHeaders($headers)->postJson('/api/properties', $missingTenure)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['tenure_type']);
+
+        $rentHouse = $this->v2Payload([
+            'purpose' => 'rent',
+            'tenure_type' => null,
+            'latitude' => 15.3794,
+            'longitude' => 44.2010,
+        ]);
+        $this->withHeaders($headers)->postJson('/api/properties', $rentHouse)
+            ->assertCreated()
+            ->assertJsonPath('data.tenure_type', null);
+
+        $saleShop = $this->v2Payload([
+            'type' => 'shop',
+            'tenure_type' => null,
+            'bedrooms' => null,
+            'bathrooms' => null,
+            'latitude' => 15.3894,
+            'longitude' => 44.2110,
+        ]);
+        $this->withHeaders($headers)->postJson('/api/properties', $saleShop)
+            ->assertCreated()
+            ->assertJsonPath('data.tenure_type', null);
+    }
+
     public function test_v2_residential_listing_requires_bedrooms_and_bathrooms(): void
     {
         [, $headers] = $this->verifiedUser('phase2-rooms@example.test', '+967700002203');
@@ -98,7 +131,7 @@ class UatChangePhase2ApiTest extends TestCase
             'listing_input_version' => 1,
             'area_m2' => 220,
         ]);
-        unset($payload['area_value'], $payload['area_unit'], $payload['has_parking'], $payload['building_facade']);
+        unset($payload['area_value'], $payload['area_unit'], $payload['has_parking'], $payload['building_facade'], $payload['tenure_type']);
 
         $response = $this->withHeaders($headers)->postJson('/api/properties', $payload);
         $response->assertCreated()
@@ -115,6 +148,7 @@ class UatChangePhase2ApiTest extends TestCase
             'description' => 'Phase 2 property input contract',
             'purpose' => 'sale',
             'type' => 'house',
+            'tenure_type' => 'freehold',
             'price' => 50000000,
             'currency' => 'YER',
             'area_value' => 220,

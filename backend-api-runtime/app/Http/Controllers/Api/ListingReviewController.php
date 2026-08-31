@@ -60,6 +60,7 @@ class ListingReviewController extends Controller
             'title'=>$p->title,
             'purpose'=>$p->purpose,
             'type'=>$p->type,
+            'tenure_type'=>$p->tenure_type,
             'price'=>(float)$p->price,
             'status'=>$p->status,
             'review_status'=>$p->review_status,

@@ -96,6 +96,8 @@ class _ReviewCard extends ConsumerWidget {
             Text(
               'الحالة: ${_status(item.reviewStatus)} • مستندات الإثبات: ${item.proofCount}',
             ),
+            if (item.tenureType != null)
+              Text('نوع الملكية: ${item.tenureType == 'waqf' ? 'وقف' : 'حر'}'),
             const SizedBox(height: 10),
             Wrap(
               spacing: 6,
@@ -253,6 +255,8 @@ class _ReviewDetailsDialog extends ConsumerWidget {
                       Text(
                           'الغرض: ${item.purpose == 'sale' ? 'بيع' : 'إيجار'}'),
                       Text('النوع: ${item.type}'),
+                      if (item.tenureType != null)
+                        Text('نوع الملكية: ${item.tenureType == 'waqf' ? 'وقف' : 'حر'}'),
                       Text('السعر: ${item.price.toStringAsFixed(0)}'),
                       Text('العنوان: ${item.address}'),
                       Text(

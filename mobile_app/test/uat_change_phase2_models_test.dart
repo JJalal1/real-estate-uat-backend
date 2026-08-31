@@ -9,6 +9,7 @@ void main() {
         title: 'منزل للاختبار',
         purpose: 'sale',
         type: 'house',
+        tenureType: 'freehold',
         price: 50000000,
         latitude: 15.3694,
         longitude: 44.1910,
@@ -23,6 +24,7 @@ void main() {
 
       final payload = input.toMap();
       expect(payload['listing_input_version'], 2);
+      expect(payload['tenure_type'], 'freehold');
       expect(payload['area_value'], 2);
       expect(payload['area_unit'], 'libna_sanaani');
       expect(payload['has_parking'], false);
@@ -37,6 +39,7 @@ void main() {
         'title': 'فيلا',
         'purpose': 'sale',
         'type': 'villa',
+        'tenure_type': 'waqf',
         'price': 75000000,
         'currency': 'YER',
         'area_m2': 89,
@@ -51,6 +54,7 @@ void main() {
         'images': <dynamic>[],
       });
 
+      expect(property.tenureType, 'waqf');
       expect(property.areaValue, 2);
       expect(property.areaUnit, 'libna_sanaani');
       expect(property.hasParking, false);

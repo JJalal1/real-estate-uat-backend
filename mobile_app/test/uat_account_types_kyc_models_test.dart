@@ -134,7 +134,7 @@ void main() {
     expect(source.contains('DropdownButtonFormField'), isFalse);
   });
 
-  test('verification selfie uses direct camera capture instead of gallery selection',
+  test('verification selfie offers camera capture or an existing file',
       () async {
     final pickerSource =
         await File('lib/core/platform/stage5_media_picker.dart').readAsString();
@@ -146,8 +146,14 @@ void main() {
         .readAsString();
 
     expect(pickerSource.contains("invokeMethod<String>('takePhoto')"), isTrue);
+    expect(pickerSource.contains("invokeListMethod<String>('pickImages')"), isTrue);
     expect(verificationSource.contains("kind == 'selfie'"), isTrue);
+    expect(verificationSource.contains('_chooseSelfieSource()'), isTrue);
     expect(verificationSource.contains('_picker.takePhoto()'), isTrue);
+    expect(verificationSource.contains('_picker.pickImages()'), isTrue);
+    expect(verificationSource.contains('فتح الكاميرا'), isTrue);
+    expect(verificationSource.contains('اختيار من الملفات'), isTrue);
     expect(androidSource.contains('MediaStore.ACTION_IMAGE_CAPTURE'), isTrue);
+    expect(androidSource.contains('Intent.ACTION_OPEN_DOCUMENT'), isTrue);
   });
 }

@@ -6,6 +6,7 @@ class ViewingBooking {
     required this.requesterName,
     required this.hostUserId,
     required this.hostName,
+    required this.messageThreadId,
     required this.targetType,
     required this.targetId,
     required this.targetTitle,
@@ -30,6 +31,7 @@ class ViewingBooking {
         requesterName: json['requester_name']?.toString() ?? '',
         hostUserId: _nullableInt(json['host_user_id']),
         hostName: json['host_name']?.toString(),
+        messageThreadId: _nullableInt(json['message_thread_id']),
         targetType: json['target_type']?.toString() ?? 'property',
         targetId: _int(json['target_id']),
         targetTitle: json['target_title']?.toString() ?? '',
@@ -53,6 +55,7 @@ class ViewingBooking {
   final String requesterName;
   final int? hostUserId;
   final String? hostName;
+  final int? messageThreadId;
   final String targetType;
   final int targetId;
   final String targetTitle;

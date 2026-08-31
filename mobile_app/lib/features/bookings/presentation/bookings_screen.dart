@@ -125,6 +125,13 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   }
 
   Future<void> _action(ViewingBooking booking, String action) async {
+    if (action == 'conversation') {
+      final threadId = booking.messageThreadId;
+      if (threadId != null && mounted) {
+        await context.push('/messages/$threadId');
+      }
+      return;
+    }
     try {
       final repo = ref.read(bookingRepositoryProvider);
       if (action == 'confirm') await repo.confirm(booking.id);
@@ -142,7 +149,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
         if (!mounted) return;
         final changed =
             await BookingRequestSheet.showForReschedule(context, booking);
-        if (changed != true) return;
+        if (changed == null) return;
       }
       if (action == 'complete') await repo.complete(booking.id);
       if (!mounted) return;
@@ -228,6 +235,14 @@ class _BookingCard extends StatelessWidget {
                   booking.cancellationReason!.isNotEmpty) ...[
                 const SizedBox(height: 7),
                 Text('سبب الإلغاء: ${booking.cancellationReason}')
+              ],
+              if (booking.messageThreadId != null) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => onAction('conversation'),
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('فتح محادثة المعاينة'),
+                ),
               ],
               if (booking.isActive) ...[
                 const SizedBox(height: 10),

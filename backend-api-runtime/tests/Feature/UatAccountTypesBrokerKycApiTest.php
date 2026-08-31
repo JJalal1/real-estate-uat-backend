@@ -161,11 +161,15 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->assertJsonPath('data.verification_flags.identity_reviewed', true)
             ->assertJsonPath('data.verification_flags.professional_document_reviewed', true);
 
-        $listingId = (int) $this->withHeaders($headers)
-            ->post('/api/properties', $this->listingPayload('Professional broker listing'))
-            ->assertCreated()->json('data.id');
-        $this->withHeaders($headers)->postJson("/api/properties/$listingId/submit")
-            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $listingResponse = $this->withHeaders($headers)
+            ->post('/api/properties', array_merge(
+                $this->listingPayload('Professional broker listing'),
+                ['submit_for_review' => 1],
+            ))
+            ->assertCreated()
+            ->assertJsonPath('data.review_status', 'submitted')
+            ->assertJsonPath('data.status', 'pending');
+        $listingId = (int) $listingResponse->json('data.id');
 
         $this->assertDatabaseMissing('listing_documents', [
             'property_id' => $listingId,
@@ -205,11 +209,14 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->assertJsonPath('data.verification_flags.office_documents_reviewed', true)
             ->assertJsonPath('data.verification_flags.office_location_registered', true);
 
-        $listingId = (int) $this->withHeaders($headers)
-            ->post('/api/properties', $this->listingPayload('Office listing'))
-            ->assertCreated()->json('data.id');
-        $this->withHeaders($headers)->postJson("/api/properties/$listingId/submit")
-            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $this->withHeaders($headers)
+            ->post('/api/properties', array_merge(
+                $this->listingPayload('Office listing'),
+                ['submit_for_review' => 1],
+            ))
+            ->assertCreated()
+            ->assertJsonPath('data.review_status', 'submitted')
+            ->assertJsonPath('data.status', 'pending');
     }
 
     private function unifiedUser(string $phone, string $name): array
@@ -235,6 +242,7 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             'description' => 'Unified account verification workflow test.',
             'purpose' => 'sale',
             'type' => 'house',
+            'tenure_type' => 'freehold',
             'price' => 45000000,
             'currency' => 'YER',
             'area_value' => 220,

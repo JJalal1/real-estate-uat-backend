@@ -28,6 +28,8 @@ class PropertyController extends Controller
 {
     private const TYPES = ['apartment', 'house', 'villa', 'land', 'shop', 'office', 'farm'];
     private const PURPOSES = ['sale', 'rent'];
+    private const TENURE_TYPES = ['freehold', 'waqf'];
+    private const SALE_TENURE_PROPERTY_TYPES = ['apartment', 'house', 'villa', 'land', 'farm'];
     private const AREA_UNITS = [
         'sqm' => 1.0,
         'libna_sanaani' => 44.44,
@@ -216,6 +218,10 @@ class PropertyController extends Controller
                 return $property->fresh(['images','documents','propertyAsset']);
             });
         }catch(Throwable $e){$this->deletePaths($storedPublic);$this->deletePrivatePaths($storedPrivate);throw $e;}
+        if ($request->boolean('submit_for_review')) {
+            $property = $this->workflow->submit($user, $property, $request);
+            return response()->json(['message'=>'Listing submitted for support review.','data'=>$this->detailData($property,$request)],201);
+        }
         return response()->json(['message'=>'Draft listing created. Submit it for support review when ready.','data'=>$this->detailData($property,$request)],201);
     }
 
@@ -238,6 +244,10 @@ class PropertyController extends Controller
             return $property->fresh(['images','documents','propertyAsset']);
         });}catch(Throwable $e){$this->deletePaths($storedPublic);$this->deletePrivatePaths($storedPrivate);throw $e;}
         if($replaceImages)$this->deleteImageFiles($oldImages);
+        if ($request->boolean('submit_for_review')) {
+            $property = $this->workflow->submit($user, $property, $request);
+            return response()->json(['message'=>'Listing updates submitted for support review.','data'=>$this->detailData($property,$request)]);
+        }
         return response()->json(['message'=>'Listing saved as draft and requires review before publication.','data'=>$this->detailData($property,$request)]);
     }
 
@@ -311,6 +321,7 @@ class PropertyController extends Controller
             'description' => ['nullable', 'string', 'max:5000'],
             'purpose' => array_merge($required, [Rule::in(self::PURPOSES)]),
             'type' => array_merge($required, [Rule::in(self::TYPES)]),
+            'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
             'currency' => ['sometimes', 'string', 'size:3'],
             'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2])],
@@ -331,6 +342,7 @@ class PropertyController extends Controller
             'owner_relationship_type' => ['nullable', 'string', Rule::in(['owner','agent','heir','co_owner','other'])],
             'owner_relationship_note' => ['nullable', 'string', 'max:255'],
             'replace_images' => ['nullable', 'boolean'],
+            'submit_for_review' => ['nullable', 'boolean'],
             'images' => ['nullable', 'array', 'max:12'],
             'images.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'proof_documents' => ['nullable', 'array', 'max:5'],
@@ -345,7 +357,7 @@ class PropertyController extends Controller
     private function listingPayload(array $validated, bool $partial): array
     {
         $allowed = [
-            'title', 'description', 'purpose', 'type', 'price', 'currency',
+            'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
             'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude',
             'contact_phone', 'contact_whatsapp',
             'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note',
@@ -402,7 +414,13 @@ class PropertyController extends Controller
             ]);
         }
 
-        if (($validated['type'] ?? $existing?->type) === 'land') {
+        $effectivePurpose = (string) ($validated['purpose'] ?? $existing?->purpose ?? '');
+        $effectiveType = (string) ($validated['type'] ?? $existing?->type ?? '');
+        if ($effectivePurpose !== 'sale' || ! in_array($effectiveType, self::SALE_TENURE_PROPERTY_TYPES, true)) {
+            $validated['tenure_type'] = null;
+        }
+
+        if ($effectiveType === 'land') {
             $validated['bedrooms'] = null;
             $validated['bathrooms'] = null;
             $validated['has_parking'] = null;
@@ -429,7 +447,14 @@ class PropertyController extends Controller
             $errors['price'][] = 'Price must be greater than zero.';
         }
 
+        $purpose = (string) ($listing['purpose'] ?? '');
         $type = (string) ($listing['type'] ?? '');
+        if ($purpose === 'sale' && in_array($type, self::SALE_TENURE_PROPERTY_TYPES, true)) {
+            if (! in_array((string) ($listing['tenure_type'] ?? ''), self::TENURE_TYPES, true)) {
+                $errors['tenure_type'][] = 'حدد نوع الملكية: حر أو وقف.';
+            }
+        }
+
         if (in_array($type, self::RESIDENTIAL_TYPES, true)) {
             if (! isset($listing['bedrooms']) || (int) $listing['bedrooms'] < 1) {
                 $errors['bedrooms'][] = 'Bedrooms are required for residential properties.';
@@ -460,6 +485,7 @@ class PropertyController extends Controller
             'description' => $property->description,
             'purpose' => $property->purpose,
             'type' => $property->type,
+            'tenure_type' => $property->tenure_type,
             'price' => $property->price,
             'currency' => $property->currency,
             'area_m2' => $property->area_m2,
@@ -706,6 +732,7 @@ class PropertyController extends Controller
             'title' => $property->title,
             'purpose' => $property->purpose,
             'type' => $property->type,
+            'tenure_type' => $property->tenure_type,
             'price' => (float) $property->price,
             'currency' => $property->currency,
             'area_m2' => $property->area_m2,

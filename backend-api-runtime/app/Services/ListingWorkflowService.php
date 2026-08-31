@@ -172,6 +172,6 @@ class ListingWorkflowService
 
     private function snapshot(Property $listing): array
     {
-        return ['id'=>$listing->id,'user_id'=>$listing->user_id,'property_asset_id'=>$listing->property_asset_id,'title'=>$listing->title,'purpose'=>$listing->purpose,'type'=>$listing->type,'price'=>(float)$listing->price,'latitude'=>(float)$listing->latitude,'longitude'=>(float)$listing->longitude,'status'=>$listing->status,'review_status'=>$listing->review_status];
+        return ['id'=>$listing->id,'user_id'=>$listing->user_id,'property_asset_id'=>$listing->property_asset_id,'title'=>$listing->title,'purpose'=>$listing->purpose,'type'=>$listing->type,'tenure_type'=>$listing->tenure_type,'price'=>(float)$listing->price,'latitude'=>(float)$listing->latitude,'longitude'=>(float)$listing->longitude,'status'=>$listing->status,'review_status'=>$listing->review_status];
     }
 }

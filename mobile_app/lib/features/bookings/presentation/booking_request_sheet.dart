@@ -16,9 +16,9 @@ class BookingRequestSheet extends ConsumerStatefulWidget {
   final String title;
   final ViewingBooking? reschedule;
 
-  static Future<bool?> showForProperty(BuildContext context,
+  static Future<ViewingBooking?> showForProperty(BuildContext context,
           {required int propertyId, required String title}) =>
-      showModalBottomSheet<bool>(
+      showModalBottomSheet<ViewingBooking>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
@@ -26,9 +26,9 @@ class BookingRequestSheet extends ConsumerStatefulWidget {
             targetType: 'property', targetId: propertyId, title: title),
       );
 
-  static Future<bool?> showForDevelopmentUnit(BuildContext context,
+  static Future<ViewingBooking?> showForDevelopmentUnit(BuildContext context,
           {required int unitId, required String title}) =>
-      showModalBottomSheet<bool>(
+      showModalBottomSheet<ViewingBooking>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
@@ -36,9 +36,9 @@ class BookingRequestSheet extends ConsumerStatefulWidget {
             targetType: 'development_unit', targetId: unitId, title: title),
       );
 
-  static Future<bool?> showForReschedule(
+  static Future<ViewingBooking?> showForReschedule(
           BuildContext context, ViewingBooking booking) =>
-      showModalBottomSheet<bool>(
+      showModalBottomSheet<ViewingBooking>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
@@ -197,19 +197,20 @@ class _BookingRequestSheetState extends ConsumerState<BookingRequestSheet> {
     setState(() => _busy = true);
     try {
       final repo = ref.read(bookingRepositoryProvider);
+      final ViewingBooking result;
       if (widget.reschedule != null) {
-        await repo.reschedule(widget.reschedule!.id, payload);
+        result = await repo.reschedule(widget.reschedule!.id, payload);
       } else if (widget.targetType == 'property') {
-        await repo.requestProperty(widget.targetId, payload);
+        result = await repo.requestProperty(widget.targetId, payload);
       } else {
-        await repo.requestUnit(widget.targetId, payload);
+        result = await repo.requestUnit(widget.targetId, payload);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(widget.reschedule == null
-              ? 'تم إرسال طلب المعاينة.'
+              ? 'تم إرسال طلب المعاينة، ويمكنك الآن التنسيق عبر المحادثة.'
               : 'تم تحديث الموعد ويحتاج إلى تأكيد جديد.')));
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(result);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

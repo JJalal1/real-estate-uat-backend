@@ -272,7 +272,7 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = switch (status) {
       'draft' => 'مسودة',
-      'submitted' => 'مرفوع للدعم',
+      'submitted' => 'قيد المراجعة',
       'under_review' => 'قيد المراجعة',
       'returned_for_correction' => 'مُعاد للتصحيح',
       'approved' => 'مقبول ومنشور',

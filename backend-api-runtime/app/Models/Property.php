@@ -11,7 +11,7 @@ class Property extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id','property_asset_id','geo_cell_id','owner_key','title','description','purpose','type','price','currency',
+        'user_id','property_asset_id','geo_cell_id','owner_key','title','description','purpose','type','tenure_type','price','currency',
         'area_m2','area_value','area_unit','bedrooms','bathrooms','has_parking','building_facade','address','latitude','longitude','status',
         'contact_phone','contact_whatsapp','ownership_document_type','document_owner_name','owner_relationship_type','owner_relationship_note','review_status','submitted_at','published_at','reviewed_at','last_review_reason',
     ];

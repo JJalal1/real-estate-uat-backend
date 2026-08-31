@@ -3,6 +3,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DevelopmentUnit;
+use App\Models\MessageThread;
+use App\Models\MessageThreadParticipant;
+use App\Models\PrivateMessage;
 use App\Models\Property;
 use App\Models\User;
 use App\Models\ViewingBooking;
@@ -153,15 +156,74 @@ class BookingController extends Controller
     {
         $validated=$request->validate(['note'=>['nullable','string','max:2000']]);
         $this->assertNoDuplicateActive($actor->id,$target['type'],$target['id'],$schedule['start'],$schedule['end']);
-        $booking=ViewingBooking::query()->create([
-            'reference'=>$this->reference(),'requester_user_id'=>$actor->id,'requester_name_snapshot'=>$actor->name,
-            'host_user_id'=>$target['host']?->id,'host_name_snapshot'=>$target['host']?->name,'target_type'=>$target['type'],'target_id'=>$target['id'],
-            'target_title_snapshot'=>$target['title'],'target_address_snapshot'=>$target['address'],'starts_at'=>$schedule['start'],'ends_at'=>$schedule['end'],'timezone'=>$schedule['timezone'],'status'=>'requested','requester_note'=>$validated['note']??null,'last_action_by_user_id'=>$actor->id,'last_action_by_name_snapshot'=>$actor->name,
+
+        $booking=DB::transaction(function()use($actor,$target,$schedule,$validated): ViewingBooking {
+            $thread=null;
+            if($target['type']==='property' && $target['host'] instanceof User){
+                $thread=$this->ensurePropertyConversation($actor,$target['host'],(int)$target['id']);
+            }
+
+            $booking=ViewingBooking::query()->create([
+                'reference'=>$this->reference(),'requester_user_id'=>$actor->id,'requester_name_snapshot'=>$actor->name,
+                'host_user_id'=>$target['host']?->id,'host_name_snapshot'=>$target['host']?->name,'message_thread_id'=>$thread?->id,
+                'target_type'=>$target['type'],'target_id'=>$target['id'],'target_title_snapshot'=>$target['title'],'target_address_snapshot'=>$target['address'],
+                'starts_at'=>$schedule['start'],'ends_at'=>$schedule['end'],'timezone'=>$schedule['timezone'],'status'=>'requested',
+                'requester_note'=>$validated['note']??null,'last_action_by_user_id'=>$actor->id,'last_action_by_name_snapshot'=>$actor->name,
+            ]);
+
+            if($thread){
+                PrivateMessage::query()->create([
+                    'thread_id'=>$thread->id,
+                    'sender_user_id'=>$actor->id,
+                    'sender_name_snapshot'=>$actor->name,
+                    'body'=>$this->viewingConversationMessage($booking),
+                    'created_at'=>now(),
+                ]);
+                $thread->forceFill(['last_message_at'=>now()])->save();
+            }
+
+            return $booking;
+        });
+
+        $this->event($booking,$actor,'requested',null,'requested',[
+            'starts_at'=>$booking->starts_at?->toIso8601String(),
+            'ends_at'=>$booking->ends_at?->toIso8601String(),
+            'message_thread_id'=>$booking->message_thread_id,
         ]);
-        $this->event($booking,$actor,'requested',null,'requested',['starts_at'=>$booking->starts_at?->toIso8601String(),'ends_at'=>$booking->ends_at?->toIso8601String()]);
-        $this->audit->record($actor,'booking.requested',$booking,['target_type'=>$booking->target_type,'target_id'=>$booking->target_id],$request,$booking->host_user_id);
-        if($booking->host_user_id)$this->notify((int)$booking->host_user_id,'viewing_requested','طلب معاينة جديد','لديك طلب معاينة جديد لـ '.$booking->target_title_snapshot.'.',$booking);
+        $this->audit->record($actor,'booking.requested',$booking,[
+            'target_type'=>$booking->target_type,
+            'target_id'=>$booking->target_id,
+            'message_thread_id'=>$booking->message_thread_id,
+        ],$request,$booking->host_user_id);
+        if($booking->host_user_id)$this->notify((int)$booking->host_user_id,'viewing_requested','طلب معاينة جديد','لديك طلب معاينة جديد لـ '.$booking->target_title_snapshot.'. افتح المحادثة للتنسيق وتأكيد الموعد.',$booking);
         return response()->json(['message'=>'Viewing booking requested.','data'=>$this->bookingData($booking,$actor)],201);
+    }
+
+    private function ensurePropertyConversation(User $requester, User $host, int $propertyId): MessageThread
+    {
+        $pair=[(int)$requester->id,(int)$host->id];sort($pair);
+        $key='listing:'.$propertyId.':'.$pair[0].':'.$pair[1];
+        $thread=MessageThread::query()->firstOrCreate(['conversation_key'=>$key],[
+            'property_id'=>$propertyId,
+            'started_by_user_id'=>$requester->id,
+            'last_message_at'=>now(),
+        ]);
+        foreach([[$requester->id,$requester->name],[$host->id,$host->name]] as [$id,$name]){
+            MessageThreadParticipant::query()->firstOrCreate(
+                ['thread_id'=>$thread->id,'user_id'=>$id],
+                ['user_name_snapshot'=>$name],
+            );
+        }
+        return $thread;
+    }
+
+    private function viewingConversationMessage(ViewingBooking $booking): string
+    {
+        $message='طلب معاينة جديد للعقار «'.$booking->target_title_snapshot.'». يمكننا التنسيق هنا، وبعد الاتفاق يستطيع المعلن تأكيد الموعد من بطاقة المعاينة.';
+        if(trim((string)$booking->requester_note)!==''){
+            $message.="\nملاحظة الطلب: ".trim((string)$booking->requester_note);
+        }
+        return $message;
     }
 
     private function schedule(Request $request): array
@@ -230,7 +292,16 @@ class BookingController extends Controller
 
     private function notify(int $userId,string $type,string $title,string $body,ViewingBooking $booking): void
     {
-        $this->notifications->create($userId,$type,$title,$body,'viewing_booking',$booking->id,['booking_id'=>$booking->id,'reference'=>$booking->reference,'status'=>$booking->status]);
+        $threadId=$booking->message_thread_id ? (int)$booking->message_thread_id : null;
+        $this->notifications->create(
+            $userId,
+            $type,
+            $title,
+            $body,
+            $threadId ? 'message_thread' : 'viewing_booking',
+            $threadId ?: $booking->id,
+            ['booking_id'=>$booking->id,'reference'=>$booking->reference,'status'=>$booking->status,'message_thread_id'=>$threadId],
+        );
     }
 
     private function reference(): string
@@ -240,7 +311,7 @@ class BookingController extends Controller
 
     private function bookingData(ViewingBooking $b, User $viewer, bool $includeEvents=false): array
     {
-        $data=['id'=>$b->id,'reference'=>$b->reference,'requester_user_id'=>$b->requester_user_id,'requester_name'=>$b->requester_name_snapshot,'host_user_id'=>$b->host_user_id,'host_name'=>$b->host_name_snapshot,'target_type'=>$b->target_type,'target_id'=>$b->target_id,'target_title'=>$b->target_title_snapshot,'target_address'=>$b->target_address_snapshot,'starts_at'=>$b->starts_at?->toIso8601String(),'ends_at'=>$b->ends_at?->toIso8601String(),'timezone'=>$b->timezone,'status'=>$b->status,'requester_note'=>$b->requester_note,'host_note'=>$b->host_note,'cancellation_reason'=>$b->cancellation_reason,'confirmed_at'=>$b->confirmed_at?->toIso8601String(),'cancelled_at'=>$b->cancelled_at?->toIso8601String(),'completed_at'=>$b->completed_at?->toIso8601String(),'is_requester'=>(int)$b->requester_user_id===(int)$viewer->id,'can_manage'=>$this->canManage($viewer,$b),'can_cancel'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true),'can_reschedule'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true)];
+        $data=['id'=>$b->id,'reference'=>$b->reference,'requester_user_id'=>$b->requester_user_id,'requester_name'=>$b->requester_name_snapshot,'host_user_id'=>$b->host_user_id,'host_name'=>$b->host_name_snapshot,'message_thread_id'=>$b->message_thread_id,'target_type'=>$b->target_type,'target_id'=>$b->target_id,'target_title'=>$b->target_title_snapshot,'target_address'=>$b->target_address_snapshot,'starts_at'=>$b->starts_at?->toIso8601String(),'ends_at'=>$b->ends_at?->toIso8601String(),'timezone'=>$b->timezone,'status'=>$b->status,'requester_note'=>$b->requester_note,'host_note'=>$b->host_note,'cancellation_reason'=>$b->cancellation_reason,'confirmed_at'=>$b->confirmed_at?->toIso8601String(),'cancelled_at'=>$b->cancelled_at?->toIso8601String(),'completed_at'=>$b->completed_at?->toIso8601String(),'is_requester'=>(int)$b->requester_user_id===(int)$viewer->id,'can_manage'=>$this->canManage($viewer,$b),'can_cancel'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true),'can_reschedule'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true)];
         if($includeEvents){if(!$b->relationLoaded('events'))$b->load('events');$data['events']=$b->events->map(fn(ViewingBookingEvent $e)=>['id'=>$e->id,'actor_name'=>$e->actor_name_snapshot,'event'=>$e->event,'from_status'=>$e->from_status,'to_status'=>$e->to_status,'metadata'=>$e->metadata,'created_at'=>$e->created_at?->toIso8601String()])->values();}
         return $data;
     }

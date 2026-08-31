@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../bookings/data/booking_repository.dart';
+import '../../bookings/domain/booking_models.dart';
+import '../../bookings/presentation/booking_request_sheet.dart';
 import '../data/message_repository.dart';
 import '../domain/message_models.dart';
 
@@ -15,8 +18,10 @@ class ConversationScreen extends ConsumerStatefulWidget {
 class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _controller = TextEditingController();
   MessageThreadDetails? _details;
+  ViewingBooking? _viewing;
   bool _loading = true;
   bool _sending = false;
+  bool _bookingBusy = false;
   String? _error;
 
   @override
@@ -35,11 +40,24 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     try {
       final details =
           await ref.read(messageRepositoryProvider).details(widget.threadId);
+      ViewingBooking? viewing;
+      try {
+        final bookings = await ref.read(bookingRepositoryProvider).mine();
+        for (final booking in bookings) {
+          if (booking.messageThreadId == widget.threadId) {
+            viewing = booking;
+            break;
+          }
+        }
+      } catch (_) {
+        // The conversation itself must remain usable even if booking refresh fails.
+      }
       if (!mounted) {
         return;
       }
       setState(() {
         _details = details;
+        _viewing = viewing;
         _loading = false;
         _error = null;
       });
@@ -75,6 +93,155 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         setState(() => _sending = false);
       }
     }
+  }
+
+  Future<void> _bookingAction(String action) async {
+    final booking = _viewing;
+    if (booking == null || _bookingBusy) return;
+
+    setState(() => _bookingBusy = true);
+    try {
+      final repo = ref.read(bookingRepositoryProvider);
+      ViewingBooking? updated;
+      if (action == 'confirm') {
+        updated = await repo.confirm(booking.id);
+      } else if (action == 'decline') {
+        final reason = await _bookingReason('رفض طلب المعاينة', 'سبب الرفض');
+        if (reason == null) return;
+        updated = await repo.decline(booking.id, reason);
+      } else if (action == 'cancel') {
+        final reason = await _bookingReason('إلغاء المعاينة', 'سبب الإلغاء');
+        if (reason == null) return;
+        updated = await repo.cancel(booking.id, reason);
+      } else if (action == 'reschedule') {
+        if (!mounted) return;
+        updated = await BookingRequestSheet.showForReschedule(context, booking);
+        if (updated == null) return;
+      }
+      if (!mounted || updated == null) return;
+      setState(() => _viewing = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تحديث حالة طلب المعاينة.')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _bookingBusy = false);
+    }
+  }
+
+  Future<String?> _bookingReason(String title, String label) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          minLines: 2,
+          maxLines: 4,
+          maxLength: 1500,
+          decoration: InputDecoration(labelText: label),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || result.trim().length < 2) return null;
+    return result.trim();
+  }
+
+  Widget _viewingCard(ViewingBooking booking) {
+    final start = booking.startsAt.toLocal();
+    final date =
+        "${start.year}/${start.month.toString().padLeft(2, '0')}/${start.day.toString().padLeft(2, '0')} - ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}";
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.event_available_outlined),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'طلب معاينة مرتبط بهذه المحادثة',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                Chip(label: Text(booking.statusLabel)),
+              ],
+            ),
+            Text(date),
+            const SizedBox(height: 4),
+            Text(booking.isRequester
+                ? 'المعلن: ${booking.hostName ?? '-'}'
+                : 'طالب المعاينة: ${booking.requesterName}'),
+            if (booking.requesterNote?.trim().isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('ملاحظة الطلب: ${booking.requesterNote}'),
+              ),
+            if (booking.isActive) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (booking.canManage && booking.status == 'requested')
+                    FilledButton.tonalIcon(
+                      onPressed: _bookingBusy
+                          ? null
+                          : () => _bookingAction('confirm'),
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('تأكيد الموعد'),
+                    ),
+                  if (booking.canManage && booking.status == 'requested')
+                    OutlinedButton.icon(
+                      onPressed: _bookingBusy
+                          ? null
+                          : () => _bookingAction('decline'),
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('رفض'),
+                    ),
+                  if (booking.canReschedule)
+                    OutlinedButton.icon(
+                      onPressed: _bookingBusy
+                          ? null
+                          : () => _bookingAction('reschedule'),
+                      icon: const Icon(Icons.schedule_outlined),
+                      label: const Text('تغيير الموعد'),
+                    ),
+                  if (booking.canCancel)
+                    OutlinedButton.icon(
+                      onPressed: _bookingBusy
+                          ? null
+                          : () => _bookingAction('cancel'),
+                      icon: const Icon(Icons.event_busy_outlined),
+                      label: const Text('إلغاء'),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _report() async {
@@ -168,11 +335,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             title: Text(_details?.thread.otherUserName ?? 'محادثة'),
             actions: [
               IconButton(
+                  onPressed: _loading ? null : _load,
+                  tooltip: 'تحديث',
+                  icon: const Icon(Icons.refresh)),
+              IconButton(
                   onPressed: _report,
                   tooltip: 'بلاغ',
                   icon: const Icon(Icons.flag_outlined))
             ]),
         body: Column(children: [
+          if (!_loading && _viewing != null) _viewingCard(_viewing!),
           Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())

@@ -277,6 +277,7 @@ class PropertyRepository {
   Future<PropertyDetails> createListing(
     PropertyListingInput input, {
     List<String> imagePaths = const <String>[],
+    bool submitForReview = false,
     List<String> proofPaths = const <String>[],
     String? ownerIdFrontPath,
     String? ownerIdBackPath,
@@ -286,6 +287,7 @@ class PropertyRepository {
     final form = await _listingForm(
       input,
       imagePaths: imagePaths,
+      submitForReview: submitForReview,
       proofPaths: proofPaths,
       ownerIdFrontPath: ownerIdFrontPath,
       ownerIdBackPath: ownerIdBackPath,
@@ -305,6 +307,7 @@ class PropertyRepository {
     PropertyListingInput input, {
     List<String> imagePaths = const <String>[],
     bool replaceImages = false,
+    bool submitForReview = false,
     List<String> proofPaths = const <String>[],
     String? ownerIdFrontPath,
     String? ownerIdBackPath,
@@ -314,6 +317,7 @@ class PropertyRepository {
     final form = await _listingForm(
       input,
       imagePaths: imagePaths,
+      submitForReview: submitForReview,
       proofPaths: proofPaths,
       replaceImages: replaceImages,
       ownerIdFrontPath: ownerIdFrontPath,
@@ -382,6 +386,7 @@ class PropertyRepository {
   Future<FormData> _listingForm(
     PropertyListingInput input, {
     required List<String> imagePaths,
+    bool submitForReview = false,
     List<String> proofPaths = const <String>[],
     bool replaceImages = false,
     String? ownerIdFrontPath,
@@ -390,6 +395,15 @@ class PropertyRepository {
     String? ownershipProofPath,
   }) async {
     final fields = Map<String, dynamic>.from(input.toMap());
+    final parking = fields['has_parking'];
+    if (parking is bool) {
+      // Multipart form fields are text. Send an explicit 1/0 so a selected
+      // "لا يوجد" can never be lost or interpreted as an empty value.
+      fields['has_parking'] = parking ? 1 : 0;
+    }
+    if (submitForReview) {
+      fields['submit_for_review'] = 1;
+    }
     if (replaceImages) {
       fields['replace_images'] = 1;
     }
