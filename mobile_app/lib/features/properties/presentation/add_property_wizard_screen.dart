@@ -580,7 +580,7 @@ class _AddPropertyWizardScreenState
         TextField(
           controller: _priceController,
           keyboardType: TextInputType.number,
-          inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
             labelText: 'السعر بالريال اليمني',
