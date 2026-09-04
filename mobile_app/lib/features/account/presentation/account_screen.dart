@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../support/presentation/account_verification_support_screen.dart';
 import '../data/auth_controller.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -114,33 +115,36 @@ class AccountScreen extends ConsumerWidget {
                   icon: const Icon(Icons.manage_accounts_outlined),
                   label: const Text('الملف الشخصي'),
                 ),
-                const SizedBox(height: 8),
-                Card(
-                  child: ListTile(
-                    leading: Icon(
-                      user.isOwner
-                          ? Icons.home_work_outlined
-                          : user.isBroker
-                              ? Icons.real_estate_agent_outlined
-                              : user.isOffice
-                                  ? Icons.apartment_outlined
-                                  : Icons.manage_accounts_outlined,
+                if (!user.canAccessSupportWorkspace &&
+                    !user.canAccessSystemWorkspace) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    child: ListTile(
+                      leading: Icon(
+                        user.isOwner
+                            ? Icons.home_work_outlined
+                            : user.isBroker
+                                ? Icons.real_estate_agent_outlined
+                                : user.isOffice
+                                    ? Icons.apartment_outlined
+                                    : Icons.manage_accounts_outlined,
+                      ),
+                      title: Text(
+                        'نوع الحساب: ${user.accountTypeLabel}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(
+                        user.verificationProfile.status == 'approved'
+                            ? 'تم التحقق ويمكنك النشر بهذه الصفة.'
+                            : user.verificationProfile.status == 'pending'
+                                ? 'طلب التحقق قيد المراجعة من فريق الدعم.'
+                                : 'اختر مالك أو دلال أو مكتب عقارات وارفع مستندات التحقق المطلوبة.',
+                      ),
+                      trailing: const Icon(Icons.chevron_left),
+                      onTap: () => context.push('/account-verification'),
                     ),
-                    title: Text(
-                      'نوع الحساب: ${user.accountTypeLabel}',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    subtitle: Text(
-                      user.verificationProfile.status == 'approved'
-                          ? 'الحساب موثق. ${user.verificationProfile.statusLabel}'
-                          : user.verificationProfile.status == 'pending'
-                              ? 'طلب التحقق قيد المراجعة من فريق التحقق.'
-                              : 'اختر مالك أو دلال أو مكتب عقارات وارفع مستندات التحقق المطلوبة.',
-                    ),
-                    trailing: const Icon(Icons.chevron_left),
-                    onTap: () => context.push('/account-verification'),
                   ),
-                ),
+                ],
                 if (user.roles.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Wrap(
@@ -170,6 +174,19 @@ class AccountScreen extends ConsumerWidget {
                         ? 'لوحة مدير الدعم'
                         : 'لوحة موظف الدعم'),
                   ),
+                  if (user.roles.contains('support_agent')) ...[
+                    const SizedBox(height: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              const AccountVerificationSupportScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.verified_user_outlined),
+                      label: const Text('طلبات تحقق الحسابات'),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(

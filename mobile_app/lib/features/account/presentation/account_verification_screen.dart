@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -8,6 +9,7 @@ import '../../properties/presentation/property_location_picker_screen.dart';
 import '../data/account_verification_repository.dart';
 import '../data/auth_controller.dart';
 import '../domain/account_verification.dart';
+import '../domain/yemen_admin_divisions.dart';
 
 class AccountVerificationScreen extends ConsumerStatefulWidget {
   const AccountVerificationScreen({super.key});
@@ -79,7 +81,9 @@ class _AccountVerificationScreenState
 
   void _applyApplication(AccountVerificationApplication application) {
     _type = application.type ?? 'owner';
-    _governorate.text = application.detailText('governorate') ?? '';
+    final storedGovernorate = application.detailText('governorate') ?? '';
+    _governorate.text =
+        YemenAdminDivisions.canonicalGovernorate(storedGovernorate);
     _district.text = application.detailText('district') ?? '';
     _workAreas.text = application.detailStrings('work_areas').join('، ');
     _specialties.text = application.detailStrings('specialties').join('، ');
@@ -112,7 +116,17 @@ class _AccountVerificationScreenState
         ),
         body: user == null
             ? const Center(child: Text('سجّل الدخول أولاً.'))
-            : FutureBuilder<AccountVerificationApplication>(
+            : user.canAccessSupportWorkspace || user.canAccessSystemWorkspace
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'صفحة نوع الحساب والتحقق مخصصة لحسابات المستخدمين العاديين فقط.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : FutureBuilder<AccountVerificationApplication>(
                 future: _future,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting &&
@@ -165,21 +179,13 @@ class _AccountVerificationScreenState
                           ),
                         ],
                         selected: <String>{_type},
-                        onSelectionChanged: _busy || application.approved
+                        onSelectionChanged: _formLocked
                             ? null
                             : (value) => setState(() => _type = value.first),
                       ),
                       const SizedBox(height: 18),
-                      _textField(
-                        _governorate,
-                        'المحافظة التي تقيم فيها',
-                        icon: Icons.map_outlined,
-                      ),
-                      _textField(
-                        _district,
-                        'المديرية التي تقيم فيها',
-                        icon: Icons.location_city_outlined,
-                      ),
+                      _governorateDropdown(),
+                      _districtDropdown(),
                       if (_type == 'broker') ..._brokerFields(),
                       if (_type == 'office') ..._officeFields(),
                       const SizedBox(height: 8),
@@ -205,16 +211,26 @@ class _AccountVerificationScreenState
                       ],
                       const SizedBox(height: 18),
                       FilledButton.icon(
-                        onPressed: _busy || application.approved ? null : _submit,
+                        onPressed: _formLocked ? null : _submit,
                         icon: _busy
                             ? const SizedBox.square(
                                 dimension: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Icon(Icons.verified_user_outlined),
-                        label: Text(application.hasApplication
-                            ? 'إرسال طلب التحقق للمراجعة'
-                            : 'التحقق'),
+                            : application.approved
+                                ? const Icon(Icons.verified_outlined)
+                                : application.status == 'pending'
+                                    ? const Icon(Icons.hourglass_top_outlined)
+                                    : const Icon(Icons.verified_user_outlined),
+                        label: Text(
+                          application.approved
+                              ? 'تم التحقق'
+                              : application.status == 'pending'
+                                  ? 'تم إرسال الطلب - قيد المراجعة'
+                                  : application.hasApplication
+                                      ? 'إعادة إرسال طلب التحقق'
+                                      : 'إرسال طلب التحقق للمراجعة',
+                        ),
                       ),
                       if (application.approved) ...[
                         const SizedBox(height: 12),
@@ -227,6 +243,79 @@ class _AccountVerificationScreenState
                   );
                 },
               ),
+      ),
+    );
+  }
+
+  bool get _formLocked {
+    final application = _application;
+    return _busy ||
+        application?.status == 'pending' ||
+        application?.approved == true;
+  }
+
+  Widget _governorateDropdown() {
+    final current = YemenAdminDivisions.canonicalGovernorate(_governorate.text);
+    final values = YemenAdminDivisions.governorates.toList(growable: true);
+    if (current.isNotEmpty && !values.contains(current)) values.add(current);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DropdownButtonFormField<String>(
+        value: current.isEmpty ? null : current,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'المحافظة التي تقيم فيها',
+          prefixIcon: Icon(Icons.map_outlined),
+          border: OutlineInputBorder(),
+        ),
+        items: values
+            .map((value) => DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                ))
+            .toList(growable: false),
+        onChanged: _formLocked
+            ? null
+            : (value) {
+                if (value == null) return;
+                setState(() {
+                  _governorate.text = value;
+                  _district.clear();
+                });
+              },
+      ),
+    );
+  }
+
+  Widget _districtDropdown() {
+    final governorate =
+        YemenAdminDivisions.canonicalGovernorate(_governorate.text);
+    final values =
+        YemenAdminDivisions.districtsFor(governorate).toList(growable: true);
+    final current = _district.text.trim();
+    if (current.isNotEmpty && !values.contains(current)) values.add(current);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DropdownButtonFormField<String>(
+        value: current.isEmpty ? null : current,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'المديرية التي تقيم فيها',
+          prefixIcon: Icon(Icons.location_city_outlined),
+          border: OutlineInputBorder(),
+        ),
+        items: values
+            .map((value) => DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                ))
+            .toList(growable: false),
+        onChanged: _formLocked || governorate.isEmpty
+            ? null
+            : (value) {
+                if (value == null) return;
+                setState(() => _district.text = value);
+              },
       ),
     );
   }
@@ -287,14 +376,14 @@ class _AccountVerificationScreenState
               _latitude == null ? Icons.add_location_alt_outlined : Icons.check_circle,
             ),
             title: const Text(
-              'موقع المكتب على الخريطة',
+              'موقع المكتب',
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
             subtitle: Text(_latitude == null
-                ? 'اضغط لتحديد الموقع'
+                ? 'اضغط لاختيار تحديد موقعك الحالي أو الموقع على الخريطة'
                 : 'تم تسجيل الموقع (${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)})'),
             trailing: const Icon(Icons.chevron_left),
-            onTap: _busy ? null : _pickOfficeLocation,
+            onTap: _formLocked ? null : _chooseOfficeLocation,
           ),
         ),
         const SizedBox(height: 8),
@@ -330,8 +419,8 @@ class _AccountVerificationScreenState
               selected: _files.containsKey(spec.$1),
               alreadyStored:
                   application.type == _type && application.hasDocument(spec.$1),
-              selfieSourceChoice: spec.$1 == 'selfie',
-              onTap: _busy ? null : () => _pickDocument(spec.$1),
+              cameraOnly: spec.$1 == 'selfie',
+              onTap: _formLocked ? null : () => _pickDocument(spec.$1),
             ))
         .toList(growable: false);
   }
@@ -350,7 +439,7 @@ class _AccountVerificationScreenState
         controller: controller,
         maxLines: maxLines,
         keyboardType: keyboardType,
-        enabled: !_busy,
+        enabled: !_formLocked,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
@@ -365,7 +454,27 @@ class _AccountVerificationScreenState
     try {
       String? selected;
       if (kind == 'selfie') {
-        final source = await _chooseSelfieSource();
+        selected = await _picker.takePhoto();
+      } else {
+        final source = await showModalBottomSheet<String>(
+          context: context,
+          builder: (sheetContext) => SafeArea(
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('فتح الكاميرا'),
+                  onTap: () => Navigator.of(sheetContext).pop('camera'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.folder_open),
+                  title: const Text('اختيار من الملفات'),
+                  onTap: () => Navigator.of(sheetContext).pop('files'),
+                ),
+              ],
+            ),
+          ),
+        );
         if (!mounted || source == null) return;
         if (source == 'camera') {
           selected = await _picker.takePhoto();
@@ -375,11 +484,6 @@ class _AccountVerificationScreenState
           selected = paths.first;
           await _picker.clearTemporaryFiles(paths.skip(1));
         }
-      } else {
-        final paths = await _picker.pickImages();
-        if (paths.isEmpty) return;
-        selected = paths.first;
-        await _picker.clearTemporaryFiles(paths.skip(1));
       }
       if (!mounted || selected == null) return;
       final old = _files[kind];
@@ -389,56 +493,79 @@ class _AccountVerificationScreenState
       }
     } on PlatformException {
       _message(kind == 'selfie'
-          ? 'تعذر فتح الكاميرا أو اختيار صورة السيلفي من الملفات.'
-          : 'تعذر فتح معرض الصور.');
+          ? 'تعذر فتح الكاميرا لالتقاط السيلفي.'
+          : 'تعذر فتح الكاميرا أو اختيار المستند من الملفات.');
     } catch (_) {
       _message(kind == 'selfie'
-          ? 'تعذر اختيار صورة السيلفي.'
+          ? 'تعذر التقاط صورة السيلفي.'
           : 'تعذر اختيار المستند.');
     }
   }
 
-  Future<String?> _chooseSelfieSource() {
-    return showModalBottomSheet<String>(
+  Future<void> _chooseOfficeLocation() async {
+    final source = await showModalBottomSheet<String>(
       context: context,
-      useSafeArea: true,
-      builder: (sheetContext) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'صورة السيلفي',
-                style: Theme.of(sheetContext)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 6),
-              const Text('اختر التقاط صورة الآن أو رفع صورة موجودة من الملفات.'),
-              const SizedBox(height: 14),
-              FilledButton.icon(
-                onPressed: () => Navigator.pop(sheetContext, 'camera'),
-                icon: const Icon(Icons.photo_camera_outlined),
-                label: const Text('فتح الكاميرا'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.pop(sheetContext, 'files'),
-                icon: const Icon(Icons.folder_open_outlined),
-                label: const Text('اختيار من الملفات'),
-              ),
-            ],
-          ),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.my_location),
+              title: const Text('تحديد موقعي الحالي'),
+              subtitle: const Text('استخدام GPS لتسجيل موقع المكتب الحالي'),
+              onTap: () => Navigator.of(sheetContext).pop('current'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.map_outlined),
+              title: const Text('موقع المكتب على الخريطة'),
+              subtitle: const Text('تحريك المؤشر واختيار موقع المكتب يدويًا'),
+              onTap: () => Navigator.of(sheetContext).pop('map'),
+            ),
+          ],
         ),
       ),
     );
+    if (!mounted || source == null) return;
+    if (source == 'current') {
+      await _useCurrentOfficeLocation();
+    } else {
+      await _pickOfficeLocationOnMap();
+    }
   }
 
-  Future<void> _pickOfficeLocation() async {
+  Future<void> _useCurrentOfficeLocation() async {
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        _message('فعّل خدمة الموقع في الهاتف ثم حاول مرة أخرى.');
+        return;
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _message('لا يمكن تحديد الموقع الحالي بدون إذن الموقع.');
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 20),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+      });
+      _message('تم تحديد موقع المكتب الحالي بنجاح.');
+    } catch (_) {
+      _message('تعذر تحديد موقعك الحالي. جرّب تحديد الموقع على الخريطة.');
+    }
+  }
+
+  Future<void> _pickOfficeLocationOnMap() async {
     final result = await Navigator.of(context).push<PropertyLocationSelection>(
       MaterialPageRoute(
         builder: (_) => PropertyLocationPickerScreen(
@@ -496,7 +623,7 @@ class _AccountVerificationScreenState
           icon: const Icon(Icons.mark_email_read_outlined, size: 44),
           title: const Text('تم استلام طلب التحقق بنجاح'),
           content: const Text(
-            'بياناتك ومستنداتك الآن قيد المراجعة من فريق التحقق\n'
+            'بياناتك ومستنداتك الآن قيد المراجعة من فريق الدعم\n'
             'سنرسل لك إشعار فور اكتمال المراجعة أو إذا احتجنا إلى مستند إضافي.\n\n'
             'المدة المتوقعة، من عدة ساعات إلى 24 ساعة\n\n'
             'حالة الطلب: قيد المراجعة',
@@ -550,7 +677,7 @@ class _AccountVerificationScreenState
         return 'أكمل بيانات المكتب والعنوان ورقم الهاتف.';
       }
       if (_latitude == null || _longitude == null) {
-        return 'حدد موقع المكتب على الخريطة.';
+        return 'حدد موقع المكتب.';
       }
     }
     return null;
@@ -610,7 +737,9 @@ class _StatusCard extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      Text('حالة الطلب: ${application.statusLabel}'),
+                      Text(
+                        'حالة الطلب: ${application.approved ? 'تم التحقق' : application.statusLabel}',
+                      ),
                     ],
                   ),
                 ),
@@ -618,7 +747,7 @@ class _StatusCard extends StatelessWidget {
             ),
             if (application.note != null) ...[
               const Divider(height: 24),
-              Text('ملاحظة فريق التحقق: ${application.note}'),
+              Text('ملاحظة فريق الدعم: ${application.note}'),
             ],
             if (application.approved) ...[
               const Divider(height: 24),
@@ -662,7 +791,7 @@ class _DocumentTile extends StatelessWidget {
     required this.requiredDocument,
     required this.selected,
     required this.alreadyStored,
-    required this.selfieSourceChoice,
+    required this.cameraOnly,
     required this.onTap,
   });
 
@@ -670,7 +799,7 @@ class _DocumentTile extends StatelessWidget {
   final bool requiredDocument;
   final bool selected;
   final bool alreadyStored;
-  final bool selfieSourceChoice;
+  final bool cameraOnly;
   final VoidCallback? onTap;
 
   @override
@@ -690,9 +819,9 @@ class _DocumentTile extends StatelessWidget {
               ? 'تم اختيار ملف جديد'
               : alreadyStored
                   ? 'مرفوع سابقًا ويمكن استبداله'
-                  : selfieSourceChoice
-                      ? 'اضغط لاختيار الكاميرا أو الملفات'
-                      : 'اضغط لاختيار الصورة',
+                  : cameraOnly
+                      ? 'اضغط لالتقاط صورة مباشرة بالكاميرا'
+                      : 'اضغط لاختيار فتح الكاميرا أو اختيار من الملفات',
         ),
         trailing: const Icon(Icons.chevron_left),
         onTap: onTap,
