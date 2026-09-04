@@ -32,7 +32,7 @@ void main() {
     expect(shell, contains("label: 'المحادثات'"));
     expect(shell, contains("label: 'الخدمات'"));
     expect(shell, isNot(contains("label: 'المشاريع'")));
-    expect(shell, isNot(contains("projects/presentation/projects_screen.dart")));
+    expect(shell, isNot(contains('projects/presentation/projects_screen.dart')));
   });
 
   test('account is kept personal for the three administrative roles', () {
