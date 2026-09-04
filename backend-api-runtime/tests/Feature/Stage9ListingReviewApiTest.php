@@ -37,7 +37,7 @@ class Stage9ListingReviewApiTest extends TestCase
     public function test_final_rejection_blocks_physical_property_for_same_purpose_across_accounts_only(): void
     {
         [, $a]=$this->user('s9-a@example.test','+967710000005');[, $b]=$this->user('s9-b@example.test','+967710000006');[, $mod]=$this->user('s9-reject-mod@example.test','+967710000007',['support_agent']);[, $manager]=$this->user('s9-manager@example.test','+967710000008',['support_manager']);
-        $id=$this->createReady($a,'Blocked property');$this->withHeaders($a)->postJson("/api/properties/$id/submit")->assertOk();$this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$id/reject-final",['reason'=>'Ownership evidence is invalid and property must be blocked.'])->assertOk()->assertJsonPath('data.review_status','rejected_blocked');
+        $id=$this->createReady($a,'Blocked property');$this->withHeaders($a)->postJson("/api/properties/$id/submit")->assertOk();$this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$id/start")->assertOk();$this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$id/reject-final",['reason'=>'Ownership evidence is invalid and property must be blocked.'])->assertOk()->assertJsonPath('data.review_status','rejected_blocked');
         $this->assertDatabaseHas('property_publication_blocks',['purpose'=>'sale','is_active'=>1]);$this->withHeaders($a)->deleteJson("/api/properties/$id")->assertStatus(409);
         $this->withHeaders($b)->postJson('/api/properties',$this->payload(['title'=>'Bypass attempt']))->assertStatus(409);
         $rent=$this->withHeaders($b)->postJson('/api/properties',$this->payload(['title'=>'Rent allowed','purpose'=>'rent']));$rent->assertCreated()->assertJsonPath('data.status','draft');
@@ -48,7 +48,7 @@ class Stage9ListingReviewApiTest extends TestCase
 
     public function test_published_edit_moves_back_to_draft_and_unpublishes_until_reapproval(): void
     {
-        [, $owner]=$this->user('s9-edit@example.test','+967710000009');[, $mod]=$this->user('s9-edit-mod@example.test','+967710000010',['support_agent']);$id=$this->createReady($owner,'Published edit');$this->withHeaders($owner)->postJson("/api/properties/$id/submit")->assertOk();$this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$id/approve")->assertOk();$this->getJson('/api/properties')->assertJsonPath('meta.total',1);
+        [, $owner]=$this->user('s9-edit@example.test','+967710000009');[, $mod]=$this->user('s9-edit-mod@example.test','+967710000010',['support_agent']);$id=$this->createReady($owner,'Published edit');$this->withHeaders($owner)->postJson("/api/properties/$id/submit")->assertOk();$this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$id/start")->assertOk();$this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$id/approve")->assertOk();$this->getJson('/api/properties')->assertJsonPath('meta.total',1);
         $this->withHeaders($owner)->postJson("/api/properties/$id",['price'=>62000000])->assertOk()->assertJsonPath('data.status','draft')->assertJsonPath('data.review_status','draft');$this->getJson('/api/properties')->assertJsonPath('meta.total',0);
     }
 
@@ -64,6 +64,7 @@ class Stage9ListingReviewApiTest extends TestCase
         [$moderator, $modHeaders]=$this->user('s9-history-mod@example.test','+967710000013',['support_agent']);
         $id=$this->createReady($owner,'Reviewer history');
         $this->withHeaders($owner)->postJson("/api/properties/$id/submit")->assertOk();
+        $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$id/start")->assertOk();
         $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$id/approve",['reason'=>'Reviewer history snapshot test.'])->assertOk();
 
         $review=\DB::table('listing_reviews')->where('listing_id',$id)->where('action','approved')->first();

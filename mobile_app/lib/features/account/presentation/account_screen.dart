@@ -188,6 +188,18 @@ class AccountScreen extends ConsumerWidget {
                     ),
                   ],
                 ],
+                if (user.hasPermission('listings.moderate')) ...[
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: () => context.push('/admin/listing-review'),
+                    icon: const Icon(Icons.fact_check_outlined),
+                    label: Text(
+                      user.roles.contains('support_agent')
+                          ? 'طلبات تحقيق الإعلانات'
+                          : 'مراجعة الإعلانات',
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
                   onPressed: () => context.push('/messages'),

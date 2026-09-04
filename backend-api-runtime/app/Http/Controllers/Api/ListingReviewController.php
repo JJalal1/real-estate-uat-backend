@@ -21,15 +21,70 @@ class ListingReviewController extends Controller
 
     public function queue(Request $request): JsonResponse
     {
-        $v=$request->validate(['review_status'=>['nullable',Rule::in(['submitted','under_review','returned_for_correction','approved','rejected_blocked'])],'per_page'=>['nullable','integer','min:1','max:50']]);
-        $q=Property::query()->with(['images','documents','user','propertyAsset'])->whereNotIn('review_status',['draft']);
-        if(!empty($v['review_status']))$q->where('review_status',$v['review_status']);else$q->whereIn('review_status',['submitted','under_review']);
-        $page=$q->orderByRaw("CASE WHEN review_status='submitted' THEN 0 ELSE 1 END")->orderBy('submitted_at')->paginate((int)($v['per_page']??25));
-        return response()->json(['data'=>collect($page->items())->map(fn(Property $p)=>$this->data($p,false))->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),'total'=>$page->total()]]);
-    }
+        $v = $request->validate([
+            'review_status' => ['nullable', Rule::in(['submitted','under_review','returned_for_correction','approved','rejected_blocked'])],
+            'per_page' => ['nullable','integer','min:1','max:50'],
+        ]);
+        $user = $request->user();
+        $isSupportWorker = $user?->hasRole('support_agent') === true
+            && ! $user->hasPermission('support.manage');
 
-    public function show(Property $property): JsonResponse { return response()->json(['data'=>$this->data($property->load(['images','documents','user','propertyAsset','reviews.actor']),true)]); }
-    public function start(Request $request, Property $property): JsonResponse { return response()->json(['message'=>'Review started.','data'=>$this->data($this->workflow->startReview($request->user(),$property,$request),false)]); }
+        $q = Property::query()
+            ->with(['images','documents','user','propertyAsset'])
+            ->whereNotIn('review_status', ['draft']);
+
+        if (! empty($v['review_status'])) {
+            $q->where('review_status', $v['review_status']);
+        } else {
+            $q->whereIn('review_status', ['submitted','under_review']);
+        }
+
+        if ($isSupportWorker) {
+            $q->where(function ($assignment) use ($user): void {
+                $assignment
+                    ->where(function ($fresh): void {
+                        $fresh->where('review_status', 'submitted')
+                            ->whereNull('review_assigned_to_user_id');
+                    })
+                    ->orWhere(function ($mine) use ($user): void {
+                        $mine->where('review_status', 'under_review')
+                            ->where('review_assigned_to_user_id', $user->id);
+                    });
+            });
+        }
+
+        $page = $q
+            ->orderByRaw("CASE WHEN review_status='submitted' THEN 0 ELSE 1 END")
+            ->orderBy('submitted_at')
+            ->paginate((int) ($v['per_page'] ?? 25));
+
+        return response()->json([
+            'data' => collect($page->items())
+                ->map(fn (Property $p) => $this->data($p, false))
+                ->values(),
+            'meta' => [
+                'current_page' => $page->currentPage(),
+                'last_page' => $page->lastPage(),
+                'total' => $page->total(),
+            ],
+        ]);
+    }    public function show(Request $request, Property $property): JsonResponse
+    {
+        $user = $request->user();
+        $isSupportWorker = $user?->hasRole('support_agent') === true
+            && ! $user->hasPermission('support.manage');
+        $assignedTo = (int) ($property->review_assigned_to_user_id ?? 0);
+        if ($isSupportWorker && $assignedTo > 0 && $assignedTo !== (int) $user->id) {
+            abort(403, 'تم استلام هذا الإعلان بواسطة موظف دعم آخر.');
+        }
+
+        return response()->json([
+            'data' => $this->data(
+                $property->load(['images','documents','user','propertyAsset','reviews.actor']),
+                true
+            ),
+        ]);
+    }public function start(Request $request, Property $property): JsonResponse { return response()->json(['message'=>'Review started.','data'=>$this->data($this->workflow->startReview($request->user(),$property,$request),false)]); }
     public function returnForCorrection(Request $request, Property $property): JsonResponse {$v=$request->validate(['reason'=>['required','string','min:5','max:2000']]);return response()->json(['message'=>'Listing returned for correction.','data'=>$this->data($this->workflow->returnForCorrection($request->user(),$property,$v['reason'],$request),false)]);}
     public function approve(Request $request, Property $property): JsonResponse {$v=$request->validate(['reason'=>['nullable','string','max:2000']]);return response()->json(['message'=>'Listing approved and published.','data'=>$this->data($this->workflow->approve($request->user(),$property,$v['reason']??null,$request),false)]);}
     public function rejectFinal(Request $request, Property $property): JsonResponse {$v=$request->validate(['reason'=>['required','string','min:10','max:3000']]);return response()->json(['message'=>'Physical property blocked for this publication purpose.','data'=>$this->data($this->workflow->finalRejectAndBlock($request->user(),$property,$v['reason'],$request),false)]);}

@@ -29,9 +29,9 @@ class ListingReviewScreen extends ConsumerWidget {
         length: 2,
         child: Scaffold(
           appBar: AppBar(
-            title: const Text('مراجعة الإعلانات والعقارات'),
+            title: const Text('طلبات تحقيق الإعلانات'),
             bottom: const TabBar(
-              tabs: [Tab(text: 'قائمة المراجعة'), Tab(text: 'حظر النشر')],
+              tabs: [Tab(text: 'طلبات التحقيق'), Tab(text: 'حظر النشر')],
             ),
           ),
           body: TabBarView(
@@ -57,7 +57,7 @@ class _Queue extends ConsumerWidget {
       ),
       data: (items) {
         if (items.isEmpty) {
-          return const Center(child: Text('لا توجد إعلانات بانتظار المراجعة.'));
+          return const Center(child: Text('لا توجد طلبات تحقيق بانتظار الاستلام.'));
         }
         return RefreshIndicator(
           onRefresh: () async {
@@ -120,7 +120,7 @@ class _ReviewCard extends ConsumerWidget {
                           .read(listingReviewRepositoryProvider)
                           .start(item.id),
                     ),
-                    child: const Text('بدء المراجعة'),
+                    child: const Text('استلام الطلب'),
                   ),
                 FilledButton(
                   onPressed: () => _run(
@@ -567,7 +567,7 @@ Future<String?> _reason(BuildContext context, String title) async {
 
 String _status(String status) => switch (status) {
       'submitted' => 'مرفوع للدعم',
-      'under_review' => 'قيد المراجعة',
+      'under_review' => 'تم الاستلام - قيد التحقيق',
       'returned_for_correction' => 'مُعاد للتصحيح',
       'approved' => 'مقبول',
       'rejected_blocked' => 'مرفوض ومحظور',
