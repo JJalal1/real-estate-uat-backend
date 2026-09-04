@@ -7,7 +7,9 @@ import '../../../core/network/api_error_message.dart';
 import '../data/account_verification_support_repository.dart';
 
 class AccountVerificationSupportScreen extends ConsumerStatefulWidget {
-  const AccountVerificationSupportScreen({super.key});
+  const AccountVerificationSupportScreen({super.key, this.focusUserId});
+
+  final int? focusUserId;
 
   @override
   ConsumerState<AccountVerificationSupportScreen> createState() =>
@@ -25,9 +27,14 @@ class _AccountVerificationSupportScreenState
     _future = _load();
   }
 
-  Future<List<AccountVerificationSupportItem>> _load() => ref
-      .read(accountVerificationSupportRepositoryProvider)
-      .pending();
+  Future<List<AccountVerificationSupportItem>> _load() async {
+    final rows = await ref
+        .read(accountVerificationSupportRepositoryProvider)
+        .pending();
+    final focus = widget.focusUserId;
+    if (focus == null) return rows;
+    return rows.where((item) => item.userId == focus).toList(growable: false);
+  }
 
   Future<void> _refresh() async {
     setState(() => _future = _load());
@@ -40,7 +47,9 @@ class _AccountVerificationSupportScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('طلبات تحقق الحسابات'),
+          title: Text(widget.focusUserId == null
+              ? 'طلبات تحقق الحسابات'
+              : 'تفاصيل طلب التحقق'),
           actions: [
             IconButton(
               tooltip: 'تحديث',
@@ -85,11 +94,15 @@ class _AccountVerificationSupportScreenState
                 onRefresh: _refresh,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(height: 140),
-                    Icon(Icons.fact_check_outlined, size: 56),
-                    SizedBox(height: 14),
-                    Center(child: Text('لا توجد طلبات تحقق معلقة حاليًا.')),
+                  children: [
+                    const SizedBox(height: 140),
+                    const Icon(Icons.fact_check_outlined, size: 56),
+                    const SizedBox(height: 14),
+                    Center(
+                      child: Text(widget.focusUserId == null
+                          ? 'لا توجد طلبات تحقق معلقة حاليًا.'
+                          : 'طلب التحقق غير موجود في قائمة المراجعة الحالية.'),
+                    ),
                   ],
                 ),
               );
@@ -102,11 +115,13 @@ class _AccountVerificationSupportScreenState
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   if (index == 0) {
-                    return const Card(
+                    return Card(
                       child: Padding(
-                        padding: EdgeInsets.all(14),
+                        padding: const EdgeInsets.all(14),
                         child: Text(
-                          'هذه الطلبات مرسلة مباشرة إلى فريق الدعم. يمكن لأي حساب دعم مخوّل مراجعة المستندات ثم اعتماد الطلب.',
+                          widget.focusUserId == null
+                              ? 'الوارد المشترك يعرض الطلبات غير المسندة. استلم المهمة من مركز الدعم قبل تنفيذ قرار عليها.'
+                              : 'هذه المهمة مفتوحة من مساحة العمل. راجع البيانات والمستندات ثم نفذ الإجراء المسموح لك.',
                         ),
                       ),
                     );
