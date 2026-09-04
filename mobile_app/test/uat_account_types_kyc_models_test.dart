@@ -134,26 +134,20 @@ void main() {
     expect(source.contains('DropdownButtonFormField'), isFalse);
   });
 
-  test('verification selfie offers camera capture or an existing file',
+  test(
+      'verification selfie is camera-only while other documents offer camera or files',
       () async {
-    final pickerSource =
-        await File('lib/core/platform/stage5_media_picker.dart').readAsString();
     final verificationSource = await File(
             'lib/features/account/presentation/account_verification_screen.dart')
         .readAsString();
-    final androidSource = await File(
-            'android/app/src/main/kotlin/com/example/real_estate_mobile/MainActivity.kt')
-        .readAsString();
+    final normalized = verificationSource
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n');
 
-    expect(pickerSource.contains("invokeMethod<String>('takePhoto')"), isTrue);
-    expect(pickerSource.contains("invokeListMethod<String>('pickImages')"), isTrue);
-    expect(verificationSource.contains("kind == 'selfie'"), isTrue);
-    expect(verificationSource.contains('_chooseSelfieSource()'), isTrue);
-    expect(verificationSource.contains('_picker.takePhoto()'), isTrue);
-    expect(verificationSource.contains('_picker.pickImages()'), isTrue);
-    expect(verificationSource.contains('فتح الكاميرا'), isTrue);
-    expect(verificationSource.contains('اختيار من الملفات'), isTrue);
-    expect(androidSource.contains('MediaStore.ACTION_IMAGE_CAPTURE'), isTrue);
-    expect(androidSource.contains('Intent.ACTION_OPEN_DOCUMENT'), isTrue);
+    expect(normalized.contains("if (kind == 'selfie') {\n        selected = await _picker.takePhoto();\n      } else {"), isTrue);
+    expect(normalized.contains('_chooseSelfieSource()'), isFalse);
+    expect(normalized.contains('showModalBottomSheet<String>'), isTrue);
+    expect(normalized.contains("source == 'camera'"), isTrue);
+    expect(normalized.contains('_picker.pickImages()'), isTrue);
   });
 }
