@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\BrokerAccountVerificationController;
 use App\Http\Controllers\Api\CommunityController;
 use App\Http\Controllers\Api\DevelopmentController;
+use App\Http\Controllers\Api\FreeServicesHubController;
 use App\Http\Controllers\Api\ListingReviewController;
 use App\Http\Controllers\Api\MessagingController;
 use App\Http\Controllers\Api\NotificationController;
@@ -76,6 +77,7 @@ Route::get('/services/catalog', [ServicePaymentController::class, 'catalog']);
 Route::get('/properties/{property}/services', [ServicePaymentController::class, 'propertyServices']);
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
+    Route::get('/services/hub', [FreeServicesHubController::class, 'show']);
     Route::get('/properties/mine/list', [PropertyController::class, 'mine']);
     Route::post('/properties', [PropertyController::class, 'store']);
     Route::post('/properties/{property}', [PropertyController::class, 'update']);

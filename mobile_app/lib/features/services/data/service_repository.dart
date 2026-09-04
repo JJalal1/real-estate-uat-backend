@@ -9,10 +9,22 @@ final serviceRepositoryProvider = Provider<ServiceRepository>((ref) =>
     ServiceRepository(
         ref.watch(dioProvider), ref.watch(authRepositoryProvider)));
 
+final freeServicesHubProvider = FutureProvider.autoDispose<FreeServicesHubModel>(
+  (ref) => ref.watch(serviceRepositoryProvider).freeHub(),
+);
+
 class ServiceRepository {
   ServiceRepository(this._dio, this._auth);
   final Dio _dio;
   final AuthRepository _auth;
+
+  Future<FreeServicesHubModel> freeHub() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/services/hub',
+      options: await _auth.requiredAuthOptions(),
+    );
+    return FreeServicesHubModel.fromJson(_data(response.data));
+  }
 
   Future<List<ServiceOfferingModel>> catalog() async {
     final response = await _dio.get<Map<String, dynamic>>('/services/catalog');

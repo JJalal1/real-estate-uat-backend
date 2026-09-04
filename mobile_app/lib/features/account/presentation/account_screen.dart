@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../services/data/service_repository.dart';
 import '../data/auth_controller.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -31,6 +32,9 @@ class AccountScreen extends ConsumerWidget {
                     user.roles.contains('super_admin') ||
                     user.roles.contains('support_manager') ||
                     user.roles.contains('support_agent'));
+            final servicesHub = user != null && !administrativeRole
+                ? ref.watch(freeServicesHubProvider).asData?.value
+                : null;
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
               children: [
@@ -147,12 +151,9 @@ class AccountScreen extends ConsumerWidget {
                     label: const Text('تسجيل الخروج'),
                   ),
                 ],
-                if (!administrativeRole) ...[
+                if (!administrativeRole && user != null) ...[
                   const SizedBox(height: 22),
-                  Text(
-                    'إدارة العقارات',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-                  ),
+                  _sectionHeading(context, 'إدارة عقاراتي'),
                   const SizedBox(height: 10),
                   _AccountMenu(
                     rows: [
@@ -167,25 +168,55 @@ class AccountScreen extends ConsumerWidget {
                         () => context.push('/my-listings'),
                       ),
                       _AccountRow(
-                        'المشاريع والتطويرات العقارية',
-                        Icons.apartment_outlined,
-                        () => context.push('/developments'),
-                      ),
-                      _AccountRow(
-                        'المفضلة',
-                        Icons.favorite_border,
-                        () => _message(context, 'ستتم إضافة المفضلة في مرحلة لاحقة.'),
-                      ),
-                      _AccountRow(
-                        'الحجوزات',
-                        Icons.event_available_outlined,
+                        'طلبات المعاينة على عقاراتي',
+                        Icons.event_note_outlined,
                         () => context.push('/bookings'),
                       ),
                       _AccountRow(
-                        'الخدمات والترقيات والمدفوعات',
-                        Icons.workspace_premium_outlined,
-                        () => context.push('/services'),
+                        'عقود الإيجار',
+                        Icons.description_outlined,
+                        () => _message(
+                          context,
+                          'عقود الإيجار ضمن التطوير الحالي وستُفعّل بعد اكتمال منطق العقود في الـBackend.',
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  _sectionHeading(context, 'نشاطي'),
+                  const SizedBox(height: 10),
+                  _AccountMenu(
+                    rows: [
+                      _AccountRow(
+                        'المفضلة',
+                        Icons.favorite_border,
+                        () => _message(
+                          context,
+                          'المفضلة ستُربط بالحساب على الخادم ضمن مرحلة المفضلة الحالية.',
+                        ),
+                      ),
+                      _AccountRow(
+                        'طلبات العقار',
+                        Icons.manage_search_outlined,
+                        () => _message(
+                          context,
+                          'طلبات العقار ستُفعّل كطلبات حقيقية مرتبطة بالحساب في المرحلة التالية.',
+                        ),
+                      ),
+                      _AccountRow(
+                        'حجوزاتي',
+                        Icons.event_available_outlined,
+                        () => context.push('/bookings'),
+                      ),
+                      if (servicesHub?.can('view_researcher_requests') == true)
+                        _AccountRow(
+                          'طلبات الباحثين',
+                          Icons.person_search_outlined,
+                          () => _message(
+                            context,
+                            'طلبات الباحثين ستُفعّل للدلال والمكتب الموثقين في مرحلة المطابقة.',
+                          ),
+                        ),
                     ],
                   ),
                 ],
@@ -194,6 +225,16 @@ class AccountScreen extends ConsumerWidget {
           },
         ),
       ),
+    );
+  }
+
+  Widget _sectionHeading(BuildContext context, String title) {
+    return Text(
+      title,
+      style: Theme.of(context)
+          .textTheme
+          .titleLarge
+          ?.copyWith(fontWeight: FontWeight.w900),
     );
   }
 

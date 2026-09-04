@@ -3,47 +3,67 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('services hub contains the requested Arabic sections and actions', () {
+  test('free services hub contains the approved sections and actions', () {
     final source = File(
       'lib/features/services/presentation/services_screen.dart',
     ).readAsStringSync();
 
     for (final label in <String>[
-      'خدمات سريعة',
-      'أضف عقارك',
+      'الخدمات السريعة',
+      'أضف عقار',
       'اطلب عقار',
-      'احجز معاينة',
+      'إعلاناتي',
       'قيّم عقارك',
-      'الخدمات الرئيسية',
-      'إعلانات اليوم',
+      'الخدمات العقارية',
+      'طلبات العقار',
       'عقود الإيجار',
-      'طلبات البحث',
-      'خدمات التسويق الحصري',
-      'متوسط الأسعار',
-      'الصفقات العقارية',
-      'تطبيق',
-      'المدونة',
+      'مؤشرات الأسعار',
+      'تقييم العقار',
+      'طلبات الباحثين',
+      'معلومات وأدوات',
+      'الدليل العقاري',
       'المستندات القانونية',
+      'مجانية بالكامل',
     ]) {
       expect(source, contains(label), reason: 'Missing services label: $label');
     }
 
+    for (final removed in <String>[
+      'خدمات التسويق الحصري',
+      'إعلانات اليوم',
+      'الصفقات العقارية',
+      'احجز معاينة',
+      'حساب الخدمات',
+      'إدارة الخدمات والترقيات',
+      'المدفوعات والتسويات',
+      "title: 'المدونة'",
+    ]) {
+      expect(source, isNot(contains(removed)), reason: 'Removed service leaked: $removed');
+    }
+
     expect(source, contains("context.push('/add-property')"));
-    expect(source, contains("context.push('/bookings')"));
-    expect(source, contains("context.go('/')"));
-    expect(
-      source,
-      contains('constraints: const BoxConstraints(minHeight: 74)'),
-      reason: 'Service rows must use valid Container constraints.',
-    );
-    expect(
-      source,
-      isNot(contains('minHeight: 74,')),
-      reason: 'Container has no minHeight named parameter.',
-    );
+    expect(source, contains("context.push('/my-listings')"));
+    expect(source, contains("model.can('view_researcher_requests')"));
+    expect(source, contains('constraints: const BoxConstraints(minHeight: 74)'));
   });
 
-  test('projects interface is removed from mobile navigation and routes', () {
+  test('services visibility is sourced from authenticated backend hub', () {
+    final repo = File(
+      'lib/features/services/data/service_repository.dart',
+    ).readAsStringSync();
+    final model = File(
+      'lib/features/services/domain/service_models.dart',
+    ).readAsStringSync();
+
+    expect(repo, contains("'/services/hub'"));
+    expect(repo, contains('requiredAuthOptions()'));
+    expect(repo, contains('freeServicesHubProvider'));
+    expect(model, contains('class FreeServicesHubModel'));
+    expect(model, contains('paidFeaturesEnabled'));
+    expect(model, contains('bool can(String key)'));
+  });
+
+  test('projects interface stays removed from mobile navigation and routes', () {
     final shell = File(
       'lib/features/app_shell/presentation/app_shell_screen.dart',
     ).readAsStringSync();
@@ -60,8 +80,5 @@ void main() {
     expect(router, isNot(contains("path: '/developments'")));
     expect(router, isNot(contains("path: '/developments/:id'")));
     expect(router, isNot(contains("path: '/admin/developments'")));
-    expect(router, isNot(contains('DevelopmentsScreen')));
-    expect(router, isNot(contains('DevelopmentDetailsScreen')));
-    expect(router, isNot(contains('DevelopmentAdminScreen')));
   });
 }

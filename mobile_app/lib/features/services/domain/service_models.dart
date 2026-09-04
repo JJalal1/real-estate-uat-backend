@@ -140,3 +140,67 @@ int _int(Object? value) =>
 int? _nullableInt(Object? value) => value == null ? null : _int(value);
 DateTime _date(Object? value) => DateTime.parse(value.toString());
 DateTime? _nullableDate(Object? value) => value == null ? null : _date(value);
+
+
+class FreeServicesHubModel {
+  const FreeServicesHubModel({
+    required this.uiVersion,
+    required this.pricingModel,
+    required this.paidFeaturesEnabled,
+    required this.accountType,
+    required this.verificationStatus,
+    required this.verifiedProfessional,
+    required this.capabilities,
+    required this.availability,
+  });
+
+  factory FreeServicesHubModel.fromJson(Map<String, dynamic> json) {
+    final rawCapabilities = json['capabilities'];
+    final capabilities = <String, bool>{};
+    if (rawCapabilities is Map) {
+      for (final entry in rawCapabilities.entries) {
+        capabilities[entry.key.toString()] = entry.value == true;
+      }
+    }
+    final rawAvailability = json['availability'];
+    final availability = <String, String>{};
+    if (rawAvailability is Map) {
+      for (final entry in rawAvailability.entries) {
+        availability[entry.key.toString()] = entry.value?.toString() ?? '';
+      }
+    }
+    return FreeServicesHubModel(
+      uiVersion: json['ui_version']?.toString() ?? 'free_services_v1',
+      pricingModel: json['pricing_model']?.toString() ?? 'free',
+      paidFeaturesEnabled: json['paid_features_enabled'] == true,
+      accountType: json['account_type']?.toString() ?? 'basic',
+      verificationStatus:
+          json['verification_status']?.toString() ?? 'not_submitted',
+      verifiedProfessional: json['verified_professional'] == true,
+      capabilities: Map.unmodifiable(capabilities),
+      availability: Map.unmodifiable(availability),
+    );
+  }
+
+  final String uiVersion;
+  final String pricingModel;
+  final bool paidFeaturesEnabled;
+  final String accountType;
+  final String verificationStatus;
+  final bool verifiedProfessional;
+  final Map<String, bool> capabilities;
+  final Map<String, String> availability;
+
+  bool can(String key) => capabilities[key] == true;
+  String availabilityOf(String code) => availability[code] ?? 'planned';
+  bool isAvailable(String code) => availabilityOf(code) == 'available';
+  bool requiresVerification(String code) =>
+      availabilityOf(code) == 'requires_verification';
+
+  String get accountTypeLabel => switch (accountType) {
+        'owner' => 'مالك',
+        'broker' => 'دلال',
+        'office' => 'مكتب عقاري',
+        _ => 'حساب أساسي',
+      };
+}
