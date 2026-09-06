@@ -14,6 +14,11 @@ sed -ri "s#<VirtualHost \*:[0-9]+>#<VirtualHost *:${listen_port}>#" /etc/apache2
 php artisan config:clear
 php artisan cache:clear || true
 
+# Fail fast in UAT if the cloud runtime is misconfigured. This command verifies
+# HTTPS URL, PostgreSQL/PostGIS, Supabase Storage, and UAT guards without
+# printing secrets.
+php artisan uat:cloud-check
+
 if [ "${UAT_RUN_MIGRATIONS:-false}" = "true" ]; then
   php artisan migrate --force
 fi
