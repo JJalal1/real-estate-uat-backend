@@ -107,6 +107,11 @@ jobs:
         run: php artisan migrate --force
       - name: Test PostgreSQL schema and access boundaries
         run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Test PostGIS overlap regression
+        run: >-
+          php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php
+          --filter=test_postgis_rejects_interior_overlap_but_allows_touching_borders
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   build-uat-apk:
     name: Analyze, test and build UAT APK
