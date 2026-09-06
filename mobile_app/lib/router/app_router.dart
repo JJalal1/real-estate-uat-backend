@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,7 +17,6 @@ import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/admin/presentation/audit_log_screen.dart';
 import '../features/admin/presentation/platform_settings_screen.dart';
 import '../features/app_shell/presentation/app_shell_screen.dart';
-import '../features/chats/presentation/chats_screen.dart';
 import '../features/bookings/presentation/bookings_screen.dart';
 import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
@@ -37,6 +37,7 @@ import '../features/services/presentation/services_screen.dart';
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
+    errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
       GoRoute(
@@ -134,10 +135,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/messages/:id',
-        builder: (context, state) => Stage6AuthGate(
-          child: ConversationScreen(
-              threadId: int.parse(state.pathParameters['id']!)),
-        ),
+        builder: (context, state) {
+          final threadId = int.tryParse(state.pathParameters['id'] ?? '');
+          if (threadId == null || threadId <= 0) {
+            return const _RouteErrorScreen();
+          }
+          return Stage6AuthGate(
+            child: ConversationScreen(threadId: threadId),
+          );
+        },
       ),
       GoRoute(
         path: '/notifications',
@@ -161,8 +167,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/support',
-        builder: (context, state) => const Stage6AuthGate(
-          child: SupportCenterScreen(),
+        builder: (context, state) => Stage6AuthGate(
+          child: SupportCenterScreen(
+            initialCaseId: int.tryParse(
+              state.uri.queryParameters['case'] ?? '',
+            ),
+          ),
         ),
       ),
       GoRoute(
@@ -194,9 +204,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/properties/:id',
-        builder: (context, state) => PropertyDetailsScreen(
-          propertyId: int.parse(state.pathParameters['id']!),
-        ),
+        builder: (context, state) {
+          final propertyId = int.tryParse(state.pathParameters['id'] ?? '');
+          if (propertyId == null || propertyId <= 0) {
+            return const _RouteErrorScreen();
+          }
+          return PropertyDetailsScreen(propertyId: propertyId);
+        },
       ),
       GoRoute(
         path: '/add-property',
@@ -211,12 +225,42 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           child: MyListingsScreen(),
         ),
       ),
-      GoRoute(
-        path: '/chats/:id',
-        builder: (context, state) => ChatConversationScreen(
-          threadId: state.pathParameters['id'] ?? 'chat',
-        ),
-      ),
     ],
   );
 });
+
+class _RouteErrorScreen extends StatelessWidget {
+  const _RouteErrorScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('الرابط غير صالح')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.link_off_outlined, size: 52),
+                const SizedBox(height: 16),
+                const Text(
+                  'تعذر فتح هذا الرابط. قد يكون قديمًا أو غير مكتمل.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: () => context.go('/'),
+                  icon: const Icon(Icons.home_outlined),
+                  label: const Text('العودة للرئيسية'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

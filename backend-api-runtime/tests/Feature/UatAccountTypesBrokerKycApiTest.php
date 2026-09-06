@@ -87,6 +87,7 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         [, $supportHeaders] = $this->supportUser();
         $this->withHeaders($supportHeaders)->getJson('/api/admin/account-verifications?status=pending&type=owner')
             ->assertOk()->assertJsonPath('data.0.user_id', $owner->id);
+        $this->claimVerificationTask($supportHeaders, $owner->id);
         foreach (['identity_document', 'selfie'] as $kind) {
             $this->withHeaders($supportHeaders)
                 ->get("/api/account-verification/users/{$owner->id}/documents/$kind")
@@ -155,6 +156,7 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         ])->assertOk()->assertJsonPath('data.status', 'pending');
 
         [, $supportHeaders] = $this->supportUser('broker-support@example.test', '+967711119998');
+        $this->claimVerificationTask($supportHeaders, $broker->id);
         $this->withHeaders($supportHeaders)
             ->postJson("/api/admin/account-verifications/{$broker->id}/approve")
             ->assertOk()
@@ -202,6 +204,7 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         ])->assertOk()->assertJsonPath('data.status', 'pending');
 
         [, $supportHeaders] = $this->supportUser('office-support@example.test', '+967711119997');
+        $this->claimVerificationTask($supportHeaders, $office->id);
         $this->withHeaders($supportHeaders)
             ->postJson("/api/admin/account-verifications/{$office->id}/approve")
             ->assertOk()
@@ -261,6 +264,20 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
     private function supportUser(string $email = 'verification-support@example.test', string $phone = '+967711119999'): array
     {
         return $this->legacyUser($email, $phone, ['support_agent']);
+    }
+
+    private function claimVerificationTask(array $headers, int $userId): void
+    {
+        $queue = $this->withHeaders($headers)
+            ->getJson('/api/admin/workspace/tasks?scope=inbox&type=account_verification')
+            ->assertOk();
+        $task = collect($queue->json('data'))->first(
+            fn (array $item): bool => (int) $item['source_id'] === $userId,
+        );
+        $this->assertNotNull($task, 'Expected the verification request in the shared support queue.');
+        $this->withHeaders($headers)
+            ->postJson('/api/admin/workspace/tasks/'.(int) $task['id'].'/claim')
+            ->assertOk();
     }
 
     private function legacyUser(string $email, string $phone, array $roles): array

@@ -28,7 +28,7 @@ class EnsureSupportTaskOwnership
         $path = $request->path();
         $this->tasks->syncSources();
 
-        if (preg_match('#^api/admin/account-verifications/(\d+)/approve$#', $path, $m)
+        if (preg_match('#^api/admin/account-verifications/(\d+)/(approve|more-info|reject)$#', $path, $m)
             && $request->isMethod('post')) {
             $this->assertOwned((int) $actor->id, 'account_verification', (int) $m[1]);
         }

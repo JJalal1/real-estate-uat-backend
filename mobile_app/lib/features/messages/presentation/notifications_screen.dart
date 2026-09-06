@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../data/message_repository.dart';
@@ -57,9 +58,30 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (!mounted) {
       return;
     }
+    var openedDestination = true;
     if (item.entityType == 'message_thread' && item.entityId != null) {
       await Navigator.of(context).push<void>(MaterialPageRoute<void>(
           builder: (_) => ConversationScreen(threadId: item.entityId!)));
+    } else if (item.entityType == 'account_verification_profile' ||
+        item.entityType == 'account_verification') {
+      await context.push<void>('/account-verification');
+    } else if (item.entityType == 'support_case' && item.entityId != null) {
+      await context.push<void>('/support?case=${item.entityId}');
+    } else if (item.entityType == 'support_task') {
+      await context.push<void>('/support/workspace');
+    } else if (item.entityType == 'viewing_booking') {
+      await context.push<void>('/bookings');
+    } else if (item.entityType == 'property' && item.entityId != null) {
+      await context.push<void>('/properties/${item.entityId}');
+    } else if (item.entityType == 'service_order') {
+      await context.push<void>('/services');
+    } else {
+      openedDestination = false;
+    }
+    if (!openedDestination && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت قراءة الإشعار ولا توجد صفحة مرتبطة به.')),
+      );
     }
     await _load();
   }

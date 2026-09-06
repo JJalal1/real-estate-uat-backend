@@ -166,7 +166,15 @@ class MessagingController extends Controller
             $case=SupportCase::query()->find($report->support_case_id);
             if($case && !in_array($case->status,SupportCaseService::CLOSED_STATUSES,true)) $this->support->setStatus($actor,$case,$validated['status'],$request);
         }
-        $this->notifications->create((int)$report->reporter_user_id,'conversation_report_closed','تم تحديث بلاغ المحادثة','تم إغلاق بلاغ المحادثة داخل مركز الدعم.','conversation_report',$report->id,['status'=>$validated['status']]);
+        $this->notifications->create(
+            (int) $report->reporter_user_id,
+            'conversation_report_closed',
+            'تم تحديث بلاغ المحادثة',
+            'تم إغلاق بلاغ المحادثة داخل مركز الدعم.',
+            $report->support_case_id ? 'support_case' : 'message_thread',
+            (int) ($report->support_case_id ?: $report->thread_id),
+            ['status' => $validated['status'], 'report_id' => $report->id],
+        );
         $this->audit->record($actor,'messages.conversation_report_closed',$report,['status'=>$validated['status'],'thread_id'=>$report->thread_id],$request,$report->reporter_user_id);
         return response()->json(['message'=>'Conversation complaint closed.','data'=>$this->reportSummary($report)]);
     }

@@ -29,7 +29,8 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(RouteMatched::class, function (RouteMatched $event): void {
             $uri = $event->route->uri();
             $sensitive =
-                (str_starts_with($uri, 'api/admin/account-verifications/') && str_ends_with($uri, '/approve'))
+                (str_starts_with($uri, 'api/admin/account-verifications/')
+                    && preg_match('#/(approve|more-info|reject)$#', $uri) === 1)
                 || str_starts_with($uri, 'api/account-verification/users/')
                 || str_starts_with($uri, 'api/admin/support/cases/');
 

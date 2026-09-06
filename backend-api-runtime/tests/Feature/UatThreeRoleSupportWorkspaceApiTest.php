@@ -8,6 +8,7 @@ use App\Models\SupportTask;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class UatThreeRoleSupportWorkspaceApiTest extends TestCase
@@ -147,6 +148,48 @@ class UatThreeRoleSupportWorkspaceApiTest extends TestCase
         $this->withHeaders($headers)
             ->getJson('/api/admin/workspace/tasks?scope=inbox')
             ->assertForbidden();
+    }
+
+    public function test_support_agent_cannot_bypass_verification_task_ownership_via_legacy_routes(): void
+    {
+        [$requester] = $this->user('ws-kyc-requester@example.test', '+967733300031');
+        [$agentA, $agentAHeaders] = $this->user('ws-kyc-agent-a@example.test', '+967733300032', ['support_agent']);
+        [, $agentBHeaders] = $this->user('ws-kyc-agent-b@example.test', '+967733300033', ['support_agent']);
+
+        DB::table('account_verification_profiles')->insert([
+            'user_id' => $requester->id,
+            'type' => 'owner',
+            'status' => 'pending',
+            'details' => json_encode([], JSON_THROW_ON_ERROR),
+            'submitted_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $queue = $this->withHeaders($agentAHeaders)
+            ->getJson('/api/admin/workspace/tasks?scope=inbox&type=account_verification')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1);
+        $taskId = (int) $queue->json('data.0.id');
+
+        foreach (['approve', 'more-info', 'reject'] as $action) {
+            $payload = $action === 'approve' ? [] : ['reason' => 'Ownership regression check'];
+            $this->withHeaders($agentBHeaders)
+                ->postJson("/api/admin/account-verifications/{$requester->id}/{$action}", $payload)
+                ->assertStatus(409);
+        }
+
+        $this->withHeaders($agentAHeaders)
+            ->postJson("/api/admin/workspace/tasks/{$taskId}/claim")
+            ->assertOk()
+            ->assertJsonPath('data.assigned_to_user_id', $agentA->id);
+
+        $this->withHeaders($agentAHeaders)
+            ->postJson("/api/admin/account-verifications/{$requester->id}/more-info", [
+                'reason' => 'Please provide a clearer identity document.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'needs_more_info');
     }
 
     private function user(string $email, string $phone, array $roles = []): array
