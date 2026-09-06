@@ -64,13 +64,16 @@ All current top-level screens use RTL directionality directly or inherit it from
 | Supabase security | Every application table in exposed `public` lacked RLS and nine trigger functions had mutable search paths | High | Add a PostgreSQL-only migration enabling RLS now and for future public tables, and pin function search paths |
 | Database performance | Supabase identified 18 foreign-key columns without supporting indexes | Medium | Add idempotent PostgreSQL indexes; retain unused indexes until workload evidence justifies removal |
 | CI | No backend test job, no audit-branch trigger, and backend-only changes did not trigger CI; the lock file requires PHP 8.4 while the unconstrained first CI probe used 8.3 | High | Add PHP 8.4 Composer/Laravel tests matching the Render image and include backend/audit-branch changes |
+| Render port binding | Apache was left on port 80 and ignored Render's runtime `PORT`; the existing test already described the required contract but had never run in CI | Critical | Validate `PORT` and rewrite Apache listen/vhost configuration before startup |
+| Access-role validation | Sending an intentional empty role list was rejected as missing, so administrators could not remove optional roles | Medium | Require the key to be present while allowing an empty array; the registered-user invariant remains in the service |
+| Regression suite drift | Legacy identity/listing tests bypassed the accepted verified-publisher and shared-claim rules | Medium | Preserve the rules and update fixtures to create approved publishing profiles or claim tasks explicitly |
 
 ### Runtime acceptance log
 
 | Check | State | Evidence / next gate |
 |---|---|---|
 | Local static inventory and secret-pattern scan | Passed | No committed credentials found; server-only key handling remains isolated to Laravel |
-| Supabase UAT project identity | Passed | `real-estate-uat` (`xjoeikrzvpnblyiknpdb`), healthy PostgreSQL 17.6 in `ap-south-1` |
+| Supabase UAT project identity | Passed | The connected UAT project is healthy on PostgreSQL 17.6; infrastructure identifiers are intentionally not recorded here |
 | PostGIS extension | Passed | Present in UAT |
 | Supabase schema match | Failed at baseline | Four accepted migrations absent; must pass after audited Render deploy |
 | Supabase security/performance advisors | Failed at baseline | RLS/search-path/index findings above; rerun after migration deploy |

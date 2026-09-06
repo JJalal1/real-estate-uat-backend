@@ -19,6 +19,8 @@ jobs:
     name: Validate and test Laravel API
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
 
     defaults:
       run:

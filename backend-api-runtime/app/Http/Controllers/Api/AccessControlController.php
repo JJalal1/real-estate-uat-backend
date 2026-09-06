@@ -47,7 +47,7 @@ class AccessControlController extends Controller
 
     public function updateRoles(Request $request, User $user): JsonResponse
     {
-        $v=$request->validate(['role_keys'=>['required','array','max:8'],'role_keys.*'=>['string','max:80','distinct']]);
+        $v=$request->validate(['role_keys'=>['present','array','max:8'],'role_keys.*'=>['string','max:80','distinct']]);
         $updated=$this->access->replaceRoles($request->user(),$user,$v['role_keys'],$request);
         return response()->json(['message'=>'Roles updated.','data'=>['user'=>$this->userData($updated)]]);
     }

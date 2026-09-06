@@ -4,6 +4,7 @@ namespace Tests\Feature;
 use App\Models\Property;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -31,6 +32,12 @@ class Stage6IdentityApiTest extends TestCase
 
         $this->withHeaders($headers)->postJson('/api/auth/phone/verify',['code'=>$code])
             ->assertOk()->assertJsonPath('data.user.account_status','active');
+
+        $this->withHeaders($headers)->postJson('/api/properties',$this->listingPayload())
+            ->assertStatus(409);
+        $this->approvePublishingProfile(
+            User::query()->where('email', 'stage6@example.test')->firstOrFail(),
+        );
 
         $created=$this->withHeaders($headers)->postJson('/api/properties',$this->listingPayload());
         $created->assertCreated()->assertJsonPath('data.status','draft')->assertJsonPath('data.review_status','draft');
@@ -143,6 +150,20 @@ class Stage6IdentityApiTest extends TestCase
     private function bearer(string $token): array
     {
         return ['Authorization'=>'Bearer '.$token,'Accept'=>'application/json'];
+    }
+
+    private function approvePublishingProfile(User $user): void
+    {
+        DB::table('account_verification_profiles')->insert([
+            'user_id'=>$user->id,
+            'type'=>'owner',
+            'status'=>'approved',
+            'details'=>json_encode([], JSON_THROW_ON_ERROR),
+            'submitted_at'=>now(),
+            'reviewed_at'=>now(),
+            'created_at'=>now(),
+            'updated_at'=>now(),
+        ]);
     }
 
     private function listingPayload(): array

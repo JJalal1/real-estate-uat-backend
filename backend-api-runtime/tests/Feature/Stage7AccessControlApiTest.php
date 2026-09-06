@@ -107,6 +107,16 @@ class Stage7AccessControlApiTest extends TestCase
         $this->assertDatabaseHas('audit_logs',['action'=>'auth.login_failed']);
 
         [$user,$headers]=$this->verifiedUser('listing-audit@example.test','+967700000209');
+        DB::table('account_verification_profiles')->insert([
+            'user_id'=>$user->id,
+            'type'=>'owner',
+            'status'=>'approved',
+            'details'=>json_encode([], JSON_THROW_ON_ERROR),
+            'submitted_at'=>now(),
+            'reviewed_at'=>now(),
+            'created_at'=>now(),
+            'updated_at'=>now(),
+        ]);
         $created=$this->withHeaders($headers)->postJson('/api/properties',$this->listingPayload());
         $created->assertCreated();
         $id=(int)$created->json('data.id');
