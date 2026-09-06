@@ -63,7 +63,7 @@ All current top-level screens use RTL directionality directly or inherit it from
 | Database drift | UAT lacked the four latest accepted migrations: tenure type, booking-thread link, listing-review assignment, and support workspace tables | Critical | Keep Git HEAD authoritative and require the Render UAT migration deploy before closure |
 | Supabase security | Every application table in exposed `public` lacked RLS and nine trigger functions had mutable search paths | High | Add a PostgreSQL-only migration enabling RLS now and for future public tables, and pin function search paths |
 | Database performance | Supabase identified 18 foreign-key columns without supporting indexes | Medium | Add idempotent PostgreSQL indexes; retain unused indexes until workload evidence justifies removal |
-| CI | No backend test job, no audit-branch trigger, and backend-only changes did not trigger CI | High | Add PHP 8.3 Composer/Laravel tests and include backend/audit-branch changes |
+| CI | No backend test job, no audit-branch trigger, and backend-only changes did not trigger CI; the lock file requires PHP 8.4 while the unconstrained first CI probe used 8.3 | High | Add PHP 8.4 Composer/Laravel tests matching the Render image and include backend/audit-branch changes |
 
 ### Runtime acceptance log
 
