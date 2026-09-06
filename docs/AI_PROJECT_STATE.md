@@ -99,6 +99,8 @@ Target journey:
 
 Expected backend work includes real persistent entities, authorization, statuses, matching filters, duplicate-suggestion protection, notifications, and links to existing property/conversation/viewing flows.
 
+Implementation is in progress on `feature/property-requests-phase2`: persistent requests and suggestions, verified broker/office matching, requester notifications, and Flutter request/researcher journeys are included for review and UAT validation.
+
 ### Later phases
 
 - server-side Favorites

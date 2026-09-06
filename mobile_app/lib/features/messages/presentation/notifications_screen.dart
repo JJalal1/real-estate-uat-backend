@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../data/message_repository.dart';
@@ -60,6 +61,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (item.entityType == 'message_thread' && item.entityId != null) {
       await Navigator.of(context).push<void>(MaterialPageRoute<void>(
           builder: (_) => ConversationScreen(threadId: item.entityId!)));
+    } else if (item.entityType == 'property_suggestion') {
+      final propertyId = int.tryParse('${item.data['property_id'] ?? ''}');
+      if (propertyId != null) await context.push('/properties/$propertyId');
+    } else if (item.entityType == 'viewing_booking') {
+      await context.push('/bookings');
     }
     await _load();
   }

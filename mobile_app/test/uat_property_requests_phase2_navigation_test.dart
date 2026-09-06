@@ -1,0 +1,3 @@
+import 'dart:io';
+import 'package:flutter_test/flutter_test.dart';
+void main(){test('Phase 2 routes and notification deep link are wired',(){final router=File('lib/router/app_router.dart').readAsStringSync();final services=File('lib/features/services/presentation/services_screen.dart').readAsStringSync();final notifications=File('lib/features/messages/presentation/notifications_screen.dart').readAsStringSync();expect(router,contains("path:'/property-requests'"));expect(router,contains("path:'/researcher-requests'"));expect(services,contains("context.push('/property-requests')"));expect(notifications,contains("item.entityType == 'property_suggestion'"));expect(notifications,contains("context.push('/properties/\$propertyId')"));});}
