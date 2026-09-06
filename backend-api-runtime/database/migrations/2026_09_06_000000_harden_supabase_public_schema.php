@@ -24,6 +24,11 @@ return new class extends Migration
         'user_role_assigned_by_idx' => ['user_role', 'assigned_by_user_id'],
         'user_role_role_idx' => ['user_role', 'role_id'],
         'users_broker_verified_by_idx' => ['users', 'broker_verified_by_user_id'],
+        'bookings_message_thread_idx' => ['viewing_bookings', 'message_thread_id'],
+        'properties_review_assignee_idx' => ['properties', 'review_assigned_to_user_id'],
+        'support_tasks_requester_idx' => ['support_tasks', 'requester_user_id'],
+        'support_task_events_task_idx' => ['support_task_events', 'support_task_id'],
+        'support_task_events_actor_idx' => ['support_task_events', 'actor_user_id'],
     ];
 
     private const HARDENED_FUNCTIONS = [
@@ -56,17 +61,30 @@ return new class extends Migration
 DO $$
 DECLARE
     target record;
+    api_role record;
 BEGIN
     FOR target IN
-        SELECT schemaname, tablename
-        FROM pg_catalog.pg_tables
-        WHERE schemaname = 'public'
+        SELECT n.nspname AS schemaname, c.relname AS tablename
+        FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_catalog.pg_depend d
+              WHERE d.classid = 'pg_class'::regclass
+                AND d.objid = c.oid AND d.deptype = 'e'
+          )
     LOOP
         EXECUTE format(
             'ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY',
             target.schemaname,
             target.tablename
         );
+        -- Laravel owns access. RLS alone does not restrict TRUNCATE/REFERENCES.
+        EXECUTE format('REVOKE ALL ON TABLE %I.%I FROM PUBLIC', target.schemaname, target.tablename);
+        FOR api_role IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
+        LOOP
+            EXECUTE format('REVOKE ALL ON TABLE %I.%I FROM %I', target.schemaname, target.tablename, api_role.rolname);
+        END LOOP;
     END LOOP;
 END
 $$;
@@ -74,20 +92,38 @@ $$;
 CREATE OR REPLACE FUNCTION public.enable_rls_for_new_public_tables()
 RETURNS event_trigger
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = pg_catalog
 AS $$
 DECLARE
     command record;
+    api_role record;
 BEGIN
     FOR command IN
         SELECT * FROM pg_event_trigger_ddl_commands()
         WHERE command_tag IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
           AND object_type IN ('table', 'partitioned table')
+          AND NOT in_extension
     LOOP
         IF command.schema_name = 'public' THEN
             EXECUTE format('ALTER TABLE IF EXISTS %s ENABLE ROW LEVEL SECURITY', command.object_identity);
+            EXECUTE format('REVOKE ALL ON TABLE %s FROM PUBLIC', command.object_identity);
+            FOR api_role IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
+            LOOP
+                EXECUTE format('REVOKE ALL ON TABLE %s FROM %I', command.object_identity, api_role.rolname);
+            END LOOP;
         END IF;
+    END LOOP;
+END
+$$;
+
+REVOKE ALL ON FUNCTION public.enable_rls_for_new_public_tables() FROM PUBLIC;
+DO $$
+DECLARE api_role record;
+BEGIN
+    FOR api_role IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
+    LOOP
+        EXECUTE format('REVOKE ALL ON FUNCTION public.enable_rls_for_new_public_tables() FROM %I', api_role.rolname);
     END LOOP;
 END
 $$;
@@ -106,35 +142,8 @@ SQL);
             return;
         }
 
-        DB::unprepared(<<<'SQL'
-DROP EVENT TRIGGER IF EXISTS enable_rls_on_public_table_create;
-DROP FUNCTION IF EXISTS public.enable_rls_for_new_public_tables();
-
-DO $$
-DECLARE
-    target record;
-BEGIN
-    FOR target IN
-        SELECT schemaname, tablename
-        FROM pg_catalog.pg_tables
-        WHERE schemaname = 'public'
-    LOOP
-        EXECUTE format(
-            'ALTER TABLE %I.%I DISABLE ROW LEVEL SECURITY',
-            target.schemaname,
-            target.tablename
-        );
-    END LOOP;
-END
-$$;
-SQL);
-
-        foreach (array_keys(self::FOREIGN_KEY_INDEXES) as $name) {
-            DB::statement("DROP INDEX IF EXISTS public.{$name}");
-        }
-
-        foreach (self::HARDENED_FUNCTIONS as $function) {
-            DB::statement("ALTER FUNCTION public.{$function}() RESET search_path");
-        }
+        // Application rollback must not silently reopen private application data.
+        // Any relaxation needs a separately reviewed, targeted migration.
+        throw new RuntimeException('Security hardening cannot be rolled back automatically. Keep the schema protections when rolling back application code.');
     }
 };

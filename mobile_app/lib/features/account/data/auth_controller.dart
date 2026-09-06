@@ -56,9 +56,14 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }
 
   Future<void> logout() async {
-    await _repository.logout();
-    ref.read(whatsAppAuthPendingProvider.notifier).state = null;
-    state = const AsyncData(null);
+    try {
+      await _repository.logout();
+    } finally {
+      // The repository clears the local token even when the server is offline.
+      // Keep the visible session and pending login state consistent with it.
+      ref.read(whatsAppAuthPendingProvider.notifier).state = null;
+      state = const AsyncData(null);
+    }
   }
 
   Future<String?> requestPhoneVerification() =>

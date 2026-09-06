@@ -14,6 +14,9 @@ on:
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
 
+permissions:
+  contents: read
+
 jobs:
   backend-tests:
     name: Validate and test Laravel API
@@ -40,17 +43,76 @@ jobs:
       - name: Validate Composer metadata
         run: composer validate --no-check-publish
 
+      - name: Prepare isolated test environment
+        run: install -m 600 /dev/null .env
+
       - name: Install backend dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run Laravel test suite
-        run: php artisan test
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+
+  postgres-audit:
+    name: Audit PostgreSQL migrations and security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_audit
+          POSTGRES_PASSWORD: ci-disposable-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: real_estate_audit
+      DB_USERNAME: postgres
+      DB_PASSWORD: ci-disposable-only
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Prepare isolated test environment
+        run: install -m 600 /dev/null .env
+      - name: Install backend dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare API roles in disposable PostgreSQL
+        env:
+          PGPASSWORD: ci-disposable-only
+        run: >-
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
+          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+      - name: Apply complete migration chain to disposable PostgreSQL
+        run: php artisan migrate --force
+      - name: Test PostgreSQL schema and access boundaries
+        run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   build-uat-apk:
     name: Analyze, test and build UAT APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: backend-tests
+    needs: [backend-tests, postgres-audit]
 
     steps:
       - name: Checkout repository

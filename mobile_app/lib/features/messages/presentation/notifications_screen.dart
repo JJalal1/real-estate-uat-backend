@@ -18,6 +18,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _loading = true;
   String? _error;
   List<AppNotificationItem> _items = const [];
+  bool _actionPending = false;
   @override
   void initState() {
     super.initState();
@@ -47,11 +48,38 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   Future<void> _readAll() async {
-    await ref.read(messageRepositoryProvider).readAllNotifications();
-    await _load();
+    if (_actionPending) return;
+    setState(() => _actionPending = true);
+    try {
+      await ref.read(messageRepositoryProvider).readAllNotifications();
+      if (mounted) await _load();
+    } catch (error) {
+      _showActionError(error);
+    } finally {
+      if (mounted) setState(() => _actionPending = false);
+    }
   }
 
   Future<void> _open(AppNotificationItem item) async {
+    if (_actionPending) return;
+    setState(() => _actionPending = true);
+    try {
+      await _openDestination(item);
+    } catch (error) {
+      _showActionError(error);
+    } finally {
+      if (mounted) setState(() => _actionPending = false);
+    }
+  }
+
+  void _showActionError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(friendlyApiError(error))),
+    );
+  }
+
+  Future<void> _openDestination(AppNotificationItem item) async {
     if (!item.isRead) {
       await ref.read(messageRepositoryProvider).readNotification(item.id);
     }
@@ -83,7 +111,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         const SnackBar(content: Text('تمت قراءة الإشعار ولا توجد صفحة مرتبطة به.')),
       );
     }
-    await _load();
+    if (mounted) await _load();
   }
 
   @override
@@ -93,7 +121,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       child: Scaffold(
         appBar: AppBar(title: const Text('الإشعارات'), actions: [
           TextButton(
-              onPressed: _items.any((e) => !e.isRead) ? _readAll : null,
+              onPressed: !_actionPending && _items.any((e) => !e.isRead)
+                  ? _readAll
+                  : null,
               child: const Text('قراءة الكل'))
         ]),
         body: RefreshIndicator(
@@ -128,7 +158,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                       ? FontWeight.w600
                                       : FontWeight.w900)),
                           subtitle: item.body == null ? null : Text(item.body!),
-                          onTap: () => _open(item),
+                          onTap: _actionPending ? null : () => _open(item),
                         ))),
                 ])),
       ),
