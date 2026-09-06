@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'backend-api-runtime/**'
-      - '.github/workflows/test-backend.yml'
   push:
     branches:
       - main

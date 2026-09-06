@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\AccountVerificationProfile;
 use App\Models\Property;
 use App\Models\PropertyRequest;
+use App\Models\Governorate;
+use App\Models\GeoCell;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -62,6 +64,24 @@ class UatPropertyRequestsPhase2ApiTest extends TestCase
         $this->withHeaders($brokerHeaders)->postJson("/api/researcher-requests/$requestId/suggestions",['property_id'=>$draft->id])->assertStatus(422);
     }
 
+    public function test_matching_and_suggestions_never_cross_currency_or_region(): void
+    {
+        [, $requesterHeaders]=$this->user('currency-buyer@example.test');
+        [$broker,$brokerHeaders]=$this->user('currency-broker@example.test','broker');
+        $requestId=$this->withHeaders($requesterHeaders)->postJson('/api/property-requests',$this->payload())->json('data.id');
+        $usd=$this->property($broker,'published','approved','USD');
+        $this->withHeaders($brokerHeaders)->getJson("/api/researcher-requests/$requestId")
+            ->assertNotFound();
+        $this->withHeaders($brokerHeaders)->postJson("/api/researcher-requests/$requestId/suggestions",['property_id'=>$usd->id])
+            ->assertUnprocessable();
+
+        $yer=$this->property($broker);
+        $otherCell=$this->region('عدن','صيرة');
+        $yer->forceFill(['geo_cell_id'=>$otherCell->id])->save();
+        $this->withHeaders($brokerHeaders)->getJson("/api/researcher-requests/$requestId")
+            ->assertNotFound();
+    }
+
     public function test_elapsed_request_becomes_expired_and_is_not_researchable(): void
     {
         [$requester,$requesterHeaders]=$this->user('expired-buyer@example.test');
@@ -75,8 +95,9 @@ class UatPropertyRequestsPhase2ApiTest extends TestCase
         $this->assertNotNull($row->fresh()->expired_at);
     }
 
-    private function payload(): array { return ['operation_type'=>'sale','property_type'=>'apartment','governorate'=>'صنعاء','district'=>'حدة','area'=>null,'budget_min'=>100000,'budget_max'=>200000,'currency'=>'YER','requested_area_min'=>80,'requested_area_max'=>150,'rooms'=>2,'additional_specifications'=>'قريب من الخدمات','active_duration_days'=>30]; }
-    private function property(User $user,string $status='published',string $review='approved'): Property { return Property::query()->create(['user_id'=>$user->id,'title'=>'شقة مناسبة','description'=>'test','purpose'=>'sale','type'=>'apartment','price'=>150000,'currency'=>'YER','area_m2'=>100,'bedrooms'=>3,'bathrooms'=>2,'address'=>'حدة، صنعاء','latitude'=>15.3,'longitude'=>44.2,'status'=>$status,'review_status'=>$review]); }
+    private function payload(): array { $cell=$this->region();return ['governorate_id'=>$cell->governorate_id,'geo_cell_id'=>$cell->id,'operation_type'=>'sale','property_type'=>'apartment','governorate'=>'صنعاء','district'=>'حدة','area'=>null,'budget_min'=>100000,'budget_max'=>200000,'currency'=>'YER','requested_area_min'=>80,'requested_area_max'=>150,'rooms'=>2,'additional_specifications'=>'قريب من الخدمات','active_duration_days'=>30]; }
+    private function property(User $user,string $status='published',string $review='approved',string $currency='YER'): Property { $cell=$this->region();return Property::query()->create(['user_id'=>$user->id,'geo_cell_id'=>$cell->id,'title'=>'شقة مناسبة','description'=>'test','purpose'=>'sale','type'=>'apartment','price'=>150000,'currency'=>$currency,'area_m2'=>100,'bedrooms'=>3,'bathrooms'=>2,'address'=>'عنوان منظم','latitude'=>15.3,'longitude'=>44.2,'status'=>$status,'review_status'=>$review]); }
+    private function region(string $governorate='صنعاء',string $district='حدة'): GeoCell { $gov=Governorate::query()->firstOrCreate(['name_ar'=>$governorate],['code'=>'G'.substr(hash('sha1',$governorate),0,8),'is_active'=>true]);return GeoCell::query()->firstOrCreate(['governorate_id'=>$gov->id,'name_ar'=>$district],['code'=>'C'.substr(hash('sha1',$governorate.$district),0,8),'boundary_json'=>['type'=>'Polygon','coordinates'=>[[[44,15],[45,15],[45,16],[44,15]]]],'is_active'=>true]); }
     private function user(string $email,?string $type=null): array {
         $user=User::query()->create(['name'=>'Test User','email'=>$email,'phone'=>'+967'.substr(hash('crc32',$email),0,9),'phone_verified_at'=>now(),'profile_completed_at'=>now(),'account_status'=>User::STATUS_ACTIVE,'password'=>Hash::make('StrongPass123!')]);
         if($type)AccountVerificationProfile::query()->create(['user_id'=>$user->id,'type'=>$type,'status'=>'approved','submitted_at'=>now()->subHour(),'reviewed_at'=>now()]);

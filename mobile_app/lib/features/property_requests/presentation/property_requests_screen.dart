@@ -70,7 +70,7 @@ class _RequestCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
         child: ListTile(
           title: Text(
-            '${request.operationType == 'sale' ? 'شراء' : 'إيجار'} • ${request.propertyType}',
+            '${request.operationLabel} • ${request.propertyTypeLabel}',
           ),
           subtitle: Text(
             '${request.governorate}${request.district == null ? '' : ' • ${request.district}'}\n'

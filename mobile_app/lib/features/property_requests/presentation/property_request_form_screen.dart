@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../account/domain/yemen_admin_divisions.dart';
 import '../data/property_request_repository.dart';
 import '../domain/property_request_models.dart';
 
@@ -20,8 +19,10 @@ class _State extends ConsumerState<PropertyRequestFormScreen> {
   final _form = GlobalKey<FormState>();
   late String operation;
   late String type;
-  late String governorate;
-  String? district;
+  List<RequestRegionOption>? regions;
+  int? governorateId;
+  int? geoCellId;
+  String? regionError;
   late final Map<String, TextEditingController> controllers;
   bool saving = false;
 
@@ -31,12 +32,8 @@ class _State extends ConsumerState<PropertyRequestFormScreen> {
     final request = widget.request;
     operation = request?.operationType ?? 'sale';
     type = request?.propertyType ?? 'apartment';
-    governorate = YemenAdminDivisions.districtsByGovernorate
-            .containsKey(request?.governorate)
-        ? request!.governorate
-        : YemenAdminDivisions.districtsByGovernorate.keys.first;
-    final districts = YemenAdminDivisions.districtsByGovernorate[governorate]!;
-    district = districts.contains(request?.district) ? request?.district : null;
+    governorateId = request?.governorateId;
+    geoCellId = request?.geoCellId;
     controllers = {
       'area': TextEditingController(text: request?.area),
       'budget_min': TextEditingController(text: request?.budgetMin.toString()),
@@ -51,6 +48,7 @@ class _State extends ConsumerState<PropertyRequestFormScreen> {
       'active_duration_days':
           TextEditingController(text: (request?.activeDurationDays ?? 30).toString()),
     };
+    _loadRegions();
   }
 
   @override
@@ -63,7 +61,13 @@ class _State extends ConsumerState<PropertyRequestFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final districts = YemenAdminDivisions.districtsByGovernorate[governorate]!;
+    final governorates = <int, String>{
+      for (final region in regions ?? const <RequestRegionOption>[])
+        region.governorateId: region.governorateName,
+    };
+    final cells = (regions ?? const <RequestRegionOption>[])
+        .where((region) => region.governorateId == governorateId)
+        .toList();
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -88,29 +92,40 @@ class _State extends ConsumerState<PropertyRequestFormScreen> {
                 value: type,
                 decoration: const InputDecoration(labelText: 'نوع العقار'),
                 items: const ['apartment', 'house', 'villa', 'land', 'shop', 'office', 'farm']
-                    .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                    .map((value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(propertyTypeArabicLabel(value)),
+                        ))
                     .toList(),
                 onChanged: (value) => setState(() => type = value!),
               ),
-              DropdownButtonFormField<String>(
-                value: governorate,
+              if (regionError != null)
+                Text(regionError!, style: const TextStyle(color: Colors.red))
+              else if (regions == null)
+                const Center(child: CircularProgressIndicator())
+              else if (regions!.isEmpty)
+                const Text('لا توجد مناطق مفعلة لاستقبال الطلبات.')
+              else ...[
+              DropdownButtonFormField<int>(
+                value: governorateId,
                 decoration: const InputDecoration(labelText: 'المحافظة'),
-                items: YemenAdminDivisions.districtsByGovernorate.keys
-                    .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                items: governorates.entries
+                    .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
                     .toList(),
                 onChanged: (value) => setState(() {
-                  governorate = value!;
-                  district = null;
+                  governorateId = value;
+                  geoCellId = regions!.firstWhere((region) => region.governorateId == value).cellId;
                 }),
               ),
-              DropdownButtonFormField<String>(
-                value: district,
+              DropdownButtonFormField<int>(
+                value: geoCellId,
                 decoration: const InputDecoration(labelText: 'المديرية'),
-                items: districts
-                    .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                items: cells
+                    .map((region) => DropdownMenuItem(value: region.cellId, child: Text(region.cellName)))
                     .toList(),
-                onChanged: (value) => setState(() => district = value),
+                onChanged: (value) => setState(() => geoCellId = value),
               ),
+              ],
               for (final key in const [
                 'area',
                 'budget_min',
@@ -136,7 +151,7 @@ class _State extends ConsumerState<PropertyRequestFormScreen> {
                 ),
               const SizedBox(height: 20),
               FilledButton(
-                onPressed: saving ? null : _save,
+                onPressed: saving || geoCellId == null ? null : _save,
                 child: Text(saving ? 'جارٍ الحفظ...' : 'حفظ الطلب'),
               ),
             ],
@@ -165,6 +180,23 @@ class _State extends ConsumerState<PropertyRequestFormScreen> {
     return null;
   }
 
+  Future<void> _loadRegions() async {
+    try {
+      final loaded = await ref.read(propertyRequestRepositoryProvider).regions();
+      if (!mounted) return;
+      setState(() {
+        regions = loaded;
+        if (!loaded.any((region) => region.cellId == geoCellId)) {
+          final first = loaded.isEmpty ? null : loaded.first;
+          governorateId = first?.governorateId;
+          geoCellId = first?.cellId;
+        }
+      });
+    } catch (error) {
+      if (mounted) setState(() => regionError = friendlyApiError(error));
+    }
+  }
+
   String _label(String key) => const {
         'area': 'المنطقة', 'budget_min': 'الميزانية الدنيا',
         'budget_max': 'الميزانية العليا', 'requested_area_min': 'المساحة الدنيا (م²)',
@@ -184,9 +216,11 @@ class _State extends ConsumerState<PropertyRequestFormScreen> {
     if (!_form.currentState!.validate()) return;
     setState(() => saving = true);
     try {
+      final region = regions!.firstWhere((item) => item.cellId == geoCellId);
       final data = {
         'operation_type': operation, 'property_type': type,
-        'governorate': governorate, 'district': district,
+        'governorate_id': region.governorateId, 'geo_cell_id': region.cellId,
+        'governorate': region.governorateName, 'district': region.cellName,
         'area': _text('area'), 'budget_min': _double('budget_min'),
         'budget_max': _double('budget_max'), 'currency': 'YER',
         'requested_area_min': _number('requested_area_min'),

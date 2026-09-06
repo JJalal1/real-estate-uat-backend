@@ -12,6 +12,8 @@ return new class extends Migration
         Schema::create('property_requests', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('requester_user_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('governorate_id')->constrained('governorates')->restrictOnDelete();
+            $table->foreignId('geo_cell_id')->constrained('geo_cells')->restrictOnDelete();
             $table->string('operation_type', 16);
             $table->string('property_type', 32);
             $table->string('governorate', 120);
@@ -32,7 +34,7 @@ return new class extends Migration
             $table->timestampTz('expired_at')->nullable();
             $table->timestamps();
             $table->index(['requester_user_id', 'status', 'id']);
-            $table->index(['status', 'operation_type', 'property_type', 'governorate'], 'property_requests_matching_idx');
+            $table->index(['status', 'operation_type', 'property_type', 'currency', 'geo_cell_id'], 'property_requests_matching_idx');
         });
 
         Schema::create('property_suggestions', function (Blueprint $table): void {

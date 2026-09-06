@@ -72,7 +72,7 @@ class _State extends ConsumerState<PropertyRequestDetailsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${request.operationType == 'sale' ? 'شراء' : 'إيجار'} • ${request.propertyType}',
+                '${request.operationLabel} • ${request.propertyTypeLabel}',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               Text(

@@ -32,6 +32,8 @@ class PropertyRequestController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated=$request->validate($this->rules());
+        $validated['currency']=strtoupper($validated['currency']);
+        $validated=array_merge($validated,$this->service->resolveLocation($validated));
         $row=PropertyRequest::query()->create(array_merge($validated,[
             'requester_user_id'=>$request->user()->id,'status'=>'active',
             'expires_at'=>now()->addDays((int)$validated['active_duration_days']),
@@ -51,6 +53,8 @@ class PropertyRequestController extends Controller
     public function update(Request $request, PropertyRequest $propertyRequest): JsonResponse
     {
         $validated=$request->validate($this->rules());
+        $validated['currency']=strtoupper($validated['currency']);
+        $validated=array_merge($validated,$this->service->resolveLocation($validated));
         $propertyRequest=DB::transaction(function()use($request,$propertyRequest,$validated){
             $locked=PropertyRequest::query()->whereKey($propertyRequest->id)->lockForUpdate()->firstOrFail();
             $this->owner($request->user(),$locked);abort_unless($locked->status==='active'&&$locked->expires_at->isFuture(),409,'Only active requests can be edited.');
@@ -75,9 +79,7 @@ class PropertyRequestController extends Controller
     public function researcherIndex(Request $request): JsonResponse
     {
         /** @var User $user */$user=$request->user();$this->researcher($user);$this->service->expireDue();
-        $own=Property::query()->where('user_id',$user->id)->where('status','published')->where('review_status','approved')->get();
-        $rows=PropertyRequest::query()->whereIn('status',['active','matched'])->where('expires_at','>',now())->withCount('suggestions')->latest('id')->limit(300)->get()
-            ->filter(fn(PropertyRequest $r)=>$own->contains(fn(Property $p)=>$this->service->matches($r,$p)))->values();
+        $rows=$this->service->matchingRequests($user);
         return response()->json(['data'=>$rows->map(fn(PropertyRequest $row)=>$this->data($row))->values()]);
     }
 
@@ -99,7 +101,7 @@ class PropertyRequestController extends Controller
                 $locked=PropertyRequest::query()->whereKey($propertyRequest->id)->lockForUpdate()->firstOrFail();
                 abort_unless(in_array($locked->status,['active','matched'],true)&&$locked->expires_at->isFuture(),409,'Only current requests accept suggestions.');
                 $property=Property::query()->whereKey($validated['property_id'])->where('user_id',$user->id)->where('status','published')->where('review_status','approved')->first();
-                abort_unless($property&&$this->service->matches($locked,$property),422,'The property is not eligible for this request.');
+                abort_unless($property&&$this->service->eligibleProperties($user,$locked)->contains('id',$property->id),422,'The property is not eligible for this request.');
                 $row=PropertySuggestion::query()->create(['property_request_id'=>$locked->id,'property_id'=>$property->id,'suggested_by_user_id'=>$user->id,'suggested_by_name_snapshot'=>$user->name,'note'=>$validated['note']??null]);
                 if($locked->status==='active')$locked->forceFill(['status'=>'matched','matched_at'=>now()])->save();
                 $this->notifications->create($locked->requester_user_id,'property_suggestion','اقتراح عقار جديد','تم اقتراح عقار يطابق طلبك.','property_suggestion',$row->id,['property_request_id'=>$locked->id,'property_id'=>$property->id]);
@@ -116,15 +118,16 @@ class PropertyRequestController extends Controller
 
     private function rules(): array { return [
         'operation_type'=>['required',Rule::in(['sale','rent'])],'property_type'=>['required',Rule::in(self::TYPES)],
-        'governorate'=>['required','string','max:120'],'district'=>['nullable','string','max:120'],'area'=>['nullable','string','max:160'],
-        'budget_min'=>['required','numeric','min:0'],'budget_max'=>['required','numeric','gte:budget_min'],'currency'=>['required','string','size:3'],
+        'governorate_id'=>['nullable','integer','exists:governorates,id'],'geo_cell_id'=>['nullable','integer','exists:geo_cells,id'],
+        'governorate'=>['required','string','max:120'],'district'=>['required','string','max:120'],'area'=>['nullable','string','max:160'],
+        'budget_min'=>['required','numeric','min:0'],'budget_max'=>['required','numeric','gte:budget_min'],'currency'=>['required','string','size:3','regex:/^[A-Za-z]{3}$/'],
         'requested_area_min'=>['nullable','integer','min:1'],'requested_area_max'=>['nullable','integer','gte:requested_area_min'],'rooms'=>['nullable','integer','min:1','max:100'],
         'additional_specifications'=>['nullable','string','max:4000'],'active_duration_days'=>['required','integer','min:1','max:180'],
     ]; }
     private function owner(User $user,PropertyRequest $row): void { abort_unless((int)$row->requester_user_id===(int)$user->id,404); }
     private function researcher(User $user): void { abort_unless($this->service->isEligibleResearcher($user),403); }
     private function data(PropertyRequest $r,bool $withSuggestions=false): array {
-        $data=['id'=>$r->id,'operation_type'=>$r->operation_type,'property_type'=>$r->property_type,'governorate'=>$r->governorate,'district'=>$r->district,'area'=>$r->area,'budget_min'=>$r->budget_min,'budget_max'=>$r->budget_max,'currency'=>$r->currency,'requested_area_min'=>$r->requested_area_min,'requested_area_max'=>$r->requested_area_max,'rooms'=>$r->rooms,'additional_specifications'=>$r->additional_specifications,'active_duration_days'=>$r->active_duration_days,'status'=>$r->status,'expires_at'=>$r->expires_at?->toIso8601String(),'suggestions_count'=>$r->suggestions_count??$r->suggestions()->count(),'created_at'=>$r->created_at?->toIso8601String()];
+        $data=['id'=>$r->id,'governorate_id'=>$r->governorate_id,'geo_cell_id'=>$r->geo_cell_id,'operation_type'=>$r->operation_type,'property_type'=>$r->property_type,'governorate'=>$r->governorate,'district'=>$r->district,'area'=>$r->area,'budget_min'=>$r->budget_min,'budget_max'=>$r->budget_max,'currency'=>$r->currency,'requested_area_min'=>$r->requested_area_min,'requested_area_max'=>$r->requested_area_max,'rooms'=>$r->rooms,'additional_specifications'=>$r->additional_specifications,'active_duration_days'=>$r->active_duration_days,'status'=>$r->status,'expires_at'=>$r->expires_at?->toIso8601String(),'suggestions_count'=>$r->suggestions_count??$r->suggestions()->count(),'created_at'=>$r->created_at?->toIso8601String()];
         if($withSuggestions)$data['suggestions']=$r->suggestions->map(fn(PropertySuggestion $s)=>$this->suggestionData($s))->values();return $data;
     }
     private function suggestionData(PropertySuggestion $s): array { return ['id'=>$s->id,'property_request_id'=>$s->property_request_id,'property_id'=>$s->property_id,'suggested_by_name'=>$s->suggested_by_name_snapshot,'note'=>$s->note,'property'=>$this->propertyData($s->property),'created_at'=>$s->created_at?->toIso8601String()]; }

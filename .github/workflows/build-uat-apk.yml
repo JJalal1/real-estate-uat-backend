@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'mobile_app/**'
-      - '.github/workflows/build-uat-apk.yml'
   push:
     branches:
       - main
