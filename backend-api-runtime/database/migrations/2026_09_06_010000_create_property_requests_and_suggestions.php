@@ -29,6 +29,7 @@ return new class extends Migration
             $table->timestampTz('expires_at')->index();
             $table->timestampTz('matched_at')->nullable();
             $table->timestampTz('closed_at')->nullable();
+            $table->timestampTz('expired_at')->nullable();
             $table->timestamps();
             $table->index(['requester_user_id', 'status', 'id']);
             $table->index(['status', 'operation_type', 'property_type', 'governorate'], 'property_requests_matching_idx');

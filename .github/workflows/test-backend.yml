@@ -1,0 +1,49 @@
+name: Test Laravel Backend
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'backend-api-runtime/**'
+      - '.github/workflows/test-backend.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend-api-runtime/**'
+      - '.github/workflows/test-backend.yml'
+  workflow_dispatch:
+
+jobs:
+  test-backend:
+    name: PHP lint and Laravel tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, sqlite3
+          coverage: none
+
+      - name: Validate Composer metadata
+        run: composer validate --strict --no-check-publish
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Check PHP syntax
+        run: find app config database routes tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Run Laravel test suite
+        run: php artisan test

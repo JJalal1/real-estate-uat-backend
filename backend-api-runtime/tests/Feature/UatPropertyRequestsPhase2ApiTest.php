@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AccountVerificationProfile;
 use App\Models\Property;
+use App\Models\PropertyRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -41,7 +42,10 @@ class UatPropertyRequestsPhase2ApiTest extends TestCase
         $requestId=$this->withHeaders($requesterHeaders)->postJson('/api/property-requests',$this->payload())->json('data.id');
         $property=$this->property($broker);
         $this->withHeaders($basicHeaders)->getJson('/api/researcher-requests')->assertForbidden();
-        $this->withHeaders($brokerHeaders)->getJson('/api/researcher-requests')->assertOk()->assertJsonPath('data.0.id',$requestId);
+        $this->withHeaders($brokerHeaders)->getJson('/api/researcher-requests')
+            ->assertOk()->assertJsonPath('data.0.id',$requestId)
+            ->assertJsonMissingPath('data.0.requester_user_id')
+            ->assertJsonMissingPath('data.0.requester_phone');
         $response=$this->withHeaders($brokerHeaders)->postJson("/api/researcher-requests/$requestId/suggestions",['property_id'=>$property->id,'note'=>'مناسب للطلب'])->assertCreated();
         $response->assertJsonPath('data.property_id',$property->id);
         $this->assertDatabaseHas('property_requests',['id'=>$requestId,'status'=>'matched']);
@@ -56,6 +60,19 @@ class UatPropertyRequestsPhase2ApiTest extends TestCase
         $foreign=$this->property($other);$draft=$this->property($broker,'draft','draft');
         $this->withHeaders($brokerHeaders)->postJson("/api/researcher-requests/$requestId/suggestions",['property_id'=>$foreign->id])->assertStatus(422);
         $this->withHeaders($brokerHeaders)->postJson("/api/researcher-requests/$requestId/suggestions",['property_id'=>$draft->id])->assertStatus(422);
+    }
+
+    public function test_elapsed_request_becomes_expired_and_is_not_researchable(): void
+    {
+        [$requester,$requesterHeaders]=$this->user('expired-buyer@example.test');
+        [, $brokerHeaders]=$this->user('expired-broker@example.test','broker');
+        $row=PropertyRequest::query()->create(array_merge($this->payload(),[
+            'requester_user_id'=>$requester->id,'status'=>'active','expires_at'=>now()->subMinute(),
+        ]));
+        $this->withHeaders($requesterHeaders)->getJson('/api/property-requests')->assertOk()->assertJsonPath('data.0.status','expired');
+        $this->withHeaders($brokerHeaders)->getJson('/api/researcher-requests')->assertOk()->assertJsonCount(0,'data');
+        $this->assertDatabaseHas('property_requests',['id'=>$row->id,'status'=>'expired']);
+        $this->assertNotNull($row->fresh()->expired_at);
     }
 
     private function payload(): array { return ['operation_type'=>'sale','property_type'=>'apartment','governorate'=>'صنعاء','district'=>'حدة','area'=>null,'budget_min'=>100000,'budget_max'=>200000,'currency'=>'YER','requested_area_min'=>80,'requested_area_max'=>150,'rooms'=>2,'additional_specifications'=>'قريب من الخدمات','active_duration_days'=>30]; }
