@@ -56,8 +56,8 @@ class FreeServicesHubController extends Controller
                 'availability' => [
                     'create_listing' => $verifiedProfessional ? 'available' : 'requires_verification',
                     'my_listings' => 'available',
-                    'property_requests' => 'planned',
-                    'researcher_requests' => 'planned',
+                    'property_requests' => 'available',
+                    'researcher_requests' => $verifiedBrokerOrOffice ? 'available' : 'requires_verification',
                     'rental_contracts' => 'planned',
                     'price_indicators' => 'planned',
                     'property_valuation' => 'planned',

@@ -96,6 +96,7 @@ class AppNotificationItem {
     this.entityType,
     this.entityId,
     this.createdAt,
+    this.data = const <String, dynamic>{},
   });
 
   final int id;
@@ -106,6 +107,7 @@ class AppNotificationItem {
   final int? entityId;
   final bool isRead;
   final DateTime? createdAt;
+  final Map<String, dynamic> data;
 
   factory AppNotificationItem.fromJson(Map<String, dynamic> json) {
     return AppNotificationItem(
@@ -117,6 +119,9 @@ class AppNotificationItem {
       entityId: _asInt(json['entity_id']),
       isRead: json['read_at'] != null,
       createdAt: _date(json['created_at']),
+      data: json['data'] is Map<String, dynamic>
+          ? Map<String, dynamic>.unmodifiable(json['data'] as Map<String, dynamic>)
+          : const <String, dynamic>{},
     );
   }
 }

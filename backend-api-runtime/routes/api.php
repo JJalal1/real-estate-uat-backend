@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ListingReviewController;
 use App\Http\Controllers\Api\MessagingController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PropertyController;
+use App\Http\Controllers\Api\PropertyRequestController;
 use App\Http\Controllers\Api\RegionsController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\ServicePaymentController;
@@ -78,6 +79,14 @@ Route::get('/properties/{property}/services', [ServicePaymentController::class, 
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::get('/services/hub', [FreeServicesHubController::class, 'show']);
+    Route::get('/property-requests', [PropertyRequestController::class, 'index']);
+    Route::post('/property-requests', [PropertyRequestController::class, 'store']);
+    Route::get('/property-requests/{propertyRequest}', [PropertyRequestController::class, 'show']);
+    Route::patch('/property-requests/{propertyRequest}', [PropertyRequestController::class, 'update']);
+    Route::post('/property-requests/{propertyRequest}/close', [PropertyRequestController::class, 'close']);
+    Route::get('/researcher-requests', [PropertyRequestController::class, 'researcherIndex']);
+    Route::get('/researcher-requests/{propertyRequest}', [PropertyRequestController::class, 'researcherShow']);
+    Route::post('/researcher-requests/{propertyRequest}/suggestions', [PropertyRequestController::class, 'suggest']);
     Route::get('/properties/mine/list', [PropertyController::class, 'mine']);
     Route::post('/properties', [PropertyController::class, 'store']);
     Route::post('/properties/{property}', [PropertyController::class, 'update']);
@@ -243,4 +252,3 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::get('/audit-logs', [AccessControlController::class, 'auditLogs'])->middleware('permission:audit.view');
     });
 });
-

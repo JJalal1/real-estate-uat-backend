@@ -39,7 +39,7 @@ class UatFreeServicesHubApiTest extends TestCase
                 ->assertOk()
                 ->assertJsonPath('data.paid_features_enabled', false)
                 ->assertJsonPath('data.capabilities.view_researcher_requests', true)
-                ->assertJsonPath('data.availability.researcher_requests', 'planned');
+                ->assertJsonPath('data.availability.researcher_requests', 'available');
         }
     }
 

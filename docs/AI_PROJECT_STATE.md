@@ -99,6 +99,10 @@ Target journey:
 
 Expected backend work includes real persistent entities, authorization, statuses, matching filters, duplicate-suggestion protection, notifications, and links to existing property/conversation/viewing flows.
 
+Implementation is in progress on `feature/property-requests-phase2`: persistent requests and suggestions, verified broker/office matching, requester notifications, and Flutter request/researcher journeys are included for review and UAT validation.
+
+Phase 2 researcher matching uses structured `geo_cell_id`, exact currency, operation/type, budget, area, and room filters. The current UAT query considers at most the researcher's latest 250 eligible published properties and returns at most 300 current matching requests; revisit this bound with pagination or a normalized matching index before Production-scale use.
+
 ### Later phases
 
 - server-side Favorites

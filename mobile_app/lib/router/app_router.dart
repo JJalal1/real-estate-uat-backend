@@ -25,6 +25,9 @@ import '../features/messages/presentation/notifications_screen.dart';
 import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
 import '../features/properties/presentation/property_details_screen.dart';
+import '../features/property_requests/presentation/property_request_details_screen.dart';
+import '../features/property_requests/presentation/property_request_form_screen.dart';
+import '../features/property_requests/presentation/property_requests_screen.dart';
 import '../features/regions/presentation/regions_management_screen.dart';
 import '../features/reviews/presentation/listing_review_screen.dart';
 import '../features/support/presentation/support_admin_screen.dart';
@@ -159,6 +162,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             const Stage6AuthGate(child: ServicesScreen()),
       ),
+      GoRoute(path:'/property-requests',builder:(context,state)=>const Stage6AuthGate(child:PropertyRequestsScreen())),
+      GoRoute(path:'/property-requests/new',builder:(context,state)=>const Stage6AuthGate(child:PropertyRequestFormScreen())),
+      GoRoute(path:'/property-requests/:id',builder:(context,state)=>Stage6AuthGate(child:PropertyRequestDetailsScreen(id:int.parse(state.pathParameters['id']!)))),
+      GoRoute(path:'/researcher-requests',builder:(context,state)=>const Stage6AuthGate(child:PropertyRequestsScreen(researcher:true))),
+      GoRoute(path:'/researcher-requests/:id',builder:(context,state)=>Stage6AuthGate(child:PropertyRequestDetailsScreen(id:int.parse(state.pathParameters['id']!),researcher:true))),
       GoRoute(
         path: '/support',
         builder: (context, state) => const Stage6AuthGate(

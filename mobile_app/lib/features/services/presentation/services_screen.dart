@@ -244,6 +244,14 @@ class _FreeServicesHub extends StatelessWidget {
       context.push('/my-listings');
       return;
     }
+    if (code == 'property_requests') {
+      context.push('/property-requests');
+      return;
+    }
+    if (code == 'researcher_requests' && model.can('view_researcher_requests')) {
+      context.push('/researcher-requests');
+      return;
+    }
     final labels = <String, String>{
       'property_requests': 'طلبات العقار',
       'researcher_requests': 'طلبات الباحثين',

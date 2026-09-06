@@ -198,10 +198,7 @@ class AccountScreen extends ConsumerWidget {
                       _AccountRow(
                         'طلبات العقار',
                         Icons.manage_search_outlined,
-                        () => _message(
-                          context,
-                          'طلبات العقار ستُفعّل كطلبات حقيقية مرتبطة بالحساب في المرحلة التالية.',
-                        ),
+                        () => context.push('/property-requests'),
                       ),
                       _AccountRow(
                         'حجوزاتي',
@@ -212,10 +209,7 @@ class AccountScreen extends ConsumerWidget {
                         _AccountRow(
                           'طلبات الباحثين',
                           Icons.person_search_outlined,
-                          () => _message(
-                            context,
-                            'طلبات الباحثين ستُفعّل للدلال والمكتب الموثقين في مرحلة المطابقة.',
-                          ),
+                          () => context.push('/researcher-requests'),
                         ),
                     ],
                   ),
