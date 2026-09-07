@@ -2,12 +2,24 @@
 
 Last updated: 2026-09-08
 
+## Current gate — startup navigation blocker (Issue #11 / PR #10)
+
+The product owner's device video exposed a blocking layout defect: the anonymous property/account navigation occupied the entire screen and left no usable page body. This takes priority over starting Phase 3; previous source/automated phase acceptance is not evidence of device usability.
+
+- Active repair branch: `fix/startup-navigation-layout`, based on integration commit `d5ea7938e5fe63868a1a36b979221581927e9e3e`.
+- Regression-only commit `e82234399e73b35e10a7991790142092f1dd6e60`, CI run #47 (`34170985433`): existing 102 Flutter tests passed, all 36 new viewport tests failed. Navigation height equalled the full 568/915 pixel test viewport.
+- Fix commit `e3eb8df60ec70fac924c74c677109f9e357daaa9`: remove cross-axis stretching and shrink destination Columns to their content in `AppNavigationBar`. No route, auth, backend or cloud changes.
+- Run #48 (`34171053202`) passed Laravel, PostgreSQL/PostGIS, Flutter analysis, full Flutter tests including the 36 new viewport/body-interaction cases, and compile-time UAT configuration. APK build/upload was still running when this checkpoint was written; read the current run/artifact status and PR #10 before reporting final build success.
+- The new tests cover six role destination sets, two phone sizes and three text scales with the bundled Arabic font. They are widget-layout/hit-testing evidence, not full real-device/map acceptance.
+- Issue #11 remains OPEN pending verification of the corrected APK on the reporting device. Do not claim this device defect closed based on CI alone.
+- PR #10 remains subject to a separate product-owner merge approval. Approval already given for PR #9 is not blanket approval for future PRs.
+
 ## Current repository / environment
 
 - Repository: `JJalal1/real-estate-uat-backend`
 - Primary branch: `main`
-- Current completed product branch: `phase2/listing-journey-hardening`.
-- Phase 2 is based on Phase 1 closure candidate `a624d5bb6e006b6835e25b2ed1dd6893e08d9a70`.
+- Current integration branch: `phase1/ux-product-foundation`, containing Phase 2 through merge commit `d5ea7938e5fe63868a1a36b979221581927e9e3e`.
+- Phase 2 was based on Phase 1 closure candidate `a624d5bb6e006b6835e25b2ed1dd6893e08d9a70`.
 - Mobile: Flutter Android.
 - Backend: Laravel/PHP API.
 - Database: PostgreSQL + PostGIS.
@@ -36,7 +48,7 @@ Accepted outcome:
 - deferred Property Requests / Researcher Requests / matching removed from the launch-facing services contract and UI;
 - Phase 1 closure CI validates Laravel plus Flutter analysis/tests/release APK build.
 
-Rendered-device visual inspection remains a required Beta/launch-readiness gate rather than a blocker for normal engineering progress.
+Rendered-device visual inspection remains a required Beta/launch-readiness gate rather than a blocker for normal engineering progress. Known blocking device defects must nevertheless be repaired before new feature expansion, as tracked above.
 
 ## Phase 2 status
 
@@ -60,7 +72,7 @@ Final automated acceptance evidence:
 - GitHub Actions run #42 / `34169314754`: SUCCESS;
 - UAT APK artifact: `real-estate-phase2-uat-apk-42`.
 
-PR #9 remains open and unmerged. Product-owner approval is required before merge.
+PR #9 was merged with product-owner approval into `phase1/ux-product-foundation`, not `main`, at `d5ea7938e5fe63868a1a36b979221581927e9e3e`.
 
 The Render UAT service still tracks the older stabilization branch with auto-deploy disabled; do not describe Phase 2 as live Render UAT until the approved integration/deployment sequence is performed.
 
@@ -83,7 +95,7 @@ Key rules:
 - Backend authorization is authoritative.
 - Sensitive storage remains private.
 
-## Next phase — Phase 3 Buyer Discovery Completion
+## Next phase after startup repair — Phase 3 Buyer Discovery Completion
 
 Phase 3 starts from the existing public discovery implementation rather than rebuilding it.
 
