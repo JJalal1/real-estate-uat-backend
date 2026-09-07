@@ -141,7 +141,6 @@ int? _nullableInt(Object? value) => value == null ? null : _int(value);
 DateTime _date(Object? value) => DateTime.parse(value.toString());
 DateTime? _nullableDate(Object? value) => value == null ? null : _date(value);
 
-
 class FreeServicesHubModel {
   const FreeServicesHubModel({
     required this.uiVersion,
@@ -170,7 +169,7 @@ class FreeServicesHubModel {
       }
     }
     return FreeServicesHubModel(
-      uiVersion: json['ui_version']?.toString() ?? 'free_services_v1',
+      uiVersion: json['ui_version']?.toString() ?? 'free_services_v2',
       pricingModel: json['pricing_model']?.toString() ?? 'free',
       paidFeaturesEnabled: json['paid_features_enabled'] == true,
       accountType: json['account_type']?.toString() ?? 'basic',
