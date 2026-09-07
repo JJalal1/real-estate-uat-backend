@@ -1,122 +1,97 @@
 # AI Project State — REAL ESTATE UAT
 
-Last prepared: 2026-09-05
+Last updated: 2026-09-07
 
-## Current repository baseline
+## Current repository / environment
 
 - Repository: `JJalal1/real-estate-uat-backend`
 - Primary branch: `main`
-- Baseline commit at AI-system setup: `f76b5c15e3f6918a93c4781d051c2703f7a23409`
-- Baseline commit message: `Update services screen CI baseline`
-- Previous feature commit: `674b6ef006b3a84a43539f9b3c11b37286e1756f` (`Add free services hub and reorganize account`)
-- GitHub Actions workflow: `.github/workflows/build-uat-apk.yml`
-- Baseline workflow run: Build UAT Android APK run #16, successful.
-
-This document records the known state at setup time. Always re-check Git HEAD and live CI before relying on the SHA above.
-
-## Current architecture
-
+- Current product branch: `phase1/ux-product-foundation`
+- Phase 1 branch starts from the accepted Phase 0 audit head `fb1263b58ea4b23af2a597d97de69c49e301f3a9`.
 - Mobile: Flutter Android.
 - Backend: Laravel/PHP API.
-- Database: PostgreSQL with PostGIS.
-- Storage: Supabase Storage, treated as private for sensitive data.
-- UAT backend hosting: Render.
+- Database: PostgreSQL + PostGIS.
+- Storage: private Supabase Storage.
+- UAT runtime: Render.
 - Source control / CI: GitHub + GitHub Actions.
 
-Current repository roots include:
+Always re-check Git HEAD, CI, Render UAT, and Supabase UAT before relying on historical SHAs.
 
-- `backend-api-runtime/`
-- `mobile_app/`
-- `.github/workflows/`
-- `render.yaml`
-- `docs/`
+## Phase 0 status
 
-## Current UAT endpoints and build constants
+Phase 0 — Full System Audit & Stabilization is considered CLOSED by explicit product-owner decision on 2026-09-07.
 
-Known current mobile UAT API base:
+The accepted audit work includes authorization/navigation/notification fixes, Supabase hardening, UAT runtime fixes, deterministic CI, load regression coverage, and UAT deployment verification. Visual inspection is not being used to reopen Phase 0; rendered-device inspection continues as the first evidence task of Phase 1 so the UX redesign starts from the real product baseline.
 
-`https://real-estate-uat-api.onrender.com/api`
+## Current product direction
 
-Known public health endpoint:
+REAL ESTATE is marketplace-first.
 
-`https://real-estate-uat-api.onrender.com/api/health`
+Launch-critical journey:
 
-Known public properties endpoint:
+`verified advertiser -> create property -> support review -> publish -> public browse/search/map -> property details -> contact advertiser -> property conversation -> viewing -> agreement`
 
-`https://real-estate-uat-api.onrender.com/api/properties`
+Key rules:
 
-GitHub Actions currently uses:
-
-- Flutter `3.27.3`
-- Java `17`
-- `APP_ENVIRONMENT=uat`
-- Android application id `com.example.real_estate_mobile`
-
-## Cloud UAT
-
-Known project handoff state:
-
-- Render service: `real-estate-uat-api`
-- Render runtime: Docker
-- Render plan: free
-- Supabase PostgreSQL/PostGIS is the UAT database
-- Supabase Storage bucket: `real-estate-uat`
-- UAT storage is private by product/security rule
-
-The handoff previously identified a likely latency issue caused by geographic distance between Render and Supabase. Verify the live Render region and Supabase region before taking performance action; do not assume old region notes are still current.
-
-## Implemented/high-confidence areas
-
-- Flutter app and Laravel API are in the same GitHub repository.
-- GitHub Actions builds a UAT Android APK from `main` when mobile/workflow paths change.
-- Workflow includes accepted-file hash guards, Flutter analyze/tests, a live UAT health check, and APK artifact upload.
-- UAT phone/OTP test mode exists and is staging-only by design.
-- Account verification supports professional profile types `owner`, `broker`, `office`.
-- Support roles and shared support-task claim behavior exist in backend code.
-- Three-role operational workspaces for support agent, support manager, and platform owner were added before the current baseline.
-- Free-services phase 1 is implemented: backend `/api/services/hub`, free pricing model, paid features disabled in the active journey, unified services UI, and account-page reorganization.
-- The accepted mobile baseline now includes the free-services screen.
-
-## Product constraints already accepted
-
-- No Production work yet.
-- No real payment flow.
-- No paid listing/account promotion or paid service packages in the active product.
-- No broker hierarchy or exclusive broker-region ownership.
+- Published/approved properties are publicly browsable without login.
+- Owner, broker, and real-estate office are the supported professional identities.
+- Listing publication is reviewed through shared support queue -> claim.
+- The backend prevents duplicate publication when listings resolve to the same physical `PropertyAsset`; this remains a core rule and may later be strengthened with similarity detection.
+- No master/sub-broker hierarchy, regional broker exclusivity, or broker territory ownership.
+- Viewing starts from a specific property.
+- The active product remains free from the user's perspective; no paid promotion/upgrades/packages are active.
 - Backend authorization is authoritative.
-- Published listings are public.
-- Shared queue → claim remains the normal support-work model.
+- Sensitive storage remains private.
 
-## Open product roadmap
+## Current phase — Phase 1 UX/UI Product Foundation
 
-### Phase 2 — next major product phase
+Issue: #6
+Branch: `phase1/ux-product-foundation`
+Detailed execution plan: `docs/PHASE1_UX_PRODUCT_FOUNDATION.md`
 
-Property Requests + Researcher Requests + Suggestions/Matching.
+Phase 1 priorities:
 
-Target journey:
+1. capture current rendered baseline with Work/Astra + Computer Use;
+2. simplify information architecture and role-aware navigation;
+3. establish one RTL-first design system;
+4. redesign current surfaces incrementally in small reviewable tasks;
+5. preserve current backend/business/security behavior while improving the experience.
 
-`property request -> eligible verified broker/office sees request -> suggests one of own approved published properties -> requester receives notification -> opens property -> conversation -> viewing request`
+## Deferred / not launch-critical now
 
-Expected backend work includes real persistent entities, authorization, statuses, matching filters, duplicate-suggestion protection, notifications, and links to existing property/conversation/viewing flows.
+Property Requests, Researcher Requests, and broker-driven request matching are not the platform's core journey and are deferred unless the product owner explicitly re-approves them later.
 
-### Later phases
+They must not be treated as the next mandatory phase or as a prerequisite for launch.
 
-- server-side Favorites
-- viewing/booking/conversation integration hardening
-- Rental Contracts
-- Price Indicators + Property Valuation using one backend data engine
-- Real-estate Guide + Legal Documents library
-- deeper performance profiling if cloud-region alignment does not solve latency
+## Later launch-critical work after Phase 1
 
-## Current AI-development setup status
+- complete property listing/publishing UX and stronger duplicate-detection workflow;
+- public discovery/search/filter/map/property-detail experience;
+- server-side favorites;
+- property-linked conversation/viewing/booking integration hardening;
+- rental contracts and in-app agreement workflow;
+- price indicators + property valuation using eligible published data only;
+- Real-estate Guide + Legal Documents library;
+- Production/security/operations readiness;
+- closed beta -> soft launch -> public launch.
 
-- GitHub connection: available to ChatGPT.
-- Repository access: confirmed.
-- AI operating docs: being installed through branch `ai/project-operating-system`.
-- Render ChatGPT plugin: pending connection at setup time.
-- Supabase ChatGPT plugin: pending connection at setup time.
-- Future coding flow should prefer branch + PR + CI over ZIP/manual patching when repository write tools are available.
+## AI execution split
+
+Ordinary ChatGPT session owns:
+- roadmap/task decomposition;
+- GitHub/CI review;
+- Laravel/API/database/security;
+- Render/Supabase UAT verification;
+- documentation and task acceptance.
+
+Work/Astra owns primarily:
+- rendered-device inspection via Computer Use;
+- UX/UI proposals;
+- Flutter visual implementation;
+- visual regression evidence.
+
+Work tasks must remain small and stop after the requested scope.
 
 ## Update rule
 
-Whenever a feature PR changes an accepted workflow, update this file in the same PR or immediately after acceptance. Do not let this document become a replacement for inspecting the current code.
+Whenever accepted behavior, roadmap, architecture, or product direction changes, update this file and the relevant business/workflow/decision docs. Current Git/code and explicit newer product-owner decisions outrank stale historical roadmap text.
