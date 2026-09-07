@@ -1,0 +1,55 @@
+name: Phase 1 Flutter CI
+
+on:
+  push:
+    branches:
+      - phase1/ux-product-foundation
+    paths:
+      - 'mobile_app/**'
+      - '.github/workflows/phase1-flutter-ci.yml'
+  pull_request:
+    branches:
+      - audit/system-stabilization
+    paths:
+      - 'mobile_app/**'
+      - '.github/workflows/phase1-flutter-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-validation:
+    name: Analyze and test Phase 1 Flutter
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.27.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        working-directory: mobile_app
+        run: flutter --version
+
+      - name: Resolve packages
+        working-directory: mobile_app
+        run: flutter pub get
+
+      - name: Static analysis
+        working-directory: mobile_app
+        run: flutter analyze
+
+      - name: Theme and token tests
+        working-directory: mobile_app
+        run: flutter test test/app_theme_test.dart test/app_tokens_test.dart
+
+      - name: Full Flutter test suite
+        working-directory: mobile_app
+        run: flutter test
