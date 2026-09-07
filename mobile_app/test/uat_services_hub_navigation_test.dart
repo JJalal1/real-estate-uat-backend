@@ -3,32 +3,34 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('free services hub contains the approved sections and actions', () {
+  test('services hub exposes current marketplace paths without deferred request matching', () {
     final source = File(
       'lib/features/services/presentation/services_screen.dart',
     ).readAsStringSync();
 
     for (final label in <String>[
-      'الخدمات السريعة',
-      'أضف عقار',
-      'اطلب عقار',
+      'الخدمات والأدوات',
+      'الخدمات الحالية مجانية',
+      'متاح الآن',
+      'إضافة عقار',
       'إعلاناتي',
-      'قيّم عقارك',
-      'الخدمات العقارية',
-      'طلبات العقار',
+      'قادم لاحقاً',
       'عقود الإيجار',
       'مؤشرات الأسعار',
       'تقييم العقار',
-      'طلبات الباحثين',
-      'معلومات وأدوات',
       'الدليل العقاري',
       'المستندات القانونية',
-      'مجانية بالكامل',
     ]) {
       expect(source, contains(label), reason: 'Missing services label: $label');
     }
 
     for (final removed in <String>[
+      'اطلب عقار',
+      'طلبات العقار',
+      'طلبات الباحثين',
+      'create_property_request',
+      'property_requests',
+      'researcher_requests',
       'خدمات التسويق الحصري',
       'إعلانات اليوم',
       'الصفقات العقارية',
@@ -36,15 +38,15 @@ void main() {
       'حساب الخدمات',
       'إدارة الخدمات والترقيات',
       'المدفوعات والتسويات',
-      "title: 'المدونة'",
     ]) {
-      expect(source, isNot(contains(removed)), reason: 'Removed service leaked: $removed');
+      expect(source, isNot(contains(removed)), reason: 'Deferred/removed service leaked: $removed');
     }
 
     expect(source, contains("context.push('/add-property')"));
     expect(source, contains("context.push('/my-listings')"));
-    expect(source, contains("model.can('view_researcher_requests')"));
-    expect(source, contains('constraints: const BoxConstraints(minHeight: 74)'));
+    expect(source, contains('AppAppBar'));
+    expect(source, contains('AppSurface'));
+    expect(source, contains('AppStatusBadge'));
   });
 
   test('services visibility is sourced from authenticated backend hub', () {
@@ -63,7 +65,7 @@ void main() {
     expect(model, contains('bool can(String key)'));
   });
 
-  test('projects stay removed and services move under account in accepted IA', () {
+  test('projects stay removed and services remain under account in accepted IA', () {
     final shell = File(
       'lib/features/app_shell/presentation/app_shell_screen.dart',
     ).readAsStringSync();
