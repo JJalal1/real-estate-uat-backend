@@ -72,26 +72,24 @@ abstract final class AppSizes {
   static const double navigationMinHeight = 80;
 }
 
-/// Scaffolding defaults: W3A names motion but does not prescribe durations.
-/// Consumers must use [none] when platform accessibility disables animations.
+/// Accepted interaction timing. Respect reduced-motion settings by using
+/// [instant] when the platform requests reduced animation.
 abstract final class AppMotion {
-  static const Duration none = Duration.zero;
-  static const Duration short = Duration(milliseconds: 150);
-  static const Duration medium = Duration(milliseconds: 250);
-  static const Duration long = Duration(milliseconds: 350);
-  static const Curve standard = Curves.easeInOutCubic;
-  static const Curve enter = Curves.easeOutCubic;
-  static const Curve exit = Curves.easeInCubic;
+  static const Duration instant = Duration.zero;
+  static const Duration fast = Duration(milliseconds: 120);
+  static const Duration standard = Duration(milliseconds: 200);
+  static const Curve curve = Curves.easeOutCubic;
 }
 
-/// Material state-layer defaults where W3A does not specify numeric opacity.
-/// Use semantic disabled colors, rather than fading a whole content subtree.
+/// Accepted Material state-layer and modal opacity values.
+/// Use semantic disabled colors rather than fading a whole content subtree.
 abstract final class AppOpacity {
   static const double transparent = 0;
   static const double hover = 0.08;
-  static const double focus = 0.12;
-  static const double pressed = 0.12;
+  static const double focus = 0.10;
+  static const double pressed = 0.10;
   static const double dragged = 0.16;
-  static const double scrim = 0.32;
+  static const double scrim = 0.40;
+  static const double mediaScrim = 0.60;
   static const double opaque = 1;
 }
