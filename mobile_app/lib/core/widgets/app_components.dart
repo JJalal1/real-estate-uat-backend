@@ -650,7 +650,9 @@ class AppNavigationBar extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: contentHeight),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            // Scaffold permits the full viewport height here. Stretching would
+            // make the bar consume that height and leave the page no space.
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: List.generate(destinations.length, (index) {
               final destination = destinations[index];
               final selected = index == selectedIndex;
@@ -667,6 +669,7 @@ class AppNavigationBar extends StatelessWidget {
                         vertical: AppSpacing.s8,
                       ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           AnimatedContainer(
