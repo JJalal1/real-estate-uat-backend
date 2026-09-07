@@ -1,6 +1,6 @@
 # Phase 1 — UX/UI Product Foundation
 
-Status: ACTIVE
+Status: IMPLEMENTED — automated acceptance passed; final visual/device acceptance pending product-owner APK review
 Branch: `phase1/ux-product-foundation`
 Issue: #6
 
@@ -16,18 +16,62 @@ Property Requests / Researcher Requests / matching are not the launch-critical c
 
 Phase 0 is considered closed by product-owner decision. Phase 1 does not reopen Phase 0 unless a severe regression is discovered while redesigning current product surfaces.
 
-## Phase 1 goals
+## Phase 1 implemented outcome
 
-1. Capture the current rendered application baseline before visual changes.
-2. Simplify the information architecture and role-aware navigation.
-3. Establish one RTL-first design system and component language.
-4. Redesign current product surfaces incrementally, one small scope at a time.
-5. Preserve backend authorization, privacy, listing-review, duplicate-property, and support rules.
-6. Leave the application visually coherent and ready for the later launch-critical journey phases.
+The Phase 1 code foundation now provides:
+- an Arabic RTL-first Material 3 design system with bundled Noto Sans Arabic assets and reusable marketplace components;
+- public discovery without login;
+- the accepted role-aware navigation hierarchy;
+- services moved below Account rather than a consumer bottom tab;
+- professional listing controls progressively disclosed to verified publishing profiles;
+- a standardized property card and property-details conversion surface;
+- existing map/list, search, filter, sort, empty/error/loading, conversation, and viewing behavior preserved;
+- automated Flutter analysis, tests, UAT compile-time endpoint verification, and release APK build in CI.
 
-## Current product surface inventory
+The remaining Phase 1 acceptance gate is visual/device review of the generated UAT APK. Automated checks do not substitute for real-device checks of RTL layout, text scale, keyboard, overflow, map rendering, and subjective visual quality.
 
-### Public / regular user
+## Accepted role navigation
+
+### Anonymous
+- العقارات
+- حسابي
+
+### Regular user
+- العقارات
+- الرسائل
+- المعاينات
+- حسابي
+
+### Verified advertiser
+- العقارات
+- إعلاناتي
+- الرسائل
+- المعاينات
+- حسابي
+
+### Support agent
+- لوحة الدعم
+- الوارد
+- مهامي
+- الرسائل
+- حسابي
+
+### Support manager
+- لوحة الدعم
+- الأعمال
+- الفريق
+- حسابي
+
+### Platform administration
+- لوحة الإدارة
+- المراجعات
+- المستخدمون
+- المنصة
+- حسابي
+
+Services and tools are reached from Account. Favorites are not a launch top-level destination. Publishing complexity is shown progressively to verified publishing profiles.
+
+## Current routed product surfaces
 
 - `/` role-aware shell
 - `/auth`
@@ -46,251 +90,46 @@ Phase 0 is considered closed by product-owner decision. Phase 1 does not reopen 
 - `/add-property`
 - `/my-listings`
 
-Regular shell currently exposes:
-- حسابي
-- الإعلانات
-- الحجوزات
-- المحادثات
-- الخدمات
+Additional operational routes remain available for authorized support/platform roles without being exposed to ordinary users.
 
-This navigation is functional but does not match the desired marketplace-first hierarchy. Phase 1 should propose a simpler consumer hierarchy centered on discovery and property actions rather than treating account/services as peers of discovery.
-
-### Support agent
-
-Current shell:
-- الرئيسية
-- مهامي
-- مركز الدعم
-- الرسائل
-- حسابي
-
-### Support manager
-
-Current shell:
-- لوحة الدعم
-- الأعمال
-- الفريق
-- البلاغات
-- حسابي
-
-### Platform administration
-
-Current shell:
-- لوحة الإدارة
-- المراجعات
-- المستخدمون
-- المنصة
-- حسابي
-
-### Additional routed operational screens
-
-- `/admin/access`
-- `/admin/dashboard`
-- `/admin/settings`
-- `/admin/audit-log`
-- `/admin/listing-review`
-- `/broker/account-verification`
-- `/admin/broker-account-verifications`
-- `/admin/account-verifications`
-- `/admin/regions`
-- `/admin/message-reports`
-- `/admin/support`
-- `/support/workspace`
-- `/support/users`
-- `/support/worklog`
-
-## UX principles for this phase
+## UX principles
 
 ### Marketplace-first
-
-For the regular user, discovery of properties must be the dominant experience. Public browsing must remain available without login.
+For the regular user, discovery of properties is the dominant experience. Published-property browsing remains public without login.
 
 ### Property-centered actions
-
-Contact, conversation, viewing, share, save, and later agreement actions should originate from a real property context when applicable.
+Contact, conversation, viewing, share, save, and later agreement actions originate from a real property context when applicable.
 
 ### Progressive professional complexity
-
-A normal user should not see professional verification, listing management, office/broker tooling, or support/admin complexity until context requires it.
+A normal user does not see professional listing-management complexity until context and verified publishing eligibility require it.
 
 ### RTL-first Arabic layout
-
-Every redesigned surface must be evaluated in Arabic RTL first, including:
-- alignment;
-- text hierarchy;
-- icon direction;
-- overflow;
-- bottom navigation labels;
-- dialogs/sheets;
-- keyboard and form layout;
-- small Android screens.
+Every redesigned surface must be evaluated in Arabic RTL first, including alignment, text hierarchy, icon direction, overflow, navigation labels, dialogs/sheets, keyboard/forms, text scaling, and small Android screens.
 
 ### Reusable system, not screen-by-screen styling
+Visual changes reuse shared tokens/components instead of hard-coded one-off styling.
 
-Visual changes should reuse shared tokens/components rather than hard-coded one-off styling.
+Implemented reusable foundation includes semantic colors, typography, spacing, surfaces, app bars, buttons, fields, chips, list rows, property cards/media/price/facts, section headers, status badges, inline messages, loading/skeleton/empty/error/unavailable states, navigation, bottom sheets, and dialogs.
 
-Target reusable foundation:
-- semantic colors;
-- typography scale;
-- 4/8-based spacing scale;
-- page gutters;
-- surface/card styles;
-- app bars;
-- buttons;
-- inputs;
-- chips/filters;
-- list items;
-- property cards;
-- section headers;
-- skeleton/loading states;
-- empty/error/retry states;
-- status badges;
-- bottom sheets/dialogs;
-- role-aware navigation components.
+## Phase 1 task status
 
-## Work / Astra execution contract
+- W1 — baseline evidence: superseded by direct implementation plus final owner device review; no historical baseline is required to ship the current Phase 1 candidate.
+- W2 — information architecture: accepted and implemented in `docs/PHASE1_ACCEPTED_IA.md` and the role-aware shell.
+- W3 — design system foundation: implemented, including typography activation, shared components, and widget/theme tests.
+- W4 — regular shell redesign: implemented with public browsing preserved.
+- W5 — property discovery/home: existing map/list marketplace discovery retained and aligned to the accepted shell/design foundation.
+- W6 — property card: standardized reusable property-card primitives implemented.
+- W7 — search/filter interaction: existing search/filter semantics retained within the discovery flow.
+- W8 — map/list discovery: existing map/list switching, sorting, markers, area selection, and states retained.
+- W9 — property details: redesigned around gallery, price/location/facts, advertiser trust, sharing, property-linked messaging, viewing, contact, similar listings, and unavailable/error states.
 
-Work must operate in small tasks. Do not combine tasks unless explicitly authorized.
-
-For every Work task:
-1. Read `AGENTS.md` and this file first.
-2. Re-check current Git HEAD before editing.
-3. Preserve existing business/security behavior.
-4. Do only the stated task.
-5. Do not redesign unrelated screens.
-6. Use Computer Use when the task asks for rendered-app evidence.
-7. Return:
-   - commit SHA;
-   - files changed;
-   - tests run and result;
-   - before/after screenshots when visual;
-   - any blocker or product decision discovered.
-8. Stop after delivery. Do not start the next task automatically.
-
-## Phase 1 task queue
-
-### W1 — Visual baseline capture
-
-Purpose: document the current product before redesign.
-
-Scope:
-- no code changes;
-- launch the current UAT APK/emulator;
-- capture screenshots for regular public/anonymous state and the main role shells;
-- record visible layout/navigation/consistency defects;
-- focus on evidence, not redesign proposals.
-
-Required baseline captures:
-- regular shell / property discovery;
-- property details;
-- account;
-- services;
-- messages;
-- bookings;
-- add-property entry if eligible;
-- support agent shell;
-- support manager shell;
-- platform admin shell.
-
-Deliverable: screenshot set + concise defect inventory only.
-
-### W2 — Information architecture proposal
-
-Purpose: propose navigation structure before coding.
-
-Scope:
-- no code changes;
-- use W1 evidence plus current route inventory;
-- propose regular-user shell hierarchy;
-- propose professional-account entry points;
-- preserve separate support/manager/platform operational shells unless evidence supports a small simplification;
-- identify screens that should move under account/overflow rather than top-level tabs.
-
-Deliverable: one recommended IA, one alternative only if materially different, and a migration map from current destinations.
-
-### W3 — Design system foundation
-
-Purpose: create reusable visual primitives before redesigning many screens.
-
-Scope:
-- Flutter theme/tokens/shared components only;
-- no broad screen redesign;
-- preserve behavior/routes/API;
-- add or refine typography, spacing, surfaces, buttons, fields, chips, status/empty/error/loading primitives as required;
-- include tests or golden/widget checks where practical.
-
-Deliverable: commit + screenshots of component showcase or representative existing screen proving the foundation.
-
-### W4 — Regular shell redesign
-
-Purpose: implement the accepted regular-user navigation architecture.
-
-Scope:
-- regular shell only;
-- no support/manager/platform redesign;
-- no backend/API changes unless a blocking defect is found and reported first;
-- preserve anonymous public browsing.
-
-Deliverable: commit + screenshots + navigation test evidence.
-
-### W5 — Property discovery/home redesign
-
-Purpose: redesign the main marketplace surface after W4 acceptance.
-
-Scope:
-- one discovery/home surface only;
-- no property-details redesign yet;
-- reuse the accepted design system.
-
-### W6 — Property card redesign
-
-Purpose: standardize the core property preview component.
-
-Scope:
-- card/list preview component only;
-- cover long Arabic title, price, location, key facts, unavailable state if already supported.
-
-### W7 — Search/filter interaction redesign
-
-Purpose: make discovery controls coherent and compact.
-
-Scope:
-- search/filter UI only;
-- preserve backend filter semantics.
-
-### W8 — Map/list discovery polish
-
-Purpose: improve map/list switching and map result affordances.
-
-### W9 — Property details redesign
-
-Purpose: make the property page the primary conversion surface.
-
-Scope includes:
-- gallery;
-- title/price/location;
-- property facts;
-- advertiser identity/trust summary;
-- contextual save/share/contact/viewing actions when available;
-- clear unavailable/error state.
+Automated acceptance for these implementation tasks is complete when the Phase 1 Flutter CI run is green and produces the UAT APK. Visual acceptance remains the product owner's device check.
 
 ## Acceptance ownership
 
-Ordinary ChatGPT session owns:
-- roadmap and task decomposition;
-- backend/API/database/security review;
-- GitHub/CI review;
-- UAT/Render/Supabase verification;
-- documentation;
-- acceptance or rejection of each Work task.
+Ordinary ChatGPT session owns roadmap, backend/API/database/security review, GitHub/CI review, UAT verification, documentation, and technical acceptance.
 
-Work/Astra owns:
-- rendered-device observation;
-- UX/visual proposal execution;
-- Flutter visual implementation;
-- visual regression evidence.
-
-The product owner is asked only for meaningful product choices or final acceptance where alternatives are subjective.
+Rendered-device visual acceptance belongs to the product owner for this candidate APK. Work/Astra remains optional for later visual polish and regression work; it is not required to complete this automated Phase 1 build.
 
 ## Phase 1 non-goals
 
