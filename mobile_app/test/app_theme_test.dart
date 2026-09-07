@@ -70,7 +70,6 @@ void main() {
       expect(style.fontFamilyFallback, ['Arial', 'sans-serif']);
       expect(style.color, const Color(0xFF111820));
     }
-    // No unavailable family is configured by the foundation.
     expect(AppTypography.bodyLarge.fontFamily, isNull);
     for (final style in [
       text.displayLarge,
@@ -95,10 +94,14 @@ void main() {
       (scheme.onError, scheme.error),
       (scheme.onErrorContainer, scheme.errorContainer),
       (scheme.onInverseSurface, scheme.inverseSurface),
-      (semantic.success, semantic.successContainer),
-      (semantic.warning, semantic.warningContainer),
-      (semantic.info, semantic.infoContainer),
-      (semantic.neutral, semantic.neutralContainer),
+      (semantic.onSuccess, semantic.success),
+      (semantic.onSuccessContainer, semantic.successContainer),
+      (semantic.onWarning, semantic.warning),
+      (semantic.onWarningContainer, semantic.warningContainer),
+      (semantic.onInfo, semantic.info),
+      (semantic.onInfoContainer, semantic.infoContainer),
+      (semantic.onNeutral, semantic.neutral),
+      (semantic.onNeutralContainer, semantic.neutralContainer),
     ]) {
       expect(_contrast(foreground, background), greaterThanOrEqualTo(4.5));
     }
@@ -115,13 +118,21 @@ void main() {
 
     final replaced = original.copyWith(
       success: Colors.black,
+      onSuccess: Colors.black,
       successContainer: Colors.black,
+      onSuccessContainer: Colors.black,
       warning: Colors.black,
+      onWarning: Colors.black,
       warningContainer: Colors.black,
+      onWarningContainer: Colors.black,
       info: Colors.black,
+      onInfo: Colors.black,
       infoContainer: Colors.black,
+      onInfoContainer: Colors.black,
       neutral: Colors.black,
+      onNeutral: Colors.black,
       neutralContainer: Colors.black,
+      onNeutralContainer: Colors.black,
       disabledContainer: Colors.black,
       onDisabledContainer: Colors.black,
       disabledOutline: Colors.black,
@@ -135,13 +146,21 @@ void main() {
     const original = AppSemanticColors.light;
     const target = AppSemanticColors(
       success: Colors.black,
+      onSuccess: Colors.white,
       successContainer: Colors.white,
+      onSuccessContainer: Colors.black,
       warning: Colors.black,
+      onWarning: Colors.white,
       warningContainer: Colors.white,
+      onWarningContainer: Colors.black,
       info: Colors.black,
+      onInfo: Colors.white,
       infoContainer: Colors.white,
+      onInfoContainer: Colors.black,
       neutral: Colors.black,
+      onNeutral: Colors.white,
       neutralContainer: Colors.white,
+      onNeutralContainer: Colors.black,
       disabledContainer: Colors.white,
       onDisabledContainer: Colors.black,
       disabledOutline: Colors.black,
@@ -207,11 +226,16 @@ void main() {
         return Text('تفاصيل العقار', style: Theme.of(context).textTheme.bodyLarge);
       })),
     ));
+
+    final text = tester.widget<Text>(find.text('تفاصيل العقار'));
+    expect(text.textDirection, isNull,
+        reason: 'Text should inherit RTL from Directionality rather than force it.');
+    expect(Directionality.of(tester.element(find.text('تفاصيل العقار'))),
+        TextDirection.rtl);
     final richText = tester.widget<RichText>(find.descendant(
       of: find.text('تفاصيل العقار'),
       matching: find.byType(RichText),
     ));
-    expect(richText.textDirection, TextDirection.rtl);
     expect(richText.textScaler.scale(16), 32);
     expect(tester.takeException(), isNull);
   });
@@ -225,13 +249,21 @@ double _contrast(Color foreground, Color background) {
 
 Map<String, Color> _semanticValues(AppSemanticColors colors) => {
       'success': colors.success,
+      'onSuccess': colors.onSuccess,
       'successContainer': colors.successContainer,
+      'onSuccessContainer': colors.onSuccessContainer,
       'warning': colors.warning,
+      'onWarning': colors.onWarning,
       'warningContainer': colors.warningContainer,
+      'onWarningContainer': colors.onWarningContainer,
       'info': colors.info,
+      'onInfo': colors.onInfo,
       'infoContainer': colors.infoContainer,
+      'onInfoContainer': colors.onInfoContainer,
       'neutral': colors.neutral,
+      'onNeutral': colors.onNeutral,
       'neutralContainer': colors.neutralContainer,
+      'onNeutralContainer': colors.onNeutralContainer,
       'disabledContainer': colors.disabledContainer,
       'onDisabledContainer': colors.onDisabledContainer,
       'disabledOutline': colors.disabledOutline,
