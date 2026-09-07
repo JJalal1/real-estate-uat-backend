@@ -6,8 +6,8 @@ Last updated: 2026-09-08
 
 - Repository: `JJalal1/real-estate-uat-backend`
 - Primary branch: `main`
-- Current accepted product branch: `phase1/ux-product-foundation`
-- Phase 1 branch starts from the accepted Phase 0 audit head `fb1263b58ea4b23af2a597d97de69c49e301f3a9`.
+- Current completed product branch: `phase2/listing-journey-hardening`.
+- Phase 2 is based on Phase 1 closure candidate `a624d5bb6e006b6835e25b2ed1dd6893e08d9a70`.
 - Mobile: Flutter Android.
 - Backend: Laravel/PHP API.
 - Database: PostgreSQL + PostGIS.
@@ -36,7 +36,33 @@ Accepted outcome:
 - deferred Property Requests / Researcher Requests / matching removed from the launch-facing services contract and UI;
 - Phase 1 closure CI validates Laravel plus Flutter analysis/tests/release APK build.
 
-Rendered-device visual inspection is still valuable, but it is no longer a blocker that keeps Phase 1 open. It is a required Beta/launch-readiness gate before public release.
+Rendered-device visual inspection remains a required Beta/launch-readiness gate rather than a blocker for normal engineering progress.
+
+## Phase 2 status
+
+Phase 2 — Listing Journey Hardening is CLOSED at source/automated-acceptance level.
+
+Accepted outcome:
+- explicit `Save Draft -> Preview -> Submit for Review` UX with no implicit submission;
+- canonical listing editor for create/edit/location/media and structured owner property-relationship evidence;
+- returned-for-correction state/reason survives editing until explicit resubmission;
+- My Listings lifecycle/actions normalized around actual server states;
+- shared support queue/claim and sensitive review decisions hardened with stronger transaction/row-lock protection;
+- exact `PropertyAsset` duplicate blocking preserved;
+- explainable likely-duplicate detection added from geography/address/property-fact signals;
+- uncertain duplicate suspicion requires human review, not fuzzy automatic rejection;
+- correction/approval/rejection notifications link to the actual property;
+- public visibility remains restricted to approved/published listings;
+- dedicated Phase 2 CI covers full Laravel regression, PostgreSQL 17 + PostGIS migration/security/lifecycle acceptance, Flutter analysis/tests, UAT endpoint verification, and release APK build/upload.
+
+Final automated acceptance evidence:
+- Phase 2 gate head: `a8226f9ac5c8375828c34451150f2736960d0725`;
+- GitHub Actions run #42 / `34169314754`: SUCCESS;
+- UAT APK artifact: `real-estate-phase2-uat-apk-42`.
+
+PR #9 remains open and unmerged. Product-owner approval is required before merge.
+
+The Render UAT service still tracks the older stabilization branch with auto-deploy disabled; do not describe Phase 2 as live Render UAT until the approved integration/deployment sequence is performed.
 
 ## Current product direction
 
@@ -50,26 +76,26 @@ Key rules:
 - Published/approved properties are publicly browsable without login.
 - Owner, broker, and real-estate office are the supported professional identities.
 - Listing publication is reviewed through shared support queue -> claim.
-- The backend prevents duplicate publication when listings resolve to the same physical `PropertyAsset`; later similarity detection may strengthen this without silently merging unrelated properties.
+- Exact physical-property duplicate publication is blocked by `PropertyAsset`; likely matches are explainable human-review signals.
 - No master/sub-broker hierarchy, regional broker exclusivity, or broker territory ownership.
 - Viewing starts from a specific property.
 - The active product remains free from the user's perspective; no paid promotion/upgrades/packages are active.
 - Backend authorization is authoritative.
 - Sensitive storage remains private.
 
-## Next phase — Phase 2 Listing Journey Hardening
+## Next phase — Phase 3 Buyer Discovery Completion
 
-Phase 2 starts immediately after Phase 1 closure and does not rebuild the listing system from scratch.
+Phase 3 starts from the existing public discovery implementation rather than rebuilding it.
 
-Phase 2 scope:
-1. normalize Add Property and My Listings onto the accepted design system;
-2. separate Save Draft / Preview / Submit for Review clearly in the UX while preserving backend workflow authority;
-3. harden create/edit/media/location/evidence/review/resubmission states;
-4. verify the full listing lifecycle end-to-end through automated tests and UAT-safe checks;
-5. strengthen likely-duplicate detection and support review without automatic destructive merges;
-6. preserve the current verified owner/broker/office verification rules and shared support claim model.
+Phase 3 scope:
+1. normalize property cards across list/map/details surfaces;
+2. harden public search, filters, sorting, bounds/pagination and published-only boundaries;
+3. verify map/list consistency and similar-property correctness;
+4. improve media/loading/error/cache behavior where measured evidence justifies it;
+5. implement server/account-bound Favorites with database/API/auth/Flutter/tests;
+6. polish share/contact entry points without creating parallel messaging/viewing systems.
 
-Phase 2 must not expand into Favorites, Rental Contracts, valuation, Production infrastructure, payment activation, or deferred request/matching features.
+Phase 3 must not expand into Rental Contracts, valuation, Production infrastructure, payment activation, or deferred request/matching features.
 
 ## Deferred / not launch-critical
 
@@ -77,10 +103,8 @@ Property Requests, Researcher Requests, and broker-driven request matching are d
 
 They must not be exposed as active capabilities, launch-facing quick actions, or mandatory roadmap steps.
 
-## Later launch-critical work after Phase 2
+## Later launch-critical work after Phase 3
 
-- buyer discovery/search/filter/map/property-detail hardening;
-- server-side favorites;
 - property-linked conversation/viewing/booking integration hardening;
 - rental contracts and in-app agreement workflow;
 - price indicators + property valuation using eligible published data only;
