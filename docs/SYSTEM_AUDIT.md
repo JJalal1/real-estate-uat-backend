@@ -1,6 +1,6 @@
 # SYSTEM AUDIT & STABILIZATION — Phase 0
 
-Status: ACTIVE
+Status: ACTIVE — automated/server-side gates passed; visual device acceptance remains outstanding
 Branch: `audit/system-stabilization`
 Scope: current accepted system only. New Phase 2 feature work is frozen until this audit is complete.
 
@@ -37,7 +37,7 @@ Repository inventory at the start of execution:
 | Conversation reports | `/admin/message-reports` | Support/private-review permissions | Current; private content remains gated and audited |
 | Viewing bookings | `/bookings` | Active account | Current |
 | Free services hub | `/services` | Active account | Current; planned services remain explicitly marked unavailable and were not implemented |
-| User support center | `/support?case=:id` | Active account/owner | Current; notification deep link now opens the referenced case |
+| User support center | `/support?case=:id` | Active account/owner | Current; notification deep link opens the referenced case |
 | Support administration | `/admin/support?kind=:kind&case=:id` | Support permission | Current |
 | Shared support workspace | `/support/workspace` plus role shell tabs | Support roles | Current |
 | Support users/worklog | `/support/users`, `/support/worklog` | Support permissions | Current |
@@ -46,10 +46,10 @@ Repository inventory at the start of execution:
 | My listings | `/my-listings` | Active account | Current |
 | Map, listing community, location picker, dialogs | Embedded from shell/property/workflows | Contextual | Current; not separate router destinations |
 | Fake local chat | Former `/chats/:id` | None | Removed: duplicated the real messaging system with hard-coded data and inert buttons |
-| Developments/projects UI source | No current route or shell entry | Unreachable | Intentionally excluded by accepted product decision; frozen Phase 2 surface, not restored |
+| Developments/projects UI source | No current route or shell entry | Unreachable | Intentionally excluded by accepted product decision; not restored |
 | Retired broker-region verification UI | No current shell entry | Unreachable | Historical compatibility only; not restored |
 
-All current top-level screens use RTL directionality directly or inherit it from the application theme/shell. Reachable async data screens were checked for loading, empty, error/retry, and refresh handling; remaining verification is recorded under runtime acceptance below.
+All current top-level screens use RTL directionality directly or inherit it from the application theme/shell. Reachable async data screens were source-reviewed for loading, empty, error/retry, and refresh handling. Real rendered-device verification remains the explicit visual acceptance gate.
 
 ### Verified defects and fixes
 
@@ -59,29 +59,49 @@ All current top-level screens use RTL directionality directly or inherit it from
 | Navigation | `int.parse` on message/property path parameters could crash malformed deep links; unknown routes had no product error surface | Medium | Use positive `int.tryParse`, add Arabic route-error UI, and add a router error builder |
 | Messaging UI | `/chats/:id` exposed a hard-coded duplicate chat with inert buttons | High | Remove the route, import, and obsolete source file; retain the API-backed messaging flow only |
 | Notifications | Only message notifications navigated; KYC, support, task, booking, property, and service notifications silently stopped after being marked read | Medium | Add destinations for current entity types, support-case deep linking, and explicit feedback for historical unknown types |
-| Report notifications | Closing a conversation report linked the user to an entity type with no client destination | Medium | Emit the related support-case entity (falling back to the thread) and cover it in backend tests |
-| Database drift | UAT lacked the four latest accepted migrations: tenure type, booking-thread link, listing-review assignment, and support workspace tables | Critical | Keep Git HEAD authoritative and require the Render UAT migration deploy before closure |
-| Supabase security | Every application table in exposed `public` lacked RLS and nine trigger functions had mutable search paths | High | Add a PostgreSQL-only migration enabling RLS now and for future public tables, and pin function search paths |
-| Database performance | Supabase identified 18 foreign-key columns without supporting indexes | Medium | Add idempotent PostgreSQL indexes; retain unused indexes until workload evidence justifies removal |
-| CI | No backend test job, no audit-branch trigger, and backend-only changes did not trigger CI; the lock file requires PHP 8.4 while the unconstrained first CI probe used 8.3 | High | Add PHP 8.4 Composer/Laravel tests matching the Render image and include backend/audit-branch changes |
-| Render port binding | Apache was left on port 80 and ignored Render's runtime `PORT`; the existing test already described the required contract but had never run in CI | Critical | Validate `PORT` and rewrite Apache listen/vhost configuration before startup |
-| Access-role validation | Sending an intentional empty role list was rejected as missing, so administrators could not remove optional roles | Medium | Require the key to be present while allowing an empty array; the registered-user invariant remains in the service |
-| Regression suite drift | Legacy identity/listing tests bypassed the accepted verified-publisher and shared-claim rules | Medium | Preserve the rules and update fixtures to create approved publishing profiles or claim tasks explicitly |
+| Report notifications | Closing a conversation report linked the user to an entity type with no client destination | Medium | Emit the related support-case entity, falling back to the thread, and cover it in backend tests |
+| Database drift | UAT lacked four latest accepted migrations | Critical | Reconciled through reviewed Git migrations; live UAT now reports nothing pending |
+| Supabase security | Application tables in exposed `public` lacked RLS and trigger functions had mutable search paths | High | Applied reviewed PostgreSQL hardening: RLS, direct-grant revocation, pinned search paths, future-table event trigger |
+| Database performance | Supabase identified foreign-key columns without supporting indexes | Medium | Added idempotent PostgreSQL indexes; retain unused indexes until workload evidence justifies removal |
+| CI | No backend test job, no audit-branch trigger, and backend-only changes did not trigger CI | High | Added PHP 8.4 Laravel tests, PostgreSQL/PostGIS migration/security tests, audit-branch/backend triggers, Flutter regression/build gates |
+| Render port binding | Apache ignored Render runtime `PORT` | Critical | Validate `PORT` and rewrite Apache listen/vhost configuration before startup |
+| Access-role validation | Intentional empty role list was rejected as missing | Medium | Require key presence while allowing empty array; registered-user invariant remains in service |
+| Regression suite drift | Legacy identity/listing tests bypassed accepted verified-publisher/shared-claim rules | Medium | Updated fixtures while preserving product rules |
+| UAT connection saturation | Initial 10-worker prefork baseline queued the post-burst health check under a 40-request/concurrency-20 probe | High | Raised bounded UAT prefork ceiling to 12 with session-pool headroom; deterministic probe now requires 40/40 success plus healthy post-load check |
+| Persistent-session experiment | Optional persistent PostgreSQL sessions increased idle session retention without being necessary for stability | Medium | Reverted; accepted UAT database connections remain non-persistent |
+
+## 2026-09-07 automated acceptance checkpoint
+
+The automated/server-side portion of Phase 0 is now accepted on the audit branch. The final application-code deployment baseline is commit `3c761f7257a2290f1449f4e9c246e659595bea8c` (`revert: keep PostgreSQL sessions non-persistent`). Documentation-only commits may follow it without changing runtime code.
 
 ### Runtime acceptance log
 
-| Check | State | Evidence / next gate |
+| Check | State | Evidence / remaining gate |
 |---|---|---|
-| Local static inventory and secret-pattern scan | Passed | No committed credentials found; server-only key handling remains isolated to Laravel |
-| Supabase UAT project identity | Passed | The connected UAT project is healthy on PostgreSQL 17.6; infrastructure identifiers are intentionally not recorded here |
-| PostGIS extension | Passed | Present in UAT |
-| Supabase schema match | Failed at baseline | Four accepted migrations absent; must pass after audited Render deploy |
-| Supabase security/performance advisors | Failed at baseline | RLS/search-path/index findings above; rerun after migration deploy |
-| GitHub backend tests | Pending | Audit branch must be pushed and workflow completed |
-| Flutter analyze/tests | Pending | Audit branch must be pushed and workflow completed |
-| Release UAT APK | Pending | Produced only by a green workflow against the UAT endpoint |
-| Render service/deploy/log review | Pending workspace confirmation | Connector requires explicit confirmation of the only visible workspace before service access |
-| Browser/Computer visual pass | Blocked at baseline | Browser navigation to the UAT host was blocked by the current client environment; retry after deploy and retain as an explicit closure gate |
+| Local/static inventory and secret-pattern review | Passed | No committed credentials found; server-only sensitive configuration remains outside source |
+| Supabase UAT identity/version | Passed | Connected UAT is healthy on PostgreSQL 17.6 with PostGIS |
+| Supabase schema match | Passed | Reviewed accepted migrations applied; Render reports `Nothing to migrate.` |
+| Supabase direct Data API boundary | Passed | All application/public tables have RLS and `anon`/`authenticated` have zero direct table grants |
+| Supabase security advisors | Passed with expected INFO | Remaining `rls_enabled_no_policy` INFO is deliberate deny-all direct Data API posture; Laravel is authoritative data access |
+| Supabase performance advisors | Passed with informational follow-up | Remaining findings are unused-index INFO only; no index removal without workload evidence |
+| PostgreSQL/PostGIS regression | Passed | Disposable PostgreSQL migration chain, schema/access audit, and spatial overlap regression are green in CI |
+| Laravel tests | Passed | Final-code CI run has backend suite green |
+| Flutter static analysis/tests | Passed | Flutter analysis, cloud-readiness, compiled-environment guard, and full test suite are green on accepted audit state |
+| Release UAT APK | Passed on accepted audit state | Green CI builds and uploads a release UAT artifact; final-code run is the canonical artifact once complete |
+| Render UAT deployment | Passed | Deploy `dep-daf0v7gn74is73frnce0` is live at runtime commit `3c761f...`; cloud readiness passed and migrations are current |
+| Render health/log review | Passed | Repeated `/api/health` HTTP 200 after cutover; no app `error`/`critical` entries after final deploy became live |
+| Connection state after persistent-session rollback | Passed | Supabase activity normalized; no application-owned persistent idle-session pool remains; infrastructure-managed Supavisor/PostgREST sessions are expected |
+| Concurrent read-only UAT stability | Passed | 40 nearby-property requests at concurrency 20 completed 40/40 with post-load health green after 12-worker tuning |
+| Performance characterization | Passed for UAT stability, not production SLO | Accepted probe recorded multi-second p95 under deliberate burst; direct PostGIS plan uses spatial index, so region/network/round-trip cost remains a likely UAT latency contributor |
+| Real APK visual/device end-to-end pass | Outstanding | Requires Computer Use/real emulator-device environment; this is the only remaining Phase 0 DoD gate not executable by the ordinary connector/tool environment |
+
+### Accepted UAT capacity posture
+
+- Apache prefork `MaxRequestWorkers`: 12.
+- PostgreSQL application sessions: non-persistent.
+- Do not increase worker/session ceilings merely to lower latency; preserve pool headroom and measure first.
+- Render UAT is in Oregon while Supabase UAT is in Mumbai. Cross-region placement is a known latency risk; changing regions/resources is a separate infrastructure decision and must not be done without cost/impact review.
+- The concurrent CI probe is a regression/stability check, not a production traffic promise or SLA.
 
 ## Objective
 
@@ -183,4 +203,4 @@ Phase 0 is complete only when:
 10. security/regression review is complete;
 11. documentation reflects the verified state.
 
-Only after these conditions are satisfied should new Phase 2 feature implementation resume.
+Automated/server-side gates 1–8, 10, and 11 are now satisfied to the extent they are verifiable without a rendered device. Gate 9 remains outstanding. Phase 2 stays frozen and no merge to `main` is authorized until the remaining acceptance gate is completed and the product owner explicitly approves the merge.
