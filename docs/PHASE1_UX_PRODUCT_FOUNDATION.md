@@ -1,6 +1,6 @@
 # Phase 1 — UX/UI Product Foundation
 
-Status: IMPLEMENTED — automated acceptance passed; final visual/device acceptance pending product-owner APK review
+Status: COMPLETE — source and automated acceptance closed; real-device review deferred to Beta/launch readiness
 Branch: `phase1/ux-product-foundation`
 Issue: #6
 
@@ -12,23 +12,25 @@ Primary journey:
 
 `verified advertiser -> create property -> support review -> publish -> public discovery/search/map -> property details -> contact advertiser -> conversation -> viewing -> agreement`
 
-Property Requests / Researcher Requests / matching are not the launch-critical core journey. They are deferred unless the product owner explicitly re-approves them later.
+Property Requests / Researcher Requests / matching are deferred and are not launch-critical. They are not exposed as active services/capabilities in the Phase 1 closure state unless the product owner explicitly re-approves them later.
 
-Phase 0 is considered closed by product-owner decision. Phase 1 does not reopen Phase 0 unless a severe regression is discovered while redesigning current product surfaces.
+Phase 0 remains closed.
 
-## Phase 1 implemented outcome
+## Phase 1 accepted outcome
 
-The Phase 1 code foundation now provides:
+Phase 1 provides:
 - an Arabic RTL-first Material 3 design system with bundled Noto Sans Arabic assets and reusable marketplace components;
 - public discovery without login;
-- the accepted role-aware navigation hierarchy;
-- services moved below Account rather than a consumer bottom tab;
+- accepted role-aware navigation hierarchy;
+- services below Account rather than a consumer bottom tab;
 - professional listing controls progressively disclosed to verified publishing profiles;
-- a standardized property card and property-details conversion surface;
+- standardized property UI primitives and property-details conversion surface;
 - existing map/list, search, filter, sort, empty/error/loading, conversation, and viewing behavior preserved;
-- automated Flutter analysis, tests, UAT compile-time endpoint verification, and release APK build in CI.
+- a cleaned services hub that distinguishes working paths from approved future directions without fake active navigation;
+- deferred Property Requests / Researcher Requests / matching removed from the active services API contract;
+- Phase 1 closure CI covering Laravel regression tests plus Flutter analysis, tests, UAT endpoint verification, and release APK build.
 
-The remaining Phase 1 acceptance gate is visual/device review of the generated UAT APK. Automated checks do not substitute for real-device checks of RTL layout, text scale, keyboard, overflow, map rendering, and subjective visual quality.
+Real-device RTL/layout/keyboard/map/text-scale inspection remains required before public launch, but it is a Beta/launch-readiness gate rather than a reason to keep Phase 1 open.
 
 ## Accepted role navigation
 
@@ -104,39 +106,38 @@ Contact, conversation, viewing, share, save, and later agreement actions origina
 A normal user does not see professional listing-management complexity until context and verified publishing eligibility require it.
 
 ### RTL-first Arabic layout
-Every redesigned surface must be evaluated in Arabic RTL first, including alignment, text hierarchy, icon direction, overflow, navigation labels, dialogs/sheets, keyboard/forms, text scaling, and small Android screens.
+Every redesigned surface is authored for Arabic RTL first, including alignment, hierarchy, icon direction, overflow, navigation labels, dialogs/sheets, keyboard/forms, text scaling, and small Android screens.
 
 ### Reusable system, not screen-by-screen styling
 Visual changes reuse shared tokens/components instead of hard-coded one-off styling.
 
 Implemented reusable foundation includes semantic colors, typography, spacing, surfaces, app bars, buttons, fields, chips, list rows, property cards/media/price/facts, section headers, status badges, inline messages, loading/skeleton/empty/error/unavailable states, navigation, bottom sheets, and dialogs.
 
-## Phase 1 task status
+## Phase 1 task closure
 
-- W1 — baseline evidence: superseded by direct implementation plus final owner device review; no historical baseline is required to ship the current Phase 1 candidate.
-- W2 — information architecture: accepted and implemented in `docs/PHASE1_ACCEPTED_IA.md` and the role-aware shell.
-- W3 — design system foundation: implemented, including typography activation, shared components, and widget/theme tests.
-- W4 — regular shell redesign: implemented with public browsing preserved.
-- W5 — property discovery/home: existing map/list marketplace discovery retained and aligned to the accepted shell/design foundation.
-- W6 — property card: standardized reusable property-card primitives implemented.
-- W7 — search/filter interaction: existing search/filter semantics retained within the discovery flow.
-- W8 — map/list discovery: existing map/list switching, sorting, markers, area selection, and states retained.
-- W9 — property details: redesigned around gallery, price/location/facts, advertiser trust, sharing, property-linked messaging, viewing, contact, similar listings, and unavailable/error states.
+- W1 — historical rendered baseline is not required for closure; real-device review moved to Beta/launch-readiness acceptance.
+- W2 — information architecture accepted and implemented.
+- W3 — design system foundation implemented with typography, shared components, and tests.
+- W4 — regular shell redesigned with public browsing preserved.
+- W5 — property discovery/home retained and aligned to the accepted shell/design foundation.
+- W6 — standardized reusable property-card primitives implemented.
+- W7 — search/filter semantics retained within discovery.
+- W8 — map/list switching, sorting, markers, area selection, and states retained.
+- W9 — property details redesigned around gallery, price/location/facts, advertiser trust, sharing, property-linked messaging, viewing, contact, similar listings, and unavailable/error states.
+- Closure cleanup — services surface/API contract aligned with marketplace direction and deferred request/matching concepts removed from active launch-facing capabilities.
 
-Automated acceptance for these implementation tasks is complete when the Phase 1 Flutter CI run is green and produces the UAT APK. Visual acceptance remains the product owner's device check.
+## Phase 1 non-goals retained
 
-## Acceptance ownership
-
-Ordinary ChatGPT session owns roadmap, backend/API/database/security review, GitHub/CI review, UAT verification, documentation, and technical acceptance.
-
-Rendered-device visual acceptance belongs to the product owner for this candidate APK. Work/Astra remains optional for later visual polish and regression work; it is not required to complete this automated Phase 1 build.
-
-## Phase 1 non-goals
-
-Do not implement in this phase unless explicitly pulled forward:
+Phase 1 did not implement:
 - Property Requests / Researcher matching;
 - rental contracts;
 - payment activation;
 - price indicators/valuation engine;
 - Production infrastructure;
 - broad new feature work.
+
+## Handoff to Phase 2
+
+The next implementation phase is **Phase 2 — Listing Journey Hardening**.
+
+Phase 2 starts from the existing listing workflow and focuses on UX/state hardening, clear Draft/Preview/Submit behavior, full lifecycle regression coverage, and stronger likely-duplicate review support. It must not rebuild the working listing backend from scratch.
