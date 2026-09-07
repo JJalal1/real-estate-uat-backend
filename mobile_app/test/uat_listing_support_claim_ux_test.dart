@@ -12,7 +12,8 @@ void main() {
     ).readAsString();
 
     expect(shell.contains("roles.contains('support_agent')"), isTrue);
-    expect(shell.contains("label: 'مركز الدعم'"), isTrue);
+    expect(shell.contains("label: 'لوحة الدعم'"), isTrue);
+    expect(shell.contains("label: 'الوارد'"), isTrue);
     expect(tasks.contains("_setType('listing_review')"), isTrue);
     expect(tasks.contains("context.push('/admin/listing-review')"), isTrue);
     expect(tasks.contains('تحقيق إعلانات'), isTrue);

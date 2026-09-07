@@ -5,13 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   String read(String relative) => File(relative).readAsStringSync();
 
-  test('support agent, manager and platform owner have dedicated navigation', () {
+  test('accepted role workspaces have dedicated navigation', () {
     final shell = read('lib/features/app_shell/presentation/app_shell_screen.dart');
 
-    expect(shell, contains("label: 'الرئيسية'"));
-    expect(shell, contains("label: 'مهامي'"));
-    expect(shell, contains("label: 'مركز الدعم'"));
     expect(shell, contains("label: 'لوحة الدعم'"));
+    expect(shell, contains("label: 'الوارد'"));
+    expect(shell, contains("label: 'مهامي'"));
     expect(shell, contains("label: 'الأعمال'"));
     expect(shell, contains("label: 'الفريق'"));
     expect(shell, contains("label: 'لوحة الإدارة'"));
@@ -21,16 +20,18 @@ void main() {
     expect(shell, contains("roles.contains('support_agent')"));
     expect(shell, contains("roles.contains('support_manager')"));
     expect(shell, contains("roles.contains('super_admin')"));
+    expect(shell, isNot(contains("label: 'البلاغات'")));
   });
 
-  test('regular user navigation stays on the current five-tab baseline', () {
+  test('consumer navigation follows accepted marketplace IA', () {
     final shell = read('lib/features/app_shell/presentation/app_shell_screen.dart');
 
+    expect(shell, contains("label: 'العقارات'"));
+    expect(shell, contains("label: 'الرسائل'"));
+    expect(shell, contains("label: 'المعاينات'"));
+    expect(shell, contains("label: 'إعلاناتي'"));
     expect(shell, contains("label: 'حسابي'"));
-    expect(shell, contains("label: 'الإعلانات'"));
-    expect(shell, contains("label: 'الحجوزات'"));
-    expect(shell, contains("label: 'المحادثات'"));
-    expect(shell, contains("label: 'الخدمات'"));
+    expect(shell, isNot(contains("label: 'الخدمات'")));
     expect(shell, isNot(contains("label: 'المشاريع'")));
     expect(shell, isNot(contains('projects/presentation/projects_screen.dart')));
   });
@@ -41,9 +42,8 @@ void main() {
     expect(account, contains('administrativeRole'));
     expect(account, contains("user.roles.contains('support_agent')"));
     expect(account, contains("user.roles.contains('support_manager')"));
-    expect(account, contains('وظائف العمل موجودة الآن'));
+    expect(account, contains('مساحة العمل منفصلة عن الحساب'));
     expect(account, contains("'الملف الشخصي'"));
-    expect(account, contains("'الرسائل'"));
     expect(account, contains("'الإشعارات'"));
   });
 

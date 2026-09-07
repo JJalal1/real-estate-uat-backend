@@ -116,9 +116,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The community section is below the initial ListView viewport. Scroll to
-    // it first so the lazily-built children exist before checking the count.
-    final communityButton = find.text('التعليقات وتقييم المعلن والبلاغات');
+    final communityButton = find.text('التعليقات والتقييم والبلاغات');
     await tester.scrollUntilVisible(communityButton, 300);
     expect(find.text('0 تعليق ظاهر'), findsOneWidget);
     await tester.tap(communityButton);

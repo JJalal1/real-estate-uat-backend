@@ -63,19 +63,24 @@ void main() {
     expect(model, contains('bool can(String key)'));
   });
 
-  test('projects interface stays removed from mobile navigation and routes', () {
+  test('projects stay removed and services move under account in accepted IA', () {
     final shell = File(
       'lib/features/app_shell/presentation/app_shell_screen.dart',
+    ).readAsStringSync();
+    final account = File(
+      'lib/features/account/presentation/account_screen.dart',
     ).readAsStringSync();
     final router = File('lib/router/app_router.dart').readAsStringSync();
 
     expect(shell, isNot(contains('ProjectsScreen')));
     expect(shell, isNot(contains("label: 'المشاريع'")));
+    expect(shell, contains("label: 'العقارات'"));
+    expect(shell, contains("label: 'الرسائل'"));
+    expect(shell, contains("label: 'المعاينات'"));
     expect(shell, contains("label: 'حسابي'"));
-    expect(shell, contains("label: 'الإعلانات'"));
-    expect(shell, contains("label: 'الحجوزات'"));
-    expect(shell, contains("label: 'المحادثات'"));
-    expect(shell, contains("label: 'الخدمات'"));
+    expect(shell, isNot(contains("label: 'الخدمات'")));
+    expect(account, contains("context.push('/services')"));
+    expect(account, contains('الخدمات والأدوات'));
 
     expect(router, isNot(contains("path: '/developments'")));
     expect(router, isNot(contains("path: '/developments/:id'")));

@@ -73,8 +73,13 @@ void main() {
     );
 
     expect(find.textContaining('فيلا عائلية'), findsOneWidget);
-    expect(find.text('12,500,000'), findsOneWidget);
-    expect(find.text('YER'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Text &&
+            widget.textSpan?.toPlainText().contains('12,500,000 YER') == true,
+      ),
+      findsOneWidget,
+    );
     expect(find.textContaining('صنعاء'), findsOneWidget);
     expect(find.text('420 م²'), findsOneWidget);
     expect(find.text('5 غرف'), findsOneWidget);
