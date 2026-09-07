@@ -48,7 +48,7 @@ No generic top-level viewing service. Viewing is contextual to a specific proper
 
 ## D-012 — Reuse existing workflows/entities
 
-When adding Property Requests, Favorites, Contracts, or new integrations, first inspect and reuse current property, notification, conversation, viewing/booking, role, and audit infrastructure. Do not create parallel systems without a demonstrated need.
+When adding Favorites, Contracts, or new integrations, first inspect and reuse current property, notification, conversation, viewing/booking, role, and audit infrastructure. Do not create parallel systems without a demonstrated need.
 
 ## D-013 — Price indicators and valuation share one backend engine
 
@@ -73,3 +73,19 @@ Distinguish Render cold start, cross-region DB latency, API/SQL behavior, and Fl
 ## D-018 — AI documentation lives with the code
 
 `AGENTS.md` and `docs/AI_*.md`/architecture/business/security/runbook docs are the persistent engineering handoff for future ChatGPT/Codex sessions. They must be updated when accepted product rules or architecture change.
+
+## D-019 — Phase 0 is closed by product-owner decision
+
+As of 2026-09-07, Phase 0 is considered closed. Rendered-device inspection continues in Phase 1 as UX baseline evidence, not as a blocker that reopens Phase 0 unless a severe regression is discovered.
+
+## D-020 — Marketplace-first launch journey
+
+The launch-critical journey is:
+
+`verified advertiser -> create property -> support review -> publish -> public discovery -> property details -> contact/conversation -> viewing -> agreement`
+
+Property Requests / Researcher Requests / broker-driven matching are deferred and are not launch prerequisites unless explicitly re-approved later.
+
+## D-021 — Phase 1 work is split between ordinary ChatGPT and Work/Astra
+
+Ordinary ChatGPT owns roadmap, backend/API/database/security/CI review, UAT verification, docs, and acceptance. Work/Astra primarily owns rendered-device observation, UX/UI proposals, Flutter visual implementation, and visual-regression evidence. Work tasks must remain small, scoped, and independently reviewable.
