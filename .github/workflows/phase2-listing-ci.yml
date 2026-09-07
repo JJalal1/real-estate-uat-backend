@@ -3,8 +3,16 @@ name: Phase 2 Listing Journey CI
 on:
   push:
     branches: [phase2/listing-journey-hardening]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/phase2-listing-ci.yml'
   pull_request:
     branches: [phase1/ux-product-foundation]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/phase2-listing-ci.yml'
 
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
