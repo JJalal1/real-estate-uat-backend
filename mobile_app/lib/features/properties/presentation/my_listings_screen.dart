@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_components.dart';
+import '../../account/data/auth_controller.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import 'add_property_wizard_screen.dart';
@@ -20,244 +24,370 @@ class MyListingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final listings = ref.watch(myListingsProvider);
+    final user = ref.watch(authControllerProvider).asData?.value;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('إعلاناتي'), centerTitle: true),
+        appBar: const AppAppBar(title: 'إعلاناتي'),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () async {
-            await Navigator.of(context).push<void>(MaterialPageRoute<void>(
-                builder: (_) => const AddPropertyWizardScreen()));
-            ref.invalidate(myListingsProvider);
-          },
+          onPressed: () => _create(context, ref),
           icon: const Icon(Icons.add_home_work_outlined),
           label: const Text('إضافة عقار'),
         ),
         body: listings.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => Center(
-              child: FilledButton.icon(
-                  onPressed: () => ref.invalidate(myListingsProvider),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('إعادة المحاولة'))),
-          data: (items) => items.isEmpty
-              ? const Center(child: Text('لم تضف أي إعلان بعد.'))
-              : RefreshIndicator(
-                  onRefresh: () async {
-                    ref.invalidate(myListingsProvider);
-                    await ref.read(myListingsProvider.future);
-                  },
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 104),
-                    itemCount: items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      return _ListingCard(
-                        property: item,
-                        onEdit: item.canEdit
-                            ? () => _edit(context, ref, item)
-                            : null,
-                        onProof: item.canEdit
-                            ? () => _addProof(context, ref, item)
-                            : null,
-                        onSubmit: item.canSubmit
-                            ? () => _submit(context, ref, item)
-                            : null,
-                        onDelete: () => _delete(context, ref, item),
-                      );
-                    },
-                  ),
+          loading: () => const AppLoadingState(label: 'جارٍ تحميل إعلاناتك...'),
+          error: (error, _) => AppErrorState(
+            message: friendlyApiError(error),
+            onRetry: () => ref.invalidate(myListingsProvider),
+          ),
+          data: (items) {
+            if (items.isEmpty) {
+              return AppEmptyState(
+                title: 'لا توجد إعلانات بعد',
+                message: 'ابدأ بإضافة عقار، احفظه كمسودة، ثم أرسله للمراجعة عندما يكتمل.',
+                icon: Icons.inventory_2_outlined,
+                actionLabel: 'إضافة عقار',
+                onAction: () => _create(context, ref),
+              );
+            }
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(myListingsProvider);
+                await ref.read(myListingsProvider.future);
+              },
+              child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  AppLayout.compactPageGutter,
+                  AppSpacing.s12,
+                  AppLayout.compactPageGutter,
+                  112,
                 ),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return _ListingCard(
+                    property: item,
+                    showProofAction: user?.isOwner == true && item.canEdit,
+                    onOpen: () => context.push('/properties/${item.id}'),
+                    onEdit: item.canEdit ? () => _edit(context, ref, item) : null,
+                    onProof: user?.isOwner == true && item.canEdit
+                        ? () => _addProof(context, ref, item)
+                        : null,
+                    onSubmit: item.canSubmit
+                        ? () => _submit(context, ref, item)
+                        : null,
+                    onDelete: item.canEdit
+                        ? () => _delete(context, ref, item)
+                        : null,
+                  );
+                },
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
+  Future<void> _create(BuildContext context, WidgetRef ref) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const AddPropertyWizardScreen()),
+    );
+    ref.invalidate(myListingsProvider);
+  }
+
   Future<void> _edit(
-      BuildContext context, WidgetRef ref, PropertyDetails item) async {
-    await Navigator.of(context).push<void>(MaterialPageRoute<void>(
-        builder: (_) => AddPropertyWizardScreen(existingProperty: item)));
+    BuildContext context,
+    WidgetRef ref,
+    PropertyDetails item,
+  ) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AddPropertyWizardScreen(existingProperty: item),
+      ),
+    );
     ref.invalidate(myListingsProvider);
   }
 
   Future<void> _addProof(
-      BuildContext context, WidgetRef ref, PropertyDetails item) async {
+    BuildContext context,
+    WidgetRef ref,
+    PropertyDetails item,
+  ) async {
     const picker = Stage5MediaPicker();
     try {
       final paths = await picker.pickImages();
-      if (paths.isEmpty) {
-        return;
-      }
+      if (paths.isEmpty) return;
       await ref
           .read(propertyRepositoryProvider)
-          .uploadProofDocuments(item.id, paths.take(5).toList());
+          .uploadProofDocuments(item.id, paths.take(5).toList(growable: false));
       await picker.clearTemporaryFiles(paths);
       ref.read(propertyDataRevisionProvider.notifier).state++;
       ref.invalidate(myListingsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم رفع مستند الإثبات للمراجعة.')));
+          const SnackBar(content: Text('تم حفظ مستند الإثبات مع الإعلان.')),
+        );
       }
     } on PlatformException {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تعذر فتح معرض الصور.')));
+          const SnackBar(content: Text('تعذر فتح معرض الصور.')),
+        );
       }
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(error))),
+        );
       }
     }
   }
 
   Future<void> _submit(
-      BuildContext context, WidgetRef ref, PropertyDetails item) async {
-    final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-                    title: const Text('إرسال للمراجعة؟'),
-                    content: const Text(
-                        'بعد الإرسال لن تستطيع تعديل الإعلان حتى يعيده الدعم للتصحيح أو يصدر قراراً.'),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(dialogContext, false),
-                          child: const Text('إلغاء')),
-                      FilledButton(
-                          onPressed: () => Navigator.pop(dialogContext, true),
-                          child: const Text('إرسال'))
-                    ])) ??
+    BuildContext context,
+    WidgetRef ref,
+    PropertyDetails item,
+  ) async {
+    final confirmed = await AppDialog.show<bool>(
+          context,
+          title: item.reviewStatus == 'returned_for_correction'
+              ? 'إعادة إرسال الإعلان؟'
+              : 'إرسال الإعلان للمراجعة؟',
+          content: Text(
+            item.reviewStatus == 'returned_for_correction'
+                ? 'تأكد أنك عالجت ملاحظة فريق الدعم. سيعود نفس الإعلان إلى قائمة المراجعة.'
+                : 'بعد الإرسال لن تستطيع تعديل الإعلان أثناء المراجعة. يمكنك حفظه كمسودة حتى يصبح جاهزاً.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                item.reviewStatus == 'returned_for_correction'
+                    ? 'إعادة الإرسال'
+                    : 'إرسال',
+              ),
+            ),
+          ],
+        ) ??
         false;
-    if (!confirmed || !context.mounted) {
-      return;
-    }
+    if (!confirmed || !context.mounted) return;
+
     try {
       await ref.read(propertyRepositoryProvider).submitListing(item.id);
       ref.read(propertyDataRevisionProvider.notifier).state++;
       ref.invalidate(myListingsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم رفع الإعلان للدعم للمراجعة.')));
+          const SnackBar(content: Text('تم إرسال الإعلان لفريق المراجعة.')),
+        );
       }
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(error))),
+        );
       }
     }
   }
 
   Future<void> _delete(
-      BuildContext context, WidgetRef ref, PropertyDetails item) async {
-    final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-                    title: const Text('حذف الإعلان؟'),
-                    content: const Text(
-                        'سيتم حذف سجل الإعلان وملفاته المرفوعة، بينما تبقى هوية العقار وقرارات الحظر محفوظة عند وجودها.'),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(dialogContext, false),
-                          child: const Text('إلغاء')),
-                      FilledButton(
-                          onPressed: () => Navigator.pop(dialogContext, true),
-                          child: const Text('حذف'))
-                    ])) ??
+    BuildContext context,
+    WidgetRef ref,
+    PropertyDetails item,
+  ) async {
+    final confirmed = await AppDialog.show<bool>(
+          context,
+          title: 'حذف الإعلان؟',
+          content: const Text(
+            'سيتم حذف الإعلان وملفاته. لا يمكن حذف إعلان أثناء المراجعة أو بعد رفض نهائي محظور.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('حذف'),
+            ),
+          ],
+        ) ??
         false;
-    if (!confirmed || !context.mounted) {
-      return;
-    }
+    if (!confirmed || !context.mounted) return;
+
     try {
       await ref.read(propertyRepositoryProvider).deleteListing(item.id);
       ref.read(propertyDataRevisionProvider.notifier).state++;
       ref.invalidate(myListingsProvider);
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(error))),
+        );
       }
     }
   }
 }
 
 class _ListingCard extends StatelessWidget {
-  const _ListingCard(
-      {required this.property,
-      required this.onEdit,
-      required this.onProof,
-      required this.onSubmit,
-      required this.onDelete});
+  const _ListingCard({
+    required this.property,
+    required this.showProofAction,
+    required this.onOpen,
+    required this.onEdit,
+    required this.onProof,
+    required this.onSubmit,
+    required this.onDelete,
+  });
+
   final PropertyDetails property;
+  final bool showProofAction;
+  final VoidCallback onOpen;
   final VoidCallback? onEdit;
   final VoidCallback? onProof;
   final VoidCallback? onSubmit;
-  final VoidCallback onDelete;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    final state = _listingState(property.reviewStatus);
+
+    return AppSurface(
+      padding: EdgeInsets.zero,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(
-            leading: SizedBox(
-                width: 64,
-                height: 64,
-                child: property.mainImage == null
-                    ? const ColoredBox(
-                        color: Color(0xFFE7F5F1),
-                        child: Icon(Icons.home_work_outlined))
-                    : Image.network(property.mainImage!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.home_work_outlined))),
-            title: Text(property.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const SizedBox(height: 4),
-              Text('${_formatPrice(property.price)} ${property.currency}',
-                  style: const TextStyle(
-                      color: Color(0xFF00796B), fontWeight: FontWeight.w900)),
-              const SizedBox(height: 6),
-              _StatusChip(status: property.reviewStatus),
-              Text('مستندات الإثبات: ${property.proofDocumentCount}')
-            ]),
+          InkWell(
+            onTap: onOpen,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadii.control),
+                    child: SizedBox.square(
+                      dimension: 76,
+                      child: property.mainImage == null
+                          ? ColoredBox(
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              child: const Icon(Icons.home_work_outlined),
+                            )
+                          : Image.network(
+                              property.mainImage!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Center(
+                                child: Icon(Icons.home_work_outlined),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          property.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: AppSpacing.s4),
+                        Text(
+                          '${_formatPrice(property.price)} ${property.currency}',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
+                        const SizedBox(height: AppSpacing.s8),
+                        AppStatusBadge(
+                          label: state.$1,
+                          tone: state.$2,
+                        ),
+                        const SizedBox(height: AppSpacing.s4),
+                        Text(
+                          'مستندات الإثبات: ${property.proofDocumentCount}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          if (property.lastReviewReason != null)
+          if (property.reviewStatus == 'returned_for_correction' &&
+              property.lastReviewReason != null)
             Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Text('ملاحظة المراجعة: ${property.lastReviewReason}',
-                        style: const TextStyle(color: Colors.deepOrange)))),
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppLayout.surfacePadding,
+                0,
+                AppLayout.surfacePadding,
+                AppSpacing.s12,
+              ),
+              child: AppInlineMessage(
+                title: 'ملاحظة فريق المراجعة',
+                message: property.lastReviewReason!,
+                tone: AppStatusTone.warning,
+              ),
+            ),
           const Divider(height: 1),
-          Wrap(
-            alignment: WrapAlignment.center,
-            children: [
-              if (onEdit != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
+            child: Wrap(
+              spacing: AppSpacing.s4,
+              runSpacing: AppSpacing.s4,
+              alignment: WrapAlignment.start,
+              children: [
                 TextButton.icon(
+                  onPressed: onOpen,
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('عرض'),
+                ),
+                if (onEdit != null)
+                  TextButton.icon(
                     onPressed: onEdit,
                     icon: const Icon(Icons.edit_outlined),
-                    label: const Text('تعديل')),
-              if (onProof != null)
-                TextButton.icon(
+                    label: Text(
+                      property.reviewStatus == 'returned_for_correction'
+                          ? 'تصحيح الإعلان'
+                          : 'تعديل',
+                    ),
+                  ),
+                if (showProofAction && onProof != null)
+                  TextButton.icon(
                     onPressed: onProof,
                     icon: const Icon(Icons.verified_user_outlined),
-                    label: const Text('إثبات')),
-              if (onSubmit != null)
-                FilledButton.tonalIcon(
+                    label: const Text('إضافة إثبات'),
+                  ),
+                if (onSubmit != null)
+                  FilledButton.tonalIcon(
                     onPressed: onSubmit,
                     icon: const Icon(Icons.send_outlined),
-                    label: const Text('إرسال للمراجعة')),
-              TextButton.icon(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('حذف')),
-            ],
+                    label: Text(
+                      property.reviewStatus == 'returned_for_correction'
+                          ? 'إعادة الإرسال'
+                          : 'إرسال للمراجعة',
+                    ),
+                  ),
+                if (onDelete != null)
+                  TextButton.icon(
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('حذف'),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -265,24 +395,16 @@ class _ListingCard extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-  final String status;
-  @override
-  Widget build(BuildContext context) {
-    final label = switch (status) {
-      'draft' => 'مسودة',
-      'submitted' => 'قيد المراجعة',
-      'under_review' => 'قيد المراجعة',
-      'returned_for_correction' => 'مُعاد للتصحيح',
-      'approved' => 'مقبول ومنشور',
-      'rejected_blocked' => 'مرفوض ومحظور',
-      'legacy_rejected' => 'مرفوض قديم',
-      _ => status,
+(String, AppStatusTone) _listingState(String status) => switch (status) {
+      'draft' => ('مسودة', AppStatusTone.neutral),
+      'submitted' => ('بانتظار المراجعة', AppStatusTone.info),
+      'under_review' => ('تحت المراجعة', AppStatusTone.info),
+      'returned_for_correction' => ('يحتاج تصحيح', AppStatusTone.warning),
+      'approved' => ('منشور', AppStatusTone.success),
+      'rejected_blocked' => ('مرفوض', AppStatusTone.error),
+      'legacy_rejected' => ('مرفوض سابقاً', AppStatusTone.error),
+      _ => (status, AppStatusTone.neutral),
     };
-    return Chip(label: Text(label));
-  }
-}
 
 String _formatPrice(double value) {
   final digits = value.round().toString();
@@ -290,9 +412,7 @@ String _formatPrice(double value) {
   for (var index = 0; index < digits.length; index++) {
     final remaining = digits.length - index;
     output.write(digits[index]);
-    if (remaining > 1 && remaining % 3 == 1) {
-      output.write(',');
-    }
+    if (remaining > 1 && remaining % 3 == 1) output.write(',');
   }
   return output.toString();
 }
