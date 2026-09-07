@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../account/data/auth_controller.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import 'add_property_wizard_screen.dart';
@@ -24,7 +21,6 @@ class MyListingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final listings = ref.watch(myListingsProvider);
-    final user = ref.watch(authControllerProvider).asData?.value;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -71,12 +67,8 @@ class MyListingsScreen extends ConsumerWidget {
                   final item = items[index];
                   return _ListingCard(
                     property: item,
-                    showProofAction: user?.isOwner == true && item.canEdit,
                     onOpen: () => context.push('/properties/${item.id}'),
                     onEdit: item.canEdit ? () => _edit(context, ref, item) : null,
-                    onProof: user?.isOwner == true && item.canEdit
-                        ? () => _addProof(context, ref, item)
-                        : null,
                     onSubmit: item.canSubmit
                         ? () => _submit(context, ref, item)
                         : null,
@@ -111,41 +103,6 @@ class MyListingsScreen extends ConsumerWidget {
       ),
     );
     ref.invalidate(myListingsProvider);
-  }
-
-  Future<void> _addProof(
-    BuildContext context,
-    WidgetRef ref,
-    PropertyDetails item,
-  ) async {
-    const picker = Stage5MediaPicker();
-    try {
-      final paths = await picker.pickImages();
-      if (paths.isEmpty) return;
-      await ref
-          .read(propertyRepositoryProvider)
-          .uploadProofDocuments(item.id, paths.take(5).toList(growable: false));
-      await picker.clearTemporaryFiles(paths);
-      ref.read(propertyDataRevisionProvider.notifier).state++;
-      ref.invalidate(myListingsProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم حفظ مستند الإثبات مع الإعلان.')),
-        );
-      }
-    } on PlatformException {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر فتح معرض الصور.')),
-        );
-      }
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyApiError(error))),
-        );
-      }
-    }
   }
 
   Future<void> _submit(
@@ -241,19 +198,15 @@ class MyListingsScreen extends ConsumerWidget {
 class _ListingCard extends StatelessWidget {
   const _ListingCard({
     required this.property,
-    required this.showProofAction,
     required this.onOpen,
     required this.onEdit,
-    required this.onProof,
     required this.onSubmit,
     required this.onDelete,
   });
 
   final PropertyDetails property;
-  final bool showProofAction;
   final VoidCallback onOpen;
   final VoidCallback? onEdit;
-  final VoidCallback? onProof;
   final VoidCallback? onSubmit;
   final VoidCallback? onDelete;
 
@@ -363,12 +316,6 @@ class _ListingCard extends StatelessWidget {
                           ? 'تصحيح الإعلان'
                           : 'تعديل',
                     ),
-                  ),
-                if (showProofAction && onProof != null)
-                  TextButton.icon(
-                    onPressed: onProof,
-                    icon: const Icon(Icons.verified_user_outlined),
-                    label: const Text('إضافة إثبات'),
                   ),
                 if (onSubmit != null)
                   FilledButton.tonalIcon(
