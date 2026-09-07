@@ -1,4 +1,4 @@
-name: Phase 1 Flutter CI
+name: Phase 1 Closure CI
 
 on:
   push:
@@ -6,12 +6,14 @@ on:
       - phase1/ux-product-foundation
     paths:
       - 'mobile_app/**'
+      - 'backend-api-runtime/**'
       - '.github/workflows/phase1-flutter-ci.yml'
   pull_request:
     branches:
       - audit/system-stabilization
     paths:
       - 'mobile_app/**'
+      - 'backend-api-runtime/**'
       - '.github/workflows/phase1-flutter-ci.yml'
 
 env:
@@ -22,10 +24,43 @@ permissions:
   contents: write
 
 jobs:
+  backend-validation:
+    name: Validate Laravel regression suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+
+      - name: Prepare isolated test environment
+        run: install -m 600 /dev/null .env
+
+      - name: Install backend dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run Laravel test suite
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+
   flutter-validation:
     name: Analyze, test and build Phase 1 Flutter
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    needs: [backend-validation]
 
     steps:
       - name: Checkout repository
