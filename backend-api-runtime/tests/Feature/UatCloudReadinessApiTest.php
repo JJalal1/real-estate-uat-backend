@@ -107,7 +107,7 @@ class UatCloudReadinessApiTest extends TestCase
 
     public function test_uat_deployment_files_are_secret_free_templates(): void
     {
-        foreach (['Dockerfile.uat', 'docker/uat-apache.conf', 'docker/uat-entrypoint.sh', 'docker/uat-php.ini'] as $relative) {
+        foreach (['Dockerfile.uat', 'docker/uat-apache.conf', 'docker/uat-entrypoint.sh', 'docker/uat-mpm-prefork.conf', 'docker/uat-php.ini'] as $relative) {
             $path = base_path($relative);
             $this->assertFileExists($path);
             $contents = (string) file_get_contents($path);
@@ -115,6 +115,13 @@ class UatCloudReadinessApiTest extends TestCase
             $this->assertStringNotContainsString('DB_PASSWORD=', $contents);
             $this->assertStringNotContainsString('WHATSAPP_ACCESS_TOKEN=', $contents);
         }
+
+        $mpm = (string) file_get_contents(base_path('docker/uat-mpm-prefork.conf'));
+        $this->assertStringContainsString('MaxRequestWorkers 10', $mpm);
+        $this->assertStringContainsString('MaxConnectionsPerChild 250', $mpm);
+
+        $dockerfile = (string) file_get_contents(base_path('Dockerfile.uat'));
+        $this->assertStringContainsString('uat-mpm-prefork.conf', $dockerfile);
     }
 
     private function activeUser(string $email, string $phone): User
