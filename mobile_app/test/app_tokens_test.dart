@@ -74,17 +74,11 @@ void main() {
     }
   });
 
-  test('motion and state layers provide bounded scaffolding defaults', () {
-    expect(AppMotion.none, Duration.zero);
-    expect([
-      AppMotion.short.inMilliseconds,
-      AppMotion.medium.inMilliseconds,
-      AppMotion.long.inMilliseconds,
-    ], [150, 250, 350]);
-    for (final curve in [AppMotion.standard, AppMotion.enter, AppMotion.exit]) {
-      expect(curve.transform(0), 0);
-      expect(curve.transform(1), 1);
-    }
+  test('motion and state layers match the accepted foundation', () {
+    expect(AppMotion.instant, Duration.zero);
+    expect(AppMotion.fast, const Duration(milliseconds: 120));
+    expect(AppMotion.standard, const Duration(milliseconds: 200));
+    expect(AppMotion.curve, Curves.easeOutCubic);
     expect([
       AppOpacity.transparent,
       AppOpacity.hover,
@@ -92,7 +86,8 @@ void main() {
       AppOpacity.pressed,
       AppOpacity.dragged,
       AppOpacity.scrim,
+      AppOpacity.mediaScrim,
       AppOpacity.opaque,
-    ], [0, 0.08, 0.12, 0.12, 0.16, 0.32, 1]);
+    ], [0, 0.08, 0.10, 0.10, 0.16, 0.40, 0.60, 1]);
   });
 }
