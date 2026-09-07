@@ -142,14 +142,28 @@ UAT may use allowlisted test OTP behavior. Production must never allow the UAT t
 
 ## 13. Current product direction
 
-The most recent accepted product direction is:
+The most recent accepted product direction is marketplace-first.
 
-- unified free services hub is in place
-- account page has been reorganized
-- next major phase is Property Requests + Researcher Requests + property suggestions/matching
-- later phases: server-side Favorites, viewing/booking integration hardening, Rental Contracts, market Price Indicators + Property Valuation, Real-estate Guide + Legal Documents library
+Launch-critical journey:
 
-Before implementing any of those, confirm `docs/AI_PROJECT_STATE.md` and current Git HEAD because this section can become stale.
+`verified advertiser -> create property -> support review -> publish -> public discovery/search/map -> property details -> contact advertiser -> conversation -> viewing -> agreement`
+
+Current Phase 1 focuses on UX/UI product foundation and information architecture before broad feature expansion.
+
+Accepted navigation direction is documented in `docs/PHASE1_ACCEPTED_IA.md`.
+
+Property Requests / Researcher Requests / matching are deferred and must not drive primary navigation or the launch-critical roadmap unless the product owner explicitly re-approves them later.
+
+Later launch-related work includes:
+
+- server-side Favorites
+- viewing/booking/conversation integration hardening
+- Rental Contracts
+- Price Indicators + Property Valuation using one backend data engine
+- Real-estate Guide + Legal Documents library
+- Production readiness and launch hardening
+
+Before implementing any later feature, confirm `docs/AI_PROJECT_STATE.md`, `docs/PHASE1_UX_PRODUCT_FOUNDATION.md`, `docs/PHASE1_ACCEPTED_IA.md`, and current Git HEAD.
 
 ## 14. When documentation and code disagree
 
