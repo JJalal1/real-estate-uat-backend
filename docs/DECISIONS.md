@@ -125,3 +125,9 @@ When likely-duplicate candidates exist, approval requires an auditable human rea
 For an approved owner profile, the listing editor collects the relationship evidence for that specific property: document type, document owner name, relationship type/note where applicable, and the private ownership/relationship document. Do not expose a generic proof-upload shortcut that bypasses this structured relationship context.
 
 Verified brokers and offices must not be forced to upload unrelated ownership evidence merely to publish under their approved professional profile.
+
+## D-028 — Phase 2 is closed; Phase 3 is Buyer Discovery Completion
+
+Phase 2 Listing Journey Hardening is closed at source/automated-acceptance level after a successful gate that covers full Laravel regression, PostgreSQL 17 + PostGIS migration/security/listing lifecycle acceptance, Flutter analysis/tests, UAT endpoint verification, and release APK build/upload.
+
+The next implementation phase is Phase 3 — Buyer Discovery Completion. It must reuse the existing discovery implementation, harden list/map/details/search/filter/sort/public-boundary behavior, and add server/account-bound Favorites. Phase 3 must not silently expand into deferred request/matching, payments, contracts, valuation, or Production work.
