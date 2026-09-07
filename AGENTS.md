@@ -10,7 +10,7 @@ Read it before proposing or applying changes.
 - Do not create or migrate to Production unless the product owner explicitly requests it.
 - Repository: `JJalal1/real-estate-uat-backend`.
 - Primary branch: `main`.
-- Current accepted product baseline: `phase1/ux-product-foundation`.
+- Current completed product branch: `phase2/listing-journey-hardening`.
 - Current stack: Flutter Android + Laravel API + PostgreSQL/PostGIS + Supabase Storage + Render UAT + GitHub Actions.
 
 ## 2. Source of truth
@@ -149,13 +149,13 @@ Launch-critical journey:
 
 Phase 0 is closed.
 Phase 1 UX/UI Product Foundation is closed at source/automated-acceptance level.
-The next implementation phase is **Phase 2 — Listing Journey Hardening**.
+Phase 2 Listing Journey Hardening is closed at source/automated-acceptance level. Its final automated gate includes Laravel regression, PostgreSQL 17 + PostGIS migration/security/lifecycle acceptance, Flutter analysis/tests, and UAT release APK build/upload.
 
-Phase 2 must start from the existing listing workflow. It should harden Add Property/My Listings, Draft/Preview/Submit semantics, media/location/evidence states, review/resubmission lifecycle, regression coverage, and likely-duplicate support. Do not rebuild the working listing backend from scratch.
+The next implementation phase is **Phase 3 — Buyer Discovery Completion**.
+
+Phase 3 must reuse the existing public discovery implementation. It should harden cards/map/list/details consistency, public search/filter/sort/bounds/pagination boundaries, similar-property correctness and measured media/performance behavior, and add server/account-bound Favorites with database/API/auth/Flutter/tests. Do not rebuild discovery from scratch.
 
 Later launch-related work includes:
-- buyer discovery hardening
-- server-side Favorites
 - viewing/booking/conversation integration hardening
 - Rental Contracts
 - Price Indicators + Property Valuation using one backend data engine

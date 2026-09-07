@@ -97,3 +97,37 @@ Phase 1 UX/UI Product Foundation is closed at source/automated-acceptance level.
 ## D-023 — Deferred request/matching concepts are not active service capabilities
 
 Property Requests, Researcher Requests, and broker-driven request matching are deferred product concepts. They must not appear as active launch-facing service actions or server capabilities until the product owner explicitly re-approves them and their persistence/API/UI/tests are implemented.
+
+## D-024 — Saving a listing and submitting it for review are separate actions
+
+The listing editor must never treat completing the form as implicit submission. The canonical advertiser controls are:
+
+`Save Draft -> Preview -> explicit Submit for Review`
+
+Preview is non-mutating. Create/update operations save the listing without entering review unless the user explicitly confirms submission. If submission fails after a successful save, the saved draft remains recoverable.
+
+## D-025 — Returned-for-correction context survives editing
+
+`returned_for_correction` is an editable workflow state, not a disposable display label. The support reason must remain visible while the advertiser edits the same listing. Only explicit resubmission clears the correction reason and moves the listing back to `submitted`.
+
+Do not create a replacement listing merely to satisfy a correction request.
+
+## D-026 — Exact duplicate blocking and likely-duplicate review are different controls
+
+Exact physical-property identity through `PropertyAsset` remains the hard server-side publication boundary. A listing must not publish while the same physical asset is already published.
+
+Likely-duplicate detection is advisory and explainable. Current signals include geographic proximity, normalized-address similarity, area similarity, and matching bedroom/bathroom facts. A likely match must be shown to support for human investigation rather than silently merged or fuzzy-rejected.
+
+When likely-duplicate candidates exist, approval requires an auditable human reason explaining why the candidates are not the same property, or the reviewer must link the listing to the correct existing `PropertyAsset`. Approval still performs the exact duplicate check inside the server transaction.
+
+## D-027 — Property-specific owner evidence belongs to the canonical listing editor
+
+For an approved owner profile, the listing editor collects the relationship evidence for that specific property: document type, document owner name, relationship type/note where applicable, and the private ownership/relationship document. Do not expose a generic proof-upload shortcut that bypasses this structured relationship context.
+
+Verified brokers and offices must not be forced to upload unrelated ownership evidence merely to publish under their approved professional profile.
+
+## D-028 — Phase 2 is closed; Phase 3 is Buyer Discovery Completion
+
+Phase 2 Listing Journey Hardening is closed at source/automated-acceptance level after a successful gate that covers full Laravel regression, PostgreSQL 17 + PostGIS migration/security/listing lifecycle acceptance, Flutter analysis/tests, UAT endpoint verification, and release APK build/upload.
+
+The next implementation phase is Phase 3 — Buyer Discovery Completion. It must reuse the existing discovery implementation, harden list/map/details/search/filter/sort/public-boundary behavior, and add server/account-bound Favorites. Phase 3 must not silently expand into deferred request/matching, payments, contracts, valuation, or Production work.

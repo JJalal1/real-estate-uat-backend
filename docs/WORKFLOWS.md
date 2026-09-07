@@ -26,41 +26,70 @@ After submission, prevent accidental duplicate submission while the same request
 
 ## 3. Core marketplace journey
 
-The launch-critical product path is:
+The hardened listing path is:
 
-`verified advertiser -> create listing -> enter property data/media/location/required evidence -> duplicate-property checks -> submit -> shared support review queue -> support claim -> review -> approve | return for correction | reject`
+`verified advertiser -> create/edit property facts -> save draft -> media -> location -> required property-specific evidence -> preview -> explicit submit -> duplicate checks/signals -> shared support review queue -> support claim -> evidence review -> approve | return for correction | reject`
+
+Draft and submission are separate user decisions. Preview is non-mutating.
 
 If returned:
 
-`publisher sees reason -> edits -> resubmits -> review resumes`
+`publisher sees support reason -> edits the same returned_for_correction listing -> reason remains visible -> explicit resubmit -> review resumes`
 
 If approved:
 
-`published -> public browse/search/map -> property details -> contact advertiser -> conversation -> viewing -> agreement`
+`server re-checks advertiser eligibility + publication block + exact physical-property duplicate + region -> publish -> advertiser notification -> public browse/search/map -> property details -> contact advertiser -> conversation -> viewing -> agreement`
 
 Use current backend enum names before coding; do not invent a parallel status system.
 
 ## 4. Duplicate physical property workflow
 
-Current server-side behavior uses `PropertyAsset` identity and checks publication state before approval.
+Exact server-side protection uses `PropertyAsset` identity and publication checks:
 
-Required behavior:
+`listing facts -> resolve/create physical property identity -> check active publication/block -> submit/review -> lock listing + asset during approval -> re-check -> publish only if allowed`
 
-`listing facts -> resolve/create physical property identity -> check active publication/block -> submit/review -> re-check during approval transaction -> publish only if allowed`
+Phase 2 also adds explainable likely-duplicate review:
 
-If a likely duplicate cannot be proven automatically, future similarity tooling may flag it for support review. Do not silently merge unrelated properties.
+`submitted listing -> compare same-type nearby reviewable/published listings -> score geographic proximity + normalized address + area + bedroom/bathroom similarity -> show candidates to support`
 
-## 5. Support shared queue
+Likely similarity never silently merges or fuzzy-rejects an uncertain property. When candidates exist, support must either:
+- record an auditable reason explaining why the candidate is a different physical property before approval; or
+- link the listing to the correct existing `PropertyAsset` with a reason.
+
+After linking, the normal exact duplicate/block rules remain authoritative.
+
+## 5. Support shared queue and listing review
 
 Normal behavior:
 
 `new item -> visible to eligible support staff -> one agent claims -> backend atomically assigns -> item leaves other agents' unassigned queue -> claimant sees it in My Tasks`
 
-Manager behavior may include assign/reassign/reopen/escalate based on permissions.
+For listing review, evidence-first handling is:
 
-Concurrent claim attempts must be decided by backend state/transaction logic. Flutter alone is insufficient.
+`claim -> inspect advertiser verification + property facts + public media + private relationship evidence + likely-duplicate candidates + review history -> approve | return | reject`
 
-## 6. Public discovery
+A support worker must own the claimed listing before a sensitive review decision. Managers retain their existing oversight permissions. Concurrent claim and decision attempts are decided by backend locks/state, never Flutter visibility alone.
+
+## 6. Listing evidence and media
+
+- Public listing images are separate from private verification/evidence documents.
+- A listing needs at least one public image before submission.
+- Owner relationship evidence is property-specific and is collected inside the canonical listing editor.
+- Owner evidence includes the relevant document type, document owner name, relationship type/note where needed, and private proof file.
+- Verified brokers/offices do not receive unrelated ownership requirements.
+- Private documents are accessible only through authorized endpoints and audited review context.
+- Draft media may be replaced/reordered through the supported editor behavior without exposing private evidence as public media.
+
+## 7. Listing notifications
+
+The advertiser receives property-linked notifications for the review outcomes that require attention:
+- returned for correction;
+- approved/published;
+- final rejection/block.
+
+The entity reference is the real property/listing. Notification deep links still pass through authorization and current availability rules.
+
+## 8. Public discovery
 
 Published properties are browsable without login.
 
@@ -68,9 +97,9 @@ Primary buyer/renter path:
 
 `open app -> browse/search/filter/map -> open property -> inspect gallery/details/advertiser -> save/share/contact as available`
 
-Unavailable/unpublished properties must show an explicit state and block invalid actions.
+Draft, submitted, under-review, returned, or rejected listings remain outside public discovery. Approved publication makes the listing publicly readable. Unavailable/unpublished properties must show an explicit state and block invalid actions.
 
-## 7. Favorites — planned launch-critical enhancement
+## 9. Favorites — planned launch-critical enhancement
 
 `property heart -> backend favorite(user_id, property_id) -> Favorites list`
 
@@ -82,7 +111,7 @@ If property becomes unavailable:
 
 Do not silently discard it from the user's history unless product rules later require cleanup.
 
-## 8. Conversation and viewing
+## 10. Conversation and viewing
 
 Viewing starts from a property:
 
@@ -97,7 +126,7 @@ Expected linkages:
 - status;
 - change history.
 
-## 9. Rental contracts — planned launch-critical phase
+## 11. Rental contracts — planned launch-critical phase
 
 Preferred journey:
 
@@ -116,7 +145,7 @@ Contract references:
 
 No government-verification claim without real integration.
 
-## 10. Price indicators — planned
+## 12. Price indicators — planned
 
 Input filters may include:
 - governorate;
@@ -136,7 +165,7 @@ Potential output:
 
 Always communicate sample scope.
 
-## 11. Property valuation — planned
+## 13. Property valuation — planned
 
 Use the same backend engine/data rules as price indicators.
 
@@ -144,11 +173,11 @@ Use the same backend engine/data rules as price indicators.
 
 Never generate a fake market estimate if data is inadequate.
 
-## 12. Guide and legal content
+## 14. Guide and legal content
 
 Real-estate Guide and Legal Documents are informational tools. They must not be presented as government certification or legal advice without a real verified integration/source.
 
-## 13. Notifications/deep links
+## 15. Notifications/deep links
 
 Workflow notifications should contain enough reference data to open the actual entity/step, not only a generic notifications page.
 
@@ -162,6 +191,6 @@ Examples:
 
 Deep-link handling must still respect authorization when the target opens.
 
-## 14. Deferred request/matching concept
+## 16. Deferred request/matching concept
 
 Property Requests, Researcher Requests, and broker-driven suggestion/matching are deferred and are not a launch-critical prerequisite. Do not implement or expose them as the main journey unless explicitly re-approved by the product owner.

@@ -11,20 +11,29 @@ void main() {
       'lib/features/support/presentation/support_tasks_screen.dart',
     ).readAsString();
 
-    expect(shell.contains("roles.contains('support_agent')"), isTrue);
-    expect(shell.contains("label: 'لوحة الدعم'"), isTrue);
-    expect(shell.contains("label: 'الوارد'"), isTrue);
-    expect(tasks.contains("_setType('listing_review')"), isTrue);
-    expect(tasks.contains("context.push('/admin/listing-review')"), isTrue);
-    expect(tasks.contains('تحقيق إعلانات'), isTrue);
+    expect(shell, contains("roles.contains('support_agent')"));
+    expect(shell, contains("label: 'لوحة الدعم'"));
+    expect(shell, contains("label: 'الوارد'"));
+    expect(tasks, contains("_setType('listing_review')"));
+    expect(tasks, contains("context.push('/admin/listing-review')"));
+    expect(tasks, contains('تحقيق إعلانات'));
   });
 
-  test('listing review screen uses support claim wording', () async {
-    final screen = await File(
+  test('Phase 2 listing review requires claim and exposes duplicate evidence',
+      () async {
+    final entry = await File(
       'lib/features/reviews/presentation/listing_review_screen.dart',
     ).readAsString();
-    expect(screen.contains('استلام الطلب'), isTrue);
-    expect(screen.contains('تم الاستلام - قيد التحقيق'), isTrue);
-    expect(screen.contains('ref.invalidate(reviewQueueProvider);'), isTrue);
+    final screen = await File(
+      'lib/features/reviews/presentation/listing_review_workspace_screen.dart',
+    ).readAsString();
+
+    expect(entry, contains('ListingReviewWorkspaceScreen'));
+    expect(screen, contains('استلام الطلب'));
+    expect(screen, contains('تم الاستلام - قيد التحقيق'));
+    expect(screen, contains('اشتباه تكرار'));
+    expect(screen, contains('ربط الإعلان بهوية هذا العقار'));
+    expect(screen, contains('سبب اعتبار الإعلان غير مكرر'));
+    expect(screen, contains('ref.invalidate(reviewQueueProvider);'));
   });
 }
