@@ -37,6 +37,22 @@ void main() {
       expect(editor, contains('هذه المعاينة لا تحفظ ولا تغيّر حالة الإعلان'));
     });
 
+    test('property-specific owner evidence only uses canonical editor', () async {
+      final editor = await File(
+        'lib/features/properties/presentation/listing_editor_screen.dart',
+      ).readAsString();
+      final listings = await File(
+        'lib/features/properties/presentation/my_listings_screen.dart',
+      ).readAsString();
+
+      expect(editor, contains('إثبات علاقتك بهذا العقار'));
+      expect(editor, contains('ownershipProofPath'));
+      expect(editor, contains('ownerRelationshipType'));
+      expect(editor, contains('documentOwnerName'));
+      expect(listings, isNot(contains('إضافة إثبات')));
+      expect(listings, isNot(contains('uploadProofDocuments')));
+    });
+
     test('viewing request opens its linked conversation after creation', () async {
       final details = await File(
         'lib/features/properties/presentation/property_details_screen.dart',
