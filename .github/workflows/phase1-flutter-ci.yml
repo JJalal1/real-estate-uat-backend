@@ -14,6 +14,9 @@ on:
       - 'mobile_app/**'
       - '.github/workflows/phase1-flutter-ci.yml'
 
+env:
+  UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
+
 permissions:
   contents: read
 
@@ -50,6 +53,19 @@ jobs:
         working-directory: mobile_app
         run: flutter test test/app_theme_test.dart test/app_tokens_test.dart
 
-      - name: Full Flutter test suite
+      - name: Full Flutter test suite excluding compile-time UAT guard
         working-directory: mobile_app
-        run: flutter test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          test "${#tests[@]}" -gt 0
+          flutter test "${tests[@]}"
+
+      - name: Verify compile-time UAT endpoint
+        working-directory: mobile_app
+        run: >-
+          flutter test
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+          test/uat_compiled_environment_test.dart
