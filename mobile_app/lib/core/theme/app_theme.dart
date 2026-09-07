@@ -1,7 +1,20 @@
 import 'package:flutter/material.dart';
 
+import 'app_semantic_colors.dart';
+import 'app_tokens.dart';
+import 'app_typography.dart';
+
+export 'app_semantic_colors.dart';
+export 'app_tokens.dart';
+export 'app_typography.dart';
+
 abstract final class AppTheme {
-  static const brand = Color(0xFF0B8A55);
+  static const brandSeed = Color(0xFF0B8A55);
+
+  // Compatibility constants for existing call sites. New code should obtain
+  // Material colors from Theme.of(context).colorScheme and custom tones from
+  // its AppSemanticColors extension. Do not use brandSeed as an action color.
+  static const brand = brandSeed;
   static const brandStrong = Color(0xFF075B39);
   static const brandSoft = Color(0xFFE5F5EC);
   static const accent = Color(0xFF1778B8);
@@ -15,112 +28,143 @@ abstract final class AppTheme {
 
   static ThemeData get light {
     final scheme = ColorScheme.fromSeed(
-      seedColor: brand,
+      seedColor: brandSeed,
       brightness: Brightness.light,
     ).copyWith(
-      primary: brand,
+      primary: const Color(0xFF0B7547),
+      onPrimary: Colors.white,
+      primaryContainer: brandSoft,
+      onPrimaryContainer: brandStrong,
       secondary: accent,
+      onSecondary: Colors.white,
+      secondaryContainer: accentSoft,
+      onSecondaryContainer: const Color(0xFF0D4D75),
       surface: surface,
       onSurface: textStrong,
-      outline: outlineSoft,
+      onSurfaceVariant: textMuted,
+      surfaceContainerLow: page,
+      surfaceContainer: const Color(0xFFF0F3F4),
+      surfaceContainerHigh: const Color(0xFFE7ECEF),
+      surfaceContainerHighest: const Color(0xFFDDE4E8),
+      outline: const Color(0xFF78858F),
+      outlineVariant: outlineSoft,
+      error: const Color(0xFFB3261E),
+      onError: Colors.white,
+      errorContainer: const Color(0xFFF9DEDC),
+      onErrorContainer: const Color(0xFF410E0B),
+      inverseSurface: const Color(0xFF24313A),
+      onInverseSurface: Colors.white,
     );
 
-    final readableTextTheme = ThemeData.light().textTheme.apply(
-          bodyColor: textStrong,
-          displayColor: textStrong,
+    final readableTextTheme = AppTypography.textTheme.apply(
+          bodyColor: scheme.onSurface,
+          displayColor: scheme.onSurface,
         );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: page,
+      extensions: const [AppSemanticColors.light],
+      scaffoldBackgroundColor: scheme.surfaceContainerLow,
       visualDensity: VisualDensity.standard,
-      fontFamilyFallback: const ['Arial', 'sans-serif'],
+      fontFamilyFallback: AppTypography.fontFamilyFallback,
       textTheme: readableTextTheme,
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         centerTitle: false,
-        backgroundColor: surface,
-        foregroundColor: textStrong,
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 1,
-        titleTextStyle: TextStyle(
-          color: textStrong,
-          fontSize: 20,
-          fontWeight: FontWeight.w900,
-        ),
+        elevation: AppElevation.flat,
+        scrolledUnderElevation: AppElevation.raised,
+        titleTextStyle: readableTextTheme.titleLarge,
       ),
-      dividerTheme: const DividerThemeData(
-        color: outlineSoft,
-        thickness: 1,
-        space: 1,
+      dividerTheme: DividerThemeData(
+        color: scheme.outlineVariant,
+        thickness: AppBorderWidths.standard,
+        space: AppBorderWidths.standard,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        labelStyle:
-            const TextStyle(color: textMuted, fontWeight: FontWeight.w600),
-        hintStyle:
-            const TextStyle(color: textMuted, fontWeight: FontWeight.w600),
+        fillColor: scheme.surface,
+        contentPadding: const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
+        labelStyle: readableTextTheme.bodyLarge?.copyWith(
+          color: scheme.onSurfaceVariant,
+        ),
+        hintStyle: readableTextTheme.bodyLarge?.copyWith(
+          color: scheme.onSurfaceVariant,
+        ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: outlineSoft),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: BorderSide(
+            color: scheme.outline,
+            width: AppBorderWidths.standard,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: outlineSoft),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: BorderSide(
+            color: scheme.outline,
+            width: AppBorderWidths.standard,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: brand, width: 1.7),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: BorderSide(
+            color: scheme.primary,
+            width: AppBorderWidths.emphasized,
+          ),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          foregroundColor: Colors.white,
-          textStyle: const TextStyle(fontWeight: FontWeight.w900),
+          minimumSize:
+              const Size(AppSizes.touchTarget, AppSizes.buttonMinHeight),
+          foregroundColor: scheme.onPrimary,
+          textStyle: AppTypography.labelLarge,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(AppRadii.control),
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          foregroundColor: textStrong,
-          side: const BorderSide(color: outlineSoft, width: 1.2),
-          textStyle: const TextStyle(
-            color: textStrong,
-            fontWeight: FontWeight.w900,
+          minimumSize:
+              const Size(AppSizes.touchTarget, AppSizes.buttonMinHeight),
+          foregroundColor: scheme.onSurface,
+          side: BorderSide(
+            color: scheme.outline,
+            width: AppBorderWidths.standard,
           ),
+          textStyle: AppTypography.labelLarge,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(AppRadii.control),
           ),
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: surface,
-        selectedColor: brandSoft,
-        side: const BorderSide(color: outlineSoft, width: 1.1),
-        checkmarkColor: brandStrong,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-        labelStyle: const TextStyle(
-          color: textStrong,
-          fontWeight: FontWeight.w800,
+        backgroundColor: scheme.surface,
+        selectedColor: scheme.primaryContainer,
+        side: BorderSide(
+          color: scheme.outline,
+          width: AppBorderWidths.standard,
         ),
+        checkmarkColor: scheme.onPrimaryContainer,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.control),
+        ),
+        labelStyle: readableTextTheme.labelMedium,
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        contentTextStyle: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: AppTypography.bodyMedium.copyWith(
+          color: scheme.onInverseSurface,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.control),
+        ),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: brand),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
     );
   }
 }
