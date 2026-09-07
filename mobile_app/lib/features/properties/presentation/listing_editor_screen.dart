@@ -914,7 +914,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     }
 
     setState(() => _busy = true);
-    PropertyDetails? draft;
+    late PropertyDetails draft;
     try {
       final repository = ref.read(propertyRepositoryProvider);
       draft = _isEditing
