@@ -72,11 +72,11 @@ Distinguish Render cold start, cross-region DB latency, API/SQL behavior, and Fl
 
 ## D-018 — AI documentation lives with the code
 
-`AGENTS.md` and `docs/AI_*.md`/architecture/business/security/runbook docs are the persistent engineering handoff for future ChatGPT/Codex sessions. They must be updated when accepted product rules or architecture change.
+`AGENTS.md` and `docs/AI_*.md`/architecture/business/security/runbook docs are the persistent engineering handoff for future ChatGPT sessions. They must be updated when accepted product rules or architecture change.
 
 ## D-019 — Phase 0 is closed by product-owner decision
 
-As of 2026-09-07, Phase 0 is considered closed. Rendered-device inspection continues in Phase 1 as UX baseline evidence, not as a blocker that reopens Phase 0 unless a severe regression is discovered.
+Phase 0 is considered closed. Later visual inspection does not reopen it unless a severe regression is discovered.
 
 ## D-020 — Marketplace-first launch journey
 
@@ -86,6 +86,14 @@ The launch-critical journey is:
 
 Property Requests / Researcher Requests / broker-driven matching are deferred and are not launch prerequisites unless explicitly re-approved later.
 
-## D-021 — Phase 1 work is split between ordinary ChatGPT and Work/Astra
+## D-021 — Available engineering tools must not freeze product progress
 
-Ordinary ChatGPT owns roadmap, backend/API/database/security/CI review, UAT verification, docs, and acceptance. Work/Astra primarily owns rendered-device observation, UX/UI proposals, Flutter visual implementation, and visual-regression evidence. Work tasks must remain small, scoped, and independently reviewable.
+Repository/cloud engineering, Flutter source changes, backend work, tests, CI, and documentation may continue through the available ChatGPT tools. Real-device subjective visual review is valuable but belongs to Beta/launch-readiness acceptance when device/emulator access exists.
+
+## D-022 — Phase 1 is closed; Phase 2 is Listing Journey Hardening
+
+Phase 1 UX/UI Product Foundation is closed at source/automated-acceptance level. The next implementation phase is Phase 2 — Listing Journey Hardening. Phase 2 must reuse the existing listing workflow and focus on state/UX/regression/duplicate-detection hardening rather than rebuilding listings from scratch.
+
+## D-023 — Deferred request/matching concepts are not active service capabilities
+
+Property Requests, Researcher Requests, and broker-driven request matching are deferred product concepts. They must not appear as active launch-facing service actions or server capabilities until the product owner explicitly re-approves them and their persistence/API/UI/tests are implemented.
