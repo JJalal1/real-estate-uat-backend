@@ -11,9 +11,6 @@ export 'app_typography.dart';
 abstract final class AppTheme {
   static const brandSeed = Color(0xFF0B8A55);
 
-  // Compatibility constants for existing call sites. New code should obtain
-  // Material colors from Theme.of(context).colorScheme and custom tones from
-  // its AppSemanticColors extension. Do not use brandSeed as an action color.
   static const brand = brandSeed;
   static const brandStrong = Color(0xFF075B39);
   static const brandSoft = Color(0xFFE5F5EC);
@@ -57,9 +54,10 @@ abstract final class AppTheme {
     );
 
     final readableTextTheme = AppTypography.textTheme.apply(
-          bodyColor: scheme.onSurface,
-          displayColor: scheme.onSurface,
-        );
+      fontFamily: AppTypography.fontFamily,
+      bodyColor: scheme.onSurface,
+      displayColor: scheme.onSurface,
+    );
 
     return ThemeData(
       useMaterial3: true,
@@ -67,6 +65,7 @@ abstract final class AppTheme {
       extensions: const [AppSemanticColors.light],
       scaffoldBackgroundColor: scheme.surfaceContainerLow,
       visualDensity: VisualDensity.standard,
+      fontFamily: AppTypography.fontFamily,
       fontFamilyFallback: AppTypography.fontFamilyFallback,
       textTheme: readableTextTheme,
       appBarTheme: AppBarTheme(
@@ -117,10 +116,9 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize:
-              const Size(AppSizes.touchTarget, AppSizes.buttonMinHeight),
+          minimumSize: const Size(AppSizes.touchTarget, AppSizes.buttonMinHeight),
           foregroundColor: scheme.onPrimary,
-          textStyle: AppTypography.labelLarge,
+          textStyle: AppTypography.labelLarge.copyWith(fontFamily: AppTypography.fontFamily),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.control),
           ),
@@ -128,14 +126,13 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize:
-              const Size(AppSizes.touchTarget, AppSizes.buttonMinHeight),
+          minimumSize: const Size(AppSizes.touchTarget, AppSizes.buttonMinHeight),
           foregroundColor: scheme.onSurface,
           side: BorderSide(
             color: scheme.outline,
             width: AppBorderWidths.standard,
           ),
-          textStyle: AppTypography.labelLarge,
+          textStyle: AppTypography.labelLarge.copyWith(fontFamily: AppTypography.fontFamily),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.control),
           ),
@@ -159,6 +156,7 @@ abstract final class AppTheme {
         backgroundColor: scheme.inverseSurface,
         contentTextStyle: AppTypography.bodyMedium.copyWith(
           color: scheme.onInverseSurface,
+          fontFamily: AppTypography.fontFamily,
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.control),

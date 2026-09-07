@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 /// Accepted Arabic-first scale; line heights are expressed as size ratios.
-/// Leave fontFamily unset until W3B2 bundles and activates the target family.
+/// W3B2 activates the bundled Noto Sans Arabic family from ThemeData while
+/// styles keep the family unset so Material can inherit it consistently.
 abstract final class AppTypography {
+  static const fontFamily = 'NotoSansArabic';
   static const fontFamilyFallback = <String>['Arial', 'sans-serif'];
 
   static const headlineLarge = TextStyle(
@@ -91,8 +93,6 @@ abstract final class AppTypography {
   );
 
   static const textTheme = TextTheme(
-    // No separate display scale is specified in W3A. Reuse the headlines so
-    // inherited Material display styles cannot introduce Arabic tracking.
     displayLarge: headlineLarge,
     displayMedium: headlineMedium,
     displaySmall: headlineSmall,

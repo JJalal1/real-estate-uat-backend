@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../../bookings/presentation/booking_request_sheet.dart';
 import '../../community/presentation/listing_community_screen.dart';
@@ -21,16 +23,12 @@ final propertyDetailsProvider =
 });
 
 class PropertyDetailsScreen extends ConsumerStatefulWidget {
-  const PropertyDetailsScreen({
-    required this.propertyId,
-    super.key,
-  });
+  const PropertyDetailsScreen({required this.propertyId, super.key});
 
   final int propertyId;
 
   @override
-  ConsumerState<PropertyDetailsScreen> createState() =>
-      _PropertyDetailsScreenState();
+  ConsumerState<PropertyDetailsScreen> createState() => _PropertyDetailsScreenState();
 }
 
 class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
@@ -40,479 +38,279 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final details = ref.watch(propertyDetailsProvider(widget.propertyId));
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF6F8F7),
-        appBar: AppBar(
-          title: const Text('تفاصيل العقار'),
-          centerTitle: true,
+        appBar: AppAppBar(
+          title: 'تفاصيل العقار',
           actions: [
-            IconButton(
-              tooltip: 'إعلاناتي',
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (_) => const MyListingsScreen(),
-                ),
-              ),
-              icon: const Icon(Icons.inventory_2_outlined),
+            AppIconButton(
+              icon: Icons.ios_share_outlined,
+              tooltip: 'مشاركة العقار',
+              onPressed: _copyShareReference,
             ),
           ],
         ),
         body: details.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => _ErrorState(
-            onRetry: () =>
-                ref.invalidate(propertyDetailsProvider(widget.propertyId)),
+          loading: () => const _PropertyDetailsSkeleton(),
+          error: (error, _) => AppErrorState(
+            message: friendlyApiError(error),
+            onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId)),
           ),
-          data: (property) => RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(propertyDetailsProvider(widget.propertyId));
-              await ref.read(propertyDetailsProvider(widget.propertyId).future);
-            },
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                _buildGallery(property),
-                const SizedBox(height: 18),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        property.title,
-                        style:
-                            Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                ),
-                      ),
-                    ),
-                    if (property.isOwner)
-                      PopupMenuButton<String>(
-                        onSelected: (action) => _ownerAction(action, property),
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                              value: 'edit', child: Text('تعديل الإعلان')),
-                          PopupMenuItem(value: 'mine', child: Text('إعلاناتي')),
-                          PopupMenuItem(
-                              value: 'delete', child: Text('حذف الإعلان')),
-                        ],
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '${_formatPrice(property.price)} ${property.currency}',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: const Color(0xFF00796B),
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _InfoChip(
-                      icon: Icons.sell_outlined,
-                      label: _purposeLabel(property.purpose),
-                    ),
-                    _InfoChip(
-                      icon: Icons.home_work_outlined,
-                      label: _typeLabel(property.type),
-                    ),
-                    if (property.status != 'published')
-                      _InfoChip(
-                        icon: Icons.info_outline,
-                        label: _statusLabel(property.status),
-                      ),
-                  ],
-                ),
-                if (property.address != null) ...[
-                  const SizedBox(height: 20),
-                  _SectionCard(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.location_on_outlined),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'الموقع',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w900),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(property.address!),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (property.areaM2 != null ||
-                    property.areaValue != null ||
-                    property.bedrooms != null ||
-                    property.bathrooms != null ||
-                    property.hasParking != null ||
-                    property.tenureType != null ||
-                    property.buildingFacade != null) ...[
-                  const SizedBox(height: 20),
-                  Text(
-                    'مواصفات العقار',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      if (property.areaValue != null)
-                        _SpecItem(
-                          icon: Icons.square_foot,
-                          value:
-                              '${formatPropertyAreaValue(property.areaValue!)} ${propertyAreaUnitLabel(property.areaUnit)}',
-                          label: 'المساحة',
-                        )
-                      else if (property.areaM2 != null)
-                        _SpecItem(
-                          icon: Icons.square_foot,
-                          value: '${property.areaM2} م²',
-                          label: 'المساحة',
-                        ),
-                      if (property.bedrooms != null)
-                        _SpecItem(
-                          icon: Icons.bed_outlined,
-                          value: '${property.bedrooms}',
-                          label: 'غرف النوم',
-                        ),
-                      if (property.bathrooms != null)
-                        _SpecItem(
-                          icon: Icons.bathtub_outlined,
-                          value: '${property.bathrooms}',
-                          label: 'الحمامات',
-                        ),
-                      if (property.hasParking != null)
-                        _SpecItem(
-                          icon: Icons.local_parking_outlined,
-                          value: property.hasParking! ? 'يوجد' : 'لا يوجد',
-                          label: 'موقف سيارة',
-                        ),
-                      if (property.tenureType != null)
-                        _SpecItem(
-                          icon: Icons.account_balance_outlined,
-                          value: property.tenureType == 'waqf' ? 'وقف' : 'حر',
-                          label: 'نوع الملكية',
-                        ),
-                      if (property.buildingFacade != null)
-                        _SpecItem(
-                          icon: Icons.explore_outlined,
-                          value: propertyFacadeLabel(property.buildingFacade),
-                          label: 'واجهة البناء',
-                        ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 22),
-                Text(
-                  'وصف العقار',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                _SectionCard(
-                  child: Text(
-                    property.description ??
-                        'لم يضف المعلن وصفاً تفصيلياً لهذا العقار بعد.',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          height: 1.7,
-                        ),
-                  ),
-                ),
-                if (property.status == 'published' && !property.isOwner) ...[
-                  const SizedBox(height: 20),
-                  FilledButton.icon(
-                    onPressed: () => _requestViewing(property),
-                    icon: const Icon(Icons.event_available_outlined),
-                    label: const Text('طلب موعد معاينة'),
-                  ),
-                ],
-                if (property.status == 'published' &&
-                    property.advertiser != null) ...[
-                  const SizedBox(height: 20),
-                  Text(
-                    'المجتمع والثقة',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                  const SizedBox(height: 10),
-                  _SectionCard(
-                    child: Column(
-                      children: [
-                        if (property.advertiser!.verificationStatus == 'approved') ...[
-                          Row(
-                            children: [
-                              const Icon(Icons.verified_outlined),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      property.advertiser!.verificationLabel,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    Text(property.advertiser!.name),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          if (property.advertiser!
-                              .verificationFlag('identity_reviewed'))
-                            const _VerificationLine('الهوية تمت مراجعتها'),
-                          if (property.advertiser!
-                              .verificationFlag('relationship_document_reviewed'))
-                            const _VerificationLine(
-                                'مستند العلاقة بالعقار تمت مراجعته'),
-                          if (property.advertiser!
-                              .verificationFlag('professional_document_reviewed'))
-                            const _VerificationLine(
-                                'الوثيقة المهنية تمت مراجعتها'),
-                          if (property.advertiser!
-                              .verificationFlag('commercial_register_reviewed'))
-                            const _VerificationLine(
-                                'السجل التجاري تمت مراجعته'),
-                          if (property.advertiser!
-                              .verificationFlag('office_documents_reviewed'))
-                            const _VerificationLine(
-                                'مستندات المكتب المهنية تمت مراجعتها'),
-                          if (property.advertiser!
-                              .verificationFlag('office_location_registered'))
-                            const _VerificationLine('موقع المكتب مسجل'),
-                          const Divider(height: 24),
-                        ],
-                        Row(
-                          children: [
-                            const Icon(Icons.star_outline),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                property.advertiser!.ratingCount == 0
-                                    ? 'لا توجد تقييمات للمعلن بعد'
-                                    : 'تقييم ${property.advertiser!.name}: '
-                                        '${property.advertiser!.ratingAverage.toStringAsFixed(1)} / 5 '
-                                        '(${property.advertiser!.ratingCount})',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.forum_outlined),
-                            const SizedBox(width: 10),
-                            Text('${property.commentsCount} تعليق ظاهر'),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.tonalIcon(
-                            onPressed: () => _openCommunity(property),
-                            icon: const Icon(Icons.rate_review_outlined),
-                            label:
-                                const Text('التعليقات وتقييم المعلن والبلاغات'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (property.status == 'published' && !property.isOwner) ...[
-                  const SizedBox(height: 20),
-                  Text(
-                    'التواصل مع المعلن',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                  const SizedBox(height: 10),
-                  _SectionCard(
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: _startingConversation
-                                ? null
-                                : () => _startConversation(property),
-                            icon: _startingConversation
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.forum_outlined),
-                            label: Text(
-                              _startingConversation
-                                  ? 'جارٍ فتح المحادثة...'
-                                  : 'مراسلة المعلن داخل التطبيق',
-                            ),
-                          ),
-                        ),
-                        if (property.contactPhone != null ||
-                            property.contactWhatsapp != null)
-                          const Divider(height: 28),
-                        if (property.contactPhone != null)
-                          _ContactRow(
-                            icon: Icons.phone_outlined,
-                            label: 'الهاتف',
-                            value: property.contactPhone!,
-                            onCopy: () => _copyContact(property.contactPhone!),
-                          ),
-                        if (property.contactPhone != null &&
-                            property.contactWhatsapp != null)
-                          const Divider(),
-                        if (property.contactWhatsapp != null)
-                          _ContactRow(
-                            icon: Icons.chat_outlined,
-                            label: 'واتساب',
-                            value: property.contactWhatsapp!,
-                            onCopy: () =>
-                                _copyContact(property.contactWhatsapp!),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (property.similar.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Text(
-                    'عقارات مشابهة',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 205,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: property.similar.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (context, index) => _SimilarCard(
-                        property: property.similar[index],
-                        onTap: () =>
-                            Navigator.of(context).pushReplacement<void, void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => PropertyDetailsScreen(
-                              propertyId: property.similar[index].id,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          data: (property) => _buildContent(property),
         ),
       ),
     );
   }
 
-  Widget _buildGallery(PropertyDetails property) {
-    final images = property.images;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: SizedBox(
-        height: 270,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (images.isEmpty)
-              const _ImageFallback()
-            else
-              PageView.builder(
-                itemCount: images.length,
-                onPageChanged: (index) => setState(() => _imageIndex = index),
-                itemBuilder: (context, index) => Image.network(
-                  images[index].url,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const _ImageFallback(),
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) {
-                      return child;
-                    }
-                    return const _ImageFallback(showLoader: true);
-                  },
-                ),
-              ),
-            if (images.isNotEmpty)
-              PositionedDirectional(
-                bottom: 12,
-                end: 12,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0x99000000),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Text(
-                      '${_imageIndex + 1}/${images.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+  Widget _buildContent(PropertyDetails property) {
+    final published = property.status == 'published';
+    final facts = <AppPropertyFact>[
+      if (property.areaValue != null)
+        AppPropertyFact(
+          icon: Icons.square_foot,
+          label: '${formatPropertyAreaValue(property.areaValue!)} ${propertyAreaUnitLabel(property.areaUnit)}',
+        )
+      else if (property.areaM2 != null)
+        AppPropertyFact(icon: Icons.square_foot, label: '${property.areaM2} م²'),
+      if (property.bedrooms != null)
+        AppPropertyFact(icon: Icons.bed_outlined, label: '${property.bedrooms} غرف'),
+      if (property.bathrooms != null)
+        AppPropertyFact(icon: Icons.bathtub_outlined, label: '${property.bathrooms} حمام'),
+      if (property.hasParking == true)
+        const AppPropertyFact(icon: Icons.local_parking_outlined, label: 'موقف سيارة'),
+      if (property.tenureType != null)
+        AppPropertyFact(
+          icon: Icons.account_balance_outlined,
+          label: property.tenureType == 'waqf' ? 'وقف' : 'حر',
         ),
+      if (property.buildingFacade != null)
+        AppPropertyFact(
+          icon: Icons.explore_outlined,
+          label: propertyFacadeLabel(property.buildingFacade),
+        ),
+    ];
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(propertyDetailsProvider(widget.propertyId));
+        await ref.read(propertyDetailsProvider(widget.propertyId).future);
+      },
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          AppLayout.compactPageGutter,
+          AppSpacing.s12,
+          AppLayout.compactPageGutter,
+          AppSpacing.s40,
+        ),
+        children: [
+          _Gallery(
+            images: property.images,
+            index: _imageIndex,
+            onChanged: (index) => setState(() => _imageIndex = index),
+          ),
+          const SizedBox(height: AppSpacing.s20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(property.title, style: Theme.of(context).textTheme.headlineSmall),
+              ),
+              if (property.isOwner)
+                PopupMenuButton<String>(
+                  tooltip: 'إدارة الإعلان',
+                  onSelected: (action) => _ownerAction(action, property),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('تعديل الإعلان')),
+                    PopupMenuItem(value: 'mine', child: Text('إعلاناتي')),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          AppPropertyPrice(
+            price: _formatPrice(property.price),
+            currency: property.currency,
+            suffix: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
+          ),
+          const SizedBox(height: AppSpacing.s12),
+          Wrap(
+            spacing: AppSpacing.s8,
+            runSpacing: AppSpacing.s8,
+            children: [
+              AppStatusBadge(
+                label: _purposeLabel(property.purpose),
+                tone: AppStatusTone.info,
+                icon: property.purpose == 'rent' ? Icons.key_outlined : Icons.sell_outlined,
+              ),
+              AppStatusBadge(
+                label: _typeLabel(property.type),
+                tone: AppStatusTone.neutral,
+                icon: Icons.home_work_outlined,
+              ),
+              if (!published)
+                AppStatusBadge(
+                  label: _statusLabel(property.status),
+                  tone: property.status == 'rejected'
+                      ? AppStatusTone.error
+                      : AppStatusTone.warning,
+                  icon: Icons.info_outline,
+                ),
+            ],
+          ),
+          if (!published && !property.isOwner) ...[
+            const SizedBox(height: AppSpacing.s20),
+            const AppUnavailableState(),
+          ],
+          if (property.address != null) ...[
+            const SizedBox(height: AppSpacing.s24),
+            const AppSectionHeader(title: 'الموقع'),
+            const SizedBox(height: AppSpacing.s8),
+            AppSurface(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.location_on_outlined, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: AppSpacing.s8),
+                  Expanded(child: Text(property.address!)),
+                ],
+              ),
+            ),
+          ],
+          if (facts.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s24),
+            const AppSectionHeader(title: 'مواصفات العقار'),
+            const SizedBox(height: AppSpacing.s8),
+            AppSurface(child: AppPropertyFacts(facts: facts)),
+          ],
+          const SizedBox(height: AppSpacing.s24),
+          const AppSectionHeader(title: 'وصف العقار'),
+          const SizedBox(height: AppSpacing.s8),
+          AppSurface(
+            child: Text(
+              property.description ?? 'لم يضف المعلن وصفاً تفصيلياً لهذا العقار بعد.',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ),
+          if (published && property.advertiser != null) ...[
+            const SizedBox(height: AppSpacing.s24),
+            const AppSectionHeader(title: 'المعلن والثقة'),
+            const SizedBox(height: AppSpacing.s8),
+            _AdvertiserCard(
+              property: property,
+              onCommunity: () => _openCommunity(property),
+            ),
+          ],
+          if (published && !property.isOwner) ...[
+            const SizedBox(height: AppSpacing.s24),
+            const AppSectionHeader(
+              title: 'تواصل وحدد المعاينة',
+              subtitle: 'كل تواصل يبدأ من هذا العقار حتى يبقى السياق واضحاً للطرفين.',
+            ),
+            const SizedBox(height: AppSpacing.s12),
+            AppButton(
+              label: _startingConversation ? 'جارٍ فتح المحادثة...' : 'مراسلة المعلن',
+              icon: Icons.forum_outlined,
+              loading: _startingConversation,
+              onPressed: () => _startConversation(property),
+              expand: true,
+            ),
+            const SizedBox(height: AppSpacing.s8),
+            AppButton(
+              label: 'طلب موعد معاينة',
+              icon: Icons.event_available_outlined,
+              style: AppButtonStyle.outlined,
+              onPressed: () => _requestViewing(property),
+              expand: true,
+            ),
+            if (property.contactPhone != null || property.contactWhatsapp != null) ...[
+              const SizedBox(height: AppSpacing.s12),
+              AppSurface(
+                child: Column(
+                  children: [
+                    if (property.contactPhone != null)
+                      AppListRow(
+                        title: 'الهاتف',
+                        subtitle: property.contactPhone,
+                        leading: const Icon(Icons.phone_outlined),
+                        trailing: const Icon(Icons.copy_outlined),
+                        onTap: () => _copyContact(property.contactPhone!),
+                      ),
+                    if (property.contactWhatsapp != null)
+                      AppListRow(
+                        title: 'واتساب',
+                        subtitle: property.contactWhatsapp,
+                        leading: const Icon(Icons.chat_outlined),
+                        trailing: const Icon(Icons.copy_outlined),
+                        onTap: () => _copyContact(property.contactWhatsapp!),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+          if (property.similar.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s32),
+            const AppSectionHeader(title: 'عقارات مشابهة'),
+            const SizedBox(height: AppSpacing.s12),
+            SizedBox(
+              height: 340,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: property.similar.length,
+                separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.s12),
+                itemBuilder: (context, index) {
+                  final item = property.similar[index];
+                  return SizedBox(
+                    width: 260,
+                    child: AppPropertyCard(
+                      title: item.title,
+                      price: _formatPrice(item.price),
+                      currency: item.currency,
+                      imageUrl: item.mainImage,
+                      location: item.address,
+                      purposeLabel: _purposeLabel(item.purpose),
+                      facts: [
+                        if (item.areaM2 != null)
+                          AppPropertyFact(icon: Icons.square_foot, label: '${item.areaM2} م²'),
+                        if (item.bedrooms != null)
+                          AppPropertyFact(icon: Icons.bed_outlined, label: '${item.bedrooms} غرف'),
+                      ],
+                      unavailable: item.status != 'published',
+                      onTap: () => context.push('/properties/${item.id}'),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ],
       ),
+    );
+  }
+
+  Future<void> _copyShareReference() async {
+    await Clipboard.setData(ClipboardData(text: '/properties/${widget.propertyId}'));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم نسخ رابط العقار للمشاركة.')),
     );
   }
 
   Future<void> _openCommunity(PropertyDetails property) async {
+    final advertiser = property.advertiser;
+    if (advertiser == null) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => ListingCommunityScreen(
           propertyId: property.id,
-          advertiserId: property.advertiser!.id,
-          advertiserName: property.advertiser!.name,
+          advertiserId: advertiser.id,
+          advertiserName: advertiser.name,
         ),
       ),
     );
-    if (!mounted) {
-      return;
-    }
-    ref.invalidate(propertyDetailsProvider(widget.propertyId));
+    if (mounted) ref.invalidate(propertyDetailsProvider(widget.propertyId));
   }
 
   Future<void> _requestViewing(PropertyDetails property) async {
@@ -525,25 +323,20 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       await context.push('/verify-phone');
       return;
     }
-
     final booking = await BookingRequestSheet.showForProperty(
       context,
       propertyId: property.id,
       title: property.title,
     );
     if (!mounted || booking == null) return;
-
     final threadId = booking.messageThreadId;
     if (threadId != null) {
       ref.read(messageDataRevisionProvider.notifier).state++;
       await context.push('/messages/$threadId');
       return;
     }
-
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('تم إرسال طلب المعاينة ويمكن متابعته من صفحة المعاينات.'),
-      ),
+      const SnackBar(content: Text('تم إرسال طلب المعاينة ويمكن متابعته من صفحة المعاينات.')),
     );
   }
 
@@ -557,31 +350,20 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       await context.push('/verify-phone');
       return;
     }
-    if (_startingConversation) {
-      return;
-    }
-
+    if (_startingConversation) return;
     setState(() => _startingConversation = true);
     try {
-      final thread = await ref
-          .read(messageRepositoryProvider)
-          .startForProperty(property.id);
+      final thread = await ref.read(messageRepositoryProvider).startForProperty(property.id);
       ref.read(messageDataRevisionProvider.notifier).state++;
-      if (!mounted) {
-        return;
-      }
-      await context.push('/messages/${thread.id}');
+      if (mounted) await context.push('/messages/${thread.id}');
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyApiError(error))),
-      );
-    } finally {
       if (mounted) {
-        setState(() => _startingConversation = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(error))),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _startingConversation = false);
     }
   }
 
@@ -592,306 +374,159 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       );
       return;
     }
-
     if (action == 'edit') {
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => AddPropertyWizardScreen(existingProperty: property),
         ),
       );
-      if (mounted) {
-        ref.invalidate(propertyDetailsProvider(widget.propertyId));
-      }
-      return;
-    }
-
-    if (action == 'delete') {
-      final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: const Text('حذف الإعلان؟'),
-              content: const Text(
-                  'لا يمكن التراجع عن حذف الإعلان بعد تأكيد العملية.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('إلغاء'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  child: const Text('حذف'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      if (!confirmed || !mounted) {
-        return;
-      }
-
-      try {
-        await ref.read(propertyRepositoryProvider).deleteListing(property.id);
-        ref.read(propertyDataRevisionProvider.notifier).state++;
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
-      } catch (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(friendlyApiError(error))),
-          );
-        }
-      }
+      if (mounted) ref.invalidate(propertyDetailsProvider(widget.propertyId));
     }
   }
 
   Future<void> _copyContact(String value) async {
     await Clipboard.setData(ClipboardData(text: value));
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('تم نسخ الرقم.')),
     );
   }
 }
 
-class _VerificationLine extends StatelessWidget {
-  const _VerificationLine(this.text);
+class _Gallery extends StatelessWidget {
+  const _Gallery({required this.images, required this.index, required this.onChanged});
 
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Row(
-          children: [
-            const Icon(Icons.check_circle, size: 18),
-            const SizedBox(width: 6),
-            Expanded(child: Text(text)),
-          ],
-        ),
-      );
-}
-
-class _ContactRow extends StatelessWidget {
-  const _ContactRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.onCopy,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final VoidCallback onCopy;
+  final List<PropertyImageItem> images;
+  final int index;
+  final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFF00796B)),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.bodySmall),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
-            ],
-          ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadii.card),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (images.isEmpty)
+              const AppPropertyMedia(height: double.infinity)
+            else
+              PageView.builder(
+                itemCount: images.length,
+                onPageChanged: onChanged,
+                itemBuilder: (context, imageIndex) => AppPropertyMedia(
+                  imageUrl: images[imageIndex].url,
+                  height: double.infinity,
+                ),
+              ),
+            if (images.isNotEmpty)
+              PositionedDirectional(
+                bottom: AppSpacing.s12,
+                end: AppSpacing.s12,
+                child: Container(
+                  padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: AppSpacing.s12,
+                    vertical: AppSpacing.s4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.inverseSurface.withValues(alpha: .86),
+                    borderRadius: BorderRadius.circular(AppRadii.pill),
+                  ),
+                  child: Text(
+                    '${index + 1}/${images.length}',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onInverseSurface,
+                        ),
+                  ),
+                ),
+              ),
+          ],
         ),
-        IconButton(
-          tooltip: 'نسخ',
-          onPressed: onCopy,
-          icon: const Icon(Icons.copy_outlined),
-        ),
-      ],
+      ),
     );
   }
 }
 
-class _SimilarCard extends StatelessWidget {
-  const _SimilarCard({required this.property, required this.onTap});
+class _AdvertiserCard extends StatelessWidget {
+  const _AdvertiserCard({required this.property, required this.onCommunity});
 
-  final PropertySummary property;
-  final VoidCallback onTap;
+  final PropertyDetails property;
+  final VoidCallback onCommunity;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 190,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        margin: EdgeInsets.zero,
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final advertiser = property.advertiser!;
+    final verified = advertiser.verificationStatus == 'approved';
+    return AppSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              SizedBox(
-                height: 110,
-                width: double.infinity,
-                child: property.mainImage == null
-                    ? const ColoredBox(
-                        color: Color(0xFFE7F5F1),
-                        child: Icon(Icons.home_work_outlined, size: 42),
-                      )
-                    : Image.network(
-                        property.mainImage!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const ColoredBox(
-                          color: Color(0xFFE7F5F1),
-                          child: Icon(Icons.home_work_outlined, size: 42),
-                        ),
-                      ),
+              CircleAvatar(
+                child: Icon(verified ? Icons.verified_outlined : Icons.person_outline),
               ),
-              Padding(
-                padding: const EdgeInsets.all(10),
+              const SizedBox(width: AppSpacing.s12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(advertiser.name, style: Theme.of(context).textTheme.titleMedium),
                     Text(
-                      property.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '${_formatPrice(property.price)} ${property.currency}',
-                      style: const TextStyle(
-                        color: Color(0xFF00796B),
-                        fontWeight: FontWeight.w900,
-                      ),
+                      verified ? advertiser.verificationLabel : 'معلن',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
               ),
+              if (verified)
+                const AppStatusBadge(
+                  label: 'موثق',
+                  tone: AppStatusTone.success,
+                  icon: Icons.verified_outlined,
+                ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off_outlined, size: 54),
-            const SizedBox(height: 12),
-            const Text('تعذر تحميل تفاصيل العقار'),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('إعادة المحاولة'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ImageFallback extends StatelessWidget {
-  const _ImageFallback({this.showLoader = false});
-
-  final bool showLoader;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: const Color(0xFFE2F4F1),
-      child: Center(
-        child: showLoader
-            ? const CircularProgressIndicator()
-            : const Icon(
-                Icons.home_work_outlined,
-                size: 72,
-                color: Color(0xFF00796B),
-              ),
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Chip(
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-      side: BorderSide.none,
-      backgroundColor: const Color(0xFFE2F4F1),
-    );
-  }
-}
-
-class _SpecItem extends StatelessWidget {
-  const _SpecItem(
-      {required this.icon, required this.value, required this.label});
-
-  final IconData icon;
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 110,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E9E8)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: const Color(0xFF00796B)),
-          const SizedBox(height: 7),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 2),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: AppSpacing.s12),
+          Text(
+            advertiser.ratingCount == 0
+                ? 'لا توجد تقييمات للمعلن بعد'
+                : 'التقييم ${advertiser.ratingAverage.toStringAsFixed(1)} من 5 (${advertiser.ratingCount})',
+          ),
+          Text('${property.commentsCount} تعليق ظاهر'),
+          const SizedBox(height: AppSpacing.s12),
+          AppButton(
+            label: 'التعليقات والتقييم والبلاغات',
+            icon: Icons.rate_review_outlined,
+            style: AppButtonStyle.tonal,
+            onPressed: onCommunity,
+            expand: true,
+          ),
         ],
       ),
     );
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.child});
-
-  final Widget child;
+class _PropertyDetailsSkeleton extends StatelessWidget {
+  const _PropertyDetailsSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E9E8)),
-      ),
-      child: child,
+    return ListView(
+      padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
+      children: const [
+        AppSkeleton(height: 260, radius: AppRadii.card),
+        SizedBox(height: AppSpacing.s20),
+        AppSkeleton(height: 32),
+        SizedBox(height: AppSpacing.s12),
+        AppSkeleton(height: 24, width: 180),
+        SizedBox(height: AppSpacing.s24),
+        AppSkeleton(height: 120, radius: AppRadii.card),
+        SizedBox(height: AppSpacing.s16),
+        AppSkeleton(height: 160, radius: AppRadii.card),
+      ],
     );
   }
 }
@@ -914,7 +549,7 @@ String _statusLabel(String value) => switch (value) {
       'rejected' => 'مرفوض',
       'archived' => 'مؤرشف',
       'draft' => 'مسودة',
-      _ => value,
+      _ => 'غير متاح',
     };
 
 String _formatPrice(double value) {
@@ -923,9 +558,7 @@ String _formatPrice(double value) {
   for (var index = 0; index < digits.length; index++) {
     final remaining = digits.length - index;
     buffer.write(digits[index]);
-    if (remaining > 1 && remaining % 3 == 1) {
-      buffer.write(',');
-    }
+    if (remaining > 1 && remaining % 3 == 1) buffer.write(',');
   }
   return buffer.toString();
 }

@@ -16,19 +16,51 @@ on:
 
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
+  NOTO_FONT_REF: ffebf8c1ee449e544955a7e813c54f9b73848eac
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   flutter-validation:
-    name: Analyze and test Phase 1 Flutter
+    name: Analyze, test and build Phase 1 Flutter
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install pinned Noto Sans Arabic assets when absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          font_dir='mobile_app/assets/fonts'
+          mkdir -p "$font_dir"
+          base="https://raw.githubusercontent.com/notofonts/noto-fonts/${NOTO_FONT_REF}/hinted/ttf/NotoSansArabic"
+          for weight in Regular Medium SemiBold Bold; do
+            file="NotoSansArabic-${weight}.ttf"
+            if [ ! -s "$font_dir/$file" ]; then
+              curl --fail --location --retry 3 --silent --show-error \
+                "$base/$file" -o "$font_dir/$file"
+            fi
+          done
+          if [ ! -s "$font_dir/OFL.txt" ]; then
+            curl --fail --location --retry 3 --silent --show-error \
+              "https://raw.githubusercontent.com/notofonts/noto-fonts/${NOTO_FONT_REF}/LICENSE" \
+              -o "$font_dir/OFL.txt"
+          fi
+          test -s "$font_dir/NotoSansArabic-Regular.ttf"
+          test -s "$font_dir/NotoSansArabic-Medium.ttf"
+          test -s "$font_dir/NotoSansArabic-SemiBold.ttf"
+          test -s "$font_dir/NotoSansArabic-Bold.ttf"
+          test -s "$font_dir/OFL.txt"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Set up Flutter 3.27.3
         uses: subosito/flutter-action@v2
@@ -69,3 +101,31 @@ jobs:
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
           test/uat_compiled_environment_test.dart
+
+      - name: Build UAT APK
+        working-directory: mobile_app
+        run: >-
+          flutter build apk --release
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+
+      - name: Upload UAT APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-estate-phase1-uat-apk-${{ github.run_number }}
+          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Persist pinned font assets on Phase 1 branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/phase1/ux-product-foundation'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain -- mobile_app/assets/fonts)" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add mobile_app/assets/fonts
+            git commit -m 'chore: bundle pinned Noto Sans Arabic assets'
+            git push origin HEAD:phase1/ux-product-foundation
+          fi
