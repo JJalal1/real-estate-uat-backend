@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../agreements/presentation/conversation_agreement_card.dart';
 import '../../bookings/data/booking_repository.dart';
 import '../../bookings/domain/booking_models.dart';
 import '../../bookings/presentation/booking_request_sheet.dart';
@@ -409,6 +410,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         body: Column(children: [
           if (!_loading && thread?.isPropertyUnavailable == true)
             _propertyAvailabilityBanner(thread!),
+          if (!_loading && thread != null)
+            ConversationAgreementCard(thread: thread),
           if (!_loading && _viewing != null) _viewingCard(_viewing!),
           Expanded(
               child: _loading

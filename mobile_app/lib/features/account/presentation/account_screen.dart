@@ -155,6 +155,11 @@ class AccountScreen extends ConsumerWidget {
                           () => context.push('/bookings'),
                         ),
                         _AccountRow(
+                          'اتفاقاتي وعقودي',
+                          Icons.handshake_outlined,
+                          () => context.push('/agreements'),
+                        ),
+                        _AccountRow(
                           'المفضلة',
                           Icons.favorite_border,
                           () => Navigator.of(context).push<void>(
