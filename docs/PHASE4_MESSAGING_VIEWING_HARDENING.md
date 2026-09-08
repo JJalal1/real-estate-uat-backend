@@ -1,10 +1,11 @@
 # Phase 4 — Messaging + Viewing Journey Hardening
 
-Status: CLOSURE CANDIDATE — automated gates, Supabase UAT schema/security verification, and Render UAT deployment are COMPLETE; real-device acceptance remains.
+Status: CLOSED / ACCEPTED — automated gates, Supabase UAT schema/security verification, Render UAT deployment, and real-device Android acceptance are COMPLETE.
 
 Branch: `phase4/messaging-viewing-hardening`
-PR: #17 -> `phase1/ux-product-foundation` (unmerged)
-UAT integration PR: #18 -> `audit/system-stabilization` (merged)
+Tracker: #16 — closed as completed
+PR: #17 -> `phase1/ux-product-foundation` — merged
+UAT integration PR: #18 -> `audit/system-stabilization` — merged
 
 ## Product boundary
 
@@ -110,7 +111,7 @@ Canonical CI: `.github/workflows/phase4-messaging-viewing-ci.yml`
 
 ## Final automated evidence
 
-Final documented head: `1513399f5c0bb6a8d916c5515cba095389c3c2df`
+Final documented CI head: `1513399f5c0bb6a8d916c5515cba095389c3c2df`
 
 Phase 4 Messaging Viewing CI run #50 / `34276623699`: SUCCESS.
 
@@ -169,16 +170,20 @@ Runtime evidence from the new instance:
 
 A direct external health request from the execution container could not resolve DNS, so it is not counted as runtime evidence. Render's own health checks and live deployment state are the authoritative runtime evidence recorded here.
 
-## Remaining closure gates
+## Real-device acceptance
 
-1. install/test the Phase 4 APK on a real Android device against live Render UAT;
-2. verify the live property-linked conversation/viewing journey from the device, including exact notification destinations;
-3. explicit product-owner Phase 4 acceptance.
+On 2026-09-09, the product owner explicitly accepted the Phase 4 Android candidate after device testing. This closes the final Phase 4 product acceptance gate.
+
+## Closure
+
+Phase 4 is CLOSED / ACCEPTED.
+
+The previously discussed follow-on work — in-app agreement/rental contracts, valuation/price indicators, Real-estate Guide/legal documents, and Production/launch readiness — is preserved for future work but explicitly deferred. It is not the next automatic implementation sequence. The product owner has other priorities to complete first, and the next work package must be defined from those priorities.
 
 ## Merge/deploy boundary
 
-- No merge to `main` is authorized by Phase 4 work.
-- PR #17 remains separate from Production and targets only `phase1/ux-product-foundation`.
-- PR #18 was merged only into the UAT runtime branch `audit/system-stabilization`.
+- No merge to `main` is authorized by Phase 4 acceptance.
+- PR #17 is merged only into the integration branch `phase1/ux-product-foundation`.
+- PR #18 is merged only into the UAT runtime branch `audit/system-stabilization`.
 - No Production deployment is part of Phase 4.
-- Render UAT is now verified running the Phase 1–4 UAT integration commit; this does not imply Production readiness or real-device acceptance.
+- Render UAT is verified running the Phase 1–4 UAT integration commit; this does not imply Production readiness.
