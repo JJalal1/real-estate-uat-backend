@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../../router/app_deep_links.dart';
 import '../../account/data/auth_controller.dart';
 import '../../bookings/presentation/booking_request_sheet.dart';
 import '../../community/presentation/listing_community_screen.dart';
@@ -72,7 +73,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               ),
             AppIconButton(
               icon: Icons.ios_share_outlined,
-              tooltip: 'مشاركة العقار',
+              tooltip: 'نسخ رابط العقار',
               onPressed: _copyShareReference,
             ),
           ],
@@ -380,10 +381,11 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   }
 
   Future<void> _copyShareReference() async {
-    await Clipboard.setData(ClipboardData(text: '/properties/${widget.propertyId}'));
+    final link = propertyAppDeepLink(widget.propertyId).toString();
+    await Clipboard.setData(ClipboardData(text: link));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم نسخ مرجع العقار للمشاركة.')),
+      const SnackBar(content: Text('تم نسخ رابط العقار ويمكن فتحه في التطبيق.')),
     );
   }
 
