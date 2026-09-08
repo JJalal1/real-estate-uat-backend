@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../data/message_repository.dart';
 import '../domain/message_models.dart';
+import '../domain/notification_destination.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -81,32 +82,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
     if (!mounted) return;
 
-    var openedDestination = true;
-    final threadId = item.messageThreadId ??
-        (item.entityType == 'message_thread' ? item.entityId : null);
-    final bookingId = item.bookingId ??
-        (item.entityType == 'viewing_booking' ? item.entityId : null);
-
-    if (threadId != null) {
-      await context.push<void>('/messages/$threadId');
-    } else if (item.entityType == 'account_verification_profile' ||
-        item.entityType == 'account_verification') {
-      await context.push<void>('/account-verification');
-    } else if (item.entityType == 'support_case' && item.entityId != null) {
-      await context.push<void>('/support?case=${item.entityId}');
-    } else if (item.entityType == 'support_task') {
-      await context.push<void>('/support/workspace');
-    } else if (bookingId != null) {
-      await context.push<void>('/bookings?booking=$bookingId');
-    } else if (item.entityType == 'property' && item.entityId != null) {
-      await context.push<void>('/properties/${item.entityId}');
-    } else if (item.entityType == 'service_order') {
-      await context.push<void>('/services');
-    } else {
-      openedDestination = false;
-    }
-
-    if (!openedDestination && mounted) {
+    final destination = notificationDestination(item);
+    if (destination != null) {
+      await context.push<void>(destination);
+    } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تمت قراءة الإشعار ولا توجد صفحة مرتبطة به.')),
       );
