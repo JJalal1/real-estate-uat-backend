@@ -1,22 +1,22 @@
 # Phase 3 — Buyer Discovery Completion + Server-side Favorites
 
-Status: IN PROGRESS — automated acceptance gates running
+Status: CLOSED — automated gates passed and product owner accepted the Android candidate on a real device
 
 Canonical tracker: GitHub Issue #13
-Draft PR: #15 (`phase3/buyer-discovery-favorites` -> `phase1/ux-product-foundation`)
+PR: #15 (`phase3/buyer-discovery-favorites` -> `phase1/ux-product-foundation`)
 
 ## Goal
 
 Complete the buyer-side journey on top of the accepted public discovery implementation. Phase 3 does not rebuild messaging, viewing, listing review, payments, contracts, or deferred request/matching features.
 
-## Implemented
+## Accepted outcome
 
 ### Public discovery boundary
 - Anonymous `/properties`, `/properties/nearby`, property details, and media remain published-only.
 - Internal listing workflow metadata is no longer included in public summary/detail payloads.
 - Owner-only detail responses may include review state/reason, asset/cell identifiers, proof summary, and edit/submit eligibility.
 - Search/filter/list/map reuse the existing Laravel/PostGIS discovery path.
-- List sorting now makes `الأحدث` deterministic (newest property ID first), while price and distance retain their explicit modes.
+- List sorting makes `الأحدث` deterministic (newest property ID first), while price and distance retain explicit modes.
 
 ### Server-side Favorites
 - Added `property_favorites` with cascading user/property foreign keys and unique `(user_id, property_id)`.
@@ -28,21 +28,20 @@ Complete the buyer-side journey on top of the accepted public discovery implemen
 
 ### Supabase UAT security
 - Applied `create_property_favorites_table` to Supabase UAT only.
-- RLS is enabled.
-- No permissive RLS policies were created.
+- RLS is enabled with zero permissive policies.
 - Table/sequence privileges are revoked from `PUBLIC`, `anon`, and `authenticated`.
-- Security advisor `rls_enabled_no_policy` is expected for this deny-all direct-access design.
-- `unused_index` advisor output is informational only and is not evidence to remove launch-supporting indexes without workload data.
+- Security advisor `rls_enabled_no_policy` remains expected for this deny-all direct-access design.
+- `unused_index` advisor output remains informational only; indexes are not removed without workload evidence.
 
 ### Flutter buyer UX
 - Replaced the fake Account -> Favorites action with a real server-backed Favorites screen.
 - Added favorite hearts to property details, similar-property cards, search/list results, and the selected-map preview.
 - Favorite state comes from the authenticated account and refreshes across surfaces after mutations.
 - Anonymous favorite attempts preserve a one-shot internal return location, complete WhatsApp/profile flow when required, return to the same property, and perform the pending favorite once.
-- Added explicit loading, empty, error, and retry states for Favorites.
+- Added explicit loading, empty, error, retry, and unavailable states.
 
 ### Share / deep link
-- Property share now copies `realestate://app/properties/{id}` instead of an incomplete relative path.
+- Property share copies `realestate://app/properties/{id}` instead of an incomplete relative path.
 - Android registers the owned `realestate://app/properties` deep-link pattern.
 - Only the owned scheme/host and positive property IDs are rewritten to internal routes.
 - This is an app deep link, not an HTTPS universal link or public website claim.
@@ -52,25 +51,24 @@ Complete the buyer-side journey on top of the accepted public discovery implemen
 - Existing messaging regression coverage verifies property context, participant privacy, and no advertiser self-conversation.
 - Deep messaging/viewing hardening remains Phase 4 scope.
 
-## Automated acceptance
+## Acceptance evidence
 
 Dedicated workflow: `.github/workflows/phase3-buyer-discovery-ci.yml`
 
-Required gates:
-1. full Laravel regression + explicit Phase 3 API contract;
-2. PostgreSQL 17 + PostGIS full migration/security regression + Phase 3 contract;
-3. Flutter static analysis + full widget/unit suite;
-4. compile-time UAT endpoint verification;
-5. release Android APK build/upload.
+Final accepted GitHub Actions run:
+- Phase 3 Buyer Discovery CI run #34 / `34174945119`: SUCCESS.
+- Head: `44af494bd3dd586b693903ced5901e9d143f2d90`.
+- Laravel regression + explicit Phase 3 API contract: SUCCESS.
+- PostgreSQL 17 + PostGIS migration/security + Phase 3 contract: SUCCESS.
+- Flutter static analysis + full tests: SUCCESS.
+- Compile-time UAT endpoint verification: SUCCESS.
+- Release Android APK build/upload: SUCCESS.
+- Artifact: `real-estate-phase3-uat-apk-34`.
+- Artifact digest: `sha256:3ed8a4f6a8343c6346ff54b6e15a191da9ee32f41901a781ec1edade78cd1631`.
 
-New focused coverage includes:
-- account isolation/idempotency/unpublished behavior for Favorites;
-- public discovery privacy boundary;
-- deep-link parsing/ownership;
-- one-shot auth return intent;
-- Favorites empty and populated server-backed UI states.
+Product owner subsequently installed/tested the Phase 3 Android candidate and explicitly marked Phase 3 accepted on a real device on 2026-09-08.
 
-Do not mark Phase 3 CLOSED until the latest branch HEAD passes all required gates. Real-device end-to-end Favorites acceptance additionally requires a UAT API deployment containing the new backend routes; the current Render UAT service still tracks the older stabilization branch and auto-deploy is disabled.
+This acceptance does not by itself prove that the Render service branch/deploy configuration has changed. Live Render UAT deployment/integration state must still be independently verified before claiming Phase 3 backend code is deployed there, and Production remains untouched.
 
 ## Out of scope
 - Property Requests / Researcher Requests / matching
@@ -80,3 +78,7 @@ Do not mark Phase 3 CLOSED until the latest branch HEAD passes all required gate
 - legal library
 - deep messaging/viewing rebuild
 - Production deployment
+
+## Next phase
+
+Phase 4 — property-linked conversation, messaging, viewing, and booking integration hardening.
