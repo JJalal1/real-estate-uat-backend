@@ -95,7 +95,10 @@ class ViewingBooking {
         'declined' => 'مرفوض',
         'cancelled' => 'ملغي',
         'completed' => 'مكتمل',
-        'requested' when awaitingRequesterConfirmation => 'بانتظار موافقتك',
+        'requested' when awaitingRequesterConfirmation && isRequester =>
+          'بانتظار موافقتك',
+        'requested' when awaitingRequesterConfirmation =>
+          'بانتظار موافقة طالب المعاينة',
         _ => 'بانتظار التأكيد',
       };
 }
