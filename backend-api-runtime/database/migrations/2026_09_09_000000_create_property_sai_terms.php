@@ -40,6 +40,7 @@ return new class extends Migration
                 ->after('property_asset_id')
                 ->constrained('property_sai_terms')
                 ->restrictOnDelete();
+            $table->index('current_sai_term_id', 'properties_current_sai_term_idx');
         });
 
         Schema::table('message_threads', function (Blueprint $table): void {
@@ -48,6 +49,7 @@ return new class extends Migration
                 ->after('property_id')
                 ->constrained('property_sai_terms')
                 ->restrictOnDelete();
+            $table->index('sai_term_id', 'message_threads_sai_term_idx');
         });
 
         $driver = DB::connection()->getDriverName();
@@ -100,9 +102,11 @@ SQL);
     public function down(): void
     {
         Schema::table('message_threads', function (Blueprint $table): void {
+            $table->dropIndex('message_threads_sai_term_idx');
             $table->dropConstrainedForeignId('sai_term_id');
         });
         Schema::table('properties', function (Blueprint $table): void {
+            $table->dropIndex('properties_current_sai_term_idx');
             $table->dropConstrainedForeignId('current_sai_term_id');
         });
 
