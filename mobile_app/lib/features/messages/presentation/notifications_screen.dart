@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../data/message_repository.dart';
 import '../domain/message_models.dart';
-import 'conversation_screen.dart';
+import '../domain/notification_destination.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -19,6 +19,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   String? _error;
   List<AppNotificationItem> _items = const [];
   bool _actionPending = false;
+
   @override
   void initState() {
     super.initState();
@@ -28,18 +29,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Future<void> _load() async {
     try {
       final items = await ref.read(messageRepositoryProvider).notifications();
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _items = items;
         _loading = false;
         _error = null;
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
@@ -83,30 +80,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (!item.isRead) {
       await ref.read(messageRepositoryProvider).readNotification(item.id);
     }
-    if (!mounted) {
-      return;
-    }
-    var openedDestination = true;
-    if (item.entityType == 'message_thread' && item.entityId != null) {
-      await Navigator.of(context).push<void>(MaterialPageRoute<void>(
-          builder: (_) => ConversationScreen(threadId: item.entityId!)));
-    } else if (item.entityType == 'account_verification_profile' ||
-        item.entityType == 'account_verification') {
-      await context.push<void>('/account-verification');
-    } else if (item.entityType == 'support_case' && item.entityId != null) {
-      await context.push<void>('/support?case=${item.entityId}');
-    } else if (item.entityType == 'support_task') {
-      await context.push<void>('/support/workspace');
-    } else if (item.entityType == 'viewing_booking') {
-      await context.push<void>('/bookings');
-    } else if (item.entityType == 'property' && item.entityId != null) {
-      await context.push<void>('/properties/${item.entityId}');
-    } else if (item.entityType == 'service_order') {
-      await context.push<void>('/services');
-    } else {
-      openedDestination = false;
-    }
-    if (!openedDestination && mounted) {
+    if (!mounted) return;
+
+    final destination = notificationDestination(item);
+    if (destination != null) {
+      await context.push<void>(destination);
+    } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تمت قراءة الإشعار ولا توجد صفحة مرتبطة به.')),
       );
@@ -158,6 +137,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                       ? FontWeight.w600
                                       : FontWeight.w900)),
                           subtitle: item.body == null ? null : Text(item.body!),
+                          trailing: const Icon(Icons.chevron_left),
                           onTap: _actionPending ? null : () => _open(item),
                         ))),
                 ])),

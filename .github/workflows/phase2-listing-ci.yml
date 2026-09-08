@@ -14,6 +14,10 @@ on:
       - 'mobile_app/**'
       - '.github/workflows/phase2-listing-ci.yml'
 
+concurrency:
+  group: phase2-listing-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
 
@@ -22,6 +26,7 @@ permissions:
 
 jobs:
   backend-tests:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase2/')
     name: Laravel listing regression suite
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -50,6 +55,7 @@ jobs:
         run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
 
   postgres-validation:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase2/')
     name: PostgreSQL 17 and PostGIS listing acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -107,6 +113,7 @@ jobs:
         run: php artisan test tests/Feature/Phase2ListingJourneyApiTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   flutter-validation:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase2/')
     name: Flutter analysis tests and UAT APK
     runs-on: ubuntu-latest
     timeout-minutes: 35

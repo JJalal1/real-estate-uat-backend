@@ -1,21 +1,22 @@
-name: Phase 3 Buyer Discovery CI
+name: Phase 4 Messaging Viewing CI
 
 on:
-  push:
-    branches: [phase3/buyer-discovery-favorites]
-    paths:
-      - 'backend-api-runtime/**'
-      - 'mobile_app/**'
-      - '.github/workflows/phase3-buyer-discovery-ci.yml'
+  workflow_dispatch:
   pull_request:
     branches: [phase1/ux-product-foundation]
     paths:
       - 'backend-api-runtime/**'
       - 'mobile_app/**'
-      - '.github/workflows/phase3-buyer-discovery-ci.yml'
+      - 'docs/AI_PROJECT_STATE.md'
+      - 'docs/BUSINESS_RULES.md'
+      - 'docs/WORKFLOWS.md'
+      - 'docs/DECISIONS.md'
+      - 'docs/AI_CHANGELOG.md'
+      - 'docs/PHASE4_MESSAGING_VIEWING_HARDENING.md'
+      - '.github/workflows/phase4-messaging-viewing-ci.yml'
 
 concurrency:
-  group: phase3-discovery-${{ github.event.pull_request.number || github.ref }}
+  group: phase4-messaging-viewing-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -26,8 +27,7 @@ permissions:
 
 jobs:
   backend-tests:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase3/')
-    name: Laravel buyer discovery regression suite
+    name: Laravel messaging and viewing regression suite
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -53,12 +53,11 @@ jobs:
         run: composer validate --no-check-publish
       - name: Run full Laravel suite
         run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
-      - name: Re-run Phase 3 acceptance contract explicitly
-        run: php artisan test tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Validate Phase 4 messaging and viewing contract
+        run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   postgres-validation:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase3/')
-    name: PostgreSQL 17 and PostGIS buyer discovery acceptance
+    name: PostgreSQL 17 and PostGIS messaging viewing acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -111,12 +110,11 @@ jobs:
         run: php artisan migrate --force
       - name: Validate PostgreSQL security and schema regression
         run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
-      - name: Validate Phase 3 favorites and public discovery on PostgreSQL
-        run: php artisan test tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Validate Phase 4 messaging and viewing on PostgreSQL
+        run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   flutter-validation:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase3/')
-    name: Flutter buyer discovery tests and UAT APK
+    name: Flutter messaging viewing tests and UAT APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
     needs: [backend-tests, postgres-validation]
@@ -156,7 +154,7 @@ jobs:
       - name: Upload UAT APK
         uses: actions/upload-artifact@v4
         with:
-          name: real-estate-phase3-uat-apk-${{ github.run_number }}
+          name: real-estate-phase4-uat-apk-${{ github.run_number }}
           path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14

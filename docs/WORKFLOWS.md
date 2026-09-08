@@ -38,7 +38,7 @@ If returned:
 
 If approved:
 
-`server re-checks advertiser eligibility + publication block + exact physical-property duplicate + region -> publish -> advertiser notification -> public browse/search/map -> property details -> contact advertiser -> conversation -> viewing -> agreement`
+`server re-checks advertiser eligibility + publication block + exact physical-property duplicate + region -> publish -> advertiser notification -> public browse/search/map -> property details -> favorite/share/contact -> conversation -> viewing -> agreement`
 
 Use current backend enum names before coding; do not invent a parallel status system.
 
@@ -99,11 +99,11 @@ Primary buyer/renter path:
 
 Draft, submitted, under-review, returned, or rejected listings remain outside public discovery. Approved publication makes the listing publicly readable. Unavailable/unpublished properties must show an explicit state and block invalid actions.
 
-## 9. Favorites — planned launch-critical enhancement
+## 9. Favorites
 
 `property heart -> backend favorite(user_id, property_id) -> Favorites list`
 
-Cross-device behavior is required.
+Favorites are account-bound server state and work across devices.
 
 If property becomes unavailable:
 
@@ -113,18 +113,59 @@ Do not silently discard it from the user's history unless product rules later re
 
 ## 10. Conversation and viewing
 
-Viewing starts from a property:
+Viewing starts from a specific property and reuses the single property-linked conversation system.
 
-`property -> contact/open conversation -> request viewing -> proposed date/time -> advertiser notification -> advertiser confirms/reschedules/rejects -> requester sees every state change -> booking visible to both parties`
+### Conversation entry
+
+`published property -> contact -> resolve/reuse conversation(property + participant pair)`
+
+- New contact is blocked when the property is no longer published.
+- Existing participant conversation/history remains available after later unpublication with an explicit unavailable-listing state.
+- Normal private-content access is participant-only.
+- Support private-content access requires an active conversation report + dedicated permission and creates an auditable access event.
+
+### Message delivery
+
+`compose -> client_message_id -> server transaction -> create once -> recipient notification`
+
+If a request is retried with the same `client_message_id` and same body, return the existing logical message without duplicate delivery. The same key with a different body is a conflict.
+
+Conversation history:
+
+`open thread -> newest 100 messages -> optional before_id -> load older page -> merge without duplicate ids`
+
+Opening the newest page marks current visible conversation state read; loading an older page does not move the read marker backwards.
+
+### Initial viewing request
+
+`requester proposes time -> requested -> advertiser confirm | advertiser reject | allowed party cancel`
+
+### Requester reschedule
+
+`requested|confirmed -> requester proposes new time -> requested -> advertiser confirms | advertiser rejects | allowed party cancels`
+
+### Advertiser reschedule
+
+`requested|confirmed -> advertiser proposes new time -> requested -> requester explicitly accepts | requester proposes another time | allowed party cancels`
+
+The advertiser cannot self-confirm its own replacement time.
+
+### Completion
+
+`confirmed -> scheduled end passes -> authorized host/manager marks completed`
+
+`completed`, `declined`, and `cancelled` are terminal for normal booking actions.
+
+Backend transactions/locks decide concurrent booking state and overlap conflicts. Flutter controls are not authorization.
 
 Expected linkages:
-- property;
-- advertiser;
+- target property or supported development unit;
+- advertiser/host;
 - requester;
-- conversation/thread;
+- message thread for property viewings;
 - proposed/confirmed appointment;
 - status;
-- change history.
+- immutable event history.
 
 ## 11. Rental contracts — planned launch-critical phase
 
@@ -179,17 +220,19 @@ Real-estate Guide and Legal Documents are informational tools. They must not be 
 
 ## 15. Notifications/deep links
 
-Workflow notifications should contain enough reference data to open the actual entity/step, not only a generic notifications page.
+Workflow notifications contain enough reference data to open the actual entity/step rather than only a generic notifications page.
 
-Examples:
-- listing review state change;
-- message related to a property;
-- viewing request;
-- viewing confirmation/reschedule/cancel;
-- contract confirmation request;
-- contract state change.
+Phase 4 routing:
+- message/property-viewing notification with `message_thread_id` -> exact conversation;
+- standalone viewing notification with `booking_id` -> `/bookings?booking={id}` and highlighted booking;
+- property notification -> exact property when available.
 
-Deep-link handling must still respect authorization when the target opens.
+Owned application links include:
+- `realestate://app/properties/{id}`;
+- `realestate://app/messages/{threadId}`;
+- `realestate://app/bookings/{bookingId}`.
+
+Private deep-link targets always pass authentication/authorization after routing.
 
 ## 16. Deferred request/matching concept
 
