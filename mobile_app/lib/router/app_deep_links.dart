@@ -2,14 +2,29 @@ const String appDeepLinkScheme = 'realestate';
 const String appDeepLinkHost = 'app';
 
 Uri propertyAppDeepLink(int propertyId) {
-  if (propertyId <= 0) {
-    throw ArgumentError.value(propertyId, 'propertyId', 'must be positive');
-  }
-
+  _requirePositive(propertyId, 'propertyId');
   return Uri(
     scheme: appDeepLinkScheme,
     host: appDeepLinkHost,
     path: '/properties/$propertyId',
+  );
+}
+
+Uri messageThreadAppDeepLink(int threadId) {
+  _requirePositive(threadId, 'threadId');
+  return Uri(
+    scheme: appDeepLinkScheme,
+    host: appDeepLinkHost,
+    path: '/messages/$threadId',
+  );
+}
+
+Uri viewingBookingAppDeepLink(int bookingId) {
+  _requirePositive(bookingId, 'bookingId');
+  return Uri(
+    scheme: appDeepLinkScheme,
+    host: appDeepLinkHost,
+    path: '/bookings/$bookingId',
   );
 }
 
@@ -21,11 +36,26 @@ String? internalLocationForAppLink(Uri uri) {
   }
 
   final segments = uri.pathSegments;
-  if (segments.length == 2 &&
-      segments.first == 'properties' &&
-      (int.tryParse(segments.last) ?? 0) > 0) {
-    return '/properties/${segments.last}';
+  if (segments.length == 2) {
+    final id = int.tryParse(segments.last) ?? 0;
+    if (id <= 0) return null;
+
+    if (segments.first == 'properties') {
+      return '/properties/$id';
+    }
+    if (segments.first == 'messages') {
+      return '/messages/$id';
+    }
+    if (segments.first == 'bookings') {
+      return '/bookings?booking=$id';
+    }
   }
 
   return null;
+}
+
+void _requirePositive(int value, String name) {
+  if (value <= 0) {
+    throw ArgumentError.value(value, name, 'must be positive');
+  }
 }
