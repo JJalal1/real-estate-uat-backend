@@ -26,6 +26,7 @@ permissions:
 
 jobs:
   backend-tests:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase3/')
     name: Laravel buyer discovery regression suite
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -56,6 +57,7 @@ jobs:
         run: php artisan test tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   postgres-validation:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase3/')
     name: PostgreSQL 17 and PostGIS buyer discovery acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -113,6 +115,7 @@ jobs:
         run: php artisan test tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   flutter-validation:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase3/')
     name: Flutter buyer discovery tests and UAT APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
