@@ -39,10 +39,14 @@ class MessageRepository {
     return MessageThreadDetails.fromJson(_dataMap(response.data));
   }
 
-  Future<PrivateMessageItem> send(int threadId, String body) async {
+  Future<PrivateMessageItem> send(int threadId, String body,
+      {String? clientMessageId}) async {
     final response = await _dio.post<Map<String, dynamic>>(
         '/messages/threads/$threadId/messages',
-        data: {'body': body.trim()},
+        data: {
+          'body': body.trim(),
+          if (clientMessageId != null) 'client_message_id': clientMessageId,
+        },
         options: await _auth.requiredAuthOptions());
     return PrivateMessageItem.fromJson(_dataMap(response.data));
   }
