@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PropertyAgreement extends Model
 {
     protected $fillable = [
-        'reference','property_id','message_thread_id','viewing_booking_id','requester_user_id','advertiser_user_id',
+        'reference','property_id','message_thread_id','sai_term_id','viewing_booking_id','requester_user_id','advertiser_user_id',
         'transaction_type','status','created_by_user_id','accepted_at','cancelled_at','cancellation_reason',
     ];
 
@@ -43,6 +43,11 @@ class PropertyAgreement extends Model
                     $thread->forceFill(['sai_term_id' => $termId])->save();
                 }
             }
+
+            // Copy the frozen thread term onto the agreement as a second,
+            // transaction-local snapshot. Later listing/thread changes cannot
+            // change the accounting term for this agreement.
+            $agreement->sai_term_id = $thread->fresh()->sai_term_id;
         });
 
         static::updated(function (PropertyAgreement $agreement): void {
@@ -55,7 +60,7 @@ class PropertyAgreement extends Model
     protected function casts(): array
     {
         return [
-            'property_id'=>'integer','message_thread_id'=>'integer','viewing_booking_id'=>'integer',
+            'property_id'=>'integer','message_thread_id'=>'integer','sai_term_id'=>'integer','viewing_booking_id'=>'integer',
             'requester_user_id'=>'integer','advertiser_user_id'=>'integer','created_by_user_id'=>'integer',
             'accepted_at'=>'datetime','cancelled_at'=>'datetime',
         ];
@@ -63,5 +68,6 @@ class PropertyAgreement extends Model
 
     public function property(): BelongsTo { return $this->belongsTo(Property::class); }
     public function thread(): BelongsTo { return $this->belongsTo(MessageThread::class, 'message_thread_id'); }
+    public function saiTerm(): BelongsTo { return $this->belongsTo(PropertySaiTerm::class, 'sai_term_id'); }
     public function viewing(): BelongsTo { return $this->belongsTo(ViewingBooking::class, 'viewing_booking_id'); }
 }
