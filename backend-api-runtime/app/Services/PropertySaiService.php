@@ -36,8 +36,9 @@ class PropertySaiService
 
         return DB::transaction(function () use ($actor, $property, $payer, $brokerRate, $platformTermsDecision, $request): PropertySaiTerm {
             $locked = Property::query()->whereKey($property->id)->lockForUpdate()->firstOrFail();
-            if (in_array($locked->review_status, ['submitted', 'under_review', 'rejected_blocked'], true)) {
-                throw new ConflictHttpException('لا يمكن تعديل السعي والإعلان في حالة المراجعة الحالية.');
+            if ($locked->status === 'published'
+                || in_array($locked->review_status, ['submitted', 'under_review', 'rejected_blocked'], true)) {
+                throw new ConflictHttpException('عدّل الإعلان أولاً ليعود إلى المسودة، ثم أكد شروط السعي وأرسله للمراجعة من جديد.');
             }
 
             $advertiserType = $this->advertiserType($actor);
