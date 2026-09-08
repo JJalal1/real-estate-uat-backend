@@ -32,9 +32,10 @@ class MessageRepository {
     return MessageThreadSummary.fromJson(_dataMap(response.data));
   }
 
-  Future<MessageThreadDetails> details(int threadId) async {
+  Future<MessageThreadDetails> details(int threadId, {int? beforeId}) async {
     final response = await _dio.get<Map<String, dynamic>>(
         '/messages/threads/$threadId',
+        queryParameters: {if (beforeId != null) 'before_id': beforeId},
         options: await _auth.requiredAuthOptions());
     return MessageThreadDetails.fromJson(_dataMap(response.data));
   }
