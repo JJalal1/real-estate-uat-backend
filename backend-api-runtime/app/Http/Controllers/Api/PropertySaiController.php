@@ -25,10 +25,10 @@ class PropertySaiController extends Controller
         abort_unless($property->status === 'published' || $isOwner, 404);
 
         $data = ['sai' => $this->sai->publicData($property)];
-        // The default response is always public-safe, including for a logged-in
-        // advertiser viewing their own published listing. Internal split and
-        // consent state require an explicit owner-only management request.
-        if ($request->boolean('management') && $isOwner) {
+        // A published listing response is always public-safe, even when its
+        // advertiser is logged in. Internal split/acceptance data is exposed
+        // only while that advertiser is configuring a non-public listing.
+        if ($isOwner && $property->status !== 'published') {
             $data['sai_management'] = $this->sai->managementData($property, $viewer);
         }
 
