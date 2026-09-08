@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ListingReviewController;
 use App\Http\Controllers\Api\MessagingController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PropertyController;
+use App\Http\Controllers\Api\PropertyFavoriteController;
 use App\Http\Controllers\Api\RegionsController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\ServicePaymentController;
@@ -86,6 +87,12 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/properties/{property}/proof-documents', [PropertyController::class, 'uploadProofDocuments']);
     Route::delete('/properties/{property}/proof-documents/{document}', [PropertyController::class, 'deleteProofDocument']);
     Route::get('/listing-documents/{document}', [ListingReviewController::class, 'document']);
+
+    Route::get('/favorites', [PropertyFavoriteController::class, 'index']);
+    Route::get('/favorites/ids', [PropertyFavoriteController::class, 'ids']);
+    Route::get('/properties/{property}/favorite', [PropertyFavoriteController::class, 'status']);
+    Route::put('/properties/{property}/favorite', [PropertyFavoriteController::class, 'store']);
+    Route::delete('/properties/{property}/favorite', [PropertyFavoriteController::class, 'destroy']);
 
     Route::get('/account-verification', [AccountVerificationController::class, 'status']);
     Route::post('/account-verification', [AccountVerificationController::class, 'submit'])->middleware('throttle:4,1');
@@ -243,4 +250,3 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::get('/audit-logs', [AccessControlController::class, 'auditLogs'])->middleware('permission:audit.view');
     });
 });
-
