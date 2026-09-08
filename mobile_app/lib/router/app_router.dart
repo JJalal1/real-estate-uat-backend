@@ -27,16 +27,18 @@ import '../features/properties/presentation/my_listings_screen.dart';
 import '../features/properties/presentation/property_details_screen.dart';
 import '../features/regions/presentation/regions_management_screen.dart';
 import '../features/reviews/presentation/listing_review_screen.dart';
+import '../features/services/presentation/services_screen.dart';
 import '../features/support/presentation/support_admin_screen.dart';
 import '../features/support/presentation/support_center_screen.dart';
 import '../features/support/presentation/support_users_screen.dart';
 import '../features/support/presentation/support_work_log_screen.dart';
 import '../features/support/presentation/support_workspace_screen.dart';
-import '../features/services/presentation/services_screen.dart';
+import 'app_deep_links.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
+    redirect: (context, state) => internalLocationForAppLink(state.uri),
     errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
@@ -157,8 +159,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/bookings',
-        builder: (context, state) =>
-            const Stage6AuthGate(child: BookingsScreen()),
+        builder: (context, state) => Stage6AuthGate(
+          child: BookingsScreen(
+            initialBookingId:
+                int.tryParse(state.uri.queryParameters['booking'] ?? ''),
+          ),
+        ),
       ),
       GoRoute(
         path: '/services',

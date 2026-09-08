@@ -33,17 +33,13 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
     }
     try {
       final items = await ref.read(messageRepositoryProvider).threads();
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _items = items;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _error = friendlyApiError(error);
         _loading = false;
@@ -96,12 +92,37 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                         title: Text(item.otherUserName,
                             style:
                                 const TextStyle(fontWeight: FontWeight.w800)),
-                        subtitle: Text(
-                            item.lastMessagePreview ??
-                                item.propertyTitle ??
-                                'محادثة خاصة',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.lastMessagePreview ??
+                                    item.propertyTitle ??
+                                    'محادثة خاصة',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (item.isPropertyUnavailable) ...[
+                                const SizedBox(height: 4),
+                                const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.info_outline, size: 15),
+                                    SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        'الإعلان غير منشور حالياً — سجل المحادثة محفوظ',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                         trailing: item.unreadCount > 0
                             ? CircleAvatar(
                                 radius: 13,

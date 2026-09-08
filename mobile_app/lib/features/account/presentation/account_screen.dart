@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../services/data/service_repository.dart';
+import '../../../core/widgets/app_components.dart';
+import '../../properties/presentation/favorites_screen.dart';
 import '../data/auth_controller.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -16,15 +17,12 @@ class AccountScreen extends ConsumerWidget {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('حسابي')),
+        appBar: const AppAppBar(title: 'حسابي'),
         body: auth.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => Center(
-            child: FilledButton.icon(
-              onPressed: () => ref.read(authControllerProvider.notifier).refresh(),
-              icon: const Icon(Icons.refresh),
-              label: const Text('إعادة المحاولة'),
-            ),
+          loading: () => const AppLoadingState(),
+          error: (_, __) => AppErrorState(
+            message: 'تعذر تحميل بيانات الحساب.',
+            onRetry: () => ref.read(authControllerProvider.notifier).refresh(),
           ),
           data: (user) {
             final administrativeRole = user != null &&
@@ -32,45 +30,44 @@ class AccountScreen extends ConsumerWidget {
                     user.roles.contains('super_admin') ||
                     user.roles.contains('support_manager') ||
                     user.roles.contains('support_agent'));
-            final servicesHub = user != null && !administrativeRole
-                ? ref.watch(freeServicesHubProvider).asData?.value
-                : null;
             return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppLayout.compactPageGutter,
+                AppSpacing.s12,
+                AppLayout.compactPageGutter,
+                AppSpacing.s32,
+              ),
               children: [
-                _profileHeader(user),
-                const SizedBox(height: 14),
-                if (user == null) ...[
-                  FilledButton.icon(
+                _ProfileHeader(user: user),
+                const SizedBox(height: AppSpacing.s16),
+                if (user == null)
+                  AppButton(
+                    label: 'تسجيل الدخول أو إنشاء حساب',
+                    icon: Icons.login,
                     onPressed: () => context.push('/auth'),
-                    icon: const Icon(Icons.login),
-                    label: const Text('تسجيل الدخول أو إنشاء حساب'),
-                  ),
-                ] else ...[
-                  if (!user.isActive)
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.warning_amber_rounded),
-                        title: const Text('الحساب يحتاج تحقق الهاتف'),
-                        subtitle: Text(user.phone ?? ''),
-                        trailing: const Icon(Icons.chevron_left),
-                        onTap: () => context.push('/verify-phone'),
-                      ),
+                    expand: true,
+                  )
+                else ...[
+                  if (!user.isActive) ...[
+                    AppInlineMessage(
+                      title: 'الحساب يحتاج تحقق الهاتف',
+                      message: user.phone ?? 'أكمل تحقق الهاتف للمتابعة.',
+                      tone: AppStatusTone.warning,
                     ),
-                  if (user.needsProfileCompletion) ...[
-                    const SizedBox(height: 8),
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.edit_outlined),
-                        title: const Text('أكمل الاسم الرباعي'),
-                        subtitle: const Text('أكمل بيانات الحساب الأساسية.'),
-                        trailing: const Icon(Icons.chevron_left),
-                        onTap: () => context.push('/complete-profile'),
-                      ),
-                    ),
+                    const SizedBox(height: AppSpacing.s12),
                   ],
-                  const SizedBox(height: 8),
-                  _AccountMenu(
+                  if (user.needsProfileCompletion) ...[
+                    AppSurface(
+                      onTap: () => context.push('/complete-profile'),
+                      child: const AppListRow(
+                        title: 'أكمل الاسم الرباعي',
+                        subtitle: 'أكمل بيانات الحساب الأساسية.',
+                        leading: Icon(Icons.edit_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s12),
+                  ],
+                  _AccountGroup(
                     rows: [
                       _AccountRow(
                         'الملف الشخصي',
@@ -78,45 +75,45 @@ class AccountScreen extends ConsumerWidget {
                         () => context.push('/profile'),
                       ),
                       _AccountRow(
-                        'الرسائل',
-                        Icons.forum_outlined,
-                        () => context.push('/messages'),
-                      ),
-                      _AccountRow(
                         'الإشعارات',
                         Icons.notifications_outlined,
                         () => context.push('/notifications'),
                       ),
+                      if (!administrativeRole)
+                        _AccountRow(
+                          'الخدمات والأدوات',
+                          Icons.apps_outlined,
+                          () => context.push('/services'),
+                        ),
+                      if (!administrativeRole)
+                        _AccountRow(
+                          'المساعدة والدعم',
+                          Icons.help_outline,
+                          () => context.push('/support'),
+                        ),
                     ],
                   ),
-                  if (administrativeRole) ...[
-                    const SizedBox(height: 12),
-                    Card(
-                      color: AppTheme.brandSoft,
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.space_dashboard_outlined, color: AppTheme.brandStrong),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                user.isPlatformOwner || user.roles.contains('super_admin')
-                                    ? 'وظائف الإدارة موجودة الآن في «لوحة الإدارة» وليست داخل حسابي.'
-                                    : user.roles.contains('support_manager')
-                                        ? 'وظائف الإشراف موجودة الآن في «لوحة الدعم» و«الأعمال» و«الفريق».'
-                                        : 'وظائف العمل موجودة الآن في «الرئيسية» و«مهامي» و«مركز الدعم».',
-                                style: const TextStyle(fontWeight: FontWeight.w700, height: 1.4),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 12),
-                    Card(
-                      child: ListTile(
+                  const SizedBox(height: AppSpacing.s20),
+                  if (administrativeRole)
+                    AppInlineMessage(
+                      title: 'مساحة العمل منفصلة عن الحساب',
+                      message: user.isPlatformOwner || user.roles.contains('super_admin')
+                          ? 'وظائف الإدارة موجودة في «لوحة الإدارة».'
+                          : user.roles.contains('support_manager')
+                              ? 'وظائف الإشراف موجودة في «لوحة الدعم» و«الأعمال» و«الفريق».'
+                              : 'وظائف الدعم موجودة في «لوحة الدعم» و«الوارد» و«مهامي».',
+                      tone: AppStatusTone.info,
+                    )
+                  else ...[
+                    AppSurface(
+                      onTap: () => context.push('/account-verification'),
+                      child: AppListRow(
+                        title: 'نوع الحساب: ${user.accountTypeLabel}',
+                        subtitle: user.verificationProfile.status == 'approved'
+                            ? 'تم التحقق من صفتك المهنية.'
+                            : user.verificationProfile.status == 'pending'
+                                ? 'طلب التحقق قيد المراجعة من فريق الدعم.'
+                                : 'تحقق كمالك أو دلال أو مكتب عقارات عندما تحتاج إلى النشر.',
                         leading: Icon(
                           user.isOwner
                               ? Icons.home_work_outlined
@@ -124,100 +121,59 @@ class AccountScreen extends ConsumerWidget {
                                   ? Icons.real_estate_agent_outlined
                                   : user.isOffice
                                       ? Icons.apartment_outlined
-                                      : Icons.manage_accounts_outlined,
+                                      : Icons.verified_user_outlined,
                         ),
-                        title: Text(
-                          'نوع الحساب: ${user.accountTypeLabel}',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        subtitle: Text(
-                          user.verificationProfile.status == 'approved'
-                              ? 'تم التحقق ويمكنك النشر بهذه الصفة.'
-                              : user.verificationProfile.status == 'pending'
-                                  ? 'طلب التحقق قيد المراجعة من فريق الدعم.'
-                                  : 'اختر مالك أو دلال أو مكتب عقارات وارفع مستندات التحقق المطلوبة.',
-                        ),
-                        trailing: const Icon(Icons.chevron_left),
-                        onTap: () => context.push('/account-verification'),
                       ),
                     ),
+                    if (user.hasVerifiedPublishingProfile) ...[
+                      const SizedBox(height: AppSpacing.s24),
+                      const AppSectionHeader(title: 'إدارة عقاراتي'),
+                      const SizedBox(height: AppSpacing.s8),
+                      _AccountGroup(
+                        rows: [
+                          _AccountRow(
+                            'إعلاناتي',
+                            Icons.inventory_2_outlined,
+                            () => context.push('/my-listings'),
+                          ),
+                          _AccountRow(
+                            'إضافة عقار',
+                            Icons.add_home_work_outlined,
+                            () => context.push('/add-property'),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.s24),
+                    const AppSectionHeader(title: 'نشاطي'),
+                    const SizedBox(height: AppSpacing.s8),
+                    _AccountGroup(
+                      rows: [
+                        _AccountRow(
+                          'المعاينات',
+                          Icons.event_available_outlined,
+                          () => context.push('/bookings'),
+                        ),
+                        _AccountRow(
+                          'المفضلة',
+                          Icons.favorite_border,
+                          () => Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const FavoritesScreen(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
-                  const SizedBox(height: 10),
-                  TextButton.icon(
+                  const SizedBox(height: AppSpacing.s20),
+                  AppButton(
+                    label: 'تسجيل الخروج',
+                    icon: Icons.logout,
+                    style: AppButtonStyle.text,
                     onPressed: () async {
                       await ref.read(authControllerProvider.notifier).logout();
                     },
-                    icon: const Icon(Icons.logout),
-                    label: const Text('تسجيل الخروج'),
-                  ),
-                ],
-                if (!administrativeRole && user != null) ...[
-                  const SizedBox(height: 22),
-                  _sectionHeading(context, 'إدارة عقاراتي'),
-                  const SizedBox(height: 10),
-                  _AccountMenu(
-                    rows: [
-                      _AccountRow(
-                        'إضافة إعلان جديد',
-                        Icons.add_home_work_outlined,
-                        () => context.push('/add-property'),
-                      ),
-                      _AccountRow(
-                        'إعلاناتي',
-                        Icons.inventory_2_outlined,
-                        () => context.push('/my-listings'),
-                      ),
-                      _AccountRow(
-                        'طلبات المعاينة على عقاراتي',
-                        Icons.event_note_outlined,
-                        () => context.push('/bookings'),
-                      ),
-                      _AccountRow(
-                        'عقود الإيجار',
-                        Icons.description_outlined,
-                        () => _message(
-                          context,
-                          'عقود الإيجار ضمن التطوير الحالي وستُفعّل بعد اكتمال منطق العقود في الـBackend.',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  _sectionHeading(context, 'نشاطي'),
-                  const SizedBox(height: 10),
-                  _AccountMenu(
-                    rows: [
-                      _AccountRow(
-                        'المفضلة',
-                        Icons.favorite_border,
-                        () => _message(
-                          context,
-                          'المفضلة ستُربط بالحساب على الخادم ضمن مرحلة المفضلة الحالية.',
-                        ),
-                      ),
-                      _AccountRow(
-                        'طلبات العقار',
-                        Icons.manage_search_outlined,
-                        () => _message(
-                          context,
-                          'طلبات العقار ستُفعّل كطلبات حقيقية مرتبطة بالحساب في المرحلة التالية.',
-                        ),
-                      ),
-                      _AccountRow(
-                        'حجوزاتي',
-                        Icons.event_available_outlined,
-                        () => context.push('/bookings'),
-                      ),
-                      if (servicesHub?.can('view_researcher_requests') == true)
-                        _AccountRow(
-                          'طلبات الباحثين',
-                          Icons.person_search_outlined,
-                          () => _message(
-                            context,
-                            'طلبات الباحثين ستُفعّل للدلال والمكتب الموثقين في مرحلة المطابقة.',
-                          ),
-                        ),
-                    ],
                   ),
                 ],
               ],
@@ -227,50 +183,46 @@ class AccountScreen extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _sectionHeading(BuildContext context, String title) {
-    return Text(
-      title,
-      style: Theme.of(context)
-          .textTheme
-          .titleLarge
-          ?.copyWith(fontWeight: FontWeight.w900),
-    );
-  }
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({required this.user});
 
-  Widget _profileHeader(dynamic user) {
+  final dynamic user;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsetsDirectional.all(AppSpacing.s20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: AlignmentDirectional.topStart,
-          end: AlignmentDirectional.bottomEnd,
-          colors: [AppTheme.brand, AppTheme.brandStrong],
-        ),
-        borderRadius: BorderRadius.circular(24),
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(AppRadii.card),
       ),
       child: Row(
         children: [
-          const CircleAvatar(
-            radius: 32,
-            backgroundColor: Colors.white,
-            child: Icon(Icons.person_outline, size: 34, color: AppTheme.brandStrong),
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: scheme.surface,
+            child: Icon(Icons.person_outline, size: 32, color: scheme.primary),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: AppSpacing.s12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   user == null ? 'مرحباً بك' : user.name,
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpacing.s4),
                 Text(
                   user == null
-                      ? 'سجّل الدخول لإدارة حسابك.'
+                      ? 'تصفح العقارات بحرية وسجّل الدخول عند الحاجة.'
                       : (user.phone ?? user.email),
-                  style: const TextStyle(color: Colors.white70),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                 ),
               ],
             ),
@@ -279,39 +231,28 @@ class AccountScreen extends ConsumerWidget {
       ),
     );
   }
-
-  static void _message(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
 }
 
-class _AccountMenu extends StatelessWidget {
-  const _AccountMenu({required this.rows});
+class _AccountGroup extends StatelessWidget {
+  const _AccountGroup({required this.rows});
+
   final List<_AccountRow> rows;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
+    return AppSurface(
+      padding: EdgeInsets.zero,
       child: Column(
         children: List.generate(rows.length, (index) {
           final row = rows[index];
           return Column(
             children: [
-              ListTile(
-                leading: Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(color: AppTheme.brandSoft, borderRadius: BorderRadius.circular(12)),
-                  child: Icon(row.icon, color: AppTheme.brandStrong),
-                ),
-                title: Text(row.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                trailing: const Icon(Icons.chevron_left),
+              AppListRow(
+                title: row.title,
+                leading: Icon(row.icon),
                 onTap: row.onTap,
               ),
-              if (index != rows.length - 1) const Divider(),
+              if (index != rows.length - 1) const Divider(height: 1),
             ],
           );
         }),
@@ -322,6 +263,7 @@ class _AccountMenu extends StatelessWidget {
 
 class _AccountRow {
   const _AccountRow(this.title, this.icon, this.onTap);
+
   final String title;
   final IconData icon;
   final VoidCallback onTap;

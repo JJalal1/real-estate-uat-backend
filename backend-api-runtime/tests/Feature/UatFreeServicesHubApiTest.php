@@ -12,42 +12,57 @@ class UatFreeServicesHubApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_hub_is_free_and_owner_does_not_receive_researcher_requests(): void
+    public function test_verified_owner_receives_current_marketplace_service_contract(): void
     {
-        [, $headers] = $this->user('free-owner@example.test', '+967733410001', 'owner');
+        [, $headers] = $this->user('owner', '+967700000101', 'owner');
 
-        $this->withHeaders($headers)
+        $response = $this->withHeaders($headers)
             ->getJson('/api/services/hub')
             ->assertOk()
+            ->assertJsonPath('data.ui_version', 'free_services_v2')
             ->assertJsonPath('data.pricing_model', 'free')
             ->assertJsonPath('data.paid_features_enabled', false)
             ->assertJsonPath('data.account_type', 'owner')
             ->assertJsonPath('data.verified_professional', true)
             ->assertJsonPath('data.capabilities.create_listing', true)
-            ->assertJsonPath('data.capabilities.view_researcher_requests', false)
-            ->assertJsonPath('data.availability.create_listing', 'available');
+            ->assertJsonPath('data.capabilities.rental_contracts', true)
+            ->assertJsonPath('data.availability.create_listing', 'available')
+            ->assertJsonPath('data.availability.rental_contracts', 'planned');
+
+        $capabilities = $response->json('data.capabilities');
+        $availability = $response->json('data.availability');
+        $this->assertArrayNotHasKey('create_property_request', $capabilities);
+        $this->assertArrayNotHasKey('view_property_requests', $capabilities);
+        $this->assertArrayNotHasKey('view_researcher_requests', $capabilities);
+        $this->assertArrayNotHasKey('property_requests', $availability);
+        $this->assertArrayNotHasKey('researcher_requests', $availability);
     }
 
-    public function test_verified_broker_and_office_receive_researcher_request_capability(): void
+    public function test_verified_broker_and_office_share_the_same_launch_service_contract(): void
     {
-        [, $brokerHeaders] = $this->user('free-broker@example.test', '+967733410002', 'broker');
-        [, $officeHeaders] = $this->user('free-office@example.test', '+967733410003', 'office');
+        [, $brokerHeaders] = $this->user('broker', '+967700000102', 'broker');
+        [, $officeHeaders] = $this->user('office', '+967700000103', 'office');
 
         foreach ([$brokerHeaders, $officeHeaders] as $headers) {
-            $this->withHeaders($headers)
+            $response = $this->withHeaders($headers)
                 ->getJson('/api/services/hub')
                 ->assertOk()
                 ->assertJsonPath('data.paid_features_enabled', false)
-                ->assertJsonPath('data.capabilities.view_researcher_requests', true)
-                ->assertJsonPath('data.availability.researcher_requests', 'planned');
+                ->assertJsonPath('data.capabilities.create_listing', true)
+                ->assertJsonPath('data.capabilities.rental_contracts', true);
+
+            $this->assertArrayNotHasKey(
+                'view_researcher_requests',
+                $response->json('data.capabilities'),
+            );
         }
     }
 
-    public function test_pending_professional_profile_cannot_use_verified_professional_capabilities(): void
+    public function test_pending_professional_profile_cannot_use_professional_capabilities(): void
     {
         [, $headers] = $this->user(
-            'free-pending-broker@example.test',
-            '+967733410004',
+            'pending',
+            '+967700000104',
             'broker',
             AccountVerificationProfile::STATUS_PENDING,
         );
@@ -59,41 +74,46 @@ class UatFreeServicesHubApiTest extends TestCase
             ->assertJsonPath('data.verification_status', 'pending')
             ->assertJsonPath('data.verified_professional', false)
             ->assertJsonPath('data.capabilities.create_listing', false)
-            ->assertJsonPath('data.capabilities.view_researcher_requests', false)
+            ->assertJsonPath('data.capabilities.rental_contracts', false)
             ->assertJsonPath('data.availability.create_listing', 'requires_verification');
     }
 
-    public function test_basic_account_keeps_free_search_and_information_capabilities(): void
+    public function test_basic_account_keeps_non_professional_information_capabilities(): void
     {
-        [, $headers] = $this->user('free-basic@example.test', '+967733410005');
+        [, $headers] = $this->user('basic', '+967700000105');
 
-        $this->withHeaders($headers)
+        $response = $this->withHeaders($headers)
             ->getJson('/api/services/hub')
             ->assertOk()
             ->assertJsonPath('data.account_type', 'basic')
             ->assertJsonPath('data.pricing_model', 'free')
-            ->assertJsonPath('data.capabilities.create_property_request', true)
+            ->assertJsonPath('data.capabilities.create_listing', false)
+            ->assertJsonPath('data.capabilities.rental_contracts', false)
             ->assertJsonPath('data.capabilities.price_indicators', true)
             ->assertJsonPath('data.capabilities.property_valuation', true)
             ->assertJsonPath('data.capabilities.real_estate_guide', true)
-            ->assertJsonPath('data.capabilities.legal_library', true)
-            ->assertJsonPath('data.capabilities.view_researcher_requests', false);
+            ->assertJsonPath('data.capabilities.legal_library', true);
+
+        $this->assertArrayNotHasKey(
+            'create_property_request',
+            $response->json('data.capabilities'),
+        );
     }
 
     private function user(
-        string $email,
+        string $key,
         string $phone,
         ?string $profileType = null,
         string $profileStatus = AccountVerificationProfile::STATUS_APPROVED,
     ): array {
         $user = User::query()->create([
-            'name' => 'Free Services User',
-            'email' => $email,
+            'name' => 'Services Test User',
+            'email' => $key . '@example.test',
             'phone' => $phone,
             'phone_verified_at' => now(),
             'profile_completed_at' => now(),
             'account_status' => User::STATUS_ACTIVE,
-            'password' => Hash::make('StrongPass123!'),
+            'password' => Hash::make(str_repeat($key, 8)),
         ]);
 
         if ($profileType !== null) {
@@ -106,9 +126,9 @@ class UatFreeServicesHubApiTest extends TestCase
             ]);
         }
 
-        $plain = 'free_' . substr(hash('sha512', $email), 0, 80);
+        $plain = 'test_' . substr(hash('sha512', $key . $phone), 0, 80);
         $user->apiTokens()->create([
-            'name' => 'free-services-hub-test',
+            'name' => 'services-hub-test',
             'token_hash' => hash('sha256', $plain),
             'token_prefix' => substr($plain, 0, 12),
             'expires_at' => now()->addHour(),

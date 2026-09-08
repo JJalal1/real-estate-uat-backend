@@ -24,81 +24,86 @@ Once owner identity is approved, identity should not be re-verified for every li
 
 After submission, prevent accidental duplicate submission while the same request is pending unless the workflow explicitly supports resubmission after a requested correction.
 
-## 3. Listing publication
+## 3. Core marketplace journey
 
-High-level product path:
+The hardened listing path is:
 
-`create listing -> enter property data/media/location/required evidence -> submit -> shared support review queue -> support claim -> review -> approve | return for correction | reject`
+`verified advertiser -> create/edit property facts -> save draft -> media -> location -> required property-specific evidence -> preview -> explicit submit -> duplicate checks/signals -> shared support review queue -> support claim -> evidence review -> approve | return for correction | reject`
+
+Draft and submission are separate user decisions. Preview is non-mutating.
 
 If returned:
 
-`publisher sees reason -> edits -> resubmits -> review resumes`
+`publisher sees support reason -> edits the same returned_for_correction listing -> reason remains visible -> explicit resubmit -> review resumes`
 
 If approved:
 
-`published -> visible in public property browsing`
+`server re-checks advertiser eligibility + publication block + exact physical-property duplicate + region -> publish -> advertiser notification -> public browse/search/map -> property details -> favorite/share/contact -> conversation -> viewing -> agreement`
 
 Use current backend enum names before coding; do not invent a parallel status system.
 
-## 4. Support shared queue
+## 4. Duplicate physical property workflow
+
+Exact server-side protection uses `PropertyAsset` identity and publication checks:
+
+`listing facts -> resolve/create physical property identity -> check active publication/block -> submit/review -> lock listing + asset during approval -> re-check -> publish only if allowed`
+
+Phase 2 also adds explainable likely-duplicate review:
+
+`submitted listing -> compare same-type nearby reviewable/published listings -> score geographic proximity + normalized address + area + bedroom/bathroom similarity -> show candidates to support`
+
+Likely similarity never silently merges or fuzzy-rejects an uncertain property. When candidates exist, support must either:
+- record an auditable reason explaining why the candidate is a different physical property before approval; or
+- link the listing to the correct existing `PropertyAsset` with a reason.
+
+After linking, the normal exact duplicate/block rules remain authoritative.
+
+## 5. Support shared queue and listing review
 
 Normal behavior:
 
 `new item -> visible to eligible support staff -> one agent claims -> backend atomically assigns -> item leaves other agents' unassigned queue -> claimant sees it in My Tasks`
 
-Manager behavior may include assign/reassign/reopen/escalate based on permissions.
+For listing review, evidence-first handling is:
 
-Concurrent claim attempts must be decided by backend state/transaction logic. Flutter alone is insufficient.
+`claim -> inspect advertiser verification + property facts + public media + private relationship evidence + likely-duplicate candidates + review history -> approve | return | reject`
 
-## 5. Property Requests — planned Phase 2
+A support worker must own the claimed listing before a sensitive review decision. Managers retain their existing oversight permissions. Concurrent claim and decision attempts are decided by backend locks/state, never Flutter visibility alone.
 
-Intended flow:
+## 6. Listing evidence and media
 
-`user -> Request Property -> create persistent request -> active request appears in user's Property Requests`
+- Public listing images are separate from private verification/evidence documents.
+- A listing needs at least one public image before submission.
+- Owner relationship evidence is property-specific and is collected inside the canonical listing editor.
+- Owner evidence includes the relevant document type, document owner name, relationship type/note where needed, and private proof file.
+- Verified brokers/offices do not receive unrelated ownership requirements.
+- Private documents are accessible only through authorized endpoints and audited review context.
+- Draft media may be replaced/reordered through the supported editor behavior without exposing private evidence as public media.
 
-Typical filters/data:
+## 7. Listing notifications
 
-- buy/rent
-- property type
-- governorate
-- district
-- area
-- budget min/max
-- desired area
-- rooms when relevant
-- additional specifications
-- active duration
+The advertiser receives property-linked notifications for the review outcomes that require attention:
+- returned for correction;
+- approved/published;
+- final rejection/block.
 
-User capabilities:
+The entity reference is the real property/listing. Notification deep links still pass through authorization and current availability rules.
 
-- list own requests
-- open details
-- edit while allowed
-- close when no longer needed
-- see active/matched/closed/expired state
+## 8. Public discovery
 
-## 6. Researcher Requests — planned Phase 2
+Published properties are browsable without login.
 
-Eligibility:
+Primary buyer/renter path:
 
-- verified broker or verified real-estate office
-- backend capability/authorization required
+`open app -> browse/search/filter/map -> open property -> inspect gallery/details/advertiser -> save/share/contact as available`
 
-Flow:
+Draft, submitted, under-review, returned, or rejected listings remain outside public discovery. Approved publication makes the listing publicly readable. Unavailable/unpublished properties must show an explicit state and block invalid actions.
 
-`broker/office -> Researcher Requests -> suitable active request -> Suggest Property -> choose from own allowed approved/published properties -> submit suggestion`
-
-Then:
-
-`requester gets notification -> opens suggested property -> property details -> conversation -> viewing request`
-
-Protect against duplicate suggestion of the same property/request pair unless explicitly allowed later.
-
-## 7. Favorites — planned
+## 9. Favorites
 
 `property heart -> backend favorite(user_id, property_id) -> Favorites list`
 
-Cross-device behavior is required.
+Favorites are account-bound server state and work across devices.
 
 If property becomes unavailable:
 
@@ -106,65 +111,102 @@ If property becomes unavailable:
 
 Do not silently discard it from the user's history unless product rules later require cleanup.
 
-## 8. Viewing and bookings
+## 10. Conversation and viewing
 
-Viewing starts from a property:
+Viewing starts from a specific property and reuses the single property-linked conversation system.
 
-`property -> request viewing -> proposed date/time -> advertiser notification -> create/open related conversation -> advertiser confirms/reschedules/rejects -> requester sees every state change -> booking visible to both parties`
+### Conversation entry
+
+`published property -> contact -> resolve/reuse conversation(property + participant pair)`
+
+- New contact is blocked when the property is no longer published.
+- Existing participant conversation/history remains available after later unpublication with an explicit unavailable-listing state.
+- Normal private-content access is participant-only.
+- Support private-content access requires an active conversation report + dedicated permission and creates an auditable access event.
+
+### Message delivery
+
+`compose -> client_message_id -> server transaction -> create once -> recipient notification`
+
+If a request is retried with the same `client_message_id` and same body, return the existing logical message without duplicate delivery. The same key with a different body is a conflict.
+
+Conversation history:
+
+`open thread -> newest 100 messages -> optional before_id -> load older page -> merge without duplicate ids`
+
+Opening the newest page marks current visible conversation state read; loading an older page does not move the read marker backwards.
+
+### Initial viewing request
+
+`requester proposes time -> requested -> advertiser confirm | advertiser reject | allowed party cancel`
+
+### Requester reschedule
+
+`requested|confirmed -> requester proposes new time -> requested -> advertiser confirms | advertiser rejects | allowed party cancels`
+
+### Advertiser reschedule
+
+`requested|confirmed -> advertiser proposes new time -> requested -> requester explicitly accepts | requester proposes another time | allowed party cancels`
+
+The advertiser cannot self-confirm its own replacement time.
+
+### Completion
+
+`confirmed -> scheduled end passes -> authorized host/manager marks completed`
+
+`completed`, `declined`, and `cancelled` are terminal for normal booking actions.
+
+Backend transactions/locks decide concurrent booking state and overlap conflicts. Flutter controls are not authorization.
 
 Expected linkages:
+- target property or supported development unit;
+- advertiser/host;
+- requester;
+- message thread for property viewings;
+- proposed/confirmed appointment;
+- status;
+- immutable event history.
 
-- property
-- advertiser
-- requester
-- conversation/thread
-- proposed/confirmed appointment
-- status
-- change history
-
-## 9. Rental contracts — planned
+## 11. Rental contracts — planned launch-critical phase
 
 Preferred journey:
 
 `listing -> viewing -> conversation/agreement -> create rental contract -> other party confirms -> agreed/active contract`
 
 Contract references:
-
-- property
-- landlord
-- tenant
-- rent value/currency
-- optional deposit
-- start/end dates
-- payment frequency
-- terms/notes
-- related conversation where appropriate
+- property;
+- landlord;
+- tenant;
+- rent value/currency;
+- optional deposit;
+- start/end dates;
+- payment frequency;
+- terms/notes;
+- related conversation where appropriate.
 
 No government-verification claim without real integration.
 
-## 10. Price indicators — planned
+## 12. Price indicators — planned
 
 Input filters may include:
-
-- governorate
-- district
-- area
-- property type
-- sale/rent
+- governorate;
+- district;
+- area;
+- property type;
+- sale/rent.
 
 Use only published/approved eligible platform listings.
 
 Potential output:
-
-- average price
-- average price per square unit when meaningful
-- common range
-- median
-- sample size
+- average price;
+- average price per square unit when meaningful;
+- common range;
+- median;
+- sample size.
 
 Always communicate sample scope.
 
-## 11. Property valuation — planned
+## 13. Property valuation — planned
 
 Use the same backend engine/data rules as price indicators.
 
@@ -172,18 +214,26 @@ Use the same backend engine/data rules as price indicators.
 
 Never generate a fake market estimate if data is inadequate.
 
-## 12. Notifications/deep links
+## 14. Guide and legal content
 
-Workflow notifications should contain enough reference data to open the actual entity/step, not only a generic notifications page.
+Real-estate Guide and Legal Documents are informational tools. They must not be presented as government certification or legal advice without a real verified integration/source.
 
-Examples:
+## 15. Notifications/deep links
 
-- suitable property request
-- property suggestion
-- viewing request
-- viewing confirmation/reschedule/cancel
-- message related to a request/property
-- contract confirmation request
-- contract state change
+Workflow notifications contain enough reference data to open the actual entity/step rather than only a generic notifications page.
 
-Deep-link handling must still respect authorization when the target opens.
+Phase 4 routing:
+- message/property-viewing notification with `message_thread_id` -> exact conversation;
+- standalone viewing notification with `booking_id` -> `/bookings?booking={id}` and highlighted booking;
+- property notification -> exact property when available.
+
+Owned application links include:
+- `realestate://app/properties/{id}`;
+- `realestate://app/messages/{threadId}`;
+- `realestate://app/bookings/{bookingId}`.
+
+Private deep-link targets always pass authentication/authorization after routing.
+
+## 16. Deferred request/matching concept
+
+Property Requests, Researcher Requests, and broker-driven suggestion/matching are deferred and are not a launch-critical prerequisite. Do not implement or expose them as the main journey unless explicitly re-approved by the product owner.

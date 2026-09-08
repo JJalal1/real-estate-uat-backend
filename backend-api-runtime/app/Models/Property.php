@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,28 +12,72 @@ class Property extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id','property_asset_id','geo_cell_id','owner_key','title','description','purpose','type','tenure_type','price','currency',
-        'area_m2','area_value','area_unit','bedrooms','bathrooms','has_parking','building_facade','address','latitude','longitude','status',
-        'contact_phone','contact_whatsapp','ownership_document_type','document_owner_name','owner_relationship_type','owner_relationship_note','review_status','submitted_at','published_at','reviewed_at','last_review_reason',
+        'user_id', 'property_asset_id', 'geo_cell_id', 'owner_key', 'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
+        'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude', 'status',
+        'contact_phone', 'contact_whatsapp', 'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note', 'review_status', 'submitted_at', 'published_at', 'reviewed_at', 'last_review_reason',
     ];
 
     protected $casts = [
-        'price'=>'float','latitude'=>'float','longitude'=>'float','area_m2'=>'integer','area_value'=>'float',
-        'bedrooms'=>'integer','bathrooms'=>'integer','has_parking'=>'boolean','submitted_at'=>'datetime','published_at'=>'datetime','reviewed_at'=>'datetime',
+        'price' => 'float', 'latitude' => 'float', 'longitude' => 'float', 'area_m2' => 'integer', 'area_value' => 'float',
+        'bedrooms' => 'integer', 'bathrooms' => 'integer', 'has_parking' => 'boolean', 'submitted_at' => 'datetime', 'published_at' => 'datetime', 'reviewed_at' => 'datetime',
     ];
 
-    public function user(): BelongsTo { return $this->belongsTo(User::class); }
-    public function propertyAsset(): BelongsTo { return $this->belongsTo(PropertyAsset::class, 'property_asset_id'); }
-    public function geoCell(): BelongsTo { return $this->belongsTo(GeoCell::class, 'geo_cell_id'); }
+    protected static function booted(): void
+    {
+        static::updating(function (Property $property): void {
+            // `returned_for_correction` is an editable workflow state, not a
+            // disposable label. Legacy update code normalizes editable listings
+            // to draft; preserve the support correction context until explicit
+            // resubmission moves the same listing back to `submitted`.
+            if ($property->getOriginal('review_status') === 'returned_for_correction'
+                && $property->review_status === 'draft') {
+                $property->review_status = 'returned_for_correction';
+                $property->last_review_reason = $property->getOriginal('last_review_reason');
+                $property->reviewed_at = $property->getOriginal('reviewed_at');
+            }
+        });
+    }
 
-    public function documents(): HasMany { return $this->hasMany(ListingDocument::class)->orderBy('id'); }
-    public function reviews(): HasMany { return $this->hasMany(ListingReview::class, 'listing_id')->orderBy('id'); }
-    public function comments(): HasMany { return $this->hasMany(ListingComment::class)->orderBy('id'); }
-    public function brokerVerifications(): HasMany { return $this->hasMany(ListingBrokerVerification::class, 'listing_id')->orderBy('id'); }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function propertyAsset(): BelongsTo
+    {
+        return $this->belongsTo(PropertyAsset::class, 'property_asset_id');
+    }
+
+    public function geoCell(): BelongsTo
+    {
+        return $this->belongsTo(GeoCell::class, 'geo_cell_id');
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ListingDocument::class)->orderBy('id');
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(ListingReview::class, 'listing_id')->orderBy('id');
+    }
+
+    public function comments(): HasMany
+    {
+        return $this->hasMany(ListingComment::class)->orderBy('id');
+    }
+
+    public function brokerVerifications(): HasMany
+    {
+        return $this->hasMany(ListingBrokerVerification::class, 'listing_id')->orderBy('id');
+    }
 
     public function images(): HasMany
     {
         return $this->hasMany(PropertyImage::class)
-            ->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id');
+            ->orderByDesc('is_primary')
+            ->orderBy('sort_order')
+            ->orderBy('id');
     }
 }
