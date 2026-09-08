@@ -6,11 +6,11 @@ Last updated: 2026-09-08
 
 Phase 3 — Buyer Discovery Completion + Server-side Favorites is CLOSED by explicit product-owner acceptance after successful automated gates and real-device Android acceptance.
 
-Phase 4 — Messaging + Viewing Journey Hardening is the active engineering phase.
+Phase 4 — Messaging + Viewing Journey Hardening is the active engineering phase and is now an automated/UAT-database closure candidate.
 
 Branch: `phase4/messaging-viewing-hardening`
 Draft PR: #17 targeting `phase1/ux-product-foundation`
-Draft UAT integration PR: #18 targeting `audit/system-stabilization` — do not merge until final-head Phase 4 CI executes and passes.
+Draft UAT integration PR: #18 targeting `audit/system-stabilization`
 Canonical Phase 4 contract: `docs/PHASE4_MESSAGING_VIEWING_HARDENING.md`
 
 Current Phase 4 source outcome:
@@ -31,11 +31,21 @@ Current Phase 4 source outcome:
 - role-aware Arabic pending-reschedule labels/actions are implemented;
 - dedicated Phase 4 Laravel + PostgreSQL 17/PostGIS + Flutter + release APK CI exists.
 
-Automated evidence available during implementation:
-- an earlier Phase 4 gate passed the full Laravel regression and PostgreSQL 17/PostGIS migration/security + Phase 4 acceptance on an earlier source head;
-- later source changes added notification-destination, state-edge, CI-de-duplication, and documentation hardening, so final-head CI is still required;
-- the latest Phase 4 GitHub Actions attempts fail before runner assignment (`runner_id: 0`, no job steps), rather than from a Laravel/PostgreSQL/Flutter test failure;
-- closed Phase 1/2/3 workflows now skip later-phase PRs so Phase 4 is the only pipeline requesting runners for the active branch.
+Final-head automated evidence is COMPLETE:
+- accepted Phase 4 CI head: `fadac78ad5ce3abb260c5db468ea175d2d9a6a54`;
+- Phase 4 Messaging Viewing CI run #48 / `34275753072`: SUCCESS;
+- full Laravel regression suite: SUCCESS;
+- explicit Phase 4 Laravel messaging/viewing contract: SUCCESS;
+- PostgreSQL 17 + PostGIS complete migration chain: SUCCESS;
+- PostgreSQL security/schema regression + Phase 4 acceptance: SUCCESS;
+- `flutter analyze`: SUCCESS;
+- full Flutter test suite: SUCCESS;
+- compile-time UAT endpoint verification: SUCCESS;
+- release UAT APK build/upload: SUCCESS;
+- APK artifact: `real-estate-phase4-uat-apk-48`;
+- artifact digest: `sha256:040118c60d24b83156842ff83d1c6816f4c1b95279cc68f0fa62a1438127bcbc`.
+
+The earlier zero-step GitHub Actions failures were runner/quota behavior while the repository was private, not application test failures. After the product owner changed repository visibility to public, hosted runners executed normally and exposed one stale source-location test; that test was corrected to follow the extracted notification-destination contract, after which run #48 passed all final-head gates. The repository is currently public; secrets and credentials must remain outside Git history.
 
 Supabase UAT Phase 4 schema evidence is COMPLETE:
 - migration `harden_phase4_messaging_viewings` is already recorded in UAT;
@@ -46,13 +56,14 @@ Supabase UAT Phase 4 schema evidence is COMPLETE:
 - Security Advisor shows only the intentional deny-all `rls_enabled_no_policy` INFO;
 - Performance Advisor shows existing `unused_index` INFO only; no index deletion is justified without workload evidence.
 
-Render UAT is NOT running Phase 4 yet. The service remains on `audit/system-stabilization` with auto-deploy disabled. PR #18 is prepared as the UAT-only integration path, but it must remain Draft until final-head Phase 4 CI can execute and pass.
+Render UAT is NOT yet verified running Phase 4. The last confirmed service source is `audit/system-stabilization` with auto-deploy disabled. PR #18 is the prepared UAT-only integration path. Successful CI and Supabase verification do not by themselves prove the Render runtime is on the Phase 4 code.
 
-No merge is approved. PR #17 and PR #18 remain Draft/unmerged. No Production deployment is implied.
+No merge to `main` is approved and no Production deployment is implied. PR #17 and PR #18 remain unmerged until their respective next actions are executed.
 
 ## Current repository / environment
 
 - Repository: `JJalal1/real-estate-uat-backend`
+- Current repository visibility: public
 - Primary branch: `main`
 - Integration branch: `phase1/ux-product-foundation`
 - UAT runtime branch: `audit/system-stabilization`
@@ -115,7 +126,7 @@ Accepted outcome:
 Accepted Phase 3 automated evidence:
 - accepted CI head: `44af494bd3dd586b693903ced5901e9d143f2d90`;
 - Phase 3 Buyer Discovery CI run #34 / `34174945119`: SUCCESS;
-- Phase 2 regression on the same head: SUCCESS;
+- Phase 2 regression on the same accepted head: SUCCESS;
 - APK artifact: `real-estate-phase3-uat-apk-34`;
 - artifact digest: `sha256:3ed8a4f6a8343c6346ff54b6e15a191da9ee32f41901a781ec1edade78cd1631`.
 
@@ -141,17 +152,16 @@ Current engineering scope includes:
 9. Flutter inbox/conversation/viewing UX hardening;
 10. dedicated Laravel/PostgreSQL/Flutter/APK acceptance.
 
-Still required before final phase acceptance:
-- final-head Phase 4 CI must receive runners and pass Laravel + PostgreSQL 17/PostGIS + Flutter tests;
-- final-head UAT release APK artifact must build;
-- merge UAT integration PR #18 into `audit/system-stabilization` only after that CI gate;
-- manually deploy Render UAT and verify `/api/health` plus the live property-linked messaging/viewing journey;
-- real Android acceptance before final product-owner Phase 4 closure/beta readiness.
+Completed closure gates:
+- final-head Phase 4 CI passed Laravel + PostgreSQL 17/PostGIS + Flutter tests;
+- final-head UAT release APK artifact built and uploaded;
+- Supabase UAT Phase 4 migration/schema/security verification completed.
 
-Current external blocker:
-- recent Phase 4 GitHub-hosted jobs fail before any workflow step executes, with no assigned runner;
-- GitHub's public Actions status is operational, so no code regression is inferred from these zero-step failures;
-- private-repository Actions usage is subject to the repository owner's plan minutes/storage/budget. The available repository connector does not expose account Billing/Usage, so the exact account-level quota/budget reason is not yet observable programmatically.
+Still required before final product-owner Phase 4 acceptance:
+- integrate Phase 4 into the UAT runtime branch and deploy Render UAT;
+- verify Render `/api/health` and the live property-linked messaging/viewing journey;
+- install/test the Phase 4 Android candidate on a real device;
+- explicit product-owner Phase 4 acceptance after device verification.
 
 ## Current product direction
 
