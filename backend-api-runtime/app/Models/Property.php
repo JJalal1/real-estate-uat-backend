@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\PropertySaiService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +13,7 @@ class Property extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'property_asset_id', 'geo_cell_id', 'owner_key', 'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
+        'user_id', 'property_asset_id', 'current_sai_term_id', 'geo_cell_id', 'owner_key', 'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
         'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude', 'status',
         'contact_phone', 'contact_whatsapp', 'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note', 'review_status', 'submitted_at', 'published_at', 'reviewed_at', 'last_review_reason',
     ];
@@ -24,6 +25,38 @@ class Property extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (Property $property): void {
+            if (! $property->exists) {
+                return;
+            }
+            $stateChanged = $property->isDirty('status') || $property->isDirty('review_status');
+            if (! $stateChanged) {
+                return;
+            }
+            $requiresReadySai = in_array((string) $property->status, ['pending', 'published'], true)
+                || in_array((string) $property->review_status, ['submitted', 'under_review', 'approved'], true);
+            if (! $requiresReadySai) {
+                return;
+            }
+
+            /** @var User $advertiser */
+            $advertiser = $property->user()->firstOrFail();
+            // Current product listing publication is for an approved
+            // owner/broker/office profile. Historical fixtures and legacy
+            // records without that profile predate the sai contract and must
+            // not be retroactively rewritten by merely touching their state.
+            if (! $advertiser->verificationProfile()?->isApproved()) {
+                return;
+            }
+
+            // The listing object may have been loaded before sai configuration.
+            // Always validate the persisted current term pointer from the DB,
+            // while respecting an in-flight purpose edit that will be saved now.
+            $policyProperty = Property::query()->findOrFail($property->getKey());
+            $policyProperty->purpose = $property->purpose;
+            app(PropertySaiService::class)->assertReadyForSubmission($policyProperty, $advertiser);
+        });
+
         static::updating(function (Property $property): void {
             // `returned_for_correction` is an editable workflow state, not a
             // disposable label. Legacy update code normalizes editable listings
@@ -46,6 +79,11 @@ class Property extends Model
     public function propertyAsset(): BelongsTo
     {
         return $this->belongsTo(PropertyAsset::class, 'property_asset_id');
+    }
+
+    public function currentSaiTerm(): BelongsTo
+    {
+        return $this->belongsTo(PropertySaiTerm::class, 'current_sai_term_id');
     }
 
     public function geoCell(): BelongsTo

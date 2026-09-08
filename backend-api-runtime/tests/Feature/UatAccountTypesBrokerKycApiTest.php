@@ -126,6 +126,12 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             'owner_relationship_type' => 'agent',
         ])->assertOk();
 
+        $this->withHeaders($ownerHeaders)->putJson("/api/properties/$listingId/sai", [
+            'sai_payer' => 'seller',
+        ])->assertOk()
+            ->assertJsonPath('data.sai.rate_percent', 1)
+            ->assertJsonPath('data.sai.payer', 'seller');
+
         $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
             ->assertOk()->assertJsonPath('data.review_status', 'submitted');
 
@@ -163,15 +169,26 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->assertJsonPath('data.verification_flags.identity_reviewed', true)
             ->assertJsonPath('data.verification_flags.professional_document_reviewed', true);
 
-        $listingResponse = $this->withHeaders($headers)
-            ->post('/api/properties', array_merge(
-                $this->listingPayload('Professional broker listing'),
-                ['submit_for_review' => 1],
-            ))
+        $listingId = (int) $this->withHeaders($headers)
+            ->post('/api/properties', $this->listingPayload('Professional broker listing'))
             ->assertCreated()
+            ->assertJsonPath('data.review_status', 'draft')
+            ->assertJsonPath('data.status', 'draft')
+            ->json('data.id');
+
+        // 0% professional sai deliberately activates the fixed platform sai;
+        // it is not a no-sai listing and does not require the broker 20% split consent.
+        $this->withHeaders($headers)->putJson("/api/properties/$listingId/sai", [
+            'sai_payer' => 'buyer',
+            'broker_sai_rate_percent' => 0,
+        ])->assertOk()
+            ->assertJsonPath('data.sai.rate_percent', 1)
+            ->assertJsonPath('data.sai_management.source_mode', 'platform_fallback');
+
+        $this->withHeaders($headers)->postJson("/api/properties/$listingId/submit")
+            ->assertOk()
             ->assertJsonPath('data.review_status', 'submitted')
             ->assertJsonPath('data.status', 'pending');
-        $listingId = (int) $listingResponse->json('data.id');
 
         $this->assertDatabaseMissing('listing_documents', [
             'property_id' => $listingId,
@@ -212,12 +229,22 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->assertJsonPath('data.verification_flags.office_documents_reviewed', true)
             ->assertJsonPath('data.verification_flags.office_location_registered', true);
 
-        $this->withHeaders($headers)
-            ->post('/api/properties', array_merge(
-                $this->listingPayload('Office listing'),
-                ['submit_for_review' => 1],
-            ))
+        $listingId = (int) $this->withHeaders($headers)
+            ->post('/api/properties', $this->listingPayload('Office listing'))
             ->assertCreated()
+            ->assertJsonPath('data.review_status', 'draft')
+            ->assertJsonPath('data.status', 'draft')
+            ->json('data.id');
+
+        $this->withHeaders($headers)->putJson("/api/properties/$listingId/sai", [
+            'sai_payer' => 'seller',
+            'broker_sai_rate_percent' => 0,
+        ])->assertOk()
+            ->assertJsonPath('data.sai.rate_percent', 1)
+            ->assertJsonPath('data.sai_management.source_mode', 'platform_fallback');
+
+        $this->withHeaders($headers)->postJson("/api/properties/$listingId/submit")
+            ->assertOk()
             ->assertJsonPath('data.review_status', 'submitted')
             ->assertJsonPath('data.status', 'pending');
     }

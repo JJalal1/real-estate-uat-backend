@@ -16,6 +16,9 @@ import '../features/account/presentation/profile_screen.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/admin/presentation/audit_log_screen.dart';
 import '../features/admin/presentation/platform_settings_screen.dart';
+import '../features/agreements/presentation/agreement_detail_screen.dart';
+import '../features/agreements/presentation/agreements_screen.dart';
+import '../features/agreements/presentation/rental_contract_detail_screen.dart';
 import '../features/app_shell/presentation/app_shell_screen.dart';
 import '../features/bookings/presentation/bookings_screen.dart';
 import '../features/messages/presentation/conversation_reports_screen.dart';
@@ -144,6 +147,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
           return Stage6AuthGate(
             child: ConversationScreen(threadId: threadId),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/agreements',
+        builder: (context, state) =>
+            const Stage6AuthGate(child: AgreementsScreen()),
+      ),
+      GoRoute(
+        path: '/agreements/:id',
+        builder: (context, state) {
+          final agreementId = int.tryParse(state.pathParameters['id'] ?? '');
+          if (agreementId == null || agreementId <= 0) {
+            return const _RouteErrorScreen();
+          }
+          return Stage6AuthGate(
+            child: AgreementDetailScreen(agreementId: agreementId),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/rental-contracts/:id',
+        builder: (context, state) {
+          final contractId = int.tryParse(state.pathParameters['id'] ?? '');
+          if (contractId == null || contractId <= 0) {
+            return const _RouteErrorScreen();
+          }
+          return Stage6AuthGate(
+            child: RentalContractDetailScreen(contractId: contractId),
           );
         },
       ),

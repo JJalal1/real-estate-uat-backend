@@ -1,4 +1,4 @@
-name: Phase 4 Messaging Viewing CI
+name: Property Sai Policy CI
 
 on:
   workflow_dispatch:
@@ -7,16 +7,17 @@ on:
     paths:
       - 'backend-api-runtime/**'
       - 'mobile_app/**'
+      - 'docs/SAI_POLICY.md'
       - 'docs/AI_PROJECT_STATE.md'
       - 'docs/BUSINESS_RULES.md'
       - 'docs/WORKFLOWS.md'
       - 'docs/DECISIONS.md'
       - 'docs/AI_CHANGELOG.md'
-      - 'docs/PHASE4_MESSAGING_VIEWING_HARDENING.md'
+      - '.github/workflows/sai-policy-ci.yml'
       - '.github/workflows/phase4-messaging-viewing-ci.yml'
 
 concurrency:
-  group: phase4-messaging-viewing-${{ github.event.pull_request.number || github.ref }}
+  group: property-sai-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -27,10 +28,9 @@ permissions:
 
 jobs:
   backend-tests:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase4/')
-    name: Laravel messaging and viewing regression suite
+    name: Laravel full regression and sai policy
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 22
     defaults:
       run:
         working-directory: backend-api-runtime
@@ -54,14 +54,13 @@ jobs:
         run: composer validate --no-check-publish
       - name: Run full Laravel suite
         run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
-      - name: Validate Phase 4 messaging and viewing contract
-        run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Validate locked sai policy contract
+        run: php artisan test tests/Feature/PropertySaiPolicyAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   postgres-validation:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase4/')
-    name: PostgreSQL 17 and PostGIS messaging viewing acceptance
+    name: PostgreSQL 17 PostGIS sai schema and policy
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 22
     services:
       postgres:
         image: postgis/postgis:17-3.5
@@ -104,22 +103,21 @@ jobs:
           set -euo pipefail
           key="$(php -r 'echo base64_encode(random_bytes(32));')"
           printf 'APP_KEY=base64:%s\n' "$key" > .env
-      - name: Prepare API roles
+      - name: Prepare direct API roles
         run: >-
           psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
           -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
       - name: Apply complete migration chain
         run: php artisan migrate --force
-      - name: Validate PostgreSQL security and schema regression
+      - name: Validate PostgreSQL security and indexes
         run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
-      - name: Validate Phase 4 messaging and viewing on PostgreSQL
-        run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Validate sai policy on PostgreSQL
+        run: php artisan test tests/Feature/PropertySaiPolicyAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   flutter-validation:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase4/')
-    name: Flutter messaging viewing tests and UAT APK
+    name: Flutter sai UX tests and UAT APK
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 38
     needs: [backend-tests, postgres-validation]
     steps:
       - uses: actions/checkout@v4
@@ -154,10 +152,10 @@ jobs:
       - name: Build UAT APK
         working-directory: mobile_app
         run: flutter build apk --release --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
-      - name: Upload UAT APK
+      - name: Upload sai UAT APK
         uses: actions/upload-artifact@v4
         with:
-          name: real-estate-phase4-uat-apk-${{ github.run_number }}
+          name: real-estate-sai-uat-apk-${{ github.run_number }}
           path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14

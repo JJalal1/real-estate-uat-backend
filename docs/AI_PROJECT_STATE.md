@@ -1,19 +1,21 @@
 # AI Project State — REAL ESTATE UAT
 
-Last updated: 2026-09-08
+Last updated: 2026-09-09
 
-## Current gate — Phase 4 closure candidate
+## Current gate — Phase 4 CLOSED; next work is product-owner priority intake
 
 Phase 3 — Buyer Discovery Completion + Server-side Favorites is CLOSED by explicit product-owner acceptance after successful automated gates and real-device Android acceptance.
 
-Phase 4 — Messaging + Viewing Journey Hardening is the active engineering phase and is now an automated/UAT-database closure candidate.
+Phase 4 — Messaging + Viewing Journey Hardening is CLOSED by explicit product-owner acceptance after successful automated gates, Supabase UAT verification, Render UAT deployment, and real-device Android acceptance.
 
-Branch: `phase4/messaging-viewing-hardening`
-Draft PR: #17 targeting `phase1/ux-product-foundation`
-Draft UAT integration PR: #18 targeting `audit/system-stabilization`
-Canonical Phase 4 contract: `docs/PHASE4_MESSAGING_VIEWING_HARDENING.md`
+Phase 4 tracker: #16 — CLOSED as completed.
+Phase 4 PR: #17 -> `phase1/ux-product-foundation` — merged.
+UAT integration PR: #18 -> `audit/system-stabilization` — merged.
+Canonical Phase 4 contract: `docs/PHASE4_MESSAGING_VIEWING_HARDENING.md`.
 
-Current Phase 4 source outcome:
+There is deliberately no automatically active “Phase 5” after Phase 4. The product owner explicitly deferred the previously discussed later roadmap items and intends to prioritize other work first. Future work must be selected from new product-owner priorities rather than inferred from old numbering.
+
+Current Phase 4 accepted outcome:
 - one property-linked conversation system retained; no parallel chat/viewing implementation;
 - concurrent property conversation opens reuse the same thread;
 - participant-only normal private-message access retained;
@@ -29,11 +31,11 @@ Current Phase 4 source outcome:
 - terminal booking states are not reopened by normal state actions;
 - viewing lifecycle notifications open the exact booking while new-message notifications open the exact property-linked conversation;
 - role-aware Arabic pending-reschedule labels/actions are implemented;
-- dedicated Phase 4 Laravel + PostgreSQL 17/PostGIS + Flutter + release APK CI exists.
+- dedicated Phase 4 Laravel + PostgreSQL 17/PostGIS + Flutter + release APK CI is green.
 
-Final-head automated evidence is COMPLETE:
-- accepted Phase 4 CI head: `fadac78ad5ce3abb260c5db468ea175d2d9a6a54`;
-- Phase 4 Messaging Viewing CI run #48 / `34275753072`: SUCCESS;
+Final Phase 4 automated evidence:
+- final documented CI head: `1513399f5c0bb6a8d916c5515cba095389c3c2df`;
+- Phase 4 Messaging Viewing CI run #50 / `34276623699`: SUCCESS;
 - full Laravel regression suite: SUCCESS;
 - explicit Phase 4 Laravel messaging/viewing contract: SUCCESS;
 - PostgreSQL 17 + PostGIS complete migration chain: SUCCESS;
@@ -42,13 +44,13 @@ Final-head automated evidence is COMPLETE:
 - full Flutter test suite: SUCCESS;
 - compile-time UAT endpoint verification: SUCCESS;
 - release UAT APK build/upload: SUCCESS;
-- APK artifact: `real-estate-phase4-uat-apk-48`;
-- artifact digest: `sha256:040118c60d24b83156842ff83d1c6816f4c1b95279cc68f0fa62a1438127bcbc`.
+- APK artifact: `real-estate-phase4-uat-apk-50`;
+- artifact digest: `sha256:6a1903236fff5abc966fdb4b4d452b2b022fe22db3f28f79add808438a0af665`.
 
-The earlier zero-step GitHub Actions failures were runner/quota behavior while the repository was private, not application test failures. After the product owner changed repository visibility to public, hosted runners executed normally and exposed one stale source-location test; that test was corrected to follow the extracted notification-destination contract, after which run #48 passed all final-head gates. The repository is currently public; secrets and credentials must remain outside Git history.
+The earlier zero-step GitHub Actions failures were runner/quota behavior while the repository was private, not application test failures. After the product owner changed repository visibility to public, hosted runners executed normally. The repository is currently public; secrets and credentials must remain outside Git history.
 
 Supabase UAT Phase 4 schema evidence is COMPLETE:
-- migration `harden_phase4_messaging_viewings` is already recorded in UAT;
+- migration `2026_09_08_010000_harden_phase4_messaging_viewings` is recorded in Laravel migration history;
 - `private_messages.client_message_id` is nullable `varchar(100)`;
 - unique `(thread_id, sender_user_id, client_message_id)` index exists;
 - RLS remains enabled;
@@ -56,9 +58,21 @@ Supabase UAT Phase 4 schema evidence is COMPLETE:
 - Security Advisor shows only the intentional deny-all `rls_enabled_no_policy` INFO;
 - Performance Advisor shows existing `unused_index` INFO only; no index deletion is justified without workload evidence.
 
-Render UAT is NOT yet verified running Phase 4. The last confirmed service source is `audit/system-stabilization` with auto-deploy disabled. PR #18 is the prepared UAT-only integration path. Successful CI and Supabase verification do not by themselves prove the Render runtime is on the Phase 4 code.
+During the first Render rollout, `property_favorites` already existed while its Laravel migration-history row was missing. The live table was verified to match the repository migration exactly, including columns, PK, cascading FKs, unique key, supporting index, RLS, and deny-all direct grants. Only the missing Laravel bookkeeping row was inserted; no table/data DDL was reapplied and no user data was modified.
 
-No merge to `main` is approved and no Production deployment is implied. PR #17 and PR #18 remain unmerged until their respective next actions are executed.
+Render UAT Phase 1–4 runtime evidence is COMPLETE:
+- UAT integration merge commit: `dd9e06d2c613a5322bb9ab34e2e1f869c2d924de`;
+- Render service: `real-estate-uat-api`;
+- successful deploy: `dep-dag7gkmk1f9s738b0tb0`;
+- deploy status: `live`;
+- Cloud UAT environment check passed;
+- Laravel reported `Nothing to migrate` after bookkeeping reconciliation;
+- Render `/api/health` checks returned HTTP 200 repeatedly during rollout;
+- no error-level Render logs were recorded from the successful retry start through post-live verification.
+
+The product owner then installed/tested the Phase 4 Android candidate and explicitly accepted Phase 4 on 2026-09-09.
+
+No merge to `main` is approved and no Production deployment is implied.
 
 ## Current repository / environment
 
@@ -67,7 +81,7 @@ No merge to `main` is approved and no Production deployment is implied. PR #17 a
 - Primary branch: `main`
 - Integration branch: `phase1/ux-product-foundation`
 - UAT runtime branch: `audit/system-stabilization`
-- Current feature branch: `phase4/messaging-viewing-hardening`
+- Last completed feature branch: `phase4/messaging-viewing-hardening`
 - Mobile: Flutter Android
 - Backend: Laravel/PHP API
 - Database: PostgreSQL 17 + PostGIS
@@ -134,42 +148,30 @@ See `docs/PHASE3_BUYER_DISCOVERY.md` for detailed evidence.
 
 ## Phase 4 status
 
-Phase 4 — Messaging + Viewing Journey Hardening is IN PROGRESS / closure candidate.
+Phase 4 — Messaging + Viewing Journey Hardening is CLOSED and ACCEPTED.
 
 Canonical journey:
 
 `published property -> contact/conversation -> message -> viewing request -> confirm/reschedule/reject/cancel -> viewing -> complete`
 
-Current engineering scope includes:
-1. conversation reuse/privacy/report boundaries;
-2. idempotent message delivery;
-3. newest-first paged history and server read/unread state;
-4. listing-unavailable conversation context;
-5. backend-authoritative viewing state machine;
-6. advertiser-reschedule requester acceptance;
-7. overlap/concurrency protection;
-8. exact notification targets/app links;
-9. Flutter inbox/conversation/viewing UX hardening;
-10. dedicated Laravel/PostgreSQL/Flutter/APK acceptance.
-
 Completed closure gates:
 - final-head Phase 4 CI passed Laravel + PostgreSQL 17/PostGIS + Flutter tests;
 - final-head UAT release APK artifact built and uploaded;
-- Supabase UAT Phase 4 migration/schema/security verification completed.
-
-Still required before final product-owner Phase 4 acceptance:
-- integrate Phase 4 into the UAT runtime branch and deploy Render UAT;
-- verify Render `/api/health` and the live property-linked messaging/viewing journey;
-- install/test the Phase 4 Android candidate on a real device;
-- explicit product-owner Phase 4 acceptance after device verification.
+- Supabase UAT Phase 4 migration/schema/security verification completed;
+- Phase 1–4 stack deployed successfully to Render UAT;
+- Render runtime health and startup evidence verified;
+- real Android device acceptance completed by the product owner;
+- Issue #16 closed as completed;
+- PR #17 merged into the integration branch only;
+- PR #18 merged into the UAT runtime branch only.
 
 ## Current product direction
 
 REAL ESTATE is marketplace-first.
 
-Launch-critical journey:
+Launch-critical journey currently established through viewing:
 
-`verified advertiser -> create property -> support review -> publish -> public browse/search/map -> property details -> favorite/share/contact -> property conversation -> viewing -> agreement`
+`verified advertiser -> create property -> support review -> publish -> public browse/search/map -> property details -> favorite/share/contact -> property conversation -> viewing`
 
 Key rules:
 - Published properties are publicly browsable without login.
@@ -183,19 +185,18 @@ Key rules:
 - Backend authorization is authoritative.
 - Sensitive storage remains private.
 
-## Deferred / not launch-critical
+## Deferred / future backlog — not the next automatic phase
 
-Property Requests, Researcher Requests, and broker-driven request matching remain deferred unless explicitly re-approved by the product owner.
-
-They must not be exposed as active capabilities, launch-facing quick actions, or mandatory roadmap steps.
-
-## Later launch-critical work after Phase 4
-
+The following work is preserved for later and must not be started merely because Phase 4 is closed:
 - rental contracts and in-app agreement workflow;
-- price indicators + valuation using eligible published platform data only;
-- Real-estate Guide + Legal Documents library;
+- price indicators and valuation using eligible published platform data only;
+- Real-estate Guide and Legal Documents library;
 - Production/security/operations readiness;
 - closed beta -> soft launch -> public launch.
+
+Property Requests, Researcher Requests, and broker-driven request matching also remain deferred unless explicitly re-approved by the product owner.
+
+The product owner explicitly stated on 2026-09-09 that there are other priorities to complete before the preserved future backlog above. The next work package must therefore be defined from those new priorities rather than from old phase numbering.
 
 ## Execution model
 

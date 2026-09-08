@@ -1,4 +1,4 @@
-name: Phase 4 Messaging Viewing CI
+name: Phase 5 Agreement Rental Contract CI
 
 on:
   workflow_dispatch:
@@ -12,12 +12,8 @@ on:
       - 'docs/WORKFLOWS.md'
       - 'docs/DECISIONS.md'
       - 'docs/AI_CHANGELOG.md'
-      - 'docs/PHASE4_MESSAGING_VIEWING_HARDENING.md'
-      - '.github/workflows/phase4-messaging-viewing-ci.yml'
-
-concurrency:
-  group: phase4-messaging-viewing-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+      - 'docs/PHASE5_AGREEMENT_RENTAL_CONTRACT.md'
+      - '.github/workflows/phase5-agreement-rental-contract-ci.yml'
 
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
@@ -25,10 +21,14 @@ env:
 permissions:
   contents: read
 
+concurrency:
+  group: phase5-agreement-rental-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend-tests:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase4/')
-    name: Laravel messaging and viewing regression suite
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase5/')
+    name: Laravel agreement and rental contract regression suite
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -54,12 +54,12 @@ jobs:
         run: composer validate --no-check-publish
       - name: Run full Laravel suite
         run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
-      - name: Validate Phase 4 messaging and viewing contract
-        run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Validate Phase 5 agreement and rental contract contract
+        run: php artisan test tests/Feature/Phase5AgreementRentalContractAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   postgres-validation:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase4/')
-    name: PostgreSQL 17 and PostGIS messaging viewing acceptance
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase5/')
+    name: PostgreSQL 17 and PostGIS agreement contract acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -112,12 +112,12 @@ jobs:
         run: php artisan migrate --force
       - name: Validate PostgreSQL security and schema regression
         run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
-      - name: Validate Phase 4 messaging and viewing on PostgreSQL
-        run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Validate Phase 5 agreement and rental contract on PostgreSQL
+        run: php artisan test tests/Feature/Phase5AgreementRentalContractAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   flutter-validation:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase4/')
-    name: Flutter messaging viewing tests and UAT APK
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase5/')
+    name: Flutter agreement contract tests and UAT APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
     needs: [backend-tests, postgres-validation]
@@ -157,7 +157,7 @@ jobs:
       - name: Upload UAT APK
         uses: actions/upload-artifact@v4
         with:
-          name: real-estate-phase4-uat-apk-${{ github.run_number }}
+          name: real-estate-phase5-uat-apk-${{ github.run_number }}
           path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14

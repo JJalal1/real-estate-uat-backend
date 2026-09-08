@@ -28,6 +28,24 @@ Uri viewingBookingAppDeepLink(int bookingId) {
   );
 }
 
+Uri agreementAppDeepLink(int agreementId) {
+  _requirePositive(agreementId, 'agreementId');
+  return Uri(
+    scheme: appDeepLinkScheme,
+    host: appDeepLinkHost,
+    path: '/agreements/$agreementId',
+  );
+}
+
+Uri rentalContractAppDeepLink(int contractId) {
+  _requirePositive(contractId, 'contractId');
+  return Uri(
+    scheme: appDeepLinkScheme,
+    host: appDeepLinkHost,
+    path: '/rental-contracts/$contractId',
+  );
+}
+
 /// Converts only links owned by this app into an internal GoRouter location.
 /// Unknown hosts/schemes are intentionally ignored instead of being rewritten.
 String? internalLocationForAppLink(Uri uri) {
@@ -48,6 +66,12 @@ String? internalLocationForAppLink(Uri uri) {
     }
     if (segments.first == 'bookings') {
       return '/bookings?booking=$id';
+    }
+    if (segments.first == 'agreements') {
+      return '/agreements/$id';
+    }
+    if (segments.first == 'rental-contracts') {
+      return '/rental-contracts/$id';
     }
   }
 
