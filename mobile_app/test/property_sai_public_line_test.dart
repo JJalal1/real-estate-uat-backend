@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:real_estate_oman/features/properties/presentation/property_sai_public_line.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_sai_public_line.dart';
 
 void main() {
   testWidgets('public sai line renders the approved customer wording only', (tester) async {
