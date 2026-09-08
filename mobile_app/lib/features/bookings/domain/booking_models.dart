@@ -22,6 +22,10 @@ class ViewingBooking {
     required this.canManage,
     required this.canCancel,
     required this.canReschedule,
+    required this.canConfirm,
+    required this.canDecline,
+    required this.canAcceptReschedule,
+    required this.awaitingRequesterConfirmation,
   });
 
   factory ViewingBooking.fromJson(Map<String, dynamic> json) => ViewingBooking(
@@ -47,6 +51,11 @@ class ViewingBooking {
         canManage: json['can_manage'] == true,
         canCancel: json['can_cancel'] == true,
         canReschedule: json['can_reschedule'] == true,
+        canConfirm: json['can_confirm'] == true,
+        canDecline: json['can_decline'] == true,
+        canAcceptReschedule: json['can_accept_reschedule'] == true,
+        awaitingRequesterConfirmation:
+            json['awaiting_requester_confirmation'] == true,
       );
 
   final int id;
@@ -71,8 +80,14 @@ class ViewingBooking {
   final bool canManage;
   final bool canCancel;
   final bool canReschedule;
+  final bool canConfirm;
+  final bool canDecline;
+  final bool canAcceptReschedule;
+  final bool awaitingRequesterConfirmation;
 
   bool get isActive => status == 'requested' || status == 'confirmed';
+  bool get canComplete =>
+      canManage && status == 'confirmed' && !endsAt.isAfter(DateTime.now());
   String get targetLabel =>
       targetType == 'development_unit' ? 'وحدة مشروع' : 'عقار';
   String get statusLabel => switch (status) {
@@ -80,6 +95,7 @@ class ViewingBooking {
         'declined' => 'مرفوض',
         'cancelled' => 'ملغي',
         'completed' => 'مكتمل',
+        'requested' when awaitingRequesterConfirmation => 'بانتظار موافقتك',
         _ => 'بانتظار التأكيد',
       };
 }
