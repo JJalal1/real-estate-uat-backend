@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../properties/presentation/favorites_screen.dart';
 import '../data/auth_controller.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -156,9 +157,10 @@ class AccountScreen extends ConsumerWidget {
                         _AccountRow(
                           'المفضلة',
                           Icons.favorite_border,
-                          () => _message(
-                            context,
-                            'المفضلة ستُربط بالحساب على الخادم في مرحلتها المخصصة.',
+                          () => Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const FavoritesScreen(),
+                            ),
                           ),
                         ),
                       ],
@@ -180,10 +182,6 @@ class AccountScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  static void _message(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
