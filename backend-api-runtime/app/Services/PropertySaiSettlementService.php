@@ -46,20 +46,26 @@ class PropertySaiSettlementService
                 return $existing;
             }
 
-            $thread = MessageThread::query()
-                ->whereKey($lockedAgreement->message_thread_id)
-                ->lockForUpdate()
-                ->first();
+            $termId = $lockedAgreement->sai_term_id;
+            if (! $termId) {
+                // Compatibility for draft agreements created before the
+                // agreement-level Sai snapshot column existed. The thread is
+                // still the authoritative frozen customer-journey snapshot.
+                $termId = MessageThread::query()
+                    ->whereKey($lockedAgreement->message_thread_id)
+                    ->lockForUpdate()
+                    ->value('sai_term_id');
+            }
 
-            // Legacy conversations created before the Sai feature may have no
-            // frozen term. We do not guess historical financial obligations.
-            if (! $thread?->sai_term_id) {
+            // Truly legacy journeys may predate Sai entirely. Never invent a
+            // historical financial obligation for them.
+            if (! $termId) {
                 return null;
             }
 
-            $term = PropertySaiTerm::query()->find($thread->sai_term_id);
+            $term = PropertySaiTerm::query()->find($termId);
             if (! $term) {
-                throw new ConflictHttpException('تعذر تثبيت السعي لأن نسخة شروط السعي المرتبطة بالمحادثة غير موجودة.');
+                throw new ConflictHttpException('تعذر تثبيت السعي لأن نسخة شروط السعي المجمدة غير موجودة.');
             }
 
             if ((int) $term->property_id !== (int) $lockedAgreement->property_id
