@@ -15,6 +15,10 @@ on:
       - 'docs/PHASE4_MESSAGING_VIEWING_HARDENING.md'
       - '.github/workflows/phase4-messaging-viewing-ci.yml'
 
+concurrency:
+  group: phase4-messaging-viewing-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
 
