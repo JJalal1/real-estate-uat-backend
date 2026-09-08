@@ -134,6 +134,8 @@ class AppNotificationItem {
 
   int? get bookingId => _asInt(data['booking_id']);
   int? get messageThreadId => _asInt(data['message_thread_id']);
+  int? get agreementId => _asInt(data['agreement_id']);
+  int? get rentalContractId => _asInt(data['rental_contract_id']);
 
   factory AppNotificationItem.fromJson(Map<String, dynamic> json) {
     final rawData = json['data'];
