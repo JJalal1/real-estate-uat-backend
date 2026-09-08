@@ -87,7 +87,10 @@ class FavoritesScreen extends ConsumerWidget {
                     trailing: IconButton.filledTonal(
                       tooltip: 'إزالة من المفضلة',
                       onPressed: () => _remove(context, ref, property.id),
-                      icon: const Icon(Icons.favorite_rounded, color: AppTheme.error),
+                      icon: Icon(
+                        Icons.favorite_rounded,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                     onTap: () => context.push('/properties/${property.id}'),
                   );
