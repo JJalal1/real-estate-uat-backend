@@ -23,6 +23,8 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class MessagingController extends Controller
 {
+    private const MESSAGE_PAGE_SIZE = 100;
+
     public function __construct(
         private readonly AuditLogService $audit,
         private readonly SupportCaseService $support,
@@ -33,7 +35,7 @@ class MessagingController extends Controller
     {
         /** @var User $user */ $user=$request->user();
         $ids=MessageThreadParticipant::query()->where('user_id',$user->id)->pluck('thread_id');
-        $rows=MessageThread::query()->whereIn('id',$ids)->with(['property:id,title,status','participants'])->orderByDesc('last_message_at')->orderByDesc('id')->get();
+        $rows=MessageThread::query()->whereIn('id',$ids)->with(['property:id,title,status','participants'])->orderByDesc('last_message_at')->orderByDesc('id')->limit(250)->get();
         return response()->json(['data'=>$rows->map(fn(MessageThread $thread)=>$this->threadSummary($thread,$user))->values()]);
     }
 
@@ -65,15 +67,34 @@ class MessagingController extends Controller
     {
         /** @var User $user */ $user=$request->user();
         $participant=$this->participant($thread,$user);
+        $validated=$request->validate(['before_id'=>['nullable','integer','min:1']]);
+        $beforeId=isset($validated['before_id'])?(int)$validated['before_id']:null;
         $thread->load(['property:id,title,status','participants']);
-        $messages=PrivateMessage::query()->where('thread_id',$thread->id)->orderBy('id')->limit(500)->get();
-        DB::transaction(function()use($participant,$messages,$user,$thread): void {
-            if($messages->isNotEmpty())$participant->forceFill(['last_read_message_id'=>$messages->last()->id,'last_read_at'=>now()])->save();
-            UserNotification::query()->where('user_id',$user->id)->where('entity_type','message_thread')->where('entity_id',$thread->id)->whereNull('read_at')->update(['read_at'=>now()]);
-        });
+
+        $rows=PrivateMessage::query()
+            ->where('thread_id',$thread->id)
+            ->when($beforeId,fn($q,$id)=>$q->where('id','<',$id))
+            ->orderByDesc('id')
+            ->limit(self::MESSAGE_PAGE_SIZE+1)
+            ->get();
+        $hasMore=$rows->count()>self::MESSAGE_PAGE_SIZE;
+        $messages=$rows->take(self::MESSAGE_PAGE_SIZE)->sortBy('id')->values();
+
+        if($beforeId===null){
+            $latestId=$messages->last()?->id;
+            DB::transaction(function()use($participant,$latestId,$user,$thread): void {
+                $participant->forceFill(['last_read_message_id'=>$latestId,'last_read_at'=>now()])->save();
+                UserNotification::query()->where('user_id',$user->id)->where('entity_type','message_thread')->where('entity_id',$thread->id)->whereNull('read_at')->update(['read_at'=>now()]);
+            });
+        }
+
         return response()->json(['data'=>[
             'thread'=>$this->threadSummary($thread,$user),
             'messages'=>$messages->map(fn(PrivateMessage $m)=>$this->messageData($m,$user))->values(),
+            'pagination'=>[
+                'has_more'=>$hasMore,
+                'next_before_id'=>$hasMore?$messages->first()?->id:null,
+            ],
         ]]);
     }
 
@@ -92,7 +113,10 @@ class MessagingController extends Controller
             if($clientId){
                 $this->advisoryLock('message-send:'.$thread->id.':'.$user->id.':'.$clientId);
                 $existing=PrivateMessage::query()->where('thread_id',$thread->id)->where('sender_user_id',$user->id)->where('client_message_id',$clientId)->first();
-                if($existing)return [$existing,false];
+                if($existing){
+                    if($existing->body!==$body)throw new ConflictHttpException('client_message_id is already bound to a different message body.');
+                    return [$existing,false];
+                }
             }
             $message=PrivateMessage::query()->create([
                 'thread_id'=>$thread->id,'sender_user_id'=>$user->id,'sender_name_snapshot'=>$user->name,'client_message_id'=>$clientId,
@@ -131,13 +155,17 @@ class MessagingController extends Controller
             'reason'=>['required',Rule::in(['abuse','fraud','privacy','harassment','spam','other'])],
             'details'=>['required','string','min:5','max:5000'],
         ]);
-        $duplicate=ConversationReport::query()->where('thread_id',$thread->id)->where('reporter_user_id',$user->id)->whereIn('status',['open','under_review'])->exists();
-        if($duplicate) throw new ConflictHttpException('An active complaint for this conversation already exists.');
-        $case=$this->support->create($user,'report','Conversation complaint',trim($validated['details']),'conversation_thread',$thread->id,$validated['reason'],in_array($validated['reason'],['abuse','fraud','privacy'],true)?'high':'normal',$request);
-        $report=ConversationReport::query()->create([
-            'thread_id'=>$thread->id,'support_case_id'=>$case->id,'reporter_user_id'=>$user->id,'reporter_name_snapshot'=>$user->name,
-            'reason_code'=>$validated['reason'],'details'=>trim($validated['details']),'status'=>'open',
-        ]);
+        [$case,$report]=DB::transaction(function()use($thread,$user,$validated,$request): array {
+            $this->advisoryLock('conversation-report:'.$thread->id.':'.$user->id);
+            $duplicate=ConversationReport::query()->where('thread_id',$thread->id)->where('reporter_user_id',$user->id)->whereIn('status',['open','under_review'])->exists();
+            if($duplicate)throw new ConflictHttpException('An active complaint for this conversation already exists.');
+            $case=$this->support->create($user,'report','Conversation complaint',trim($validated['details']),'conversation_thread',$thread->id,$validated['reason'],in_array($validated['reason'],['abuse','fraud','privacy'],true)?'high':'normal',$request);
+            $report=ConversationReport::query()->create([
+                'thread_id'=>$thread->id,'support_case_id'=>$case->id,'reporter_user_id'=>$user->id,'reporter_name_snapshot'=>$user->name,
+                'reason_code'=>$validated['reason'],'details'=>trim($validated['details']),'status'=>'open',
+            ]);
+            return [$case,$report];
+        });
         $this->audit->record($user,'messages.conversation_reported',$report,['thread_id'=>$thread->id,'support_case_id'=>$case->id,'reason'=>$validated['reason']],$request);
         return response()->json(['message'=>'Conversation complaint submitted.','data'=>$this->reportSummary($report)],201);
     }
@@ -157,7 +185,7 @@ class MessagingController extends Controller
         if($report->status==='open')$report->forceFill(['status'=>'under_review'])->save();
         PrivateMessageAccessEvent::query()->create(['conversation_report_id'=>$report->id,'thread_id'=>$thread->id,'actor_user_id'=>$actor->id,'actor_name_snapshot'=>$actor->name,'action'=>'opened_reported_private_content','created_at'=>now()]);
         $this->audit->record($actor,'conversations.private_content_opened',$report,['thread_id'=>$thread->id,'support_case_id'=>$report->support_case_id,'workflow'=>'conversation_complaint'],$request,$report->reporter_user_id);
-        $messages=PrivateMessage::query()->where('thread_id',$thread->id)->orderBy('id')->limit(500)->get();
+        $messages=PrivateMessage::query()->where('thread_id',$thread->id)->orderByDesc('id')->limit(500)->get()->sortBy('id')->values();
         return response()->json(['data'=>[
             'report'=>$this->reportSummary($report->fresh()),
             'thread'=>['id'=>$thread->id,'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,'participants'=>$thread->participants->map(fn($p)=>['user_id'=>$p->user_id,'name'=>$p->user_name_snapshot])->values()],
@@ -169,12 +197,19 @@ class MessagingController extends Controller
     {
         /** @var User $actor */ $actor=$request->user();
         $validated=$request->validate(['status'=>['required',Rule::in(['resolved','dismissed'])],'resolution_note'=>['required','string','min:3','max:1000']]);
-        if(!in_array($report->status,['open','under_review'],true))throw new ConflictHttpException('Conversation complaint is already closed.');
-        $report->forceFill(['status'=>$validated['status'],'resolved_by_user_id'=>$actor->id,'resolved_by_name_snapshot'=>$actor->name,'resolution_note'=>trim($validated['resolution_note']),'resolved_at'=>now()])->save();
-        if($report->support_case_id){$case=SupportCase::query()->find($report->support_case_id);if($case&&!in_array($case->status,SupportCaseService::CLOSED_STATUSES,true))$this->support->setStatus($actor,$case,$validated['status'],$request);}
-        $this->notifications->create((int)$report->reporter_user_id,'conversation_report_closed','تم تحديث بلاغ المحادثة','تم إغلاق بلاغ المحادثة داخل مركز الدعم.',$report->support_case_id?'support_case':'message_thread',(int)($report->support_case_id?:$report->thread_id),['status'=>$validated['status'],'report_id'=>$report->id]);
-        $this->audit->record($actor,'messages.conversation_report_closed',$report,['status'=>$validated['status'],'thread_id'=>$report->thread_id],$request,$report->reporter_user_id);
-        return response()->json(['message'=>'Conversation complaint closed.','data'=>$this->reportSummary($report)]);
+        $closed=DB::transaction(function()use($report,$actor,$validated,$request): ConversationReport {
+            $locked=ConversationReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
+            if(!in_array($locked->status,['open','under_review'],true))throw new ConflictHttpException('Conversation complaint is already closed.');
+            $locked->forceFill(['status'=>$validated['status'],'resolved_by_user_id'=>$actor->id,'resolved_by_name_snapshot'=>$actor->name,'resolution_note'=>trim($validated['resolution_note']),'resolved_at'=>now()])->save();
+            if($locked->support_case_id){
+                $case=SupportCase::query()->find($locked->support_case_id);
+                if($case&&!in_array($case->status,SupportCaseService::CLOSED_STATUSES,true))$this->support->setStatus($actor,$case,$validated['status'],$request);
+            }
+            return $locked;
+        });
+        $this->notifications->create((int)$closed->reporter_user_id,'conversation_report_closed','تم تحديث بلاغ المحادثة','تم إغلاق بلاغ المحادثة داخل مركز الدعم.',$closed->support_case_id?'support_case':'message_thread',(int)($closed->support_case_id?:$closed->thread_id),['status'=>$validated['status'],'report_id'=>$closed->id]);
+        $this->audit->record($actor,'messages.conversation_report_closed',$closed,['status'=>$validated['status'],'thread_id'=>$closed->thread_id],$request,$closed->reporter_user_id);
+        return response()->json(['message'=>'Conversation complaint closed.','data'=>$this->reportSummary($closed)]);
     }
 
     private function participant(MessageThread $thread, User $user): MessageThreadParticipant
