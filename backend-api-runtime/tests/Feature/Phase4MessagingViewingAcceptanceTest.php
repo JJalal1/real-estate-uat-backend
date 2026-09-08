@@ -1,6 +1,9 @@
 <?php
 namespace Tests\Feature;
 
+use App\Models\Developer;
+use App\Models\Development;
+use App\Models\DevelopmentUnit;
 use App\Models\PrivateMessage;
 use App\Models\Property;
 use App\Models\PropertyAsset;
@@ -109,13 +112,34 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
         $bookingId=(int)$this->withHeaders($buyerHeaders)->postJson("/api/properties/{$property->id}/viewings",$this->window(3,11))->assertCreated()->json('data.id');
 
         $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/reschedule",$this->window(4,14)+['note'=>'هذا الوقت أنسب'])->assertOk()
-            ->assertJsonPath('data.status','requested')->assertJsonPath('data.awaiting_requester_confirmation',true)->assertJsonPath('data.can_confirm',false);
+            ->assertJsonPath('data.status','requested')
+            ->assertJsonPath('data.awaiting_requester_confirmation',true)
+            ->assertJsonPath('data.can_confirm',false)
+            ->assertJsonPath('data.can_decline',false);
         $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertConflict();
+        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/decline",['note'=>'لن أستطيع'])->assertConflict();
 
         $this->withHeaders($buyerHeaders)->getJson("/api/bookings/$bookingId")->assertOk()->assertJsonPath('data.can_accept_reschedule',true);
         $this->withHeaders($buyerHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertOk()->assertJsonPath('data.status','confirmed');
         $this->assertDatabaseHas('viewing_booking_events',['viewing_booking_id'=>$bookingId,'event'=>'reschedule_accepted','to_status'=>'confirmed']);
         $this->assertDatabaseHas('user_notifications',['user_id'=>$owner->id,'type'=>'booking_reschedule_accepted']);
+    }
+
+    public function test_unassigned_development_reschedule_acceptance_assigns_the_proposing_manager_as_host(): void
+    {
+        [$manager,$managerHeaders]=$this->user('p4-manager@example.test','+967760000012',['regions_manager']);
+        [, $buyerHeaders]=$this->user('p4-unit-buyer@example.test','+967760000013');
+        $unit=$this->developmentUnit($manager);
+        $bookingId=(int)$this->withHeaders($buyerHeaders)->postJson("/api/development-units/{$unit->id}/viewings",$this->window(7,10))->assertCreated()->json('data.id');
+
+        ViewingBooking::query()->whereKey($bookingId)->update(['host_user_id'=>null,'host_name_snapshot'=>null]);
+        $this->withHeaders($managerHeaders)->postJson("/api/bookings/$bookingId/reschedule",$this->window(8,12)+['note'=>'موعد بديل'])->assertOk()
+            ->assertJsonPath('data.awaiting_requester_confirmation',true)
+            ->assertJsonPath('data.host_user_id',null);
+        $this->withHeaders($buyerHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertOk()
+            ->assertJsonPath('data.status','confirmed')
+            ->assertJsonPath('data.host_user_id',$manager->id);
+        $this->assertDatabaseHas('viewing_bookings',['id'=>$bookingId,'host_user_id'=>$manager->id,'status'=>'confirmed']);
     }
 
     public function test_terminal_viewing_state_cannot_be_reopened_or_mutated(): void
@@ -134,7 +158,7 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
         $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertConflict();
     }
 
-    private function user(string $email,string $phone): array
+    private function user(string $email,string $phone,array $roles=[]): array
     {
         $user=User::query()->create([
             'name'=>'Phase 4 User',
@@ -144,8 +168,12 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
             'account_status'=>User::STATUS_ACTIVE,
             'password'=>Hash::make(uniqid('phase4-fixture-',true)),
         ]);
-        $role=Role::query()->where('key','registered_user')->firstOrFail();
-        $user->roles()->sync([$role->id=>['assigned_by_user_id'=>null,'created_at'=>now()]]);
+        $sync=[];
+        foreach(array_unique(array_merge(['registered_user'],$roles)) as $key){
+            $role=Role::query()->where('key',$key)->firstOrFail();
+            $sync[$role->id]=['assigned_by_user_id'=>null,'created_at'=>now()];
+        }
+        $user->roles()->sync($sync);
         $plain='p4_'.substr(hash('sha512',$email),0,78);
         $user->apiTokens()->create(['name'=>'phase4-test','token_hash'=>hash('sha256',$plain),'token_prefix'=>substr($plain,0,12),'expires_at'=>now()->addHour()]);
         return [$user,['Authorization'=>'Bearer '.$plain,'Accept'=>'application/json']];
@@ -155,6 +183,41 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
     {
         $asset=PropertyAsset::query()->create(['created_by_user_id'=>$owner->id,'identity_hash'=>hash('sha256',$title.uniqid('',true)),'identity_version'=>1,'property_type'=>'apartment','canonical_address'=>'Phase 4 address','canonical_latitude'=>15.3694,'canonical_longitude'=>44.1910,'area_m2'=>120,'bedrooms'=>3,'bathrooms'=>2,'status'=>'active']);
         return Property::query()->create(['user_id'=>$owner->id,'property_asset_id'=>$asset->id,'title'=>$title,'description'=>'Phase 4 published listing','purpose'=>'sale','type'=>'apartment','price'=>10000000,'currency'=>'YER','area_m2'=>120,'bedrooms'=>3,'bathrooms'=>2,'address'=>'Phase 4 address','latitude'=>15.3694,'longitude'=>44.1910,'status'=>'published','review_status'=>'approved','published_at'=>now()]);
+    }
+
+    private function developmentUnit(User $manager): DevelopmentUnit
+    {
+        $suffix=strtolower(substr(hash('sha1',(string)$manager->id),0,8));
+        $developer=Developer::query()->create([
+            'name'=>'Phase 4 Developer',
+            'slug'=>'p4-dev-'.$suffix,
+            'status'=>'active',
+            'created_by_user_id'=>$manager->id,
+            'created_by_name_snapshot'=>$manager->name,
+        ]);
+        $development=Development::query()->create([
+            'developer_id'=>$developer->id,
+            'created_by_user_id'=>$manager->id,
+            'created_by_name_snapshot'=>$manager->name,
+            'name'=>'Phase 4 Project',
+            'slug'=>'p4-project-'.$suffix,
+            'status'=>'published',
+            'completion_status'=>'completed',
+            'address'=>'Phase 4 project address',
+            'published_by_user_id'=>$manager->id,
+            'published_by_name_snapshot'=>$manager->name,
+            'published_at'=>now(),
+        ]);
+        return DevelopmentUnit::query()->create([
+            'development_id'=>$development->id,
+            'code'=>'P4-1',
+            'title'=>'Phase 4 Unit',
+            'unit_type'=>'apartment',
+            'area_m2'=>100,
+            'price'=>1000000,
+            'currency'=>'YER',
+            'status'=>'available',
+        ]);
     }
 
     private function window(int $days,int $hour): array
