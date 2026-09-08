@@ -48,7 +48,13 @@ class Property extends Model
             if (! $advertiser->verificationProfile()?->isApproved()) {
                 return;
             }
-            app(PropertySaiService::class)->assertReadyForSubmission($property, $advertiser);
+
+            // The listing object may have been loaded before sai configuration.
+            // Always validate the persisted current term pointer from the DB,
+            // while respecting an in-flight purpose edit that will be saved now.
+            $policyProperty = Property::query()->findOrFail($property->getKey());
+            $policyProperty->purpose = $property->purpose;
+            app(PropertySaiService::class)->assertReadyForSubmission($policyProperty, $advertiser);
         });
 
         static::updating(function (Property $property): void {
