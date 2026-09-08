@@ -159,8 +159,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/bookings',
-        builder: (context, state) =>
-            const Stage6AuthGate(child: BookingsScreen()),
+        builder: (context, state) => Stage6AuthGate(
+          child: BookingsScreen(
+            initialBookingId:
+                int.tryParse(state.uri.queryParameters['booking'] ?? ''),
+          ),
+        ),
       ),
       GoRoute(
         path: '/services',
