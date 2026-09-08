@@ -65,12 +65,12 @@ jobs:
       postgres:
         image: postgis/postgis:17-3.5
         env:
-          POSTGRES_DB: real_estate_sai
+          POSTGRES_DB: real_estate_audit
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d real_estate_sai"
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -79,7 +79,7 @@ jobs:
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
       DB_PORT: 5432
-      DB_DATABASE: real_estate_sai
+      DB_DATABASE: real_estate_audit
       DB_USERNAME: postgres
       DB_PASSWORD: ''
       DB_URL: ''
@@ -105,7 +105,7 @@ jobs:
           printf 'APP_KEY=base64:%s\n' "$key" > .env
       - name: Prepare direct API roles
         run: >-
-          psql -h 127.0.0.1 -U postgres -d real_estate_sai -v ON_ERROR_STOP=1
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
           -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
       - name: Apply complete migration chain
         run: php artisan migrate --force
