@@ -30,6 +30,10 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
         $sent=$this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/messages",$payload)->assertCreated();
         $messageId=(int)$sent->json('data.id');
         $this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/messages",$payload)->assertOk()->assertJsonPath('data.id',$messageId);
+        $this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/messages",[
+            'body'=>'نص مختلف يجب ألا يستخدم نفس المفتاح.',
+            'client_message_id'=>'p4-msg-retry-0001',
+        ])->assertConflict();
         $this->assertSame(1,PrivateMessage::query()->where('thread_id',$threadId)->where('client_message_id','p4-msg-retry-0001')->count());
         $this->assertDatabaseCount('user_notifications',1);
 
@@ -41,6 +45,45 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
         $this->assertSame(1,(int)$ownerInbox->json('data.0.unread_count'));
         $this->withHeaders($ownerHeaders)->getJson("/api/messages/threads/$threadId")->assertOk();
         $this->withHeaders($ownerHeaders)->getJson('/api/messages/threads')->assertOk()->assertJsonPath('data.0.unread_count',0);
+    }
+
+    public function test_conversation_returns_latest_page_and_can_load_older_messages_without_overlap(): void
+    {
+        [$owner,]=$this->user('p4-page-owner@example.test','+967760000010');
+        [$buyer,$buyerHeaders]=$this->user('p4-page-buyer@example.test','+967760000011');
+        $property=$this->property($owner,'Phase 4 pagination');
+        $threadId=(int)$this->withHeaders($buyerHeaders)->postJson("/api/properties/{$property->id}/conversation")->assertCreated()->json('data.id');
+
+        for($i=1;$i<=105;$i++){
+            PrivateMessage::query()->create([
+                'thread_id'=>$threadId,
+                'sender_user_id'=>$buyer->id,
+                'sender_name_snapshot'=>$buyer->name,
+                'client_message_id'=>'p4-page-'.str_pad((string)$i,4,'0',STR_PAD_LEFT),
+                'body'=>'Page message '.$i,
+                'created_at'=>now()->addSeconds($i),
+            ]);
+        }
+
+        $latest=$this->withHeaders($buyerHeaders)->getJson("/api/messages/threads/$threadId")->assertOk()
+            ->assertJsonPath('data.pagination.has_more',true);
+        $latestRows=$latest->json('data.messages');
+        $this->assertCount(100,$latestRows);
+        $this->assertSame('Page message 6',$latestRows[0]['body']);
+        $this->assertSame('Page message 105',$latestRows[99]['body']);
+        $before=(int)$latest->json('data.pagination.next_before_id');
+        $this->assertSame((int)$latestRows[0]['id'],$before);
+
+        $older=$this->withHeaders($buyerHeaders)->getJson("/api/messages/threads/$threadId?before_id=$before")->assertOk()
+            ->assertJsonPath('data.pagination.has_more',false);
+        $olderRows=$older->json('data.messages');
+        $this->assertCount(5,$olderRows);
+        $this->assertSame('Page message 1',$olderRows[0]['body']);
+        $this->assertSame('Page message 5',$olderRows[4]['body']);
+        $this->assertEmpty(array_intersect(
+            array_column($latestRows,'id'),
+            array_column($olderRows,'id'),
+        ));
     }
 
     public function test_unpublished_property_blocks_new_contact_and_viewing_but_preserves_existing_conversation_history(): void
@@ -93,9 +136,18 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
 
     private function user(string $email,string $phone): array
     {
-        $user=User::query()->create(['name'=>'Phase 4 User','email'=>$email,'phone'=>$phone,'phone_verified_at'=>now(),'account_status'=>User::STATUS_ACTIVE,'password'=>Hash::make('StrongPass123!')]);
-        $role=Role::query()->where('key','registered_user')->firstOrFail();$user->roles()->sync([$role->id=>['assigned_by_user_id'=>null,'created_at'=>now()]]);
-        $plain='p4_'.substr(hash('sha512',$email),0,78);$user->apiTokens()->create(['name'=>'phase4-test','token_hash'=>hash('sha256',$plain),'token_prefix'=>substr($plain,0,12),'expires_at'=>now()->addHour()]);
+        $user=User::query()->create([
+            'name'=>'Phase 4 User',
+            'email'=>$email,
+            'phone'=>$phone,
+            'phone_verified_at'=>now(),
+            'account_status'=>User::STATUS_ACTIVE,
+            'password'=>Hash::make(uniqid('phase4-fixture-',true)),
+        ]);
+        $role=Role::query()->where('key','registered_user')->firstOrFail();
+        $user->roles()->sync([$role->id=>['assigned_by_user_id'=>null,'created_at'=>now()]]);
+        $plain='p4_'.substr(hash('sha512',$email),0,78);
+        $user->apiTokens()->create(['name'=>'phase4-test','token_hash'=>hash('sha256',$plain),'token_prefix'=>substr($plain,0,12),'expires_at'=>now()->addHour()]);
         return [$user,['Authorization'=>'Bearer '.$plain,'Accept'=>'application/json']];
     }
 
@@ -107,6 +159,8 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
 
     private function window(int $days,int $hour): array
     {
-        $start=now()->addDays($days)->setTime($hour,0,0);$end=$start->copy()->addHour();return ['starts_at'=>$start->toIso8601String(),'ends_at'=>$end->toIso8601String(),'timezone'=>'UTC'];
+        $start=now()->addDays($days)->setTime($hour,0,0);
+        $end=$start->copy()->addHour();
+        return ['starts_at'=>$start->toIso8601String(),'ends_at'=>$end->toIso8601String(),'timezone'=>'UTC'];
     }
 }
