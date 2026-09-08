@@ -746,9 +746,6 @@ class PropertyController extends Controller
             'latitude' => (float) $property->latitude,
             'longitude' => (float) $property->longitude,
             'status' => $property->status,
-            'geo_cell_id' => $property->geo_cell_id,
-            'property_asset_id' => $property->property_asset_id,
-            'review_status' => $property->review_status,
             'main_image' => $mainImage ? $this->imageUrl($mainImage, $request) : null,
         ];
     }
@@ -765,10 +762,6 @@ class PropertyController extends Controller
             'description' => $property->description,
             'contact_phone' => $property->contact_phone,
             'contact_whatsapp' => $property->contact_whatsapp,
-            'last_review_reason' => $property->last_review_reason,
-            'proof_document_count' => $property->documents()->count(),
-            'can_submit' => in_array($property->review_status, ['draft','returned_for_correction'], true),
-            'can_edit' => ! in_array($property->review_status, ['submitted','under_review','rejected_blocked'], true),
             'advertiser' => array_merge([
                 'id'=>(int)$property->user_id,
                 'name'=>$this->advertiserDisplayName($property->user),
@@ -788,6 +781,13 @@ class PropertyController extends Controller
 
         $viewer = $this->tokens->authenticate($request, false);
         if ($viewer !== null && (int) $viewer->id === (int) $property->user_id) {
+            $data['review_status'] = $property->review_status;
+            $data['geo_cell_id'] = $property->geo_cell_id;
+            $data['property_asset_id'] = $property->property_asset_id;
+            $data['last_review_reason'] = $property->last_review_reason;
+            $data['proof_document_count'] = $property->documents()->count();
+            $data['can_submit'] = in_array($property->review_status, ['draft','returned_for_correction'], true);
+            $data['can_edit'] = ! in_array($property->review_status, ['submitted','under_review','rejected_blocked'], true);
             $data['ownership_document_type'] = $property->ownership_document_type;
             $data['document_owner_name'] = $property->document_owner_name;
             $data['owner_relationship_type'] = $property->owner_relationship_type;
