@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../router/app_deep_links.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/data/auth_return_intent.dart';
 import '../../bookings/presentation/booking_request_sheet.dart';
 import '../../community/presentation/listing_community_screen.dart';
 import '../../messages/data/message_repository.dart';
@@ -37,11 +38,13 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   int _imageIndex = 0;
   bool _startingConversation = false;
   bool _changingFavorite = false;
+  bool _consumingPendingFavorite = false;
 
   @override
   Widget build(BuildContext context) {
     final details = ref.watch(propertyDetailsProvider(widget.propertyId));
     final user = ref.watch(authControllerProvider).asData?.value;
+    final pendingFavorite = ref.watch(pendingFavoriteAfterAuthProvider);
     final favoriteIds = user == null
         ? const <int>{}
         : ref.watch(favoritePropertyIdsProvider).maybeWhen(
@@ -49,6 +52,15 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               orElse: () => const <int>{},
             );
     final loaded = details.asData?.value;
+
+    if (user != null &&
+        user.isActive &&
+        pendingFavorite == widget.propertyId &&
+        !_consumingPendingFavorite) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _consumePendingFavorite();
+      });
+    }
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -64,7 +76,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                 tooltip: favoriteIds.contains(loaded.id)
                     ? 'إزالة من المفضلة'
                     : 'حفظ في المفضلة',
-                onPressed: _changingFavorite
+                onPressed: _changingFavorite || _consumingPendingFavorite
                     ? null
                     : () => _toggleFavorite(
                           loaded.id,
@@ -313,7 +325,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                         icon: Icon(
                           isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                         ),
-                        onPressed: _changingFavorite
+                        onPressed: _changingFavorite || _consumingPendingFavorite
                             ? null
                             : () => _toggleFavorite(
                                   item.id,
@@ -337,15 +349,25 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     int propertyId, {
     required bool currentlyFavorite,
   }) async {
-    var user = ref.read(authControllerProvider).asData?.value;
-    final wasAnonymous = user == null;
+    final user = ref.read(authControllerProvider).asData?.value;
+
     if (user == null) {
+      ref.read(pendingFavoriteAfterAuthProvider.notifier).state = propertyId;
+      setAuthReturnLocation(ref, '/properties/$propertyId');
       await context.push('/auth');
       if (!mounted) return;
-      user = ref.read(authControllerProvider).asData?.value;
-      if (user == null) return;
+      if (ref.read(authControllerProvider).asData?.value == null) {
+        if (ref.read(pendingFavoriteAfterAuthProvider) == propertyId) {
+          ref.read(pendingFavoriteAfterAuthProvider.notifier).state = null;
+        }
+        takeAuthReturnLocation(ref);
+      }
+      return;
     }
+
     if (!user.isActive) {
+      ref.read(pendingFavoriteAfterAuthProvider.notifier).state = propertyId;
+      setAuthReturnLocation(ref, '/properties/$propertyId');
       await context.push('/verify-phone');
       return;
     }
@@ -354,19 +376,19 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     setState(() => _changingFavorite = true);
     try {
       final repository = ref.read(favoritesRepositoryProvider);
-      if (wasAnonymous || !currentlyFavorite) {
-        await repository.add(propertyId);
-      } else {
+      if (currentlyFavorite) {
         await repository.remove(propertyId);
+      } else {
+        await repository.add(propertyId);
       }
       ref.read(favoriteDataRevisionProvider.notifier).state++;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            wasAnonymous || !currentlyFavorite
-                ? 'تم حفظ العقار في المفضلة.'
-                : 'تمت إزالة العقار من المفضلة.',
+            currentlyFavorite
+                ? 'تمت إزالة العقار من المفضلة.'
+                : 'تم حفظ العقار في المفضلة.',
           ),
         ),
       );
@@ -377,6 +399,30 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       );
     } finally {
       if (mounted) setState(() => _changingFavorite = false);
+    }
+  }
+
+  Future<void> _consumePendingFavorite() async {
+    if (_consumingPendingFavorite) return;
+    final propertyId = ref.read(pendingFavoriteAfterAuthProvider);
+    if (propertyId == null || propertyId != widget.propertyId) return;
+
+    setState(() => _consumingPendingFavorite = true);
+    ref.read(pendingFavoriteAfterAuthProvider.notifier).state = null;
+    try {
+      await ref.read(favoritesRepositoryProvider).add(propertyId);
+      ref.read(favoriteDataRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ العقار في المفضلة.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyApiError(error))),
+      );
+    } finally {
+      if (mounted) setState(() => _consumingPendingFavorite = false);
     }
   }
 
