@@ -9,6 +9,15 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::table('property_agreements', function (Blueprint $table): void {
+            $table->foreignId('sai_term_id')
+                ->nullable()
+                ->after('message_thread_id')
+                ->constrained('property_sai_terms')
+                ->restrictOnDelete();
+            $table->index('sai_term_id', 'property_agreements_sai_term_idx');
+        });
+
         Schema::create('property_sai_settlements', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('property_agreement_id')
@@ -99,5 +108,9 @@ SQL);
         }
 
         Schema::dropIfExists('property_sai_settlements');
+        Schema::table('property_agreements', function (Blueprint $table): void {
+            $table->dropIndex('property_agreements_sai_term_idx');
+            $table->dropConstrainedForeignId('sai_term_id');
+        });
     }
 };
