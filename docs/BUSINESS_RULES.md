@@ -138,18 +138,36 @@ Favorites must be server-side and account-bound, not local-device-only. If a sav
 
 ## 17. Viewing / booking / conversation
 
-Intended relationship:
+There is one property-linked messaging system. Do not build a second chat or a parallel viewing conversation.
 
-`property -> contact/conversation -> viewing request -> notification -> confirm/reschedule/reject/cancel as allowed -> booking visible to both parties`
+Canonical relationship:
 
-Booking should know:
-- property;
-- advertiser;
+`property -> contact/conversation -> viewing request -> notification -> confirm | reschedule | reject | cancel -> viewing -> complete`
+
+Rules:
+- A new property conversation or viewing request requires the property to be currently published and the advertiser to be available.
+- An existing conversation/history remains accessible to its participants if the property later becomes unpublished; the UI must clearly show that the listing is no longer published.
+- Conversation content is private to participants. Support access to private message content is allowed only through the reported-conversation workflow with the required permission and an auditable access event.
+- Message delivery must be retry-safe. A client message key may identify one logical message; reusing the same key for a different body is a conflict.
+- Long conversations must return the newest messages first through a bounded page and allow older history to be loaded without dropping the latest messages.
+- Read/unread state is server-authoritative.
+- A viewing request belongs to the real property/requester/advertiser and, for property viewings, the related message thread.
+- Initial requester proposals are confirmed or rejected by the advertiser.
+- If the advertiser reschedules, the new time returns to `requested` and must be explicitly accepted by the requester; the advertiser cannot confirm its own replacement proposal.
+- If the requester reschedules, the advertiser confirms the new proposal.
+- Either allowed party may cancel while the booking is active; completed/declined/cancelled terminal states cannot be reopened by a normal state action.
+- A confirmed viewing can only be marked completed after its scheduled end.
+- Overlapping confirmed target/requester/host schedules are rejected by the backend; concurrency decisions are server-authoritative.
+- Viewing notifications and app links should open the exact conversation or booking target when the reference is available.
+
+Booking records should preserve:
+- property or supported development-unit target;
+- advertiser/host;
 - requester;
-- related conversation;
+- related conversation where applicable;
 - proposed/confirmed appointment;
 - status;
-- history.
+- immutable change history.
 
 ## 18. Rental contracts
 
