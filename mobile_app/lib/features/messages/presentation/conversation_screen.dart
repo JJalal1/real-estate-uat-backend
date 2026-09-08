@@ -23,6 +23,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   bool _sending = false;
   bool _bookingBusy = false;
   String? _error;
+  String? _pendingMessageKey;
 
   @override
   void initState() {
@@ -46,15 +47,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         for (final booking in bookings) {
           if (booking.messageThreadId == widget.threadId) {
             viewing = booking;
-            break;
+            if (booking.isActive) break;
           }
         }
       } catch (_) {
-        // The conversation itself must remain usable even if booking refresh fails.
+        // Messaging remains usable if the booking refresh is temporarily unavailable.
       }
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _details = details;
         _viewing = viewing;
@@ -62,9 +61,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         _error = null;
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
@@ -74,31 +71,32 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending) {
-      return;
-    }
+    if (text.isEmpty || _sending) return;
+    final key = _pendingMessageKey ??
+        'm-${widget.threadId}-${DateTime.now().microsecondsSinceEpoch}';
+    _pendingMessageKey = key;
     setState(() => _sending = true);
     try {
-      await ref.read(messageRepositoryProvider).send(widget.threadId, text);
+      await ref.read(messageRepositoryProvider).send(widget.threadId, text,
+          clientMessageId: key);
       ref.read(messageDataRevisionProvider.notifier).state++;
       _controller.clear();
+      _pendingMessageKey = null;
       await _load();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                '${friendlyApiError(error)} يمكنك الضغط على إرسال مرة أخرى بأمان.')));
       }
     } finally {
-      if (mounted) {
-        setState(() => _sending = false);
-      }
+      if (mounted) setState(() => _sending = false);
     }
   }
 
   Future<void> _bookingAction(String action) async {
     final booking = _viewing;
     if (booking == null || _bookingBusy) return;
-
     setState(() => _bookingBusy = true);
     try {
       final repo = ref.read(bookingRepositoryProvider);
@@ -117,6 +115,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         if (!mounted) return;
         updated = await BookingRequestSheet.showForReschedule(context, booking);
         if (updated == null) return;
+      } else if (action == 'complete') {
+        updated = await repo.complete(booking.id);
       }
       if (!mounted || updated == null) return;
       setState(() => _viewing = updated);
@@ -174,69 +174,75 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.event_available_outlined),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'طلب معاينة مرتبط بهذه المحادثة',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                ),
-                Chip(label: Text(booking.statusLabel)),
-              ],
-            ),
+            Row(children: [
+              const Icon(Icons.event_available_outlined),
+              const SizedBox(width: 8),
+              const Expanded(
+                  child: Text('طلب معاينة مرتبط بهذه المحادثة',
+                      style: TextStyle(fontWeight: FontWeight.w900))),
+              Chip(label: Text(booking.statusLabel)),
+            ]),
             Text(date),
             const SizedBox(height: 4),
             Text(booking.isRequester
                 ? 'المعلن: ${booking.hostName ?? '-'}'
                 : 'طالب المعاينة: ${booking.requesterName}'),
+            if (booking.awaitingRequesterConfirmation && booking.isRequester)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('المعلن اقترح هذا الموعد الجديد. راجعه ثم وافق عليه أو غيّره.'),
+              ),
             if (booking.requesterNote?.trim().isNotEmpty == true)
               Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('ملاحظة الطلب: ${booking.requesterNote}'),
-              ),
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('ملاحظة الطلب: ${booking.requesterNote}')),
+            if (booking.hostNote?.trim().isNotEmpty == true)
+              Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('ملاحظة المعلن: ${booking.hostNote}')),
             if (booking.isActive) ...[
               const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (booking.canManage && booking.status == 'requested')
-                    FilledButton.tonalIcon(
-                      onPressed: _bookingBusy
-                          ? null
-                          : () => _bookingAction('confirm'),
-                      icon: const Icon(Icons.check_circle_outline),
-                      label: const Text('تأكيد الموعد'),
-                    ),
-                  if (booking.canManage && booking.status == 'requested')
-                    OutlinedButton.icon(
-                      onPressed: _bookingBusy
-                          ? null
-                          : () => _bookingAction('decline'),
-                      icon: const Icon(Icons.cancel_outlined),
-                      label: const Text('رفض'),
-                    ),
-                  if (booking.canReschedule)
-                    OutlinedButton.icon(
-                      onPressed: _bookingBusy
-                          ? null
-                          : () => _bookingAction('reschedule'),
-                      icon: const Icon(Icons.schedule_outlined),
-                      label: const Text('تغيير الموعد'),
-                    ),
-                  if (booking.canCancel)
-                    OutlinedButton.icon(
-                      onPressed: _bookingBusy
-                          ? null
-                          : () => _bookingAction('cancel'),
-                      icon: const Icon(Icons.event_busy_outlined),
-                      label: const Text('إلغاء'),
-                    ),
-                ],
-              ),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                if (booking.canConfirm)
+                  FilledButton.tonalIcon(
+                    onPressed:
+                        _bookingBusy ? null : () => _bookingAction('confirm'),
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: Text(booking.canAcceptReschedule
+                        ? 'قبول الموعد الجديد'
+                        : 'تأكيد الموعد'),
+                  ),
+                if (booking.canDecline)
+                  OutlinedButton.icon(
+                    onPressed:
+                        _bookingBusy ? null : () => _bookingAction('decline'),
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: const Text('رفض'),
+                  ),
+                if (booking.canReschedule)
+                  OutlinedButton.icon(
+                    onPressed: _bookingBusy
+                        ? null
+                        : () => _bookingAction('reschedule'),
+                    icon: const Icon(Icons.schedule_outlined),
+                    label: const Text('تغيير الموعد'),
+                  ),
+                if (booking.canCancel)
+                  OutlinedButton.icon(
+                    onPressed:
+                        _bookingBusy ? null : () => _bookingAction('cancel'),
+                    icon: const Icon(Icons.event_busy_outlined),
+                    label: const Text('إلغاء'),
+                  ),
+              ]),
+            ],
+            if (booking.canComplete) ...[
+              const SizedBox(height: 10),
+              FilledButton.tonalIcon(
+                  onPressed:
+                      _bookingBusy ? null : () => _bookingAction('complete'),
+                  icon: const Icon(Icons.task_alt),
+                  label: const Text('تسجيل المعاينة كمكتملة')),
             ],
           ],
         ),
@@ -261,19 +267,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('بلاغ عن المحادثة'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text(
-                'لن يفتح فريق الدعم محتوى المحادثة إلا ضمن هذا البلاغ وبصلاحية فتح المحادثات الخاصة، وسيتم تسجيل عملية الفتح.'),
+            const Text('لن يفتح فريق الدعم محتوى المحادثة إلا ضمن هذا البلاغ وبصلاحية فتح المحادثات الخاصة، وسيتم تسجيل عملية الفتح.'),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
                 value: reason,
                 items: reasons.entries
-                    .map((e) =>
-                        DropdownMenuItem(value: e.key, child: Text(e.value)))
+                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
                     .toList(),
                 onChanged: (value) {
-                  if (value != null) {
-                    setDialogState(() => reason = value);
-                  }
+                  if (value != null) setDialogState(() => reason = value);
                 }),
             const SizedBox(height: 12),
             TextField(
@@ -296,16 +298,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
     final text = details.text.trim();
     details.dispose();
-    if (accepted != true) {
-      return;
-    }
+    if (accepted != true) return;
     if (text.length < 5) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('اكتب تفاصيل واضحة للبلاغ لا تقل عن 5 أحرف.'),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('اكتب تفاصيل واضحة للبلاغ لا تقل عن 5 أحرف.')));
       }
       return;
     }
@@ -313,9 +310,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       await ref
           .read(messageRepositoryProvider)
           .report(widget.threadId, reason: reason, details: text);
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم إرسال البلاغ إلى الدعم.')));
     } catch (error) {
@@ -362,8 +357,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             minLines: 1,
                             maxLines: 4,
                             maxLength: 2000,
-                            decoration: const InputDecoration(
-                                hintText: 'اكتب رسالة...'),
+                            decoration:
+                                const InputDecoration(hintText: 'اكتب رسالة...'),
                             onSubmitted: (_) => _send())),
                     const SizedBox(width: 8),
                     IconButton.filled(
@@ -372,8 +367,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2))
+                                child: CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.send)),
                   ]))),
         ]),
@@ -384,9 +378,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   Widget _messageList() {
     final messages = _details?.messages ?? const <PrivateMessageItem>[];
     if (messages.isEmpty) {
-      return const Center(
-        child: Text('ابدأ المحادثة برسالة محترمة وواضحة.'),
-      );
+      return const Center(child: Text('ابدأ المحادثة برسالة محترمة وواضحة.'));
     }
     return ListView.builder(
       reverse: true,
@@ -405,8 +397,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16)),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(item.senderName,
                   style: const TextStyle(
                       fontWeight: FontWeight.w800, fontSize: 12)),
