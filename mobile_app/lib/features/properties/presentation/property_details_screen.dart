@@ -18,6 +18,7 @@ import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
+import 'property_sai_public_line.dart';
 
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
@@ -133,6 +134,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(propertyDetailsProvider(widget.propertyId));
+        ref.invalidate(propertySaiPublicProvider(widget.propertyId));
         if (ref.read(authControllerProvider).asData?.value != null) {
           ref.invalidate(favoritePropertyIdsProvider);
         }
@@ -176,6 +178,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             currency: property.currency,
             suffix: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
           ),
+          PropertySaiPublicLine(propertyId: property.id),
           const SizedBox(height: AppSpacing.s12),
           Wrap(
             spacing: AppSpacing.s8,
