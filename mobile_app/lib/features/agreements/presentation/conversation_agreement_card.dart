@@ -22,7 +22,6 @@ class _ConversationAgreementCardState
   PropertyAgreement? _agreement;
   bool _loading = true;
   bool _busy = false;
-  String? _error;
 
   @override
   void initState() {
@@ -44,14 +43,10 @@ class _ConversationAgreementCardState
       setState(() {
         _agreement = found;
         _loading = false;
-        _error = null;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = friendlyApiError(error);
-      });
+      setState(() => _loading = false);
     }
   }
 
