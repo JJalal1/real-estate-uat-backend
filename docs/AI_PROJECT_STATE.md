@@ -2,13 +2,15 @@
 
 Last updated: 2026-09-08
 
-## Current gate — Phase 3 Buyer Discovery Completion
+## Current gate — Phase 3 CLOSED / Phase 4 next
 
-Phase 3 is actively implemented on `phase3/buyer-discovery-favorites` with Draft PR #15 targeting `phase1/ux-product-foundation`. Canonical tracker: Issue #13.
+Phase 3 — Buyer Discovery Completion + Server-side Favorites is CLOSED by explicit product-owner acceptance after successful automated gates and real-device Android acceptance.
 
-The startup-navigation blocker from Issue #11 / PR #10 is CLOSED: the product owner installed the corrected Android candidate and explicitly confirmed that it works on the reporting device. PR #10 was merged with approval into the integration branch at `524f9a9acf3a83d8dbbcba5712e0d8c06b4d3174`.
+Branch: `phase3/buyer-discovery-favorites`
+PR: #15 targeting `phase1/ux-product-foundation`
+Canonical tracker: Issue #13
 
-Phase 3 implementation currently includes:
+Accepted Phase 3 outcome:
 - Laravel-authoritative, account-bound server Favorites;
 - Supabase UAT `property_favorites` table with deny-all direct Data API posture (RLS enabled, zero policies, direct table/sequence privileges revoked from `PUBLIC`, `anon`, and `authenticated`);
 - anonymous published-only discovery with internal listing-review metadata removed from public property payloads;
@@ -19,18 +21,25 @@ Phase 3 implementation currently includes:
 - existing property-linked messaging retained as the only advertiser contact path;
 - dedicated Phase 3 Laravel + PostgreSQL 17/PostGIS + Flutter + release APK CI.
 
-The application-code acceptance head before docs-only state commits is `b671c90d0d122e0afd023948445054931b2343a9`. Re-check current GitHub Actions before reporting final acceptance; documentation-only commits after this SHA do not change application/runtime behavior.
+Final automated acceptance evidence:
+- accepted CI head: `44af494bd3dd586b693903ced5901e9d143f2d90`;
+- Phase 3 Buyer Discovery CI run #34 / `34174945119`: SUCCESS;
+- Phase 2 regression on the same head: SUCCESS;
+- APK artifact: `real-estate-phase3-uat-apk-34`;
+- artifact digest: `sha256:3ed8a4f6a8343c6346ff54b6e15a191da9ee32f41901a781ec1edade78cd1631`.
 
-Do not mark Phase 3 CLOSED until the latest application-code gate has completed successfully. A true real-device Favorites end-to-end acceptance also requires a Render UAT deployment containing the Phase 3 Laravel routes. The current Render UAT service still tracks the older `audit/system-stabilization` branch with auto-deploy disabled, so do not claim the new Favorites API is live on Render yet.
+The product owner subsequently installed/tested the candidate and explicitly marked Phase 3 accepted on a real Android device.
 
-See `docs/PHASE3_BUYER_DISCOVERY.md` for detailed scope and acceptance rules.
+Important deployment boundary: this acceptance does not independently establish the current Render service branch/deploy state. The last confirmed Render configuration before closure tracked the older `audit/system-stabilization` branch with auto-deploy disabled. Re-check Render before claiming Phase 3 backend code is live there. No Production deploy is implied.
+
+PR #15 is not merged yet. Merge remains a separate explicit product-owner approval gate.
 
 ## Current repository / environment
 
 - Repository: `JJalal1/real-estate-uat-backend`
 - Primary branch: `main`
 - Integration branch: `phase1/ux-product-foundation`
-- Current feature branch: `phase3/buyer-discovery-favorites`
+- Current accepted feature branch: `phase3/buyer-discovery-favorites`
 - Mobile: Flutter Android
 - Backend: Laravel/PHP API
 - Database: PostgreSQL 17 + PostGIS
@@ -48,11 +57,11 @@ Accepted audit work includes authorization/navigation/notification fixes, Supaba
 
 ## Phase 1 status
 
-Phase 1 — UX/UI Product Foundation is CLOSED at source/automated-acceptance level.
+Phase 1 — UX/UI Product Foundation is CLOSED.
 
 Accepted outcome includes Arabic RTL-first Material 3 design, marketplace-first role navigation, anonymous public discovery, services under Account, standardized property UI primitives, deferred request/matching removal, and Laravel/Flutter closure CI.
 
-Rendered-device visual inspection remains a Beta/launch-readiness gate. Blocking device defects take priority when discovered; the startup viewport defect discovered after Phase 2 was repaired and device-confirmed before Phase 3 proceeded.
+The startup viewport defect later discovered on-device was repaired in PR #10, passed automated regression, was installed by the product owner, and was explicitly accepted before Phase 3 proceeded.
 
 ## Phase 2 status
 
@@ -69,7 +78,24 @@ Accepted outcome:
 - public visibility restricted to published listings;
 - Laravel, PostgreSQL 17/PostGIS, Flutter and APK acceptance gates.
 
-PR #9 was merged with product-owner approval into `phase1/ux-product-foundation` at `d5ea7938e5fe63868a1a36b979221581927e9e3e`, not into `main`.
+PR #9 was merged with product-owner approval into `phase1/ux-product-foundation`, not into `main`.
+
+## Phase 3 status
+
+Phase 3 — Buyer Discovery Completion + Server-side Favorites is CLOSED.
+
+Accepted outcome:
+1. public search/filter/sort/list/map hardening;
+2. property-card/details consistency and unavailable/error states;
+3. public privacy boundary;
+4. server/account-bound Favorites with Laravel API + Supabase deny-all direct access;
+5. anonymous authentication handoff for favorite actions;
+6. valid owned app deep links/share reference;
+7. correct property-linked contact entry;
+8. Laravel/PostgreSQL/PostGIS/Flutter/APK regression gates;
+9. explicit product-owner Android device acceptance.
+
+See `docs/PHASE3_BUYER_DISCOVERY.md` for detailed evidence.
 
 ## Current product direction
 
@@ -91,19 +117,19 @@ Key rules:
 - Backend authorization is authoritative.
 - Sensitive storage remains private.
 
-## Phase 3 scope
+## Next phase — Phase 4
 
-Phase 3 completes buyer discovery rather than rebuilding it:
-1. public search/filter/sort/list/map hardening;
-2. property-card/details consistency and unavailable/error states;
-3. public privacy boundary;
-4. server/account-bound Favorites with Laravel API + Supabase deny-all direct access;
-5. anonymous authentication handoff for favorite actions;
-6. valid app deep links/share reference;
-7. correct property-linked contact entry;
-8. Laravel/PostgreSQL/PostGIS/Flutter/APK regression gates.
+Phase 4 is property-linked conversation, messaging, viewing, and booking integration hardening.
 
-Phase 3 must not expand into rental contracts, valuation, Production infrastructure, payment activation, or deferred request/matching features.
+It should harden the existing implementation rather than build a second chat/viewing system. Focus areas include:
+- property-linked conversation lifecycle and deep links;
+- message reliability, unread/read state, privacy and reporting boundaries;
+- viewing request -> accept/reschedule/reject/cancel/complete state machine UX;
+- conversation/viewing linkage and history;
+- concurrency/conflict handling and notifications;
+- Laravel/PostgreSQL/Flutter/APK regression and real-device acceptance.
+
+Phase 4 must not expand into Production deployment, payments, Property Requests/Researcher Matching, rental contracts, valuation, or legal-library work.
 
 ## Deferred / not launch-critical
 
@@ -111,9 +137,8 @@ Property Requests, Researcher Requests, and broker-driven request matching remai
 
 They must not be exposed as active capabilities, launch-facing quick actions, or mandatory roadmap steps.
 
-## Later launch-critical work after Phase 3
+## Later launch-critical work after Phase 4
 
-- Phase 4: property-linked conversation/viewing/booking integration hardening;
 - rental contracts and in-app agreement workflow;
 - price indicators + valuation using eligible published platform data only;
 - Real-estate Guide + Legal Documents library;
@@ -122,7 +147,7 @@ They must not be exposed as active capabilities, launch-facing quick actions, or
 
 ## Execution model
 
-This ChatGPT session owns engineering work executable through the available repository/cloud tools: roadmap decomposition, GitHub changes, CI review, Laravel/API/database/security work, Render/Supabase verification, Flutter source changes, tests, and documentation.
+This ChatGPT session owns engineering work executable through available repository/cloud tools: roadmap decomposition, GitHub changes, CI review, Laravel/API/database/security work, Render/Supabase verification, Flutter source changes, tests, and documentation.
 
 Real-device subjective visual acceptance remains a manual/Beta gate when an actual device is required. Lack of Computer Use must not freeze normal development.
 
