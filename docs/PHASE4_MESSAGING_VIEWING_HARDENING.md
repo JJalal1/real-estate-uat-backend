@@ -46,7 +46,9 @@ Advertiser reschedule:
 
 `requested|confirmed -> advertiser proposes replacement -> requested -> requester explicitly accepts | requester reschedules again | either allowed party cancel`
 
-The advertiser cannot self-confirm its own replacement proposal.
+The advertiser cannot self-confirm or reject its own replacement proposal while requester acceptance is pending; cancellation remains available if the advertiser needs to terminate the booking.
+
+For an unassigned development-unit viewing, if an authorized development manager proposes a replacement time and the requester accepts it, that proposing manager becomes the booking host.
 
 Completion:
 
@@ -69,8 +71,9 @@ Terminal states (`completed`, `declined`, `cancelled`) cannot be reopened by nor
 Booking notifications carry `booking_id` and `message_thread_id` when available.
 
 Flutter behavior:
-- property viewing/message notifications open the exact message thread when a thread reference is present;
-- standalone viewing notifications open `/bookings?booking={id}` and prioritize/highlight the referenced booking;
+- viewing lifecycle notifications prefer the exact booking destination `/bookings?booking={id}` and prioritize/highlight that booking, even when the booking also has a message thread;
+- message-received notifications open the exact message thread;
+- other thread notifications without a booking-specific lifecycle target open the thread;
 - owned app links support property, message-thread, and viewing-booking targets;
 - all private targets still pass the normal authentication/authorization gate.
 
@@ -88,13 +91,17 @@ Dedicated Laravel acceptance covers:
 - newest-first bounded history + older pagination without overlap;
 - unpublished listing blocks new entry while existing thread remains usable;
 - advertiser-reschedule requester-acceptance semantics;
+- advertiser cannot reject its own pending reschedule proposal;
+- unassigned development reschedule acceptance assigns the proposing manager as host;
 - immutable terminal viewing states.
 
 Dedicated Flutter coverage includes:
 - property availability + conversation pagination parsing;
 - idempotency client message key parsing;
 - exact booking/thread notification payload parsing;
+- exact notification destination priority for viewing vs message events;
 - advertiser-reschedule requester acceptance model state;
+- role-aware pending-reschedule Arabic labels;
 - completion eligibility after confirmed viewing end;
 - message-thread and viewing-booking app links.
 
