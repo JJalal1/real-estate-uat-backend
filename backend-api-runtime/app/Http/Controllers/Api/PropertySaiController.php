@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Models\User;
+use App\Services\ApiTokenService;
 use App\Services\PropertySaiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,7 +13,24 @@ use Illuminate\Validation\Rule;
 
 class PropertySaiController extends Controller
 {
-    public function __construct(private readonly PropertySaiService $sai) {}
+    public function __construct(
+        private readonly PropertySaiService $sai,
+        private readonly ApiTokenService $tokens,
+    ) {}
+
+    public function show(Request $request, Property $property): JsonResponse
+    {
+        $viewer = $this->tokens->authenticate($request, false);
+        $isOwner = $viewer !== null && (int) $viewer->id === (int) $property->user_id;
+        abort_unless($property->status === 'published' || $isOwner, 404);
+
+        $data = ['sai' => $this->sai->publicData($property)];
+        if ($isOwner) {
+            $data['sai_management'] = $this->sai->managementData($property, $viewer);
+        }
+
+        return response()->json(['data' => $data]);
+    }
 
     public function update(Request $request, Property $property): JsonResponse
     {
