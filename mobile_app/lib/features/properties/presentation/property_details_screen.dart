@@ -10,6 +10,7 @@ import '../../account/data/auth_controller.dart';
 import '../../bookings/presentation/booking_request_sheet.dart';
 import '../../community/presentation/listing_community_screen.dart';
 import '../../messages/data/message_repository.dart';
+import '../data/favorites_repository.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
@@ -34,16 +35,41 @@ class PropertyDetailsScreen extends ConsumerStatefulWidget {
 class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   int _imageIndex = 0;
   bool _startingConversation = false;
+  bool _changingFavorite = false;
 
   @override
   Widget build(BuildContext context) {
     final details = ref.watch(propertyDetailsProvider(widget.propertyId));
+    final user = ref.watch(authControllerProvider).asData?.value;
+    final favoriteIds = user == null
+        ? const <int>{}
+        : ref.watch(favoritePropertyIdsProvider).maybeWhen(
+              data: (value) => value,
+              orElse: () => const <int>{},
+            );
+    final loaded = details.asData?.value;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppAppBar(
           title: 'تفاصيل العقار',
           actions: [
+            if (loaded != null && loaded.status == 'published' && !loaded.isOwner)
+              AppIconButton(
+                icon: favoriteIds.contains(loaded.id)
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                tooltip: favoriteIds.contains(loaded.id)
+                    ? 'إزالة من المفضلة'
+                    : 'حفظ في المفضلة',
+                onPressed: _changingFavorite
+                    ? null
+                    : () => _toggleFavorite(
+                          loaded.id,
+                          currentlyFavorite: favoriteIds.contains(loaded.id),
+                        ),
+              ),
             AppIconButton(
               icon: Icons.ios_share_outlined,
               tooltip: 'مشاركة العقار',
@@ -57,13 +83,13 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             message: friendlyApiError(error),
             onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId)),
           ),
-          data: (property) => _buildContent(property),
+          data: (property) => _buildContent(property, favoriteIds),
         ),
       ),
     );
   }
 
-  Widget _buildContent(PropertyDetails property) {
+  Widget _buildContent(PropertyDetails property, Set<int> favoriteIds) {
     final published = property.status == 'published';
     final facts = <AppPropertyFact>[
       if (property.areaValue != null)
@@ -94,6 +120,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(propertyDetailsProvider(widget.propertyId));
+        if (ref.read(authControllerProvider).asData?.value != null) {
+          ref.invalidate(favoritePropertyIdsProvider);
+        }
         await ref.read(propertyDetailsProvider(widget.propertyId).future);
       },
       child: ListView(
@@ -262,6 +291,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                 separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.s12),
                 itemBuilder: (context, index) {
                   final item = property.similar[index];
+                  final isFavorite = favoriteIds.contains(item.id);
                   return SizedBox(
                     width: 260,
                     child: AppPropertyCard(
@@ -277,6 +307,18 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                         if (item.bedrooms != null)
                           AppPropertyFact(icon: Icons.bed_outlined, label: '${item.bedrooms} غرف'),
                       ],
+                      trailing: IconButton.filledTonal(
+                        tooltip: isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
+                        icon: Icon(
+                          isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        ),
+                        onPressed: _changingFavorite
+                            ? null
+                            : () => _toggleFavorite(
+                                  item.id,
+                                  currentlyFavorite: isFavorite,
+                                ),
+                      ),
                       unavailable: item.status != 'published',
                       onTap: () => context.push('/properties/${item.id}'),
                     ),
@@ -290,11 +332,58 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     );
   }
 
+  Future<void> _toggleFavorite(
+    int propertyId, {
+    required bool currentlyFavorite,
+  }) async {
+    var user = ref.read(authControllerProvider).asData?.value;
+    final wasAnonymous = user == null;
+    if (user == null) {
+      await context.push('/auth');
+      if (!mounted) return;
+      user = ref.read(authControllerProvider).asData?.value;
+      if (user == null) return;
+    }
+    if (!user.isActive) {
+      await context.push('/verify-phone');
+      return;
+    }
+    if (_changingFavorite) return;
+
+    setState(() => _changingFavorite = true);
+    try {
+      final repository = ref.read(favoritesRepositoryProvider);
+      if (wasAnonymous || !currentlyFavorite) {
+        await repository.add(propertyId);
+      } else {
+        await repository.remove(propertyId);
+      }
+      ref.read(favoriteDataRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            wasAnonymous || !currentlyFavorite
+                ? 'تم حفظ العقار في المفضلة.'
+                : 'تمت إزالة العقار من المفضلة.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyApiError(error))),
+      );
+    } finally {
+      if (mounted) setState(() => _changingFavorite = false);
+    }
+  }
+
   Future<void> _copyShareReference() async {
     await Clipboard.setData(ClipboardData(text: '/properties/${widget.propertyId}'));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم نسخ رابط العقار للمشاركة.')),
+      const SnackBar(content: Text('تم نسخ مرجع العقار للمشاركة.')),
     );
   }
 
