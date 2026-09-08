@@ -17,9 +17,18 @@ void main() {
     final notifications = File(
       'lib/features/messages/presentation/notifications_screen.dart',
     ).readAsStringSync();
+    final destinations = File(
+      'lib/features/messages/domain/notification_destination.dart',
+    ).readAsStringSync();
     final support = File(
       'lib/features/support/presentation/support_center_screen.dart',
     ).readAsStringSync();
+
+    expect(
+      notifications,
+      contains("import '../domain/notification_destination.dart';"),
+    );
+    expect(notifications, contains('notificationDestination(item)'));
 
     for (final entityType in <String>[
       'message_thread',
@@ -32,13 +41,13 @@ void main() {
       'service_order',
     ]) {
       expect(
-        notifications,
+        destinations,
         contains("'$entityType'"),
         reason: 'Missing notification destination for $entityType',
       );
     }
 
-    expect(notifications, contains("'/support?case=\${item.entityId}'"));
+    expect(destinations, contains("'/support?case=\${item.entityId}'"));
     expect(support, contains('final int? initialCaseId;'));
     expect(support, contains('await _showDetails(initialCaseId);'));
   });
