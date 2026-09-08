@@ -43,6 +43,27 @@ class PropertyFavoriteController extends Controller
         ]);
     }
 
+    public function ids(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $ids = PropertyFavorite::query()
+            ->where('user_id', $user->id)
+            ->whereHas('property', fn ($query) => $query->where('status', 'published'))
+            ->latest('id')
+            ->limit(5000)
+            ->pluck('property_id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        return response()->json([
+            'data' => [
+                'property_ids' => $ids,
+            ],
+        ]);
+    }
+
     public function store(Request $request, Property $property): JsonResponse
     {
         /** @var User $user */
