@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\PropertySaiService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,6 +25,25 @@ class Property extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (Property $property): void {
+            if (! $property->exists) {
+                return;
+            }
+            $stateChanged = $property->isDirty('status') || $property->isDirty('review_status');
+            if (! $stateChanged) {
+                return;
+            }
+            $requiresReadySai = in_array((string) $property->status, ['pending', 'published'], true)
+                || in_array((string) $property->review_status, ['submitted', 'under_review', 'approved'], true);
+            if (! $requiresReadySai) {
+                return;
+            }
+
+            /** @var User $advertiser */
+            $advertiser = $property->user()->firstOrFail();
+            app(PropertySaiService::class)->assertReadyForSubmission($property, $advertiser);
+        });
+
         static::updating(function (Property $property): void {
             // `returned_for_correction` is an editable workflow state, not a
             // disposable label. Legacy update code normalizes editable listings
