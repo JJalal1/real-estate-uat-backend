@@ -15,13 +15,28 @@ final _bookingRowsProvider = FutureProvider.autoDispose
 });
 
 class BookingsScreen extends ConsumerStatefulWidget {
-  const BookingsScreen({super.key});
+  const BookingsScreen({this.initialBookingId, super.key});
+
+  final int? initialBookingId;
+
   @override
   ConsumerState<BookingsScreen> createState() => _BookingsScreenState();
 }
 
 class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   bool _managed = false;
+
+  List<ViewingBooking> _prioritized(List<ViewingBooking> items) {
+    final id = widget.initialBookingId;
+    if (id == null) return items;
+    final index = items.indexWhere((item) => item.id == id);
+    if (index <= 0) return items;
+    return <ViewingBooking>[
+      items[index],
+      ...items.take(index),
+      ...items.skip(index + 1),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,33 +91,46 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          Text(friendlyApiError(error), textAlign: TextAlign.center),
+                          Text(friendlyApiError(error),
+                              textAlign: TextAlign.center),
                           const SizedBox(height: 10),
                           OutlinedButton.icon(
                               onPressed: _refresh,
                               icon: const Icon(Icons.refresh),
                               label: const Text('إعادة المحاولة'))
                         ]))),
-                data: (items) => RefreshIndicator(
-                    onRefresh: _refresh,
-                    child: items.isEmpty
-                        ? ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            children: const [
-                                SizedBox(height: 140),
-                                Icon(Icons.event_busy_outlined, size: 54),
-                                SizedBox(height: 12),
-                                Center(child: Text('لا توجد طلبات معاينة حالياً.'))
-                              ])
-                        : ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            itemCount: items.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
-                            itemBuilder: (context, index) => _BookingCard(
-                                booking: items[index],
-                                onAction: (action) =>
-                                    _action(items[index], action)))),
+                data: (items) {
+                  final displayed = _prioritized(items);
+                  return RefreshIndicator(
+                      onRefresh: _refresh,
+                      child: displayed.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: const [
+                                  SizedBox(height: 140),
+                                  Icon(Icons.event_busy_outlined, size: 54),
+                                  SizedBox(height: 12),
+                                  Center(
+                                      child: Text('لا توجد طلبات معاينة حالياً.'))
+                                ])
+                          : ListView.separated(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 10, 16, 28),
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: displayed.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                final booking = displayed[index];
+                                return _BookingCard(
+                                  booking: booking,
+                                  highlighted:
+                                      booking.id == widget.initialBookingId,
+                                  onAction: (action) =>
+                                      _action(booking, action),
+                                );
+                              }));
+                },
               )),
             ]);
           },
@@ -140,7 +168,8 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
       }
       if (action == 'reschedule') {
         if (!mounted) return;
-        final changed = await BookingRequestSheet.showForReschedule(context, booking);
+        final changed =
+            await BookingRequestSheet.showForReschedule(context, booking);
         if (changed == null) return;
       }
       if (action == 'complete') await repo.complete(booking.id);
@@ -184,9 +213,15 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
 }
 
 class _BookingCard extends StatelessWidget {
-  const _BookingCard({required this.booking, required this.onAction});
+  const _BookingCard({
+    required this.booking,
+    required this.onAction,
+    this.highlighted = false,
+  });
+
   final ViewingBooking booking;
   final ValueChanged<String> onAction;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -194,9 +229,18 @@ class _BookingCard extends StatelessWidget {
     final date =
         "${start.year}/${start.month.toString().padLeft(2, '0')}/${start.day.toString().padLeft(2, '0')} - ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}";
     return Card(
+        elevation: highlighted ? 3 : null,
         child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (highlighted) ...[
+                const Chip(
+                  avatar: Icon(Icons.notifications_active_outlined, size: 16),
+                  label: Text('من الإشعار'),
+                ),
+                const SizedBox(height: 6),
+              ],
               Row(children: [
                 Expanded(
                     child: Text(booking.targetTitle,
@@ -216,7 +260,8 @@ class _BookingCard extends StatelessWidget {
                   : 'طالب المعاينة: ${booking.requesterName}'),
               if (booking.awaitingRequesterConfirmation && booking.isRequester) ...[
                 const SizedBox(height: 7),
-                const Text('المعلن اقترح موعداً جديداً. راجعه ثم وافق أو غيّر الموعد.',
+                const Text(
+                    'المعلن اقترح موعداً جديداً. راجعه ثم وافق أو غيّر الموعد.',
                     style: TextStyle(fontWeight: FontWeight.w700)),
               ],
               if (booking.requesterNote?.isNotEmpty == true) ...[
