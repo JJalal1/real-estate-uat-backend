@@ -41,6 +41,13 @@ class Property extends Model
 
             /** @var User $advertiser */
             $advertiser = $property->user()->firstOrFail();
+            // Current product listing publication is for an approved
+            // owner/broker/office profile. Historical fixtures and legacy
+            // records without that profile predate the sai contract and must
+            // not be retroactively rewritten by merely touching their state.
+            if (! $advertiser->verificationProfile()?->isApproved()) {
+                return;
+            }
             app(PropertySaiService::class)->assertReadyForSubmission($property, $advertiser);
         });
 
