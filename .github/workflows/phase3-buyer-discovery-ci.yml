@@ -14,6 +14,10 @@ on:
       - 'mobile_app/**'
       - '.github/workflows/phase3-buyer-discovery-ci.yml'
 
+concurrency:
+  group: phase3-discovery-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
 
