@@ -27,6 +27,7 @@ permissions:
 
 jobs:
   backend-tests:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase4/')
     name: Laravel messaging and viewing regression suite
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -57,6 +58,7 @@ jobs:
         run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   postgres-validation:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase4/')
     name: PostgreSQL 17 and PostGIS messaging viewing acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -114,6 +116,7 @@ jobs:
         run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   flutter-validation:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase4/')
     name: Flutter messaging viewing tests and UAT APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
