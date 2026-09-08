@@ -2,44 +2,44 @@
 
 Last updated: 2026-09-08
 
-## Current gate — Phase 3 CLOSED / Phase 4 next
+## Current gate — Phase 4 closure candidate
 
 Phase 3 — Buyer Discovery Completion + Server-side Favorites is CLOSED by explicit product-owner acceptance after successful automated gates and real-device Android acceptance.
 
-Branch: `phase3/buyer-discovery-favorites`
-PR: #15 targeting `phase1/ux-product-foundation`
-Canonical tracker: Issue #13
+Phase 4 — Messaging + Viewing Journey Hardening is now the active engineering phase.
 
-Accepted Phase 3 outcome:
-- Laravel-authoritative, account-bound server Favorites;
-- Supabase UAT `property_favorites` table with deny-all direct Data API posture (RLS enabled, zero policies, direct table/sequence privileges revoked from `PUBLIC`, `anon`, and `authenticated`);
-- anonymous published-only discovery with internal listing-review metadata removed from public property payloads;
-- real Account -> Favorites screen and favorite hearts in details, similar cards, list results, and selected-map preview;
-- anonymous -> WhatsApp/profile -> return-to-property -> pending favorite handoff;
-- deterministic newest/price/distance list sort modes;
-- owned Android property app deep links (`realestate://app/properties/{id}`);
-- existing property-linked messaging retained as the only advertiser contact path;
-- dedicated Phase 3 Laravel + PostgreSQL 17/PostGIS + Flutter + release APK CI.
+Branch: `phase4/messaging-viewing-hardening`
+Draft PR: #17 targeting `phase1/ux-product-foundation`
+Canonical Phase 4 contract: `docs/PHASE4_MESSAGING_VIEWING_HARDENING.md`
 
-Final automated acceptance evidence:
-- accepted CI head: `44af494bd3dd586b693903ced5901e9d143f2d90`;
-- Phase 3 Buyer Discovery CI run #34 / `34174945119`: SUCCESS;
-- Phase 2 regression on the same head: SUCCESS;
-- APK artifact: `real-estate-phase3-uat-apk-34`;
-- artifact digest: `sha256:3ed8a4f6a8343c6346ff54b6e15a191da9ee32f41901a781ec1edade78cd1631`.
+Current Phase 4 source outcome:
+- one property-linked conversation system retained; no parallel chat/viewing implementation;
+- concurrent property conversation opens reuse the same thread;
+- participant-only normal private-message access retained;
+- support private-content access remains limited to the reported-conversation permission/audit workflow;
+- retry-safe private-message delivery using `client_message_id`, including conflict rejection when one logical key is reused for different content;
+- bounded newest-first conversation history with older-message pagination;
+- read/unread state remains server-authoritative;
+- new contact/viewing is blocked for unpublished listings while existing participant conversation/history remains available with an explicit unavailable-listing state;
+- viewing state transitions run through backend-authoritative transactions/locks and schedule-conflict checks;
+- advertiser reschedule requires requester acceptance; requester reschedule requires advertiser confirmation;
+- terminal booking states are not reopened by normal state actions;
+- exact message-thread / booking notification destinations and owned app links are implemented;
+- dedicated Phase 4 Laravel + PostgreSQL 17/PostGIS + Flutter + release APK CI exists.
 
-The product owner subsequently installed/tested the candidate and explicitly marked Phase 3 accepted on a real Android device.
+Automated evidence already available during implementation:
+- Phase 4 CI run #2 / `34236723410` completed successfully across full Laravel, explicit Phase 4 acceptance, PostgreSQL 17/PostGIS migrations/security + Phase 4 acceptance, Flutter analysis/tests, UAT compile configuration, release APK build and artifact upload.
 
-Important deployment boundary: this acceptance does not independently establish the current Render service branch/deploy state. The last confirmed Render configuration before closure tracked the older `audit/system-stabilization` branch with auto-deploy disabled. Re-check Render before claiming Phase 3 backend code is live there. No Production deploy is implied.
+Important: additional pagination/deep-link/acceptance coverage was added after run #2. Phase 4 therefore remains a closure candidate until a dedicated gate succeeds on the final source/documentation head and the UAT database migration/security verification is completed. Real-device acceptance remains required before final Phase 4 product acceptance/beta readiness.
 
-PR #15 is not merged yet. Merge remains a separate explicit product-owner approval gate.
+No merge is approved. PR #17 remains Draft/unmerged. No Production deployment is implied.
 
 ## Current repository / environment
 
 - Repository: `JJalal1/real-estate-uat-backend`
 - Primary branch: `main`
 - Integration branch: `phase1/ux-product-foundation`
-- Current accepted feature branch: `phase3/buyer-discovery-favorites`
+- Current feature branch: `phase4/messaging-viewing-hardening`
 - Mobile: Flutter Android
 - Backend: Laravel/PHP API
 - Database: PostgreSQL 17 + PostGIS
@@ -90,12 +90,45 @@ Accepted outcome:
 3. public privacy boundary;
 4. server/account-bound Favorites with Laravel API + Supabase deny-all direct access;
 5. anonymous authentication handoff for favorite actions;
-6. valid owned app deep links/share reference;
+6. valid owned property app deep links/share reference;
 7. correct property-linked contact entry;
 8. Laravel/PostgreSQL/PostGIS/Flutter/APK regression gates;
 9. explicit product-owner Android device acceptance.
 
+Accepted Phase 3 automated evidence:
+- accepted CI head: `44af494bd3dd586b693903ced5901e9d143f2d90`;
+- Phase 3 Buyer Discovery CI run #34 / `34174945119`: SUCCESS;
+- Phase 2 regression on the same head: SUCCESS;
+- APK artifact: `real-estate-phase3-uat-apk-34`;
+- artifact digest: `sha256:3ed8a4f6a8343c6346ff54b6e15a191da9ee32f41901a781ec1edade78cd1631`.
+
 See `docs/PHASE3_BUYER_DISCOVERY.md` for detailed evidence.
+
+## Phase 4 status
+
+Phase 4 — Messaging + Viewing Journey Hardening is IN PROGRESS / closure candidate.
+
+Canonical journey:
+
+`published property -> contact/conversation -> message -> viewing request -> confirm/reschedule/reject/cancel -> viewing -> complete`
+
+Current engineering scope includes:
+1. conversation reuse/privacy/report boundaries;
+2. idempotent message delivery;
+3. newest-first paged history and server read/unread state;
+4. listing-unavailable conversation context;
+5. backend-authoritative viewing state machine;
+6. advertiser-reschedule requester acceptance;
+7. overlap/concurrency protection;
+8. exact notification targets/app links;
+9. Flutter inbox/conversation/viewing UX hardening;
+10. dedicated Laravel/PostgreSQL/Flutter/APK acceptance.
+
+Still required before final phase acceptance:
+- final-head Phase 4 CI success after the latest coverage/documentation changes;
+- Supabase UAT migration + deny-all/security verification for the Phase 4 schema addition;
+- UAT runtime state re-verification before claiming the Phase 4 backend is live;
+- real Android acceptance before final product-owner Phase 4 closure/beta readiness.
 
 ## Current product direction
 
@@ -116,20 +149,6 @@ Key rules:
 - The active product remains free; no paid promotion/upgrades/packages are active.
 - Backend authorization is authoritative.
 - Sensitive storage remains private.
-
-## Next phase — Phase 4
-
-Phase 4 is property-linked conversation, messaging, viewing, and booking integration hardening.
-
-It should harden the existing implementation rather than build a second chat/viewing system. Focus areas include:
-- property-linked conversation lifecycle and deep links;
-- message reliability, unread/read state, privacy and reporting boundaries;
-- viewing request -> accept/reschedule/reject/cancel/complete state machine UX;
-- conversation/viewing linkage and history;
-- concurrency/conflict handling and notifications;
-- Laravel/PostgreSQL/Flutter/APK regression and real-device acceptance.
-
-Phase 4 must not expand into Production deployment, payments, Property Requests/Researcher Matching, rental contracts, valuation, or legal-library work.
 
 ## Deferred / not launch-critical
 
