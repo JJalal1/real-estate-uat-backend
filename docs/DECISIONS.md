@@ -131,3 +131,15 @@ Verified brokers and offices must not be forced to upload unrelated ownership ev
 Phase 2 Listing Journey Hardening is closed at source/automated-acceptance level after a successful gate that covers full Laravel regression, PostgreSQL 17 + PostGIS migration/security/listing lifecycle acceptance, Flutter analysis/tests, UAT endpoint verification, and release APK build/upload.
 
 The next implementation phase is Phase 3 — Buyer Discovery Completion. It must reuse the existing discovery implementation, harden list/map/details/search/filter/sort/public-boundary behavior, and add server/account-bound Favorites. Phase 3 must not silently expand into deferred request/matching, payments, contracts, valuation, or Production work.
+
+## D-029 — Phase 3 is closed; Phase 4 hardens the single conversation/viewing system
+
+Phase 3 Buyer Discovery Completion + Server-side Favorites is closed by product-owner acceptance. Phase 4 must reuse the existing property-linked conversation, notification, viewing-booking, audit, and authorization infrastructure. It must not create a second chat system or a parallel booking state machine.
+
+Phase 4 scope is messaging reliability/privacy/read state, conversation history, viewing transitions/concurrency, exact notification/deep-link destinations, Flutter UX hardening, and Laravel/PostgreSQL/Flutter/APK regression.
+
+## D-030 — Reschedule acceptance and message retries are explicit two-party/server contracts
+
+A replacement viewing time is a proposal, not an implicit confirmation. If the advertiser changes the appointment, the requester must explicitly accept the new time. If the requester changes it, the advertiser confirms it. The party proposing a replacement time cannot unilaterally turn its own proposal into a confirmed appointment.
+
+Private message retries use a client-supplied logical message key. Retrying the same key with the same body is idempotent; reusing the same key for different content is a conflict. Long conversation history is paged from newest to older rather than truncating the newest messages.
