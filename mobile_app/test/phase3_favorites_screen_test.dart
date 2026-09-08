@@ -54,7 +54,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('عقار محفوظ في Phase 3'), findsOneWidget);
-    expect(find.text('25,000,000'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Text &&
+            widget.textSpan?.toPlainText().contains('25,000,000 YER') == true,
+      ),
+      findsOneWidget,
+    );
     expect(find.text('للبيع'), findsOneWidget);
     expect(find.text('120 م²'), findsOneWidget);
     expect(find.byTooltip('إزالة من المفضلة'), findsOneWidget);
