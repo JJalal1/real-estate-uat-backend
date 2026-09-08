@@ -24,6 +24,9 @@ return new class extends Migration
             $table->timestamp('cancelled_at')->nullable();
             $table->text('cancellation_reason')->nullable();
             $table->timestamps();
+            $table->index('message_thread_id');
+            $table->index('viewing_booking_id');
+            $table->index('created_by_user_id');
             $table->index(['requester_user_id', 'status']);
             $table->index(['advertiser_user_id', 'status']);
             $table->index(['property_id', 'status']);
@@ -44,6 +47,7 @@ return new class extends Migration
             $table->string('created_by_name_snapshot');
             $table->timestamp('created_at')->useCurrent();
             $table->unique(['property_agreement_id', 'revision_number'], 'property_agreement_revision_unique');
+            $table->index('created_by_user_id');
         });
 
         Schema::create('property_agreement_acceptances', function (Blueprint $table): void {
@@ -53,6 +57,7 @@ return new class extends Migration
             $table->string('party_role', 24);
             $table->timestamp('accepted_at')->useCurrent();
             $table->unique(['property_agreement_revision_id', 'user_id'], 'property_agreement_acceptance_unique');
+            $table->index('user_id');
         });
 
         Schema::create('rental_contracts', function (Blueprint $table): void {
@@ -74,6 +79,9 @@ return new class extends Migration
             $table->timestamp('terminated_at')->nullable();
             $table->text('closure_reason')->nullable();
             $table->timestamps();
+            $table->index('property_id');
+            $table->index('message_thread_id');
+            $table->index('created_by_user_id');
             $table->index(['tenant_user_id', 'status']);
             $table->index(['advertiser_user_id', 'status']);
         });
@@ -94,6 +102,7 @@ return new class extends Migration
             $table->string('created_by_name_snapshot');
             $table->timestamp('created_at')->useCurrent();
             $table->unique(['rental_contract_id', 'revision_number'], 'rental_contract_revision_unique');
+            $table->index('created_by_user_id');
         });
 
         Schema::create('rental_contract_acceptances', function (Blueprint $table): void {
@@ -103,6 +112,7 @@ return new class extends Migration
             $table->string('party_role', 24);
             $table->timestamp('accepted_at')->useCurrent();
             $table->unique(['rental_contract_revision_id', 'user_id'], 'rental_contract_acceptance_unique');
+            $table->index('user_id');
         });
 
         if (DB::connection()->getDriverName() === 'pgsql') {
