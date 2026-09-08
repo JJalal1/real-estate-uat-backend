@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../data/auth_controller.dart';
+import '../data/auth_return_intent.dart';
 
 class CompleteProfileScreen extends ConsumerStatefulWidget {
   const CompleteProfileScreen({super.key});
@@ -90,7 +91,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم إكمال الحساب بنجاح.')),
       );
-      context.go('/');
+      context.go(takeAuthReturnLocation(ref));
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
