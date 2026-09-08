@@ -1,10 +1,10 @@
 # Phase 4 — Messaging + Viewing Journey Hardening
 
-Status: CLOSURE CANDIDATE — automated gates and Supabase UAT schema/security verification COMPLETE; Render UAT runtime verification and real-device acceptance remain.
+Status: CLOSURE CANDIDATE — automated gates, Supabase UAT schema/security verification, and Render UAT deployment are COMPLETE; real-device acceptance remains.
 
 Branch: `phase4/messaging-viewing-hardening`
-Draft PR: #17 -> `phase1/ux-product-foundation`
-UAT integration PR: #18 -> `audit/system-stabilization`
+PR: #17 -> `phase1/ux-product-foundation` (unmerged)
+UAT integration PR: #18 -> `audit/system-stabilization` (merged)
 
 ## Product boundary
 
@@ -31,7 +31,7 @@ Database change:
 - `private_messages.client_message_id` nullable;
 - unique `(thread_id, sender_user_id, client_message_id)`.
 
-Supabase UAT verification confirms this migration is already recorded and the expected column/index are present with RLS enabled and no direct `PUBLIC`/`anon`/`authenticated` table grants.
+Supabase UAT verification confirms this migration is recorded and the expected column/index are present with RLS enabled and no direct `PUBLIC`/`anon`/`authenticated` table grants.
 
 ## Viewing state machine
 
@@ -110,9 +110,9 @@ Canonical CI: `.github/workflows/phase4-messaging-viewing-ci.yml`
 
 ## Final automated evidence
 
-Accepted application/test head: `fadac78ad5ce3abb260c5db468ea175d2d9a6a54`
+Final documented head: `1513399f5c0bb6a8d916c5515cba095389c3c2df`
 
-Phase 4 Messaging Viewing CI run #48 / `34275753072`: SUCCESS.
+Phase 4 Messaging Viewing CI run #50 / `34276623699`: SUCCESS.
 
 Successful gates:
 1. full Laravel regression;
@@ -126,18 +126,18 @@ Successful gates:
 9. release UAT APK build;
 10. APK artifact upload.
 
-Artifact:
-- name: `real-estate-phase4-uat-apk-48`;
-- size: 44,257,241 bytes;
-- digest: `sha256:040118c60d24b83156842ff83d1c6816f4c1b95279cc68f0fa62a1438127bcbc`;
+Final UAT APK artifact:
+- name: `real-estate-phase4-uat-apk-50`;
+- size: 44,257,230 bytes;
+- digest: `sha256:6a1903236fff5abc966fdb4b4d452b2b022fe22db3f28f79add808438a0af665`;
 - expires: 2026-09-22.
 
-The first runner-enabled attempt after the repository was changed from private to public exposed one stale source-location assertion in `uat_navigation_integrity_test.dart`: notification routing had intentionally moved into `notification_destination.dart`. The test was corrected to assert the extracted routing contract; no product behavior was weakened. The subsequent final run #48 passed all gates.
+The earlier runner failures occurred before any workflow steps while the repository was private. After the product owner changed repository visibility to public, hosted runners executed normally. The first real run exposed one stale source-location assertion in `uat_navigation_integrity_test.dart`; notification routing had intentionally moved into `notification_destination.dart`. The test was corrected to assert the extracted routing contract, without weakening product behavior. Final run #50 passed all gates.
 
 ## Supabase UAT evidence
 
 Phase 4 schema/security verification is complete:
-- migration `harden_phase4_messaging_viewings` is recorded;
+- migration `2026_09_08_010000_harden_phase4_messaging_viewings` is recorded in Laravel migration history;
 - `private_messages.client_message_id` is nullable `varchar(100)`;
 - unique `(thread_id, sender_user_id, client_message_id)` index is present;
 - RLS remains enabled;
@@ -145,18 +145,40 @@ Phase 4 schema/security verification is complete:
 - Security Advisor reports only intentional deny-all `rls_enabled_no_policy` INFO;
 - Performance Advisor reports existing `unused_index` INFO only.
 
+During the first Render UAT rollout, Laravel startup failed because `property_favorites` already existed but its Laravel migration-history row was missing. The live table was verified to match `2026_09_08_010000_create_property_favorites_table` exactly: columns, PK, cascading FKs, unique key, supporting index, RLS, and deny-all direct grants. Only the missing Laravel `migrations` bookkeeping row was inserted (batch 5); no table/data DDL was reapplied and no user data was modified. The retry then reported `Nothing to migrate`.
+
+## Render UAT evidence
+
+UAT integration PR #18 was merged into `audit/system-stabilization` only.
+
+UAT merge commit:
+- `dd9e06d2c613a5322bb9ab34e2e1f869c2d924de`
+
+Render deployment:
+- service: `real-estate-uat-api`;
+- deploy: `dep-dag7gkmk1f9s738b0tb0`;
+- commit: `dd9e06d2c613a5322bb9ab34e2e1f869c2d924de`;
+- status: `live`;
+- finished: 2026-09-08T21:06:14Z.
+
+Runtime evidence from the new instance:
+- Cloud UAT environment check passed for HTTPS, PostgreSQL/PostGIS, Supabase Storage, and UAT guards;
+- Laravel reported `Nothing to migrate` after bookkeeping reconciliation;
+- Render `/api/health` checks returned HTTP 200 repeatedly during rollout;
+- no error-level Render logs were recorded from the successful retry start through post-live verification.
+
+A direct external health request from the execution container could not resolve DNS, so it is not counted as runtime evidence. Render's own health checks and live deployment state are the authoritative runtime evidence recorded here.
+
 ## Remaining closure gates
 
-1. integrate Phase 4 into the UAT runtime branch `audit/system-stabilization`;
-2. manually deploy Render UAT because auto-deploy is disabled;
-3. verify `/api/health` and the live property-linked messaging/viewing journey on UAT;
-4. install/test the Phase 4 APK on a real Android device;
-5. explicit product-owner Phase 4 acceptance.
+1. install/test the Phase 4 APK on a real Android device against live Render UAT;
+2. verify the live property-linked conversation/viewing journey from the device, including exact notification destinations;
+3. explicit product-owner Phase 4 acceptance.
 
 ## Merge/deploy boundary
 
 - No merge to `main` is authorized by Phase 4 work.
 - PR #17 remains separate from Production and targets only `phase1/ux-product-foundation`.
-- PR #18 is the UAT-only integration path to `audit/system-stabilization`.
+- PR #18 was merged only into the UAT runtime branch `audit/system-stabilization`.
 - No Production deployment is part of Phase 4.
-- Successful CI and Supabase verification do not claim Render UAT is running Phase 4 until the runtime is actually integrated, deployed, and verified.
+- Render UAT is now verified running the Phase 1–4 UAT integration commit; this does not imply Production readiness or real-device acceptance.
