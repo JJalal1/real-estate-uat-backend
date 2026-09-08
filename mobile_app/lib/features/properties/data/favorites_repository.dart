@@ -16,6 +16,11 @@ final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
 /// Favorites screen converge on the same server-owned state.
 final favoriteDataRevisionProvider = StateProvider<int>((ref) => 0);
 
+/// The property that should be saved after an anonymous user completes the
+/// normal authentication/profile-completion journey. It is intentionally
+/// in-memory only and contains no account data.
+final pendingFavoriteAfterAuthProvider = StateProvider<int?>((ref) => null);
+
 final favoritePropertiesProvider =
     FutureProvider.autoDispose<List<PropertyMarker>>((ref) {
   ref.watch(favoriteDataRevisionProvider);
