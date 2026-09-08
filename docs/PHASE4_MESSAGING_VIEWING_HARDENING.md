@@ -1,9 +1,10 @@
 # Phase 4 — Messaging + Viewing Journey Hardening
 
-Status: CLOSURE CANDIDATE — automated and UAT gates still required before CLOSED.
+Status: CLOSURE CANDIDATE — automated gates and Supabase UAT schema/security verification COMPLETE; Render UAT runtime verification and real-device acceptance remain.
 
 Branch: `phase4/messaging-viewing-hardening`
 Draft PR: #17 -> `phase1/ux-product-foundation`
+UAT integration PR: #18 -> `audit/system-stabilization`
 
 ## Product boundary
 
@@ -30,7 +31,7 @@ Database change:
 - `private_messages.client_message_id` nullable;
 - unique `(thread_id, sender_user_id, client_message_id)`.
 
-The migration is safe/backward-compatible because existing rows remain valid with `NULL`; it must still pass PostgreSQL/PostGIS migration/security gates before UAT application.
+Supabase UAT verification confirms this migration is already recorded and the expected column/index are present with RLS enabled and no direct `PUBLIC`/`anon`/`authenticated` table grants.
 
 ## Viewing state machine
 
@@ -107,22 +108,55 @@ Dedicated Flutter coverage includes:
 
 Canonical CI: `.github/workflows/phase4-messaging-viewing-ci.yml`
 
-Required closure gates:
-1. full Laravel regression passes;
-2. explicit Phase 4 Laravel acceptance passes;
-3. complete migration chain passes on PostgreSQL 17 + PostGIS;
-4. PostgreSQL security/schema regression passes;
-5. explicit Phase 4 acceptance passes on PostgreSQL;
-6. `flutter analyze` passes;
-7. full Flutter tests pass;
-8. compile-time UAT endpoint test passes;
-9. release UAT APK builds and is uploaded;
-10. Supabase UAT migration/security verification after CI;
-11. real Android acceptance remains required before beta/launch and before declaring subjective device UX accepted.
+## Final automated evidence
+
+Accepted application/test head: `fadac78ad5ce3abb260c5db468ea175d2d9a6a54`
+
+Phase 4 Messaging Viewing CI run #48 / `34275753072`: SUCCESS.
+
+Successful gates:
+1. full Laravel regression;
+2. explicit Phase 4 Laravel acceptance;
+3. complete migration chain on PostgreSQL 17 + PostGIS;
+4. PostgreSQL security/schema regression;
+5. explicit Phase 4 acceptance on PostgreSQL;
+6. `flutter analyze`;
+7. full Flutter tests;
+8. compile-time UAT endpoint test;
+9. release UAT APK build;
+10. APK artifact upload.
+
+Artifact:
+- name: `real-estate-phase4-uat-apk-48`;
+- size: 44,257,241 bytes;
+- digest: `sha256:040118c60d24b83156842ff83d1c6816f4c1b95279cc68f0fa62a1438127bcbc`;
+- expires: 2026-09-22.
+
+The first runner-enabled attempt after the repository was changed from private to public exposed one stale source-location assertion in `uat_navigation_integrity_test.dart`: notification routing had intentionally moved into `notification_destination.dart`. The test was corrected to assert the extracted routing contract; no product behavior was weakened. The subsequent final run #48 passed all gates.
+
+## Supabase UAT evidence
+
+Phase 4 schema/security verification is complete:
+- migration `harden_phase4_messaging_viewings` is recorded;
+- `private_messages.client_message_id` is nullable `varchar(100)`;
+- unique `(thread_id, sender_user_id, client_message_id)` index is present;
+- RLS remains enabled;
+- no direct `PUBLIC` / `anon` / `authenticated` table grants were found;
+- Security Advisor reports only intentional deny-all `rls_enabled_no_policy` INFO;
+- Performance Advisor reports existing `unused_index` INFO only.
+
+## Remaining closure gates
+
+1. integrate Phase 4 into the UAT runtime branch `audit/system-stabilization`;
+2. manually deploy Render UAT because auto-deploy is disabled;
+3. verify `/api/health` and the live property-linked messaging/viewing journey on UAT;
+4. install/test the Phase 4 APK on a real Android device;
+5. explicit product-owner Phase 4 acceptance.
 
 ## Merge/deploy boundary
 
-- PR #17 remains Draft until closure evidence is complete.
-- No merge to `phase1/ux-product-foundation` or `main` without explicit product-owner approval.
+- No merge to `main` is authorized by Phase 4 work.
+- PR #17 remains separate from Production and targets only `phase1/ux-product-foundation`.
+- PR #18 is the UAT-only integration path to `audit/system-stabilization`.
 - No Production deployment is part of Phase 4.
-- UAT migration/deployment evidence must be recorded separately; successful CI alone does not claim Render UAT is running this branch.
+- Successful CI and Supabase verification do not claim Render UAT is running Phase 4 until the runtime is actually integrated, deployed, and verified.
