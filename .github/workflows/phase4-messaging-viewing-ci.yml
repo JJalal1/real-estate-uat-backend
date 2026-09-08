@@ -1,0 +1,155 @@
+name: Phase 4 Messaging Viewing CI
+
+on:
+  push:
+    branches: [phase4/messaging-viewing-hardening]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/phase4-messaging-viewing-ci.yml'
+  pull_request:
+    branches: [phase1/ux-product-foundation]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/phase4-messaging-viewing-ci.yml'
+
+env:
+  UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    name: Laravel messaging and viewing regression suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare isolated test environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+      - name: Run full Laravel suite
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+      - name: Validate Phase 4 messaging and viewing contract
+        run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+
+  postgres-validation:
+    name: PostgreSQL 17 and PostGIS messaging viewing acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_audit
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: real_estate_audit
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare isolated test environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Prepare API roles
+        run: >-
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
+          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+      - name: Apply complete migration chain
+        run: php artisan migrate --force
+      - name: Validate PostgreSQL security and schema regression
+        run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Validate Phase 4 messaging and viewing on PostgreSQL
+        run: php artisan test tests/Feature/Phase4MessagingViewingAcceptanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+
+  flutter-validation:
+    name: Flutter messaging viewing tests and UAT APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: [backend-tests, postgres-validation]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter 3.27.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve packages
+        working-directory: mobile_app
+        run: flutter pub get
+      - name: Static analysis
+        working-directory: mobile_app
+        run: flutter analyze
+      - name: Full Flutter test suite
+        working-directory: mobile_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          test "${#tests[@]}" -gt 0
+          flutter test "${tests[@]}"
+      - name: Verify compile-time UAT endpoint
+        working-directory: mobile_app
+        run: flutter test --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }} test/uat_compiled_environment_test.dart
+      - name: Build UAT APK
+        working-directory: mobile_app
+        run: flutter build apk --release --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+      - name: Upload UAT APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-estate-phase4-uat-apk-${{ github.run_number }}
+          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
