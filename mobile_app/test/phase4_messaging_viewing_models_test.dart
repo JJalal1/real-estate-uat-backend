@@ -82,6 +82,36 @@ void main() {
     expect(booking.statusLabel, 'بانتظار موافقتك');
   });
 
+  test('Phase 4 host sees that requester approval is pending', () {
+    final booking = ViewingBooking.fromJson({
+      'id': 46,
+      'reference': 'VHOSTWAIT',
+      'requester_user_id': 2,
+      'requester_name': 'Buyer',
+      'host_user_id': 1,
+      'host_name': 'Owner',
+      'message_thread_id': 91,
+      'target_type': 'property',
+      'target_id': 7,
+      'target_title': 'Apartment',
+      'starts_at': '2026-09-18T10:00:00Z',
+      'ends_at': '2026-09-18T11:00:00Z',
+      'status': 'requested',
+      'is_requester': false,
+      'can_manage': true,
+      'can_cancel': true,
+      'can_reschedule': true,
+      'can_confirm': false,
+      'can_decline': false,
+      'can_accept_reschedule': false,
+      'awaiting_requester_confirmation': true,
+    });
+
+    expect(booking.canConfirm, isFalse);
+    expect(booking.canDecline, isFalse);
+    expect(booking.statusLabel, 'بانتظار موافقة طالب المعاينة');
+  });
+
   test('Phase 4 completed action only appears after confirmed viewing ends', () {
     final booking = ViewingBooking.fromJson({
       'id': 45,
