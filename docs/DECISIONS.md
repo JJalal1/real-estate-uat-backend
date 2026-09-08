@@ -143,3 +143,13 @@ Phase 4 scope is messaging reliability/privacy/read state, conversation history,
 A replacement viewing time is a proposal, not an implicit confirmation. If the advertiser changes the appointment, the requester must explicitly accept the new time. If the requester changes it, the advertiser confirms it. The party proposing a replacement time cannot unilaterally turn its own proposal into a confirmed appointment.
 
 Private message retries use a client-supplied logical message key. Retrying the same key with the same body is idempotent; reusing the same key for different content is a conflict. Long conversation history is paged from newest to older rather than truncating the newest messages.
+
+## D-031 — Phase 4 is accepted; later roadmap items are deferred, not automatically next
+
+Phase 4 Messaging + Viewing Journey Hardening is closed by explicit product-owner real-device acceptance after successful CI, Supabase UAT verification, and Render UAT deployment.
+
+The previously discussed follow-on sequence — in-app agreement/rental contracts, price indicators/valuation, Real-estate Guide/legal documents, and Production/launch readiness — is preserved as future backlog only. It must not be treated as the active next phase or started automatically.
+
+The product owner explicitly chose to complete other product priorities first. The next work package must therefore be defined from those newer priorities. Old phase numbering does not override a newer explicit product-owner decision.
+
+No Phase 4 acceptance authorizes a merge to `main` or any Production deployment.
