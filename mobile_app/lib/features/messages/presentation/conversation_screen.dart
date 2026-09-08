@@ -20,10 +20,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   MessageThreadDetails? _details;
   ViewingBooking? _viewing;
   bool _loading = true;
+  bool _loadingOlder = false;
   bool _sending = false;
   bool _bookingBusy = false;
   String? _error;
   String? _pendingMessageKey;
+  String? _pendingMessageText;
 
   @override
   void initState() {
@@ -69,12 +71,52 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
   }
 
+  Future<void> _loadOlder() async {
+    final current = _details;
+    final beforeId = current?.nextBeforeId;
+    if (current == null || !current.hasMore || beforeId == null || _loadingOlder) {
+      return;
+    }
+    setState(() => _loadingOlder = true);
+    try {
+      final older = await ref
+          .read(messageRepositoryProvider)
+          .details(widget.threadId, beforeId: beforeId);
+      if (!mounted) return;
+      final byId = <int, PrivateMessageItem>{
+        for (final item in older.messages) item.id: item,
+        for (final item in current.messages) item.id: item,
+      };
+      final merged = byId.values.toList()
+        ..sort((a, b) => a.id.compareTo(b.id));
+      setState(() {
+        _details = MessageThreadDetails(
+          thread: current.thread,
+          messages: merged,
+          hasMore: older.hasMore,
+          nextBeforeId: older.nextBeforeId,
+        );
+      });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
+  }
+
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
+    if (_pendingMessageText != null && _pendingMessageText != text) {
+      _pendingMessageKey = null;
+    }
     final key = _pendingMessageKey ??
         'm-${widget.threadId}-${DateTime.now().microsecondsSinceEpoch}';
     _pendingMessageKey = key;
+    _pendingMessageText = text;
     setState(() => _sending = true);
     try {
       await ref.read(messageRepositoryProvider).send(widget.threadId, text,
@@ -82,12 +124,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       ref.read(messageDataRevisionProvider.notifier).state++;
       _controller.clear();
       _pendingMessageKey = null;
+      _pendingMessageText = null;
       await _load();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
-                '${friendlyApiError(error)} يمكنك الضغط على إرسال مرة أخرى بأمان.')));
+                '${friendlyApiError(error)} يمكنك إعادة الإرسال بأمان ما دام النص لم يتغير.')));
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -190,7 +233,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             if (booking.awaitingRequesterConfirmation && booking.isRequester)
               const Padding(
                 padding: EdgeInsets.only(top: 6),
-                child: Text('المعلن اقترح هذا الموعد الجديد. راجعه ثم وافق عليه أو غيّره.'),
+                child: Text(
+                    'المعلن اقترح هذا الموعد الجديد. راجعه ثم وافق عليه أو غيّره.'),
               ),
             if (booking.requesterNote?.trim().isNotEmpty == true)
               Padding(
@@ -250,6 +294,27 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
   }
 
+  Widget _propertyAvailabilityBanner(MessageThreadSummary thread) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: const Padding(
+        padding: EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'هذا الإعلان لم يعد منشوراً. تبقى المحادثة وسجلها متاحين للتنسيق، لكن لا تعتمد على الإعلان كعرض متاح حالياً.',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _report() async {
     const reasons = <String, String>{
       'abuse': 'إساءة',
@@ -267,12 +332,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('بلاغ عن المحادثة'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('لن يفتح فريق الدعم محتوى المحادثة إلا ضمن هذا البلاغ وبصلاحية فتح المحادثات الخاصة، وسيتم تسجيل عملية الفتح.'),
+            const Text(
+                'لن يفتح فريق الدعم محتوى المحادثة إلا ضمن هذا البلاغ وبصلاحية فتح المحادثات الخاصة، وسيتم تسجيل عملية الفتح.'),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
                 value: reason,
                 items: reasons.entries
-                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                    .map((e) =>
+                        DropdownMenuItem(value: e.key, child: Text(e.value)))
                     .toList(),
                 onChanged: (value) {
                   if (value != null) setDialogState(() => reason = value);
@@ -323,22 +390,25 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final thread = _details?.thread;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-            title: Text(_details?.thread.otherUserName ?? 'محادثة'),
+            title: Text(thread?.otherUserName ?? 'محادثة'),
             actions: [
               IconButton(
                   onPressed: _loading ? null : _load,
                   tooltip: 'تحديث',
                   icon: const Icon(Icons.refresh)),
               IconButton(
-                  onPressed: _report,
+                  onPressed: _loading ? null : _report,
                   tooltip: 'بلاغ',
                   icon: const Icon(Icons.flag_outlined))
             ]),
         body: Column(children: [
+          if (!_loading && thread?.isPropertyUnavailable == true)
+            _propertyAvailabilityBanner(thread!),
           if (!_loading && _viewing != null) _viewingCard(_viewing!),
           Expanded(
               child: _loading
@@ -367,7 +437,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2))
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.send)),
                   ]))),
         ]),
@@ -376,16 +447,36 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Widget _messageList() {
-    final messages = _details?.messages ?? const <PrivateMessageItem>[];
+    final details = _details;
+    final messages = details?.messages ?? const <PrivateMessageItem>[];
     if (messages.isEmpty) {
       return const Center(child: Text('ابدأ المحادثة برسالة محترمة وواضحة.'));
     }
+    final hasOlder = details?.hasMore == true;
     return ListView.builder(
       reverse: true,
       padding: const EdgeInsets.all(14),
-      itemCount: messages.length,
+      itemCount: messages.length + (hasOlder ? 1 : 0),
       itemBuilder: (context, index) {
+        if (hasOlder && index == messages.length) {
+          return Center(
+            child: TextButton.icon(
+              onPressed: _loadingOlder ? null : _loadOlder,
+              icon: _loadingOlder
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.history),
+              label: const Text('تحميل رسائل أقدم'),
+            ),
+          );
+        }
         final item = messages[messages.length - 1 - index];
+        final createdAt = item.createdAt?.toLocal();
+        final time = createdAt == null
+            ? null
+            : '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
         return Align(
           alignment: item.isMine
               ? AlignmentDirectional.centerStart
@@ -397,12 +488,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(item.senderName,
                   style: const TextStyle(
                       fontWeight: FontWeight.w800, fontSize: 12)),
               const SizedBox(height: 4),
               Text(item.body),
+              if (time != null) ...[
+                const SizedBox(height: 4),
+                Text(time, style: Theme.of(context).textTheme.labelSmall),
+              ],
             ]),
           ),
         );
