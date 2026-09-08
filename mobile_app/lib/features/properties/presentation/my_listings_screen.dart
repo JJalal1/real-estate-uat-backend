@@ -8,6 +8,7 @@ import '../../../core/widgets/app_components.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import 'add_property_wizard_screen.dart';
+import 'property_sai_configuration_sheet.dart';
 
 final myListingsProvider =
     FutureProvider.autoDispose<List<PropertyDetails>>((ref) async {
@@ -117,8 +118,8 @@ class MyListingsScreen extends ConsumerWidget {
               : 'إرسال الإعلان للمراجعة؟',
           content: Text(
             item.reviewStatus == 'returned_for_correction'
-                ? 'تأكد أنك عالجت ملاحظة فريق الدعم. سيعود نفس الإعلان إلى قائمة المراجعة.'
-                : 'بعد الإرسال لن تستطيع تعديل الإعلان أثناء المراجعة. يمكنك حفظه كمسودة حتى يصبح جاهزاً.',
+                ? 'تأكد أنك عالجت ملاحظة فريق الدعم. قبل إعادة الإرسال ستؤكد شروط السعي الإلزامية.'
+                : 'قبل الإرسال ستؤكد شروط السعي والطرف الذي يتحمله. بعد الإرسال لن تستطيع تعديل الإعلان أثناء المراجعة.',
           ),
           actions: [
             TextButton(
@@ -127,24 +128,37 @@ class MyListingsScreen extends ConsumerWidget {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text(
-                item.reviewStatus == 'returned_for_correction'
-                    ? 'إعادة الإرسال'
-                    : 'إرسال',
-              ),
+              child: const Text('متابعة'),
             ),
           ],
         ) ??
         false;
     if (!confirmed || !context.mounted) return;
 
+    final repository = ref.read(propertyRepositoryProvider);
     try {
-      await ref.read(propertyRepositoryProvider).submitListing(item.id);
+      final saiReady = await showPropertySaiConfigurationSheet(
+        context,
+        repository: repository,
+        propertyId: item.id,
+        purpose: item.purpose,
+      );
+      if (!context.mounted) return;
+      if (!saiReady) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('لم يتم إرسال الإعلان. يجب تأكيد شروط السعي المطلوبة أولاً.'),
+          ),
+        );
+        return;
+      }
+
+      await repository.submitListing(item.id);
       ref.read(propertyDataRevisionProvider.notifier).state++;
       ref.invalidate(myListingsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إرسال الإعلان لفريق المراجعة.')),
+          const SnackBar(content: Text('تم تأكيد السعي وإرسال الإعلان لفريق المراجعة.')),
         );
       }
     } catch (error) {

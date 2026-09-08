@@ -2,6 +2,36 @@
 
 Use this as a concise history of AI-assisted engineering milestones. It is not a substitute for Git history.
 
+## 2026-09-09 — Phase 4 messaging/viewing accepted; later roadmap deferred
+
+Branch: `phase4/messaging-viewing-hardening`
+PR: `#17`
+Tracker: `#16`
+UAT integration PR: `#18`
+
+Accepted result:
+- hardened the single property-linked conversation and viewing journey without adding a parallel chat/booking system;
+- added retry-safe message delivery with `client_message_id` and conflict protection;
+- added bounded newest-first history pagination and retained server-authoritative unread state;
+- hardened viewing transitions with database row/advisory locks and overlap checks;
+- made advertiser reschedules require requester acceptance and requester reschedules require advertiser confirmation;
+- prevented a proposer from self-confirming/rejecting its own pending replacement-time proposal;
+- assigned an authorized development manager as host when its unassigned-unit reschedule proposal is accepted;
+- added exact booking/message notification destinations and owned app links;
+- completed Laravel, PostgreSQL 17/PostGIS, Flutter analysis/tests, UAT endpoint, APK build/upload, Supabase UAT, and Render UAT gates.
+
+Final automated evidence:
+- Phase 4 CI run #50 / `34276623699`: SUCCESS on final documented head `1513399f5c0bb6a8d916c5515cba095389c3c2df`;
+- APK artifact `real-estate-phase4-uat-apk-50`;
+- artifact digest `sha256:6a1903236fff5abc966fdb4b4d452b2b022fe22db3f28f79add808438a0af665`;
+- Render UAT merge commit `dd9e06d2c613a5322bb9ab34e2e1f869c2d924de` deployed live as `dep-dag7gkmk1f9s738b0tb0`.
+
+During the first Render rollout, the existing `property_favorites` table was found to be missing only its Laravel migration-history row. The live table was verified to match the repository migration before the bookkeeping row was added; no table/data DDL was reapplied and no user data was modified. The retry reported `Nothing to migrate` and deployed successfully.
+
+The product owner installed/tested the Phase 4 Android candidate and explicitly accepted Phase 4. Issue #16 was closed as completed. PR #17 is merged into the integration branch only; PR #18 is merged into the UAT runtime branch only. No merge to `main` or Production deployment is implied.
+
+Product roadmap decision after acceptance: the previously discussed in-app agreement/rental contracts, valuation/price indicators, Real-estate Guide/legal documents, and Production/launch-readiness sequence is preserved as future backlog but explicitly deferred. The product owner has other priorities to complete first, so there is no automatically active Phase 5.
+
 ## 2026-09-08 — Phase 3 buyer discovery + server-side Favorites accepted
 
 Branch: `phase3/buyer-discovery-favorites`
