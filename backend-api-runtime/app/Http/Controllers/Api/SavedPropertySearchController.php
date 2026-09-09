@@ -54,8 +54,6 @@ class SavedPropertySearchController extends Controller
             'fingerprint' => $fingerprint,
             'alert_frequency' => $validated['alert_frequency'] ?? 'instant',
             'is_active' => true,
-            // Start from the current newest result so a new saved search does
-            // not flood the user with historical matches.
             'last_match_property_id' => $this->searches->latestMatchId($filters),
             'last_checked_at' => now(),
         ]);
@@ -66,44 +64,52 @@ class SavedPropertySearchController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, SavedPropertySearch $savedSearch): JsonResponse
+    public function update(Request $request, int $savedSearch): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
-        $this->assertOwner($savedSearch, $user);
+        $row = $this->ownedSearch($savedSearch, $user);
         $validated = $request->validate($this->rules(true));
 
         if (array_key_exists('filters', $validated)) {
             $filters = $this->searches->normalizeFilters((array) $validated['filters']);
-            $savedSearch->filters = $filters;
-            $savedSearch->fingerprint = $this->searches->fingerprint($filters);
-            $savedSearch->last_match_property_id = $this->searches->latestMatchId($filters);
-            $savedSearch->last_checked_at = now();
+            $row->filters = $filters;
+            $row->fingerprint = $this->searches->fingerprint($filters);
+            $row->last_match_property_id = $this->searches->latestMatchId($filters);
+            $row->last_checked_at = now();
         }
         if (array_key_exists('name', $validated)) {
-            $savedSearch->name = trim((string) $validated['name']);
+            $row->name = trim((string) $validated['name']);
         }
         if (array_key_exists('alert_frequency', $validated)) {
-            $savedSearch->alert_frequency = $validated['alert_frequency'];
+            $row->alert_frequency = $validated['alert_frequency'];
         }
         if (array_key_exists('is_active', $validated)) {
-            $savedSearch->is_active = (bool) $validated['is_active'];
+            $row->is_active = (bool) $validated['is_active'];
         }
-        $savedSearch->save();
+        $row->save();
 
         return response()->json([
             'message' => 'تم تحديث البحث المحفوظ.',
-            'data' => $this->data($savedSearch->fresh()),
+            'data' => $this->data($row->fresh()),
         ]);
     }
 
-    public function destroy(Request $request, SavedPropertySearch $savedSearch): JsonResponse
+    public function destroy(Request $request, int $savedSearch): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
-        $this->assertOwner($savedSearch, $user);
-        $savedSearch->delete();
+        $row = $this->ownedSearch($savedSearch, $user);
+        $row->delete();
         return response()->json(['message' => 'تم حذف البحث المحفوظ.']);
+    }
+
+    private function ownedSearch(int $id, User $user): SavedPropertySearch
+    {
+        return SavedPropertySearch::query()
+            ->whereKey($id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
     }
 
     private function rules(bool $partial): array
@@ -131,11 +137,6 @@ class SavedPropertySearchController extends Controller
             'filters.north' => ['nullable', 'numeric', 'between:-90,90'],
             'filters.east' => ['nullable', 'numeric', 'between:-180,180'],
         ];
-    }
-
-    private function assertOwner(SavedPropertySearch $savedSearch, User $user): void
-    {
-        abort_unless((int) $savedSearch->user_id === (int) $user->id, 404);
     }
 
     private function data(SavedPropertySearch $row): array
