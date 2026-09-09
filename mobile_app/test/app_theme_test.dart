@@ -9,24 +9,24 @@ void main() {
     expect(theme.useMaterial3, isTrue);
     expect(scheme.brightness, Brightness.light);
     final roles = <(Color, int)>[
-      (scheme.primary, 0xFF0B7547),
-      (scheme.primaryContainer, 0xFFE5F5EC),
-      (scheme.onPrimaryContainer, 0xFF075B39),
-      (scheme.secondary, 0xFF1778B8),
-      (scheme.secondaryContainer, 0xFFE7F2FA),
-      (scheme.onSecondaryContainer, 0xFF0D4D75),
-      (scheme.onSurface, 0xFF111820),
-      (scheme.onSurfaceVariant, 0xFF505B65),
-      (scheme.surfaceContainerLow, 0xFFF5F7F8),
-      (scheme.surfaceContainer, 0xFFF0F3F4),
-      (scheme.surfaceContainerHigh, 0xFFE7ECEF),
-      (scheme.surfaceContainerHighest, 0xFFDDE4E8),
-      (scheme.outline, 0xFF78858F),
-      (scheme.outlineVariant, 0xFFC9D2D7),
+      (scheme.primary, 0xFF0C7A50),
+      (scheme.primaryContainer, 0xFFE8F5EF),
+      (scheme.onPrimaryContainer, 0xFF075338),
+      (scheme.secondary, 0xFF2C6EAA),
+      (scheme.secondaryContainer, 0xFFEAF2F9),
+      (scheme.onSecondaryContainer, 0xFF174E79),
+      (scheme.onSurface, 0xFF15201B),
+      (scheme.onSurfaceVariant, 0xFF5F6B65),
+      (scheme.surfaceContainerLow, 0xFFF8F9F7),
+      (scheme.surfaceContainer, 0xFFF2F5F3),
+      (scheme.surfaceContainerHigh, 0xFFEBEFEC),
+      (scheme.surfaceContainerHighest, 0xFFE3E8E5),
+      (scheme.outline, 0xFF89948E),
+      (scheme.outlineVariant, 0xFFDCE2DF),
       (scheme.error, 0xFFB3261E),
       (scheme.errorContainer, 0xFFF9DEDC),
       (scheme.onErrorContainer, 0xFF410E0B),
-      (scheme.inverseSurface, 0xFF24313A),
+      (scheme.inverseSurface, 0xFF24312B),
     ];
     for (final (actual, expected) in roles) {
       expect(actual, Color(expected));
@@ -43,7 +43,7 @@ void main() {
     expect(theme.scaffoldBackgroundColor, scheme.surfaceContainerLow);
     expect(theme.extension<AppSemanticColors>(), AppSemanticColors.light);
     expect(theme.progressIndicatorTheme.color, scheme.primary);
-    expect(scheme.primary, isNot(AppTheme.brandSeed));
+    expect(scheme.primary, AppTheme.brandSeed);
   });
 
   test('accepted text scale uses explicit metrics and the safe fallback', () {
@@ -68,7 +68,7 @@ void main() {
       expect(style.fontWeight, weight);
       expect(style.letterSpacing, 0);
       expect(style.fontFamilyFallback, ['Arial', 'sans-serif']);
-      expect(style.color, const Color(0xFF111820));
+      expect(style.color, const Color(0xFF15201B));
     }
     expect(AppTypography.bodyLarge.fontFamily, isNull);
     for (final style in [
@@ -197,17 +197,17 @@ void main() {
       AppTheme.warning,
     ];
     expect(legacy, const [
-      Color(0xFF0B8A55),
-      Color(0xFF075B39),
-      Color(0xFFE5F5EC),
-      Color(0xFF1778B8),
-      Color(0xFFE7F2FA),
-      Color(0xFFF5F7F8),
+      Color(0xFF0C7A50),
+      Color(0xFF075338),
+      Color(0xFFE8F5EF),
+      Color(0xFF2C6EAA),
+      Color(0xFFEAF2F9),
+      Color(0xFFF8F9F7),
       Colors.white,
-      Color(0xFFC9D2D7),
-      Color(0xFF111820),
-      Color(0xFF505B65),
-      Color(0xFFD79B00),
+      Color(0xFFDCE2DF),
+      Color(0xFF15201B),
+      Color(0xFF5F6B65),
+      Color(0xFFC88700),
     ]);
   });
 
