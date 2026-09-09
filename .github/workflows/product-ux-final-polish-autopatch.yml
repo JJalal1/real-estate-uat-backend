@@ -17,7 +17,7 @@ jobs:
           ref: experience/product-ux-final-polish
           fetch-depth: 0
       - name: Patch current discovery search save flow
-        shell: python
+        shell: python {0}
         run: |
           from pathlib import Path
 
