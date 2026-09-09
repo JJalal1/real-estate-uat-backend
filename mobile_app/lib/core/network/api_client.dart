@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -70,6 +72,7 @@ final dioProvider = Provider<Dio>((ref) {
     ),
   );
   dio.interceptors.add(_NearbyRequestCacheInterceptor());
+  dio.interceptors.add(_RequestTimingInterceptor());
   return dio;
 });
 
@@ -135,6 +138,61 @@ class _NearbyRequestCacheInterceptor extends Interceptor {
   double? _asDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '');
+  }
+}
+
+class _RequestTimingInterceptor extends Interceptor {
+  static const _startedAtKey = '_request_started_at_us';
+  static const _slowRequestMs = 1500;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    options.extra[_startedAtKey] = DateTime.now().microsecondsSinceEpoch;
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    _report(
+      response.requestOptions,
+      statusCode: response.statusCode,
+      requestId: response.headers.value('x-request-id'),
+    );
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    _report(
+      err.requestOptions,
+      statusCode: err.response?.statusCode,
+      requestId: err.response?.headers.value('x-request-id'),
+      failed: true,
+    );
+    handler.next(err);
+  }
+
+  void _report(
+    RequestOptions options, {
+    int? statusCode,
+    String? requestId,
+    bool failed = false,
+  }) {
+    if (!ApiEnvironmentConfig.isUat) return;
+    final startedAt = options.extra[_startedAtKey];
+    if (startedAt is! int) return;
+    final durationMs =
+        ((DateTime.now().microsecondsSinceEpoch - startedAt) / 1000).round();
+    if (!failed && durationMs < _slowRequestMs && (statusCode ?? 0) < 500) {
+      return;
+    }
+    developer.log(
+      'api_request method=${options.method} path=${options.path} '
+      'status=${statusCode ?? 0} duration_ms=$durationMs '
+      'request_id=${requestId ?? '-'}',
+      name: 'real_estate.network',
+      level: failed || (statusCode ?? 0) >= 500 ? 1000 : 900,
+    );
   }
 }
 

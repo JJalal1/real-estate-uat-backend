@@ -12,11 +12,13 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
+import '../data/property_discovery_history_store.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
 import '../../properties/data/favorites_repository.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_marker.dart';
+import '../../properties/presentation/saved_search_builder_screen.dart';
 
 const double mapPropertyPriceIconSize = 1.0;
 
@@ -278,7 +280,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   int _sortMode = 0;
 
   final TextEditingController _searchController = TextEditingController();
+  final PropertyDiscoveryHistoryStore _historyStore = const PropertyDiscoveryHistoryStore();
   String _searchText = '';
+  List<String> _recentSearches = const <String>[];
 
   bool _styleLoaded = false;
   String? _mapMessage;
@@ -290,6 +294,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(_restoreDiscoveryHistory());
     _loadCurrentLocation();
   }
 
@@ -298,6 +303,62 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _styleLoadTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _restoreDiscoveryHistory() async {
+    final history = await _historyStore.load();
+    if (!mounted) return;
+    final filters = history.lastFilters;
+    final search = filters['search']?.toString().trim() ?? '';
+    setState(() {
+      _recentSearches = history.recentSearches;
+      _filterPurpose = _historyString(filters['purpose']);
+      _filterType = _historyString(filters['type']);
+      _filterMinPrice = _historyDouble(filters['min_price']);
+      _filterMaxPrice = _historyDouble(filters['max_price']);
+      _filterMinBedrooms = _historyInt(filters['min_bedrooms']);
+      _filterMinBathrooms = _historyInt(filters['min_bathrooms']);
+      _filterMinArea = _historyDouble(filters['min_area_m2']);
+      _filterMaxArea = _historyDouble(filters['max_area_m2']);
+      _searchText = search;
+      _searchController.text = search;
+    });
+  }
+
+  String? _historyString(dynamic value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  double? _historyDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  int? _historyInt(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  Map<String, dynamic> _discoveryHistorySnapshot() => <String, dynamic>{
+        if (_filterPurpose != null) 'purpose': _filterPurpose,
+        if (_filterType != null) 'type': _filterType,
+        if (_filterMinPrice != null) 'min_price': _filterMinPrice,
+        if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
+        if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
+        if (_filterMinBathrooms != null) 'min_bathrooms': _filterMinBathrooms,
+        if (_filterMinArea != null) 'min_area_m2': _filterMinArea,
+        if (_filterMaxArea != null) 'max_area_m2': _filterMaxArea,
+        if (_searchText.trim().isNotEmpty) 'search': _searchText.trim(),
+      };
+
+  void _persistDiscoveryHistory() {
+    unawaited(
+      _historyStore.record(
+        query: _searchText,
+        filters: _discoveryHistorySnapshot(),
+      ),
+    );
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -618,6 +679,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   void _setQuickType(String? type) {
@@ -630,6 +692,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   void _resetFilters() {
@@ -645,6 +708,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   int get _filterCount {
@@ -689,6 +753,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   Future<void> _showSearchSheet(List<PropertyMarker> items) async {
@@ -699,6 +764,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       builder: (context) => _SearchSheet(
         initialValue: _searchController.text,
         suggestions: _searchSuggestions(items),
+        recentSearches: _recentSearches,
       ),
     );
     if (!mounted || value == null) return;
@@ -707,9 +773,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _searchController.text = normalized;
     setState(() {
       _searchText = normalized;
+      if (normalized.isNotEmpty) {
+        _recentSearches = <String>[
+          normalized,
+          ..._recentSearches.where(
+            (value) => value.toLowerCase() != normalized.toLowerCase(),
+          ),
+        ].take(5).toList(growable: false);
+      }
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   List<String> _searchSuggestions(List<PropertyMarker> items) {
@@ -904,6 +979,70 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     });
   }
 
+
+  Map<String, dynamic> _currentSavedSearchFilters() {
+    final bounds = _selectedAreaBounds;
+    final filters = <String, dynamic>{
+      if (_filterPurpose != null) 'purpose': _filterPurpose,
+      if (_filterType != null) 'type': _filterType,
+      if (_filterMinPrice != null) 'min_price': _filterMinPrice,
+      if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
+      if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
+      if (_filterMinBathrooms != null) 'min_bathrooms': _filterMinBathrooms,
+      if (_filterMinArea != null) 'min_area_m2': _filterMinArea,
+      if (_filterMaxArea != null) 'max_area_m2': _filterMaxArea,
+      if (_searchText.trim().isNotEmpty) 'search': _searchText.trim(),
+    };
+    if (bounds != null) {
+      filters.addAll({
+        'south': bounds.southwest.latitude,
+        'west': bounds.southwest.longitude,
+        'north': bounds.northeast.latitude,
+        'east': bounds.northeast.longitude,
+      });
+    } else {
+      filters.addAll({
+        'latitude': _center.latitude,
+        'longitude': _center.longitude,
+        'radius_km': _defaultRadiusKm,
+      });
+    }
+    return filters;
+  }
+
+  Future<void> _saveCurrentSearch() async {
+    final user = ref.read(authControllerProvider).asData?.value;
+    if (user == null) {
+      setAuthReturnLocation(ref, '/');
+      await context.push('/auth');
+      if (!mounted || ref.read(authControllerProvider).asData?.value == null) {
+        return;
+      }
+    }
+    final currentUser = ref.read(authControllerProvider).asData?.value;
+    if (currentUser == null) return;
+    if (!currentUser.isActive) {
+      setAuthReturnLocation(ref, '/');
+      await context.push('/verify-phone');
+      if (!mounted || ref.read(authControllerProvider).asData?.value?.isActive != true) {
+        return;
+      }
+    }
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => SavedSearchBuilderScreen(
+          initialFilters: _currentSavedSearchFilters(),
+        ),
+      ),
+    );
+    if (!mounted || saved != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('تم حفظ البحث وسيصلك تنبيه عند ظهور عقار مطابق.'),
+      ),
+    );
+  }
+
   void _openAddProperty() {
     context.push('/add-property');
   }
@@ -1039,6 +1178,30 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          Material(
+            elevation: 5,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            child: InkWell(
+              onTap: _saveCurrentSearch,
+              borderRadius: BorderRadius.circular(18),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.notifications_active_outlined, color: AppTheme.brand),
+                    SizedBox(width: 7),
+                    Text(
+                      'حفظ البحث',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           Material(
             elevation: 5,
             color: Colors.white,
@@ -1198,7 +1361,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       bottom: 10,
       child: _MapListSwitcherBar(
         countText: properties.when(
-          data: (items) => '${items.length} إعلان',
+          data: (items) => '${items.length} نتيجة',
           loading: () => 'جاري التحميل…',
           error: (_, __) => 'تعذر الاتصال',
         ),
@@ -1248,6 +1411,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         appBar: AppBar(
           title: const Text('قائمة العقارات'),
           actions: [
+            IconButton.filledTonal(
+              tooltip: 'حفظ البحث الحالي',
+              onPressed: _saveCurrentSearch,
+              icon: const Icon(Icons.notifications_active_outlined),
+            ),
+            const SizedBox(width: 8),
             IconButton.filledTonal(
               tooltip: 'بحث وتصفية',
               onPressed: () {
@@ -1300,6 +1469,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         onDeleted: () {
                           _searchController.clear();
                           setState(() => _searchText = '');
+                          _persistDiscoveryHistory();
                         },
                       ),
                     if (_selectedAreaBounds != null)
@@ -1322,7 +1492,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
             child: _MapListSwitcherBar(
               countText: properties.when(
-                data: (items) => '${items.length} إعلان',
+                data: (items) => '${items.length} نتيجة',
                 loading: () => 'جاري التحميل…',
                 error: (_, __) => 'تعذر الاتصال',
               ),
@@ -1785,10 +1955,15 @@ class _FilterCountButton extends StatelessWidget {
 }
 
 class _SearchSheet extends StatefulWidget {
-  const _SearchSheet({required this.initialValue, required this.suggestions});
+  const _SearchSheet({
+    required this.initialValue,
+    required this.suggestions,
+    required this.recentSearches,
+  });
 
   final String initialValue;
   final List<String> suggestions;
+  final List<String> recentSearches;
 
   @override
   State<_SearchSheet> createState() => _SearchSheetState();
@@ -1857,6 +2032,32 @@ class _SearchSheetState extends State<_SearchSheet> {
             onChanged: (_) => setState(() {}),
             onSubmitted: (value) => Navigator.of(context).pop(value),
           ),
+          if (query.isEmpty && widget.recentSearches.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                'بحثت مؤخراً',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: widget.recentSearches
+                  .map(
+                    (value) => ActionChip(
+                      avatar: const Icon(Icons.history_rounded, size: 18),
+                      label: Text(value),
+                      onPressed: () => Navigator.of(context).pop(value),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
           if (suggestions.isNotEmpty) ...[
             const SizedBox(height: 10),
             ConstrainedBox(
