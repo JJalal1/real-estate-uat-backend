@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../domain/property_marker.dart';
 import '../domain/saved_property_search.dart';
 
 final savedSearchRepositoryProvider = Provider<SavedSearchRepository>((ref) {
@@ -58,6 +59,23 @@ class SavedSearchRepository {
       throw StateError('Saved search response is missing data.');
     }
     return SavedPropertySearch.fromJson(data);
+  }
+
+  Future<List<PropertyMarker>> results(SavedPropertySearch search) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/properties',
+      queryParameters: {
+        ...search.filters,
+        'per_page': 50,
+        'sort': 'latest',
+      },
+    );
+    final rows = response.data?['data'];
+    if (rows is! List) return const [];
+    return rows
+        .whereType<Map<String, dynamic>>()
+        .map(PropertyMarker.fromJson)
+        .toList(growable: false);
   }
 
   Future<void> updateAlert(
