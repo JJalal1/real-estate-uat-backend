@@ -12,6 +12,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
+import '../data/property_discovery_history_store.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
 import '../../properties/data/favorites_repository.dart';
@@ -279,7 +280,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   int _sortMode = 0;
 
   final TextEditingController _searchController = TextEditingController();
+  final PropertyDiscoveryHistoryStore _historyStore = const PropertyDiscoveryHistoryStore();
   String _searchText = '';
+  List<String> _recentSearches = const <String>[];
 
   bool _styleLoaded = false;
   String? _mapMessage;
@@ -291,6 +294,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(_restoreDiscoveryHistory());
     _loadCurrentLocation();
   }
 
@@ -299,6 +303,62 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _styleLoadTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _restoreDiscoveryHistory() async {
+    final history = await _historyStore.load();
+    if (!mounted) return;
+    final filters = history.lastFilters;
+    final search = filters['search']?.toString().trim() ?? '';
+    setState(() {
+      _recentSearches = history.recentSearches;
+      _filterPurpose = _historyString(filters['purpose']);
+      _filterType = _historyString(filters['type']);
+      _filterMinPrice = _historyDouble(filters['min_price']);
+      _filterMaxPrice = _historyDouble(filters['max_price']);
+      _filterMinBedrooms = _historyInt(filters['min_bedrooms']);
+      _filterMinBathrooms = _historyInt(filters['min_bathrooms']);
+      _filterMinArea = _historyDouble(filters['min_area_m2']);
+      _filterMaxArea = _historyDouble(filters['max_area_m2']);
+      _searchText = search;
+      _searchController.text = search;
+    });
+  }
+
+  String? _historyString(dynamic value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  double? _historyDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  int? _historyInt(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  Map<String, dynamic> _discoveryHistorySnapshot() => <String, dynamic>{
+        if (_filterPurpose != null) 'purpose': _filterPurpose,
+        if (_filterType != null) 'type': _filterType,
+        if (_filterMinPrice != null) 'min_price': _filterMinPrice,
+        if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
+        if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
+        if (_filterMinBathrooms != null) 'min_bathrooms': _filterMinBathrooms,
+        if (_filterMinArea != null) 'min_area_m2': _filterMinArea,
+        if (_filterMaxArea != null) 'max_area_m2': _filterMaxArea,
+        if (_searchText.trim().isNotEmpty) 'search': _searchText.trim(),
+      };
+
+  void _persistDiscoveryHistory() {
+    unawaited(
+      _historyStore.record(
+        query: _searchText,
+        filters: _discoveryHistorySnapshot(),
+      ),
+    );
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -619,6 +679,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   void _setQuickType(String? type) {
@@ -631,6 +692,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   void _resetFilters() {
@@ -646,6 +708,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   int get _filterCount {
@@ -690,6 +753,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   Future<void> _showSearchSheet(List<PropertyMarker> items) async {
@@ -700,6 +764,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       builder: (context) => _SearchSheet(
         initialValue: _searchController.text,
         suggestions: _searchSuggestions(items),
+        recentSearches: _recentSearches,
       ),
     );
     if (!mounted || value == null) return;
@@ -708,9 +773,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _searchController.text = normalized;
     setState(() {
       _searchText = normalized;
+      if (normalized.isNotEmpty) {
+        _recentSearches = <String>[
+          normalized,
+          ..._recentSearches.where(
+            (value) => value.toLowerCase() != normalized.toLowerCase(),
+          ),
+        ].take(5).toList(growable: false);
+      }
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   List<String> _searchSuggestions(List<PropertyMarker> items) {
@@ -1287,7 +1361,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       bottom: 10,
       child: _MapListSwitcherBar(
         countText: properties.when(
-          data: (items) => '${items.length} إعلان',
+          data: (items) => '${items.length} نتيجة',
           loading: () => 'جاري التحميل…',
           error: (_, __) => 'تعذر الاتصال',
         ),
@@ -1395,6 +1469,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         onDeleted: () {
                           _searchController.clear();
                           setState(() => _searchText = '');
+                          _persistDiscoveryHistory();
                         },
                       ),
                     if (_selectedAreaBounds != null)
@@ -1417,7 +1492,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
             child: _MapListSwitcherBar(
               countText: properties.when(
-                data: (items) => '${items.length} إعلان',
+                data: (items) => '${items.length} نتيجة',
                 loading: () => 'جاري التحميل…',
                 error: (_, __) => 'تعذر الاتصال',
               ),
@@ -1880,10 +1955,15 @@ class _FilterCountButton extends StatelessWidget {
 }
 
 class _SearchSheet extends StatefulWidget {
-  const _SearchSheet({required this.initialValue, required this.suggestions});
+  const _SearchSheet({
+    required this.initialValue,
+    required this.suggestions,
+    required this.recentSearches,
+  });
 
   final String initialValue;
   final List<String> suggestions;
+  final List<String> recentSearches;
 
   @override
   State<_SearchSheet> createState() => _SearchSheetState();
@@ -1952,6 +2032,32 @@ class _SearchSheetState extends State<_SearchSheet> {
             onChanged: (_) => setState(() {}),
             onSubmitted: (value) => Navigator.of(context).pop(value),
           ),
+          if (query.isEmpty && widget.recentSearches.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                'بحثت مؤخراً',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: widget.recentSearches
+                  .map(
+                    (value) => ActionChip(
+                      avatar: const Icon(Icons.history_rounded, size: 18),
+                      label: Text(value),
+                      onPressed: () => Navigator.of(context).pop(value),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
           if (suggestions.isNotEmpty) ...[
             const SizedBox(height: 10),
             ConstrainedBox(
