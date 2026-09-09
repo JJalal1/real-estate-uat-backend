@@ -29,7 +29,7 @@ jobs:
       run:
         working-directory: backend-api-runtime
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
@@ -57,7 +57,11 @@ jobs:
       - name: Full Laravel regression
         run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
       - name: Focused experience contracts
-        run: php artisan test tests/Feature/ProductExperienceSavedSearchTest.php --fail-on-warning --fail-on-risky
+        run: >-
+          php artisan test
+          tests/Feature/ProductExperienceSavedSearchTest.php
+          tests/Feature/ProductExperienceWorkspaceMarketTest.php
+          --fail-on-warning --fail-on-risky
 
   postgres:
     name: PostgreSQL 17 PostGIS migrations and security
@@ -67,12 +71,12 @@ jobs:
       postgres:
         image: postgis/postgis:17-3.5
         env:
-          POSTGRES_DB: real_estate_experience
+          POSTGRES_DB: real_estate_audit
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d real_estate_experience"
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -81,7 +85,7 @@ jobs:
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
       DB_PORT: 5432
-      DB_DATABASE: real_estate_experience
+      DB_DATABASE: real_estate_audit
       DB_USERNAME: postgres
       DB_PASSWORD: ''
       DB_URL: ''
@@ -90,7 +94,7 @@ jobs:
       run:
         working-directory: backend-api-runtime
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
@@ -107,7 +111,7 @@ jobs:
           printf 'APP_KEY=base64:%s\n' "$key" > .env
       - name: Prepare direct API roles
         run: >-
-          psql -h 127.0.0.1 -U postgres -d real_estate_experience -v ON_ERROR_STOP=1
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
           -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
       - name: Apply full migration chain
         run: php artisan migrate --force
@@ -115,7 +119,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          psql -h 127.0.0.1 -U postgres -d real_estate_experience -v ON_ERROR_STOP=1 <<'SQL'
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           BEGIN
             IF NOT EXISTS (
@@ -130,7 +134,12 @@ jobs:
           END $$;
           SQL
       - name: PostgreSQL feature regression
-        run: php artisan test tests/Postgres tests/Feature/ProductExperienceSavedSearchTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+        run: >-
+          php artisan test
+          tests/Postgres
+          tests/Feature/ProductExperienceSavedSearchTest.php
+          tests/Feature/ProductExperienceWorkspaceMarketTest.php
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   flutter:
     name: Flutter UX regression and UAT APK
@@ -138,7 +147,7 @@ jobs:
     timeout-minutes: 45
     needs: [laravel, postgres]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
