@@ -430,7 +430,12 @@ class AppLoadingState extends StatelessWidget {
 }
 
 class AppSkeleton extends StatelessWidget {
-  const AppSkeleton({this.height = 16, this.width, this.radius = AppRadii.small, super.key});
+  const AppSkeleton({
+    this.height = 16,
+    this.width,
+    this.radius = AppRadii.small,
+    super.key,
+  });
 
   final double height;
   final double? width;
@@ -438,7 +443,8 @@ class AppSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semantic = Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final semantic = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
     return Semantics(
       label: 'جارٍ تحميل المحتوى',
       child: Container(
@@ -484,21 +490,21 @@ class AppErrorState extends StatelessWidget {
     this.title = 'تعذر تحميل المحتوى',
     required this.message,
     this.retryLabel = 'إعادة المحاولة',
-    required this.onRetry,
+    this.onRetry,
     super.key,
   });
 
   final String title;
   final String message;
   final String retryLabel;
-  final VoidCallback onRetry;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) => _CenteredState(
         icon: Icons.cloud_off_outlined,
         title: title,
         message: message,
-        actionLabel: retryLabel,
+        actionLabel: onRetry == null ? null : retryLabel,
         onAction: onRetry,
       );
 }
@@ -519,7 +525,7 @@ class AppUnavailableState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _CenteredState(
-        icon: Icons.visibility_off_outlined,
+        icon: Icons.domain_disabled_outlined,
         title: title,
         message: message,
         actionLabel: actionLabel,
@@ -527,59 +533,230 @@ class AppUnavailableState extends StatelessWidget {
       );
 }
 
-class _CenteredState extends StatelessWidget {
-  const _CenteredState({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.actionLabel,
-    this.onAction,
+class AppPropertyPrice extends StatelessWidget {
+  const AppPropertyPrice({
+    required this.price,
+    required this.currency,
+    this.suffix,
+    super.key,
   });
 
-  final IconData icon;
-  final String title;
-  final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
+  final String price;
+  final String currency;
+  final String? suffix;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 48, color: scheme.onSurfaceVariant),
-              const SizedBox(height: AppSpacing.s12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
+    return Wrap(
+      spacing: AppSpacing.s8,
+      runSpacing: AppSpacing.s4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          '$price $currency',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: scheme.onSurface,
+                fontWeight: FontWeight.w900,
               ),
-              const SizedBox(height: AppSpacing.s8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              if (actionLabel != null && onAction != null) ...[
-                const SizedBox(height: AppSpacing.s20),
-                AppButton(
-                  label: actionLabel!,
-                  onPressed: onAction,
-                  style: AppButtonStyle.outlined,
+        ),
+        if (suffix != null)
+          Text(
+            suffix!,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
                 ),
-              ],
+          ),
+      ],
+    );
+  }
+}
+
+class AppPropertyFact {
+  const AppPropertyFact({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+}
+
+class AppPropertyFacts extends StatelessWidget {
+  const AppPropertyFacts({required this.facts, super.key});
+
+  final List<AppPropertyFact> facts;
+
+  @override
+  Widget build(BuildContext context) {
+    if (facts.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: AppSpacing.s12,
+      runSpacing: AppSpacing.s12,
+      children: facts
+          .map(
+            (fact) => ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(fact.icon, size: 20, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: AppSpacing.s8),
+                  Flexible(child: Text(fact.label)),
+                ],
+              ),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+class AppPropertyMedia extends StatelessWidget {
+  const AppPropertyMedia({
+    this.imageUrl,
+    this.height = 180,
+    this.borderRadius = AppRadii.card,
+    super.key,
+  });
+
+  final String? imageUrl;
+  final double height;
+  final double borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: SizedBox(
+        height: height,
+        width: double.infinity,
+        child: imageUrl == null || imageUrl!.isEmpty
+            ? ColoredBox(
+                color: scheme.surfaceContainer,
+                child: Icon(
+                  Icons.home_work_outlined,
+                  size: 40,
+                  color: scheme.onSurfaceVariant,
+                ),
+              )
+            : Image.network(
+                imageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => ColoredBox(
+                  color: scheme.surfaceContainer,
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    size: 40,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class AppPropertyCard extends StatelessWidget {
+  const AppPropertyCard({
+    required this.title,
+    required this.price,
+    required this.currency,
+    required this.onTap,
+    this.imageUrl,
+    this.location,
+    this.purposeLabel,
+    this.facts = const [],
+    this.trailing,
+    this.unavailable = false,
+    super.key,
+  });
+
+  final String title;
+  final String price;
+  final String currency;
+  final String? imageUrl;
+  final String? location;
+  final String? purposeLabel;
+  final List<AppPropertyFact> facts;
+  final Widget? trailing;
+  final bool unavailable;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurface(
+      padding: EdgeInsets.zero,
+      onTap: unavailable ? null : onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              AppPropertyMedia(imageUrl: imageUrl),
+              if (purposeLabel != null)
+                PositionedDirectional(
+                  top: AppSpacing.s12,
+                  start: AppSpacing.s12,
+                  child: AppStatusBadge(label: purposeLabel!),
+                ),
+              if (trailing != null)
+                PositionedDirectional(
+                  top: AppSpacing.s8,
+                  end: AppSpacing.s8,
+                  child: trailing!,
+                ),
             ],
           ),
-        ),
+          Padding(
+            padding: const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.s8),
+                AppPropertyPrice(price: price, currency: currency),
+                if (location != null) ...[
+                  const SizedBox(height: AppSpacing.s8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: AppSpacing.s4),
+                      Expanded(
+                        child: Text(
+                          location!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (facts.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.s12),
+                  AppPropertyFacts(facts: facts),
+                ],
+                if (unavailable) ...[
+                  const SizedBox(height: AppSpacing.s12),
+                  const AppInlineMessage(
+                    message: 'العقار لم يعد متاحاً للعرض العام.',
+                    tone: AppStatusTone.neutral,
+                    icon: Icons.domain_disabled_outlined,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -588,30 +765,27 @@ class _CenteredState extends StatelessWidget {
 class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   const AppAppBar({
     required this.title,
-    this.actions = const <Widget>[],
-    this.leading,
-    this.centerTitle = false,
+    this.actions,
+    this.bottom,
     super.key,
   });
 
   final String title;
-  final List<Widget> actions;
-  final Widget? leading;
-  final bool centerTitle;
+  final List<Widget>? actions;
+  final PreferredSizeWidget? bottom;
 
   @override
-  Size get preferredSize => const Size.fromHeight(AppSizes.appBarMinHeight);
+  Size get preferredSize => Size.fromHeight(
+        AppSizes.appBarMinHeight + (bottom?.preferredSize.height ?? 0),
+      );
 
   @override
-  Widget build(BuildContext context) {
-    return AppBar(
-      toolbarHeight: AppSizes.appBarMinHeight,
-      title: Text(title),
-      actions: actions,
-      leading: leading,
-      centerTitle: centerTitle,
-    );
-  }
+  Widget build(BuildContext context) => AppBar(
+        title: Text(title),
+        actions: actions,
+        bottom: bottom,
+        toolbarHeight: AppSizes.appBarMinHeight,
+      );
 }
 
 class AppNavDestination {
@@ -635,104 +809,22 @@ class AppNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textScaler = MediaQuery.textScalerOf(context);
-    final scaledLabel = textScaler.scale(12);
-    final contentHeight = (AppSizes.navigationMinHeight + (scaledLabel - 12) * 2)
-        .clamp(AppSizes.navigationMinHeight, 116.0)
-        .toDouble();
-
-    return Material(
-      color: scheme.surface,
-      elevation: AppElevation.floating,
-      child: SafeArea(
-        top: false,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: contentHeight),
-          child: Row(
-            // Scaffold permits the full viewport height here. Stretching would
-            // make the bar consume that height and leave the page no space.
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: List.generate(destinations.length, (index) {
-              final destination = destinations[index];
-              final selected = index == selectedIndex;
-              return Expanded(
-                child: Semantics(
-                  button: true,
-                  selected: selected,
-                  label: destination.label,
-                  child: InkWell(
-                    onTap: () => onSelected(index),
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.symmetric(
-                        horizontal: AppSpacing.s4,
-                        vertical: AppSpacing.s8,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AnimatedContainer(
-                            duration: AppMotion.fast,
-                            curve: AppMotion.curve,
-                            constraints: const BoxConstraints(
-                              minWidth: AppSizes.touchTarget,
-                              minHeight: AppSizes.touchTarget,
-                            ),
-                            decoration: BoxDecoration(
-                              color: selected ? scheme.primaryContainer : Colors.transparent,
-                              borderRadius: BorderRadius.circular(AppRadii.pill),
-                            ),
-                            child: Icon(
-                              destination.icon,
-                              color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.s4),
-                          Text(
-                            destination.label,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
+    return NavigationBar(
+      selectedIndex: selectedIndex,
+      onDestinationSelected: onSelected,
+      destinations: destinations
+          .map(
+            (destination) => NavigationDestination(
+              icon: Icon(destination.icon),
+              label: destination.label,
+            ),
+          )
+          .toList(growable: false),
     );
   }
 }
 
-abstract final class AppBottomSheet {
-  static Future<T?> show<T>(
-    BuildContext context, {
-    required WidgetBuilder builder,
-    bool isScrollControlled = true,
-  }) {
-    return showModalBottomSheet<T>(
-      context: context,
-      isScrollControlled: isScrollControlled,
-      useSafeArea: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.modal)),
-      ),
-      builder: builder,
-    );
-  }
-}
-
-abstract final class AppDialog {
+class AppDialog {
   static Future<T?> show<T>(
     BuildContext context, {
     required String title,
@@ -750,233 +842,53 @@ abstract final class AppDialog {
   }
 }
 
-class AppPropertyFact {
-  const AppPropertyFact({required this.icon, required this.label});
+class _CenteredState extends StatelessWidget {
+  const _CenteredState({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final IconData icon;
-  final String label;
-}
-
-class AppPropertyMedia extends StatelessWidget {
-  const AppPropertyMedia({
-    this.imageUrl,
-    this.height = 190,
-    this.badge,
-    this.overlay,
-    super.key,
-  });
-
-  final String? imageUrl;
-  final double height;
-  final Widget? badge;
-  final Widget? overlay;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (imageUrl == null || imageUrl!.isEmpty)
-            ColoredBox(
-              color: scheme.primaryContainer,
-              child: Icon(
-                Icons.home_work_outlined,
-                size: 56,
-                color: scheme.onPrimaryContainer,
-              ),
-            )
-          else
-            Image.network(
-              imageUrl!,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => ColoredBox(
-                color: scheme.primaryContainer,
-                child: Icon(
-                  Icons.home_work_outlined,
-                  size: 56,
-                  color: scheme.onPrimaryContainer,
-                ),
-              ),
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return const AppSkeleton(height: 190, radius: 0);
-              },
-            ),
-          if (badge != null)
-            PositionedDirectional(top: AppSpacing.s12, start: AppSpacing.s12, child: badge!),
-          if (overlay != null)
-            PositionedDirectional(top: AppSpacing.s8, end: AppSpacing.s8, child: overlay!),
-        ],
-      ),
-    );
-  }
-}
-
-class AppPropertyPrice extends StatelessWidget {
-  const AppPropertyPrice({
-    required this.price,
-    required this.currency,
-    this.suffix,
-    super.key,
-  });
-
-  final String price;
-  final String currency;
-  final String? suffix;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: price,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          TextSpan(text: ' $currency', style: Theme.of(context).textTheme.labelMedium),
-          if (suffix != null) TextSpan(text: ' $suffix', style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
-    );
-  }
-}
-
-class AppPropertyFacts extends StatelessWidget {
-  const AppPropertyFacts({required this.facts, super.key});
-
-  final List<AppPropertyFact> facts;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Wrap(
-      spacing: AppSpacing.s12,
-      runSpacing: AppSpacing.s8,
-      children: facts
-          .map(
-            (fact) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(fact.icon, size: 18, color: scheme.onSurfaceVariant),
-                const SizedBox(width: AppSpacing.s4),
-                Text(
-                  fact.label,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-          )
-          .toList(growable: false),
-    );
-  }
-}
-
-class AppPropertyCard extends StatelessWidget {
-  const AppPropertyCard({
-    required this.title,
-    required this.price,
-    required this.currency,
-    required this.onTap,
-    this.imageUrl,
-    this.location,
-    this.facts = const <AppPropertyFact>[],
-    this.purposeLabel,
-    this.unavailable = false,
-    this.trailing,
-    super.key,
-  });
-
   final String title;
-  final String price;
-  final String currency;
-  final VoidCallback onTap;
-  final String? imageUrl;
-  final String? location;
-  final List<AppPropertyFact> facts;
-  final String? purposeLabel;
-  final bool unavailable;
-  final Widget? trailing;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return AppSurface(
-      padding: EdgeInsets.zero,
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadii.card),
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            AppPropertyMedia(
-              imageUrl: imageUrl,
-              badge: purposeLabel == null
-                  ? null
-                  : AppStatusBadge(
-                      label: purposeLabel!,
-                      tone: unavailable ? AppStatusTone.neutral : AppStatusTone.info,
-                    ),
-              overlay: trailing,
+            Icon(icon, size: 56, color: scheme.onSurfaceVariant),
+            const SizedBox(height: AppSpacing.s16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-            Padding(
-              padding: const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
+            const SizedBox(height: AppSpacing.s8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
-                  const SizedBox(height: AppSpacing.s8),
-                  AppPropertyPrice(price: price, currency: currency),
-                  if (location != null && location!.trim().isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.s8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.location_on_outlined, size: 18, color: scheme.onSurfaceVariant),
-                        const SizedBox(width: AppSpacing.s4),
-                        Expanded(
-                          child: Text(
-                            location!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (facts.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.s12),
-                    AppPropertyFacts(facts: facts),
-                  ],
-                  if (unavailable) ...[
-                    const SizedBox(height: AppSpacing.s12),
-                    const AppInlineMessage(
-                      message: 'هذا الإعلان غير متاح حالياً.',
-                      tone: AppStatusTone.neutral,
-                      icon: Icons.visibility_off_outlined,
-                    ),
-                  ],
-                ],
-              ),
             ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: AppSpacing.s20),
+              AppButton(
+                label: actionLabel!,
+                onPressed: onAction,
+                style: AppButtonStyle.tonal,
+              ),
+            ],
           ],
         ),
       ),
@@ -985,21 +897,21 @@ class AppPropertyCard extends StatelessWidget {
 }
 
 (Color, Color) _semantic(BuildContext context, AppStatusTone tone) {
-  final theme = Theme.of(context);
-  final semantic = theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+  final semantic = Theme.of(context).extension<AppSemanticColors>() ??
+      AppSemanticColors.light;
   return switch (tone) {
     AppStatusTone.success => (semantic.successContainer, semantic.onSuccessContainer),
     AppStatusTone.warning => (semantic.warningContainer, semantic.onWarningContainer),
     AppStatusTone.info => (semantic.infoContainer, semantic.onInfoContainer),
+    AppStatusTone.error => (semantic.errorContainer, semantic.onErrorContainer),
     AppStatusTone.neutral => (semantic.neutralContainer, semantic.onNeutralContainer),
-    AppStatusTone.error => (theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
   };
 }
 
 IconData _toneIcon(AppStatusTone tone) => switch (tone) {
       AppStatusTone.success => Icons.check_circle_outline,
-      AppStatusTone.warning => Icons.warning_amber_outlined,
+      AppStatusTone.warning => Icons.warning_amber_rounded,
       AppStatusTone.info => Icons.info_outline,
-      AppStatusTone.neutral => Icons.info_outline,
       AppStatusTone.error => Icons.error_outline,
+      AppStatusTone.neutral => Icons.circle_outlined,
     };
