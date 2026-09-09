@@ -392,7 +392,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           .report(widget.threadId, reason: reason, details: text);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إرسال البلاغ إلى الدعم.'));
+          const SnackBar(content: Text('تم إرسال البلاغ إلى الدعم.')));
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
