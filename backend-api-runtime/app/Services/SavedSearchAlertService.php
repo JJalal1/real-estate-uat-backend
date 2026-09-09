@@ -30,7 +30,7 @@ class SavedSearchAlertService
                         ->exists();
                     if (! $matches) continue;
 
-                    $this->notifications->create(
+                    $notification = $this->notifications->create(
                         (int) $savedSearch->user_id,
                         'saved_search_match',
                         'عقار جديد يطابق بحثك',
@@ -49,7 +49,7 @@ class SavedSearchAlertService
                         ),
                         'last_checked_at' => now(),
                     ])->save();
-                    $notified++;
+                    if ($notification !== null) $notified++;
                 }
             });
 
@@ -74,7 +74,7 @@ class SavedSearchAlertService
                     if ($matches !== []) {
                         $first = $matches[0];
                         $count = count($matches);
-                        $this->notifications->create(
+                        $notification = $this->notifications->create(
                             (int) $savedSearch->user_id,
                             'saved_search_digest',
                             'ملخص بحثك المحفوظ',
@@ -88,7 +88,7 @@ class SavedSearchAlertService
                                 'property_ids' => array_map(fn (Property $p) => (int) $p->id, $matches),
                             ],
                         );
-                        $sent++;
+                        if ($notification !== null) $sent++;
                     }
 
                     $savedSearch->forceFill([
