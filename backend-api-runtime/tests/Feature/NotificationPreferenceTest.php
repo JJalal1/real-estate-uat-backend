@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Services\UserNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -66,36 +67,12 @@ class NotificationPreferenceTest extends TestCase
         ])->assertOk();
 
         $notifications = app(UserNotificationService::class);
-        $this->assertNull($notifications->create(
-            $user->id,
-            'message_received',
-            'رسالة جديدة',
-        ));
-        $this->assertNull($notifications->create(
-            $user->id,
-            'booking_confirmed',
-            'موعد معاينة',
-        ));
-        $this->assertNull($notifications->create(
-            $user->id,
-            'agreement_created',
-            'اتفاق جديد',
-        ));
-        $this->assertNull($notifications->create(
-            $user->id,
-            'saved_search_match',
-            'عقار مطابق',
-        ));
-        $this->assertNull($notifications->create(
-            $user->id,
-            'listing_review_returned',
-            'الإعلان يحتاج تعديل',
-        ));
-        $this->assertNull($notifications->create(
-            $user->id,
-            'service_order_ready',
-            'الخدمة جاهزة',
-        ));
+        $this->assertNull($notifications->create($user->id, 'message_received', 'رسالة جديدة'));
+        $this->assertNull($notifications->create($user->id, 'booking_confirmed', 'موعد معاينة'));
+        $this->assertNull($notifications->create($user->id, 'agreement_created', 'اتفاق جديد'));
+        $this->assertNull($notifications->create($user->id, 'saved_search_match', 'عقار مطابق'));
+        $this->assertNull($notifications->create($user->id, 'listing_review_returned', 'الإعلان يحتاج تعديل'));
+        $this->assertNull($notifications->create($user->id, 'service_order_ready', 'الخدمة جاهزة'));
 
         $essential = $notifications->create(
             $user->id,
@@ -104,7 +81,10 @@ class NotificationPreferenceTest extends TestCase
         );
         $this->assertNotNull($essential);
 
-        $this->assertSame(1, $user->notifications()->count());
+        $this->assertSame(
+            1,
+            DB::table('user_notifications')->where('user_id', $user->id)->count(),
+        );
         $this->assertDatabaseHas('user_notifications', [
             'user_id' => $user->id,
             'type' => 'support_reply',
