@@ -8,6 +8,7 @@ import '../../../core/widgets/app_components.dart';
 import '../data/saved_search_repository.dart';
 import '../domain/property_marker.dart';
 import '../domain/saved_property_search.dart';
+import 'saved_search_builder_screen.dart';
 
 class SavedSearchesScreen extends ConsumerWidget {
   const SavedSearchesScreen({super.key});
@@ -109,11 +110,12 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
                 enabled: !_busy,
                 tooltip: 'إعدادات البحث',
                 onSelected: _handleMenu,
-                itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'instant', child: Text('تنبيه فوري')),
-                  const PopupMenuItem(value: 'off', child: Text('إيقاف التنبيهات')),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem(value: 'delete', child: Text('حذف البحث')),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('تعديل البحث')),
+                  PopupMenuItem(value: 'instant', child: Text('تنبيه فوري')),
+                  PopupMenuItem(value: 'off', child: Text('إيقاف التنبيهات')),
+                  PopupMenuDivider(),
+                  PopupMenuItem(value: 'delete', child: Text('حذف البحث')),
                 ],
               ),
             ],
@@ -160,20 +162,44 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
     }
     final type = filters['type']?.toString();
     if (type != null) badges.add(AppStatusBadge(label: _typeLabel(type)));
+    if (filters['min_price'] != null) {
+      badges.add(AppStatusBadge(label: 'من ${_compact(filters['min_price'])}'));
+    }
     if (filters['max_price'] != null) {
       badges.add(AppStatusBadge(label: 'حتى ${_compact(filters['max_price'])}'));
     }
     if (filters['min_bedrooms'] != null) {
       badges.add(AppStatusBadge(label: '${filters['min_bedrooms']}+ غرف'));
     }
+    if (filters['min_bathrooms'] != null) {
+      badges.add(AppStatusBadge(label: '${filters['min_bathrooms']}+ حمام'));
+    }
+    if (filters['min_area_m2'] != null) {
+      badges.add(AppStatusBadge(label: '${_compact(filters['min_area_m2'])}+ م²'));
+    }
     if (filters['search']?.toString().trim().isNotEmpty == true) {
       badges.add(AppStatusBadge(label: '«${filters['search']}»'));
     }
-    return badges.take(5).toList(growable: false);
+    if (filters['latitude'] != null || filters['south'] != null) {
+      badges.add(const AppStatusBadge(label: 'موقع محفوظ'));
+    }
+    return badges.take(6).toList(growable: false);
   }
 
   Future<void> _handleMenu(String value) async {
     if (_busy) return;
+    if (value == 'edit') {
+      final changed = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => SavedSearchBuilderScreen(existingSearch: widget.search),
+        ),
+      );
+      if (changed == true) {
+        ref.read(savedSearchRevisionProvider.notifier).state++;
+      }
+      return;
+    }
+
     if (value == 'delete') {
       final approved = await showDialog<bool>(
         context: context,
