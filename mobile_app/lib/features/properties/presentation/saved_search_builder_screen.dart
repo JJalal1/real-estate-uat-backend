@@ -79,7 +79,7 @@ class _SavedSearchBuilderScreenState extends ConsumerState<SavedSearchBuilderScr
               ],
               selected: _purpose == null ? const <String>{} : {_purpose!},
               emptySelectionAllowed: true,
-              onSelectionChanged: (value) => setState(() => _purpose = value.firstOrNull),
+              onSelectionChanged: (value) => setState(() => _purpose = value.isEmpty ? null : value.first),
             ),
             const SizedBox(height: AppSpacing.s12),
             DropdownButtonFormField<String>(
