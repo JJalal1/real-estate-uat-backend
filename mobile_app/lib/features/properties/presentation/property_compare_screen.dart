@@ -17,6 +17,7 @@ class PropertyCompareScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(propertyDataRevisionProvider);
     final ids = propertyIds.where((id) => id > 0).toSet().take(4).toList(growable: false);
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -29,7 +30,11 @@ class PropertyCompareScreen extends ConsumerWidget {
               return const _CompareSkeleton();
             }
             if (snapshot.hasError) {
-              return AppErrorState(message: friendlyApiError(snapshot.error!));
+              return AppErrorState(
+                message: friendlyApiError(snapshot.error!),
+                onRetry: () =>
+                    ref.read(propertyDataRevisionProvider.notifier).state++,
+              );
             }
             final items = snapshot.data ?? const <_CompareItem>[];
             if (items.length < 2) {
