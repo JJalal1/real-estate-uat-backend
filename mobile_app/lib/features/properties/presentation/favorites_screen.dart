@@ -7,18 +7,63 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/favorites_repository.dart';
 import '../domain/property_marker.dart';
+import 'property_compare_screen.dart';
 
-class FavoritesScreen extends ConsumerWidget {
+class FavoritesScreen extends ConsumerStatefulWidget {
   const FavoritesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FavoritesScreen> createState() => _FavoritesScreenState();
+}
+
+class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
+  final Set<int> _selected = <int>{};
+  bool _compareMode = false;
+
+  @override
+  Widget build(BuildContext context) {
     final favorites = ref.watch(favoritePropertiesProvider);
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: const AppAppBar(title: 'المفضلة'),
+        appBar: AppAppBar(
+          title: _compareMode ? 'اختر للمقارنة (${_selected.length}/4)' : 'المفضلة',
+          actions: [
+            if (_compareMode)
+              AppIconButton(
+                icon: Icons.close_rounded,
+                tooltip: 'إلغاء المقارنة',
+                onPressed: _exitCompareMode,
+              )
+            else
+              AppIconButton(
+                icon: Icons.compare_arrows_rounded,
+                tooltip: 'مقارنة العقارات',
+                onPressed: () => setState(() => _compareMode = true),
+              ),
+          ],
+        ),
+        bottomNavigationBar: _compareMode
+            ? SafeArea(
+                top: false,
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  elevation: AppElevation.floating,
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.all(AppSpacing.s12),
+                    child: AppButton(
+                      label: _selected.length < 2
+                          ? 'اختر عقارين على الأقل'
+                          : 'مقارنة ${_selected.length} عقارات',
+                      icon: Icons.compare_arrows_rounded,
+                      onPressed: _selected.length < 2 ? null : _openComparison,
+                      expand: true,
+                    ),
+                  ),
+                ),
+              )
+            : null,
         body: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(favoritePropertiesProvider);
@@ -76,23 +121,48 @@ class FavoritesScreen extends ConsumerWidget {
                 separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
                 itemBuilder: (context, index) {
                   final property = items[index];
-                  return AppPropertyCard(
-                    title: property.title,
-                    price: _formatPrice(property.price),
-                    currency: property.currency,
-                    imageUrl: property.mainImage,
-                    location: property.address,
-                    purposeLabel: _purposeLabel(property.purpose),
-                    facts: _facts(property),
-                    trailing: IconButton.filledTonal(
-                      tooltip: 'إزالة من المفضلة',
-                      onPressed: () => _remove(context, ref, property.id),
-                      icon: Icon(
-                        Icons.favorite_rounded,
-                        color: Theme.of(context).colorScheme.error,
+                  final selected = _selected.contains(property.id);
+                  return Stack(
+                    children: [
+                      AppPropertyCard(
+                        title: property.title,
+                        price: _formatPrice(property.price),
+                        currency: property.currency,
+                        imageUrl: property.mainImage,
+                        location: property.address,
+                        purposeLabel: _purposeLabel(property.purpose),
+                        facts: _facts(property),
+                        trailing: _compareMode
+                            ? Icon(
+                                selected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                color: selected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.onSurfaceVariant,
+                              )
+                            : IconButton.filledTonal(
+                                tooltip: 'إزالة من المفضلة',
+                                onPressed: () => _remove(context, property.id),
+                                icon: Icon(
+                                  Icons.favorite_rounded,
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                        onTap: _compareMode
+                            ? () => _toggleSelection(property.id)
+                            : () => context.push('/properties/${property.id}'),
                       ),
-                    ),
-                    onTap: () => context.push('/properties/${property.id}'),
+                      if (_compareMode && selected)
+                        PositionedDirectional(
+                          top: AppSpacing.s8,
+                          start: AppSpacing.s8,
+                          child: AppStatusBadge(
+                            label: '${_selectionPosition(property.id)}',
+                            tone: AppStatusTone.success,
+                          ),
+                        ),
+                    ],
                   );
                 },
               );
@@ -103,7 +173,41 @@ class FavoritesScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _remove(BuildContext context, WidgetRef ref, int propertyId) async {
+  void _toggleSelection(int propertyId) {
+    setState(() {
+      if (_selected.contains(propertyId)) {
+        _selected.remove(propertyId);
+        return;
+      }
+      if (_selected.length >= 4) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('يمكن مقارنة أربعة عقارات كحد أقصى.')),
+        );
+        return;
+      }
+      _selected.add(propertyId);
+    });
+  }
+
+  int _selectionPosition(int propertyId) => _selected.toList().indexOf(propertyId) + 1;
+
+  void _exitCompareMode() {
+    setState(() {
+      _compareMode = false;
+      _selected.clear();
+    });
+  }
+
+  Future<void> _openComparison() async {
+    final ids = _selected.toList(growable: false);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PropertyCompareScreen(propertyIds: ids),
+      ),
+    );
+  }
+
+  Future<void> _remove(BuildContext context, int propertyId) async {
     try {
       await ref.read(favoritesRepositoryProvider).remove(propertyId);
       ref.read(favoriteDataRevisionProvider.notifier).state++;
