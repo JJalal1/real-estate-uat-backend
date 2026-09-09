@@ -110,7 +110,7 @@ class _ServicesHub extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.s4),
                     Text(
-                      '${model.accountTypeLabel} • $professionalMessage',
+                      'الخدمات الحالية مجانية • ${model.accountTypeLabel} • $professionalMessage',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
