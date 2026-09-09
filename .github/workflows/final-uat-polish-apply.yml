@@ -1,0 +1,47 @@
+name: Final UAT Polish Apply
+
+on:
+  push:
+    branches:
+      - experience/final-uat-polish-pass
+    paths:
+      - tools/final_uat_polish_patch.py
+      - .github/workflows/final-uat-polish-apply.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: experience/final-uat-polish-pass
+          fetch-depth: 0
+
+      - name: Apply final UAT polish patch
+        run: python3 tools/final_uat_polish_patch.py
+
+      - name: Verify patch whitespace
+        run: git diff --check
+
+      - name: Commit product changes
+        id: commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend-api-runtime mobile_app
+          if git diff --cached --quiet; then
+            echo "No product changes to commit"
+          else
+            git commit -m "feat: final UAT product polish"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "FINAL_POLISH_COMMIT=$(git rev-parse HEAD)"
+
+      - name: Push product changes
+        run: git push origin HEAD:experience/final-uat-polish-pass
