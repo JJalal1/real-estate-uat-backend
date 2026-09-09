@@ -25,6 +25,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   int _index = 0;
   bool _exitDialogOpen = false;
   String? _lastMode;
+  final Set<int> _visitedIndices = <int>{0};
 
   Future<void> _confirmExit() async {
     if (_exitDialogOpen || !mounted) return;
@@ -55,6 +56,14 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     if (shouldExit == true && mounted) await SystemNavigator.pop();
   }
 
+  void _selectTab(int value) {
+    if (value == _index) return;
+    setState(() {
+      _visitedIndices.add(value);
+      _index = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).asData?.value;
@@ -64,8 +73,24 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     if (_lastMode != mode) {
       _lastMode = mode;
       _index = 0;
+      _visitedIndices
+        ..clear()
+        ..add(0);
     }
-    if (_index >= shell.pages.length) _index = 0;
+    if (_index >= shell.pages.length) {
+      _index = 0;
+      _visitedIndices
+        ..clear()
+        ..add(0);
+    }
+
+    final lazyPages = List<Widget>.generate(
+      shell.pages.length,
+      (pageIndex) => _visitedIndices.contains(pageIndex)
+          ? shell.pages[pageIndex]
+          : const SizedBox.shrink(),
+      growable: false,
+    );
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -75,13 +100,13 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           if (!didPop) _confirmExit();
         },
         child: Scaffold(
-          body: IndexedStack(index: _index, children: shell.pages),
+          body: IndexedStack(index: _index, children: lazyPages),
           bottomNavigationBar: AppNavigationBar(
             destinations: shell.items
                 .map((item) => AppNavDestination(label: item.label, icon: item.icon))
                 .toList(growable: false),
             selectedIndex: _index,
-            onSelected: (value) => setState(() => _index = value),
+            onSelected: _selectTab,
           ),
         ),
       ),
