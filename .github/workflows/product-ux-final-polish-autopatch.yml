@@ -2,14 +2,14 @@ name: Product UX Final Polish Autopatch
 
 on:
   push:
-    branches: [experience/product-ux-final-polish]
+    branches:
+      - experience/product-ux-final-polish
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: ${{ !startsWith(github.event.head_commit.message, 'ux: save current discovery search') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -17,18 +17,21 @@ jobs:
           ref: experience/product-ux-final-polish
           fetch-depth: 0
       - name: Patch current discovery search save flow
-        shell: python {0}
         run: |
+          python3 <<'PY'
           from pathlib import Path
 
           path = Path('mobile_app/lib/features/map/presentation/map_screen.dart')
           source = path.read_text()
 
           old_import = "import '../../properties/domain/property_marker.dart';\n"
-          new_import = old_import + "import '../../properties/presentation/saved_search_builder_screen.dart';\n"
           if 'saved_search_builder_screen.dart' not in source:
               assert old_import in source
-              source = source.replace(old_import, new_import, 1)
+              source = source.replace(
+                  old_import,
+                  old_import + "import '../../properties/presentation/saved_search_builder_screen.dart';\n",
+                  1,
+              )
 
           marker = "  void _openAddProperty() {\n    context.push('/add-property');\n  }\n"
           methods = r"""
@@ -67,8 +70,9 @@ jobs:
     if (user == null) {
       setAuthReturnLocation(ref, '/');
       await context.push('/auth');
-      if (!mounted) return;
-      if (ref.read(authControllerProvider).asData?.value == null) return;
+      if (!mounted || ref.read(authControllerProvider).asData?.value == null) {
+        return;
+      }
     }
     final currentUser = ref.read(authControllerProvider).asData?.value;
     if (currentUser == null) return;
@@ -88,7 +92,9 @@ jobs:
     );
     if (!mounted || saved != true) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم حفظ البحث وسيصلك تنبيه عند ظهور عقار مطابق.')),
+      const SnackBar(
+        content: Text('تم حفظ البحث وسيصلك تنبيه عند ظهور عقار مطابق.'),
+      ),
     );
   }
 
@@ -181,8 +187,13 @@ void main() {
   });
 }
 """)
+          PY
       - name: Commit final polish
         run: |
+          if git diff --quiet -- mobile_app/lib/features/map/presentation/map_screen.dart mobile_app/test/product_ux_current_search_save_test.dart; then
+            echo "Final polish already applied."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add mobile_app/lib/features/map/presentation/map_screen.dart mobile_app/test/product_ux_current_search_save_test.dart
