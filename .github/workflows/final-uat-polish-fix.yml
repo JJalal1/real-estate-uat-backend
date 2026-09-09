@@ -1,0 +1,45 @@
+name: Final UAT Polish Compile Guard Fix
+
+on:
+  push:
+    branches:
+      - experience/final-uat-polish-pass
+    paths:
+      - .github/workflows/final-uat-polish-fix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experience/final-uat-polish-pass
+          fetch-depth: 0
+      - name: Fix compile guards
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('mobile_app/lib/features/properties/presentation/property_details_screen.dart')
+          s = p.read_text()
+          s = s.replace('AppSpacing.s2', 'AppSpacing.s4')
+          p.write_text(s)
+
+          p = Path('mobile_app/test/final_uat_polish_contract_test.dart')
+          s = p.read_text()
+          s = s.replace('contains("\'${items.length} نتيجة\'")', 'contains(r"\'${items.length} نتيجة\'")')
+          p.write_text(s)
+          PY
+          git diff --check
+      - name: Commit and push
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mobile_app
+          git commit -m "fix: final UAT polish compile guards"
+          git push origin HEAD:experience/final-uat-polish-pass
