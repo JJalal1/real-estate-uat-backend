@@ -1,0 +1,31 @@
+name: Product UX UAT Finalize Patch V2
+
+on:
+  push:
+    branches:
+      - experience/product-ux-uat-finalize
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: experience/product-ux-uat-finalize
+          fetch-depth: 0
+      - name: Apply final Product UX patch
+        run: python3 tools/product_ux_uat_finalize_patch.py
+      - name: Commit patch when needed
+        run: |
+          if git diff --quiet -- mobile_app/lib/features/map/presentation/map_screen.dart mobile_app/test/product_ux_current_search_save_test.dart mobile_app/test/uat_services_hub_navigation_test.dart; then
+            echo "Patch already applied."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mobile_app/lib/features/map/presentation/map_screen.dart mobile_app/test/product_ux_current_search_save_test.dart mobile_app/test/uat_services_hub_navigation_test.dart
+          git commit -m "ux: finalize current discovery search and services contract"
+          git push origin HEAD:experience/product-ux-uat-finalize
