@@ -54,11 +54,27 @@ class SavedSearchRepository {
       },
       options: await _auth.requiredAuthOptions(),
     );
-    final data = response.data?['data'];
-    if (data is! Map<String, dynamic>) {
-      throw StateError('Saved search response is missing data.');
-    }
-    return SavedPropertySearch.fromJson(data);
+    return _searchFromResponse(response);
+  }
+
+  Future<SavedPropertySearch> update(
+    int id, {
+    String? name,
+    Map<String, dynamic>? filters,
+    String? alertFrequency,
+    bool? isActive,
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/saved-searches/$id',
+      data: {
+        if (name != null) 'name': name,
+        if (filters != null) 'filters': filters,
+        if (alertFrequency != null) 'alert_frequency': alertFrequency,
+        if (isActive != null) 'is_active': isActive,
+      },
+      options: await _auth.requiredAuthOptions(),
+    );
+    return _searchFromResponse(response);
   }
 
   Future<List<PropertyMarker>> results(SavedPropertySearch search) async {
@@ -83,13 +99,10 @@ class SavedSearchRepository {
     required String alertFrequency,
     bool? isActive,
   }) async {
-    await _dio.patch<Map<String, dynamic>>(
-      '/saved-searches/$id',
-      data: {
-        'alert_frequency': alertFrequency,
-        if (isActive != null) 'is_active': isActive,
-      },
-      options: await _auth.requiredAuthOptions(),
+    await update(
+      id,
+      alertFrequency: alertFrequency,
+      isActive: isActive,
     );
   }
 
@@ -98,5 +111,15 @@ class SavedSearchRepository {
       '/saved-searches/$id',
       options: await _auth.requiredAuthOptions(),
     );
+  }
+
+  SavedPropertySearch _searchFromResponse(
+    Response<Map<String, dynamic>> response,
+  ) {
+    final data = response.data?['data'];
+    if (data is! Map<String, dynamic>) {
+      throw StateError('Saved search response is missing data.');
+    }
+    return SavedPropertySearch.fromJson(data);
   }
 }
