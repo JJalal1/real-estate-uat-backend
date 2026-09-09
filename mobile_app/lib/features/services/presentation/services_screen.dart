@@ -139,7 +139,7 @@ class _ServicesHub extends StatelessWidget {
                     'المحفوظات والرسائل والمعاينات والاتفاقات مع الخطوة التالية.',
                 leading: const Icon(Icons.route_outlined),
                 trailing: const AppStatusBadge(
-                  label: 'متاح',
+                  label: 'متاح الآن',
                   tone: AppStatusTone.success,
                 ),
                 onTap: () => Navigator.of(context).push(
@@ -168,7 +168,7 @@ class _ServicesHub extends StatelessWidget {
                     'تابع الاتفاقات المقبولة وعقود الإيجار المرتبطة بعقاراتك.',
                 leading: const Icon(Icons.handshake_outlined),
                 trailing: const AppStatusBadge(
-                  label: 'متاح',
+                  label: 'متاح الآن',
                   tone: AppStatusTone.success,
                 ),
                 onTap: () => context.push('/agreements'),
@@ -193,7 +193,7 @@ class _ServicesHub extends StatelessWidget {
                     'يقارن العقار بعقارات منشورة ومعتمدة مشابهة، ويظهر فقط عندما تكون العينة كافية.',
                 leading: const Icon(Icons.insights_outlined),
                 trailing: const AppStatusBadge(
-                  label: 'متاح',
+                  label: 'متاح الآن',
                   tone: AppStatusTone.success,
                 ),
                 onTap: () => context.go('/'),
@@ -205,7 +205,7 @@ class _ServicesHub extends StatelessWidget {
                     'قارن من عقارين إلى أربعة من المفضلة في السعر والمساحة والسعي والثقة ومؤشر السوق.',
                 leading: const Icon(Icons.compare_arrows_rounded),
                 trailing: const AppStatusBadge(
-                  label: 'متاح',
+                  label: 'متاح الآن',
                   tone: AppStatusTone.success,
                 ),
                 onTap: () => context.push('/favorites'),
@@ -231,7 +231,7 @@ class _ServicesHub extends StatelessWidget {
                       'نشاط العملاء، المعاينات، الاتفاقات والإعلانات التي تحتاج إجراء.',
                   leading: const Icon(Icons.space_dashboard_outlined),
                   trailing: const AppStatusBadge(
-                    label: 'متاح',
+                    label: 'متاح الآن',
                     tone: AppStatusTone.success,
                   ),
                   onTap: () => Navigator.of(context).push(
@@ -251,7 +251,7 @@ class _ServicesHub extends StatelessWidget {
                 trailing: AppStatusBadge(
                   label: model.requiresVerification('create_listing')
                       ? 'يتطلب التحقق'
-                      : 'متاح',
+                      : 'متاح الآن',
                   tone: model.requiresVerification('create_listing')
                       ? AppStatusTone.warning
                       : AppStatusTone.success,
@@ -272,7 +272,7 @@ class _ServicesHub extends StatelessWidget {
                     'تابع دورة الإعلان، وما يحتاج إجراء، والمراجعة والنشر.',
                 leading: const Icon(Icons.inventory_2_outlined),
                 trailing: const AppStatusBadge(
-                  label: 'متاح',
+                  label: 'متاح الآن',
                   tone: AppStatusTone.success,
                 ),
                 onTap: () => context.push('/my-listings'),
