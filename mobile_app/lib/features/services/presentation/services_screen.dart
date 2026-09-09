@@ -6,6 +6,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
+import '../../properties/presentation/saved_searches_screen.dart';
 import '../data/service_repository.dart';
 import '../domain/service_models.dart';
 
@@ -71,7 +72,7 @@ class _ServicesHub extends StatelessWidget {
     final professionalMessage = model.verifiedProfessional
         ? 'حسابك موثق للنشر وإدارة العقارات.'
         : model.accountType == 'basic'
-            ? 'تصفح العقارات والخدمات المتاحة، وفعّل صفتك المهنية عندما تحتاج إلى النشر.'
+            ? 'تصفح العقارات والأدوات، وفعّل صفتك المهنية عندما تحتاج إلى النشر.'
             : 'أكمل التحقق من صفتك المهنية لتفعيل نشر العقارات.';
 
     return ListView(
@@ -102,7 +103,7 @@ class _ServicesHub extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'الخدمات الحالية مجانية',
+                      'أدوات عقارية تساعدك تكمل الرحلة',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: AppSpacing.s4),
@@ -120,8 +121,43 @@ class _ServicesHub extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.s24),
         const AppSectionHeader(
-          title: 'متاح الآن',
-          subtitle: 'هذه المسارات تعمل فعلياً في النسخة الحالية.',
+          title: 'أدوات الباحث',
+          subtitle: 'احفظ ما يهمك وارجع له بدون إعادة ضبط البحث كل مرة.',
+        ),
+        const SizedBox(height: AppSpacing.s8),
+        AppSurface(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              AppListRow(
+                title: 'البحوث المحفوظة والتنبيهات',
+                subtitle: 'تابع نتائج بحثك واحصل على تنبيه عند ظهور عقار مطابق.',
+                leading: const Icon(Icons.saved_search_rounded),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SavedSearchesScreen(),
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              AppListRow(
+                title: 'اتفاقاتي وعقودي',
+                subtitle: 'تابع الاتفاقات المقبولة وعقود الإيجار المرتبطة بعقاراتك.',
+                leading: const Icon(Icons.handshake_outlined),
+                trailing: const AppStatusBadge(
+                  label: 'متاح',
+                  tone: AppStatusTone.success,
+                ),
+                onTap: () => context.push('/agreements'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.s24),
+        const AppSectionHeader(
+          title: 'أدوات المعلن',
+          subtitle: 'النشر والإدارة حسب صلاحية حسابك وحالة التحقق.',
         ),
         const SizedBox(height: AppSpacing.s8),
         AppSurface(
@@ -168,41 +204,32 @@ class _ServicesHub extends StatelessWidget {
         const SizedBox(height: AppSpacing.s24),
         const AppSectionHeader(
           title: 'قادم لاحقاً',
-          subtitle:
-              'تظهر هنا الاتجاهات المعتمدة فقط، ولا تفتح مسارات وهمية قبل اكتمال الـBackend والاختبارات.',
+          subtitle: 'لن نظهر أي أداة كأنها تعمل قبل أن تكون مبنية على بيانات حقيقية ومختبرة.',
         ),
         const SizedBox(height: AppSpacing.s8),
         AppSurface(
           padding: EdgeInsets.zero,
-          child: Column(
+          child: const Column(
             children: [
-              if (model.can('rental_contracts')) ...[
-                const _PlannedServiceRow(
-                  title: 'عقود الإيجار',
-                  subtitle: 'اتفاقات داخل التطبيق مرتبطة بعقار وأطراف حقيقيين.',
-                  icon: Icons.description_outlined,
-                ),
-                const Divider(height: 1),
-              ],
-              const _PlannedServiceRow(
+              _PlannedServiceRow(
                 title: 'مؤشرات الأسعار',
                 subtitle: 'مؤشرات من الإعلانات المنشورة والمعتمدة فقط.',
                 icon: Icons.bar_chart_rounded,
               ),
-              const Divider(height: 1),
-              const _PlannedServiceRow(
+              Divider(height: 1),
+              _PlannedServiceRow(
                 title: 'تقييم العقار',
                 subtitle: 'تقدير استرشادي من عقارات مقارنة مؤهلة.',
                 icon: Icons.analytics_outlined,
               ),
-              const Divider(height: 1),
-              const _PlannedServiceRow(
+              Divider(height: 1),
+              _PlannedServiceRow(
                 title: 'الدليل العقاري',
                 subtitle: 'محتوى عملي للشراء والبيع والإيجار بأمان.',
                 icon: Icons.menu_book_outlined,
               ),
-              const Divider(height: 1),
-              const _PlannedServiceRow(
+              Divider(height: 1),
+              _PlannedServiceRow(
                 title: 'المستندات القانونية',
                 subtitle: 'نماذج وإرشادات معلوماتية دون ادعاء اعتماد حكومي.',
                 icon: Icons.article_outlined,
