@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\Api\NotificationPreferenceController;
 use App\Http\Controllers\Api\ProfessionalWorkspaceController;
 use App\Http\Controllers\Api\PropertyMarketContextController;
 use App\Http\Controllers\Api\SavedPropertySearchController;
@@ -28,6 +29,8 @@ class ExperienceServiceProvider extends ServiceProvider
                 Route::patch('/saved-searches/{savedSearch}', [SavedPropertySearchController::class, 'update']);
                 Route::delete('/saved-searches/{savedSearch}', [SavedPropertySearchController::class, 'destroy']);
                 Route::get('/professional/workspace', [ProfessionalWorkspaceController::class, 'show']);
+                Route::get('/notification-preferences', [NotificationPreferenceController::class, 'show']);
+                Route::patch('/notification-preferences', [NotificationPreferenceController::class, 'update']);
             });
     }
 }
