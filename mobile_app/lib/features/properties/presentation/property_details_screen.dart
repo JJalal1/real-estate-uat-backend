@@ -18,6 +18,7 @@ import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
+import 'property_market_context_card.dart';
 import 'property_sai_public_line.dart';
 
 final propertyDetailsProvider =
@@ -63,6 +64,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       });
     }
 
+    final showPrimaryActions = loaded != null &&
+        loaded.status == 'published' &&
+        !loaded.isOwner;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -99,6 +104,15 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           ),
           data: (property) => _buildContent(property, favoriteIds),
         ),
+        bottomNavigationBar: showPrimaryActions
+            ? _PropertyPrimaryActions(
+                loading: _startingConversation,
+                onMessage: _startingConversation
+                    ? null
+                    : () => _startConversation(loaded),
+                onViewing: () => _requestViewing(loaded),
+              )
+            : null,
       ),
     );
   }
@@ -109,7 +123,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       if (property.areaValue != null)
         AppPropertyFact(
           icon: Icons.square_foot,
-          label: '${formatPropertyAreaValue(property.areaValue!)} ${propertyAreaUnitLabel(property.areaUnit)}',
+          label:
+              '${formatPropertyAreaValue(property.areaValue!)} ${propertyAreaUnitLabel(property.areaUnit)}',
         )
       else if (property.areaM2 != null)
         AppPropertyFact(icon: Icons.square_foot, label: '${property.areaM2} م²'),
@@ -118,7 +133,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       if (property.bathrooms != null)
         AppPropertyFact(icon: Icons.bathtub_outlined, label: '${property.bathrooms} حمام'),
       if (property.hasParking == true)
-        const AppPropertyFact(icon: Icons.local_parking_outlined, label: 'موقف سيارة'),
+        const AppPropertyFact(
+          icon: Icons.local_parking_outlined,
+          label: 'موقف سيارة',
+        ),
       if (property.tenureType != null)
         AppPropertyFact(
           icon: Icons.account_balance_outlined,
@@ -135,6 +153,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       onRefresh: () async {
         ref.invalidate(propertyDetailsProvider(widget.propertyId));
         ref.invalidate(propertySaiPublicProvider(widget.propertyId));
+        ref.invalidate(propertyMarketContextProvider(widget.propertyId));
         if (ref.read(authControllerProvider).asData?.value != null) {
           ref.invalidate(favoritePropertyIdsProvider);
         }
@@ -142,11 +161,11 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsetsDirectional.fromSTEB(
+        padding: EdgeInsetsDirectional.fromSTEB(
           AppLayout.compactPageGutter,
           AppSpacing.s12,
           AppLayout.compactPageGutter,
-          AppSpacing.s40,
+          published && !property.isOwner ? 124.0 : AppSpacing.s40,
         ),
         children: [
           _Gallery(
@@ -159,7 +178,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(property.title, style: Theme.of(context).textTheme.headlineSmall),
+                child: Text(
+                  property.title,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
               ),
               if (property.isOwner)
                 PopupMenuButton<String>(
@@ -187,7 +209,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               AppStatusBadge(
                 label: _purposeLabel(property.purpose),
                 tone: AppStatusTone.info,
-                icon: property.purpose == 'rent' ? Icons.key_outlined : Icons.sell_outlined,
+                icon: property.purpose == 'rent'
+                    ? Icons.key_outlined
+                    : Icons.sell_outlined,
               ),
               AppStatusBadge(
                 label: _typeLabel(property.type),
@@ -216,7 +240,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.location_on_outlined, color: Theme.of(context).colorScheme.primary),
+                  Icon(
+                    Icons.location_on_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   const SizedBox(width: AppSpacing.s8),
                   Expanded(child: Text(property.address!)),
                 ],
@@ -229,12 +256,26 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             const SizedBox(height: AppSpacing.s8),
             AppSurface(child: AppPropertyFacts(facts: facts)),
           ],
+          if (published) ...[
+            const SizedBox(height: AppSpacing.s24),
+            const AppSectionHeader(
+              title: 'السعر مقارنة بالسوق',
+              subtitle:
+                  'مقارنة استرشادية من عقارات منشورة ومعتمدة داخل المنصة فقط.',
+            ),
+            const SizedBox(height: AppSpacing.s8),
+            PropertyMarketContextCard(
+              propertyId: property.id,
+              currency: property.currency,
+            ),
+          ],
           const SizedBox(height: AppSpacing.s24),
           const AppSectionHeader(title: 'وصف العقار'),
           const SizedBox(height: AppSpacing.s8),
           AppSurface(
             child: Text(
-              property.description ?? 'لم يضف المعلن وصفاً تفصيلياً لهذا العقار بعد.',
+              property.description ??
+                  'لم يضف المعلن وصفاً تفصيلياً لهذا العقار بعد.',
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
@@ -247,53 +288,39 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               onCommunity: () => _openCommunity(property),
             ),
           ],
-          if (published && !property.isOwner) ...[
+          if (published &&
+              !property.isOwner &&
+              (property.contactPhone != null ||
+                  property.contactWhatsapp != null)) ...[
             const SizedBox(height: AppSpacing.s24),
             const AppSectionHeader(
-              title: 'تواصل وحدد المعاينة',
-              subtitle: 'كل تواصل يبدأ من هذا العقار حتى يبقى السياق واضحاً للطرفين.',
+              title: 'بيانات التواصل',
+              subtitle:
+                  'المراسلة وطلب المعاينة مثبتان أسفل الشاشة للوصول السريع.',
             ),
             const SizedBox(height: AppSpacing.s12),
-            AppButton(
-              label: _startingConversation ? 'جارٍ فتح المحادثة...' : 'مراسلة المعلن',
-              icon: Icons.forum_outlined,
-              loading: _startingConversation,
-              onPressed: () => _startConversation(property),
-              expand: true,
-            ),
-            const SizedBox(height: AppSpacing.s8),
-            AppButton(
-              label: 'طلب موعد معاينة',
-              icon: Icons.event_available_outlined,
-              style: AppButtonStyle.outlined,
-              onPressed: () => _requestViewing(property),
-              expand: true,
-            ),
-            if (property.contactPhone != null || property.contactWhatsapp != null) ...[
-              const SizedBox(height: AppSpacing.s12),
-              AppSurface(
-                child: Column(
-                  children: [
-                    if (property.contactPhone != null)
-                      AppListRow(
-                        title: 'الهاتف',
-                        subtitle: property.contactPhone,
-                        leading: const Icon(Icons.phone_outlined),
-                        trailing: const Icon(Icons.copy_outlined),
-                        onTap: () => _copyContact(property.contactPhone!),
-                      ),
-                    if (property.contactWhatsapp != null)
-                      AppListRow(
-                        title: 'واتساب',
-                        subtitle: property.contactWhatsapp,
-                        leading: const Icon(Icons.chat_outlined),
-                        trailing: const Icon(Icons.copy_outlined),
-                        onTap: () => _copyContact(property.contactWhatsapp!),
-                      ),
-                  ],
-                ),
+            AppSurface(
+              child: Column(
+                children: [
+                  if (property.contactPhone != null)
+                    AppListRow(
+                      title: 'الهاتف',
+                      subtitle: property.contactPhone,
+                      leading: const Icon(Icons.phone_outlined),
+                      trailing: const Icon(Icons.copy_outlined),
+                      onTap: () => _copyContact(property.contactPhone!),
+                    ),
+                  if (property.contactWhatsapp != null)
+                    AppListRow(
+                      title: 'واتساب',
+                      subtitle: property.contactWhatsapp,
+                      leading: const Icon(Icons.chat_outlined),
+                      trailing: const Icon(Icons.copy_outlined),
+                      onTap: () => _copyContact(property.contactWhatsapp!),
+                    ),
+                ],
               ),
-            ],
+            ),
           ],
           if (property.similar.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s32),
@@ -304,7 +331,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: property.similar.length,
-                separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.s12),
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: AppSpacing.s12),
                 itemBuilder: (context, index) {
                   final item = property.similar[index];
                   final isFavorite = favoriteIds.contains(item.id);
@@ -319,14 +347,23 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                       purposeLabel: _purposeLabel(item.purpose),
                       facts: [
                         if (item.areaM2 != null)
-                          AppPropertyFact(icon: Icons.square_foot, label: '${item.areaM2} م²'),
+                          AppPropertyFact(
+                            icon: Icons.square_foot,
+                            label: '${item.areaM2} م²',
+                          ),
                         if (item.bedrooms != null)
-                          AppPropertyFact(icon: Icons.bed_outlined, label: '${item.bedrooms} غرف'),
+                          AppPropertyFact(
+                            icon: Icons.bed_outlined,
+                            label: '${item.bedrooms} غرف',
+                          ),
                       ],
                       trailing: IconButton.filledTonal(
-                        tooltip: isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
+                        tooltip:
+                            isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
                         icon: Icon(
-                          isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          isFavorite
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
                         ),
                         onPressed: _changingFavorite || _consumingPendingFavorite
                             ? null
@@ -476,7 +513,11 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم إرسال طلب المعاينة ويمكن متابعته من صفحة المعاينات.')),
+      const SnackBar(
+        content: Text(
+          'تم إرسال طلب المعاينة ويمكن متابعته من صفحة المعاينات.',
+        ),
+      ),
     );
   }
 
@@ -493,7 +534,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     if (_startingConversation) return;
     setState(() => _startingConversation = true);
     try {
-      final thread = await ref.read(messageRepositoryProvider).startForProperty(property.id);
+      final thread =
+          await ref.read(messageRepositoryProvider).startForProperty(property.id);
       ref.read(messageDataRevisionProvider.notifier).state++;
       if (mounted) await context.push('/messages/${thread.id}');
     } catch (error) {
@@ -520,7 +562,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           builder: (_) => AddPropertyWizardScreen(existingProperty: property),
         ),
       );
-      if (mounted) ref.invalidate(propertyDetailsProvider(widget.propertyId));
+      if (mounted) {
+        ref.invalidate(propertyDetailsProvider(widget.propertyId));
+        ref.invalidate(propertyMarketContextProvider(widget.propertyId));
+      }
     }
   }
 
@@ -534,7 +579,11 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 }
 
 class _Gallery extends StatelessWidget {
-  const _Gallery({required this.images, required this.index, required this.onChanged});
+  const _Gallery({
+    required this.images,
+    required this.index,
+    required this.onChanged,
+  });
 
   final List<PropertyImageItem> images;
   final int index;
@@ -570,7 +619,10 @@ class _Gallery extends StatelessWidget {
                     vertical: AppSpacing.s4,
                   ),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.inverseSurface.withValues(alpha: .86),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .inverseSurface
+                        .withValues(alpha: .86),
                     borderRadius: BorderRadius.circular(AppRadii.pill),
                   ),
                   child: Text(
@@ -589,7 +641,10 @@ class _Gallery extends StatelessWidget {
 }
 
 class _AdvertiserCard extends StatelessWidget {
-  const _AdvertiserCard({required this.property, required this.onCommunity});
+  const _AdvertiserCard({
+    required this.property,
+    required this.onCommunity,
+  });
 
   final PropertyDetails property;
   final VoidCallback onCommunity;
@@ -605,14 +660,19 @@ class _AdvertiserCard extends StatelessWidget {
           Row(
             children: [
               CircleAvatar(
-                child: Icon(verified ? Icons.verified_outlined : Icons.person_outline),
+                child: Icon(
+                  verified ? Icons.verified_outlined : Icons.person_outline,
+                ),
               ),
               const SizedBox(width: AppSpacing.s12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(advertiser.name, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      advertiser.name,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     Text(
                       verified ? advertiser.verificationLabel : 'معلن',
                       style: Theme.of(context).textTheme.bodySmall,
@@ -644,6 +704,62 @@ class _AdvertiserCard extends StatelessWidget {
             expand: true,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PropertyPrimaryActions extends StatelessWidget {
+  const _PropertyPrimaryActions({
+    required this.loading,
+    required this.onMessage,
+    required this.onViewing,
+  });
+
+  final bool loading;
+  final VoidCallback? onMessage;
+  final VoidCallback onViewing;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface,
+      elevation: 10,
+      shadowColor: Colors.black.withValues(alpha: .12),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            AppLayout.compactPageGutter,
+            AppSpacing.s10,
+            AppLayout.compactPageGutter,
+            AppSpacing.s10,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: loading ? 'جارٍ الفتح...' : 'مراسلة',
+                  icon: Icons.forum_outlined,
+                  loading: loading,
+                  onPressed: onMessage,
+                  expand: true,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.s8),
+              Expanded(
+                child: AppButton(
+                  label: 'طلب معاينة',
+                  icon: Icons.event_available_outlined,
+                  style: AppButtonStyle.tonal,
+                  onPressed: onViewing,
+                  expand: true,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
