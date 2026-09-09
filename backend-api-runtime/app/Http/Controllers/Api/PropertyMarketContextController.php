@@ -11,9 +11,13 @@ class PropertyMarketContextController extends Controller
 {
     public function __construct(private readonly PropertyMarketContextService $market) {}
 
-    public function show(Property $property): JsonResponse
+    public function show(int $property): JsonResponse
     {
-        abort_unless($property->status === 'published', 404);
-        return response()->json(['data' => $this->market->contextFor($property)]);
+        $row = Property::query()
+            ->whereKey($property)
+            ->where('status', 'published')
+            ->firstOrFail();
+
+        return response()->json(['data' => $this->market->contextFor($row)]);
     }
 }
