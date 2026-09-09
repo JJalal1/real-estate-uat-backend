@@ -188,9 +188,9 @@ class _ServicesHub extends StatelessWidget {
           child: Column(
             children: [
               AppListRow(
-                title: 'مؤشر السوق داخل صفحة العقار',
+                title: 'مؤشرات الأسعار داخل صفحة العقار',
                 subtitle:
-                    'يقارن العقار بعقارات منشورة ومعتمدة مشابهة، ويظهر فقط عندما تكون العينة كافية.',
+                    'تقارن العقار بعقارات منشورة ومعتمدة مشابهة، وتظهر فقط عندما تكون العينة كافية.',
                 leading: const Icon(Icons.insights_outlined),
                 trailing: const AppStatusBadge(
                   label: 'متاح الآن',
