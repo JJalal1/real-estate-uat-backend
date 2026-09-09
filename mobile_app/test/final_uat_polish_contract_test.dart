@@ -38,7 +38,7 @@ void main() {
 
     expect(mapSource, contains('بحثت مؤخراً'));
     expect(mapSource, contains('_restoreDiscoveryHistory'));
-    expect(mapSource, contains("'${items.length} نتيجة'"));
+    expect(mapSource, contains(r"'${items.length} نتيجة'"));
     expect(historySource, contains('property_discovery_history_v1.json'));
     expect(historySource, contains('recent_searches'));
     expect(historySource, contains('last_filters'));
