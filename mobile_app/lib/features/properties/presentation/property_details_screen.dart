@@ -233,7 +233,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             const AppUnavailableState(),
           ],
           if (property.address != null) ...[
-            const SizedBox(height: AppSpacing.s44),
+            const SizedBox(height: AppSpacing.s24),
             const AppSectionHeader(title: 'الموقع'),
             const SizedBox(height: AppSpacing.s8),
             AppSurface(
@@ -251,13 +251,13 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             ),
           ],
           if (facts.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.s44),
+            const SizedBox(height: AppSpacing.s24),
             const AppSectionHeader(title: 'مواصفات العقار'),
             const SizedBox(height: AppSpacing.s8),
             AppSurface(child: AppPropertyFacts(facts: facts)),
           ],
           if (published) ...[
-            const SizedBox(height: AppSpacing.s44),
+            const SizedBox(height: AppSpacing.s24),
             const AppSectionHeader(
               title: 'السعر مقارنة بالسوق',
               subtitle:
@@ -269,7 +269,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               currency: property.currency,
             ),
           ],
-          const SizedBox(height: AppSpacing.s44),
+          const SizedBox(height: AppSpacing.s24),
           const AppSectionHeader(title: 'وصف العقار'),
           const SizedBox(height: AppSpacing.s8),
           AppSurface(
@@ -280,7 +280,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             ),
           ),
           if (published && property.advertiser != null) ...[
-            const SizedBox(height: AppSpacing.s44),
+            const SizedBox(height: AppSpacing.s24),
             const AppSectionHeader(title: 'المعلن والثقة'),
             const SizedBox(height: AppSpacing.s8),
             _AdvertiserCard(
@@ -292,7 +292,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               !property.isOwner &&
               (property.contactPhone != null ||
                   property.contactWhatsapp != null)) ...[
-            const SizedBox(height: AppSpacing.s44),
+            const SizedBox(height: AppSpacing.s24),
             const AppSectionHeader(
               title: 'بيانات التواصل',
               subtitle:
@@ -968,7 +968,7 @@ class _PropertyDetailsSkeleton extends StatelessWidget {
         AppSkeleton(height: 32),
         SizedBox(height: AppSpacing.s12),
         AppSkeleton(height: 24, width: 180),
-        SizedBox(height: AppSpacing.s44),
+        SizedBox(height: AppSpacing.s24),
         AppSkeleton(height: 120, radius: AppRadii.card),
         SizedBox(height: AppSpacing.s16),
         AppSkeleton(height: 160, radius: AppRadii.card),
