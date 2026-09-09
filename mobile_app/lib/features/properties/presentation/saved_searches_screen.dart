@@ -111,7 +111,6 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
                 onSelected: _handleMenu,
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'instant', child: Text('تنبيه فوري')),
-                  const PopupMenuItem(value: 'daily', child: Text('ملخص يومي')),
                   const PopupMenuItem(value: 'off', child: Text('إيقاف التنبيهات')),
                   const PopupMenuDivider(),
                   const PopupMenuItem(value: 'delete', child: Text('حذف البحث')),
@@ -216,6 +215,7 @@ class SavedSearchResultsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(savedSearchRevisionProvider);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -227,7 +227,11 @@ class SavedSearchResultsScreen extends ConsumerWidget {
               return const _SavedSearchSkeleton();
             }
             if (snapshot.hasError) {
-              return AppErrorState(message: friendlyApiError(snapshot.error!));
+              return AppErrorState(
+                message: friendlyApiError(snapshot.error!),
+                onRetry: () =>
+                    ref.read(savedSearchRevisionProvider.notifier).state++,
+              );
             }
             final items = snapshot.data ?? const <PropertyMarker>[];
             if (items.isEmpty) {
