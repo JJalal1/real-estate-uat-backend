@@ -604,9 +604,51 @@ class _Gallery extends StatelessWidget {
               PageView.builder(
                 itemCount: images.length,
                 onPageChanged: onChanged,
-                itemBuilder: (context, imageIndex) => AppPropertyMedia(
-                  imageUrl: images[imageIndex].url,
-                  height: double.infinity,
+                itemBuilder: (context, imageIndex) => Semantics(
+                  button: true,
+                  label: 'فتح صورة العقار ${imageIndex + 1} من ${images.length}',
+                  child: InkWell(
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute<void>(
+                        builder: (_) => _FullscreenGallery(
+                          images: images,
+                          initialIndex: imageIndex,
+                        ),
+                      ),
+                    ),
+                    child: AppPropertyMedia(
+                      imageUrl: images[imageIndex].url,
+                      height: double.infinity,
+                    ),
+                  ),
+                ),
+              ),
+            if (images.isNotEmpty)
+              PositionedDirectional(
+                top: AppSpacing.s12,
+                end: AppSpacing.s12,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: AppSpacing.s10,
+                      vertical: AppSpacing.s6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: .58),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
+                        SizedBox(width: AppSpacing.s4),
+                        Text(
+                          'تكبير الصور',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             if (images.isNotEmpty)
@@ -640,6 +682,100 @@ class _Gallery extends StatelessWidget {
   }
 }
 
+class _FullscreenGallery extends StatefulWidget {
+  const _FullscreenGallery({required this.images, required this.initialIndex});
+
+  final List<PropertyImageItem> images;
+  final int initialIndex;
+
+  @override
+  State<_FullscreenGallery> createState() => _FullscreenGalleryState();
+}
+
+class _FullscreenGalleryState extends State<_FullscreenGallery> {
+  late final PageController _controller;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _controller = PageController(initialPage: _index);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: _controller,
+                itemCount: widget.images.length,
+                onPageChanged: (value) => setState(() => _index = value),
+                itemBuilder: (context, imageIndex) => Center(
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    child: Image.network(
+                      widget.images[imageIndex].url,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(Icons.broken_image_outlined, color: Colors.white54, size: 52),
+                      ),
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                top: AppSpacing.s8,
+                start: AppSpacing.s8,
+                child: IconButton.filled(
+                  tooltip: 'إغلاق الصور',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ),
+              PositionedDirectional(
+                bottom: AppSpacing.s16,
+                start: 0,
+                end: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: .58),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      '${_index + 1}/${widget.images.length} • اسحب للتنقل واضغط بإصبعين للتكبير',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AdvertiserCard extends StatelessWidget {
   const _AdvertiserCard({
     required this.property,
@@ -653,6 +789,21 @@ class _AdvertiserCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final advertiser = property.advertiser!;
     final verified = advertiser.verificationStatus == 'approved';
+    final signals = <_AdvertiserTrustSignal>[
+      if (advertiser.verificationFlag('identity_reviewed'))
+        const _AdvertiserTrustSignal(Icons.badge_outlined, 'هوية المعلن متحققة'),
+      if (advertiser.verificationFlag('relationship_document_reviewed'))
+        const _AdvertiserTrustSignal(Icons.home_work_outlined, 'علاقة المالك بالعقار متحققة'),
+      if (advertiser.verificationFlag('professional_document_reviewed'))
+        const _AdvertiserTrustSignal(Icons.workspace_premium_outlined, 'بيانات مهنية متحققة'),
+      if (advertiser.verificationFlag('commercial_register_reviewed'))
+        const _AdvertiserTrustSignal(Icons.business_outlined, 'السجل التجاري متحقق'),
+      if (advertiser.verificationFlag('office_documents_reviewed'))
+        const _AdvertiserTrustSignal(Icons.domain_verification_outlined, 'بيانات المكتب متحققة'),
+      if (advertiser.verificationFlag('office_location_registered'))
+        const _AdvertiserTrustSignal(Icons.location_on_outlined, 'موقع المكتب مسجل'),
+    ];
+
     return AppSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -661,7 +812,7 @@ class _AdvertiserCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 child: Icon(
-                  verified ? Icons.verified_outlined : Icons.person_outline,
+                  verified ? Icons.verified_user_outlined : Icons.person_outline,
                 ),
               ),
               const SizedBox(width: AppSpacing.s12),
@@ -673,28 +824,61 @@ class _AdvertiserCard extends StatelessWidget {
                       advertiser.name,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    const SizedBox(height: AppSpacing.s2),
                     Text(
-                      verified ? advertiser.verificationLabel : 'معلن',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      verified ? advertiser.verificationLabel : 'معلن غير موثق',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
                   ],
                 ),
               ),
-              if (verified)
-                const AppStatusBadge(
-                  label: 'موثق',
-                  tone: AppStatusTone.success,
-                  icon: Icons.verified_outlined,
-                ),
+              AppStatusBadge(
+                label: verified ? 'موثق' : 'غير موثق',
+                tone: verified ? AppStatusTone.success : AppStatusTone.warning,
+                icon: verified ? Icons.verified_outlined : Icons.info_outline,
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.s12),
           Text(
-            advertiser.ratingCount == 0
-                ? 'لا توجد تقييمات للمعلن بعد'
-                : 'التقييم ${advertiser.ratingAverage.toStringAsFixed(1)} من 5 (${advertiser.ratingCount})',
+            verified
+                ? 'تم التحقق من صفة المعلن داخل المنصة. إشارات الثقة أدناه مبنية على بيانات تحقق فعلية وليست شارات دعائية.'
+                : 'لم يكتمل توثيق هذا المعلن داخل المنصة. استخدم المراسلة والمعاينة داخل التطبيق قبل اتخاذ أي قرار.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
-          Text('${property.commentsCount} تعليق ظاهر'),
+          if (signals.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s12),
+            Wrap(
+              spacing: AppSpacing.s8,
+              runSpacing: AppSpacing.s8,
+              children: signals
+                  .map(
+                    (signal) => Chip(
+                      avatar: Icon(signal.icon, size: 18),
+                      label: Text(signal.label),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.s12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  advertiser.ratingCount == 0
+                      ? 'لا توجد تقييمات للمعلن بعد'
+                      : 'التقييم ${advertiser.ratingAverage.toStringAsFixed(1)} من 5 (${advertiser.ratingCount})',
+                ),
+              ),
+              Text('${property.commentsCount} تعليق ظاهر'),
+            ],
+          ),
           const SizedBox(height: AppSpacing.s12),
           AppButton(
             label: 'التعليقات والتقييم والبلاغات',
@@ -707,6 +891,12 @@ class _AdvertiserCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AdvertiserTrustSignal {
+  const _AdvertiserTrustSignal(this.icon, this.label);
+  final IconData icon;
+  final String label;
 }
 
 class _PropertyPrimaryActions extends StatelessWidget {

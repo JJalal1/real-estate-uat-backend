@@ -42,6 +42,49 @@ class _WorkspaceContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final priorities = <_WorkspacePriority>[
+      if (data.unreadConversations > 0)
+        _WorkspacePriority(
+          icon: Icons.mark_chat_unread_outlined,
+          title: 'رد على ${data.unreadConversations} محادثات غير مقروءة',
+          subtitle: 'العميل ينتظر ردك؛ افتح صندوق الرسائل وابدأ بالأحدث.',
+          route: '/messages',
+          tone: AppStatusTone.warning,
+        ),
+      if (data.corrections.isNotEmpty)
+        _WorkspacePriority(
+          icon: Icons.edit_note_outlined,
+          title: 'صحح ${data.corrections.length} إعلانات معادة للتعديل',
+          subtitle: 'راجع سبب الإعادة وعدّل نفس الإعلان قبل إعادة الإرسال.',
+          route: '/my-listings',
+          tone: AppStatusTone.warning,
+        ),
+      if (data.activeViewings > 0)
+        _WorkspacePriority(
+          icon: Icons.event_available_outlined,
+          title: 'تابع ${data.activeViewings} معاينات نشطة',
+          subtitle: 'راجع الموعد والحالة والطرف الآخر قبل الانتقال للخطوة التالية.',
+          route: '/bookings',
+          tone: AppStatusTone.info,
+        ),
+      if (data.activeAgreements > 0)
+        _WorkspacePriority(
+          icon: Icons.handshake_outlined,
+          title: 'راجع ${data.activeAgreements} اتفاقات نشطة',
+          subtitle: 'تأكد من آخر revision وحالة القبول قبل أي متابعة.',
+          route: '/agreements',
+          tone: AppStatusTone.info,
+        ),
+      if (data.staleListings.isNotEmpty)
+        _WorkspacePriority(
+          icon: Icons.update_rounded,
+          title: 'راجع ${data.staleListings.length} إعلانات قديمة',
+          subtitle: 'أكد التوفر وحدّث المعلومات حتى تبقى الإعلانات دقيقة.',
+          route: '/my-listings',
+          tone: AppStatusTone.info,
+        ),
+    ];
+
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -83,7 +126,40 @@ class _WorkspaceContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.s24),
-        const AppSectionHeader(title: 'نشاط العملاء'),
+        AppSectionHeader(
+          title: 'يحتاج إجراء الآن',
+          subtitle: priorities.isEmpty
+              ? 'لا توجد عناصر عاجلة حالياً. استمر في متابعة نشاط العملاء.'
+              : 'مرتبة من بياناتك الفعلية؛ ابدأ بالأعلى ثم انتقل لما بعده.',
+        ),
+        const SizedBox(height: AppSpacing.s8),
+        if (priorities.isEmpty)
+          const AppSurface(
+            child: AppListRow(
+              title: 'أنت متابع كل شيء',
+              subtitle: 'لا توجد محادثات غير مقروءة أو إعلانات تحتاج تصحيحاً الآن.',
+              leading: Icon(Icons.task_alt_rounded),
+            ),
+          )
+        else
+          AppSurface(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: priorities
+                  .map(
+                    (item) => AppListRow(
+                      title: item.title,
+                      subtitle: item.subtitle,
+                      leading: Icon(item.icon),
+                      trailing: AppStatusBadge(label: 'إجراء', tone: item.tone),
+                      onTap: () => context.push(item.route),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ),
+        const SizedBox(height: AppSpacing.s24),
+        const AppSectionHeader(title: 'ملخص نشاط العملاء'),
         const SizedBox(height: AppSpacing.s12),
         GridView.count(
           crossAxisCount: 2,
@@ -174,6 +250,22 @@ class _WorkspaceContent extends StatelessWidget {
       ],
     );
   }
+}
+
+class _WorkspacePriority {
+  const _WorkspacePriority({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.route,
+    required this.tone,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String route;
+  final AppStatusTone tone;
 }
 
 class _Metric extends StatelessWidget {
