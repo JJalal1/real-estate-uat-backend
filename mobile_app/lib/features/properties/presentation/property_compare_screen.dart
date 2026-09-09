@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
+import '../domain/property_field_options.dart';
 import '../domain/property_sai.dart';
 
 class PropertyCompareScreen extends ConsumerWidget {
