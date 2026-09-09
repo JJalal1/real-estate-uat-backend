@@ -9,6 +9,8 @@ import '../../account/data/auth_controller.dart';
 import '../../properties/presentation/saved_searches_screen.dart';
 import '../data/service_repository.dart';
 import '../domain/service_models.dart';
+import 'professional_workspace_screen.dart';
+import 'property_journey_screen.dart';
 
 class ServicesScreen extends ConsumerWidget {
   const ServicesScreen({super.key});
@@ -122,7 +124,7 @@ class _ServicesHub extends StatelessWidget {
         const SizedBox(height: AppSpacing.s24),
         const AppSectionHeader(
           title: 'أدوات الباحث',
-          subtitle: 'احفظ ما يهمك وارجع له بدون إعادة ضبط البحث كل مرة.',
+          subtitle: 'من البحث إلى المعاينة والاتفاق، بدون ما تضيع الخطوة التالية.',
         ),
         const SizedBox(height: AppSpacing.s8),
         AppSurface(
@@ -130,14 +132,22 @@ class _ServicesHub extends StatelessWidget {
           child: Column(
             children: [
               AppListRow(
+                title: 'رحلتي العقارية',
+                subtitle: 'المحفوظات والرسائل والمعاينات والاتفاقات مع الخطوة التالية.',
+                leading: const Icon(Icons.route_outlined),
+                trailing: const AppStatusBadge(label: 'جديد', tone: AppStatusTone.success),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const PropertyJourneyScreen()),
+                ),
+              ),
+              const Divider(height: 1),
+              AppListRow(
                 title: 'البحوث المحفوظة والتنبيهات',
                 subtitle: 'تابع نتائج بحثك واحصل على تنبيه عند ظهور عقار مطابق.',
                 leading: const Icon(Icons.saved_search_rounded),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const SavedSearchesScreen(),
-                  ),
+                  MaterialPageRoute<void>(builder: (_) => const SavedSearchesScreen()),
                 ),
               ),
               const Divider(height: 1),
@@ -145,10 +155,7 @@ class _ServicesHub extends StatelessWidget {
                 title: 'اتفاقاتي وعقودي',
                 subtitle: 'تابع الاتفاقات المقبولة وعقود الإيجار المرتبطة بعقاراتك.',
                 leading: const Icon(Icons.handshake_outlined),
-                trailing: const AppStatusBadge(
-                  label: 'متاح',
-                  tone: AppStatusTone.success,
-                ),
+                trailing: const AppStatusBadge(label: 'متاح', tone: AppStatusTone.success),
                 onTap: () => context.push('/agreements'),
               ),
             ],
@@ -157,13 +164,25 @@ class _ServicesHub extends StatelessWidget {
         const SizedBox(height: AppSpacing.s24),
         const AppSectionHeader(
           title: 'أدوات المعلن',
-          subtitle: 'النشر والإدارة حسب صلاحية حسابك وحالة التحقق.',
+          subtitle: 'النشر والإدارة والمتابعة حسب صلاحية حسابك وحالة التحقق.',
         ),
         const SizedBox(height: AppSpacing.s8),
         AppSurface(
           padding: EdgeInsets.zero,
           child: Column(
             children: [
+              if (model.verifiedProfessional) ...[
+                AppListRow(
+                  title: 'لوحة عملي',
+                  subtitle: 'نشاط العملاء، المعاينات، الاتفاقات والإعلانات التي تحتاج إجراء.',
+                  leading: const Icon(Icons.space_dashboard_outlined),
+                  trailing: const AppStatusBadge(label: 'جديد', tone: AppStatusTone.success),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const ProfessionalWorkspaceScreen()),
+                  ),
+                ),
+                const Divider(height: 1),
+              ],
               AppListRow(
                 title: 'إضافة عقار',
                 subtitle: model.can('create_listing')
@@ -171,16 +190,13 @@ class _ServicesHub extends StatelessWidget {
                     : 'يتطلب حساب مالك أو دلال أو مكتب عقاري موثق.',
                 leading: const Icon(Icons.add_home_work_outlined),
                 trailing: AppStatusBadge(
-                  label: model.requiresVerification('create_listing')
-                      ? 'يتطلب التحقق'
-                      : 'متاح',
+                  label: model.requiresVerification('create_listing') ? 'يتطلب التحقق' : 'متاح',
                   tone: model.requiresVerification('create_listing')
                       ? AppStatusTone.warning
                       : AppStatusTone.success,
                 ),
                 onTap: () {
-                  if (model.can('create_listing') &&
-                      model.isAvailable('create_listing')) {
+                  if (model.can('create_listing') && model.isAvailable('create_listing')) {
                     context.push('/add-property');
                   } else {
                     context.push('/account-verification');
@@ -192,10 +208,7 @@ class _ServicesHub extends StatelessWidget {
                 title: 'إعلاناتي',
                 subtitle: 'تابع إعلاناتك وحالات المراجعة والنشر.',
                 leading: const Icon(Icons.inventory_2_outlined),
-                trailing: const AppStatusBadge(
-                  label: 'متاح',
-                  tone: AppStatusTone.success,
-                ),
+                trailing: const AppStatusBadge(label: 'متاح', tone: AppStatusTone.success),
                 onTap: () => context.push('/my-listings'),
               ),
             ],
@@ -243,12 +256,7 @@ class _ServicesHub extends StatelessWidget {
 }
 
 class _PlannedServiceRow extends StatelessWidget {
-  const _PlannedServiceRow({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-  });
-
+  const _PlannedServiceRow({required this.title, required this.subtitle, required this.icon});
   final String title;
   final String subtitle;
   final IconData icon;
@@ -259,10 +267,7 @@ class _PlannedServiceRow extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       leading: Icon(icon),
-      trailing: const AppStatusBadge(
-        label: 'قريباً',
-        tone: AppStatusTone.neutral,
-      ),
+      trailing: const AppStatusBadge(label: 'قريباً', tone: AppStatusTone.neutral),
     );
   }
 }
