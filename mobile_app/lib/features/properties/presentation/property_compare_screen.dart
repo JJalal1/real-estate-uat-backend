@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
+import '../data/property_market_repository.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
@@ -53,18 +54,32 @@ class PropertyCompareScreen extends ConsumerWidget {
 
   Future<List<_CompareItem>> _load(WidgetRef ref, List<int> ids) async {
     final repository = ref.read(propertyRepositoryProvider);
+    final marketRepository = ref.read(propertyMarketRepositoryProvider);
     final items = <_CompareItem>[];
     for (final id in ids) {
       final values = await Future.wait<dynamic>([
         repository.details(id),
         repository.sai(id),
+        _loadMarket(marketRepository, id),
       ]);
       items.add(_CompareItem(
         property: values[0] as PropertyDetails,
         sai: values[1] as PropertySaiEnvelope,
+        market: values[2] as PropertyMarketContext?,
       ));
     }
     return items;
+  }
+
+  Future<PropertyMarketContext?> _loadMarket(
+    PropertyMarketRepository repository,
+    int propertyId,
+  ) async {
+    try {
+      return await repository.context(propertyId);
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -153,6 +168,7 @@ class _PropertyCompareColumn extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.s8),
                 _valueRow(context, 'السعي', item.sai.sai?.displayText ?? 'غير متاح'),
+                _marketRows(context, item.market, property.currency),
                 _valueRow(context, 'المساحة', _area(property)),
                 _valueRow(context, 'الغرف', property.bedrooms?.toString() ?? '—'),
                 _valueRow(context, 'الحمامات', property.bathrooms?.toString() ?? '—'),
@@ -186,6 +202,32 @@ class _PropertyCompareColumn extends StatelessWidget {
     );
   }
 
+  Widget _marketRows(
+    BuildContext context,
+    PropertyMarketContext? market,
+    String currency,
+  ) {
+    if (market == null) {
+      return _valueRow(context, 'مؤشر السوق', 'تعذر تحميل المؤشر الآن');
+    }
+    if (!market.sufficientData) {
+      return _valueRow(
+        context,
+        'مؤشر السوق',
+        'البيانات غير كافية (${market.sampleCount}/${market.minimumSampleSize ?? 5})',
+      );
+    }
+    final median = market.medianPrice;
+    final medianText = median == null
+        ? market.positionLabel
+        : '${market.positionLabel}\nوسيط المقارنات: ${_formatPrice(median)} $currency';
+    return _valueRow(
+      context,
+      'مؤشر السوق',
+      '$medianText\n${market.sampleCount} عقار مقارنة',
+    );
+  }
+
   Widget _valueRow(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(vertical: AppSpacing.s8),
@@ -216,9 +258,14 @@ class _PropertyCompareColumn extends StatelessWidget {
 }
 
 class _CompareItem {
-  const _CompareItem({required this.property, required this.sai});
+  const _CompareItem({
+    required this.property,
+    required this.sai,
+    required this.market,
+  });
   final PropertyDetails property;
   final PropertySaiEnvelope sai;
+  final PropertyMarketContext? market;
 }
 
 class _CompareSkeleton extends StatelessWidget {
@@ -231,9 +278,9 @@ class _CompareSkeleton extends StatelessWidget {
       padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
       child: const Row(
         children: [
-          SizedBox(width: 220, child: AppSkeleton(height: 560)),
+          SizedBox(width: 220, child: AppSkeleton(height: 600)),
           SizedBox(width: AppSpacing.s12),
-          SizedBox(width: 220, child: AppSkeleton(height: 560)),
+          SizedBox(width: 220, child: AppSkeleton(height: 600)),
         ],
       ),
     );
