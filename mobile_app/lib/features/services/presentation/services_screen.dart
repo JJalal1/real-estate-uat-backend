@@ -155,7 +155,7 @@ class _ServicesHub extends StatelessWidget {
                 title: 'اتفاقاتي وعقودي',
                 subtitle: 'تابع الاتفاقات المقبولة وعقود الإيجار المرتبطة بعقاراتك.',
                 leading: const Icon(Icons.handshake_outlined),
-                trailing: const AppStatusBadge(label: 'متاح', tone: AppStatusTone.success),
+                trailing: const AppStatusBadge(label: 'متاح الآن', tone: AppStatusTone.success),
                 onTap: () => context.push('/agreements'),
               ),
             ],
