@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Http\Controllers\Api\ProfessionalWorkspaceController;
+use App\Http\Controllers\Api\PropertyMarketContextController;
 use App\Http\Controllers\Api\SavedPropertySearchController;
 use App\Models\Property;
 use App\Observers\PropertyExperienceObserver;
@@ -14,6 +15,10 @@ class ExperienceServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Property::observe(PropertyExperienceObserver::class);
+
+        Route::prefix('api')->group(function (): void {
+            Route::get('/properties/{property}/market-context', [PropertyMarketContextController::class, 'show']);
+        });
 
         Route::prefix('api')
             ->middleware(['auth.api', 'account.active'])
