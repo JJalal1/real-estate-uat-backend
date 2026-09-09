@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Property;
+use App\Models\PropertyFavorite;
 use App\Models\User;
+use App\Services\PropertyPriceChangeAlertService;
 use App\Services\SavedSearchAlertService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -79,6 +81,66 @@ class ProductExperienceSavedSearchTest extends TestCase
         $this->assertDatabaseMissing('user_notifications', [
             'user_id' => $owner->id,
             'type' => 'saved_search_match',
+            'entity_id' => $listing->id,
+        ]);
+    }
+
+    public function test_published_favorite_price_change_notifies_savers_but_not_owner(): void
+    {
+        [$saver] = $this->user('price-saver@example.test', '+967770001005');
+        [$owner] = $this->user('price-owner@example.test', '+967770001006');
+        $listing = $this->property('فيلا محفوظة', 'sale', 'villa', 60000000, 'published', $owner);
+
+        PropertyFavorite::query()->create([
+            'user_id' => $saver->id,
+            'property_id' => $listing->id,
+        ]);
+        PropertyFavorite::query()->create([
+            'user_id' => $owner->id,
+            'property_id' => $listing->id,
+        ]);
+
+        $count = app(PropertyPriceChangeAlertService::class)->notify(
+            $listing->id,
+            60000000,
+            55000000,
+        );
+
+        $this->assertSame(1, $count);
+        $this->assertDatabaseHas('user_notifications', [
+            'user_id' => $saver->id,
+            'type' => 'favorite_price_changed',
+            'entity_type' => 'property',
+            'entity_id' => $listing->id,
+        ]);
+        $this->assertDatabaseMissing('user_notifications', [
+            'user_id' => $owner->id,
+            'type' => 'favorite_price_changed',
+            'entity_id' => $listing->id,
+        ]);
+    }
+
+    public function test_price_change_alert_ignores_unpublished_listing(): void
+    {
+        [$saver] = $this->user('draft-saver@example.test', '+967770001007');
+        [$owner] = $this->user('draft-owner@example.test', '+967770001008');
+        $listing = $this->property('مسودة محفوظة', 'rent', 'apartment', 180000, 'draft', $owner);
+
+        PropertyFavorite::query()->create([
+            'user_id' => $saver->id,
+            'property_id' => $listing->id,
+        ]);
+
+        $count = app(PropertyPriceChangeAlertService::class)->notify(
+            $listing->id,
+            180000,
+            170000,
+        );
+
+        $this->assertSame(0, $count);
+        $this->assertDatabaseMissing('user_notifications', [
+            'user_id' => $saver->id,
+            'type' => 'favorite_price_changed',
             'entity_id' => $listing->id,
         ]);
     }
