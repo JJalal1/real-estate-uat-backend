@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\Api\ProfessionalWorkspaceController;
 use App\Http\Controllers\Api\SavedPropertySearchController;
 use App\Models\Property;
 use App\Observers\PropertyExperienceObserver;
@@ -21,6 +22,7 @@ class ExperienceServiceProvider extends ServiceProvider
                 Route::post('/saved-searches', [SavedPropertySearchController::class, 'store']);
                 Route::patch('/saved-searches/{savedSearch}', [SavedPropertySearchController::class, 'update']);
                 Route::delete('/saved-searches/{savedSearch}', [SavedPropertySearchController::class, 'destroy']);
+                Route::get('/professional/workspace', [ProfessionalWorkspaceController::class, 'show']);
             });
     }
 }
