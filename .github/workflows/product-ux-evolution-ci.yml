@@ -1,0 +1,186 @@
+name: Product and UX Evolution CI
+
+on:
+  push:
+    branches: [experience/product-ux-evolution]
+  pull_request:
+    branches: [phase1/ux-product-foundation]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/product-ux-evolution-ci.yml'
+
+concurrency:
+  group: product-ux-evolution-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
+
+permissions:
+  contents: read
+
+jobs:
+  laravel:
+    name: Laravel full regression and experience contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: PHP syntax checks
+        run: |
+          php -l app/Http/Controllers/Api/SavedPropertySearchController.php
+          php -l app/Http/Controllers/Api/ProfessionalWorkspaceController.php
+          php -l app/Http/Controllers/Api/PropertyMarketContextController.php
+          php -l app/Services/SavedPropertySearchService.php
+          php -l app/Services/SavedSearchAlertService.php
+          php -l app/Services/PropertyMarketContextService.php
+          php -l app/Observers/PropertyExperienceObserver.php
+          php -l app/Providers/ExperienceServiceProvider.php
+      - name: Full Laravel regression
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+      - name: Focused experience contracts
+        run: php artisan test tests/Feature/ProductExperienceSavedSearchTest.php --fail-on-warning --fail-on-risky
+
+  postgres:
+    name: PostgreSQL 17 PostGIS migrations and security
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_experience
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_experience"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: real_estate_experience
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Prepare direct API roles
+        run: >-
+          psql -h 127.0.0.1 -U postgres -d real_estate_experience -v ON_ERROR_STOP=1
+          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+      - name: Apply full migration chain
+        run: php artisan migrate --force
+      - name: Verify saved-search deny-all posture
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d real_estate_experience -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+              WHERE n.nspname='public' AND c.relname='saved_property_searches' AND c.relrowsecurity
+            ) THEN RAISE EXCEPTION 'saved_property_searches RLS is not enabled'; END IF;
+            IF EXISTS (
+              SELECT 1 FROM information_schema.role_table_grants
+              WHERE table_schema='public' AND table_name='saved_property_searches'
+                AND grantee IN ('PUBLIC','anon','authenticated')
+            ) THEN RAISE EXCEPTION 'direct saved search grants detected'; END IF;
+          END $$;
+          SQL
+      - name: PostgreSQL feature regression
+        run: php artisan test tests/Postgres tests/Feature/ProductExperienceSavedSearchTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+
+  flutter:
+    name: Flutter UX regression and UAT APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [laravel, postgres]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter 3.27.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve packages
+        working-directory: mobile_app
+        run: flutter pub get
+      - name: Static analysis
+        working-directory: mobile_app
+        run: flutter analyze
+      - name: Full Flutter suite
+        working-directory: mobile_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          test "${#tests[@]}" -gt 0
+          flutter test "${tests[@]}"
+      - name: Verify UAT compile endpoint
+        working-directory: mobile_app
+        run: >-
+          flutter test
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+          test/uat_compiled_environment_test.dart
+      - name: Build Product UX UAT APK
+        working-directory: mobile_app
+        run: >-
+          flutter build apk --release
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+      - name: Upload Product UX APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-estate-product-ux-uat-apk-${{ github.run_number }}
+          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
