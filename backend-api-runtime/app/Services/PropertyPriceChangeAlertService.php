@@ -34,7 +34,7 @@ class PropertyPriceChangeAlertService
                 &$notified,
             ): void {
                 foreach ($rows as $favorite) {
-                    $this->notifications->create(
+                    $notification = $this->notifications->create(
                         (int) $favorite->user_id,
                         'favorite_price_changed',
                         'تغيّر سعر عقار محفوظ',
@@ -48,7 +48,7 @@ class PropertyPriceChangeAlertService
                             'direction' => $newPrice < $oldPrice ? 'down' : 'up',
                         ],
                     );
-                    $notified++;
+                    if ($notification !== null) $notified++;
                 }
             });
 
