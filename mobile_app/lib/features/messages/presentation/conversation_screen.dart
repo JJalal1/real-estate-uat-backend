@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,6 +23,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   MessageThreadDetails? _details;
   ViewingBooking? _viewing;
   bool _loading = true;
+  bool _loadingViewing = false;
   bool _loadingOlder = false;
   bool _sending = false;
   bool _bookingBusy = false;
@@ -40,35 +43,44 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refreshViewing = true}) async {
     try {
       final details =
           await ref.read(messageRepositoryProvider).details(widget.threadId);
-      ViewingBooking? viewing;
-      try {
-        final bookings = await ref.read(bookingRepositoryProvider).mine();
-        for (final booking in bookings) {
-          if (booking.messageThreadId == widget.threadId) {
-            viewing = booking;
-            if (booking.isActive) break;
-          }
-        }
-      } catch (_) {
-        // Messaging remains usable if the booking refresh is temporarily unavailable.
-      }
       if (!mounted) return;
       setState(() {
         _details = details;
-        _viewing = viewing;
         _loading = false;
         _error = null;
       });
+      if (refreshViewing) unawaited(_loadViewing());
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
       });
+    }
+  }
+
+  Future<void> _loadViewing() async {
+    if (_loadingViewing) return;
+    _loadingViewing = true;
+    try {
+      final bookings = await ref.read(bookingRepositoryProvider).mine();
+      ViewingBooking? viewing;
+      for (final booking in bookings) {
+        if (booking.messageThreadId == widget.threadId) {
+          viewing = booking;
+          if (booking.isActive) break;
+        }
+      }
+      if (!mounted) return;
+      setState(() => _viewing = viewing);
+    } catch (_) {
+      // Conversation content remains fully usable while viewing data catches up.
+    } finally {
+      _loadingViewing = false;
     }
   }
 
@@ -126,7 +138,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       _controller.clear();
       _pendingMessageKey = null;
       _pendingMessageText = null;
-      await _load();
+      await _load(refreshViewing: false);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

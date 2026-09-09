@@ -2,6 +2,7 @@
 use App\Http\Middleware\AuthenticateApiToken;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsurePermission;
+use App\Http\Middleware\FastRenderHealthProbe;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(FastRenderHealthProbe::class);
         $middleware->alias([
             'auth.api' => AuthenticateApiToken::class,
             'account.active' => EnsureAccountActive::class,

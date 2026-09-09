@@ -34,9 +34,37 @@ class MessagingController extends Controller
     public function threads(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $ids=MessageThreadParticipant::query()->where('user_id',$user->id)->pluck('thread_id');
-        $rows=MessageThread::query()->whereIn('id',$ids)->with(['property:id,title,status','participants'])->orderByDesc('last_message_at')->orderByDesc('id')->limit(250)->get();
-        return response()->json(['data'=>$rows->map(fn(MessageThread $thread)=>$this->threadSummary($thread,$user))->values()]);
+        $rows=MessageThread::query()
+            ->whereHas('participants',fn($q)=>$q->where('user_id',$user->id))
+            ->with(['property:id,title,status','participants'])
+            ->orderByDesc('last_message_at')->orderByDesc('id')->limit(250)->get();
+        $threadIds=$rows->pluck('id');
+        $latestByThread=collect();
+        $unreadByThread=collect();
+        if($threadIds->isNotEmpty()){
+            $latestIds=PrivateMessage::query()->whereIn('thread_id',$threadIds)
+                ->selectRaw('MAX(id) AS id')->groupBy('thread_id')->pluck('id');
+            if($latestIds->isNotEmpty()){
+                $latestByThread=PrivateMessage::query()->whereIn('id',$latestIds)->get()->keyBy('thread_id');
+            }
+            $unreadByThread=PrivateMessage::query()
+                ->join('message_thread_participants as viewer_participant',function($join)use($user): void {
+                    $join->on('viewer_participant.thread_id','=','private_messages.thread_id')
+                        ->where('viewer_participant.user_id','=',$user->id);
+                })
+                ->whereIn('private_messages.thread_id',$threadIds)
+                ->where('private_messages.sender_user_id','<>',$user->id)
+                ->where(function($q): void {
+                    $q->whereNull('viewer_participant.last_read_message_id')
+                        ->orWhereColumn('private_messages.id','>','viewer_participant.last_read_message_id');
+                })
+                ->groupBy('private_messages.thread_id')
+                ->selectRaw('private_messages.thread_id, COUNT(*) AS unread_count')
+                ->pluck('unread_count','private_messages.thread_id');
+        }
+        return response()->json(['data'=>$rows->map(fn(MessageThread $thread)=>$this->threadSummary(
+            $thread,$user,$latestByThread->get($thread->id),(int)($unreadByThread->get($thread->id)??0),true
+        ))->values()]);
     }
 
     public function startForProperty(Request $request, Property $property): JsonResponse
@@ -218,17 +246,19 @@ class MessagingController extends Controller
         abort_unless($participant,404);return $participant;
     }
 
-    private function threadSummary(MessageThread $thread, User $user): array
+    private function threadSummary(MessageThread $thread, User $user, ?PrivateMessage $latest=null, ?int $unread=null, bool $preloaded=false): array
     {
         if(!$thread->relationLoaded('participants'))$thread->load('participants');
         $me=$thread->participants->firstWhere('user_id',$user->id);
         $other=$thread->participants->first(fn($p)=>(int)$p->user_id!==(int)$user->id);
-        $latest=PrivateMessage::query()->where('thread_id',$thread->id)->latest('id')->first();
-        $unread=PrivateMessage::query()->where('thread_id',$thread->id)->where('sender_user_id','<>',$user->id)->when($me?->last_read_message_id,fn($q,$id)=>$q->where('id','>',$id))->count();
+        if(!$preloaded){
+            $latest=PrivateMessage::query()->where('thread_id',$thread->id)->latest('id')->first();
+            $unread=PrivateMessage::query()->where('thread_id',$thread->id)->where('sender_user_id','<>',$user->id)->when($me?->last_read_message_id,fn($q,$id)=>$q->where('id','>',$id))->count();
+        }
         return [
             'id'=>$thread->id,'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,'property_status'=>$thread->property?->status,
             'other_user'=>['id'=>$other?->user_id,'name'=>$other?->user_name_snapshot??'مستخدم'],
-            'unread_count'=>$unread,'last_message_preview'=>$latest?->body?mb_substr($latest->body,0,120):null,
+            'unread_count'=>(int)($unread??0),'last_message_preview'=>$latest?->body?mb_substr($latest->body,0,120):null,
             'last_message_at'=>$thread->last_message_at?->toIso8601String(),'created_at'=>$thread->created_at?->toIso8601String(),
         ];
     }
