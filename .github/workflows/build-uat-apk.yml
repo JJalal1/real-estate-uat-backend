@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
 
 jobs:
   build-uat-apk:
