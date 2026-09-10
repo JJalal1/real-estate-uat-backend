@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
-import '../../account/presentation/access_control_screen.dart';
 import '../../account/presentation/account_screen.dart';
 import '../../account/presentation/auth_gate.dart';
+import '../../admin/presentation/general_manager_pages.dart';
 import '../../bookings/presentation/bookings_screen.dart';
 import '../../map/presentation/map_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
@@ -68,7 +68,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).asData?.value;
     final mode = _modeFor(user);
-    final shell = _shellFor(mode, user);
+    final shell = _shellFor(mode);
 
     if (_lastMode != mode) {
       _lastMode = mode;
@@ -125,7 +125,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     return 'regular';
   }
 
-  _ShellData _shellFor(String mode, dynamic user) {
+  _ShellData _shellFor(String mode) {
     switch (mode) {
       case 'agent':
         return const _ShellData(
@@ -162,17 +162,17 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       case 'platform':
         return const _ShellData(
           pages: [
-            PlatformAdminHomeScreen(),
-            PlatformReviewsScreen(),
-            AccessControlScreen(),
-            PlatformOperationsScreen(),
+            GeneralManagerHomeScreen(),
+            GeneralManagerMarketScreen(),
+            GeneralManagerAdministrationScreen(),
+            GeneralManagerReportsScreen(),
             AccountScreen(),
           ],
           items: [
-            _NavItemData(label: 'لوحة الإدارة', icon: Icons.dashboard_customize_outlined),
-            _NavItemData(label: 'المراجعات', icon: Icons.fact_check_outlined),
-            _NavItemData(label: 'المستخدمون', icon: Icons.manage_accounts_outlined),
-            _NavItemData(label: 'المنصة', icon: Icons.hub_outlined),
+            _NavItemData(label: 'الرئيسية', icon: Icons.space_dashboard_outlined),
+            _NavItemData(label: 'السوق', icon: Icons.query_stats_outlined),
+            _NavItemData(label: 'الإدارة', icon: Icons.account_tree_outlined),
+            _NavItemData(label: 'التقارير', icon: Icons.analytics_outlined),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
           ],
         );
