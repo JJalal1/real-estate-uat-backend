@@ -49,7 +49,7 @@ void main() {
     expect(pages, contains('المحافظات والمديريات'));
     expect(pages, contains('رحلة العقار داخل المنصة'));
     expect(pages, contains('المالية والتقارير'));
-    expect(pages, isNot(contains("SupportTasksScreen(")));
+    expect(pages, isNot(contains('SupportTasksScreen(')));
     expect(pages, isNot(contains('مسند لي')));
     expect(pages, isNot(contains('غير مسند لي')));
   });
