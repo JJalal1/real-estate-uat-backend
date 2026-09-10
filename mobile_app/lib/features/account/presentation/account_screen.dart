@@ -98,7 +98,7 @@ class AccountScreen extends ConsumerWidget {
                     AppInlineMessage(
                       title: 'مساحة العمل منفصلة عن الحساب',
                       message: user.isPlatformOwner || user.roles.contains('super_admin')
-                          ? 'وظائف الإدارة موجودة في «لوحة الإدارة».'
+                          ? 'أدوات المدير العام موزعة بين «الرئيسية» و«السوق» و«الإدارة» و«التقارير».'
                           : user.roles.contains('support_manager')
                               ? 'وظائف الإشراف موجودة في «لوحة الدعم» و«الأعمال» و«الفريق».'
                               : 'وظائف الدعم موجودة في «لوحة الدعم» و«الوارد» و«مهامي».',
