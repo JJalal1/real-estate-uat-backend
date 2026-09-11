@@ -1,1 +1,1 @@
-Retry Frankfurt UAT database migration without restoring Supabase-managed roles.
+Retry Frankfurt migration with corrected public-schema and PostGIS handling.
