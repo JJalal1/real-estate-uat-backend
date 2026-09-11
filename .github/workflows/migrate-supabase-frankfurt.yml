@@ -1,6 +1,11 @@
 name: Migrate Supabase to Frankfurt
 
 on:
+  push:
+    branches:
+      - infra/frankfurt-uat
+    paths:
+      - '.github/frankfurt-migration-trigger.txt'
   workflow_dispatch:
     inputs:
       confirm_target:
@@ -27,8 +32,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ inputs.confirm_target }}" != "FRANKFURT" ]; then
-            echo "Confirmation text is incorrect. Nothing changed."
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.confirm_target }}" != "FRANKFURT" ]; then
+              echo "Confirmation text is incorrect. Nothing changed."
+              exit 1
+            fi
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/infra/frankfurt-uat" ]; then
+              echo "Push is not from the isolated Frankfurt branch. Nothing changed."
+              exit 1
+            fi
+          else
+            echo "Unsupported trigger. Nothing changed."
             exit 1
           fi
           if [ -z "${OLD_DB_URL:-}" ] || [ -z "${NEW_DB_URL:-}" ]; then
