@@ -36,12 +36,20 @@ return new class extends Migration
             ['code' => 'SOCOTRA', 'name_ar' => 'أرخبيل سقطرى', 'name_en' => 'Socotra'],
         ];
 
-        foreach ($rows as $row) {
-            DB::table('governorates')->updateOrInsert(
-                ['code' => $row['code']],
-                $row + ['is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            );
-        }
+        $prepared = array_map(
+            fn (array $row): array => $row + [
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            $rows,
+        );
+
+        DB::table('governorates')->upsert(
+            $prepared,
+            ['code'],
+            ['name_ar', 'name_en', 'is_active', 'updated_at'],
+        );
     }
 
     public function down(): void
