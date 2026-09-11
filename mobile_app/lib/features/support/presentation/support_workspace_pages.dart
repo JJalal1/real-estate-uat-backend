@@ -810,12 +810,6 @@ enum _DashboardAction {
   services,
 }
 
-String _workspaceTime(DateTime value) {
-  final local = value.toLocal();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${local.year}/${two(local.month)}/${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
-}
-
 String _attentionType(String type) => switch (type) {
       'account_verification' => 'تحقق حساب',
       'listing_review' => 'تحقيق إعلان',

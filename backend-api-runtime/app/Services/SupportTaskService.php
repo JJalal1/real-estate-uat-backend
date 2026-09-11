@@ -834,7 +834,7 @@ class SupportTaskService
         if(!Schema::hasTable('support_team_members')||(! $actor->hasRole('support_agent')&&!$actor->hasRole('support_manager')))return;
         if(DB::table('support_team_members')->where('user_id',$actor->id)->exists())return;$fallback=$this->fallbackTeamId();if(!$fallback)return;
         $role=$actor->hasRole('support_manager')?'manager':'agent';DB::table('support_team_members')->updateOrInsert(['support_team_id'=>$fallback,'user_id'=>$actor->id],['member_role'=>$role,'is_available'=>true,'capacity'=>10,'joined_at'=>now(),'created_at'=>now(),'updated_at'=>now()]);
-        if($role==='manager')DB::table('support_teams')->whereKey($fallback)->whereNull('manager_user_id')->update(['manager_user_id'=>$actor->id,'updated_at'=>now()]);
+        if($role==='manager')DB::table('support_teams')->where('id',$fallback)->whereNull('manager_user_id')->update(['manager_user_id'=>$actor->id,'updated_at'=>now()]);
     }
 
     private function ensureSupportStaffMemberships(): void

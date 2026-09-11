@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:real_estate_app/features/support/domain/support_workspace_models.dart';
+import 'package:real_estate_mobile/features/support/domain/support_workspace_models.dart';
 
 void main() {
   test('support task parses team and escalation context', () {
