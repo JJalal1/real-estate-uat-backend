@@ -86,7 +86,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          psql --variable ON_ERROR_STOP=1 --file roles.sql --dbname "$NEW_DB_URL"
+          # Supabase-managed projects reject some role-level SET parameters
+          # (for example log_min_messages). They are platform settings and are
+          # not required to clone application schema/data, so keep the roles
+          # while removing only those ALTER ROLE ... SET statements.
+          sed -E '/^ALTER ROLE .* SET /d' roles.sql > roles.filtered.sql
+          psql --variable ON_ERROR_STOP=1 --file roles.filtered.sql --dbname "$NEW_DB_URL"
 
       - name: Replace Frankfurt database from backup
         shell: bash
