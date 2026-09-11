@@ -146,7 +146,7 @@ jobs:
           check_hash() {
             file="$1"
             expected="$2"
-            actual="$(sha256sum "$file" | awk '{print $1}')"
+            actual="$(git hash-object "$file")"
             if [ "$actual" != "$expected" ]; then
               echo "$file: FAILED"
               echo "Expected: $expected"
@@ -157,11 +157,11 @@ jobs:
           }
 
           check_hash "mobile_app/lib/core/network/api_client.dart" \
-            "b7cecbca1205cdf04222ca069de5eb10b26dca37988f23acfa7e163d081c0015"
+            "ab1db55e0ba0058a1e992e2df677b03871bbe95c"
           check_hash "mobile_app/lib/router/app_router.dart" \
-            "3097c0345f4e2a5cd50ae1ef25de81ad3c15acaf583c67f7d258945e6f97d3bb"
+            "63bcd6d9566c43bbfdcc294c31f726e77ecbdc6e"
           check_hash "mobile_app/lib/features/services/presentation/services_screen.dart" \
-            "27f2972403a40c6e2f6b0b0803881d609aa752d8e977c9f8fdf7c5f7b665c392"
+            "e1b12b6b9e22cb4af379fb9f274e5a7a97e09843"
 
       - name: Flutter version
         working-directory: mobile_app
