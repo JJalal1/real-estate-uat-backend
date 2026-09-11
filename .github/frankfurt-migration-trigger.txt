@@ -1,1 +1,1 @@
-Retry Frankfurt UAT database migration after filtering restricted Supabase role settings.
+Retry Frankfurt UAT database migration without restoring Supabase-managed roles.
