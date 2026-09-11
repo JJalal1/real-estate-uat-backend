@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:real_estate_app/core/formatting/arabic_amount_words.dart';
+import 'package:real_estate_mobile/core/formatting/arabic_amount_words.dart';
 
 void main() {
   test('writes Yemeni rial price in Arabic words', () {
