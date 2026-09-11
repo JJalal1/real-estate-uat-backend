@@ -17,10 +17,18 @@ jobs:
         with:
           ref: fix/advertiser-listing-journey-uat
           fetch-depth: 0
+      - name: Prepare focused patch without workflow mutation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('tools/apply_advertiser_listing_fixes.py').read_text()
+          source = source.split('# Update accepted mobile baseline hashes', 1)[0]
+          Path('/tmp/apply_advertiser_listing_fixes.py').write_text(source)
+          PY
       - name: Apply focused fixes
-        run: python3 tools/apply_advertiser_listing_fixes.py
-      - name: Remove temporary patch helpers
-        run: rm -f tools/apply_advertiser_listing_fixes.py .github/workflows/temp-apply-advertiser-fixes.yml
+        run: python3 /tmp/apply_advertiser_listing_fixes.py
+      - name: Remove temporary patch helper
+        run: rm -f tools/apply_advertiser_listing_fixes.py
       - name: Commit fixes
         run: |
           git config user.name "github-actions[bot]"
