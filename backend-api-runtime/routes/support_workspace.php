@@ -1,11 +1,12 @@
 <?php
 
+use App\Http\Controllers\Api\GeneralManagerDashboardController;
 use App\Http\Controllers\Api\GeneralManagerInsightsController;
 use App\Http\Controllers\Api\SupportWorkspaceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/dashboard', [SupportWorkspaceController::class, 'dashboard']);
-Route::get('/general-manager/insights', GeneralManagerInsightsController::class);
+Route::get('/general-manager/insights', GeneralManagerDashboardController::class);
 Route::get('/general-manager/team', [GeneralManagerInsightsController::class, 'team']);
 Route::get('/general-manager/place-search', [GeneralManagerInsightsController::class, 'placeSearch']);
 Route::get('/tasks', [SupportWorkspaceController::class, 'index']);
