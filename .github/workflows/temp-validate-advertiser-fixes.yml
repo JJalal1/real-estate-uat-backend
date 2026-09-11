@@ -1,0 +1,49 @@
+name: Validate advertiser fixes
+
+on:
+  push:
+    branches:
+      - fix/advertiser-listing-journey-uat
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath,curl,dom,fileinfo,gd,intl,mbstring,pdo_sqlite,sqlite3
+          coverage: none
+      - run: install -m 600 /dev/null .env
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+
+  flutter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
