@@ -7,13 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/formatting/arabic_amount_words.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/property_repository.dart';
+import '../domain/arabic_price_words.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import '../domain/property_location_address.dart';
@@ -510,7 +510,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 
   Widget _priceStep() {
-    final amountWords = arabicYemeniRialAmountWords(_price.text);
+    final amountWords = arabicRiyalAmountInWords(_price.text) ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
