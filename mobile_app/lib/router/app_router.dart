@@ -25,7 +25,9 @@ import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
 import '../features/messages/presentation/messages_screen.dart';
 import '../features/messages/presentation/notifications_screen.dart';
+import '../features/map/presentation/map_screen.dart';
 import '../features/properties/presentation/add_property_wizard_screen.dart';
+import '../features/properties/presentation/favorites_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
 import '../features/properties/presentation/property_details_screen.dart';
 import '../features/regions/presentation/regions_management_screen.dart';
@@ -262,6 +264,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const Stage6AuthGate(
           child: MyListingsScreen(),
         ),
+      ),
+      GoRoute(
+        path: '/favorites',
+        builder: (context, state) => Stage6AuthGate(
+          child: FavoritesScreen(
+            startInCompareMode: state.uri.queryParameters['compare'] == '1',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/property-market',
+        builder: (context, state) => const MapScreen(),
       ),
     ],
   );

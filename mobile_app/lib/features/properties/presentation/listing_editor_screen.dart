@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/formatting/arabic_amount_words.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/theme/app_theme.dart';
@@ -16,7 +17,9 @@ import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import '../domain/property_location_address.dart';
+import '../domain/property_sai.dart';
 import 'property_location_picker_screen.dart';
+import 'property_sai_configuration_sheet.dart';
 
 class ListingEditorScreen extends ConsumerStatefulWidget {
   const ListingEditorScreen({super.key, this.existingProperty});
@@ -100,9 +103,25 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   bool _replaceImages = false;
   List<String> _imagePaths = <String>[];
   String? _ownershipProofPath;
+  PropertyDetails? _workingDraft;
+  PropertySaiEnvelope? _saiEnvelope;
+  bool _saiBusy = false;
 
-  PropertyDetails? get _existing => widget.existingProperty;
+  PropertyDetails? get _existing => _workingDraft ?? widget.existingProperty;
+  bool get _startedAsEditing => widget.existingProperty != null;
   bool get _isEditing => _existing != null;
+  bool get _isSaiReady {
+    final management = _saiEnvelope?.management;
+    if (management == null || !management.configured) return false;
+    if (!management.isProfessional) return true;
+    final requested = management.requestedBrokerRatePercent ?? 0;
+    return requested <= 0 || management.platformTermsStatus == 'accepted';
+  }
+
+  String get _saiDisplayText =>
+      _saiEnvelope?.sai?.displayText ??
+      _saiEnvelope?.management?.publicDisplayText ??
+      (_isSaiReady ? 'تم تحديد السعي' : 'لم يتم تحديد السعي بعد');
   bool get _requiresSaleTenure =>
       _purpose == 'sale' && _saleTenureTypes.contains(_type);
   bool get _requiresResidential => _residentialTypes.contains(_type);
@@ -113,6 +132,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   @override
   void initState() {
     super.initState();
+    _price.addListener(_onPriceChanged);
     final property = _existing;
     if (property == null) return;
 
@@ -146,10 +166,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     _documentOwnerName.text = property.documentOwnerName ?? '';
     _relationshipType = property.ownerRelationshipType;
     _relationshipNote.text = property.ownerRelationshipNote ?? '';
+    unawaited(_refreshSai(property.id));
   }
 
   @override
   void dispose() {
+    _price.removeListener(_onPriceChanged);
     unawaited(
       _mediaPicker
           .clearTemporaryFiles(<String>[
@@ -365,9 +387,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
             const SizedBox(width: AppSpacing.s8),
             Expanded(
               child: AppButton(
-                label: 'موقعي الحالي',
+                label: 'تحديد موقعي الحالي',
                 icon: Icons.my_location,
-                style: AppButtonStyle.tonal,
                 onPressed: _busy || _resolvingLocation ? null : _useCurrentLocation,
                 expand: true,
               ),
@@ -415,7 +436,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               flex: 2,
               child: AppTextField(
                 controller: _area,
-                label: 'المساحة *',
+                label: 'عدد اللبن *',
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 enabled: !_busy,
               ),
@@ -489,6 +510,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 
   Widget _priceStep() {
+    final amountWords = arabicYemeniRialAmountWords(_price.text);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -503,6 +525,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           enabled: !_busy,
         ),
+        if (amountWords.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.s8),
+          AppInlineMessage(
+            title: 'المبلغ بالحروف',
+            message: amountWords,
+            tone: AppStatusTone.info,
+          ),
+        ],
         const SizedBox(height: AppSpacing.s12),
         AppTextField(
           controller: _phone,
@@ -702,6 +732,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           ),
         ],
         const SizedBox(height: AppSpacing.s20),
+        const AppSectionHeader(
+          title: 'السعي',
+          subtitle: 'حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.',
+        ),
+        const SizedBox(height: AppSpacing.s8),
+        _saiConfigurationCard(),
+        const SizedBox(height: AppSpacing.s20),
         const AppSectionHeader(title: 'ملخص الإعلان'),
         const SizedBox(height: AppSpacing.s8),
         AppSurface(
@@ -712,11 +749,55 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               _SummaryRow(label: 'النوع', value: _typeLabels[_type] ?? _type),
               _SummaryRow(label: 'السعر', value: '${_price.text.trim()} YER'),
               _SummaryRow(label: 'الموقع', value: _composedAddress),
-              _SummaryRow(label: 'المساحة', value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
+              _SummaryRow(label: 'عدد اللبن', value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
+              _SummaryRow(label: 'السعي', value: _saiDisplayText),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _saiConfigurationCard() {
+    final scheme = Theme.of(context).colorScheme;
+    return AppSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _isSaiReady ? Icons.check_circle_rounded : Icons.payments_outlined,
+                color: _isSaiReady ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.s8),
+              Expanded(
+                child: Text(
+                  _saiDisplayText,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          Text(
+            _isSaiReady
+                ? 'يمكنك تعديل اختيار السعي قبل الإرسال إذا احتجت.'
+                : 'لن يتم إرسال الإعلان للمراجعة حتى يتم تحديد السعي المطلوب.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.s12),
+          AppButton(
+            label: _isSaiReady ? 'تعديل السعي' : 'تحديد السعي',
+            icon: Icons.payments_outlined,
+            loading: _saiBusy,
+            onPressed: _busy || _saiBusy ? null : _configureSai,
+            expand: true,
+          ),
+        ],
+      ),
     );
   }
 
@@ -746,48 +827,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       );
     }
 
-    return _BottomBar(
-      children: [
-        Expanded(
-          child: AppButton(
-            label: 'السابق',
-            style: AppButtonStyle.text,
-            onPressed: _busy ? null : () => setState(() => _step--),
-            expand: true,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.s4),
-        Expanded(
-          child: AppButton(
-            label: 'معاينة',
-            icon: Icons.visibility_outlined,
-            style: AppButtonStyle.outlined,
-            onPressed: _busy ? null : _preview,
-            expand: true,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.s4),
-        Expanded(
-          child: AppButton(
-            label: 'حفظ مسودة',
-            icon: Icons.save_outlined,
-            style: AppButtonStyle.tonal,
-            loading: _busy,
-            onPressed: _busy ? null : () => _persist(submit: false),
-            expand: true,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.s4),
-        Expanded(
-          child: AppButton(
-            label: 'إرسال للمراجعة',
-            icon: Icons.send_outlined,
-            loading: _busy,
-            onPressed: _busy ? null : () => _persist(submit: true),
-            expand: true,
-          ),
-        ),
-      ],
+    return _FinalActionsBar(
+      busy: _busy,
+      onPrevious: () => setState(() => _step--),
+      onPreview: _preview,
+      onSaveDraft: () => _persist(submit: false),
+      onSubmit: () => _persist(submit: true),
     );
   }
 
@@ -812,7 +857,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     }
     if (step == 2) {
       final areaValue = double.tryParse(_area.text.trim());
-      if (areaValue == null || areaValue <= 0) return 'أدخل مساحة صحيحة للعقار.';
+      if (areaValue == null || areaValue <= 0) return 'أدخل عدداً صحيحاً للبن.';
       if (_requiresResidential) {
         if ((_optionalInt(_bedrooms) ?? 0) < 1) return 'أدخل عدد غرف النوم.';
         if ((_optionalInt(_bathrooms) ?? 0) < 1) return 'أدخل عدد الحمامات.';
@@ -838,6 +883,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   String? _validateForSubmit() {
     final core = _validateCore();
     if (core != null) return core;
+    if (!_isSaiReady) return 'حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.';
 
     final existingImages = _existing?.images.length ?? 0;
     final effectiveImageCount = _replaceImages
@@ -933,6 +979,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               ownershipProofPath: _ownershipProofPath,
             );
 
+      if (mounted) setState(() => _workingDraft = draft);
       ref.read(propertyDataRevisionProvider.notifier).state++;
       await _clearUploadedTemporaryFiles();
 
@@ -942,9 +989,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           ref.read(propertyDataRevisionProvider.notifier).state++;
         } catch (error) {
           if (mounted) {
-            _message('تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: ${friendlyApiError(error)}');
-            await Future<void>.delayed(const Duration(milliseconds: 900));
-            if (mounted) _finish(draft);
+            final message = friendlyApiError(error);
+            _message('تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: $message');
+            if (message.contains('السعي')) {
+              await _refreshSai(draft.id);
+            }
           }
           return;
         }
@@ -962,7 +1011,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 
   void _finish(PropertyDetails property) {
-    if (_isEditing) {
+    if (_startedAsEditing) {
       Navigator.of(context).pop(property);
     } else {
       context.go('/my-listings');
@@ -1036,7 +1085,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                 const SizedBox(height: AppSpacing.s12),
                 _SummaryRow(label: 'الغرض', value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
                 _SummaryRow(label: 'النوع', value: _typeLabels[_type] ?? _type),
-                _SummaryRow(label: 'المساحة', value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
+                _SummaryRow(label: 'عدد اللبن', value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
+                _SummaryRow(label: 'السعي', value: _saiDisplayText),
                 _SummaryRow(label: 'الموقع', value: _composedAddress),
                 if (_description.text.trim().isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.s12),
@@ -1055,6 +1105,72 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         ),
       ),
     );
+  }
+
+  void _onPriceChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _refreshSai(int propertyId) async {
+    try {
+      final envelope = await ref.read(propertyRepositoryProvider).sai(propertyId);
+      if (mounted) setState(() => _saiEnvelope = envelope);
+    } catch (_) {
+      // Sai configuration remains explicitly available in the final step.
+    }
+  }
+
+  Future<PropertyDetails?> _ensureDraftForSai() async {
+    final validation = _validateCore();
+    if (validation != null) {
+      _message(validation);
+      return null;
+    }
+    final repository = ref.read(propertyRepositoryProvider);
+    final current = _existing;
+    final draft = current == null
+        ? await repository.createListing(
+            _input(),
+            imagePaths: _imagePaths,
+            submitForReview: false,
+            ownershipProofPath: _ownershipProofPath,
+          )
+        : await repository.updateListing(
+            current.id,
+            _input(),
+            imagePaths: _imagePaths,
+            replaceImages: _replaceImages,
+            submitForReview: false,
+            ownershipProofPath: _ownershipProofPath,
+          );
+    if (mounted) setState(() => _workingDraft = draft);
+    ref.read(propertyDataRevisionProvider.notifier).state++;
+    await _clearUploadedTemporaryFiles();
+    return draft;
+  }
+
+  Future<void> _configureSai() async {
+    setState(() => _saiBusy = true);
+    try {
+      final draft = await _ensureDraftForSai();
+      if (draft == null || !mounted) return;
+      final repository = ref.read(propertyRepositoryProvider);
+      final ready = await showPropertySaiConfigurationSheet(
+        context,
+        repository: repository,
+        propertyId: draft.id,
+        purpose: _purpose,
+      );
+      if (!mounted) return;
+      await _refreshSai(draft.id);
+      if (!ready && mounted) {
+        _message('لم يتم تأكيد السعي. أكمل بيانات السعي قبل إرسال الإعلان للمراجعة.');
+      }
+    } catch (error) {
+      if (mounted) _message(friendlyApiError(error));
+    } finally {
+      if (mounted) setState(() => _saiBusy = false);
+    }
   }
 
   Future<void> _pickImages() async {
@@ -1285,6 +1401,106 @@ class _BottomBar extends StatelessWidget {
             AppSpacing.s12,
           ),
           child: Row(children: children),
+        ),
+      ),
+    );
+  }
+}
+
+class _FinalActionsBar extends StatelessWidget {
+  const _FinalActionsBar({
+    required this.busy,
+    required this.onPrevious,
+    required this.onPreview,
+    required this.onSaveDraft,
+    required this.onSubmit,
+  });
+
+  final bool busy;
+  final VoidCallback onPrevious;
+  final VoidCallback onPreview;
+  final VoidCallback onSaveDraft;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: AppElevation.floating,
+      color: Theme.of(context).colorScheme.surface,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            AppLayout.compactPageGutter,
+            AppSpacing.s8,
+            AppLayout.compactPageGutter,
+            AppSpacing.s12,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 390;
+              final secondary = <Widget>[
+                Expanded(
+                  child: AppButton(
+                    label: 'معاينة',
+                    icon: Icons.visibility_outlined,
+                    style: AppButtonStyle.outlined,
+                    onPressed: busy ? null : onPreview,
+                    expand: true,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.s8),
+                Expanded(
+                  child: AppButton(
+                    label: 'حفظ مسودة',
+                    icon: Icons.save_outlined,
+                    style: AppButtonStyle.tonal,
+                    loading: busy,
+                    onPressed: busy ? null : onSaveDraft,
+                    expand: true,
+                  ),
+                ),
+              ];
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppButton(
+                    label: 'إرسال للمراجعة',
+                    icon: Icons.send_outlined,
+                    loading: busy,
+                    onPressed: busy ? null : onSubmit,
+                    expand: true,
+                  ),
+                  const SizedBox(height: AppSpacing.s8),
+                  if (compact) ...[
+                    AppButton(
+                      label: 'حفظ مسودة',
+                      icon: Icons.save_outlined,
+                      style: AppButtonStyle.tonal,
+                      loading: busy,
+                      onPressed: busy ? null : onSaveDraft,
+                      expand: true,
+                    ),
+                    const SizedBox(height: AppSpacing.s8),
+                    AppButton(
+                      label: 'معاينة',
+                      icon: Icons.visibility_outlined,
+                      style: AppButtonStyle.outlined,
+                      onPressed: busy ? null : onPreview,
+                      expand: true,
+                    ),
+                  ] else
+                    Row(children: secondary),
+                  AppButton(
+                    label: 'السابق',
+                    style: AppButtonStyle.text,
+                    onPressed: busy ? null : onPrevious,
+                    expand: true,
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

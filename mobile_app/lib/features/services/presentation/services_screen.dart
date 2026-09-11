@@ -196,7 +196,7 @@ class _ServicesHub extends StatelessWidget {
                   label: 'متاح الآن',
                   tone: AppStatusTone.success,
                 ),
-                onTap: () => context.go('/'),
+                onTap: () => context.push('/property-market'),
               ),
               const Divider(height: 1),
               AppListRow(
@@ -208,7 +208,7 @@ class _ServicesHub extends StatelessWidget {
                   label: 'متاح الآن',
                   tone: AppStatusTone.success,
                 ),
-                onTap: () => context.push('/favorites'),
+                onTap: () => context.push('/favorites?compare=1'),
               ),
             ],
           ),

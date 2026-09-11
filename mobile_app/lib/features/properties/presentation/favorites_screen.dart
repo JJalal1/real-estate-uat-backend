@@ -10,7 +10,9 @@ import '../domain/property_marker.dart';
 import 'property_compare_screen.dart';
 
 class FavoritesScreen extends ConsumerStatefulWidget {
-  const FavoritesScreen({super.key});
+  const FavoritesScreen({super.key, this.startInCompareMode = false});
+
+  final bool startInCompareMode;
 
   @override
   ConsumerState<FavoritesScreen> createState() => _FavoritesScreenState();
@@ -18,7 +20,13 @@ class FavoritesScreen extends ConsumerStatefulWidget {
 
 class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   final Set<int> _selected = <int>{};
-  bool _compareMode = false;
+  late bool _compareMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _compareMode = widget.startInCompareMode;
+  }
 
   @override
   Widget build(BuildContext context) {
