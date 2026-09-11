@@ -1,0 +1,183 @@
+name: Migrate Supabase Storage to Frankfurt
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_target:
+        description: 'Type FRANKFURT_STORAGE to confirm the target storage may be updated'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-storage:
+    name: Copy Mumbai storage objects to Frankfurt
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OLD_SUPABASE_URL: https://xjoeikrzvpnblyiknpdb.supabase.co
+      NEW_SUPABASE_URL: https://ipxsgxsqzthpgthwvdno.supabase.co
+      OLD_SUPABASE_SERVICE_KEY: ${{ secrets.OLD_SUPABASE_SERVICE_KEY }}
+      NEW_SUPABASE_SERVICE_KEY: ${{ secrets.NEW_SUPABASE_SERVICE_KEY }}
+      BUCKET: real-estate-uat
+
+    steps:
+      - name: Safety checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.confirm_target }}" != "FRANKFURT_STORAGE" ]; then
+            echo "Confirmation text is incorrect. Nothing changed."
+            exit 1
+          fi
+          if [ -z "${OLD_SUPABASE_SERVICE_KEY:-}" ] || [ -z "${NEW_SUPABASE_SERVICE_KEY:-}" ]; then
+            echo "Storage service-key secrets are missing. Nothing changed."
+            exit 1
+          fi
+          if [ "$OLD_SUPABASE_URL" = "$NEW_SUPABASE_URL" ]; then
+            echo "Source and target URLs must differ. Nothing changed."
+            exit 1
+          fi
+          case "$OLD_SUPABASE_URL" in
+            *xjoeikrzvpnblyiknpdb*) ;;
+            *) echo "Source is not Mumbai. Nothing changed."; exit 1 ;;
+          esac
+          case "$NEW_SUPABASE_URL" in
+            *ipxsgxsqzthpgthwvdno*) ;;
+            *) echo "Target is not Frankfurt. Nothing changed."; exit 1 ;;
+          esac
+          echo "Safety checks passed."
+
+      - name: Install Supabase JS client
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install @supabase/supabase-js@2 >/dev/null
+
+      - name: Copy and verify storage objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > migrate-storage.js <<'JS'
+          const { createClient } = require('@supabase/supabase-js')
+          const crypto = require('crypto')
+
+          const oldUrl = process.env.OLD_SUPABASE_URL
+          const newUrl = process.env.NEW_SUPABASE_URL
+          const oldKey = process.env.OLD_SUPABASE_SERVICE_KEY
+          const newKey = process.env.NEW_SUPABASE_SERVICE_KEY
+          const bucket = process.env.BUCKET
+
+          const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } }
+          const oldSupabase = createClient(oldUrl, oldKey, clientOptions)
+          const newSupabase = createClient(newUrl, newKey, clientOptions)
+
+          async function listAll(client, bucketName, path = '') {
+            const { data, error } = await client.storage.from(bucketName).list(path, {
+              limit: 1000,
+              sortBy: { column: 'name', order: 'asc' },
+            })
+            if (error) throw new Error(`List failed for ${bucketName}/${path}: ${error.message}`)
+
+            let files = []
+            for (const item of data || []) {
+              const fullPath = path ? `${path}/${item.name}` : item.name
+              if (item.metadata) {
+                files.push({ fullPath, metadata: item.metadata })
+              } else {
+                files = files.concat(await listAll(client, bucketName, fullPath))
+              }
+            }
+            return files
+          }
+
+          async function sha256(blob) {
+            const buffer = Buffer.from(await blob.arrayBuffer())
+            return crypto.createHash('sha256').update(buffer).digest('hex')
+          }
+
+          async function ensureTargetBucket() {
+            const { data: sourceBucket, error: sourceError } = await oldSupabase.storage.getBucket(bucket)
+            if (sourceError || !sourceBucket) {
+              throw new Error(`Cannot read source bucket ${bucket}: ${sourceError?.message || 'not found'}`)
+            }
+
+            const options = {
+              public: !!sourceBucket.public,
+              fileSizeLimit: sourceBucket.file_size_limit ?? undefined,
+              allowedMimeTypes: sourceBucket.allowed_mime_types ?? undefined,
+            }
+
+            const { data: targetBucket, error: targetError } = await newSupabase.storage.getBucket(bucket)
+            if (!targetBucket) {
+              const { error } = await newSupabase.storage.createBucket(bucket, options)
+              if (error) throw new Error(`Cannot create target bucket ${bucket}: ${error.message}`)
+            } else {
+              const { error } = await newSupabase.storage.updateBucket(bucket, options)
+              if (error) throw new Error(`Cannot align target bucket ${bucket}: ${error.message}`)
+            }
+          }
+
+          async function migrateOne(file, index, total) {
+            const { data: sourceBlob, error: downloadError } = await oldSupabase.storage.from(bucket).download(file.fullPath)
+            if (downloadError || !sourceBlob) {
+              throw new Error(`Source download failed for ${file.fullPath}: ${downloadError?.message || 'no data'}`)
+            }
+
+            const sourceHash = await sha256(sourceBlob)
+            const uploadOptions = {
+              upsert: true,
+              contentType: file.metadata?.mimetype || undefined,
+              cacheControl: file.metadata?.cacheControl || file.metadata?.cache_control || undefined,
+            }
+
+            const { error: uploadError } = await newSupabase.storage.from(bucket).upload(file.fullPath, sourceBlob, uploadOptions)
+            if (uploadError) {
+              throw new Error(`Target upload failed for ${file.fullPath}: ${uploadError.message}`)
+            }
+
+            const { data: targetBlob, error: targetDownloadError } = await newSupabase.storage.from(bucket).download(file.fullPath)
+            if (targetDownloadError || !targetBlob) {
+              throw new Error(`Target verification download failed for ${file.fullPath}: ${targetDownloadError?.message || 'no data'}`)
+            }
+
+            const targetHash = await sha256(targetBlob)
+            if (sourceHash !== targetHash) {
+              throw new Error(`Checksum mismatch for ${file.fullPath}`)
+            }
+
+            console.log(`[${index}/${total}] verified ${file.fullPath}`)
+          }
+
+          async function main() {
+            await ensureTargetBucket()
+
+            const sourceFiles = await listAll(oldSupabase, bucket)
+            if (!sourceFiles.length) throw new Error(`No source files found in bucket ${bucket}`)
+            console.log(`Source files: ${sourceFiles.length}`)
+
+            for (let i = 0; i < sourceFiles.length; i++) {
+              await migrateOne(sourceFiles[i], i + 1, sourceFiles.length)
+            }
+
+            const targetFiles = await listAll(newSupabase, bucket)
+            const sourcePaths = sourceFiles.map(f => f.fullPath).sort()
+            const targetPaths = targetFiles.map(f => f.fullPath).sort()
+
+            if (JSON.stringify(sourcePaths) !== JSON.stringify(targetPaths)) {
+              throw new Error(`Path verification failed: source=${sourcePaths.length}, target=${targetPaths.length}`)
+            }
+
+            console.log(`Storage migration verified successfully: ${sourcePaths.length} files.`)
+          }
+
+          main().catch((error) => {
+            console.error(error.message)
+            process.exit(1)
+          })
+          JS
+
+          node migrate-storage.js
