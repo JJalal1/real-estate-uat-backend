@@ -13,13 +13,20 @@ class SupportTaskItem {
     this.requesterUserId,
     this.requesterName,
     this.severity,
+    this.supportTeamId,
+    this.supportTeamName,
+    this.governorateId,
+    this.governorateName,
     this.assignedToUserId,
     this.assignedToName,
     this.createdAt,
     this.claimedAt,
+    this.completedAt,
     this.lastActivityAt,
     this.slaDueAt,
     this.remainingMinutes,
+    this.escalatedAt,
+    this.escalationReason,
     this.metadata = const <String, dynamic>{},
   });
 
@@ -33,13 +40,20 @@ class SupportTaskItem {
   final String status;
   final String priority;
   final String? severity;
+  final int? supportTeamId;
+  final String? supportTeamName;
+  final int? governorateId;
+  final String? governorateName;
   final int? assignedToUserId;
   final String? assignedToName;
   final DateTime? createdAt;
   final DateTime? claimedAt;
+  final DateTime? completedAt;
   final DateTime? lastActivityAt;
   final DateTime? slaDueAt;
   final int? remainingMinutes;
+  final DateTime? escalatedAt;
+  final String? escalationReason;
   final bool isMine;
   final bool canClaim;
   final bool isOverdue;
@@ -59,15 +73,22 @@ class SupportTaskItem {
       status: json['status']?.toString() ?? 'new',
       priority: json['priority']?.toString() ?? 'normal',
       severity: _text(json['severity']),
+      supportTeamId: _nullableInt(json['support_team_id']),
+      supportTeamName: _text(json['support_team_name']),
+      governorateId: _nullableInt(json['governorate_id']),
+      governorateName: _text(json['governorate_name']),
       assignedToUserId: _nullableInt(json['assigned_to_user_id']),
       assignedToName: _text(json['assigned_to_name']),
       createdAt: _date(json['created_at']),
       claimedAt: _date(json['claimed_at']),
+      completedAt: _date(json['completed_at']),
       lastActivityAt: _date(json['last_activity_at']),
       slaDueAt: _date(json['sla_due_at']),
       remainingMinutes: json['remaining_minutes'] == null
           ? null
           : _int(json['remaining_minutes']),
+      escalatedAt: _date(json['escalated_at']),
+      escalationReason: _text(json['escalation_reason']),
       isMine: json['is_mine'] == true,
       canClaim: json['can_claim'] == true,
       isOverdue: json['is_overdue'] == true,
@@ -93,8 +114,15 @@ class SupportTeamMember {
     required this.verifications,
     required this.listingReviews,
     required this.reports,
+    required this.isAvailable,
+    required this.capacity,
+    required this.completedToday,
+    required this.workloadPercent,
+    this.teamId,
+    this.teamName,
     this.averageClaimMinutes,
     this.averageResponseMinutes,
+    this.averageCompletionMinutes,
     this.lastActivityAt,
   });
 
@@ -109,8 +137,15 @@ class SupportTeamMember {
   final int verifications;
   final int listingReviews;
   final int reports;
+  final int? teamId;
+  final String? teamName;
+  final bool isAvailable;
+  final int capacity;
+  final int completedToday;
+  final int workloadPercent;
   final int? averageClaimMinutes;
   final int? averageResponseMinutes;
+  final int? averageCompletionMinutes;
   final DateTime? lastActivityAt;
 
   factory SupportTeamMember.fromJson(Map<String, dynamic> json) {
@@ -126,15 +161,63 @@ class SupportTeamMember {
       verifications: _int(json['verifications']),
       listingReviews: _int(json['listing_reviews']),
       reports: _int(json['reports']),
+      teamId: _nullableInt(json['team_id']),
+      teamName: _text(json['team_name']),
+      isAvailable: json['is_available'] != false,
+      capacity: _int(json['capacity']) == 0 ? 10 : _int(json['capacity']),
+      completedToday: _int(json['completed_today']),
+      workloadPercent: _int(json['workload_percent']),
       averageClaimMinutes: json['average_claim_minutes'] == null
           ? null
           : _int(json['average_claim_minutes']),
       averageResponseMinutes: json['average_response_minutes'] == null
           ? null
           : _int(json['average_response_minutes']),
+      averageCompletionMinutes: json['average_completion_minutes'] == null
+          ? null
+          : _int(json['average_completion_minutes']),
       lastActivityAt: _date(json['last_activity_at']),
     );
   }
+}
+
+class SupportTeamSummary {
+  const SupportTeamSummary({
+    required this.id,
+    required this.code,
+    required this.name,
+    required this.isFallback,
+    required this.agents,
+    required this.availableAgents,
+    required this.openTasks,
+    required this.unassigned,
+    this.governorateId,
+    this.governorateName,
+  });
+
+  final int id;
+  final String code;
+  final String name;
+  final int? governorateId;
+  final String? governorateName;
+  final bool isFallback;
+  final int agents;
+  final int availableAgents;
+  final int openTasks;
+  final int unassigned;
+
+  factory SupportTeamSummary.fromJson(Map<String, dynamic> json) => SupportTeamSummary(
+        id: _int(json['id']),
+        code: json['code']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        governorateId: _nullableInt(json['governorate_id']),
+        governorateName: _text(json['governorate_name']),
+        isFallback: json['is_fallback'] == true,
+        agents: _int(json['agents']),
+        availableAgents: _int(json['available_agents']),
+        openTasks: _int(json['open_tasks']),
+        unassigned: _int(json['unassigned']),
+      );
 }
 
 class SupportTaskEventItem {

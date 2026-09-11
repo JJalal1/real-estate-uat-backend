@@ -150,12 +150,14 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             SupportManagerHomeScreen(),
             SupportTasksScreen(initialScope: 'all', title: 'الأعمال'),
             SupportTeamScreen(),
+            Stage6AuthGate(child: MessagesScreen()),
             AccountScreen(),
           ],
           items: [
-            _NavItemData(label: 'لوحة الدعم', icon: Icons.space_dashboard_outlined),
+            _NavItemData(label: 'لوحة الفريق', icon: Icons.space_dashboard_outlined),
             _NavItemData(label: 'الأعمال', icon: Icons.view_list_outlined),
             _NavItemData(label: 'الفريق', icon: Icons.groups_2_outlined),
+            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
           ],
         );

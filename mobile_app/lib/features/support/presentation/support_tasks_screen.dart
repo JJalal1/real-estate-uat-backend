@@ -19,6 +19,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
     this.initialStatus,
     this.initialSeverity,
     this.overdueOnly = false,
+    this.actingAsAgent = false,
     this.title,
   });
 
@@ -27,6 +28,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
   final String? initialStatus;
   final String? initialSeverity;
   final bool overdueOnly;
+  final bool actingAsAgent;
   final String? title;
 
   @override
@@ -76,6 +78,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             createdFrom: _createdFrom,
             createdTo: _createdTo,
             overdue: _overdue,
+            actingAsAgent: widget.actingAsAgent,
           );
       if (!mounted) return;
       setState(() {
@@ -98,6 +101,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         user?.roles.contains('super_admin') == true ||
         user?.roles.contains('support_manager') == true ||
         user?.hasPermission('support.manage') == true;
+    final managerMode = manager && !widget.actingAsAgent;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -114,8 +118,17 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         ),
         body: Column(
           children: [
-            _filters(manager),
-            Expanded(child: _body(manager)),
+            if (widget.actingAsAgent)
+              Material(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                child: const ListTile(
+                  leading: Icon(Icons.support_agent_outlined),
+                  title: Text('أنت الآن تعمل كموظف دعم', style: TextStyle(fontWeight: FontWeight.w900)),
+                  subtitle: Text('استلم الطلب أولاً ثم عالجه بنفس قواعد موظفي الدعم. الرجوع يغلق هذا الوضع.'),
+                ),
+              ),
+            _filters(managerMode),
+            Expanded(child: _body(managerMode)),
           ],
         ),
       ),
@@ -135,16 +148,21 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
         child: Column(
           children: [
-            if (manager)
+            if (manager || widget.actingAsAgent)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SegmentedButton<String>(
                   showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(value: 'inbox', label: Text('غير مسند')),
-                    ButtonSegment(value: 'mine', label: Text('مسند لي')),
-                    ButtonSegment(value: 'all', label: Text('كل الأعمال')),
-                  ],
+                  segments: widget.actingAsAgent
+                      ? const [
+                          ButtonSegment(value: 'inbox', label: Text('الوارد')),
+                          ButtonSegment(value: 'mine', label: Text('مهامي')),
+                        ]
+                      : const [
+                          ButtonSegment(value: 'inbox', label: Text('غير مسند')),
+                          ButtonSegment(value: 'mine', label: Text('مسند لي')),
+                          ButtonSegment(value: 'all', label: Text('كل الأعمال')),
+                        ],
                   selected: {_scope},
                   onSelectionChanged: (value) {
                     setState(() => _scope = value.first);
@@ -152,7 +170,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   },
                 ),
               ),
-            if (manager) const SizedBox(height: 8),
+            if (manager || widget.actingAsAgent) const SizedBox(height: 8),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -430,7 +448,10 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
 
   Future<void> _claim(SupportTaskItem task) async {
     try {
-      await ref.read(supportWorkspaceRepositoryProvider).claim(task.id);
+      await ref.read(supportWorkspaceRepositoryProvider).claim(
+            task.id,
+            actingAsAgent: widget.actingAsAgent,
+          );
       _message('تم استلام المهمة ونقلها إلى مهامك.');
       await _load();
     } catch (error) {
@@ -440,7 +461,11 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   Future<void> _open(SupportTaskItem task, bool manager) async {
-    if (!manager && !task.isMine) {
+    if (manager && !widget.actingAsAgent && task.status != 'escalated') {
+      _message('هذه شاشة إدارة العمل. لمعالجة الطلب بنفسك استخدم «العمل كموظف دعم» واستلمه أولاً.');
+      return;
+    }
+    if ((!manager || widget.actingAsAgent) && !task.isMine) {
       _message('استلم المهمة أولاً قبل فتح بياناتها الخاصة.');
       return;
     }
@@ -519,11 +544,24 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   title: const Text('الأولوية والخطورة'),
                   onTap: () => Navigator.pop(sheetContext, 'classify'),
                 ),
-              if (manager && !task.isClosed)
+              if (!manager && task.isMine && !task.isClosed && task.status != 'escalated')
                 ListTile(
                   leading: const Icon(Icons.trending_up),
-                  title: const Text('تصعيد المهمة'),
+                  title: const Text('تصعيد لمدير الدعم'),
+                  subtitle: const Text('للحالات غير الاعتيادية فقط، وليس للموافقة اليومية.'),
                   onTap: () => Navigator.pop(sheetContext, 'escalate'),
+                ),
+              if (manager && task.status == 'escalated')
+                ListTile(
+                  leading: const Icon(Icons.check_circle_outline),
+                  title: const Text('معالجة التصعيد وإعادته للموظف'),
+                  onTap: () => Navigator.pop(sheetContext, 'resolve_escalation'),
+                ),
+              if (manager && task.assignedToUserId != null && !task.isClosed)
+                ListTile(
+                  leading: const Icon(Icons.move_to_inbox_outlined),
+                  title: const Text('إعادة إلى الوارد'),
+                  onTap: () => Navigator.pop(sheetContext, 'release'),
                 ),
               if (manager && task.isClosed &&
                   (task.sourceType == 'support_ticket' ||
@@ -535,7 +573,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 ),
               if (!task.isClosed &&
                   (task.sourceType == 'support_ticket' || task.sourceType == 'report') &&
-                  (manager || task.isMine))
+                  task.isMine)
                 ListTile(
                   leading: Icon(task.status == 'waiting_internal'
                       ? Icons.play_arrow_outlined
@@ -549,14 +587,14 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   ),
                 ),
               if (task.sourceType == 'account_verification' && !task.isClosed &&
-                  (manager || task.isMine))
+                  task.isMine)
                 ListTile(
                   leading: const Icon(Icons.upload_file_outlined),
                   title: const Text('طلب مستند إضافي'),
                   onTap: () => Navigator.pop(sheetContext, 'documents'),
                 ),
               if (task.sourceType == 'account_verification' && !task.isClosed &&
-                  (manager || task.isMine))
+                  task.isMine)
                 ListTile(
                   leading: const Icon(Icons.block_outlined),
                   title: const Text('رفض طلب التحقق'),
@@ -580,8 +618,26 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           await _classify(task);
           break;
         case 'escalate':
-          await ref.read(supportWorkspaceRepositoryProvider).escalate(task.id);
-          _message('تم تصعيد المهمة ورفع أولويتها.');
+          final reason = await _textDialog('سبب التصعيد', 'وضح لماذا تحتاج هذه الحالة تدخل مدير الدعم.');
+          if (reason != null) {
+            await ref.read(supportWorkspaceRepositoryProvider).escalate(
+                  task.id,
+                  reason,
+                  actingAsAgent: widget.actingAsAgent,
+                );
+            _message('تم تصعيد المهمة إلى مدير الدعم.');
+          }
+          break;
+        case 'resolve_escalation':
+          final note = await _textDialog('قرار التصعيد', 'اكتب القرار أو التوجيه الذي سيعود للموظف.');
+          if (note != null) {
+            await ref.read(supportWorkspaceRepositoryProvider).resolveEscalation(task.id, note);
+            _message('تمت معالجة التصعيد وإعادة المهمة لمسار التنفيذ.');
+          }
+          break;
+        case 'release':
+          await ref.read(supportWorkspaceRepositoryProvider).release(task.id);
+          _message('تمت إعادة المهمة إلى الوارد المشترك.');
           break;
         case 'reopen':
           await ref.read(supportWorkspaceRepositoryProvider).reopen(task.id);
@@ -590,26 +646,26 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         case 'waiting_internal':
           await ref
               .read(supportWorkspaceRepositoryProvider)
-              .setOperationalStatus(task.id, 'waiting_internal');
+              .setOperationalStatus(task.id, 'waiting_internal', actingAsAgent: widget.actingAsAgent);
           _message('تم تحويل المهمة إلى انتظار داخلي.');
           break;
         case 'resume':
           await ref
               .read(supportWorkspaceRepositoryProvider)
-              .setOperationalStatus(task.id, 'in_progress');
+              .setOperationalStatus(task.id, 'in_progress', actingAsAgent: widget.actingAsAgent);
           _message('تم استئناف العمل على المهمة.');
           break;
         case 'documents':
           final note = await _textDialog('المستند المطلوب', 'اكتب بوضوح ما المستند الإضافي المطلوب.');
           if (note != null) {
-            await ref.read(supportWorkspaceRepositoryProvider).requestDocuments(task.id, note);
+            await ref.read(supportWorkspaceRepositoryProvider).requestDocuments(task.id, note, actingAsAgent: widget.actingAsAgent);
             _message('تم طلب المستند وتحويل الحالة إلى انتظار المستخدم.');
           }
           break;
         case 'reject':
           final reason = await _textDialog('سبب الرفض', 'اكتب سبب رفض طلب التحقق.');
           if (reason != null) {
-            await ref.read(supportWorkspaceRepositoryProvider).rejectVerification(task.id, reason);
+            await ref.read(supportWorkspaceRepositoryProvider).rejectVerification(task.id, reason, actingAsAgent: widget.actingAsAgent);
             _message('تم رفض طلب التحقق مع تسجيل السبب.');
           }
           break;
@@ -846,7 +902,7 @@ class _TaskCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                       Text(
-                        '${_typeLabel(task.sourceType)} • ${task.requesterName ?? 'مستخدم #${task.requesterUserId ?? task.sourceId}'}',
+                        '${_typeLabel(task.sourceType)} • ${task.requesterName ?? 'مستخدم #${task.requesterUserId ?? task.sourceId}'}${task.supportTeamName == null ? '' : ' • ${task.supportTeamName}'}${task.governorateName == null ? '' : ' • ${task.governorateName}'}',
                         style: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
                       ),
                     ],
