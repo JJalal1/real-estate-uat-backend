@@ -31,4 +31,37 @@ class GeneralManagerRepository {
       data.map((key, value) => MapEntry(key.toString(), value)),
     );
   }
+
+  Future<List<GeneralManagerTeamMember>> team() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/admin/workspace/general-manager/team',
+      options: await _auth.requiredAuthOptions(),
+    );
+    final data = response.data?['data'];
+    if (data is! List) return const <GeneralManagerTeamMember>[];
+    return data
+        .whereType<Map>()
+        .map((item) => GeneralManagerTeamMember.fromJson(
+              item.map((key, value) => MapEntry(key.toString(), value)),
+            ))
+        .toList(growable: false);
+  }
+
+  Future<List<GeneralManagerPlaceResult>> searchPlaces(String query) async {
+    final q = query.trim();
+    if (q.length < 2) return const <GeneralManagerPlaceResult>[];
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/admin/workspace/general-manager/place-search',
+      queryParameters: {'q': q},
+      options: await _auth.requiredAuthOptions(),
+    );
+    final data = response.data?['data'];
+    if (data is! List) return const <GeneralManagerPlaceResult>[];
+    return data
+        .whereType<Map>()
+        .map((item) => GeneralManagerPlaceResult.fromJson(
+              item.map((key, value) => MapEntry(key.toString(), value)),
+            ))
+        .toList(growable: false);
+  }
 }
