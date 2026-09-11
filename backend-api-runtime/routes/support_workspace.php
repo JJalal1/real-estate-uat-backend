@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/dashboard', [SupportWorkspaceController::class, 'dashboard']);
 Route::get('/general-manager/insights', GeneralManagerInsightsController::class);
+Route::get('/general-manager/team', [GeneralManagerInsightsController::class, 'team']);
+Route::get('/general-manager/place-search', [GeneralManagerInsightsController::class, 'placeSearch']);
 Route::get('/tasks', [SupportWorkspaceController::class, 'index']);
 Route::post('/tasks/{task}/claim', [SupportWorkspaceController::class, 'claim']);
 Route::put('/tasks/{task}/assign', [SupportWorkspaceController::class, 'assign']);

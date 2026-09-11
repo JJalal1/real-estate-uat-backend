@@ -28,28 +28,52 @@ class UatGeneralManagerInsightsApiTest extends TestCase
                 ],
                 'market' => [
                     'properties_total', 'published_properties', 'published_sale',
-                    'published_rent', 'published_today', 'by_type', 'by_governorate',
+                    'published_rent', 'published_today', 'unmapped_published',
+                    'governorates_total', 'by_type', 'by_governorate', 'map_properties',
                     'approved_brokers', 'approved_offices', 'pending_professional_verifications',
                 ],
-                'journey', 'team' => ['support_agents', 'support_managers'], 'today',
+                'journey',
+                'team' => ['support_agents', 'support_managers'],
+                'today',
+                'periods' => ['day', '7d', '30d'],
             ]]);
     }
 
-    public function test_support_manager_and_agent_cannot_open_general_manager_insights(): void
+    public function test_super_admin_gets_fast_manager_team_summary(): void
+    {
+        [, $ownerHeaders] = $this->user('gm-team-owner@example.test', '+967733301011', ['super_admin']);
+        [$manager] = $this->user('gm-team-manager@example.test', '+967733301012', ['support_manager']);
+        [$agent] = $this->user('gm-team-agent@example.test', '+967733301013', ['support_agent']);
+
+        $response = $this->withHeaders($ownerHeaders)
+            ->getJson('/api/admin/workspace/general-manager/team')
+            ->assertOk();
+
+        $ids = collect($response->json('data'))->pluck('id')->map(fn ($id) => (int) $id);
+        $this->assertTrue($ids->contains($manager->id));
+        $this->assertTrue($ids->contains($agent->id));
+    }
+
+    public function test_place_search_requires_a_real_query(): void
+    {
+        [, $headers] = $this->user('gm-place-owner@example.test', '+967733301014', ['super_admin']);
+
+        $this->withHeaders($headers)
+            ->getJson('/api/admin/workspace/general-manager/place-search?q=x')
+            ->assertUnprocessable();
+    }
+
+    public function test_support_manager_agent_and_regular_cannot_open_general_manager_apis(): void
     {
         [, $managerHeaders] = $this->user('gm-support-manager@example.test', '+967733301002', ['support_manager']);
         [, $agentHeaders] = $this->user('gm-support-agent@example.test', '+967733301003', ['support_agent']);
         [, $regularHeaders] = $this->user('gm-regular@example.test', '+967733301004');
 
-        $this->withHeaders($managerHeaders)
-            ->getJson('/api/admin/workspace/general-manager/insights')
-            ->assertForbidden();
-        $this->withHeaders($agentHeaders)
-            ->getJson('/api/admin/workspace/general-manager/insights')
-            ->assertForbidden();
-        $this->withHeaders($regularHeaders)
-            ->getJson('/api/admin/workspace/general-manager/insights')
-            ->assertForbidden();
+        foreach ([$managerHeaders, $agentHeaders, $regularHeaders] as $headers) {
+            $this->withHeaders($headers)->getJson('/api/admin/workspace/general-manager/insights')->assertForbidden();
+            $this->withHeaders($headers)->getJson('/api/admin/workspace/general-manager/team')->assertForbidden();
+            $this->withHeaders($headers)->getJson('/api/admin/workspace/general-manager/place-search?q=صنعاء')->assertForbidden();
+        }
     }
 
     public function test_existing_support_dashboards_keep_their_roles(): void

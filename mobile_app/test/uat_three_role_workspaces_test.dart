@@ -36,20 +36,30 @@ void main() {
     expect(shell, isNot(contains("label: 'المنصة'")));
   });
 
-  test('general manager pages are executive not support task queues', () {
+  test('general manager command center is interactive and not a support queue', () {
     final pages = read('lib/features/admin/presentation/general_manager_pages.dart');
     final repo = read('lib/features/admin/data/general_manager_repository.dart');
 
     expect(repo, contains('/admin/workspace/general-manager/insights'));
-    expect(pages, contains('يحتاج انتباهك الآن'));
-    expect(pages, contains('صورة السوق داخل المنصة'));
+    expect(repo, contains('/admin/workspace/general-manager/team'));
+    expect(repo, contains('/admin/workspace/general-manager/place-search'));
+    expect(pages, contains('يحتاج تدخلك الآن'));
+    expect(pages, contains('حالة التشغيل'));
+    expect(pages, contains('الخريطة الإدارية'));
+    expect(pages, contains('ابحث عن محافظة أو مديرية أو منطقة'));
+    expect(pages, contains('عرض اليمن بالكامل'));
+    expect(pages, contains('GeneralManagerTeamScreen'));
     expect(pages, contains('إدارة المنظمة لا إدارة الطلبات'));
     expect(pages, contains('الموظفون والفرق'));
     expect(pages, contains('الحسابات والأدوار والصلاحيات'));
-    expect(pages, contains('المحافظات والمديريات'));
+    expect(pages, contains('GeneralManagerAccountsScreen'));
+    expect(pages, contains('general_manager_accounts_screen.dart'));
     expect(pages, contains('رحلة العقار داخل المنصة'));
     expect(pages, contains('المالية والتقارير'));
+    expect(pages, contains("ButtonSegment(value: '7d'"));
+    expect(pages, contains("ButtonSegment(value: '30d'"));
     expect(pages, isNot(contains('SupportTasksScreen(')));
+    expect(pages, isNot(contains('SupportTeamScreen(')));
     expect(pages, isNot(contains('مسند لي')));
     expect(pages, isNot(contains('غير مسند لي')));
   });
@@ -105,7 +115,7 @@ void main() {
     expect(pages, contains('ملخص اليوم'));
   });
 
-  test('platform regions workspace remains geographic without broker hierarchy', () {
+  test('legacy regions workspace remains geographic without broker hierarchy', () {
     final regions = read('lib/features/regions/presentation/platform_regions_screen.dart');
 
     expect(regions, contains('المناطق والخريطة'));
