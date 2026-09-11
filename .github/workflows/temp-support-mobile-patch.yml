@@ -1,0 +1,33 @@
+name: Temporary Support Mobile Patch
+
+on:
+  push:
+    branches:
+      - support/manager-agent-workflow
+    paths:
+      - .github/workflows/temp-support-mobile-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: support/manager-agent-workflow
+          fetch-depth: 0
+      - name: Apply support mobile patch
+        run: python3 tools/temp_support_manager_agent_mobile_patch.py
+      - name: Remove temporary mobile patch tooling
+        run: |
+          rm tools/temp_support_manager_agent_mobile_patch.py
+          rm .github/workflows/temp-support-mobile-patch.yml
+      - name: Commit generated mobile workflow changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement support manager and agent mobile workflow"
+          git push origin HEAD:support/manager-agent-workflow
