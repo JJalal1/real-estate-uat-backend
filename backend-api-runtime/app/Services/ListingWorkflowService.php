@@ -21,6 +21,7 @@ class ListingWorkflowService
         private readonly RegionService $regions,
         private readonly BrokerListingVerificationService $brokerVerification,
         private readonly UserNotificationService $notifications,
+        private readonly SupportTaskService $tasks,
     ) {}
 
     public function submit(User $actor, Property $listing, Request $request): Property
@@ -518,7 +519,8 @@ class ListingWorkflowService
 
     private function isSupportWorker(User $actor): bool
     {
-        return $actor->hasRole('support_agent') && ! $actor->hasPermission('support.manage');
+        if ($actor->is_platform_owner || $actor->hasRole('super_admin')) return false;
+        return $actor->hasRole('support_agent') || $actor->hasRole('support_manager');
     }
 
     private function review(
@@ -530,7 +532,7 @@ class ListingWorkflowService
         ?string $reason = null,
         array $metadata = [],
     ): ListingReview {
-        return ListingReview::query()->create([
+        $review = ListingReview::query()->create([
             'listing_id' => $listing->id,
             'actor_user_id' => $actor?->id,
             'actor_name_snapshot' => $actor?->name,
@@ -542,6 +544,8 @@ class ListingWorkflowService
             'metadata' => $metadata,
             'created_at' => now(),
         ]);
+        $this->tasks->projectListing($listing);
+        return $review;
     }
 
     private function snapshot(Property $listing): array
