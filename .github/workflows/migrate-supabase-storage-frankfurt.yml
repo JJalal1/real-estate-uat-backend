@@ -1,6 +1,11 @@
 name: Migrate Supabase Storage to Frankfurt
 
 on:
+  push:
+    branches:
+      - infra/frankfurt-uat
+    paths:
+      - '.github/frankfurt-storage-trigger.txt'
   workflow_dispatch:
     inputs:
       confirm_target:
@@ -28,8 +33,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ inputs.confirm_target }}" != "FRANKFURT_STORAGE" ]; then
-            echo "Confirmation text is incorrect. Nothing changed."
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.confirm_target }}" != "FRANKFURT_STORAGE" ]; then
+              echo "Confirmation text is incorrect. Nothing changed."
+              exit 1
+            fi
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/infra/frankfurt-uat" ]; then
+              echo "Push is not from the isolated Frankfurt branch. Nothing changed."
+              exit 1
+            fi
+          else
+            echo "Unsupported trigger. Nothing changed."
             exit 1
           fi
           if [ -z "${OLD_SUPABASE_SERVICE_KEY:-}" ] || [ -z "${NEW_SUPABASE_SERVICE_KEY:-}" ]; then
@@ -111,7 +126,7 @@ jobs:
               allowedMimeTypes: sourceBucket.allowed_mime_types ?? undefined,
             }
 
-            const { data: targetBucket, error: targetError } = await newSupabase.storage.getBucket(bucket)
+            const { data: targetBucket } = await newSupabase.storage.getBucket(bucket)
             if (!targetBucket) {
               const { error } = await newSupabase.storage.createBucket(bucket, options)
               if (error) throw new Error(`Cannot create target bucket ${bucket}: ${error.message}`)
