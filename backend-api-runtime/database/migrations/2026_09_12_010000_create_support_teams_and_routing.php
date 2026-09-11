@@ -16,6 +16,7 @@ return new class extends Migration
                 $table->string('name_ar', 160);
                 $table->foreignId('governorate_id')->nullable()->constrained('governorates')->nullOnDelete();
                 $table->foreignId('manager_user_id')->nullable()->constrained('users')->nullOnDelete();
+                $table->index('manager_user_id', 'support_teams_manager_user_idx');
                 $table->boolean('is_fallback')->default(false)->index();
                 $table->boolean('is_active')->default(true)->index();
                 $table->timestamps();
@@ -44,9 +45,11 @@ return new class extends Migration
             }
             if (! Schema::hasColumn('support_tasks', 'governorate_id')) {
                 $table->foreignId('governorate_id')->nullable()->after('support_team_id')->constrained('governorates')->nullOnDelete();
+                $table->index('governorate_id', 'support_tasks_governorate_idx');
             }
             if (! Schema::hasColumn('support_tasks', 'escalated_by_user_id')) {
                 $table->foreignId('escalated_by_user_id')->nullable()->after('assigned_to_name_snapshot')->constrained('users')->nullOnDelete();
+                $table->index('escalated_by_user_id', 'support_tasks_escalated_by_idx');
             }
             if (! Schema::hasColumn('support_tasks', 'escalated_at')) {
                 $table->timestamp('escalated_at')->nullable()->after('escalated_by_user_id')->index();
