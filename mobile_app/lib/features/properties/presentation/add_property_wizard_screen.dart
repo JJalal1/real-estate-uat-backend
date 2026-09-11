@@ -5,7 +5,8 @@ import 'listing_editor_screen.dart';
 
 /// Compatibility entry point retained for existing routes and deep links.
 ///
-/// The active advertiser journey is implemented by [ListingEditorScreen].
+/// Phase 2 moved the active implementation to [ListingEditorScreen], where
+/// Save Draft, Preview, and Submit for Review are explicit separate actions.
 class AddPropertyWizardScreen extends StatelessWidget {
   const AddPropertyWizardScreen({
     super.key,
