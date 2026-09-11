@@ -1,0 +1,117 @@
+name: Migrate Supabase to Frankfurt
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_target:
+        description: 'Type FRANKFURT to confirm the target database may be replaced'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Backup Mumbai and restore Frankfurt
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OLD_DB_URL: ${{ secrets.OLD_SUPABASE_DB_URL }}
+      NEW_DB_URL: ${{ secrets.NEW_SUPABASE_DB_URL }}
+      OLD_PROJECT_REF: xjoeikrzvpnblyiknpdb
+      NEW_PROJECT_REF: ipxsgxsqzthpgthwvdno
+
+    steps:
+      - name: Safety checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.confirm_target }}" != "FRANKFURT" ]; then
+            echo "Confirmation text is incorrect. Nothing changed."
+            exit 1
+          fi
+          if [ -z "${OLD_DB_URL:-}" ] || [ -z "${NEW_DB_URL:-}" ]; then
+            echo "Required database URL secrets are missing. Nothing changed."
+            exit 1
+          fi
+          case "$OLD_DB_URL" in
+            *"$OLD_PROJECT_REF"*) ;;
+            *) echo "Source URL does not match the Mumbai project. Nothing changed."; exit 1 ;;
+          esac
+          case "$NEW_DB_URL" in
+            *"$NEW_PROJECT_REF"*) ;;
+            *) echo "Target URL does not match the Frankfurt project. Nothing changed."; exit 1 ;;
+          esac
+          if [ "$OLD_DB_URL" = "$NEW_DB_URL" ]; then
+            echo "Source and target URLs must be different. Nothing changed."
+            exit 1
+          fi
+          echo "Safety checks passed."
+
+      - name: Check tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql --version
+          npx --yes supabase@latest --version
+
+      - name: Backup source project
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes supabase@latest db dump --db-url "$OLD_DB_URL" -f roles.sql --role-only
+          npx --yes supabase@latest db dump --db-url "$OLD_DB_URL" -f schema.sql
+          npx --yes supabase@latest db dump --db-url "$OLD_DB_URL" -f data.sql --use-copy --data-only -x "storage.buckets_vectors" -x "storage.vector_indexes"
+          test -s schema.sql
+          test -s data.sql
+          echo "Source backup completed."
+
+      - name: Restore roles to Frankfurt
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql --variable ON_ERROR_STOP=1 --file roles.sql --dbname "$NEW_DB_URL"
+
+      - name: Replace Frankfurt database from backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reset_target.sql <<'SQL'
+          DO $$
+          DECLARE r record;
+          BEGIN
+            FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+            LOOP
+              EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename);
+            END LOOP;
+            FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public'
+            LOOP
+              EXECUTE format('DROP SEQUENCE IF EXISTS public.%I CASCADE', r.sequencename);
+            END LOOP;
+          END $$;
+          DELETE FROM storage.objects WHERE bucket_id = 'real-estate-uat';
+          DELETE FROM storage.buckets WHERE id = 'real-estate-uat';
+          SQL
+
+          psql \
+            --single-transaction \
+            --variable ON_ERROR_STOP=1 \
+            --file reset_target.sql \
+            --file schema.sql \
+            --command 'SET session_replication_role = replica' \
+            --file data.sql \
+            --dbname "$NEW_DB_URL"
+          echo "Frankfurt database restore completed."
+
+      - name: Verify key row counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_counts=$(psql "$OLD_DB_URL" -Atc "select (select count(*) from public.users)||','||(select count(*) from public.properties)||','||(select count(*) from public.property_images);")
+          target_counts=$(psql "$NEW_DB_URL" -Atc "select (select count(*) from public.users)||','||(select count(*) from public.properties)||','||(select count(*) from public.property_images);")
+          if [ "$source_counts" != "$target_counts" ]; then
+            echo "Verification failed: key row counts differ."
+            exit 1
+          fi
+          echo "Verification passed for users, properties, and property_images."
