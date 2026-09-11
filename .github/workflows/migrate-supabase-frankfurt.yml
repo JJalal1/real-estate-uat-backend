@@ -1,11 +1,6 @@
 name: Migrate Supabase to Frankfurt
 
 on:
-  push:
-    branches:
-      - infra/frankfurt-uat
-    paths:
-      - '.github/frankfurt-migration-trigger.txt'
   workflow_dispatch:
     inputs:
       confirm_target:
@@ -32,18 +27,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            if [ "${{ inputs.confirm_target }}" != "FRANKFURT" ]; then
-              echo "Confirmation text is incorrect. Nothing changed."
-              exit 1
-            fi
-          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            if [ "$GITHUB_REF" != "refs/heads/infra/frankfurt-uat" ]; then
-              echo "Push is not from the isolated Frankfurt branch. Nothing changed."
-              exit 1
-            fi
-          else
-            echo "Unsupported trigger. Nothing changed."
+          if [ "${{ inputs.confirm_target }}" != "FRANKFURT" ]; then
+            echo "Confirmation text is incorrect. Nothing changed."
             exit 1
           fi
 
@@ -97,8 +82,6 @@ jobs:
         run: |
           set -euo pipefail
           cat > prepare_target.sql <<'SQL'
-          -- Frankfurt target only. Keep Supabase-managed auth/storage/roles intact.
-          -- Recreate PostGIS in the same schema used by the Mumbai source.
           DROP EXTENSION IF EXISTS postgis CASCADE;
           DROP SCHEMA IF EXISTS public CASCADE;
           CREATE SCHEMA public AUTHORIZATION postgres;
@@ -133,11 +116,8 @@ jobs:
             exit 1
           fi
 
-          psql "$OLD_DB_URL" -Atc "select format('select %L, count(*) from public.%I;', tablename, tablename) from pg_tables where schemaname='public' order by tablename;" \
-            | psql "$OLD_DB_URL" -AtF '|' > source_counts.txt
-
-          psql "$NEW_DB_URL" -Atc "select format('select %L, count(*) from public.%I;', tablename, tablename) from pg_tables where schemaname='public' order by tablename;" \
-            | psql "$NEW_DB_URL" -AtF '|' > target_counts.txt
+          psql "$OLD_DB_URL" -Atc "select format('select %L, count(*) from public.%I;', tablename, tablename) from pg_tables where schemaname='public' order by tablename;" | psql "$OLD_DB_URL" -AtF '|' > source_counts.txt
+          psql "$NEW_DB_URL" -Atc "select format('select %L, count(*) from public.%I;', tablename, tablename) from pg_tables where schemaname='public' order by tablename;" | psql "$NEW_DB_URL" -AtF '|' > target_counts.txt
 
           if ! diff -u source_counts.txt target_counts.txt; then
             echo "Verification failed: one or more public table row counts differ."
