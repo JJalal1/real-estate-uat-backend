@@ -143,7 +143,7 @@ class SupportWorkspaceRepository {
   Future<SupportTaskItem> resolveEscalation(int taskId, String note) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/admin/workspace/tasks/$taskId/resolve-escalation',
-      data: {'note': note, if (actingAsAgent) 'acting_as_agent': true},
+      data: {'note': note},
       options: await _auth.requiredAuthOptions(),
     );
     return _task(response.data);
@@ -159,7 +159,7 @@ class SupportWorkspaceRepository {
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/admin/workspace/tasks/$taskId/request-documents',
-      data: {'note': note},
+      data: {'note': note, if (actingAsAgent) 'acting_as_agent': true},
       options: await _auth.requiredAuthOptions(),
     );
     return _task(response.data);

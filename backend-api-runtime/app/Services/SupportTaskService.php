@@ -877,7 +877,10 @@ class SupportTaskService
 
     private function assertAssigneeCanReceive(User $actor, SupportTask $task, User $assignee): void
     {
-        if($actor->is_platform_owner||$actor->hasRole('super_admin'))return;$member=DB::table('support_team_members')->where('support_team_id',$task->support_team_id)->where('user_id',$assignee->id)->where('member_role','agent')->first();if(!$member)throw ValidationException::withMessages(['user_id'=>['الموظف ليس ضمن الفريق المسؤول عن هذه المهمة.']]);
+        if($actor->is_platform_owner||$actor->hasRole('super_admin'))return;
+        $this->ensureSupportStaffMembership($assignee);
+        $member=DB::table('support_team_members')->where('support_team_id',$task->support_team_id)->where('user_id',$assignee->id)->where('member_role','agent')->first();
+        if(!$member)throw ValidationException::withMessages(['user_id'=>['الموظف ليس ضمن الفريق المسؤول عن هذه المهمة.']]);
     }
 
     private function fallbackTeamId(): ?int
