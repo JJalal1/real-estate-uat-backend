@@ -1,1 +1,1 @@
-Trigger Frankfurt UAT database migration.
+Retry Frankfurt UAT database migration after filtering restricted Supabase role settings.
