@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../account/presentation/access_control_screen.dart';
+import 'general_manager_accounts_screen.dart';
 import '../../regions/data/region_repository.dart';
 import '../../regions/domain/region_models.dart';
 import '../data/general_manager_repository.dart';
@@ -235,7 +235,7 @@ class GeneralManagerAdministrationScreen extends StatelessWidget {
               icon: Icons.admin_panel_settings_outlined,
               title: 'الحسابات والأدوار والصلاحيات',
               subtitle: 'أداة متقدمة لتغيير الأدوار والصلاحيات ومراجعة أثرها الإداري.',
-              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AccessControlScreen())),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const GeneralManagerAccountsScreen())),
             ),
             const SizedBox(height: 18),
             const _SectionTitle('المناطق والتوزيع'),
@@ -453,7 +453,7 @@ class _GeneralManagerMapScreenState extends ConsumerState<GeneralManagerMapScree
       if (!mounted) return;
       setState(() {
         var index = 0;
-        if (_insights == null) _insights = futures[index++] as GeneralManagerInsights;
+        _insights ??= futures[index++] as GeneralManagerInsights;
         _governorates = futures[index] as List<GovernorateModel>;
       });
       await _syncProperties();

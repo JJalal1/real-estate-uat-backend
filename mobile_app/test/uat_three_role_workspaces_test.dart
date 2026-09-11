@@ -52,6 +52,8 @@ void main() {
     expect(pages, contains('إدارة المنظمة لا إدارة الطلبات'));
     expect(pages, contains('الموظفون والفرق'));
     expect(pages, contains('الحسابات والأدوار والصلاحيات'));
+    expect(pages, contains('GeneralManagerAccountsScreen'));
+    expect(pages, contains('general_manager_accounts_screen.dart'));
     expect(pages, contains('رحلة العقار داخل المنصة'));
     expect(pages, contains('المالية والتقارير'));
     expect(pages, contains("ButtonSegment(value: '7d'"));
