@@ -126,3 +126,5 @@ jobs:
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
           test/uat_compiled_environment_test.dart
+
+# rerun after backend, PostgreSQL, and Flutter contract fixes
