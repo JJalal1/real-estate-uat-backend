@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -46,4 +49,16 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test
+      - name: Full Flutter test suite excluding compile-time UAT guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          test "${#tests[@]}" -gt 0
+          flutter test "${tests[@]}"
+      - name: Verify compile-time Frankfurt UAT endpoint
+        run: >-
+          flutter test
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+          test/uat_compiled_environment_test.dart
