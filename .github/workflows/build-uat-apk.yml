@@ -159,9 +159,9 @@ jobs:
           check_hash "mobile_app/lib/core/network/api_client.dart" \
             "ab1db55e0ba0058a1e992e2df677b03871bbe95c"
           check_hash "mobile_app/lib/router/app_router.dart" \
-            "63bcd6d9566c43bbfdcc294c31f726e77ecbdc6e"
+            "89ae86ee056585f1ea50423005282e695ce12a06"
           check_hash "mobile_app/lib/features/services/presentation/services_screen.dart" \
-            "e1b12b6b9e22cb4af379fb9f274e5a7a97e09843"
+            "7b6c3f3ae5947ad30b898606e93b1ae31ac6d04f"
 
       - name: Flutter version
         working-directory: mobile_app

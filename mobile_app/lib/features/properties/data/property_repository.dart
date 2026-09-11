@@ -284,7 +284,7 @@ class PropertyRepository {
     do {
       final response = await _dio.get<Map<String, dynamic>>(
         '/properties/mine/list',
-        queryParameters: {'page': page, 'per_page': 50},
+        queryParameters: {'page': page, 'per_page': 50, 'view': 'workspace'},
         options: options,
       );
       final rows =

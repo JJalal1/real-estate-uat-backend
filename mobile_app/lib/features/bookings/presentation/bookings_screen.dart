@@ -288,7 +288,7 @@ class _BookingCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   if (booking.canConfirm)
-                    FilledButton.tonalIcon(
+                    FilledButton.icon(
                         onPressed: () => onAction('confirm'),
                         icon: const Icon(Icons.check_circle_outline),
                         label: Text(booking.canAcceptReschedule
