@@ -46,23 +46,34 @@ jobs:
             echo "Unsupported trigger. Nothing changed."
             exit 1
           fi
+
           if [ -z "${OLD_DB_URL:-}" ] || [ -z "${NEW_DB_URL:-}" ]; then
             echo "Required database URL secrets are missing. Nothing changed."
             exit 1
           fi
+
           case "$OLD_DB_URL" in
             *"$OLD_PROJECT_REF"*) ;;
-            *) echo "Source URL does not match the Mumbai project. Nothing changed."; exit 1 ;;
+            *) echo "Source URL does not match Mumbai. Nothing changed."; exit 1 ;;
           esac
+
           case "$NEW_DB_URL" in
             *"$NEW_PROJECT_REF"*) ;;
-            *) echo "Target URL does not match the Frankfurt project. Nothing changed."; exit 1 ;;
+            *) echo "Target URL does not match Frankfurt. Nothing changed."; exit 1 ;;
           esac
+
           if [ "$OLD_DB_URL" = "$NEW_DB_URL" ]; then
             echo "Source and target URLs must be different. Nothing changed."
             exit 1
           fi
-          echo "Safety checks passed."
+
+          source_postgis_schema=$(psql "$OLD_DB_URL" -Atc "select extnamespace::regnamespace::text from pg_extension where extname='postgis';")
+          if [ "$source_postgis_schema" != "extensions" ]; then
+            echo "Unexpected source PostGIS schema: $source_postgis_schema. Nothing changed."
+            exit 1
+          fi
+
+          echo "Safety checks passed. Source is Mumbai; target is Frankfurt."
 
       - name: Check tools
         shell: bash
@@ -71,61 +82,80 @@ jobs:
           psql --version
           npx --yes supabase@latest --version
 
-      - name: Backup source project
+      - name: Backup application public schema and data
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes supabase@latest db dump --db-url "$OLD_DB_URL" -f schema.sql
-          npx --yes supabase@latest db dump --db-url "$OLD_DB_URL" -f data.sql --use-copy --data-only -x "storage.buckets_vectors" -x "storage.vector_indexes"
+          npx --yes supabase@latest db dump --db-url "$OLD_DB_URL" --schema public -f schema.sql
+          npx --yes supabase@latest db dump --db-url "$OLD_DB_URL" --schema public -f data.sql --use-copy --data-only
           test -s schema.sql
           test -s data.sql
-          echo "Source backup completed."
+          echo "Mumbai public schema/data backup completed."
 
-      - name: Keep Frankfurt platform roles
+      - name: Restore application database to Frankfurt
         shell: bash
         run: |
           set -euo pipefail
-          echo "Skipping role restore because Supabase manages project roles and protected role parameters."
-
-      - name: Replace Frankfurt database from backup
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat > reset_target.sql <<'SQL'
-          DO $$
-          DECLARE r record;
-          BEGIN
-            FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-            LOOP
-              EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename);
-            END LOOP;
-            FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public'
-            LOOP
-              EXECUTE format('DROP SEQUENCE IF EXISTS public.%I CASCADE', r.sequencename);
-            END LOOP;
-          END $$;
-          DELETE FROM storage.objects WHERE bucket_id = 'real-estate-uat';
-          DELETE FROM storage.buckets WHERE id = 'real-estate-uat';
+          cat > prepare_target.sql <<'SQL'
+          -- Frankfurt target only. Keep Supabase-managed auth/storage/roles intact.
+          -- Recreate PostGIS in the same schema used by the Mumbai source.
+          DROP EXTENSION IF EXISTS postgis CASCADE;
+          DROP SCHEMA IF EXISTS public CASCADE;
+          CREATE SCHEMA public AUTHORIZATION postgres;
+          GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
+          GRANT CREATE ON SCHEMA public TO postgres;
+          CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA extensions;
           SQL
 
           psql \
             --single-transaction \
             --variable ON_ERROR_STOP=1 \
-            --file reset_target.sql \
+            --file prepare_target.sql \
             --file schema.sql \
             --command 'SET session_replication_role = replica' \
             --file data.sql \
+            --command 'SET session_replication_role = DEFAULT' \
             --dbname "$NEW_DB_URL"
-          echo "Frankfurt database restore completed."
 
-      - name: Verify key row counts
+          echo "Frankfurt public schema/data restore completed."
+
+      - name: Verify all public tables and row counts
         shell: bash
         run: |
           set -euo pipefail
-          source_counts=$(psql "$OLD_DB_URL" -Atc "select (select count(*) from public.users)||','||(select count(*) from public.properties)||','||(select count(*) from public.property_images);")
-          target_counts=$(psql "$NEW_DB_URL" -Atc "select (select count(*) from public.users)||','||(select count(*) from public.properties)||','||(select count(*) from public.property_images);")
-          if [ "$source_counts" != "$target_counts" ]; then
-            echo "Verification failed: key row counts differ."
+
+          source_tables=$(psql "$OLD_DB_URL" -Atc "select tablename from pg_tables where schemaname='public' order by tablename;")
+          target_tables=$(psql "$NEW_DB_URL" -Atc "select tablename from pg_tables where schemaname='public' order by tablename;")
+
+          if [ "$source_tables" != "$target_tables" ]; then
+            echo "Verification failed: public table lists differ."
+            diff -u <(printf '%s\n' "$source_tables") <(printf '%s\n' "$target_tables") || true
             exit 1
           fi
-          echo "Verification passed for users, properties, and property_images."
+
+          psql "$OLD_DB_URL" -Atc "select format('select %L, count(*) from public.%I;', tablename, tablename) from pg_tables where schemaname='public' order by tablename;" \
+            | psql "$OLD_DB_URL" -AtF '|' > source_counts.txt
+
+          psql "$NEW_DB_URL" -Atc "select format('select %L, count(*) from public.%I;', tablename, tablename) from pg_tables where schemaname='public' order by tablename;" \
+            | psql "$NEW_DB_URL" -AtF '|' > target_counts.txt
+
+          if ! diff -u source_counts.txt target_counts.txt; then
+            echo "Verification failed: one or more public table row counts differ."
+            exit 1
+          fi
+
+          source_schema_stats=$(psql "$OLD_DB_URL" -Atc "select (select count(*) from pg_indexes where schemaname='public')||','||(select count(*) from pg_constraint c join pg_namespace n on n.oid=c.connamespace where n.nspname='public');")
+          target_schema_stats=$(psql "$NEW_DB_URL" -Atc "select (select count(*) from pg_indexes where schemaname='public')||','||(select count(*) from pg_constraint c join pg_namespace n on n.oid=c.connamespace where n.nspname='public');")
+
+          if [ "$source_schema_stats" != "$target_schema_stats" ]; then
+            echo "Verification failed: index/constraint totals differ."
+            exit 1
+          fi
+
+          target_postgis_schema=$(psql "$NEW_DB_URL" -Atc "select extnamespace::regnamespace::text from pg_extension where extname='postgis';")
+          if [ "$target_postgis_schema" != "extensions" ]; then
+            echo "Verification failed: Frankfurt PostGIS is not in extensions schema."
+            exit 1
+          fi
+
+          echo "Verification passed for all public tables, row counts, indexes, constraints, and PostGIS placement."
