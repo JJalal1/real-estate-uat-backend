@@ -70,7 +70,7 @@ class UatSupportManagerAgentWorkflowApiTest extends TestCase
         if(in_array('support_agent',$roles,true)){
             $roleId=Role::query()->where('key','support_agent')->value('id');
             $permissionIds=DB::table('permissions')->whereIn('key',['support.handle_reports','listings.moderate'])->pluck('id');
-            foreach($permissionIds as $permissionId){DB::table('role_permission')->updateOrInsert(['role_id'=>$roleId,'permission_id'=>$permissionId],['created_at'=>now()]);}
+            foreach($permissionIds as $permissionId){DB::table('role_permission')->insertOrIgnore(['role_id'=>$roleId,'permission_id'=>$permissionId]);}
         }
         $plain='sw_'.substr(hash('sha512',$email),0,80);$user->apiTokens()->create(['name'=>'support-workflow-test','token_hash'=>hash('sha256',$plain),'token_prefix'=>substr($plain,0,12),'expires_at'=>now()->addHour()]);
         return [$user->fresh(),['Authorization'=>'Bearer '.$plain,'Accept'=>'application/json']];
