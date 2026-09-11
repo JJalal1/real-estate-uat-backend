@@ -157,7 +157,7 @@ jobs:
           }
 
           check_hash "mobile_app/lib/core/network/api_client.dart" \
-            "82516ed55490f1a2d903c00023a363b1f9e825e459fe5be71b370ac6afc39462"
+            "b7cecbca1205cdf04222ca069de5eb10b26dca37988f23acfa7e163d081c0015"
           check_hash "mobile_app/lib/router/app_router.dart" \
             "3097c0345f4e2a5cd50ae1ef25de81ad3c15acaf583c67f7d258945e6f97d3bb"
           check_hash "mobile_app/lib/features/services/presentation/services_screen.dart" \
