@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 env:
-  UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
 
 permissions:
   contents: read
@@ -125,9 +125,6 @@ jobs:
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
