@@ -49,14 +49,29 @@ jobs:
           p.write_text(s, encoding='utf-8')
           PY
           python3 -m py_compile .github/scripts/finalize_financial_v1_flutter.py
-      - name: Apply guarded Flutter patch
-        run: python3 .github/scripts/finalize_financial_v1_flutter.py
+      - name: Apply guarded final patch
+        shell: bash
+        run: |
+          python3 .github/scripts/finalize_financial_v1_flutter.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('backend-api-runtime/tests/Feature/FinancialV1ApiTest.php')
+          s = p.read_text(encoding='utf-8')
+          old1 = "/api/admin/support/tasks?scope=inbox&type=payment_review"
+          old2 = "/api/admin/support/tasks/$taskId/claim"
+          if s.count(old1) != 1 or s.count(old2) != 1:
+              raise SystemExit('Financial support-route test anchors changed')
+          s = s.replace(old1, "/api/admin/workspace/tasks?scope=inbox&type=payment_review")
+          s = s.replace(old2, "/api/admin/workspace/tasks/$taskId/claim")
+          p.write_text(s, encoding='utf-8')
+          PY
       - name: Validate Flutter patch
         shell: bash
         run: |
           git diff --check
           cd mobile_app
           flutter pub get
+          dart fix --apply --code=curly_braces_in_flow_control_structures
           dart format lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart
           flutter analyze
       - name: Commit source and remove one-shot helpers
