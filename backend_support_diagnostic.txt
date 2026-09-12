@@ -1,0 +1,7 @@
+PHP Warning:  require(/home/runner/work/real-estate-uat-backend/real-estate-uat-backend/backend-api-runtime/vendor/autoload.php): Failed to open stream: No such file or directory in /home/runner/work/real-estate-uat-backend/real-estate-uat-backend/backend-api-runtime/artisan on line 10
+PHP Stack trace:
+PHP   1. {main}() /home/runner/work/real-estate-uat-backend/real-estate-uat-backend/backend-api-runtime/artisan:0
+PHP Fatal error:  Uncaught Error: Failed opening required '/home/runner/work/real-estate-uat-backend/real-estate-uat-backend/backend-api-runtime/vendor/autoload.php' (include_path='.:/usr/share/php') in /home/runner/work/real-estate-uat-backend/real-estate-uat-backend/backend-api-runtime/artisan:10
+Stack trace:
+#0 {main}
+  thrown in /home/runner/work/real-estate-uat-backend/real-estate-uat-backend/backend-api-runtime/artisan on line 10
