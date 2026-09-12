@@ -1,0 +1,64 @@
+name: TEMP GM Restore Validation
+
+on:
+  push:
+    branches:
+      - admin/restore-general-manager-command-center
+    paths:
+      - 'mobile_app/**'
+      - 'backend-api-runtime/**'
+      - '.github/workflows/temp-gm-restore-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Backend dependencies
+        working-directory: backend-api-runtime
+        run: |
+          install -m 600 /dev/null .env
+          composer install --no-interaction --prefer-dist --no-progress
+      - name: General manager backend tests
+        working-directory: backend-api-runtime
+        run: php artisan test tests/Feature/UatGeneralManagerInsightsApiTest.php --display-warnings --fail-on-warning --fail-on-risky
+      - name: Full Laravel tests
+        working-directory: backend-api-runtime
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Flutter packages
+        working-directory: mobile_app
+        run: flutter pub get
+      - name: Flutter analyze
+        working-directory: mobile_app
+        run: flutter analyze
+      - name: GM workspace regression tests
+        working-directory: mobile_app
+        run: flutter test test/uat_three_role_workspaces_test.dart
+      - name: Full Flutter tests
+        working-directory: mobile_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          flutter test "${tests[@]}"
