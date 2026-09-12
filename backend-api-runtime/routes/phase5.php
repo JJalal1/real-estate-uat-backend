@@ -1,21 +1,21 @@
 <?php
 
-use App\Http\Controllers\Api\AgreementContractController;
+use App\Http\Controllers\Api\FinancialAgreementContractController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth.api', 'account.active'])->group(function (): void {
-    Route::get('/agreements/mine', [AgreementContractController::class, 'agreementsMine']);
-    Route::post('/messages/threads/{thread}/agreement', [AgreementContractController::class, 'startAgreement']);
-    Route::get('/agreements/{agreement}', [AgreementContractController::class, 'agreementShow']);
-    Route::post('/agreements/{agreement}/revisions', [AgreementContractController::class, 'reviseAgreement']);
-    Route::post('/agreements/{agreement}/accept', [AgreementContractController::class, 'acceptAgreement']);
-    Route::post('/agreements/{agreement}/cancel', [AgreementContractController::class, 'cancelAgreement']);
+    Route::get('/agreements/mine', [FinancialAgreementContractController::class, 'agreementsMine']);
+    Route::post('/messages/threads/{thread}/agreement', [FinancialAgreementContractController::class, 'startAgreement']);
+    Route::get('/agreements/{agreement}', [FinancialAgreementContractController::class, 'agreementShow']);
+    Route::post('/agreements/{agreement}/revisions', [FinancialAgreementContractController::class, 'reviseAgreement']);
+    Route::post('/agreements/{agreement}/accept', [FinancialAgreementContractController::class, 'acceptAgreement']);
+    Route::post('/agreements/{agreement}/cancel', [FinancialAgreementContractController::class, 'cancelAgreement']);
 
-    Route::get('/rental-contracts/mine', [AgreementContractController::class, 'contractsMine']);
-    Route::post('/agreements/{agreement}/rental-contract', [AgreementContractController::class, 'startRentalContract']);
-    Route::get('/rental-contracts/{contract}', [AgreementContractController::class, 'contractShow']);
-    Route::post('/rental-contracts/{contract}/revisions', [AgreementContractController::class, 'reviseRentalContract']);
-    Route::post('/rental-contracts/{contract}/accept', [AgreementContractController::class, 'acceptRentalContract']);
-    Route::post('/rental-contracts/{contract}/cancel', [AgreementContractController::class, 'cancelRentalContract']);
-    Route::post('/rental-contracts/{contract}/terminate', [AgreementContractController::class, 'terminateRentalContract']);
+    Route::get('/rental-contracts/mine', [FinancialAgreementContractController::class, 'contractsMine']);
+    Route::post('/agreements/{agreement}/rental-contract', [FinancialAgreementContractController::class, 'startRentalContract']);
+    Route::get('/rental-contracts/{contract}', [FinancialAgreementContractController::class, 'contractShow']);
+    Route::post('/rental-contracts/{contract}/revisions', [FinancialAgreementContractController::class, 'reviseRentalContract']);
+    Route::post('/rental-contracts/{contract}/accept', [FinancialAgreementContractController::class, 'acceptRentalContract']);
+    Route::post('/rental-contracts/{contract}/cancel', [FinancialAgreementContractController::class, 'cancelRentalContract']);
+    Route::post('/rental-contracts/{contract}/terminate', [FinancialAgreementContractController::class, 'terminateRentalContract']);
 });
