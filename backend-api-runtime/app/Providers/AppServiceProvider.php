@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\Api\AgreementContractController;
+use App\Http\Controllers\Api\FinancialAgreementContractController;
 use App\Http\Controllers\Api\FinancialPropertyController;
 use App\Http\Controllers\Api\PropertyController;
 use App\Http\Middleware\EnsureSupportTaskOwnership;
@@ -18,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(SupportTaskService::class, FinancialAwareSupportTaskService::class);
         $this->app->bind(PropertyController::class, FinancialPropertyController::class);
+        $this->app->bind(AgreementContractController::class, FinancialAgreementContractController::class);
     }
 
     public function boot(): void
