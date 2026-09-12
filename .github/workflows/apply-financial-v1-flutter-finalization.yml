@@ -1,0 +1,62 @@
+name: Apply Financial V1 Flutter Finalization
+
+on:
+  push:
+    branches: [feature/financial-v1-impl]
+    paths:
+      - '.github/workflows/apply-financial-v1-flutter-finalization.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/financial-v1-impl
+          fetch-depth: 0
+      - name: Validate and normalize patch script
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/finalize_financial_v1_flutter.py')
+          s = p.read_text(encoding='utf-8')
+          old = "replace_once(p, \"import '../../account/data/auth_controller.dart';\\n\", \"import '../../account/data/auth_controller.dart';\\nimport '../../financial/data/financial_repository.dart';\\n\")"
+          new = "replace_once(p, \"import '../../regions/data/region_repository.dart';\\n\", \"import '../../financial/data/financial_repository.dart';\\nimport '../../regions/data/region_repository.dart';\\n\")"
+          if old not in s:
+              raise SystemExit('GM import repair anchor missing')
+          s = s.replace(old, new, 1)
+          marker = "print('Financial V1 Flutter finalization patch applied')"
+          extra = '''replace_once(p,\n"class _DataRow { const _DataRow(this.label, this.value); final String label; final int value; }",\n"class _DataRow { const _DataRow(this.label, this.value); final String label; final Object value; }")\nreplace_once(p,\n"double? _asDouble(dynamic value){if(value is num)return value.toDouble();return double.tryParse(value?.toString()??'');}",\n"double? _asDouble(dynamic value){if(value is num)return value.toDouble();return double.tryParse(value?.toString()??'');}\\nString _formatMoney(double? value){final amount=(value??0).round().toString();final out=StringBuffer();for(var i=0;i<amount.length;i++){final remaining=amount.length-i;out.write(amount[i]);if(remaining>1&&remaining%3==1)out.write(',');}return '$out YER';}")\n\nprint('Financial V1 Flutter finalization patch applied')'''
+          if marker not in s:
+              raise SystemExit('script marker missing')
+          s = s.replace(marker, extra, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          python3 -m py_compile .github/scripts/finalize_financial_v1_flutter.py
+      - name: Apply guarded Flutter patch
+        run: python3 .github/scripts/finalize_financial_v1_flutter.py
+      - name: Validate Flutter patch
+        shell: bash
+        run: |
+          git diff --check
+          cd mobile_app
+          flutter --version
+          flutter pub get
+          dart format --output=none --set-exit-if-changed lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart || dart format lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart
+          flutter analyze
+      - name: Commit source and remove one-shot helpers
+        shell: bash
+        run: |
+          rm -f .github/scripts/finalize_financial_v1_flutter.py
+          rm -f .github/workflows/apply-financial-v1-flutter-finalization.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Finalize Financial V1 Flutter experience'
+          git push origin HEAD:feature/financial-v1-impl
