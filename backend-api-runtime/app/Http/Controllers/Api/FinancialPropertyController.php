@@ -33,16 +33,16 @@ class FinancialPropertyController extends PropertyController
         parent::__construct($financialTokens,$audit,$storage,$regions,$assets,$workflow);
     }
 
-    public function index(Request $request): JsonResponse { return $this->enrich(parent::index($request),$request); }
-    public function nearby(Request $request): JsonResponse { return $this->enrich(parent::nearby($request),$request); }
-    public function mine(Request $request): JsonResponse { return $this->enrich(parent::mine($request),$request); }
+    public function index(Request $request): JsonResponse { return $this->enrich(parent::index($request),$request,true); }
+    public function nearby(Request $request): JsonResponse { return $this->enrich(parent::nearby($request),$request,true); }
+    public function mine(Request $request): JsonResponse { return $this->enrich(parent::mine($request),$request,false); }
 
     public function show(Request $request, Property $property): JsonResponse
     {
         $viewer=$this->financialTokens->authenticate($request,false);
         $isOwner=$viewer && (int)$viewer->id===(int)$property->user_id;
         if(!$isOwner && $property->status==='published' && $this->finance->hasOverdueReceivable((int)$property->user_id)) abort(404);
-        return $this->enrich(parent::show($request,$property),$request);
+        return $this->enrich(parent::show($request,$property),$request,false);
     }
 
     public function store(Request $request): JsonResponse
@@ -51,7 +51,7 @@ class FinancialPropertyController extends PropertyController
         $this->prepareFinancialListingInput($request,null);
         $response=parent::store($request);
         $this->persistFinancialFieldsFromResponse($request,$response);
-        return $this->enrich($response,$request);
+        return $this->enrich($response,$request,false);
     }
 
     public function update(Request $request, Property $property): JsonResponse
@@ -60,14 +60,14 @@ class FinancialPropertyController extends PropertyController
         $this->prepareFinancialListingInput($request,$property);
         $response=parent::update($request,$property);
         $this->persistFinancialFieldsFromResponse($request,$response);
-        return $this->enrich($response,$request);
+        return $this->enrich($response,$request,false);
     }
 
     public function submit(Request $request, Property $property): JsonResponse
     {
         /** @var User $user */$user=$request->user();$this->assertFinancialListingAllowed($user);
         $this->assertFinancialListingComplete($property);
-        return $this->enrich(parent::submit($request,$property),$request);
+        return $this->enrich(parent::submit($request,$property),$request,false);
     }
 
     private function assertFinancialListingAllowed(User $user): void
@@ -129,23 +129,41 @@ class FinancialPropertyController extends PropertyController
         if($term){
             $buyerPays=in_array($term->payer,['buyer','tenant'],true);
             if($buyerPays && !in_array($property->price_display_mode,['includes_sai','excludes_sai'],true)){
-                // Backward-compatible default for listings created before Financial V1.
                 $property->forceFill(['price_display_mode'=>'excludes_sai'])->saveQuietly();
             }
             if(!$buyerPays && $property->price_display_mode!==null)$property->forceFill(['price_display_mode'=>null])->saveQuietly();
         }
     }
 
-    private function enrich(JsonResponse $response, Request $request): JsonResponse
+    private function enrich(JsonResponse $response, Request $request, bool $hideOverduePublicRows): JsonResponse
     {
         if($response->getStatusCode()>=400)return $response;
         $body=$response->getData(true);if(!isset($body['data']))return $response;
-        if(array_is_list($body['data']))$body['data']=$this->enrichRows($body['data']);
+        if(array_is_list($body['data']))$body['data']=$this->enrichRows($body['data'],$hideOverduePublicRows);
         elseif(is_array($body['data'])&&isset($body['data']['id']))$body['data']=$this->enrichRow($body['data']);
         $response->setData($body);return $response;
     }
 
-    private function enrichRows(array $rows): array { return array_map(fn(array $row)=>$this->enrichRow($row),$rows); }
+    private function enrichRows(array $rows, bool $hideOverduePublicRows): array
+    {
+        if($rows===[])return [];
+        if($hideOverduePublicRows){
+            $propertyIds=array_values(array_filter(array_map(fn(array $row)=>(int)($row['id']??0),$rows)));
+            $owners=Property::query()->withoutGlobalScopes()->whereIn('id',$propertyIds)->pluck('user_id','id');
+            $ownerIds=$owners->values()->map(fn($id)=>(int)$id)->unique()->values()->all();
+            $overdue=DB::table('property_platform_receivables')
+                ->whereIn('advertiser_user_id',$ownerIds)
+                ->whereIn('status',['open','under_review','overdue','disputed'])
+                ->whereColumn('amount_paid','<','amount_total')
+                ->where('due_at','<=',now())
+                ->pluck('advertiser_user_id')->map(fn($id)=>(int)$id)->unique()->flip();
+            $rows=array_values(array_filter($rows,function(array $row)use($owners,$overdue):bool{
+                $propertyId=(int)($row['id']??0);$ownerId=(int)($owners[$propertyId]??0);
+                return $ownerId===0||!$overdue->has($ownerId);
+            }));
+        }
+        return array_map(fn(array $row)=>$this->enrichRow($row),$rows);
+    }
 
     private function enrichRow(array $row): array
     {
