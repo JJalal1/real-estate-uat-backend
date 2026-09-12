@@ -9,6 +9,7 @@ use App\Models\SupportTaskEvent;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class FinancialSupportTaskService
@@ -64,6 +65,7 @@ class FinancialSupportTaskService
         if(!$isManager&&!$actor->hasPermission('payments.review'))return SupportTask::query()->whereRaw('1=0');
         if($isManager&&$actingAsAgent&&!$actor->hasPermission('payments.review')&&!$actor->is_platform_owner&&!$actor->hasRole('super_admin'))return SupportTask::query()->whereRaw('1=0');
 
+        $this->ensureSupportMembership($actor);
         $query=SupportTask::query()->with(['team:id,name_ar','governorate:id,name_ar'])->where('source_type','payment_review');
         if(!$actor->is_platform_owner&&!$actor->hasRole('super_admin')){
             $teamIds=DB::table('support_team_members')->where('user_id',$actor->id)->pluck('support_team_id');
@@ -105,6 +107,7 @@ class FinancialSupportTaskService
     {
         $this->assertPaymentTask($task);$this->assertManager($actor);$this->assertTeamScope($actor,$task);
         abort_unless($assignee->hasRole('support_agent')&&$assignee->hasPermission('payments.review'),422,'المهمة المالية تُسند لموظف دعم لديه صلاحية مراجعة المدفوعات.');
+        $this->ensureSupportMembership($assignee);
         $member=DB::table('support_team_members')->where('support_team_id',$task->support_team_id)->where('user_id',$assignee->id)->where('is_available',true)->first();
         abort_unless($member,422,'الموظف غير متاح في فريق هذه المهمة.');
         return DB::transaction(function()use($actor,$task,$assignee,$request):SupportTask{
@@ -139,9 +142,34 @@ class FinancialSupportTaskService
         }
         abort_unless($actor->hasRole('support_agent')&&$actor->hasPermission('payments.review'),403);
     }
+
+    private function ensureSupportMembership(User $actor): void
+    {
+        if(!Schema::hasTable('support_team_members')||!Schema::hasTable('support_teams'))return;
+        $isManager=$actor->hasRole('support_manager');
+        $isAgent=$actor->hasRole('support_agent');
+        if(!$isManager&&!$isAgent)return;
+        if(DB::table('support_team_members')->where('user_id',$actor->id)->exists())return;
+        $fallbackId=DB::table('support_teams')->where('is_active',true)->where('is_fallback',true)->orderBy('id')->value('id');
+        if(!$fallbackId)return;
+        $role=$isManager?'manager':'agent';
+        DB::table('support_team_members')->updateOrInsert(
+            ['support_team_id'=>$fallbackId,'user_id'=>$actor->id],
+            ['member_role'=>$role,'is_available'=>true,'capacity'=>10,'joined_at'=>now(),'created_at'=>now(),'updated_at'=>now()]
+        );
+        if($role==='manager'){
+            DB::table('support_teams')->where('id',$fallbackId)->whereNull('manager_user_id')->update(['manager_user_id'=>$actor->id,'updated_at'=>now()]);
+        }
+    }
+
     private function assertManager(User $actor):void{abort_unless($this->isManager($actor),403);}
     private function isManager(User $actor):bool{return $actor->is_platform_owner||$actor->hasRole('super_admin')||$actor->hasRole('support_manager')||$actor->hasPermission('support.manage');}
     private function assertPaymentTask(SupportTask $task):void{abort_unless($task->source_type==='payment_review',422,'هذه ليست مهمة تحقق دفع.');}
-    private function assertTeamScope(User $actor,SupportTask $task):void{if($actor->is_platform_owner||$actor->hasRole('super_admin'))return;abort_unless(DB::table('support_team_members')->where('user_id',$actor->id)->where('support_team_id',$task->support_team_id)->exists(),403);}
+    private function assertTeamScope(User $actor,SupportTask $task):void
+    {
+        if($actor->is_platform_owner||$actor->hasRole('super_admin'))return;
+        $this->ensureSupportMembership($actor);
+        abort_unless(DB::table('support_team_members')->where('user_id',$actor->id)->where('support_team_id',$task->support_team_id)->exists(),403);
+    }
     private function event(SupportTask $task,?User $actor,string $event,?string $from,?string $to,array $metadata=[]):void{SupportTaskEvent::query()->create(['support_task_id'=>$task->id,'actor_user_id'=>$actor?->id,'actor_name_snapshot'=>$actor?->name,'event'=>$event,'from_status'=>$from,'to_status'=>$to,'metadata'=>$metadata?:null,'created_at'=>now()]);}
 }
