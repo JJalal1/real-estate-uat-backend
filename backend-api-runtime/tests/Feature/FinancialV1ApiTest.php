@@ -119,7 +119,6 @@ class FinancialV1ApiTest extends TestCase
             ->assertStatus(409)
             ->assertJsonFragment(['message'=>'لديك مستحقات للمنصة. سدّد المستحقات الحالية قبل إنشاء أو إرسال إعلان جديد.']);
 
-        // These checks deliberately run without the advertiser's auth header.
         $this->flushHeaders();
         $this->getJson("/api/properties/{$property->id}")->assertOk();
 
@@ -197,16 +196,33 @@ class FinancialV1ApiTest extends TestCase
         ]);
         app(SupportTaskService::class)->projectPayment($paymentId);
 
+        $projected=SupportTask::query()->where('source_type','payment_review')->where('source_id',$paymentId)->firstOrFail();
+        $this->assertSame('new',$projected->status);
+        $this->assertNull($projected->assigned_to_user_id);
+        $this->assertNotNull($projected->support_team_id);
+
         [$agent, $agentHeaders] = $this->user(
             'financial-support-agent@example.test',
             '+967772000043',
             ['support_agent'],
         );
+        $agent=$agent->fresh();
+        $this->assertTrue($agent->hasRole('support_agent'));
+        $this->assertTrue($agent->hasPermission('payments.review'));
+        $this->assertFalse($agent->hasPermission('support.manage'));
 
         $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertForbidden();
         $inbox=$this->withHeaders($agentHeaders)->getJson('/api/admin/workspace/tasks?scope=inbox&type=payment_review')->assertOk();
+
+        $this->assertDatabaseHas('support_team_members',[
+            'user_id'=>$agent->id,
+            'support_team_id'=>$projected->support_team_id,
+            'member_role'=>'agent',
+        ]);
+        $this->assertSame(1,(int)$inbox->json('meta.total'));
         $taskId=(int)$inbox->json('data.0.id');
-        $this->assertGreaterThan(0,$taskId);
+        $this->assertSame((int)$projected->id,$taskId);
+
         $this->withHeaders($agentHeaders)->postJson("/api/admin/workspace/tasks/$taskId/claim")->assertOk()->assertJsonPath('data.is_mine',true);
         $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertOk()->assertJsonPath('data.status','under_review');
         $this->withHeaders($agentHeaders)->postJson("/api/admin/finance/payments/$paymentId/review",['decision'=>'correction','note'=>'صورة الإثبات غير واضحة'])->assertOk()->assertJsonPath('data.status','correction_required');
