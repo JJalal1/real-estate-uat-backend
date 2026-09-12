@@ -546,6 +546,9 @@ void _openAction(BuildContext context, _DashboardAction action) {
     case _DashboardAction.mine:
       page = const SupportTasksScreen(initialScope: 'mine', title: 'مهامي');
       break;
+    case _DashboardAction.completed:
+      page = const SupportTasksScreen(initialScope: 'completed', title: 'المهام المنجزة');
+      break;
     case _DashboardAction.all:
       page = const SupportTasksScreen(initialScope: 'all', title: 'كل الأعمال');
       break;
@@ -791,6 +794,7 @@ class _DashboardCardSpec {
 enum _DashboardAction {
   inbox,
   mine,
+  completed,
   all,
   verifications,
   listings,
