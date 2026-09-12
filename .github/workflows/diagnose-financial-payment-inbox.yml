@@ -1,0 +1,68 @@
+name: Diagnose Financial Payment Inbox
+
+on:
+  push:
+    branches: [feature/financial-v1-impl]
+    paths:
+      - '.github/workflows/diagnose-financial-payment-inbox.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare test environment
+        shell: bash
+        run: |
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+          printf 'DB_CONNECTION=sqlite\nDB_DATABASE=%s\n' "$PWD/database/database.sqlite" >> .env
+          mkdir -p database
+          touch database/database.sqlite
+          php artisan migrate:fresh --force
+      - name: Inject non-sensitive diagnostics into isolated runner copy
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/Feature/FinancialV1ApiTest.php')
+          s=p.read_text(encoding='utf-8')
+          old="""        $inbox=$this->withHeaders($agentHeaders)->getJson('/api/admin/workspace/tasks?scope=inbox&type=payment_review')->assertOk();
+        $taskId=(int)$inbox->json('data.0.id');
+        $this->assertGreaterThan(0,$taskId);
+"""
+          new="""        $inbox=$this->withHeaders($agentHeaders)->getJson('/api/admin/workspace/tasks?scope=inbox&type=payment_review')->assertOk();
+        $projected=SupportTask::query()->where('source_type','payment_review')->where('source_id',$paymentId)->firstOrFail();
+        $members=DB::table('support_team_members')->where('user_id',$agent->id)->get(['support_team_id','member_role','is_available','capacity']);
+        fwrite(STDERR, "FIN_DIAG=".json_encode([
+            'response_total'=>$inbox->json('meta.total'),
+            'response_count'=>count((array)$inbox->json('data')),
+            'task'=>['id'=>$projected->id,'status'=>$projected->status,'team'=>$projected->support_team_id,'assigned'=>$projected->assigned_to_user_id,'source_type'=>$projected->source_type],
+            'memberships'=>$members->map(fn($m)=>['team'=>(int)$m->support_team_id,'role'=>$m->member_role,'available'=>(bool)$m->is_available,'capacity'=>(int)$m->capacity])->values()->all(),
+            'has_support_agent'=>$agent->fresh()->hasRole('support_agent'),
+            'has_payment_review'=>$agent->fresh()->hasPermission('payments.review'),
+            'has_support_manage'=>$agent->fresh()->hasPermission('support.manage'),
+        ],JSON_UNESCAPED_UNICODE).PHP_EOL);
+        $taskId=(int)$inbox->json('data.0.id');
+        $this->assertGreaterThan(0,$taskId);
+"""
+          if s.count(old)!=1:
+              raise SystemExit('diagnostic anchor changed')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          php -l tests/Feature/FinancialV1ApiTest.php
+      - name: Run focused diagnostic test
+        run: php artisan test tests/Feature/FinancialV1ApiTest.php --filter=payment_review_task_is_visible_claimed_and_reviewed_only_by_assigned_agent
