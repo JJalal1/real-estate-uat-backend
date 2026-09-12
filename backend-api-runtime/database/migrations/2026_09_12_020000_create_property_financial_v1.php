@@ -18,6 +18,17 @@ return new class extends Migration
             $table->string('financial_hold_reason', 255)->nullable()->after('financial_hold_at');
         });
 
+        Schema::table('property_agreement_revisions', function (Blueprint $table): void {
+            $table->decimal('monthly_rent', 16, 2)->nullable()->after('rent_cadence');
+            $table->unsignedSmallInteger('rental_term_months')->nullable()->after('monthly_rent');
+            $table->unsignedSmallInteger('advance_months')->nullable()->after('rental_term_months');
+        });
+        Schema::table('rental_contract_revisions', function (Blueprint $table): void {
+            $table->decimal('monthly_rent', 16, 2)->nullable()->after('rent_cadence');
+            $table->unsignedSmallInteger('rental_term_months')->nullable()->after('monthly_rent');
+            $table->unsignedSmallInteger('advance_months')->nullable()->after('rental_term_months');
+        });
+
         Schema::create('property_payment_methods', function (Blueprint $table): void {
             $table->id();
             $table->string('key', 32)->unique();
@@ -222,7 +233,7 @@ return new class extends Migration
 
         Schema::create('property_sai_attestations', function (Blueprint $table): void {
             $table->id();
-            $table->unsignedBigInteger('property_id')->unique();
+            $table->unsignedBigInteger('property_id')->index();
             $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
             $table->unsignedBigInteger('sai_term_id')->index();
             $table->unsignedInteger('terms_version');
@@ -231,6 +242,7 @@ return new class extends Migration
             $table->string('user_agent', 500)->nullable();
             $table->timestampTz('accepted_at');
             $table->timestamps();
+            $table->unique(['property_id','sai_term_id'], 'property_sai_attestation_term_unique');
             $table->index(['user_id', 'accepted_at'], 'property_sai_attestations_user_time_idx');
         });
 
@@ -240,20 +252,18 @@ return new class extends Migration
             ['key'=>'finance.view','name_ar'=>'عرض المالية العقارية','name_en'=>'View property finance','scope'=>'finance'],
             ['key'=>'finance.manage','name_ar'=>'إدارة المالية العقارية','name_en'=>'Manage property finance','scope'=>'finance'],
         ] as $permission) {
-            DB::table('permissions')->updateOrInsert(
-                ['key'=>$permission['key']],
-                $permission + ['created_at'=>$now,'updated_at'=>$now],
-            );
+            DB::table('permissions')->updateOrInsert(['key'=>$permission['key']], $permission + ['created_at'=>$now,'updated_at'=>$now]);
         }
 
         foreach ([
-            ['key'=>'jeeb','name_ar'=>'جيب','asset_key'=>'assets/payments/jeeb.png','beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم المحفظة','destination_value'=>'777914037','requires_sender_phone'=>true,'requires_provider_reference'=>false,'sort_order'=>10],
-            ['key'=>'kuraimi','name_ar'=>'الكريمي','asset_key'=>'assets/payments/kuraimi.png','beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم الحساب','destination_value'=>'3094504782','requires_sender_phone'=>false,'requires_provider_reference'=>false,'sort_order'=>20],
-            ['key'=>'jawali','name_ar'=>'جوالي','asset_key'=>'assets/payments/jawali.png','beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم المحفظة','destination_value'=>'777914037','requires_sender_phone'=>true,'requires_provider_reference'=>false,'sort_order'=>30],
-            ['key'=>'transfer','name_ar'=>'حوالة','asset_key'=>null,'beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم الهاتف','destination_value'=>'777914037','requires_sender_phone'=>false,'requires_provider_reference'=>false,'sort_order'=>40],
+            ['key'=>'jeeb','name_ar'=>'جيب','asset_key'=>'assets/payments/jeeb.png','beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم المحفظة','destination_value'=>'777914037','requires_sender_phone'=>true,'sort_order'=>10],
+            ['key'=>'kuraimi','name_ar'=>'الكريمي','asset_key'=>'assets/payments/kuraimi.png','beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم الحساب','destination_value'=>'3094504782','requires_sender_phone'=>false,'sort_order'=>20],
+            ['key'=>'jawali','name_ar'=>'جوالي','asset_key'=>'assets/payments/jawali.png','beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم المحفظة','destination_value'=>'777914037','requires_sender_phone'=>true,'sort_order'=>30],
+            ['key'=>'transfer','name_ar'=>'حوالة','asset_key'=>null,'beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم الهاتف','destination_value'=>'777914037','requires_sender_phone'=>false,'sort_order'=>40],
         ] as $method) {
             DB::table('property_payment_methods')->insert($method + [
-                'currency'=>'YER','instructions_ar'=>'حوّل المبلغ المطلوب فقط، ثم ارفع صورة واضحة لإثبات العملية للتحقق.','is_enabled'=>true,'created_at'=>$now,'updated_at'=>$now,
+                'currency'=>'YER','instructions_ar'=>'حوّل المبلغ المطلوب فقط، ثم ارفع صورة واضحة لإثبات العملية للتحقق.',
+                'requires_provider_reference'=>false,'is_enabled'=>true,'created_at'=>$now,'updated_at'=>$now,
             ]);
         }
 
@@ -263,46 +273,37 @@ return new class extends Migration
 ALTER TABLE properties
     ADD CONSTRAINT properties_price_display_mode_check CHECK (price_display_mode IS NULL OR price_display_mode IN ('includes_sai','excludes_sai')),
     ADD CONSTRAINT properties_rental_financial_fields_check CHECK (
-        (purpose <> 'rent' AND monthly_rent IS NULL AND rental_term_months IS NULL AND advance_months IS NULL)
-        OR
-        (purpose = 'rent' AND monthly_rent > 0 AND rental_term_months BETWEEN 1 AND 24 AND advance_months BETWEEN 1 AND rental_term_months)
+        purpose <> 'rent'
+        OR (monthly_rent IS NULL AND rental_term_months IS NULL AND advance_months IS NULL)
+        OR (monthly_rent > 0 AND rental_term_months BETWEEN 1 AND 24 AND advance_months BETWEEN 1 AND rental_term_months)
     );
-
 ALTER TABLE property_deal_financial_terms
     ADD CONSTRAINT property_deal_financial_transaction_check CHECK (transaction_type IN ('sale','rent')),
     ADD CONSTRAINT property_deal_financial_advertiser_check CHECK (advertiser_type IN ('owner','broker','office')),
     ADD CONSTRAINT property_deal_financial_amounts_check CHECK (base_amount > 0 AND sai_total_amount >= 0 AND platform_share_amount >= 0 AND advertiser_sai_share_amount >= 0),
     ADD CONSTRAINT property_deal_financial_display_check CHECK (price_display_mode IS NULL OR price_display_mode IN ('includes_sai','excludes_sai'));
-
 ALTER TABLE property_payments
     ADD CONSTRAINT property_payments_mode_check CHECK (mode IN ('platform_full','platform_sai_only','platform_receivable')),
     ADD CONSTRAINT property_payments_status_check CHECK (status IN ('waiting_payment','proof_submitted','under_review','correction_required','confirmed','rejected','cancelled')),
     ADD CONSTRAINT property_payments_amount_check CHECK (required_amount > 0);
-
 ALTER TABLE property_payment_allocations
     ADD CONSTRAINT property_payment_allocations_type_check CHECK (allocation_type IN ('platform_revenue','advertiser_principal','advertiser_sai_share','receivable_payment','refund')),
     ADD CONSTRAINT property_payment_allocations_amount_check CHECK (amount >= 0);
-
 ALTER TABLE property_manual_payment_confirmations
     ADD CONSTRAINT property_manual_confirmation_role_check CHECK (party_role IN ('buyer','advertiser')),
     ADD CONSTRAINT property_manual_confirmation_decision_check CHECK (decision IN ('confirmed','disputed')),
     ADD CONSTRAINT property_manual_confirmation_amount_check CHECK (amount > 0);
-
 ALTER TABLE property_platform_receivables
     ADD CONSTRAINT property_receivables_status_check CHECK (status IN ('open','under_review','paid','overdue','disputed')),
     ADD CONSTRAINT property_receivables_amount_check CHECK (amount_total > 0 AND amount_paid >= 0 AND amount_paid <= amount_total);
-
 ALTER TABLE property_payouts
     ADD CONSTRAINT property_payouts_status_check CHECK (status IN ('pending','paid','cancelled')),
     ADD CONSTRAINT property_payouts_amount_check CHECK (amount > 0);
-
 ALTER TABLE property_financial_ledger_lines
     ADD CONSTRAINT property_ledger_line_direction_check CHECK (direction IN ('debit','credit')),
     ADD CONSTRAINT property_ledger_line_amount_check CHECK (amount > 0);
-
 ALTER TABLE property_financial_disputes
     ADD CONSTRAINT property_financial_disputes_status_check CHECK (status IN ('open','resolved','dismissed'));
-
 ALTER TABLE property_refunds
     ADD CONSTRAINT property_refunds_status_check CHECK (status IN ('pending','paid','cancelled')),
     ADD CONSTRAINT property_refunds_amount_check CHECK (amount > 0);
@@ -312,21 +313,11 @@ BEGIN
     RAISE EXCEPTION 'property financial ledger is immutable';
 END;
 $$ LANGUAGE plpgsql SET search_path = pg_catalog, public;
-
-CREATE TRIGGER property_financial_ledger_entries_immutable_update
-BEFORE UPDATE ON property_financial_ledger_entries
-FOR EACH ROW EXECUTE FUNCTION prevent_property_financial_ledger_mutation();
-CREATE TRIGGER property_financial_ledger_entries_immutable_delete
-BEFORE DELETE ON property_financial_ledger_entries
-FOR EACH ROW EXECUTE FUNCTION prevent_property_financial_ledger_mutation();
-CREATE TRIGGER property_financial_ledger_lines_immutable_update
-BEFORE UPDATE ON property_financial_ledger_lines
-FOR EACH ROW EXECUTE FUNCTION prevent_property_financial_ledger_mutation();
-CREATE TRIGGER property_financial_ledger_lines_immutable_delete
-BEFORE DELETE ON property_financial_ledger_lines
-FOR EACH ROW EXECUTE FUNCTION prevent_property_financial_ledger_mutation();
+CREATE TRIGGER property_financial_ledger_entries_immutable_update BEFORE UPDATE ON property_financial_ledger_entries FOR EACH ROW EXECUTE FUNCTION prevent_property_financial_ledger_mutation();
+CREATE TRIGGER property_financial_ledger_entries_immutable_delete BEFORE DELETE ON property_financial_ledger_entries FOR EACH ROW EXECUTE FUNCTION prevent_property_financial_ledger_mutation();
+CREATE TRIGGER property_financial_ledger_lines_immutable_update BEFORE UPDATE ON property_financial_ledger_lines FOR EACH ROW EXECUTE FUNCTION prevent_property_financial_ledger_mutation();
+CREATE TRIGGER property_financial_ledger_lines_immutable_delete BEFORE DELETE ON property_financial_ledger_lines FOR EACH ROW EXECUTE FUNCTION prevent_property_financial_ledger_mutation();
 SQL);
-
             foreach ([
                 'property_payment_methods','property_deal_financial_terms','property_payments','property_payment_allocations',
                 'property_manual_payment_confirmations','property_platform_receivables','property_payouts',
@@ -350,10 +341,10 @@ SQL);
     {
         $driver = DB::connection()->getDriverName();
         if ($driver === 'pgsql') {
-            foreach (['entries','lines'] as $suffix) {
-                DB::unprepared('DROP TRIGGER IF EXISTS property_financial_ledger_'.$suffix.'_immutable_update ON property_financial_ledger_'.$suffix);
-                DB::unprepared('DROP TRIGGER IF EXISTS property_financial_ledger_'.$suffix.'_immutable_delete ON property_financial_ledger_'.$suffix);
-            }
+            DB::unprepared('DROP TRIGGER IF EXISTS property_financial_ledger_entries_immutable_update ON property_financial_ledger_entries');
+            DB::unprepared('DROP TRIGGER IF EXISTS property_financial_ledger_entries_immutable_delete ON property_financial_ledger_entries');
+            DB::unprepared('DROP TRIGGER IF EXISTS property_financial_ledger_lines_immutable_update ON property_financial_ledger_lines');
+            DB::unprepared('DROP TRIGGER IF EXISTS property_financial_ledger_lines_immutable_delete ON property_financial_ledger_lines');
             DB::unprepared('DROP FUNCTION IF EXISTS prevent_property_financial_ledger_mutation()');
         } elseif ($driver === 'sqlite') {
             DB::unprepared('DROP TRIGGER IF EXISTS property_financial_ledger_entries_immutable_update');
@@ -361,11 +352,9 @@ SQL);
             DB::unprepared('DROP TRIGGER IF EXISTS property_financial_ledger_lines_immutable_update');
             DB::unprepared('DROP TRIGGER IF EXISTS property_financial_ledger_lines_immutable_delete');
         }
-
         $permissionIds = DB::table('permissions')->whereIn('key', ['payments.review','finance.view','finance.manage'])->pluck('id');
         if ($permissionIds->isNotEmpty()) DB::table('role_permission')->whereIn('permission_id', $permissionIds)->delete();
         DB::table('permissions')->whereIn('key', ['payments.review','finance.view','finance.manage'])->delete();
-
         Schema::dropIfExists('property_sai_attestations');
         Schema::dropIfExists('property_refunds');
         Schema::dropIfExists('property_financial_disputes');
@@ -379,11 +368,8 @@ SQL);
         Schema::dropIfExists('property_payments');
         Schema::dropIfExists('property_deal_financial_terms');
         Schema::dropIfExists('property_payment_methods');
-
-        Schema::table('properties', function (Blueprint $table): void {
-            $table->dropColumn([
-                'price_display_mode','monthly_rent','rental_term_months','advance_months','financial_hold_at','financial_hold_reason',
-            ]);
-        });
+        Schema::table('rental_contract_revisions', fn (Blueprint $table) => $table->dropColumn(['monthly_rent','rental_term_months','advance_months']));
+        Schema::table('property_agreement_revisions', fn (Blueprint $table) => $table->dropColumn(['monthly_rent','rental_term_months','advance_months']));
+        Schema::table('properties', fn (Blueprint $table) => $table->dropColumn(['price_display_mode','monthly_rent','rental_term_months','advance_months','financial_hold_at','financial_hold_reason']));
     }
 };
