@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Http\Middleware\EnsureSupportTaskOwnership;
+use App\Services\FinancialAwareSupportTaskService;
+use App\Services\SupportTaskService;
 use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -12,7 +14,9 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // Keep the mature support workflow intact and extend it through a
+        // decorator-like subclass for Financial V1 payment review tasks.
+        $this->app->bind(SupportTaskService::class, FinancialAwareSupportTaskService::class);
     }
 
     public function boot(): void
