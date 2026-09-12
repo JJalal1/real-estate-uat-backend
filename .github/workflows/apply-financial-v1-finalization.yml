@@ -32,7 +32,18 @@ jobs:
           PY
           python3 -m py_compile .github/scripts/finalize_financial_v1_backend.py
       - name: Apply guarded backend patch
-        run: python3 .github/scripts/finalize_financial_v1_backend.py
+        shell: bash
+        run: |
+          python3 .github/scripts/finalize_financial_v1_backend.py
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in [
+              'backend-api-runtime/app/Models/PropertyPayment.php',
+              'backend-api-runtime/app/Models/PropertyDealFinancialTerm.php',
+          ]:
+              p = Path(name)
+              p.write_text(p.read_text(encoding='utf-8').rstrip() + '\n', encoding='utf-8')
+          PY
       - name: Validate patch
         shell: bash
         run: |
