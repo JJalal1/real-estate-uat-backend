@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\PropertySaiService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,6 +29,21 @@ class Property extends Model
 
     protected static function booted(): void
     {
+        static::addGlobalScope('financial_public_visibility', function (Builder $builder): void {
+            if (app()->runningInConsole()) return;
+            $request=request();
+            if (!$request->isMethod('GET')) return;
+            $path=$request->path();
+            if (! in_array($path, ['api/properties','api/properties/nearby'], true)) return;
+            $builder->whereNotExists(function ($query): void {
+                $query->selectRaw('1')->from('property_platform_receivables as financial_due')
+                    ->whereColumn('financial_due.advertiser_user_id','properties.user_id')
+                    ->whereIn('financial_due.status',['open','under_review','overdue','disputed'])
+                    ->whereColumn('financial_due.amount_paid','<','financial_due.amount_total')
+                    ->where('financial_due.due_at','<=',now());
+            });
+        });
+
         static::saving(function (Property $property): void {
             if (! $property->exists) return;
             $stateChanged = $property->isDirty('status') || $property->isDirty('review_status');
