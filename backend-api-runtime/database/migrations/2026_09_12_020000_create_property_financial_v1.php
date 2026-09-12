@@ -255,6 +255,15 @@ return new class extends Migration
             DB::table('permissions')->updateOrInsert(['key'=>$permission['key']], $permission + ['created_at'=>$now,'updated_at'=>$now]);
         }
 
+        $paymentReviewPermissionId = DB::table('permissions')->where('key', 'payments.review')->value('id');
+        $supportRoleIds = DB::table('roles')->whereIn('key', ['support_agent','support_manager'])->pluck('id');
+        foreach ($supportRoleIds as $roleId) {
+            DB::table('role_permission')->insertOrIgnore([
+                'role_id' => $roleId,
+                'permission_id' => $paymentReviewPermissionId,
+            ]);
+        }
+
         foreach ([
             ['key'=>'jeeb','name_ar'=>'جيب','asset_key'=>'assets/payments/jeeb.png','beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم المحفظة','destination_value'=>'777914037','requires_sender_phone'=>true,'sort_order'=>10],
             ['key'=>'kuraimi','name_ar'=>'الكريمي','asset_key'=>'assets/payments/kuraimi.png','beneficiary_name'=>'حسام محمد احمد القديمي','destination_label'=>'رقم الحساب','destination_value'=>'3094504782','requires_sender_phone'=>false,'sort_order'=>20],
