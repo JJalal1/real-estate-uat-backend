@@ -33,15 +33,8 @@ class FinancialPropertyController extends PropertyController
         parent::__construct($financialTokens,$audit,$storage,$regions,$assets,$workflow);
     }
 
-    public function index(Request $request): JsonResponse
-    {
-        return $this->enrich(parent::index($request),$request);
-    }
-
-    public function nearby(Request $request): JsonResponse
-    {
-        return $this->enrich(parent::nearby($request),$request);
-    }
+    public function index(Request $request): JsonResponse { return $this->enrich(parent::index($request),$request); }
+    public function nearby(Request $request): JsonResponse { return $this->enrich(parent::nearby($request),$request); }
 
     public function show(Request $request, Property $property): JsonResponse
     {
@@ -78,21 +71,24 @@ class FinancialPropertyController extends PropertyController
 
     private function assertFinancialListingAllowed(User $user): void
     {
-        if($this->finance->hasOpenReceivable((int)$user->id)){
-            throw new ConflictHttpException('لديك مستحقات للمنصة. سدّد المستحقات الحالية قبل إنشاء أو إرسال إعلان جديد.');
-        }
+        if($this->finance->hasOpenReceivable((int)$user->id)) throw new ConflictHttpException('لديك مستحقات للمنصة. سدّد المستحقات الحالية قبل إنشاء أو إرسال إعلان جديد.');
     }
 
     private function prepareFinancialListingInput(Request $request, ?Property $existing): void
     {
         $purpose=(string)$request->input('purpose',$existing?->purpose??'');
-        $v=Validator::make($request->all(),[
-            'monthly_rent'=>[$purpose==='rent'?'required':'nullable','numeric','gt:0','max:9999999999999'],
-            'rental_term_months'=>[$purpose==='rent'?'required':'nullable','integer','min:1','max:24'],
-            'advance_months'=>[$purpose==='rent'?'required':'nullable','integer','min:1','max:24'],
-            'price_display_mode'=>['nullable',Rule::in(['includes_sai','excludes_sai'])],
-        ])->validate();
-        if($purpose==='rent'){
+        $hasRentFinance=$request->hasAny(['monthly_rent','rental_term_months','advance_months'])
+            || $existing?->monthly_rent!==null || $existing?->rental_term_months!==null || $existing?->advance_months!==null;
+        $rules=['price_display_mode'=>['nullable',Rule::in(['includes_sai','excludes_sai'])]];
+        if($purpose==='rent' && $hasRentFinance){
+            $rules += [
+                'monthly_rent'=>['required','numeric','gt:0','max:9999999999999'],
+                'rental_term_months'=>['required','integer','min:1','max:24'],
+                'advance_months'=>['required','integer','min:1','max:24'],
+            ];
+        }
+        $v=Validator::make($request->all(),$rules)->validate();
+        if($purpose==='rent' && $hasRentFinance){
             $monthly=(float)($v['monthly_rent']??$existing?->monthly_rent??0);
             $term=(int)($v['rental_term_months']??$existing?->rental_term_months??0);
             $advance=(int)($v['advance_months']??$existing?->advance_months??0);
@@ -105,14 +101,16 @@ class FinancialPropertyController extends PropertyController
     {
         if($response->getStatusCode()>=400)return;
         $body=$response->getData(true);$id=(int)($body['data']['id']??0);if(!$id)return;
-        $property=Property::query()->find($id);if(!$property)return;
+        $property=Property::query()->withoutGlobalScopes()->find($id);if(!$property)return;
         $purpose=(string)$property->purpose;
-        if($purpose==='rent'){
+        $hasRentFinance=$request->hasAny(['monthly_rent','rental_term_months','advance_months'])
+            || $property->monthly_rent!==null || $property->rental_term_months!==null || $property->advance_months!==null;
+        if($purpose==='rent' && $hasRentFinance){
             $monthly=(float)$request->input('monthly_rent',$property->monthly_rent);
             $term=(int)$request->input('rental_term_months',$property->rental_term_months);
             $advance=(int)$request->input('advance_months',$property->advance_months);
             $property->forceFill(['monthly_rent'=>$monthly,'rental_term_months'=>$term,'advance_months'=>$advance,'price'=>round($monthly*$advance,2)]);
-        }else{
+        }elseif($purpose!=='rent'){
             $property->forceFill(['monthly_rent'=>null,'rental_term_months'=>null,'advance_months'=>null]);
         }
         if($request->has('price_display_mode'))$property->price_display_mode=$request->input('price_display_mode');
@@ -121,7 +119,7 @@ class FinancialPropertyController extends PropertyController
 
     private function assertFinancialListingComplete(Property $property): void
     {
-        if($property->purpose==='rent'){
+        if($property->purpose==='rent' && ($property->monthly_rent!==null || $property->rental_term_months!==null || $property->advance_months!==null)){
             if(!(float)$property->monthly_rent || !(int)$property->rental_term_months || !(int)$property->advance_months || (int)$property->rental_term_months>24 || (int)$property->advance_months>(int)$property->rental_term_months){
                 throw new ConflictHttpException('أكمل إيجار الشهر ومدة التأجير وعدد أشهر المقدم قبل إرسال الإعلان.');
             }
@@ -130,7 +128,8 @@ class FinancialPropertyController extends PropertyController
         if($term){
             $buyerPays=in_array($term->payer,['buyer','tenant'],true);
             if($buyerPays && !in_array($property->price_display_mode,['includes_sai','excludes_sai'],true)){
-                throw new ConflictHttpException('حدد هل المبلغ الظاهر شامل السعي أو غير شامل السعي قبل إرسال الإعلان.');
+                // Backward-compatible default for listings created before Financial V1.
+                $property->forceFill(['price_display_mode'=>'excludes_sai'])->saveQuietly();
             }
             if(!$buyerPays && $property->price_display_mode!==null)$property->forceFill(['price_display_mode'=>null])->saveQuietly();
         }
@@ -145,10 +144,7 @@ class FinancialPropertyController extends PropertyController
         $response->setData($body);return $response;
     }
 
-    private function enrichRows(array $rows): array
-    {
-        return array_map(fn(array $row)=>$this->enrichRow($row),$rows);
-    }
+    private function enrichRows(array $rows): array { return array_map(fn(array $row)=>$this->enrichRow($row),$rows); }
 
     private function enrichRow(array $row): array
     {
@@ -158,16 +154,17 @@ class FinancialPropertyController extends PropertyController
         $saiAmount=0.0;$sai=null;$note=null;$displayPrice=(float)$property->price;
         if($term){
             $basis=$property->purpose==='rent'?(float)($property->monthly_rent?:0):(float)$property->price;
-            $saiAmount=round($basis*((float)$term->sai_rate_percent/100),2);
+            if($basis>0)$saiAmount=round($basis*((float)$term->sai_rate_percent/100),2);
             $buyerPays=in_array($term->payer,['buyer','tenant'],true);
+            $displayMode=$property->price_display_mode ?: ($buyerPays?'excludes_sai':null);
             if($buyerPays){
-                if($property->price_display_mode==='includes_sai'){$displayPrice=round((float)$property->price+$saiAmount,2);$note='المبلغ شامل السعي';}
-                elseif($property->price_display_mode==='excludes_sai')$note='المبلغ غير شامل السعي';
+                if($displayMode==='includes_sai'){$displayPrice=round((float)$property->price+$saiAmount,2);$note='المبلغ شامل السعي';}
+                else $note='المبلغ غير شامل السعي';
             }
             $sai=['rate_percent'=>(float)$term->sai_rate_percent,'payer'=>$term->payer,'amount'=>$saiAmount];
         }
         return array_merge($row,[
-            'base_price'=>(float)$property->price,'display_price'=>$displayPrice,'price_display_mode'=>$property->price_display_mode,
+            'base_price'=>(float)$property->price,'display_price'=>$displayPrice,'price_display_mode'=>$property->price_display_mode ?: (($term&&in_array($term->payer,['buyer','tenant'],true))?'excludes_sai':null),
             'price_display_note'=>$note,'monthly_rent'=>$property->monthly_rent!==null?(float)$property->monthly_rent:null,
             'rental_term_months'=>$property->rental_term_months,'advance_months'=>$property->advance_months,'sai'=>$sai,
             'financial_hold'=>$this->finance->hasOverdueReceivable((int)$property->user_id),
