@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../agreements/presentation/agreement_detail_screen.dart';
 import '../data/financial_repository.dart';
 import '../domain/financial_models.dart';
 import 'deal_financial_screen.dart';
