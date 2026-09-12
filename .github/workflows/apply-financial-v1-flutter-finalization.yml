@@ -65,23 +65,43 @@ jobs:
           s = s.replace(old2, "/api/admin/workspace/tasks/$taskId/claim")
           p.write_text(s, encoding='utf-8')
           PY
-      - name: Format and add explicit control-flow braces
+      - name: Format and resolve analyzer brace lints
         shell: bash
         run: |
           cd mobile_app
           flutter pub get
           dart format lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart
+          flutter analyze --machine > /tmp/financial_v1_analyze.txt || true
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
-          targets = {
-              'lib/features/admin/presentation/general_manager_pages.dart': [391, 394, 482, 852],
-              'lib/features/financial/data/financial_repository.dart': [204],
-              'lib/features/properties/presentation/listing_editor_screen.dart': [144, 993, 995, 999, 1011, 1018, 1024, 1026, 1028, 1046, 1053, 1058, 1060, 1381, 1407, 1490, 1496],
-              'lib/features/properties/presentation/my_listings_screen.dart': [274, 278],
-              'lib/features/support/presentation/support_tasks_screen.dart': [558, 561],
+          diagnostics = []
+          for raw in Path('/tmp/financial_v1_analyze.txt').read_text(encoding='utf-8').splitlines():
+              parts = raw.split('|')
+              if len(parts) < 8:
+                  continue
+              if parts[2].upper() != 'CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES':
+                  continue
+              path = Path(parts[3])
+              try:
+                  path = path.resolve().relative_to(Path.cwd().resolve())
+              except ValueError:
+                  pass
+              diagnostics.append((str(path), int(parts[4])))
+
+          if not diagnostics:
+              raise SystemExit('Expected brace lint diagnostics were not found in analyzer machine output')
+
+          allowed = {
+              'lib/features/admin/presentation/general_manager_pages.dart',
+              'lib/features/financial/data/financial_repository.dart',
+              'lib/features/properties/presentation/listing_editor_screen.dart',
+              'lib/features/properties/presentation/my_listings_screen.dart',
+              'lib/features/support/presentation/support_tasks_screen.dart',
           }
+          unexpected = sorted({path for path, _ in diagnostics if path not in allowed})
+          if unexpected:
+              raise SystemExit(f'Unexpected brace-lint files: {unexpected}')
 
           def line_bounds(text, line_no):
               lines = text.splitlines(keepends=True)
@@ -90,87 +110,113 @@ jobs:
               start = sum(len(x) for x in lines[:line_no - 1])
               return start, start + len(lines[line_no - 1])
 
-          def scan_matching_paren(text, open_pos):
+          def matching_paren(text, open_pos):
               depth = 0
               quote = None
               escape = False
-              for i in range(open_pos, len(text)):
+              line_comment = False
+              block_comment = 0
+              i = open_pos
+              while i < len(text):
                   ch = text[i]
+                  nxt = text[i + 1] if i + 1 < len(text) else ''
+                  if line_comment:
+                      if ch == '\n': line_comment = False
+                      i += 1; continue
+                  if block_comment:
+                      if ch == '/' and i > 0 and text[i - 1] == '*': block_comment -= 1
+                      elif ch == '/' and nxt == '*': block_comment += 1; i += 1
+                      i += 1; continue
                   if quote:
-                      if escape:
-                          escape = False
-                      elif ch == '\\':
-                          escape = True
-                      elif ch == quote:
-                          quote = None
-                      continue
-                  if ch in "'\"":
-                      quote = ch
-                  elif ch == '(':
-                      depth += 1
+                      if escape: escape = False
+                      elif ch == '\\': escape = True
+                      elif ch == quote: quote = None
+                      i += 1; continue
+                  if ch == '/' and nxt == '/': line_comment = True; i += 2; continue
+                  if ch == '/' and nxt == '*': block_comment = 1; i += 2; continue
+                  if ch in "'\"": quote = ch
+                  elif ch == '(': depth += 1
                   elif ch == ')':
                       depth -= 1
-                      if depth == 0:
-                          return i
+                      if depth == 0: return i
+                  i += 1
               raise SystemExit('unmatched if condition')
 
-          def scan_statement_end(text, start):
+          def statement_end(text, start):
               paren = bracket = brace = 0
               quote = None
               escape = False
-              for i in range(start, len(text)):
+              line_comment = False
+              block_comment = 0
+              i = start
+              while i < len(text):
                   ch = text[i]
+                  nxt = text[i + 1] if i + 1 < len(text) else ''
+                  if line_comment:
+                      if ch == '\n': line_comment = False
+                      i += 1; continue
+                  if block_comment:
+                      if ch == '/' and i > 0 and text[i - 1] == '*': block_comment -= 1
+                      elif ch == '/' and nxt == '*': block_comment += 1; i += 1
+                      i += 1; continue
                   if quote:
-                      if escape:
-                          escape = False
-                      elif ch == '\\':
-                          escape = True
-                      elif ch == quote:
-                          quote = None
-                      continue
-                  if ch in "'\"":
-                      quote = ch
-                  elif ch == '(':
-                      paren += 1
-                  elif ch == ')':
-                      paren -= 1
-                  elif ch == '[':
-                      bracket += 1
-                  elif ch == ']':
-                      bracket -= 1
-                  elif ch == '{':
-                      brace += 1
-                  elif ch == '}':
-                      brace -= 1
-                  elif ch == ';' and paren == 0 and bracket == 0 and brace == 0:
-                      return i
+                      if escape: escape = False
+                      elif ch == '\\': escape = True
+                      elif ch == quote: quote = None
+                      i += 1; continue
+                  if ch == '/' and nxt == '/': line_comment = True; i += 2; continue
+                  if ch == '/' and nxt == '*': block_comment = 1; i += 2; continue
+                  if ch in "'\"": quote = ch
+                  elif ch == '(': paren += 1
+                  elif ch == ')': paren -= 1
+                  elif ch == '[': bracket += 1
+                  elif ch == ']': bracket -= 1
+                  elif ch == '{': brace += 1
+                  elif ch == '}': brace -= 1
+                  elif ch == ';' and paren == 0 and bracket == 0 and brace == 0: return i
+                  i += 1
               raise SystemExit('unable to find unbraced statement end')
 
-          def brace_if_at(path, line_no):
-              p = Path(path)
+          def brace_if_at(path_str, line_no):
+              p = Path(path_str)
               text = p.read_text(encoding='utf-8')
               start, end = line_bounds(text, line_no)
               line = text[start:end]
-              match = re.search(r'\bif\s*\(', line)
-              if not match:
-                  raise SystemExit(f'{path}:{line_no}: expected if statement')
-              if_pos = start + match.start()
+              rel = line.find('if')
+              while rel >= 0:
+                  before = line[rel - 1] if rel > 0 else ' '
+                  after = line[rel + 2] if rel + 2 < len(line) else ' '
+                  if not (before.isalnum() or before == '_') and not (after.isalnum() or after == '_'):
+                      break
+                  rel = line.find('if', rel + 2)
+              if rel < 0:
+                  raise SystemExit(f'{path_str}:{line_no}: analyzer pointed to a line without if')
+              if_pos = start + rel
               open_pos = text.find('(', if_pos)
-              close_pos = scan_matching_paren(text, open_pos)
+              if open_pos < 0:
+                  raise SystemExit(f'{path_str}:{line_no}: missing if condition')
+              close_pos = matching_paren(text, open_pos)
               j = close_pos + 1
-              while j < len(text) and text[j].isspace():
-                  j += 1
+              while j < len(text) and text[j].isspace(): j += 1
               if j < len(text) and text[j] == '{':
-                  raise SystemExit(f'{path}:{line_no}: already braced')
-              statement_end = scan_statement_end(text, j)
+                  raise SystemExit(f'{path_str}:{line_no}: analyzer reported an already-braced if')
+              for keyword in ('if', 'for', 'while', 'switch', 'try', 'do'):
+                  if text.startswith(keyword, j) and (j + len(keyword) == len(text) or not (text[j + len(keyword)].isalnum() or text[j + len(keyword)] == '_')):
+                      raise SystemExit(f'{path_str}:{line_no}: refusing complex unbraced body starting with {keyword}')
+              end_pos = statement_end(text, j)
               line_start = text.rfind('\n', 0, if_pos) + 1
               indent = text[line_start:if_pos]
-              text = text[:close_pos + 1] + ' {' + text[close_pos + 1:statement_end + 1] + '\n' + indent + '}' + text[statement_end + 1:]
+              text = text[:close_pos + 1] + ' {' + text[close_pos + 1:end_pos + 1] + '\n' + indent + '}' + text[end_pos + 1:]
               p.write_text(text, encoding='utf-8')
 
-          for path, lines in targets.items():
-              for line_no in sorted(lines, reverse=True):
-                  brace_if_at(path, line_no)
+          grouped = {}
+          for path, line in diagnostics:
+              grouped.setdefault(path, []).append(line)
+          for path, lines in grouped.items():
+              for line in sorted(set(lines), reverse=True):
+                  brace_if_at(path, line)
+
+          print(f'Braced {len(diagnostics)} analyzer-reported if statements')
           PY
           dart format lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart
       - name: Validate final patch
