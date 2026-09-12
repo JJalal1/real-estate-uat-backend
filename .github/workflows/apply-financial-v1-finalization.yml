@@ -27,6 +27,7 @@ jobs:
           s = p.read_text(encoding='utf-8')
           s = s.replace('{","\n    private function claimSource', '{",\n    "    private function claimSource')
           s = s.replace('{","\n    private function assignSource', '{",\n    "    private function assignSource')
+          s = s.replace("if($task->source_type==='listing_review'){\n\",\n)", "if($task->source_type==='listing_review'){\\n\",\n)")
           p.write_text(s, encoding='utf-8')
           PY
           python3 -m py_compile .github/scripts/finalize_financial_v1_backend.py
