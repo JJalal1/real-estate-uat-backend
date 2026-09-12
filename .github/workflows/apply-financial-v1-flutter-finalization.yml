@@ -65,14 +65,119 @@ jobs:
           s = s.replace(old2, "/api/admin/workspace/tasks/$taskId/claim")
           p.write_text(s, encoding='utf-8')
           PY
-      - name: Validate Flutter patch
+      - name: Format and add explicit control-flow braces
+        shell: bash
+        run: |
+          cd mobile_app
+          flutter pub get
+          dart format lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          targets = {
+              'lib/features/admin/presentation/general_manager_pages.dart': [391, 394, 482, 852],
+              'lib/features/financial/data/financial_repository.dart': [204],
+              'lib/features/properties/presentation/listing_editor_screen.dart': [144, 993, 995, 999, 1011, 1018, 1024, 1026, 1028, 1046, 1053, 1058, 1060, 1381, 1407, 1490, 1496],
+              'lib/features/properties/presentation/my_listings_screen.dart': [274, 278],
+              'lib/features/support/presentation/support_tasks_screen.dart': [558, 561],
+          }
+
+          def line_bounds(text, line_no):
+              lines = text.splitlines(keepends=True)
+              if line_no < 1 or line_no > len(lines):
+                  raise SystemExit(f'line {line_no} outside file')
+              start = sum(len(x) for x in lines[:line_no - 1])
+              return start, start + len(lines[line_no - 1])
+
+          def scan_matching_paren(text, open_pos):
+              depth = 0
+              quote = None
+              escape = False
+              for i in range(open_pos, len(text)):
+                  ch = text[i]
+                  if quote:
+                      if escape:
+                          escape = False
+                      elif ch == '\\':
+                          escape = True
+                      elif ch == quote:
+                          quote = None
+                      continue
+                  if ch in "'\"":
+                      quote = ch
+                  elif ch == '(':
+                      depth += 1
+                  elif ch == ')':
+                      depth -= 1
+                      if depth == 0:
+                          return i
+              raise SystemExit('unmatched if condition')
+
+          def scan_statement_end(text, start):
+              paren = bracket = brace = 0
+              quote = None
+              escape = False
+              for i in range(start, len(text)):
+                  ch = text[i]
+                  if quote:
+                      if escape:
+                          escape = False
+                      elif ch == '\\':
+                          escape = True
+                      elif ch == quote:
+                          quote = None
+                      continue
+                  if ch in "'\"":
+                      quote = ch
+                  elif ch == '(':
+                      paren += 1
+                  elif ch == ')':
+                      paren -= 1
+                  elif ch == '[':
+                      bracket += 1
+                  elif ch == ']':
+                      bracket -= 1
+                  elif ch == '{':
+                      brace += 1
+                  elif ch == '}':
+                      brace -= 1
+                  elif ch == ';' and paren == 0 and bracket == 0 and brace == 0:
+                      return i
+              raise SystemExit('unable to find unbraced statement end')
+
+          def brace_if_at(path, line_no):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              start, end = line_bounds(text, line_no)
+              line = text[start:end]
+              match = re.search(r'\bif\s*\(', line)
+              if not match:
+                  raise SystemExit(f'{path}:{line_no}: expected if statement')
+              if_pos = start + match.start()
+              open_pos = text.find('(', if_pos)
+              close_pos = scan_matching_paren(text, open_pos)
+              j = close_pos + 1
+              while j < len(text) and text[j].isspace():
+                  j += 1
+              if j < len(text) and text[j] == '{':
+                  raise SystemExit(f'{path}:{line_no}: already braced')
+              statement_end = scan_statement_end(text, j)
+              line_start = text.rfind('\n', 0, if_pos) + 1
+              indent = text[line_start:if_pos]
+              text = text[:close_pos + 1] + ' {' + text[close_pos + 1:statement_end + 1] + '\n' + indent + '}' + text[statement_end + 1:]
+              p.write_text(text, encoding='utf-8')
+
+          for path, lines in targets.items():
+              for line_no in sorted(lines, reverse=True):
+                  brace_if_at(path, line_no)
+          PY
+          dart format lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart
+      - name: Validate final patch
         shell: bash
         run: |
           git diff --check
           cd mobile_app
-          flutter pub get
-          dart fix --apply --code=curly_braces_in_flow_control_structures
-          dart format lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart
           flutter analyze
       - name: Commit source and remove one-shot helpers
         shell: bash
