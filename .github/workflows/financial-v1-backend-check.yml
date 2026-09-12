@@ -78,4 +78,11 @@ jobs:
         shell: bash
         run: |
           php artisan tinker --execute="dump(DB::select(\"select relname, relrowsecurity from pg_class where relname in ('property_payments','property_platform_receivables','property_financial_ledger_entries','property_financial_ledger_lines') order by relname\"));"
-      - run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+          php artisan tinker --execute="dump(DB::select(\"select tgname from pg_trigger where not tgisinternal and tgname like 'property_financial_ledger_%_immutable_%' order by tgname\"));"
+      - name: Run Financial V1 PostgreSQL acceptance tests
+        run: >-
+          php artisan test
+          tests/Feature/FinancialV1ApiTest.php
+          tests/Feature/PropertySaiAgreementSettlementTest.php
+          tests/Feature/PropertySaiPolicyAcceptanceTest.php
+          --display-warnings --fail-on-warning --fail-on-risky
