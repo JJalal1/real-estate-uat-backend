@@ -1,0 +1,41 @@
+name: Financial V1 Flutter Check
+
+on:
+  push:
+    branches: [feature/financial-v1-impl]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter 3.27.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve packages
+        working-directory: mobile_app
+        run: flutter pub get
+      - name: Static analysis
+        working-directory: mobile_app
+        run: flutter analyze
+      - name: Full Flutter suite
+        working-directory: mobile_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          test "${#tests[@]}" -gt 0
+          flutter test "${tests[@]}"
