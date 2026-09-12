@@ -72,6 +72,7 @@ class FinancialV1ApiTest extends TestCase
         $term = $this->term($property, 'buyer');
         $property->forceFill(['current_sai_term_id'=>$term->id, 'price_display_mode'=>'includes_sai'])->save();
 
+        $this->flushHeaders();
         $this->getJson("/api/properties/{$property->id}")
             ->assertOk()
             ->assertJsonPath('data.base_price', 100000000)
@@ -110,17 +111,15 @@ class FinancialV1ApiTest extends TestCase
             'source_id'=>$receivable->id,
         ]);
 
-        // The financial hold blocks new listings immediately, before the 24h visibility deadline.
         $this->withHeaders($advertiserHeaders)
             ->postJson('/api/properties', [])
             ->assertStatus(409)
             ->assertJsonFragment(['message'=>'لديك مستحقات للمنصة. سدّد المستحقات الحالية قبل إنشاء أو إرسال إعلان جديد.']);
 
-        // Before the deadline, the already-published listing remains discoverable.
+        // These checks deliberately run without the advertiser's auth header.
+        $this->flushHeaders();
         $this->getJson("/api/properties/{$property->id}")->assertOk();
 
-        // Once the 24h deadline passes, the published listing disappears publicly
-        // without deleting it; the advertiser still sees it in My Listings.
         DB::table('property_platform_receivables')->where('id', $receivable->id)->update([
             'due_at'=>now()->subMinute(),
             'updated_at'=>now(),
@@ -129,6 +128,7 @@ class FinancialV1ApiTest extends TestCase
         $this->getJson('/api/properties')
             ->assertOk()
             ->assertJsonMissing(['id'=>$property->id]);
+
         $this->withHeaders($advertiserHeaders)
             ->getJson('/api/properties/mine/list')
             ->assertOk()
