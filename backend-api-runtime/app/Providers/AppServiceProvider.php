@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\Api\FinancialPropertyController;
+use App\Http\Controllers\Api\PropertyController;
 use App\Http\Middleware\EnsureSupportTaskOwnership;
 use App\Services\FinancialAwareSupportTaskService;
 use App\Services\SupportTaskService;
@@ -15,6 +17,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(SupportTaskService::class, FinancialAwareSupportTaskService::class);
+        $this->app->bind(PropertyController::class, FinancialPropertyController::class);
     }
 
     public function boot(): void
@@ -35,7 +38,6 @@ class AppServiceProvider extends ServiceProvider
                     && preg_match('#/(approve|more-info|reject)$#', $uri) === 1)
                 || str_starts_with($uri, 'api/account-verification/users/')
                 || str_starts_with($uri, 'api/admin/support/cases/');
-
             if ($sensitive) $event->route->middleware(EnsureSupportTaskOwnership::class);
         });
     }
