@@ -18,7 +18,7 @@ class SupportWorkspaceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $actor=$request->user();$v=$request->validate([
-            'scope'=>['nullable',Rule::in(['inbox','mine','all'])],'type'=>['nullable',Rule::in(['account_verification','listing_review','support_ticket','report'])],
+            'scope'=>['nullable',Rule::in(['inbox','mine','completed','all'])],'type'=>['nullable',Rule::in(['account_verification','listing_review','support_ticket','report'])],
             'status'=>['nullable',Rule::in(['new','in_progress','waiting_user','waiting_internal','needs_followup','escalated','completed','rejected'])],
             'priority'=>['nullable',Rule::in(['urgent','normal','low'])],'severity'=>['nullable',Rule::in(['low','medium','high','critical'])],
             'assignee_id'=>['nullable','integer','exists:users,id'],'created_from'=>['nullable','date'],'created_to'=>['nullable','date','after_or_equal:created_from'],

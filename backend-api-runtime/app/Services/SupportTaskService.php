@@ -22,6 +22,9 @@ class SupportTaskService
         'new','in_progress','waiting_user','waiting_internal','needs_followup','escalated',
     ];
 
+    public const INBOX_STATUSES = ['new','needs_followup'];
+    public const CLOSED_STATUSES = ['completed','rejected'];
+
     public function __construct(
         private readonly AuditLogService $audit,
         private readonly UserNotificationService $notifications,
@@ -48,14 +51,18 @@ class SupportTaskService
         if ($this->isSupportAgent($actor) || ($this->isManager($actor) && $actingAsAgent)) {
             if ($this->isSupportAgent($actor)) $this->applyAgentTypePermissions($query, $actor);
             if ($scope === 'mine') {
-                $query->where('assigned_to_user_id', $actor->id);
+                $query->where('assigned_to_user_id', $actor->id)->whereIn('status', self::ACTIVE_STATUSES);
+            } elseif ($scope === 'completed') {
+                $query->where('assigned_to_user_id', $actor->id)->whereIn('status', self::CLOSED_STATUSES);
             } else {
-                $query->whereNull('assigned_to_user_id')->whereIn('status', self::ACTIVE_STATUSES);
+                $query->whereNull('assigned_to_user_id')->whereIn('status', self::INBOX_STATUSES);
             }
         } elseif ($scope === 'mine') {
-            $query->where('assigned_to_user_id', $actor->id);
+            $query->where('assigned_to_user_id', $actor->id)->whereIn('status', self::ACTIVE_STATUSES);
+        } elseif ($scope === 'completed') {
+            $query->whereIn('status', self::CLOSED_STATUSES);
         } elseif ($scope === 'inbox') {
-            $query->whereNull('assigned_to_user_id')->whereIn('status', self::ACTIVE_STATUSES);
+            $query->whereNull('assigned_to_user_id')->whereIn('status', self::INBOX_STATUSES);
         }
 
         if (!empty($filters['type'])) $query->where('source_type',$filters['type']);
@@ -137,7 +144,7 @@ class SupportTaskService
             ])->save();
             $this->event($locked,$actor,'assigned',$from,$next,['from_user_id'=>$before,'to_user_id'=>$assignee->id]);
             $this->audit->record($actor,'support_task.assigned',$locked,['from_user_id'=>$before,'to_user_id'=>$assignee->id],$request,$locked->requester_user_id);
-            $this->notifications->create($assignee->id,'support_task_assigned','تم إسناد مهمة دعم إليك',$locked->subject,'support_task',$locked->id,['task_id'=>$locked->id,'source_type'=>$locked->source_type]);
+            $this->notifications->create($assignee->id,'support_task_assigned','قام مدير الدعم بإسناد مهمة لك','تمت إضافة «'.$locked->subject.'» إلى قائمة مهامك.','support_task',$locked->id,['task_id'=>$locked->id,'source_type'=>$locked->source_type,'destination'=>'my_tasks']);
             return $locked->fresh(['team','governorate']);
         });
     }
@@ -372,7 +379,7 @@ class SupportTaskService
     {
         $base=SupportTask::query();$this->applyActorTeamScope($base,$actor);$this->applyAgentTypePermissions($base,$actor);
         return [
-            'mode'=>'agent','inbox_new'=>(clone $base)->whereNull('assigned_to_user_id')->whereIn('status',self::ACTIVE_STATUSES)->count(),
+            'mode'=>'agent','inbox_new'=>(clone $base)->whereNull('assigned_to_user_id')->whereIn('status',self::INBOX_STATUSES)->count(),
             'my_tasks'=>(clone $base)->where('assigned_to_user_id',$actor->id)->whereIn('status',self::ACTIVE_STATUSES)->count(),
             'account_verifications'=>(clone $base)->where('source_type','account_verification')->whereIn('status',self::ACTIVE_STATUSES)->count(),
             'listing_reviews'=>(clone $base)->where('source_type','listing_review')->whereIn('status',self::ACTIVE_STATUSES)->count(),
@@ -392,7 +399,7 @@ class SupportTaskService
         $avg=$claimed->isEmpty()?null:(int)round($claimed->avg(fn(SupportTask $t)=>$t->created_at->diffInMinutes($t->claimed_at)));
         $team=collect($this->teamMetrics($actor));
         return [
-            'mode'=>'manager','unassigned'=>(clone $active)->whereNull('assigned_to_user_id')->count(),
+            'mode'=>'manager','unassigned'=>(clone $active)->whereNull('assigned_to_user_id')->whereIn('status',self::INBOX_STATUSES)->count(),
             'in_progress'=>(clone $active)->whereNotNull('assigned_to_user_id')->whereIn('status',['in_progress','needs_followup'])->count(),
             'overdue'=>(clone $active)->whereNotNull('sla_due_at')->where('sla_due_at','<=',now())->count(),
             'waiting_user'=>(clone $active)->where('status','waiting_user')->count(),'escalated'=>(clone $active)->where('status','escalated')->count(),
@@ -742,7 +749,8 @@ class SupportTaskService
         $details=$this->jsonMap($row->details??null);$type=(string)($row->type??'account');$created=isset($row->created_at)?Carbon::parse($row->created_at):now();
         $govId=$this->resolveGovernorateIdFromName($details['governorate']??null);
         $sla=in_array($status,['waiting_user','completed','rejected'],true)?null:($followup?now()->addHours(24):($existing?->sla_due_at?:$created->copy()->addHours(24)));
-        $task=$this->upsertTask('account_verification',$userId,'KYC-'.$userId,'طلب تحقق '.match($type){'owner'=>'مالك','broker'=>'دلال','office'=>'مكتب عقارات',default=>'حساب'},$user,$status,'normal',null,$existing?->assigned_to_user_id,$existing?->assigned_to_name_snapshot,$sla,$updated,['verification_type'=>$type,'governorate_id'=>$govId,'governorate'=>$details['governorate']??null],false);
+        $resolution=match($sourceStatus){'approved'=>'approved','rejected'=>'rejected','needs_more_info'=>'documents_requested',default=>null};
+        $task=$this->upsertTask('account_verification',$userId,'KYC-'.$userId,'تحقق حساب '.match($type){'owner'=>'مالك','broker'=>'دلال','office'=>'مكتب عقارات',default=>'مستخدم'},$user,$status,'normal',null,$existing?->assigned_to_user_id,$existing?->assigned_to_name_snapshot,$sla,$updated,['verification_type'=>$type,'verification_status'=>$sourceStatus,'resolution'=>$resolution,'governorate_id'=>$govId,'governorate'=>$details['governorate']??null],false);
         return $this->routeTask($task,$govId);
     }
 
@@ -751,10 +759,27 @@ class SupportTaskService
         $property=$listing instanceof Property?$listing->fresh(['user']):Property::query()->with('user')->find($listing);
         if(!$property)return null;
         $existing=SupportTask::query()->where('source_type','listing_review')->where('source_id',$property->id)->first();
-        $status=match($property->review_status){'approved'=>'completed','rejected_blocked'=>'rejected','returned_for_correction'=>'waiting_user','under_review'=>'in_progress','submitted'=>$existing?->status==='waiting_user'?'needs_followup':($property->review_assigned_to_user_id?'in_progress':'new'),default=>'completed'};
-        $release=$property->review_status==='submitted'&&$existing?->status==='waiting_user';$submitted=$property->submitted_at?:$property->updated_at?:now();$assigneeId=$release?null:$property->review_assigned_to_user_id;
-        $assigneeName=$assigneeId?User::query()->whereKey($assigneeId)->value('name'):null;$govId=$this->listingGovernorateId($property);
-        $task=$this->upsertTask('listing_review',$property->id,'LIST-'.$property->id,'تحقيق إعلان: '.$property->title,$property->user,$status,'normal',null,$assigneeId,$assigneeName,in_array($status,['waiting_user','completed','rejected'],true)?null:$submitted->copy()->addHours(24),$property->updated_at,['review_status'=>$property->review_status,'price'=>$property->price,'purpose'=>$property->purpose,'property_type'=>$property->type,'governorate_id'=>$govId],$release||in_array($status,['waiting_user','completed','rejected'],true));
+        $existingMeta=$existing?->metadata??[];
+        $returnedCycle=$existing?->status==='completed'&&($existingMeta['resolution']??null)==='returned_for_correction';
+        $status=match($property->review_status){
+            'approved'=>'completed',
+            'rejected_blocked'=>'rejected',
+            'returned_for_correction'=>'completed',
+            'under_review'=>'in_progress',
+            'submitted'=>$returnedCycle?'needs_followup':($property->review_assigned_to_user_id?'in_progress':'new'),
+            default=>'completed'
+        };
+        $release=$property->review_status==='submitted'&&$returnedCycle;
+        $closed=in_array($status,self::CLOSED_STATUSES,true);
+        $submitted=$property->submitted_at?:$property->updated_at?:now();
+        $assigneeId=$release?null:($property->review_assigned_to_user_id?:($closed?$existing?->assigned_to_user_id:null));
+        $assigneeName=$assigneeId?($existing?->assigned_to_user_id===$assigneeId?$existing?->assigned_to_name_snapshot:User::query()->whereKey($assigneeId)->value('name')):null;
+        $govId=$this->listingGovernorateId($property);
+        $resolution=match($property->review_status){'approved'=>'approved','rejected_blocked'=>'rejected','returned_for_correction'=>'returned_for_correction',default=>null};
+        $task=$this->upsertTask('listing_review',$property->id,'LIST-'.$property->id,'تحقق نشر إعلان: '.$property->title,$property->user,$status,'normal',null,$assigneeId,$assigneeName,$closed?null:$submitted->copy()->addHours(24),$property->updated_at,[
+            'review_status'=>$property->review_status,'resolution'=>$resolution,'review_reason'=>$property->last_review_reason,
+            'price'=>$property->price,'purpose'=>$property->purpose,'property_type'=>$property->type,'governorate_id'=>$govId,
+        ],$release||$closed);
         return $this->routeTask($task,$govId);
     }
 
@@ -766,7 +791,8 @@ class SupportTaskService
         if($case->escalated_at&&!in_array($status,['completed','rejected','waiting_user'],true))$status='escalated';
         $priority=match($case->priority){'urgent','high'=>'urgent','low'=>'low',default=>'normal'};$severity=$case->kind==='report'?match($case->reason_code){'fraud','scam','impersonation','suspicious_documents','dangerous_content'=>'critical','abuse','privacy'=>'high','spam','duplicate'=>'low',default=>'medium'}:null;if($severity==='critical')$priority='urgent';
         $requester=$case->requester_user_id?User::query()->find($case->requester_user_id):null;$govId=$this->supportCaseGovernorateId($case,$requester);
-        $task=$this->upsertTask($type,$case->id,$case->reference,$case->subject,$requester,$status,$priority,$severity,$case->assigned_to_user_id,$case->assigned_to_name_snapshot,$case->sla_due_at,$case->updated_at,['kind'=>$case->kind,'reason_code'=>$case->reason_code,'target_type'=>$case->target_type,'target_id'=>$case->target_id,'governorate_id'=>$govId],false);
+        $resolution=match($case->status){'resolved'=>'resolved','dismissed'=>'dismissed','waiting_requester'=>'waiting_user',default=>null};
+        $task=$this->upsertTask($type,$case->id,$case->reference,$case->subject,$requester,$status,$priority,$severity,$case->assigned_to_user_id,$case->assigned_to_name_snapshot,$case->sla_due_at,$case->updated_at,['kind'=>$case->kind,'case_status'=>$case->status,'resolution'=>$resolution,'reason_code'=>$case->reason_code,'target_type'=>$case->target_type,'target_id'=>$case->target_id,'governorate_id'=>$govId],false);
         if($type==='report'&&$severity==='critical')$this->notifyCriticalReportManagers($task);
         return $this->routeTask($task,$govId);
     }
@@ -809,7 +835,7 @@ class SupportTaskService
     {
         $this->assertManager($actor);$this->ensureSupportStaffMemberships();$ids=$this->managedTeamIds($actor);if($ids===[])return [];
         $memberCounts=DB::table('support_team_members')->whereIn('support_team_id',$ids)->where('member_role','agent')->selectRaw('support_team_id, count(*) as agents, sum(case when is_available then 1 else 0 end) as available_agents')->groupBy('support_team_id')->get()->keyBy('support_team_id');
-        $taskCounts=SupportTask::query()->whereIn('support_team_id',$ids)->whereIn('status',self::ACTIVE_STATUSES)->selectRaw('support_team_id, count(*) as open_tasks, sum(case when assigned_to_user_id is null then 1 else 0 end) as unassigned')->groupBy('support_team_id')->get()->keyBy('support_team_id');
+        $taskCounts=SupportTask::query()->whereIn('support_team_id',$ids)->whereIn('status',self::ACTIVE_STATUSES)->selectRaw("support_team_id, count(*) as open_tasks, sum(case when assigned_to_user_id is null and status in ('new','needs_followup') then 1 else 0 end) as unassigned")->groupBy('support_team_id')->get()->keyBy('support_team_id');
         return DB::table('support_teams as t')->leftJoin('governorates as g','g.id','=','t.governorate_id')->whereIn('t.id',$ids)->where('t.is_active',true)->orderByDesc('t.is_fallback')->orderBy('g.name_ar')->get(['t.id','t.code','t.name_ar','t.governorate_id','g.name_ar as governorate_name','t.is_fallback'])->map(function($t)use($memberCounts,$taskCounts){$m=$memberCounts->get($t->id);$w=$taskCounts->get($t->id);return ['id'=>(int)$t->id,'code'=>$t->code,'name'=>$t->name_ar,'governorate_id'=>$t->governorate_id? (int)$t->governorate_id:null,'governorate_name'=>$t->governorate_name,'is_fallback'=>(bool)$t->is_fallback,'agents'=>(int)($m->agents??0),'available_agents'=>(int)($m->available_agents??0),'open_tasks'=>(int)($w->open_tasks??0),'unassigned'=>(int)($w->unassigned??0)];})->values()->all();
     }
 
