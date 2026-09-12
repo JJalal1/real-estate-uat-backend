@@ -72,7 +72,8 @@ jobs:
         run: |
           key="$(php -r 'echo base64_encode(random_bytes(32));')"
           printf 'APP_KEY=base64:%s\n' "$key" > .env
-      - run: php artisan migrate:fresh --force
+      - name: Migrate clean PostgreSQL database
+        run: php artisan migrate --force
       - name: Verify Financial V1 RLS and ledger triggers
         shell: bash
         run: |
