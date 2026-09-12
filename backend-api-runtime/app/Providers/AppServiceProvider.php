@@ -14,22 +14,20 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // Keep the mature support workflow intact and extend it through a
-        // decorator-like subclass for Financial V1 payment review tasks.
         $this->app->bind(SupportTaskService::class, FinancialAwareSupportTaskService::class);
     }
 
     public function boot(): void
     {
-        // The workspace routes are kept separate so the existing API contract is not rewritten.
         if (! $this->app->routesAreCached()) {
             Route::middleware(['api', 'auth.api', 'account.active'])
                 ->prefix('api/admin/workspace')
                 ->group(base_path('routes/support_workspace.php'));
+            Route::middleware(['api', 'auth.api', 'account.active'])
+                ->prefix('api')
+                ->group(base_path('routes/financial_v1.php'));
         }
 
-        // Add ownership enforcement only to sensitive legacy actions, after the route is matched.
-        // This preserves old API contracts while making the new claim/assignee state authoritative.
         Event::listen(RouteMatched::class, function (RouteMatched $event): void {
             $uri = $event->route->uri();
             $sensitive =
@@ -38,9 +36,7 @@ class AppServiceProvider extends ServiceProvider
                 || str_starts_with($uri, 'api/account-verification/users/')
                 || str_starts_with($uri, 'api/admin/support/cases/');
 
-            if ($sensitive) {
-                $event->route->middleware(EnsureSupportTaskOwnership::class);
-            }
+            if ($sensitive) $event->route->middleware(EnsureSupportTaskOwnership::class);
         });
     }
 }
