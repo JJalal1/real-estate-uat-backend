@@ -5,8 +5,8 @@ on:
     branches:
       - fix/support-inbox-completed-assignment-flow
     paths:
-      - tools/temp_support_followup_fix.py
       - .github/workflows/temp-support-followup-check.yml
+      - backend-api-runtime/tests/Feature/UatSupportCompletedInboxFlowApiTest.php
 
 permissions:
   contents: write
@@ -20,15 +20,6 @@ jobs:
         with:
           ref: fix/support-inbox-completed-assignment-flow
           fetch-depth: 0
-      - run: python3 tools/temp_support_followup_fix.py
-      - name: Commit navigation fix
-        run: |
-          rm tools/temp_support_followup_fix.py
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Complete support completed-task navigation"
-          git push origin HEAD:fix/support-inbox-completed-assignment-flow
       - name: Backend targeted checks
         working-directory: backend-api-runtime
         env:
@@ -38,13 +29,15 @@ jobs:
           set +e
           cp .env.example .env || true
           composer install --no-interaction --prefer-dist --no-progress
-          php artisan test tests/Feature/UatSupportCompletedInboxFlowApiTest.php tests/Feature/UatSupportManagerAgentWorkflowApiTest.php tests/Feature/UatAdminSupportWorkspaceApiTest.php --display-warnings --fail-on-warning --fail-on-risky > /tmp/backend-support.log 2>&1
+          php artisan test tests/Feature/UatSupportCompletedInboxFlowApiTest.php tests/Feature/UatSupportManagerAgentWorkflowApiTest.php tests/Feature/UatAdminSupportWorkspaceApiTest.php --display-warnings --fail-on-warning --fail-on-risky > /tmp/backend-support.txt 2>&1
           code=$?
-          cat /tmp/backend-support.log
+          cat /tmp/backend-support.txt
           if [ $code -ne 0 ]; then
-            cp /tmp/backend-support.log ../backend_support_diagnostic.log
+            cp /tmp/backend-support.txt ../backend_support_diagnostic.txt
             cd ..
-            git add backend_support_diagnostic.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -f backend_support_diagnostic.txt
             git commit -m "Capture support backend diagnostic"
             git push origin HEAD:fix/support-inbox-completed-assignment-flow
           fi
