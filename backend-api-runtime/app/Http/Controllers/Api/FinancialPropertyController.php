@@ -78,8 +78,7 @@ class FinancialPropertyController extends PropertyController
     private function prepareFinancialListingInput(Request $request, ?Property $existing): void
     {
         $purpose=(string)$request->input('purpose',$existing?->purpose??'');
-        $hasRentFinance=$request->hasAny(['monthly_rent','rental_term_months','advance_months'])
-            || $existing?->monthly_rent!==null || $existing?->rental_term_months!==null || $existing?->advance_months!==null;
+        $hasRentFinance=$request->hasAny(['monthly_rent','rental_term_months','advance_months']);
         $rules=['price_display_mode'=>['nullable',Rule::in(['includes_sai','excludes_sai'])]];
         if($purpose==='rent' && $hasRentFinance){
             $rules += [
@@ -120,7 +119,7 @@ class FinancialPropertyController extends PropertyController
 
     private function assertFinancialListingComplete(Property $property): void
     {
-        if($property->purpose==='rent' && ($property->monthly_rent!==null || $property->rental_term_months!==null || $property->advance_months!==null)){
+        if($property->purpose==='rent'){
             if(!(float)$property->monthly_rent || !(int)$property->rental_term_months || !(int)$property->advance_months || (int)$property->rental_term_months>24 || (int)$property->advance_months>(int)$property->rental_term_months){
                 throw new ConflictHttpException('أكمل إيجار الشهر ومدة التأجير وعدد أشهر المقدم قبل إرسال الإعلان.');
             }

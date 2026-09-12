@@ -26,4 +26,5 @@ class PropertyPayment extends Model
     public function advertiser(): BelongsTo { return $this->belongsTo(User::class, 'advertiser_user_id'); }
     public function method(): BelongsTo { return $this->belongsTo(PropertyPaymentMethod::class, 'payment_method_id'); }
     public function financialTerm(): BelongsTo { return $this->belongsTo(PropertyDealFinancialTerm::class, 'deal_financial_term_id'); }
+    public function property(): BelongsTo { return $this->belongsTo(Property::class, 'property_id'); }
 }

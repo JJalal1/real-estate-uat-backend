@@ -3,6 +3,7 @@ namespace App\Services;
 
 use App\Models\ListingReview;
 use App\Models\Property;
+use App\Models\PropertyPayment;
 use App\Models\SupportCase;
 use App\Models\SupportCaseEvent;
 use App\Models\SupportTask;
@@ -36,6 +37,7 @@ class SupportTaskService
         $this->syncAccountVerifications();
         $this->syncListings();
         $this->syncSupportCases();
+        // Payment tasks are projected immediately when proof is submitted.
     }
 
     public function queryFor(User $actor, array $filters): Builder
@@ -125,6 +127,9 @@ class SupportTaskService
             if (!($actor->is_platform_owner || $actor->hasRole('super_admin')) || !$assignee->hasRole('support_manager')) {
                 throw ValidationException::withMessages(['user_id'=>['الإسناد الإداري يكون لموظف دعم. مدير الدعم يعمل على الطلبات عبر وضع «العمل كموظف دعم».']]);
             }
+        }
+        if ($task->source_type==='payment_review' && !$assignee->hasPermission('payments.review')) {
+            throw ValidationException::withMessages(['user_id'=>['المهمة المالية تُسند لموظف دعم لديه صلاحية مراجعة المدفوعات.']]);
         }
         $this->assertAssigneeCanReceive($actor,$task,$assignee);
         return DB::transaction(function()use($actor,$task,$assignee,$request):SupportTask{
@@ -598,7 +603,14 @@ class SupportTaskService
 
     private function claimSource(User $actor, SupportTask $task): void
     {
+        if($task->source_type==='payment_review'){
+            $payment=PropertyPayment::query()->lockForUpdate()->findOrFail($task->source_id);
+            if(!in_array($payment->status,['proof_submitted','under_review'],true))throw new ConflictHttpException('إثبات الدفع لم يعد بانتظار التحقق.');
+            if($payment->status!=='under_review')$payment->forceFill(['status'=>'under_review'])->save();
+            return;
+        }
         if($task->source_type==='listing_review'){
+
             $property=Property::query()->lockForUpdate()->findOrFail($task->source_id);
             $assigned=(int)($property->review_assigned_to_user_id??0);
             if($assigned>0&&$assigned!==(int)$actor->id)throw new ConflictHttpException('تم استلام الإعلان بواسطة موظف آخر.');
@@ -640,7 +652,12 @@ class SupportTaskService
 
     private function assignSource(SupportTask $task, User $assignee): void
     {
+        if($task->source_type==='payment_review'){
+            PropertyPayment::query()->whereKey($task->source_id)->whereIn('status',['proof_submitted','under_review'])->update(['status'=>'under_review','updated_at'=>now()]);
+            return;
+        }
         if($task->source_type==='listing_review'){
+
             Property::query()->whereKey($task->source_id)->update([
                 'review_status'=>'under_review','status'=>'pending',
                 'review_assigned_to_user_id'=>$assignee->id,'review_assigned_at'=>now(),'updated_at'=>now(),
@@ -700,6 +717,7 @@ class SupportTaskService
         $types=[];
         if($actor->hasPermission('support.handle_reports'))$types=array_merge($types,['support_ticket','report','account_verification']);
         if($actor->hasPermission('listings.moderate'))$types[]='listing_review';
+        if($actor->hasPermission('payments.review'))$types[]='payment_review';
         $query->whereIn('source_type',array_values(array_unique($types?:['__none__'])));
     }
 
@@ -711,6 +729,7 @@ class SupportTaskService
         }
         $this->assertAgent($actor);
         if($type==='listing_review'&&!$actor->hasPermission('listings.moderate'))abort(403);
+        if($type==='payment_review'&&!$actor->hasPermission('payments.review'))abort(403);
         if(in_array($type,['support_ticket','report','account_verification'],true)&&!$actor->hasPermission('support.handle_reports'))abort(403);
     }
 
@@ -735,12 +754,18 @@ class SupportTaskService
         return $actor->hasRole('support_agent')&&!$this->isManager($actor);
     }
 
+    public function projectPayment(PropertyPayment|int $payment): SupportTask
+    {
+        return app(FinancialSupportTaskService::class)->projectPayment($payment);
+    }
+
     public function projectSource(string $type, int $sourceId): ?SupportTask
     {
         return match($type) {
             'account_verification' => $this->projectAccountVerification($sourceId),
             'listing_review' => $this->projectListing($sourceId),
             'support_ticket', 'report' => $this->projectSupportCase($sourceId),
+            'payment_review' => $this->projectPayment($sourceId),
             default => null,
         };
     }
@@ -963,6 +988,7 @@ class SupportTaskService
 
     private function releaseSource(SupportTask $task): void
     {
+        if($task->source_type==='payment_review'){PropertyPayment::query()->whereKey($task->source_id)->where('status','under_review')->update(['status'=>'proof_submitted','updated_at'=>now()]);return;}
         if($task->source_type==='listing_review'){Property::query()->whereKey($task->source_id)->where('review_status','under_review')->update(['review_status'=>'submitted','status'=>'pending','review_assigned_to_user_id'=>null,'review_assigned_at'=>null,'updated_at'=>now()]);return;}
         if(in_array($task->source_type,['support_ticket','report'],true)){$case=SupportCase::query()->find($task->source_id);if(!$case)return;$status=$case->status==='in_progress'?'open':$case->status;$case->forceFill(['status'=>$status,'assigned_to_user_id'=>null,'assigned_to_name_snapshot'=>null,'last_activity_at'=>now()])->save();}
     }

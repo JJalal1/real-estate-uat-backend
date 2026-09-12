@@ -6,10 +6,13 @@ use App\Models\Property;
 use App\Models\PropertyAsset;
 use App\Models\PropertySaiTerm;
 use App\Models\Role;
+use App\Models\SupportTask;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Services\PropertyFinancialService;
+use App\Services\SupportTaskService;
 use Tests\TestCase;
 
 class FinancialV1ApiTest extends TestCase
@@ -134,6 +137,79 @@ class FinancialV1ApiTest extends TestCase
             ->assertOk()
             ->assertJsonFragment(['id'=>$property->id]);
         $this->assertDatabaseHas('properties', ['id'=>$property->id, 'status'=>'published']);
+    }
+
+
+    public function test_rental_financial_configuration_is_complete_and_snapshotted_on_listing(): void
+    {
+        [$advertiser, $headers] = $this->user('financial-rent-owner@example.test', '+967772000041');
+        $property = $this->property($advertiser, 1_000_000, 'Financial rent config');
+        $property->forceFill(['purpose'=>'rent','status'=>'draft','review_status'=>'draft','published_at'=>null])->saveQuietly();
+
+        $this->withHeaders($headers)->patchJson("/api/properties/{$property->id}/financial-config", [
+            'monthly_rent'=>250000,
+            'rental_term_months'=>12,
+            'advance_months'=>3,
+            'price_display_mode'=>'excludes_sai',
+        ])->assertOk()
+          ->assertJsonPath('data.price', 750000)
+          ->assertJsonPath('data.monthly_rent', 250000)
+          ->assertJsonPath('data.rental_term_months', 12)
+          ->assertJsonPath('data.advance_months', 3);
+
+        $this->assertDatabaseHas('properties', [
+            'id'=>$property->id,'purpose'=>'rent','price'=>750000,
+            'monthly_rent'=>250000,'rental_term_months'=>12,'advance_months'=>3,
+            'price_display_mode'=>'excludes_sai',
+        ]);
+        $this->withHeaders($headers)->patchJson("/api/properties/{$property->id}/financial-config", [
+            'monthly_rent'=>250000,'rental_term_months'=>2,'advance_months'=>3,
+        ])->assertStatus(422);
+    }
+
+    public function test_published_sai_attestation_uses_exact_snapshot_and_disappears_from_pending(): void
+    {
+        [$advertiser, $headers] = $this->user('financial-oath-owner@example.test', '+967772000042');
+        $property = $this->property($advertiser, 100_000_000, 'Financial oath');
+        $term = $this->term($property, 'seller');
+        $property->forceFill(['current_sai_term_id'=>$term->id])->saveQuietly();
+
+        $this->withHeaders($headers)->getJson('/api/finance/sai-attestations/pending')
+            ->assertOk()->assertJsonFragment(['property_id'=>$property->id,'text'=>PropertyFinancialService::SAI_ATTESTATION_TEXT]);
+        $this->withHeaders($headers)->postJson("/api/properties/{$property->id}/sai-attestation", ['accepted'=>false])->assertStatus(422);
+        $this->withHeaders($headers)->postJson("/api/properties/{$property->id}/sai-attestation", ['accepted'=>true])->assertOk();
+        $this->assertDatabaseHas('property_sai_attestations', [
+            'property_id'=>$property->id,'sai_term_id'=>$term->id,'user_id'=>$advertiser->id,
+            'text_snapshot'=>PropertyFinancialService::SAI_ATTESTATION_TEXT,
+        ]);
+        $this->withHeaders($headers)->getJson('/api/finance/sai-attestations/pending')->assertOk()->assertJsonMissing(['property_id'=>$property->id]);
+    }
+
+    public function test_payment_review_task_is_visible_claimed_and_reviewed_only_by_assigned_agent(): void
+    {
+        [$agreementId, $property, , $buyer, , ] = $this->acceptedSaleDeal('buyer');
+        $termId=(int)DB::table('property_deal_financial_terms')->where('property_agreement_id',$agreementId)->value('id');
+        $methodId=(int)DB::table('property_payment_methods')->value('id');
+        $paymentId=(int)DB::table('property_payments')->insertGetId([
+            'reference'=>'PAY-TEST-REVIEW','deal_financial_term_id'=>$termId,'property_id'=>$property->id,
+            'payer_user_id'=>$buyer->id,'advertiser_user_id'=>$property->user_id,'payment_method_id'=>$methodId,
+            'mode'=>'platform_sai_only','status'=>'proof_submitted','required_amount'=>900000,'currency'=>'YER',
+            'submitted_at'=>now(),'created_at'=>now(),'updated_at'=>now(),
+        ]);
+        app(SupportTaskService::class)->projectPayment($paymentId);
+
+        [$agent, $agentHeaders] = $this->user('financial-support-agent@example.test', '+967772000043');
+        $supportRole=Role::query()->where('key','support_agent')->firstOrFail();
+        $agent->roles()->sync([$supportRole->id=>['assigned_by_user_id'=>null,'created_at'=>now()]]);
+
+        $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertForbidden();
+        $inbox=$this->withHeaders($agentHeaders)->getJson('/api/admin/support/tasks?scope=inbox&type=payment_review')->assertOk();
+        $taskId=(int)$inbox->json('data.0.id');
+        $this->assertGreaterThan(0,$taskId);
+        $this->withHeaders($agentHeaders)->postJson("/api/admin/support/tasks/$taskId/claim")->assertOk()->assertJsonPath('data.is_mine',true);
+        $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertOk()->assertJsonPath('data.status','under_review');
+        $this->withHeaders($agentHeaders)->postJson("/api/admin/finance/payments/$paymentId/review",['decision'=>'correction','note'=>'صورة الإثبات غير واضحة'])->assertOk()->assertJsonPath('data.status','correction_required');
+        $this->assertDatabaseHas('support_tasks',['id'=>$taskId,'source_type'=>'payment_review','status'=>'waiting_user','assigned_to_user_id'=>$agent->id]);
     }
 
     private function acceptedSaleDeal(string $payer): array

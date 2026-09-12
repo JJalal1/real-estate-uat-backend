@@ -26,4 +26,5 @@ class PropertyDealFinancialTerm extends Model
     public function agreement(): BelongsTo { return $this->belongsTo(PropertyAgreement::class, 'property_agreement_id'); }
     public function buyer(): BelongsTo { return $this->belongsTo(User::class, 'buyer_user_id'); }
     public function advertiser(): BelongsTo { return $this->belongsTo(User::class, 'advertiser_user_id'); }
+    public function property(): BelongsTo { return $this->belongsTo(Property::class, 'property_id'); }
 }

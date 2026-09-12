@@ -19,6 +19,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
@@ -92,15 +93,15 @@ class PropertyFinancialController extends Controller
     public function proof(Request $request, PropertyPayment $payment): Response
     {
         /** @var User $user */ $user=$request->user();
-        $allowed=(int)$payment->payer_user_id===(int)$user->id || $user->is_platform_owner || $user->hasRole('super_admin') || $user->hasPermission('payments.review') || $user->hasPermission('finance.manage');
-        abort_unless($allowed,403);abort_unless($payment->proof_path,404);
+        $this->assertPaymentEvidenceAccess($request,$payment,$user);
+        abort_unless($payment->proof_path,404);
         return $this->storage->responsePrivate($payment->proof_path,$payment->proof_original_name ?: 'payment-proof');
     }
 
     public function paymentsMine(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $rows=PropertyPayment::query()->with('method')->where('payer_user_id',$user->id)->latest('id')->limit(250)->get();
+        $rows=PropertyPayment::query()->with(['method','financialTerm','property'])->where('payer_user_id',$user->id)->latest('id')->limit(250)->get();
         return response()->json(['data'=>$rows->map(fn(PropertyPayment $p)=>$this->paymentData($p,$user))->values()]);
     }
 
@@ -110,13 +111,63 @@ class PropertyFinancialController extends Controller
         abort_unless($user->hasApprovedVerificationProfile(),403);
         $receivables=PropertyPlatformReceivable::query()->where('advertiser_user_id',$user->id)->latest('id')->limit(250)->get();
         $payouts=DB::table('property_payouts')->where('advertiser_user_id',$user->id)->latest('id')->limit(250)->get();
-        $deals=PropertyDealFinancialTerm::query()->where('advertiser_user_id',$user->id)->latest('id')->limit(250)->get();
+        $deals=PropertyDealFinancialTerm::query()->with('property')->where('advertiser_user_id',$user->id)->latest('id')->limit(250)->get();
         return response()->json(['data'=>[
             'summary'=>$this->finance->financialSummaryFor($user),
             'receivables'=>$receivables->map(fn($r)=>$this->receivableData($r))->values(),
             'payouts'=>$payouts->map(fn($p)=>['id'=>$p->id,'reference'=>$p->reference,'amount'=>(float)$p->amount,'currency'=>$p->currency,'status'=>$p->status,'paid_at'=>$p->paid_at])->values(),
             'deals'=>$deals->map(fn(PropertyDealFinancialTerm $t)=>$this->dealData($t,$user,false))->values(),
         ]]);
+    }
+
+    public function configureListing(Request $request, Property $property): JsonResponse
+    {
+        /** @var User $user */ $user=$request->user();
+        abort_unless((int)$property->user_id===(int)$user->id,403);
+        if($property->status==='published'||in_array($property->review_status,['submitted','under_review','approved','rejected_blocked'],true)){
+            throw new ConflictHttpException('عدّل البيانات المالية أثناء المسودة أو بعد إعادتها للتصحيح.');
+        }
+        $validated=$request->validate([
+            'price_display_mode'=>['nullable',Rule::in(['includes_sai','excludes_sai'])],
+            'monthly_rent'=>['nullable','numeric','gt:0','max:9999999999999'],
+            'rental_term_months'=>['nullable','integer','min:1','max:24'],
+            'advance_months'=>['nullable','integer','min:1','max:24'],
+        ]);
+        if($property->purpose==='rent'){
+            $monthly=(float)($validated['monthly_rent']??$property->monthly_rent??0);
+            $term=(int)($validated['rental_term_months']??$property->rental_term_months??0);
+            $advance=(int)($validated['advance_months']??$property->advance_months??0);
+            if($monthly<=0||$term<1||$term>24||$advance<1||$advance>24){
+                throw ValidationException::withMessages(['financial'=>['أكمل الإيجار الشهري ومدة التأجير وأشهر المقدم.']]);
+            }
+            if($advance>$term)throw ValidationException::withMessages(['advance_months'=>['عدد أشهر المقدم لا يمكن أن يتجاوز مدة التأجير.']]);
+            $property->monthly_rent=$monthly;$property->rental_term_months=$term;$property->advance_months=$advance;$property->price=round($monthly*$advance,2);
+        }else{
+            $property->monthly_rent=null;$property->rental_term_months=null;$property->advance_months=null;
+        }
+        if($request->exists('price_display_mode'))$property->price_display_mode=$validated['price_display_mode']??null;
+        $property->saveQuietly();
+        $this->audit->record($user,'listing.financial_config_updated',$property,[
+            'price_display_mode'=>$property->price_display_mode,'monthly_rent'=>$property->monthly_rent,
+            'rental_term_months'=>$property->rental_term_months,'advance_months'=>$property->advance_months,
+        ],$request,$user->id);
+        return response()->json(['message'=>'تم تحديث بيانات السعر والتسوية.','data'=>[
+            'property_id'=>$property->id,'price'=>(float)$property->price,'price_display_mode'=>$property->price_display_mode,
+            'monthly_rent'=>$property->monthly_rent!==null?(float)$property->monthly_rent:null,
+            'rental_term_months'=>$property->rental_term_months,'advance_months'=>$property->advance_months,
+        ]]);
+    }
+
+    public function pendingSaiAttestations(Request $request): JsonResponse
+    {
+        /** @var User $user */ $user=$request->user();
+        $rows=Property::query()->withoutGlobalScopes()->where('user_id',$user->id)->where('status','published')->whereNotNull('current_sai_term_id')
+            ->whereNotExists(function($q):void{$q->selectRaw('1')->from('property_sai_attestations as a')->whereColumn('a.property_id','properties.id')->whereColumn('a.sai_term_id','properties.current_sai_term_id');})
+            ->latest('published_at')->limit(100)->get(['id','title','current_sai_term_id']);
+        return response()->json(['data'=>$rows->map(fn(Property $p)=>[
+            'property_id'=>$p->id,'property_title'=>$p->title,'sai_term_id'=>(int)$p->current_sai_term_id,
+            'text'=>PropertyFinancialService::SAI_ATTESTATION_TEXT,
+        ])->values()]);
     }
 
     public function confirmDirect(Request $request, PropertyAgreement $agreement): JsonResponse
@@ -132,8 +183,17 @@ class PropertyFinancialController extends Controller
 
     public function attestSai(Request $request, Property $property): JsonResponse
     {
-        /** @var User $user */ $user=$request->user();$this->finance->attestSai($property,$user,$request);
+        /** @var User $user */ $user=$request->user();
+        $request->validate(['accepted'=>['required','accepted']]);
+        $this->finance->attestSai($property,$user,$request);
         return response()->json(['message'=>'تم تسجيل إقرار السعي.']);
+    }
+
+    public function adminPayment(Request $request, PropertyPayment $payment): JsonResponse
+    {
+        /** @var User $actor */ $actor=$request->user();
+        $this->assertAssignedPaymentReviewer($request,$payment,$actor);
+        return response()->json(['data'=>$this->paymentData($payment,$actor)]);
     }
 
     public function review(Request $request, PropertyPayment $payment): JsonResponse
@@ -141,6 +201,9 @@ class PropertyFinancialController extends Controller
         /** @var User $actor */ $actor=$request->user();
         $validated=$request->validate(['decision'=>['required',Rule::in(['confirm','correction','reject'])],'note'=>['nullable','string','max:2000'],'acting_as_agent'=>['nullable','boolean']]);
         abort_unless($actor->hasPermission('payments.review'),403);
+        if(in_array($validated['decision'],['correction','reject'],true)&&mb_strlen(trim((string)($validated['note']??'')))<3){
+            throw ValidationException::withMessages(['note'=>['اكتب سببًا واضحًا عند طلب التصحيح أو رفض الإثبات.']]);
+        }
         if ($actor->hasRole('support_manager') && !$actor->is_platform_owner && !$actor->hasRole('super_admin') && !$request->boolean('acting_as_agent')) {
             throw new ConflictHttpException('فعّل وضع «العمل كموظف دعم» قبل مراجعة إثبات الدفع بنفسك.');
         }
@@ -212,39 +275,72 @@ class PropertyFinancialController extends Controller
 
     private function dealData(PropertyDealFinancialTerm $term, User $viewer, bool $includeMethods): array
     {
+        $term->loadMissing('property');
         $buyerPays=in_array($term->sai_payer,['buyer','tenant'],true);
+        $isBuyer=(int)$viewer->id===(int)$term->buyer_user_id;
+        $isAdvertiser=(int)$viewer->id===(int)$term->advertiser_user_id;
         $fullRequired=round((float)$term->base_amount+($buyerPays?(float)$term->sai_total_amount:0),2);
+        $saiRequired=0.0;
+        if($buyerPays&&$isBuyer)$saiRequired=round((float)$term->sai_total_amount,2);
+        elseif(!$buyerPays&&$isAdvertiser)$saiRequired=round((float)$term->platform_share_amount,2);
+        $canPayFull=$isBuyer&&$fullRequired>0;
+        $canPaySaiOnly=$saiRequired>0;
         $data=[
-            'id'=>$term->id,'agreement_id'=>$term->property_agreement_id,'property_id'=>$term->property_id,'transaction_type'=>$term->transaction_type,
+            'id'=>$term->id,'agreement_id'=>$term->property_agreement_id,'property_id'=>$term->property_id,
+            'property_title'=>$term->property?->title ?: 'العقار','transaction_type'=>$term->transaction_type,
             'advertiser_type'=>$term->advertiser_type,'currency'=>$term->currency,'base_amount'=>(float)$term->base_amount,
             'monthly_rent'=>$term->monthly_basis_amount!==null?(float)$term->monthly_basis_amount:null,'rental_term_months'=>$term->rental_term_months,
             'advance_months'=>$term->advance_months,'sai_payer'=>$term->sai_payer,'sai_total_amount'=>(float)$term->sai_total_amount,
-            'required_full_payment'=>$fullRequired,'price_display_mode'=>$term->price_display_mode,'is_buyer'=>(int)$viewer->id===(int)$term->buyer_user_id,
-            'is_advertiser'=>(int)$viewer->id===(int)$term->advertiser_user_id,'frozen_at'=>$term->frozen_at?->toIso8601String(),
+            'required_full_payment'=>$fullRequired,'required_sai_payment'=>$saiRequired,'can_pay_full'=>$canPayFull,'can_pay_sai_only'=>$canPaySaiOnly,
+            'price_display_mode'=>$term->price_display_mode,'is_buyer'=>$isBuyer,'is_advertiser'=>$isAdvertiser,'frozen_at'=>$term->frozen_at?->toIso8601String(),
         ];
-        if((int)$viewer->id===(int)$term->advertiser_user_id){
+        if($isAdvertiser){
             $data['platform_share_amount']=(float)$term->platform_share_amount;$data['advertiser_sai_share_amount']=(float)$term->advertiser_sai_share_amount;
         }
         if($includeMethods){
-            $amount=(int)$viewer->id===(int)$term->buyer_user_id?$fullRequired:($this->finance->hasOpenReceivable((int)$viewer->id)?(float)$term->platform_share_amount:0);
-            $data['payment_methods']=$amount>0?$this->finance->paymentMethods($amount,$term->currency):[];
+            $methodAmount=$canPayFull?$fullRequired:$saiRequired;
+            $data['payment_methods']=$methodAmount>0?$this->finance->paymentMethods($methodAmount,$term->currency):[];
+            $payments=PropertyPayment::query()->with(['method','financialTerm','property'])->where('deal_financial_term_id',$term->id)->latest('id')->limit(50)->get();
+            $data['payments']=$payments->map(fn(PropertyPayment $p)=>$this->paymentData($p,$viewer))->values();
+            $receivable=PropertyPlatformReceivable::query()->where('deal_financial_term_id',$term->id)->latest('id')->first();
+            $data['receivable']=$receivable?$this->receivableData($receivable):null;
         }
         return $data;
     }
 
     private function paymentData(PropertyPayment $payment, User $viewer): array
     {
-        $payment->loadMissing('method');
+        $payment->loadMissing(['method','financialTerm','property']);
+        $canSeeEvidence=(int)$payment->payer_user_id===(int)$viewer->id||$viewer->is_platform_owner||$viewer->hasRole('super_admin')||$viewer->hasPermission('finance.manage')||$viewer->hasPermission('payments.review');
         return [
-            'id'=>$payment->id,'reference'=>$payment->reference,'property_id'=>$payment->property_id,'mode'=>$payment->mode,'status'=>$payment->status,
+            'id'=>$payment->id,'reference'=>$payment->reference,'agreement_id'=>$payment->financialTerm?->property_agreement_id,
+            'property_id'=>$payment->property_id,'property_title'=>$payment->property?->title,'mode'=>$payment->mode,'status'=>$payment->status,
             'required_amount'=>(float)$payment->required_amount,'currency'=>$payment->currency,'payment_method'=>$payment->method?[
                 'id'=>$payment->method->id,'key'=>$payment->method->key,'name_ar'=>$payment->method->name_ar,'asset_key'=>$payment->method->asset_key,
                 'beneficiary_name'=>$payment->method->beneficiary_name,'destination_label'=>$payment->method->destination_label,'destination_value'=>$payment->method->destination_value,
                 'instructions_ar'=>$payment->method->instructions_ar,'requires_sender_phone'=>$payment->method->requires_sender_phone,
-            ]:null,'provider_reference'=>$payment->provider_reference,'sender_name'=>$payment->sender_name,'sender_phone'=>$payment->sender_phone,
-            'has_proof'=>$payment->proof_path!==null,'proof_url'=>$payment->proof_path?'/api/finance/payments/'.$payment->id.'/proof':null,
-            'review_note'=>$payment->review_note,'submitted_at'=>$payment->submitted_at?->toIso8601String(),'confirmed_at'=>$payment->confirmed_at?->toIso8601String(),
+                'requires_provider_reference'=>$payment->method->requires_provider_reference,
+            ]:null,'provider_reference'=>$canSeeEvidence?$payment->provider_reference:null,'sender_name'=>$canSeeEvidence?$payment->sender_name:null,'sender_phone'=>$canSeeEvidence?$payment->sender_phone:null,
+            'has_proof'=>$payment->proof_path!==null,'proof_url'=>$canSeeEvidence&&$payment->proof_path?'/api/finance/payments/'.$payment->id.'/proof':null,
+            'review_note'=>$payment->review_note,'created_at'=>$payment->created_at?->toIso8601String(),'submitted_at'=>$payment->submitted_at?->toIso8601String(),'confirmed_at'=>$payment->confirmed_at?->toIso8601String(),
         ];
+    }
+
+    private function assertPaymentEvidenceAccess(Request $request, PropertyPayment $payment, User $actor): void
+    {
+        if((int)$payment->payer_user_id===(int)$actor->id||$actor->is_platform_owner||$actor->hasRole('super_admin')||$actor->hasPermission('finance.manage'))return;
+        $this->assertAssignedPaymentReviewer($request,$payment,$actor);
+    }
+
+    private function assertAssignedPaymentReviewer(Request $request, PropertyPayment $payment, User $actor): void
+    {
+        abort_unless($actor->hasPermission('payments.review'),403);
+        if($actor->hasRole('support_manager')&&!$actor->is_platform_owner&&!$actor->hasRole('super_admin')&&!$request->boolean('acting_as_agent')){
+            throw new ConflictHttpException('فعّل وضع «العمل كموظف دعم» قبل مراجعة إثبات الدفع بنفسك.');
+        }
+        if($actor->is_platform_owner||$actor->hasRole('super_admin'))return;
+        $task=SupportTask::query()->where('source_type','payment_review')->where('source_id',$payment->id)->first();
+        abort_unless($task&&(int)$task->assigned_to_user_id===(int)$actor->id,403,'يجب استلام مهمة التحقق أو إسنادها لك أولاً.');
     }
 
     private function receivableData(PropertyPlatformReceivable $r): array
