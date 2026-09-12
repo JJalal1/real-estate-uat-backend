@@ -1,0 +1,80 @@
+name: Financial V1 Backend Check
+
+on:
+  push:
+    branches: [feature/financial-v1-impl]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  laravel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare test environment
+        shell: bash
+        run: |
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - run: php artisan migrate:fresh --force
+      - run: php artisan route:list > /tmp/routes.txt
+      - run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_financial_v1
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_financial_v1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: real_estate_financial_v1
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql, pgsql
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare test environment
+        shell: bash
+        run: |
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - run: php artisan migrate:fresh --force
+      - name: Verify Financial V1 RLS and ledger triggers
+        shell: bash
+        run: |
+          php artisan tinker --execute="dump(DB::select(\"select relname, relrowsecurity from pg_class where relname in ('property_payments','property_platform_receivables','property_financial_ledger_entries','property_financial_ledger_lines') order by relname\"));"
+      - run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
