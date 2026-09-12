@@ -20,6 +20,7 @@ class SupportAgentHomeScreen extends ConsumerWidget {
       load: () => ref.read(supportWorkspaceRepositoryProvider).dashboard(),
       cards: const [
         _DashboardCardSpec('my_tasks', 'مهامي', Icons.assignment_ind_outlined, _DashboardAction.mine),
+        _DashboardCardSpec('completed_today', 'المنجزة', Icons.task_alt_outlined, _DashboardAction.completed),
         _DashboardCardSpec('inbox_new', 'الوارد الجديد', Icons.inbox_outlined, _DashboardAction.inbox),
         _DashboardCardSpec('account_verifications', 'طلبات التحقق', Icons.verified_user_outlined, _DashboardAction.verifications),
         _DashboardCardSpec('listing_reviews', 'تحقيق الإعلانات', Icons.fact_check_outlined, _DashboardAction.listings),
@@ -64,7 +65,7 @@ class SupportManagerHomeScreen extends ConsumerWidget {
         _DashboardCardSpec('active_agents', 'موظفو الدعم', Icons.groups_2_outlined, _DashboardAction.team),
         _DashboardCardSpec('available_agents', 'المتاحون الآن', Icons.how_to_reg_outlined, _DashboardAction.team),
         _DashboardCardSpec('team_open', 'عبء الفريق', Icons.work_outline, _DashboardAction.all),
-        _DashboardCardSpec('completed_today', 'منجز اليوم', Icons.task_alt_outlined, _DashboardAction.all),
+        _DashboardCardSpec('completed_today', 'منجز اليوم', Icons.task_alt_outlined, _DashboardAction.completed),
         _DashboardCardSpec('average_claim_minutes', 'متوسط الاستلام/د', Icons.schedule_outlined, _DashboardAction.all),
         _DashboardCardSpec('average_response_minutes', 'متوسط الرد/د', Icons.quickreply_outlined, _DashboardAction.all),
       ],
@@ -545,6 +546,9 @@ void _openAction(BuildContext context, _DashboardAction action) {
     case _DashboardAction.mine:
       page = const SupportTasksScreen(initialScope: 'mine', title: 'مهامي');
       break;
+    case _DashboardAction.completed:
+      page = const SupportTasksScreen(initialScope: 'completed', title: 'المهام المنجزة');
+      break;
     case _DashboardAction.all:
       page = const SupportTasksScreen(initialScope: 'all', title: 'كل الأعمال');
       break;
@@ -790,6 +794,7 @@ class _DashboardCardSpec {
 enum _DashboardAction {
   inbox,
   mine,
+  completed,
   all,
   verifications,
   listings,

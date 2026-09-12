@@ -137,6 +137,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
 
   String _defaultTitle() {
     if (_scope == 'mine') return 'مهامي';
+    if (_scope == 'completed') return 'المهام المنجزة';
     if (_scope == 'all') return 'كل الأعمال';
     return 'الوارد الجديد';
   }
@@ -157,10 +158,12 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       ? const [
                           ButtonSegment(value: 'inbox', label: Text('الوارد')),
                           ButtonSegment(value: 'mine', label: Text('مهامي')),
+                          ButtonSegment(value: 'completed', label: Text('المنجزة')),
                         ]
                       : const [
                           ButtonSegment(value: 'inbox', label: Text('غير مسند')),
                           ButtonSegment(value: 'mine', label: Text('مسند لي')),
+                          ButtonSegment(value: 'completed', label: Text('المنجزة')),
                           ButtonSegment(value: 'all', label: Text('كل الأعمال')),
                         ],
                   selected: {_scope},
@@ -448,12 +451,13 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
 
   Future<void> _claim(SupportTaskItem task) async {
     try {
-      await ref.read(supportWorkspaceRepositoryProvider).claim(
+      final claimed = await ref.read(supportWorkspaceRepositoryProvider).claim(
             task.id,
             actingAsAgent: widget.actingAsAgent,
           );
-      _message('تم استلام المهمة ونقلها إلى مهامك.');
+      _message('تم استلام المهمة وإضافتها إلى مهامك.');
       await _load();
+      if (mounted) await _open(claimed, false);
     } catch (error) {
       _message(friendlyApiError(error));
       await _load();
@@ -902,7 +906,7 @@ class _TaskCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                       Text(
-                        '${_typeLabel(task.sourceType)} • ${task.requesterName ?? 'مستخدم #${task.requesterUserId ?? task.sourceId}'}${task.supportTeamName == null ? '' : ' • ${task.supportTeamName}'}${task.governorateName == null ? '' : ' • ${task.governorateName}'}',
+                        '${_taskTypeLabel(task)} • ${task.requesterName ?? 'مستخدم #${task.requesterUserId ?? task.sourceId}'}${task.supportTeamName == null ? '' : ' • ${task.supportTeamName}'}${task.governorateName == null ? '' : ' • ${task.governorateName}'}',
                         style: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
                       ),
                     ],
@@ -922,6 +926,8 @@ class _TaskCard extends StatelessWidget {
               runSpacing: 6,
               children: [
                 _StatusPill(label: _statusLabel(task.status), kind: _statusKind(task.status)),
+                if (task.isClosed)
+                  _StatusPill(label: _taskResultLabel(task), kind: task.status == 'rejected' ? 2 : 1),
                 _StatusPill(label: _priorityLabel(task.priority), kind: task.priority == 'urgent' ? 2 : 0),
                 if (task.severity != null)
                   _StatusPill(label: 'خطورة ${_severityLabel(task.severity!)}', kind: task.severity == 'critical' ? 2 : 0),
@@ -938,7 +944,9 @@ class _TaskCard extends StatelessWidget {
                   Text('وصلت ${_timeAgo(task.createdAt!)}', style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted)),
                 if (task.claimedAt != null)
                   Text('استلمت ${_timeAgo(task.claimedAt!)}', style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted)),
-                if (task.lastActivityAt != null)
+                if (task.completedAt != null)
+                  Text('أُنجزت ${_timeAgo(task.completedAt!)}', style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted)),
+                if (task.lastActivityAt != null && !task.isClosed)
                   Text('آخر تحديث ${_timeAgo(task.lastActivityAt!)}', style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted)),
               ],
             ),
@@ -982,9 +990,9 @@ class _TaskCard extends StatelessWidget {
                 ],
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: onOpen,
-                    icon: const Icon(Icons.open_in_new),
-                    label: Text(task.canClaim && !manager ? 'بعد الاستلام' : 'فتح'),
+                    onPressed: task.isClosed ? onManage : onOpen,
+                    icon: Icon(task.isClosed ? Icons.receipt_long_outlined : Icons.open_in_new),
+                    label: Text(task.isClosed ? 'تفاصيل القرار' : (task.canClaim && !manager ? 'بعد الاستلام' : 'فتح')),
                   ),
                 ),
               ],
@@ -1170,6 +1178,34 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
       if (mounted) setState(() => _busy = false);
     }
   }
+}
+
+
+String _taskTypeLabel(SupportTaskItem task) {
+  if (task.sourceType == 'account_verification') {
+    final kind = task.metadata['verification_type']?.toString();
+    return switch (kind) {
+      'owner' => 'تحقق حساب مالك',
+      'broker' => 'تحقق حساب دلال',
+      'office' => 'تحقق حساب مكتب عقارات',
+      _ => 'تحقق حساب',
+    };
+  }
+  if (task.sourceType == 'listing_review') return 'تحقق نشر إعلان';
+  return _typeLabel(task.sourceType);
+}
+
+String _taskResultLabel(SupportTaskItem task) {
+  final resolution = task.metadata['resolution']?.toString();
+  return switch (resolution) {
+    'approved' => task.sourceType == 'listing_review' ? 'تم القبول والنشر' : 'تم القبول',
+    'returned_for_correction' => 'أُعيد للمراجعة والتصحيح',
+    'rejected' => 'تم الرفض',
+    'resolved' => 'تم الحل والإغلاق',
+    'dismissed' => 'تم الرفض والإغلاق',
+    'documents_requested' => 'طُلبت مستندات إضافية',
+    _ => task.status == 'rejected' ? 'مرفوض' : 'منجز',
+  };
 }
 
 String _typeLabel(String value) => switch (value) {
