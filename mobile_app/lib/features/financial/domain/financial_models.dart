@@ -59,6 +59,10 @@ class FinancialPayment {
     this.mode,
     this.paymentMethod,
     this.providerReference,
+    this.senderName,
+    this.senderPhone,
+    this.hasProof = false,
+    this.proofUrl,
     this.reviewNote,
     this.createdAt,
     this.submittedAt,
@@ -76,6 +80,10 @@ class FinancialPayment {
   final String? mode;
   final String? paymentMethod;
   final String? providerReference;
+  final String? senderName;
+  final String? senderPhone;
+  final bool hasProof;
+  final String? proofUrl;
   final String? reviewNote;
   final DateTime? createdAt;
   final DateTime? submittedAt;
@@ -106,6 +114,10 @@ class FinancialPayment {
             ? _text((json['payment_method'] as Map)['name_ar'])
             : _text(json['payment_method']),
         providerReference: _text(json['provider_reference']),
+        senderName: _text(json['sender_name']),
+        senderPhone: _text(json['sender_phone']),
+        hasProof: json['has_proof'] == true || json['has_proof'] == 1,
+        proofUrl: _text(json['proof_url']),
         reviewNote: _text(json['review_note']),
         createdAt: _date(json['created_at']),
         submittedAt: _date(json['submitted_at']),
@@ -215,5 +227,8 @@ int _int(dynamic value) => value is num ? value.toInt() : int.tryParse('$value')
 int? _nullableInt(dynamic value) => value == null ? null : _int(value);
 double _double(dynamic value) => value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
 double? _nullableDouble(dynamic value) => value == null ? null : _double(value);
-String? _text(dynamic value) { final text = value?.toString().trim(); return text == null || text.isEmpty ? null : text; }
+String? _text(dynamic value) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty ? null : text;
+}
 DateTime? _date(dynamic value) => value == null ? null : DateTime.tryParse('$value');
