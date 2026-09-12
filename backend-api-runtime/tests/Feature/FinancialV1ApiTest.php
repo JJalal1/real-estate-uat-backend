@@ -82,9 +82,9 @@ class FinancialV1ApiTest extends TestCase
             ->assertJsonMissingPath('data.advertiser_sai_share_amount');
     }
 
-    public function test_direct_deal_creates_24_hour_receivable_and_blocks_new_listing(): void
+    public function test_direct_deal_creates_24_hour_receivable_blocks_new_listing_and_hides_after_deadline(): void
     {
-        [$agreementId, , $advertiser, , $advertiserHeaders, $buyerHeaders] = $this->acceptedSaleDeal('seller');
+        [$agreementId, $property, $advertiser, , $advertiserHeaders, $buyerHeaders] = $this->acceptedSaleDeal('seller');
 
         $this->withHeaders($buyerHeaders)
             ->postJson("/api/finance/agreements/$agreementId/direct-confirmation", ['decision'=>'confirmed'])
@@ -110,10 +110,30 @@ class FinancialV1ApiTest extends TestCase
             'source_id'=>$receivable->id,
         ]);
 
+        // The financial hold blocks new listings immediately, before the 24h visibility deadline.
         $this->withHeaders($advertiserHeaders)
             ->postJson('/api/properties', [])
             ->assertStatus(409)
             ->assertJsonFragment(['message'=>'لديك مستحقات للمنصة. سدّد المستحقات الحالية قبل إنشاء أو إرسال إعلان جديد.']);
+
+        // Before the deadline, the already-published listing remains discoverable.
+        $this->getJson("/api/properties/{$property->id}")->assertOk();
+
+        // Once the 24h deadline passes, the published listing disappears publicly
+        // without deleting it; the advertiser still sees it in My Listings.
+        DB::table('property_platform_receivables')->where('id', $receivable->id)->update([
+            'due_at'=>now()->subMinute(),
+            'updated_at'=>now(),
+        ]);
+        $this->getJson("/api/properties/{$property->id}")->assertNotFound();
+        $this->getJson('/api/properties')
+            ->assertOk()
+            ->assertJsonMissing(['id'=>$property->id]);
+        $this->withHeaders($advertiserHeaders)
+            ->getJson('/api/properties/mine/list')
+            ->assertOk()
+            ->assertJsonFragment(['id'=>$property->id]);
+        $this->assertDatabaseHas('properties', ['id'=>$property->id, 'status'=>'published']);
     }
 
     private function acceptedSaleDeal(string $payer): array
