@@ -7,6 +7,7 @@ use App\Models\Property;
 use App\Models\PropertyAgreement;
 use App\Models\RentalContract;
 use App\Services\AuditLogService;
+use App\Services\PropertyFinancialService;
 use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,8 +16,11 @@ use Illuminate\Support\Facades\Validator;
 
 class FinancialAgreementContractController extends AgreementContractController
 {
-    public function __construct(AuditLogService $audit, UserNotificationService $notifications)
-    {
+    public function __construct(
+        AuditLogService $audit,
+        UserNotificationService $notifications,
+        private readonly PropertyFinancialService $finance,
+    ) {
         parent::__construct($audit,$notifications);
     }
 
@@ -36,6 +40,18 @@ class FinancialAgreementContractController extends AgreementContractController
         $rent=$this->prepareRentAgreementRequest($request,$property,$current);
         $response=parent::reviseAgreement($request,$agreement);
         $this->persistAgreementRentFields($response,$rent);
+        return $response;
+    }
+
+    public function acceptAgreement(Request $request, PropertyAgreement $agreement): JsonResponse
+    {
+        $response=parent::acceptAgreement($request,$agreement);
+        if($response->getStatusCode()<400){
+            $fresh=PropertyAgreement::query()->find($agreement->id);
+            if($fresh && $fresh->status==='accepted'){
+                $this->finance->freezeAcceptedAgreement($fresh);
+            }
+        }
         return $response;
     }
 
