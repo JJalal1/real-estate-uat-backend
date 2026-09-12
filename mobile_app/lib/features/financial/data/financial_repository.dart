@@ -40,6 +40,34 @@ class FinancialRepository {
     return FinancialAccountSummary.fromJson(_data(response.data));
   }
 
+  Future<Map<String, dynamic>> configureListing({
+    required int propertyId,
+    String? priceDisplayMode,
+    double? monthlyRent,
+    int? rentalTermMonths,
+    int? advanceMonths,
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/properties/$propertyId/financial-config',
+      data: <String, dynamic>{
+        'price_display_mode': priceDisplayMode,
+        if (monthlyRent != null) 'monthly_rent': monthlyRent,
+        if (rentalTermMonths != null) 'rental_term_months': rentalTermMonths,
+        if (advanceMonths != null) 'advance_months': advanceMonths,
+      },
+      options: await _auth.requiredAuthOptions(),
+    );
+    return _data(response.data);
+  }
+
+  Future<List<Map<String, dynamic>>> pendingSaiAttestations() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/finance/sai-attestations/pending',
+      options: await _auth.requiredAuthOptions(),
+    );
+    return _list(response.data);
+  }
+
   Future<FinancialPayment> createPayment({
     required int agreementId,
     required String mode,
@@ -116,26 +144,50 @@ class FinancialRepository {
     return _data(response.data);
   }
 
-  Future<FinancialPayment> reviewPayment(int paymentId, String decision, {String? note}) async {
+  Future<FinancialPayment> adminPayment(
+    int paymentId, {
+    bool actingAsAgent = false,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/admin/finance/payments/$paymentId',
+      queryParameters: actingAsAgent ? const {'acting_as_agent': 1} : null,
+      options: await _auth.requiredAuthOptions(),
+    );
+    return FinancialPayment.fromJson(_data(response.data));
+  }
+
+  Future<FinancialPayment> reviewPayment(
+    int paymentId,
+    String decision, {
+    String? note,
+    bool actingAsAgent = false,
+  }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/admin/finance/payments/$paymentId/review',
-      data: {'decision': decision, if (note?.trim().isNotEmpty == true) 'note': note!.trim()},
+      data: {
+        'decision': decision,
+        if (note?.trim().isNotEmpty == true) 'note': note!.trim(),
+        if (actingAsAgent) 'acting_as_agent': true,
+      },
       options: await _auth.requiredAuthOptions(),
     );
     _bump();
     return FinancialPayment.fromJson(_data(response.data));
   }
 
-  Future<Response<List<int>>> paymentProof(int paymentId) async {
+  Future<Response<List<int>>> paymentProof(
+    int paymentId, {
+    bool actingAsAgent = false,
+  }) async {
     return _dio.get<List<int>>(
       '/finance/payments/$paymentId/proof',
+      queryParameters: actingAsAgent ? const {'acting_as_agent': 1} : null,
       options: (await _auth.requiredAuthOptions()).copyWith(responseType: ResponseType.bytes),
     );
   }
 
   void _bump() {
-    // Repositories do not own a Ref. Screens that mutate finance invalidate
-    // their local state explicitly; provider remains available for listeners.
+    // Screens that mutate finance invalidate their local state explicitly.
   }
 
   Map<String, dynamic> _data(Map<String, dynamic>? body) {
