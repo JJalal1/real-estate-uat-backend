@@ -52,7 +52,7 @@ void main() {
     expect(pages, contains('الحسابات والأدوار والصلاحيات'));
     expect(pages, contains('GeneralManagerAccountsScreen'));
     expect(pages, contains('رحلة العقار داخل المنصة'));
-    expect(pages, contains('المالية والتقارير'));
+    expect(pages, contains("const _SectionTitle('المالية')"));
     expect(pages, contains("ButtonSegment(value: '7d'"));
     expect(pages, contains("ButtonSegment(value: '30d'"));
     expect(pages, isNot(contains('SupportTasksScreen(')));
