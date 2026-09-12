@@ -23,6 +23,17 @@ jobs:
         with:
           ref: fix/support-inbox-completed-assignment-flow
           fetch-depth: 0
+      - name: Repair patcher typo
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('tools/temp_fix_support_inbox_completed.py')
+          s=path.read_text()
+          bad='''rep(ui,\n"                          ButtonSegment(value: \'mine\', label: Text(\'مسند لي\')),\\n                          ButtonSegment(value: \'all\', label: Text(\'كل الأعمال\')),")\n# Above malformed helper: restore with proper direct replacement below if needed\n'''
+          if bad not in s:
+              raise SystemExit('malformed helper block not found')
+          path.write_text(s.replace(bad,'# Manager segment is replaced below.\n',1))
+          PY
       - name: Apply patch
         run: python3 tools/temp_fix_support_inbox_completed.py
       - name: Remove temporary patcher and workflow
