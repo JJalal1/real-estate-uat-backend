@@ -35,6 +35,7 @@ class FinancialPropertyController extends PropertyController
 
     public function index(Request $request): JsonResponse { return $this->enrich(parent::index($request),$request); }
     public function nearby(Request $request): JsonResponse { return $this->enrich(parent::nearby($request),$request); }
+    public function mine(Request $request): JsonResponse { return $this->enrich(parent::mine($request),$request); }
 
     public function show(Request $request, Property $property): JsonResponse
     {
