@@ -1,0 +1,57 @@
+name: Apply Financial V1 Finalization
+
+on:
+  push:
+    branches: [feature/financial-v1-impl]
+    paths:
+      - '.github/workflows/apply-financial-v1-finalization.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/financial-v1-impl
+          fetch-depth: 0
+      - name: Repair preparation-script syntax
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/finalize_financial_v1_backend.py')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('{","\n    private function claimSource', '{",\n    "    private function claimSource')
+          s = s.replace('{","\n    private function assignSource', '{",\n    "    private function assignSource')
+          p.write_text(s, encoding='utf-8')
+          PY
+          python3 -m py_compile .github/scripts/finalize_financial_v1_backend.py
+      - name: Apply guarded backend patch
+        run: python3 .github/scripts/finalize_financial_v1_backend.py
+      - name: Validate patch
+        shell: bash
+        run: |
+          git diff --check
+          php -l backend-api-runtime/routes/financial_v1.php
+          php -l backend-api-runtime/app/Http/Controllers/Api/FinancialPropertyController.php
+          php -l backend-api-runtime/app/Http/Controllers/Api/PropertyFinancialController.php
+          php -l backend-api-runtime/app/Services/SupportTaskService.php
+          php -l backend-api-runtime/app/Models/PropertyPayment.php
+          php -l backend-api-runtime/app/Models/PropertyDealFinancialTerm.php
+          php -l backend-api-runtime/tests/Feature/FinancialV1ApiTest.php
+          git diff --stat
+      - name: Commit finalized backend and remove one-shot helpers
+        shell: bash
+        run: |
+          rm -f .github/scripts/finalize_financial_v1_backend.py
+          rm -f .github/workflows/apply-financial-v1-finalization.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Finalize Financial V1 backend integration'
+          git push origin HEAD:feature/financial-v1-impl
