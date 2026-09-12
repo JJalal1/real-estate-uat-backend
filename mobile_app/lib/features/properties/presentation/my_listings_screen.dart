@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../financial/data/financial_repository.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import 'add_property_wizard_screen.dart';
@@ -128,6 +129,9 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
                             onDelete: item.canEdit
                                 ? () => _delete(context, ref, item)
                                 : null,
+                            onAttest: item.saiAttestationRequired
+                                ? () => _attestSai(context, ref, item)
+                                : null,
                           );
                         },
                       ),
@@ -236,6 +240,44 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
+      }
+    }
+  }
+
+  Future<void> _attestSai(
+    BuildContext context,
+    WidgetRef ref,
+    PropertyDetails item,
+  ) async {
+    const oath =
+        'أقسم بالله أنني إذا تمت الصفقة عن طريق المنصة فسأقوم بسداد مستحقات المنصة من السعي حسب الشروط التي وافقت عليها عند نشر الإعلان.';
+    final confirmed = await AppDialog.show<bool>(
+          context,
+          title: 'إقرار السعي للإعلان المنشور',
+          content: const Text(oath),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('ليس الآن')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('أقسم بذلك')),
+          ],
+        ) ??
+        false;
+    if (!confirmed || !context.mounted) return;
+    try {
+      await ref.read(financialRepositoryProvider).attestSai(item.id);
+      ref.read(propertyDataRevisionProvider.notifier).state++;
+      ref.invalidate(myListingsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('تم تسجيل إقرار السعي لهذا الإعلان.')));
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
       }
     }
   }
@@ -392,7 +434,8 @@ class _LifecycleFilterBar extends StatelessWidget {
       'all': items.length,
       'action': items.where(_needsAction).length,
       'review': items.where(_inReview).length,
-      'published': items.where((item) => item.reviewStatus == 'approved').length,
+      'published':
+          items.where((item) => item.reviewStatus == 'approved').length,
     };
     final labels = <String, String>{
       'all': 'الكل',
@@ -426,6 +469,7 @@ class _ListingCard extends StatelessWidget {
     required this.onEdit,
     required this.onSubmit,
     required this.onDelete,
+    required this.onAttest,
   });
 
   final PropertyDetails property;
@@ -433,6 +477,7 @@ class _ListingCard extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onSubmit;
   final VoidCallback? onDelete;
+  final VoidCallback? onAttest;
 
   @override
   Widget build(BuildContext context) {
@@ -486,12 +531,13 @@ class _ListingCard extends StatelessWidget {
                         const SizedBox(height: AppSpacing.s4),
                         Text(
                           '${_formatPrice(property.price)} ${property.currency}',
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w800,
+                              ),
                         ),
                         const SizedBox(height: AppSpacing.s8),
                         Wrap(
@@ -578,6 +624,12 @@ class _ListingCard extends StatelessWidget {
                           : 'إرسال للمراجعة',
                     ),
                   ),
+                if (onAttest != null)
+                  FilledButton.tonalIcon(
+                    onPressed: onAttest,
+                    icon: const Icon(Icons.verified_user_outlined),
+                    label: const Text('إقرار السعي'),
+                  ),
                 if (onDelete != null)
                   TextButton.icon(
                     onPressed: onDelete,
@@ -614,41 +666,50 @@ class _MyListingsSkeleton extends StatelessWidget {
 }
 
 bool _needsAction(PropertyDetails item) =>
+    item.saiAttestationRequired ||
     item.reviewStatus == 'draft' ||
     item.reviewStatus == 'returned_for_correction';
 
 bool _inReview(PropertyDetails item) =>
     item.reviewStatus == 'submitted' || item.reviewStatus == 'under_review';
 
-(String, String, AppStatusTone)? _nextAction(PropertyDetails property) =>
-    switch (property.reviewStatus) {
-      'draft' => (
-          'الخطوة التالية',
-          'أكمل بيانات الإعلان والإثباتات ثم أرسله للمراجعة.',
-          AppStatusTone.info,
-        ),
-      'returned_for_correction' => (
-          'مطلوب منك إجراء',
-          'صحح الملاحظة ثم أعد إرسال نفس الإعلان للمراجعة.',
-          AppStatusTone.warning,
-        ),
-      'submitted' => (
-          'بانتظار فريق المراجعة',
-          'تم الاستلام ولا يوجد إجراء مطلوب منك الآن.',
-          AppStatusTone.info,
-        ),
-      'under_review' => (
-          'تحت المراجعة',
-          'الفريق يراجع الإعلان حاليًا. لا تعدّل البيانات حتى انتهاء المراجعة.',
-          AppStatusTone.info,
-        ),
-      'approved' => (
-          'الإعلان منشور',
-          'يمكن للباحثين العثور عليه والتواصل وطلب المعاينة.',
-          AppStatusTone.success,
-        ),
-      _ => null,
-    };
+(String, String, AppStatusTone)? _nextAction(PropertyDetails property) {
+  if (property.saiAttestationRequired) {
+    return (
+      'مطلوب إقرار السعي',
+      'الإعلان منشور. أكمل إقرار السعي المسجل على نفس نسخة الشروط.',
+      AppStatusTone.warning
+    );
+  }
+  return switch (property.reviewStatus) {
+    'draft' => (
+        'الخطوة التالية',
+        'أكمل بيانات الإعلان والإثباتات ثم أرسله للمراجعة.',
+        AppStatusTone.info,
+      ),
+    'returned_for_correction' => (
+        'مطلوب منك إجراء',
+        'صحح الملاحظة ثم أعد إرسال نفس الإعلان للمراجعة.',
+        AppStatusTone.warning,
+      ),
+    'submitted' => (
+        'بانتظار فريق المراجعة',
+        'تم الاستلام ولا يوجد إجراء مطلوب منك الآن.',
+        AppStatusTone.info,
+      ),
+    'under_review' => (
+        'تحت المراجعة',
+        'الفريق يراجع الإعلان حاليًا. لا تعدّل البيانات حتى انتهاء المراجعة.',
+        AppStatusTone.info,
+      ),
+    'approved' => (
+        'الإعلان منشور',
+        'يمكن للباحثين العثور عليه والتواصل وطلب المعاينة.',
+        AppStatusTone.success,
+      ),
+    _ => null,
+  };
+}
 
 (String, AppStatusTone) _listingState(String status) => switch (status) {
       'draft' => ('مسودة', AppStatusTone.neutral),

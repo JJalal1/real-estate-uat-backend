@@ -29,7 +29,8 @@ class FinancialPaymentMethod {
   final bool requiresSenderPhone;
   final bool requiresProviderReference;
 
-  factory FinancialPaymentMethod.fromJson(Map<String, dynamic> json) => FinancialPaymentMethod(
+  factory FinancialPaymentMethod.fromJson(Map<String, dynamic> json) =>
+      FinancialPaymentMethod(
         id: _int(json['id']),
         key: '${json['key'] ?? ''}',
         name: '${json['name_ar'] ?? 'طريقة دفع'}',
@@ -41,8 +42,11 @@ class FinancialPaymentMethod {
         instructions: _text(json['instructions_ar']),
         assetKey: _text(json['asset_key']),
         unavailableReason: _text(json['unavailable_reason']),
-        requiresSenderPhone: json['requires_sender_phone'] == true || json['requires_sender_phone'] == 1,
-        requiresProviderReference: json['requires_provider_reference'] == true || json['requires_provider_reference'] == 1,
+        requiresSenderPhone: json['requires_sender_phone'] == true ||
+            json['requires_sender_phone'] == 1,
+        requiresProviderReference:
+            json['requires_provider_reference'] == true ||
+                json['requires_provider_reference'] == 1,
       );
 }
 
@@ -100,7 +104,8 @@ class FinancialPayment {
         _ => status,
       };
 
-  factory FinancialPayment.fromJson(Map<String, dynamic> json) => FinancialPayment(
+  factory FinancialPayment.fromJson(Map<String, dynamic> json) =>
+      FinancialPayment(
         id: _int(json['id']),
         reference: '${json['reference'] ?? ''}',
         status: '${json['status'] ?? ''}',
@@ -187,9 +192,15 @@ class FinancialDeal {
         canPaySaiOnly: json['can_pay_sai_only'] == true,
         requiredFullPayment: _double(json['required_full_payment']),
         requiredSaiPayment: _double(json['required_sai_payment']),
-        paymentMethods: _maps(json['payment_methods']).map(FinancialPaymentMethod.fromJson).toList(growable: false),
-        payments: _maps(json['payments']).map(FinancialPayment.fromJson).toList(growable: false),
-        receivable: json['receivable'] is Map<String, dynamic> ? json['receivable'] as Map<String, dynamic> : null,
+        paymentMethods: _maps(json['payment_methods'])
+            .map(FinancialPaymentMethod.fromJson)
+            .toList(growable: false),
+        payments: _maps(json['payments'])
+            .map(FinancialPayment.fromJson)
+            .toList(growable: false),
+        receivable: json['receivable'] is Map<String, dynamic>
+            ? json['receivable'] as Map<String, dynamic>
+            : null,
       );
 }
 
@@ -210,7 +221,8 @@ class FinancialAccountSummary {
   final bool listingCreationBlocked;
   final bool publishedListingsHidden;
 
-  factory FinancialAccountSummary.fromJson(Map<String, dynamic> json) => FinancialAccountSummary(
+  factory FinancialAccountSummary.fromJson(Map<String, dynamic> json) =>
+      FinancialAccountSummary(
         openPlatformDue: _double(json['open_platform_due']),
         overduePlatformDue: _double(json['overdue_platform_due']),
         pendingPayouts: _double(json['pending_payouts']),
@@ -223,12 +235,16 @@ class FinancialAccountSummary {
 List<Map<String, dynamic>> _maps(dynamic value) => value is List
     ? value.whereType<Map<String, dynamic>>().toList(growable: false)
     : const <Map<String, dynamic>>[];
-int _int(dynamic value) => value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+int _int(dynamic value) =>
+    value is num ? value.toInt() : int.tryParse('$value') ?? 0;
 int? _nullableInt(dynamic value) => value == null ? null : _int(value);
-double _double(dynamic value) => value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+double _double(dynamic value) =>
+    value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
 double? _nullableDouble(dynamic value) => value == null ? null : _double(value);
 String? _text(dynamic value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : text;
 }
-DateTime? _date(dynamic value) => value == null ? null : DateTime.tryParse('$value');
+
+DateTime? _date(dynamic value) =>
+    value == null ? null : DateTime.tryParse('$value');

@@ -203,10 +203,10 @@ class FinancialV1ApiTest extends TestCase
         $agent->roles()->sync([$supportRole->id=>['assigned_by_user_id'=>null,'created_at'=>now()]]);
 
         $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertForbidden();
-        $inbox=$this->withHeaders($agentHeaders)->getJson('/api/admin/support/tasks?scope=inbox&type=payment_review')->assertOk();
+        $inbox=$this->withHeaders($agentHeaders)->getJson('/api/admin/workspace/tasks?scope=inbox&type=payment_review')->assertOk();
         $taskId=(int)$inbox->json('data.0.id');
         $this->assertGreaterThan(0,$taskId);
-        $this->withHeaders($agentHeaders)->postJson("/api/admin/support/tasks/$taskId/claim")->assertOk()->assertJsonPath('data.is_mine',true);
+        $this->withHeaders($agentHeaders)->postJson("/api/admin/workspace/tasks/$taskId/claim")->assertOk()->assertJsonPath('data.is_mine',true);
         $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertOk()->assertJsonPath('data.status','under_review');
         $this->withHeaders($agentHeaders)->postJson("/api/admin/finance/payments/$paymentId/review",['decision'=>'correction','note'=>'صورة الإثبات غير واضحة'])->assertOk()->assertJsonPath('data.status','correction_required');
         $this->assertDatabaseHas('support_tasks',['id'=>$taskId,'source_type'=>'payment_review','status'=>'waiting_user','assigned_to_user_id'=>$agent->id]);

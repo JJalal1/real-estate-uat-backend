@@ -8,7 +8,8 @@ import '../domain/financial_models.dart';
 final financialRevisionProvider = StateProvider<int>((ref) => 0);
 
 final financialRepositoryProvider = Provider<FinancialRepository>((ref) {
-  return FinancialRepository(ref.watch(dioProvider), ref.watch(authRepositoryProvider));
+  return FinancialRepository(
+      ref.watch(dioProvider), ref.watch(authRepositoryProvider));
 });
 
 class FinancialRepository {
@@ -29,7 +30,9 @@ class FinancialRepository {
       '/finance/payments/mine',
       options: await _auth.requiredAuthOptions(),
     );
-    return _list(response.data).map(FinancialPayment.fromJson).toList(growable: false);
+    return _list(response.data)
+        .map(FinancialPayment.fromJson)
+        .toList(growable: false);
   }
 
   Future<FinancialAccountSummary> account() async {
@@ -104,9 +107,12 @@ class FinancialRepository {
   }) async {
     final form = FormData.fromMap({
       'proof': await MultipartFile.fromFile(imagePath),
-      if (senderName?.trim().isNotEmpty == true) 'sender_name': senderName!.trim(),
-      if (senderPhone?.trim().isNotEmpty == true) 'sender_phone': senderPhone!.trim(),
-      if (providerReference?.trim().isNotEmpty == true) 'provider_reference': providerReference!.trim(),
+      if (senderName?.trim().isNotEmpty == true)
+        'sender_name': senderName!.trim(),
+      if (senderPhone?.trim().isNotEmpty == true)
+        'sender_phone': senderPhone!.trim(),
+      if (providerReference?.trim().isNotEmpty == true)
+        'provider_reference': providerReference!.trim(),
     });
     final response = await _dio.post<Map<String, dynamic>>(
       '/finance/payments/$paymentId/proof',
@@ -117,7 +123,8 @@ class FinancialRepository {
     return FinancialPayment.fromJson(_data(response.data));
   }
 
-  Future<Map<String, dynamic>> confirmDirect(int agreementId, {String decision = 'confirmed'}) async {
+  Future<Map<String, dynamic>> confirmDirect(int agreementId,
+      {String decision = 'confirmed'}) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/finance/agreements/$agreementId/direct-confirmation',
       data: {'decision': decision},
@@ -182,7 +189,8 @@ class FinancialRepository {
     return _dio.get<List<int>>(
       '/finance/payments/$paymentId/proof',
       queryParameters: actingAsAgent ? const {'acting_as_agent': 1} : null,
-      options: (await _auth.requiredAuthOptions()).copyWith(responseType: ResponseType.bytes),
+      options: (await _auth.requiredAuthOptions())
+          .copyWith(responseType: ResponseType.bytes),
     );
   }
 
@@ -192,7 +200,9 @@ class FinancialRepository {
 
   Map<String, dynamic> _data(Map<String, dynamic>? body) {
     final value = body?['data'];
-    if (value is! Map<String, dynamic>) throw StateError('Invalid Financial V1 response.');
+    if (value is! Map<String, dynamic>) {
+      throw StateError('Invalid Financial V1 response.');
+    }
     return value;
   }
 
