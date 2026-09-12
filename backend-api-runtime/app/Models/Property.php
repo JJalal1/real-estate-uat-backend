@@ -14,54 +14,38 @@ class Property extends Model
 
     protected $fillable = [
         'user_id', 'property_asset_id', 'current_sai_term_id', 'geo_cell_id', 'owner_key', 'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
+        'price_display_mode', 'monthly_rent', 'rental_term_months', 'advance_months', 'financial_hold_at', 'financial_hold_reason',
         'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude', 'status',
         'contact_phone', 'contact_whatsapp', 'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note', 'review_status', 'submitted_at', 'published_at', 'reviewed_at', 'last_review_reason',
     ];
 
     protected $casts = [
-        'price' => 'float', 'latitude' => 'float', 'longitude' => 'float', 'area_m2' => 'integer', 'area_value' => 'float',
+        'price' => 'float', 'monthly_rent'=>'float', 'rental_term_months'=>'integer', 'advance_months'=>'integer',
+        'latitude' => 'float', 'longitude' => 'float', 'area_m2' => 'integer', 'area_value' => 'float',
         'bedrooms' => 'integer', 'bathrooms' => 'integer', 'has_parking' => 'boolean', 'submitted_at' => 'datetime', 'published_at' => 'datetime', 'reviewed_at' => 'datetime',
+        'financial_hold_at'=>'datetime',
     ];
 
     protected static function booted(): void
     {
         static::saving(function (Property $property): void {
-            if (! $property->exists) {
-                return;
-            }
+            if (! $property->exists) return;
             $stateChanged = $property->isDirty('status') || $property->isDirty('review_status');
-            if (! $stateChanged) {
-                return;
-            }
+            if (! $stateChanged) return;
             $requiresReadySai = in_array((string) $property->status, ['pending', 'published'], true)
                 || in_array((string) $property->review_status, ['submitted', 'under_review', 'approved'], true);
-            if (! $requiresReadySai) {
-                return;
-            }
+            if (! $requiresReadySai) return;
 
             /** @var User $advertiser */
             $advertiser = $property->user()->firstOrFail();
-            // Current product listing publication is for an approved
-            // owner/broker/office profile. Historical fixtures and legacy
-            // records without that profile predate the sai contract and must
-            // not be retroactively rewritten by merely touching their state.
-            if (! $advertiser->verificationProfile()?->isApproved()) {
-                return;
-            }
+            if (! $advertiser->verificationProfile()?->isApproved()) return;
 
-            // The listing object may have been loaded before sai configuration.
-            // Always validate the persisted current term pointer from the DB,
-            // while respecting an in-flight purpose edit that will be saved now.
             $policyProperty = Property::query()->findOrFail($property->getKey());
             $policyProperty->purpose = $property->purpose;
             app(PropertySaiService::class)->assertReadyForSubmission($policyProperty, $advertiser);
         });
 
         static::updating(function (Property $property): void {
-            // `returned_for_correction` is an editable workflow state, not a
-            // disposable label. Legacy update code normalizes editable listings
-            // to draft; preserve the support correction context until explicit
-            // resubmission moves the same listing back to `submitted`.
             if ($property->getOriginal('review_status') === 'returned_for_correction'
                 && $property->review_status === 'draft') {
                 $property->review_status = 'returned_for_correction';
@@ -71,51 +55,13 @@ class Property extends Model
         });
     }
 
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
-
-    public function propertyAsset(): BelongsTo
-    {
-        return $this->belongsTo(PropertyAsset::class, 'property_asset_id');
-    }
-
-    public function currentSaiTerm(): BelongsTo
-    {
-        return $this->belongsTo(PropertySaiTerm::class, 'current_sai_term_id');
-    }
-
-    public function geoCell(): BelongsTo
-    {
-        return $this->belongsTo(GeoCell::class, 'geo_cell_id');
-    }
-
-    public function documents(): HasMany
-    {
-        return $this->hasMany(ListingDocument::class)->orderBy('id');
-    }
-
-    public function reviews(): HasMany
-    {
-        return $this->hasMany(ListingReview::class, 'listing_id')->orderBy('id');
-    }
-
-    public function comments(): HasMany
-    {
-        return $this->hasMany(ListingComment::class)->orderBy('id');
-    }
-
-    public function brokerVerifications(): HasMany
-    {
-        return $this->hasMany(ListingBrokerVerification::class, 'listing_id')->orderBy('id');
-    }
-
-    public function images(): HasMany
-    {
-        return $this->hasMany(PropertyImage::class)
-            ->orderByDesc('is_primary')
-            ->orderBy('sort_order')
-            ->orderBy('id');
-    }
+    public function user(): BelongsTo { return $this->belongsTo(User::class); }
+    public function propertyAsset(): BelongsTo { return $this->belongsTo(PropertyAsset::class, 'property_asset_id'); }
+    public function currentSaiTerm(): BelongsTo { return $this->belongsTo(PropertySaiTerm::class, 'current_sai_term_id'); }
+    public function geoCell(): BelongsTo { return $this->belongsTo(GeoCell::class, 'geo_cell_id'); }
+    public function documents(): HasMany { return $this->hasMany(ListingDocument::class)->orderBy('id'); }
+    public function reviews(): HasMany { return $this->hasMany(ListingReview::class, 'listing_id')->orderBy('id'); }
+    public function comments(): HasMany { return $this->hasMany(ListingComment::class)->orderBy('id'); }
+    public function brokerVerifications(): HasMany { return $this->hasMany(ListingBrokerVerification::class, 'listing_id')->orderBy('id'); }
+    public function images(): HasMany { return $this->hasMany(PropertyImage::class)->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'); }
 }
