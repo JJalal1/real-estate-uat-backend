@@ -82,7 +82,7 @@ jobs:
               if len(parts)<8 or parts[2].upper()!='CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES': continue
               p=Path(parts[3])
               if p.is_absolute(): p=p.resolve().relative_to(root)
-              diagnostics.append((str(p),int(parts[4])))
+              diagnostics.append((str(p),int(parts[4]),int(parts[5])))
           if not diagnostics:
               print(Path('/tmp/analyze.machine').read_text(encoding='utf-8')[:4000])
               raise SystemExit('No brace diagnostics parsed from dart analyze --format=machine')
@@ -93,10 +93,10 @@ jobs:
             'lib/features/properties/presentation/my_listings_screen.dart',
             'lib/features/support/presentation/support_tasks_screen.dart',
           }
-          bad=sorted({p for p,_ in diagnostics if p not in allowed})
+          bad=sorted({p for p,_,_ in diagnostics if p not in allowed})
           if bad: raise SystemExit(f'Unexpected lint files: {bad}')
 
-          def line_start(text,n):
+          def line_bounds(text,n):
               lines=text.splitlines(keepends=True)
               if n<1 or n>len(lines): raise SystemExit(f'bad line {n}')
               return sum(map(len,lines[:n-1])),sum(map(len,lines[:n]))
@@ -115,7 +115,7 @@ jobs:
                   elif c==')':
                       depth-=1
                       if depth==0: return i
-              raise SystemExit('unmatched condition')
+              raise ValueError('unmatched condition')
 
           def stmt_end(text,start):
               par=brk=brc=0; quote=None; esc=False
@@ -134,33 +134,50 @@ jobs:
                   elif c=='{': brc+=1
                   elif c=='}': brc-=1
                   elif c==';' and par==0 and brk==0 and brc==0: return i
-              raise SystemExit('statement end not found')
+              raise ValueError('statement end not found')
 
-          def brace(path,line_no):
+          def token_at(text,pos,token):
+              if not text.startswith(token,pos): return False
+              before=text[pos-1] if pos>0 else ' '
+              after=text[pos+len(token)] if pos+len(token)<len(text) else ' '
+              return not(before.isalnum() or before=='_') and not(after.isalnum() or after=='_')
+
+          def find_governing_if(text,diag):
+              lower=max(0,diag-5000)
+              pos=text.rfind('if',lower,diag+1)
+              while pos>=lower:
+                  if token_at(text,pos,'if'):
+                      op=text.find('(',pos+2)
+                      if op>=0:
+                          try:
+                              cp=close_paren(text,op)
+                              j=cp+1
+                              while j<len(text) and text[j].isspace(): j+=1
+                              if j<len(text) and text[j]!='{':
+                                  complex_body=False
+                                  for kw in ('if','for','while','switch','try','do'):
+                                      if token_at(text,j,kw): complex_body=True; break
+                                  if not complex_body:
+                                      end=stmt_end(text,j)
+                                      if pos<=diag<=end+1:
+                                          return pos,cp,j,end
+                          except ValueError:
+                              pass
+                  pos=text.rfind('if',lower,pos)
+              raise SystemExit(f'Unable to map brace diagnostic at offset {diag} to an unbraced if')
+
+          def brace(path,line_no,column):
               p=Path(path); text=p.read_text(encoding='utf-8')
-              a,b=line_start(text,line_no); line=text[a:b]
-              rel=line.find('if')
-              while rel>=0:
-                  before=line[rel-1] if rel else ' '
-                  after=line[rel+2] if rel+2<len(line) else ' '
-                  if not(before.isalnum() or before=='_') and not(after.isalnum() or after=='_'): break
-                  rel=line.find('if',rel+2)
-              if rel<0: raise SystemExit(f'{path}:{line_no}: no if token')
-              ip=a+rel; op=text.find('(',ip); cp=close_paren(text,op)
-              j=cp+1
-              while j<len(text) and text[j].isspace(): j+=1
-              if text[j]=='{': raise SystemExit(f'{path}:{line_no}: already braced')
-              for kw in ('if','for','while','switch','try','do'):
-                  if text.startswith(kw,j) and (j+len(kw)==len(text) or not(text[j+len(kw)].isalnum() or text[j+len(kw)]=='_')):
-                      raise SystemExit(f'{path}:{line_no}: complex body {kw}')
-              end=stmt_end(text,j)
+              a,b=line_bounds(text,line_no)
+              diag=min(b-1,a+max(0,column-1))
+              ip,cp,j,end=find_governing_if(text,diag)
               indent=text[text.rfind('\n',0,ip)+1:ip]
               p.write_text(text[:cp+1]+' {'+text[cp+1:end+1]+'\n'+indent+'}'+text[end+1:],encoding='utf-8')
 
           grouped={}
-          for p,n in diagnostics: grouped.setdefault(p,[]).append(n)
-          for p,lines in grouped.items():
-              for n in sorted(set(lines),reverse=True): brace(p,n)
+          for p,n,c in diagnostics: grouped.setdefault(p,[]).append((n,c))
+          for p,points in grouped.items():
+              for n,c in sorted(set(points),reverse=True): brace(p,n,c)
           print(f'Braced {len(diagnostics)} analyzer-reported if statements')
           PY
           dart format $FILES
