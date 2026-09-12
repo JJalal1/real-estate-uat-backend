@@ -12,12 +12,23 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
         with:
           ref: feature/financial-v1-impl
           fetch-depth: 0
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter 3.27.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
       - name: Validate and normalize patch script
         shell: bash
         run: |
@@ -45,9 +56,8 @@ jobs:
         run: |
           git diff --check
           cd mobile_app
-          flutter --version
           flutter pub get
-          dart format --output=none --set-exit-if-changed lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart || dart format lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart
+          dart format lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/my_listings_screen.dart lib/features/support/presentation/support_tasks_screen.dart lib/features/admin/presentation/general_manager_pages.dart lib/features/financial/data/financial_repository.dart lib/features/financial/domain/financial_models.dart
           flutter analyze
       - name: Commit source and remove one-shot helpers
         shell: bash
