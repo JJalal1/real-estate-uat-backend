@@ -10,14 +10,36 @@ on:
 permissions:
   contents: read
 
+env:
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+
 jobs:
-  diagnose-flutter:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
           ref: fix/support-inbox-completed-assignment-flow
+      - name: Align repair path in test workspace
+        run: python3 tools/temp_align_support_repair_path.py
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - working-directory: backend-api-runtime
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Targeted support backend tests
+        working-directory: backend-api-runtime
+        env:
+          APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+        run: php artisan test tests/Feature/UatSupportCompletedInboxFlowApiTest.php tests/Feature/UatSupportManagerAgentWorkflowApiTest.php tests/Feature/UatAdminSupportWorkspaceApiTest.php --display-warnings --fail-on-warning --fail-on-risky
+      - name: Full Laravel suite
+        working-directory: backend-api-runtime
+        env:
+          APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -29,17 +51,18 @@ jobs:
           cache: true
       - working-directory: mobile_app
         run: flutter pub get
-      - name: Capture analyze output
-        id: analyze
-        continue-on-error: true
+      - working-directory: mobile_app
+        run: flutter analyze
+      - name: Targeted support mobile tests
+        working-directory: mobile_app
+        run: flutter test test/support_completed_inbox_flow_test.dart test/support_manager_agent_workflow_test.dart
+      - name: Full Flutter suite
+        working-directory: mobile_app
         shell: bash
         run: |
-          cd mobile_app
-          flutter analyze > ../flutter_analyze_diagnostic.txt 2>&1
-      - uses: actions/upload-artifact@v4
-        with:
-          name: flutter-analyze-diagnostic
-          path: flutter_analyze_diagnostic.txt
-      - name: Fail if analyze failed
-        if: steps.analyze.outcome != 'success'
-        run: exit 1
+          set -euo pipefail
+          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          flutter test "${tests[@]}"
+      - name: Verify Frankfurt endpoint contract
+        working-directory: mobile_app
+        run: flutter test --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }} test/uat_compiled_environment_test.dart
