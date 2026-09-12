@@ -139,7 +139,6 @@ class FinancialV1ApiTest extends TestCase
         $this->assertDatabaseHas('properties', ['id'=>$property->id, 'status'=>'published']);
     }
 
-
     public function test_rental_financial_configuration_is_complete_and_snapshotted_on_listing(): void
     {
         [$advertiser, $headers] = $this->user('financial-rent-owner@example.test', '+967772000041');
@@ -198,9 +197,11 @@ class FinancialV1ApiTest extends TestCase
         ]);
         app(SupportTaskService::class)->projectPayment($paymentId);
 
-        [$agent, $agentHeaders] = $this->user('financial-support-agent@example.test', '+967772000043');
-        $supportRole=Role::query()->where('key','support_agent')->firstOrFail();
-        $agent->roles()->sync([$supportRole->id=>['assigned_by_user_id'=>null,'created_at'=>now()]]);
+        [$agent, $agentHeaders] = $this->user(
+            'financial-support-agent@example.test',
+            '+967772000043',
+            ['support_agent'],
+        );
 
         $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertForbidden();
         $inbox=$this->withHeaders($agentHeaders)->getJson('/api/admin/workspace/tasks?scope=inbox&type=payment_review')->assertOk();
@@ -242,7 +243,7 @@ class FinancialV1ApiTest extends TestCase
         return [$agreementId, $property, $advertiser, $buyer, $advertiserHeaders, $buyerHeaders];
     }
 
-    private function user(string $email, string $phone): array
+    private function user(string $email, string $phone, array $roles = []): array
     {
         $user = User::query()->create([
             'name'=>'Financial V1 User',
@@ -253,8 +254,12 @@ class FinancialV1ApiTest extends TestCase
             'account_status'=>User::STATUS_ACTIVE,
             'password'=>Hash::make('financial-v1-test-password'),
         ]);
-        $role = Role::query()->where('key', 'registered_user')->firstOrFail();
-        $user->roles()->sync([$role->id=>['assigned_by_user_id'=>null,'created_at'=>now()]]);
+        $roleIds = [];
+        foreach (array_unique(array_merge(['registered_user'], $roles)) as $key) {
+            $role = Role::query()->where('key', $key)->firstOrFail();
+            $roleIds[$role->id] = ['assigned_by_user_id'=>null,'created_at'=>now()];
+        }
+        $user->roles()->sync($roleIds);
         $plain = 'finv1_'.substr(hash('sha512', $email), 0, 72);
         $user->apiTokens()->create([
             'name'=>'financial-v1-test',
