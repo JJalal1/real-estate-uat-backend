@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,28 +16,35 @@ import '../features/account/presentation/profile_screen.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/admin/presentation/audit_log_screen.dart';
 import '../features/admin/presentation/platform_settings_screen.dart';
+import '../features/agreements/presentation/agreement_detail_screen.dart';
+import '../features/agreements/presentation/agreements_screen.dart';
+import '../features/agreements/presentation/rental_contract_detail_screen.dart';
 import '../features/app_shell/presentation/app_shell_screen.dart';
-import '../features/chats/presentation/chats_screen.dart';
 import '../features/bookings/presentation/bookings_screen.dart';
 import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
 import '../features/messages/presentation/messages_screen.dart';
 import '../features/messages/presentation/notifications_screen.dart';
+import '../features/map/presentation/map_screen.dart';
 import '../features/properties/presentation/add_property_wizard_screen.dart';
+import '../features/properties/presentation/favorites_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
 import '../features/properties/presentation/property_details_screen.dart';
 import '../features/regions/presentation/regions_management_screen.dart';
 import '../features/reviews/presentation/listing_review_screen.dart';
+import '../features/services/presentation/services_screen.dart';
 import '../features/support/presentation/support_admin_screen.dart';
 import '../features/support/presentation/support_center_screen.dart';
 import '../features/support/presentation/support_users_screen.dart';
 import '../features/support/presentation/support_work_log_screen.dart';
 import '../features/support/presentation/support_workspace_screen.dart';
-import '../features/services/presentation/services_screen.dart';
+import 'app_deep_links.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
+    redirect: (context, state) => internalLocationForAppLink(state.uri),
+    errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
       GoRoute(
@@ -134,10 +142,44 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/messages/:id',
-        builder: (context, state) => Stage6AuthGate(
-          child: ConversationScreen(
-              threadId: int.parse(state.pathParameters['id']!)),
-        ),
+        builder: (context, state) {
+          final threadId = int.tryParse(state.pathParameters['id'] ?? '');
+          if (threadId == null || threadId <= 0) {
+            return const _RouteErrorScreen();
+          }
+          return Stage6AuthGate(
+            child: ConversationScreen(threadId: threadId),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/agreements',
+        builder: (context, state) =>
+            const Stage6AuthGate(child: AgreementsScreen()),
+      ),
+      GoRoute(
+        path: '/agreements/:id',
+        builder: (context, state) {
+          final agreementId = int.tryParse(state.pathParameters['id'] ?? '');
+          if (agreementId == null || agreementId <= 0) {
+            return const _RouteErrorScreen();
+          }
+          return Stage6AuthGate(
+            child: AgreementDetailScreen(agreementId: agreementId),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/rental-contracts/:id',
+        builder: (context, state) {
+          final contractId = int.tryParse(state.pathParameters['id'] ?? '');
+          if (contractId == null || contractId <= 0) {
+            return const _RouteErrorScreen();
+          }
+          return Stage6AuthGate(
+            child: RentalContractDetailScreen(contractId: contractId),
+          );
+        },
       ),
       GoRoute(
         path: '/notifications',
@@ -151,8 +193,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/bookings',
-        builder: (context, state) =>
-            const Stage6AuthGate(child: BookingsScreen()),
+        builder: (context, state) => Stage6AuthGate(
+          child: BookingsScreen(
+            initialBookingId:
+                int.tryParse(state.uri.queryParameters['booking'] ?? ''),
+          ),
+        ),
       ),
       GoRoute(
         path: '/services',
@@ -161,8 +207,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/support',
-        builder: (context, state) => const Stage6AuthGate(
-          child: SupportCenterScreen(),
+        builder: (context, state) => Stage6AuthGate(
+          child: SupportCenterScreen(
+            initialCaseId: int.tryParse(
+              state.uri.queryParameters['case'] ?? '',
+            ),
+          ),
         ),
       ),
       GoRoute(
@@ -194,9 +244,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/properties/:id',
-        builder: (context, state) => PropertyDetailsScreen(
-          propertyId: int.parse(state.pathParameters['id']!),
-        ),
+        builder: (context, state) {
+          final propertyId = int.tryParse(state.pathParameters['id'] ?? '');
+          if (propertyId == null || propertyId <= 0) {
+            return const _RouteErrorScreen();
+          }
+          return PropertyDetailsScreen(propertyId: propertyId);
+        },
       ),
       GoRoute(
         path: '/add-property',
@@ -212,11 +266,53 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: '/chats/:id',
-        builder: (context, state) => ChatConversationScreen(
-          threadId: state.pathParameters['id'] ?? 'chat',
+        path: '/favorites',
+        builder: (context, state) => Stage6AuthGate(
+          child: FavoritesScreen(
+            startInCompareMode: state.uri.queryParameters['compare'] == '1',
+          ),
         ),
+      ),
+      GoRoute(
+        path: '/property-market',
+        builder: (context, state) => const MapScreen(),
       ),
     ],
   );
 });
+
+class _RouteErrorScreen extends StatelessWidget {
+  const _RouteErrorScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('الرابط غير صالح')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.link_off_outlined, size: 52),
+                const SizedBox(height: 16),
+                const Text(
+                  'تعذر فتح هذا الرابط. قد يكون قديمًا أو غير مكتمل.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: () => context.go('/'),
+                  icon: const Icon(Icons.home_outlined),
+                  label: const Text('العودة للرئيسية'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

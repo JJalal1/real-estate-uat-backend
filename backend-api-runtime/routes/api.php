@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\ListingReviewController;
 use App\Http\Controllers\Api\MessagingController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PropertyController;
+use App\Http\Controllers\Api\PropertyFavoriteController;
+use App\Http\Controllers\Api\PropertySaiController;
 use App\Http\Controllers\Api\RegionsController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\ServicePaymentController;
@@ -63,6 +65,7 @@ Route::prefix('auth')->group(function () {
 Route::get('/properties', [PropertyController::class, 'index']);
 Route::get('/properties/nearby', [PropertyController::class, 'nearby']);
 Route::get('/properties/{property}/comments', [CommunityController::class, 'comments']);
+Route::get('/properties/{property}/sai', [PropertySaiController::class, 'show']);
 Route::get('/properties/{property}', [PropertyController::class, 'show']);
 Route::get('/property-media/{image}', [PropertyController::class, 'media']);
 Route::get('/advertisers/{advertiser}/ratings/summary', [CommunityController::class, 'ratingSummary']);
@@ -83,9 +86,16 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/properties/{property}', [PropertyController::class, 'update']);
     Route::delete('/properties/{property}', [PropertyController::class, 'destroy']);
     Route::post('/properties/{property}/submit', [PropertyController::class, 'submit']);
+    Route::put('/properties/{property}/sai', [PropertySaiController::class, 'update']);
     Route::post('/properties/{property}/proof-documents', [PropertyController::class, 'uploadProofDocuments']);
     Route::delete('/properties/{property}/proof-documents/{document}', [PropertyController::class, 'deleteProofDocument']);
     Route::get('/listing-documents/{document}', [ListingReviewController::class, 'document']);
+
+    Route::get('/favorites', [PropertyFavoriteController::class, 'index']);
+    Route::get('/favorites/ids', [PropertyFavoriteController::class, 'ids']);
+    Route::get('/properties/{property}/favorite', [PropertyFavoriteController::class, 'status']);
+    Route::put('/properties/{property}/favorite', [PropertyFavoriteController::class, 'store']);
+    Route::delete('/properties/{property}/favorite', [PropertyFavoriteController::class, 'destroy']);
 
     Route::get('/account-verification', [AccountVerificationController::class, 'status']);
     Route::post('/account-verification', [AccountVerificationController::class, 'submit'])->middleware('throttle:4,1');
@@ -106,8 +116,6 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/support/cases', [SupportController::class, 'storeTicket']);
     Route::get('/support/cases/{case}', [SupportController::class, 'showMine']);
     Route::post('/support/cases/{case}/messages', [SupportController::class, 'replyMine']);
-
-
 
     Route::get('/services/orders/mine', [ServicePaymentController::class, 'mineOrders']);
     Route::get('/services/entitlements/mine', [ServicePaymentController::class, 'mineEntitlements']);
@@ -243,4 +251,3 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::get('/audit-logs', [AccessControlController::class, 'auditLogs'])->middleware('permission:audit.view');
     });
 });
-

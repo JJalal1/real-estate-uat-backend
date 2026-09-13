@@ -182,15 +182,18 @@ class PropertyController extends Controller
         $user = $request->user();
         $perPage = max(1, min((int) $request->input('per_page', 20), 50));
 
+        $workspaceView = $request->input('view') === 'workspace';
         $page = Property::query()
-            ->with('images')
+            ->with($workspaceView ? ['images', 'documents'] : ['images'])
             ->where('user_id', $user->id)
             ->latest('id')
             ->paginate($perPage);
 
         return response()->json([
             'data' => collect($page->items())
-                ->map(fn (Property $property) => $this->detailData($property, $request))
+                ->map(fn (Property $property) => $workspaceView
+                    ? $this->mineWorkspaceData($property, $request)
+                    : $this->detailData($property, $request))
                 ->values(),
             'meta' => [
                 'current_page' => $page->currentPage(),
@@ -746,11 +749,41 @@ class PropertyController extends Controller
             'latitude' => (float) $property->latitude,
             'longitude' => (float) $property->longitude,
             'status' => $property->status,
-            'geo_cell_id' => $property->geo_cell_id,
-            'property_asset_id' => $property->property_asset_id,
-            'review_status' => $property->review_status,
             'main_image' => $mainImage ? $this->imageUrl($mainImage, $request) : null,
         ];
+    }
+
+    private function mineWorkspaceData(Property $property, Request $request): array
+    {
+        $property->loadMissing(['images', 'documents']);
+        return array_merge($this->summaryData($property, $request), [
+            'description' => $property->description,
+            'contact_phone' => $property->contact_phone,
+            'contact_whatsapp' => $property->contact_whatsapp,
+            'review_status' => $property->review_status,
+            'geo_cell_id' => $property->geo_cell_id,
+            'property_asset_id' => $property->property_asset_id,
+            'last_review_reason' => $property->last_review_reason,
+            'proof_document_count' => $property->documents->count(),
+            'can_submit' => in_array($property->review_status, ['draft', 'returned_for_correction'], true),
+            'can_edit' => ! in_array($property->review_status, ['submitted', 'under_review', 'rejected_blocked'], true),
+            'is_owner' => true,
+            'ownership_document_type' => $property->ownership_document_type,
+            'document_owner_name' => $property->document_owner_name,
+            'owner_relationship_type' => $property->owner_relationship_type,
+            'owner_relationship_note' => $property->owner_relationship_note,
+            'ownership_proof_present' => $property->documents->contains(
+                fn (ListingDocument $document) => $document->kind === 'ownership_proof'
+            ),
+            'images' => $property->images
+                ->map(fn (PropertyImage $image) => [
+                    'id' => $image->id,
+                    'url' => $this->imageUrl($image, $request),
+                    'is_primary' => (bool) $image->is_primary,
+                    'sort_order' => (int) $image->sort_order,
+                ])
+                ->values(),
+        ]);
     }
 
     private function detailData(Property $property, Request $request): array
@@ -765,10 +798,6 @@ class PropertyController extends Controller
             'description' => $property->description,
             'contact_phone' => $property->contact_phone,
             'contact_whatsapp' => $property->contact_whatsapp,
-            'last_review_reason' => $property->last_review_reason,
-            'proof_document_count' => $property->documents()->count(),
-            'can_submit' => in_array($property->review_status, ['draft','returned_for_correction'], true),
-            'can_edit' => ! in_array($property->review_status, ['submitted','under_review','rejected_blocked'], true),
             'advertiser' => array_merge([
                 'id'=>(int)$property->user_id,
                 'name'=>$this->advertiserDisplayName($property->user),
@@ -788,6 +817,13 @@ class PropertyController extends Controller
 
         $viewer = $this->tokens->authenticate($request, false);
         if ($viewer !== null && (int) $viewer->id === (int) $property->user_id) {
+            $data['review_status'] = $property->review_status;
+            $data['geo_cell_id'] = $property->geo_cell_id;
+            $data['property_asset_id'] = $property->property_asset_id;
+            $data['last_review_reason'] = $property->last_review_reason;
+            $data['proof_document_count'] = $property->documents()->count();
+            $data['can_submit'] = in_array($property->review_status, ['draft','returned_for_correction'], true);
+            $data['can_edit'] = ! in_array($property->review_status, ['submitted','under_review','rejected_blocked'], true);
             $data['ownership_document_type'] = $property->ownership_document_type;
             $data['document_owner_name'] = $property->document_owner_name;
             $data['owner_relationship_type'] = $property->owner_relationship_type;

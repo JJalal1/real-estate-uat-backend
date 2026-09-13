@@ -8,6 +8,7 @@ use App\Models\AccountVerificationProfile;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\CloudAssetStorageService;
+use App\Services\SupportTaskService;
 use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class AccountVerificationController extends Controller
         private readonly AuditLogService $audit,
         private readonly CloudAssetStorageService $storage,
         private readonly UserNotificationService $notifications,
+        private readonly SupportTaskService $tasks,
     ) {}
 
     public function status(Request $request): JsonResponse
@@ -186,6 +188,8 @@ class AccountVerificationController extends Controller
             throw $e;
         }
 
+        $this->tasks->projectAccountVerification((int) $user->id);
+
         return response()->json([
             'message' => 'تم استلام طلب التحقق بنجاح.',
             'data' => $this->applicationData($user->fresh()),
@@ -259,6 +263,7 @@ class AccountVerificationController extends Controller
             ], $request, $user->id);
         });
 
+        $this->tasks->projectAccountVerification((int) $user->id);
         $this->notifications->create(
             $user->id,
             'account_verification_approved',
@@ -291,6 +296,7 @@ class AccountVerificationController extends Controller
         $this->audit->record($actor, 'account.verification_more_info_requested', $profile, [
             'reason' => $v['reason'],
         ], $request, $user->id);
+        $this->tasks->projectAccountVerification((int) $user->id);
         $this->notifications->create(
             $user->id,
             'account_verification_more_info',
@@ -319,6 +325,7 @@ class AccountVerificationController extends Controller
         $this->audit->record($actor, 'account.verification_rejected', $profile, [
             'reason' => $v['reason'],
         ], $request, $user->id);
+        $this->tasks->projectAccountVerification((int) $user->id);
         $this->notifications->create(
             $user->id,
             'account_verification_rejected',

@@ -25,15 +25,10 @@ class FreeServicesHubController extends Controller
                 AccountVerificationProfile::TYPE_BROKER,
                 AccountVerificationProfile::TYPE_OFFICE,
             ], true);
-        $verifiedBrokerOrOffice = $verifiedProfessional
-            && in_array($profileType, [
-                AccountVerificationProfile::TYPE_BROKER,
-                AccountVerificationProfile::TYPE_OFFICE,
-            ], true);
 
         return response()->json([
             'data' => [
-                'ui_version' => 'free_services_v1',
+                'ui_version' => 'free_services_v2',
                 'pricing_model' => 'free',
                 'paid_features_enabled' => false,
                 'account_type' => $profileType ?? 'basic',
@@ -42,22 +37,18 @@ class FreeServicesHubController extends Controller
                 'capabilities' => [
                     'create_listing' => $verifiedProfessional,
                     'view_my_listings' => true,
-                    'create_property_request' => true,
-                    'view_property_requests' => true,
-                    'view_researcher_requests' => $verifiedBrokerOrOffice,
                     'rental_contracts' => $verifiedProfessional,
                     'price_indicators' => true,
                     'property_valuation' => true,
                     'real_estate_guide' => true,
                     'legal_library' => true,
                 ],
-                // Availability is deliberately server-driven. Later workflow packages
-                // flip each code to "available" only after its API and persistence are live.
+                // Availability is server-driven. A planned service becomes
+                // available only after its persistence, API, authorization,
+                // Flutter flow, and regression coverage are complete.
                 'availability' => [
                     'create_listing' => $verifiedProfessional ? 'available' : 'requires_verification',
                     'my_listings' => 'available',
-                    'property_requests' => 'planned',
-                    'researcher_requests' => 'planned',
                     'rental_contracts' => 'planned',
                     'price_indicators' => 'planned',
                     'property_valuation' => 'planned',

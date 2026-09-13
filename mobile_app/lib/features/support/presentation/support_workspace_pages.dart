@@ -20,6 +20,7 @@ class SupportAgentHomeScreen extends ConsumerWidget {
       load: () => ref.read(supportWorkspaceRepositoryProvider).dashboard(),
       cards: const [
         _DashboardCardSpec('my_tasks', 'مهامي', Icons.assignment_ind_outlined, _DashboardAction.mine),
+        _DashboardCardSpec('completed_today', 'المنجزة', Icons.task_alt_outlined, _DashboardAction.completed),
         _DashboardCardSpec('inbox_new', 'الوارد الجديد', Icons.inbox_outlined, _DashboardAction.inbox),
         _DashboardCardSpec('account_verifications', 'طلبات التحقق', Icons.verified_user_outlined, _DashboardAction.verifications),
         _DashboardCardSpec('listing_reviews', 'تحقيق الإعلانات', Icons.fact_check_outlined, _DashboardAction.listings),
@@ -41,6 +42,19 @@ class SupportManagerHomeScreen extends ConsumerWidget {
     return _DashboardFrame(
       title: 'إدارة الدعم',
       load: () => ref.read(supportWorkspaceRepositoryProvider).dashboard(),
+      topAction: FilledButton.icon(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const SupportTasksScreen(
+              initialScope: 'inbox',
+              title: 'الوارد — وضع موظف دعم',
+              actingAsAgent: true,
+            ),
+          ),
+        ),
+        icon: const Icon(Icons.support_agent_outlined),
+        label: const Text('العمل كموظف دعم'),
+      ),
       cards: const [
         _DashboardCardSpec('unassigned', 'غير المسندة', Icons.inbox_outlined, _DashboardAction.inbox),
         _DashboardCardSpec('in_progress', 'جاري العمل', Icons.pending_actions_outlined, _DashboardAction.all),
@@ -49,6 +63,9 @@ class SupportManagerHomeScreen extends ConsumerWidget {
         _DashboardCardSpec('escalated', 'المصعدة', Icons.trending_up, _DashboardAction.escalated),
         _DashboardCardSpec('critical_reports', 'بلاغات حرجة', Icons.crisis_alert_outlined, _DashboardAction.criticalReports),
         _DashboardCardSpec('active_agents', 'موظفو الدعم', Icons.groups_2_outlined, _DashboardAction.team),
+        _DashboardCardSpec('available_agents', 'المتاحون الآن', Icons.how_to_reg_outlined, _DashboardAction.team),
+        _DashboardCardSpec('team_open', 'عبء الفريق', Icons.work_outline, _DashboardAction.all),
+        _DashboardCardSpec('completed_today', 'منجز اليوم', Icons.task_alt_outlined, _DashboardAction.completed),
         _DashboardCardSpec('average_claim_minutes', 'متوسط الاستلام/د', Icons.schedule_outlined, _DashboardAction.all),
         _DashboardCardSpec('average_response_minutes', 'متوسط الرد/د', Icons.quickreply_outlined, _DashboardAction.all),
       ],
@@ -92,121 +109,212 @@ class SupportTeamScreen extends ConsumerStatefulWidget {
 }
 
 class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
-  late Future<List<SupportTeamMember>> _future;
+  late Future<(List<SupportTeamMember>, List<SupportTeamSummary>)> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = ref.read(supportWorkspaceRepositoryProvider).team();
+    _future = _load();
+  }
+
+  Future<(List<SupportTeamMember>, List<SupportTeamSummary>)> _load() async {
+    final repo = ref.read(supportWorkspaceRepositoryProvider);
+    final values = await Future.wait<dynamic>([repo.team(), repo.teams()]);
+    return (values[0] as List<SupportTeamMember>, values[1] as List<SupportTeamSummary>);
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = ref.read(supportWorkspaceRepositoryProvider).team());
+    setState(() => _future = _load());
     await _future;
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('حالة الفريق'),
-          actions: [IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh))],
+  Widget build(BuildContext context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('الفريق وعبء العمل'),
+            actions: [IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh))],
+          ),
+          body: FutureBuilder<(List<SupportTeamMember>, List<SupportTeamSummary>)>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+              if (snapshot.hasError) return _ErrorState(error: snapshot.error!, onRetry: _refresh);
+              final members = snapshot.data?.$1 ?? const <SupportTeamMember>[];
+              final teams = snapshot.data?.$2 ?? const <SupportTeamSummary>[];
+              return RefreshIndicator(
+                onRefresh: _refresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
+                  children: [
+                    const _HeroHeader(mode: 'manager'),
+                    const SizedBox(height: 14),
+                    const _SectionHeader('الفرق'),
+                    const SizedBox(height: 8),
+                    if (teams.isEmpty)
+                      const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('لا توجد فرق دعم ضمن نطاقك.')))
+                    else
+                      ...teams.map((team) => Card(
+                            child: ListTile(
+                              leading: CircleAvatar(child: Icon(team.isFallback ? Icons.all_inbox_outlined : Icons.location_on_outlined)),
+                              title: Text(team.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                              subtitle: Text('${team.availableAgents}/${team.agents} متاح • ${team.openTasks} مفتوحة • ${team.unassigned} غير مستلمة'),
+                              trailing: team.isFallback ? const Chip(label: Text('وارد عام')) : null,
+                            ),
+                          )),
+                    const SizedBox(height: 18),
+                    const _SectionHeader('الموظفون'),
+                    const SizedBox(height: 8),
+                    if (members.where((m) => m.role == 'support_agent').isEmpty)
+                      const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('لا يوجد موظفو دعم ضمن فرقك.')))
+                    else
+                      ...members.where((m) => m.role == 'support_agent').map((member) => _TeamMemberCard(
+                            member: member,
+                            teams: teams,
+                            onManage: () => _manageMember(member, teams),
+                            onRedistribute: member.openTasks > 0 ? () => _redistribute(member) : null,
+                          )),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
-        body: FutureBuilder<List<SupportTeamMember>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return _ErrorState(error: snapshot.error!, onRetry: _refresh);
-            }
-            final rows = snapshot.data ?? const <SupportTeamMember>[];
-            if (rows.isEmpty) return const Center(child: Text('لا يوجد موظفو دعم مسجلون.'));
-            return RefreshIndicator(
-              onRefresh: _refresh,
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
-                itemCount: rows.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, index) {
-                  final item = rows[index];
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const CircleAvatar(child: Icon(Icons.support_agent)),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                                    Text(
-                                      item.role == 'support_manager' ? 'مدير دعم' : 'موظف دعم',
-                                      style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (item.overdueTasks > 0)
-                                Badge(label: Text('${item.overdueTasks} متأخرة')),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _MetricChip('مفتوحة', item.openTasks),
-                              _MetricChip('مغلقة', item.closedTasks),
-                              _MetricChip('عاجلة', item.urgentTasks),
-                              _MetricChip('تذاكر', item.tickets),
-                              _MetricChip('تحقق', item.verifications),
-                              _MetricChip('إعلانات', item.listingReviews),
-                              _MetricChip('بلاغات', item.reports),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            item.averageClaimMinutes == null
-                                ? 'متوسط زمن الاستلام: غير متاح بعد'
-                                : 'متوسط زمن الاستلام: ${item.averageClaimMinutes} دقيقة',
-                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            item.averageResponseMinutes == null
-                                ? 'متوسط زمن الرد: غير متاح بعد'
-                                : 'متوسط زمن الرد: ${item.averageResponseMinutes} دقيقة',
-                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            item.lastActivityAt == null
-                                ? 'آخر نشاط: لا توجد مهمة مسجلة بعد'
-                                : 'آخر نشاط: ${_workspaceTime(item.lastActivityAt!)}',
-                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+      );
+
+  Future<void> _manageMember(SupportTeamMember member, List<SupportTeamSummary> teams) async {
+    if (teams.isEmpty) return;
+    var teamId = member.teamId ?? teams.first.id;
+    var available = member.isAvailable;
+    var capacity = member.capacity.clamp(1, 50);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text('إدارة ${member.name}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                value: teams.any((t) => t.id == teamId) ? teamId : teams.first.id,
+                decoration: const InputDecoration(labelText: 'الفريق / النطاق'),
+                items: teams.map((t) => DropdownMenuItem(value: t.id, child: Text(t.name))).toList(),
+                onChanged: (value) { if (value != null) setLocal(() => teamId = value); },
               ),
-            );
-          },
+              const SizedBox(height: 12),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('متاح لاستلام مهام جديدة'),
+                value: available,
+                onChanged: (value) => setLocal(() => available = value),
+              ),
+              Row(
+                children: [
+                  const Expanded(child: Text('الحد الأقصى للمهام المفتوحة')),
+                  IconButton(onPressed: capacity <= 1 ? null : () => setLocal(() => capacity--), icon: const Icon(Icons.remove_circle_outline)),
+                  Text('$capacity', style: const TextStyle(fontWeight: FontWeight.w900)),
+                  IconButton(onPressed: capacity >= 50 ? null : () => setLocal(() => capacity++), icon: const Icon(Icons.add_circle_outline)),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حفظ')),
+          ],
         ),
       ),
     );
+    if (ok != true || !mounted) return;
+    try {
+      await ref.read(supportWorkspaceRepositoryProvider).updateTeamMember(
+            member.id,
+            teamId: teamId,
+            isAvailable: available,
+            capacity: capacity,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث الفريق وحالة الموظف.')));
+      await _refresh();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    }
+  }
+
+  Future<void> _redistribute(SupportTeamMember member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('إعادة توزيع الأعمال؟'),
+        content: Text('ستعود جميع المهام المفتوحة المسندة إلى ${member.name} إلى الوارد المشترك ليتم استلامها من موظف متاح.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('إعادة للوارد')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      final count = await ref.read(supportWorkspaceRepositoryProvider).redistributeMember(member.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تمت إعادة $count مهمة إلى الوارد.')));
+      await _refresh();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    }
   }
 }
+
+class _TeamMemberCard extends StatelessWidget {
+  const _TeamMemberCard({required this.member, required this.teams, required this.onManage, this.onRedistribute});
+  final SupportTeamMember member;
+  final List<SupportTeamSummary> teams;
+  final VoidCallback onManage;
+  final VoidCallback? onRedistribute;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                CircleAvatar(child: Icon(member.isAvailable ? Icons.support_agent : Icons.person_off_outlined)),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(member.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                  Text('${member.teamName ?? 'فريق الدعم'} • ${member.isAvailable ? 'متاح' : 'غير متاح'}', style: const TextStyle(color: AppTheme.textMuted)),
+                ])),
+                Chip(label: Text('${member.openTasks}/${member.capacity}')),
+              ]),
+              const SizedBox(height: 10),
+              LinearProgressIndicator(value: (member.workloadPercent.clamp(0, 100)) / 100),
+              const SizedBox(height: 8),
+              Wrap(spacing: 7, runSpacing: 7, children: [
+                _MetricChip('مفتوحة', member.openTasks),
+                _MetricChip('متأخرة', member.overdueTasks),
+                _MetricChip('عاجلة', member.urgentTasks),
+                _MetricChip('منجز اليوم', member.completedToday),
+              ]),
+              const SizedBox(height: 8),
+              Text('الاستلام: ${member.averageClaimMinutes ?? '—'} د • الرد: ${member.averageResponseMinutes ?? '—'} د • الإنجاز: ${member.averageCompletionMinutes ?? '—'} د', style: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5)),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(child: OutlinedButton.icon(onPressed: onManage, icon: const Icon(Icons.manage_accounts_outlined), label: const Text('إدارة الموظف'))),
+                if (onRedistribute != null) ...[
+                  const SizedBox(width: 8),
+                  Expanded(child: FilledButton.tonalIcon(onPressed: onRedistribute, icon: const Icon(Icons.move_to_inbox_outlined), label: const Text('إعادة توزيع'))),
+                ],
+              ]),
+            ],
+          ),
+        ),
+      );
+}
+
 
 class PlatformReviewsScreen extends StatelessWidget {
   const PlatformReviewsScreen({super.key});
@@ -306,12 +414,14 @@ class _DashboardFrame extends ConsumerStatefulWidget {
     required this.load,
     required this.cards,
     this.attentionTitle,
+    this.topAction,
   });
 
   final String title;
   final Future<SupportWorkspaceDashboard> Function() load;
   final List<_DashboardCardSpec> cards;
   final String? attentionTitle;
+  final Widget? topAction;
 
   @override
   ConsumerState<_DashboardFrame> createState() => _DashboardFrameState();
@@ -355,6 +465,10 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
                 children: [
                   _HeroHeader(mode: dashboard.mode),
+                  if (widget.topAction != null) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(width: double.infinity, child: widget.topAction!),
+                  ],
                   if (dashboard.mode == 'platform') ...[
                     const SizedBox(height: 14),
                     _PlatformDailySummary(dashboard: dashboard),
@@ -431,6 +545,9 @@ void _openAction(BuildContext context, _DashboardAction action) {
       break;
     case _DashboardAction.mine:
       page = const SupportTasksScreen(initialScope: 'mine', title: 'مهامي');
+      break;
+    case _DashboardAction.completed:
+      page = const SupportTasksScreen(initialScope: 'completed', title: 'المهام المنجزة');
       break;
     case _DashboardAction.all:
       page = const SupportTasksScreen(initialScope: 'all', title: 'كل الأعمال');
@@ -677,6 +794,7 @@ class _DashboardCardSpec {
 enum _DashboardAction {
   inbox,
   mine,
+  completed,
   all,
   verifications,
   listings,
@@ -695,12 +813,6 @@ enum _DashboardAction {
   bookings,
   regions,
   services,
-}
-
-String _workspaceTime(DateTime value) {
-  final local = value.toLocal();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${local.year}/${two(local.month)}/${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
 }
 
 String _attentionType(String type) => switch (type) {

@@ -15,13 +15,28 @@ final _bookingRowsProvider = FutureProvider.autoDispose
 });
 
 class BookingsScreen extends ConsumerStatefulWidget {
-  const BookingsScreen({super.key});
+  const BookingsScreen({this.initialBookingId, super.key});
+
+  final int? initialBookingId;
+
   @override
   ConsumerState<BookingsScreen> createState() => _BookingsScreenState();
 }
 
 class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   bool _managed = false;
+
+  List<ViewingBooking> _prioritized(List<ViewingBooking> items) {
+    final id = widget.initialBookingId;
+    if (id == null) return items;
+    final index = items.indexWhere((item) => item.id == id);
+    if (index <= 0) return items;
+    return <ViewingBooking>[
+      items[index],
+      ...items.take(index),
+      ...items.skip(index + 1),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,8 +79,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                         showSelectedIcon: false,
                         segments: const [
                           ButtonSegment(value: false, label: Text('مواعيدي')),
-                          ButtonSegment(
-                              value: true, label: Text('طلبات الإدارة'))
+                          ButtonSegment(value: true, label: Text('طلبات الإدارة'))
                         ],
                         selected: {_managed},
                         onSelectionChanged: (value) =>
@@ -76,8 +90,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                 error: (error, _) => Center(
                     child: Padding(
                         padding: const EdgeInsets.all(20),
-                        child:
-                            Column(mainAxisSize: MainAxisSize.min, children: [
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
                           Text(friendlyApiError(error),
                               textAlign: TextAlign.center),
                           const SizedBox(height: 10),
@@ -86,28 +99,38 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               icon: const Icon(Icons.refresh),
                               label: const Text('إعادة المحاولة'))
                         ]))),
-                data: (items) => RefreshIndicator(
-                    onRefresh: _refresh,
-                    child: items.isEmpty
-                        ? ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            children: const [
-                                SizedBox(height: 140),
-                                Icon(Icons.event_busy_outlined, size: 54),
-                                SizedBox(height: 12),
-                                Center(
-                                    child: Text('لا توجد طلبات معاينة حالياً.'))
-                              ])
-                        : ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            itemCount: items.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (context, index) => _BookingCard(
-                                booking: items[index],
-                                onAction: (action) =>
-                                    _action(items[index], action)))),
+                data: (items) {
+                  final displayed = _prioritized(items);
+                  return RefreshIndicator(
+                      onRefresh: _refresh,
+                      child: displayed.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: const [
+                                  SizedBox(height: 140),
+                                  Icon(Icons.event_busy_outlined, size: 54),
+                                  SizedBox(height: 12),
+                                  Center(
+                                      child: Text('لا توجد طلبات معاينة حالياً.'))
+                                ])
+                          : ListView.separated(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 10, 16, 28),
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: displayed.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                final booking = displayed[index];
+                                return _BookingCard(
+                                  booking: booking,
+                                  highlighted:
+                                      booking.id == widget.initialBookingId,
+                                  onAction: (action) =>
+                                      _action(booking, action),
+                                );
+                              }));
+                },
               )),
             ]);
           },
@@ -127,9 +150,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   Future<void> _action(ViewingBooking booking, String action) async {
     if (action == 'conversation') {
       final threadId = booking.messageThreadId;
-      if (threadId != null && mounted) {
-        await context.push('/messages/$threadId');
-      }
+      if (threadId != null && mounted) await context.push('/messages/$threadId');
       return;
     }
     try {
@@ -192,19 +213,34 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
 }
 
 class _BookingCard extends StatelessWidget {
-  const _BookingCard({required this.booking, required this.onAction});
+  const _BookingCard({
+    required this.booking,
+    required this.onAction,
+    this.highlighted = false,
+  });
+
   final ViewingBooking booking;
   final ValueChanged<String> onAction;
+  final bool highlighted;
+
   @override
   Widget build(BuildContext context) {
     final start = booking.startsAt.toLocal();
     final date =
         "${start.year}/${start.month.toString().padLeft(2, '0')}/${start.day.toString().padLeft(2, '0')} - ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}";
     return Card(
+        elevation: highlighted ? 3 : null,
         child: Padding(
             padding: const EdgeInsets.all(14),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (highlighted) ...[
+                const Chip(
+                  avatar: Icon(Icons.notifications_active_outlined, size: 16),
+                  label: Text('من الإشعار'),
+                ),
+                const SizedBox(height: 6),
+              ],
               Row(children: [
                 Expanded(
                     child: Text(booking.targetTitle,
@@ -222,17 +258,21 @@ class _BookingCard extends StatelessWidget {
               Text(booking.isRequester
                   ? 'المستضيف: ${booking.hostName ?? 'سيتم تعيينه عند التأكيد'}'
                   : 'طالب المعاينة: ${booking.requesterName}'),
-              if (booking.requesterNote != null &&
-                  booking.requesterNote!.isNotEmpty) ...[
+              if (booking.awaitingRequesterConfirmation && booking.isRequester) ...[
                 const SizedBox(height: 7),
-                Text('ملاحظة: ${booking.requesterNote}')
+                const Text(
+                    'المعلن اقترح موعداً جديداً. راجعه ثم وافق أو غيّر الموعد.',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
               ],
-              if (booking.hostNote != null && booking.hostNote!.isNotEmpty) ...[
+              if (booking.requesterNote?.isNotEmpty == true) ...[
+                const SizedBox(height: 7),
+                Text('ملاحظة الطلب: ${booking.requesterNote}')
+              ],
+              if (booking.hostNote?.isNotEmpty == true) ...[
                 const SizedBox(height: 7),
                 Text('رد المستضيف: ${booking.hostNote}')
               ],
-              if (booking.cancellationReason != null &&
-                  booking.cancellationReason!.isNotEmpty) ...[
+              if (booking.cancellationReason?.isNotEmpty == true) ...[
                 const SizedBox(height: 7),
                 Text('سبب الإلغاء: ${booking.cancellationReason}')
               ],
@@ -247,12 +287,14 @@ class _BookingCard extends StatelessWidget {
               if (booking.isActive) ...[
                 const SizedBox(height: 10),
                 Wrap(spacing: 8, runSpacing: 8, children: [
-                  if (booking.canManage && booking.status == 'requested')
-                    FilledButton.tonalIcon(
+                  if (booking.canConfirm)
+                    FilledButton.icon(
                         onPressed: () => onAction('confirm'),
                         icon: const Icon(Icons.check_circle_outline),
-                        label: const Text('تأكيد')),
-                  if (booking.canManage && booking.status == 'requested')
+                        label: Text(booking.canAcceptReschedule
+                            ? 'قبول الموعد الجديد'
+                            : 'تأكيد')),
+                  if (booking.canDecline)
                     OutlinedButton.icon(
                         onPressed: () => onAction('decline'),
                         icon: const Icon(Icons.cancel_outlined),
@@ -269,9 +311,7 @@ class _BookingCard extends StatelessWidget {
                         label: const Text('إلغاء')),
                 ])
               ],
-              if (booking.canManage &&
-                  booking.status == 'confirmed' &&
-                  booking.endsAt.isBefore(DateTime.now())) ...[
+              if (booking.canComplete) ...[
                 const SizedBox(height: 10),
                 FilledButton.tonalIcon(
                     onPressed: () => onAction('complete'),

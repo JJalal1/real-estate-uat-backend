@@ -6,6 +6,7 @@ import '../../account/data/auth_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_marker.dart';
 import '../domain/property_location_address.dart';
+import '../domain/property_sai.dart';
 
 final propertyRepositoryProvider = Provider<PropertyRepository>((ref) {
   return PropertyRepository(
@@ -246,6 +247,34 @@ class PropertyRepository {
     return _detailsFromResponse(response);
   }
 
+  Future<PropertySaiEnvelope> sai(int propertyId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/properties/$propertyId/sai',
+      options: await _auth.optionalAuthOptions(),
+    );
+    return PropertySaiEnvelope.fromResponse(response.data);
+  }
+
+  Future<PropertySaiEnvelope> configureSai(
+    int propertyId, {
+    required String payer,
+    double? brokerRatePercent,
+    String? platformTermsDecision,
+  }) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '/properties/$propertyId/sai',
+      data: <String, dynamic>{
+        'sai_payer': payer,
+        if (brokerRatePercent != null)
+          'broker_sai_rate_percent': brokerRatePercent,
+        if (platformTermsDecision != null)
+          'platform_terms_decision': platformTermsDecision,
+      },
+      options: await _auth.requiredAuthOptions(),
+    );
+    return PropertySaiEnvelope.fromResponse(response.data);
+  }
+
   Future<List<PropertyDetails>> myListings() async {
     final options = await _auth.requiredAuthOptions();
     final listings = <PropertyDetails>[];
@@ -255,7 +284,7 @@ class PropertyRepository {
     do {
       final response = await _dio.get<Map<String, dynamic>>(
         '/properties/mine/list',
-        queryParameters: {'page': page, 'per_page': 50},
+        queryParameters: {'page': page, 'per_page': 50, 'view': 'workspace'},
         options: options,
       );
       final rows =

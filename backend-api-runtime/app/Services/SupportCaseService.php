@@ -15,7 +15,7 @@ class SupportCaseService
     public const ACTIVE_STATUSES = ['open','in_progress','waiting_requester'];
     public const CLOSED_STATUSES = ['resolved','dismissed'];
 
-    public function __construct(private readonly AuditLogService $audit, private readonly UserNotificationService $notifications, private readonly PlatformSettingsService $settings) {}
+    public function __construct(private readonly AuditLogService $audit, private readonly UserNotificationService $notifications, private readonly PlatformSettingsService $settings, private readonly SupportTaskService $tasks) {}
 
     public function create(
         User $requester,
@@ -52,7 +52,7 @@ class SupportCaseService
             $this->audit->record($requester,'support.case_created',$case,[
                 'reference'=>$case->reference,'kind'=>$kind,'target_type'=>$targetType,'target_id'=>$targetId,
             ],$request,$requester->id);
-            return $case->fresh();
+            return $this->projected($case->fresh());
         });
     }
 
@@ -75,7 +75,7 @@ class SupportCaseService
             $locked->forceFill($changes)->save();
             $this->event($locked,$requester,'requester_replied',$from,$locked->status,['sla_due_at'=>$locked->sla_due_at?->toIso8601String()]);
             $this->audit->record($requester,'support.requester_replied',$locked,['reference'=>$locked->reference],$request,$requester->id);
-            return $locked->fresh();
+            return $this->projected($locked->fresh());
         });
     }
 
@@ -94,7 +94,7 @@ class SupportCaseService
             ])->save();
             $this->event($locked,$actor,'started',$from,'in_progress');
             $this->audit->record($actor,'support.case_started',$locked,['reference'=>$locked->reference],$request,$locked->requester_user_id);
-            return $locked->fresh();
+            return $this->projected($locked->fresh());
         });
     }
 
@@ -117,7 +117,7 @@ class SupportCaseService
             $this->event($locked,$actor,'staff_replied',$from,$locked->status);
             $this->audit->record($actor,'support.case_replied',$locked,['reference'=>$locked->reference],$request,$locked->requester_user_id);
             if($locked->requester_user_id){$this->notifications->create((int)$locked->requester_user_id,'support_reply','رد جديد من الدعم','لديك رد جديد في مركز الدعم.','support_case',$locked->id,['reference'=>$locked->reference]);}
-            return $locked->fresh();
+            return $this->projected($locked->fresh());
         });
     }
 
@@ -129,7 +129,7 @@ class SupportCaseService
             $locked->forceFill(['last_activity_at'=>now()])->save();
             $this->event($locked,$actor,'internal_note_added',$locked->status,$locked->status);
             $this->audit->record($actor,'support.internal_note_added',$locked,['reference'=>$locked->reference],$request,$locked->requester_user_id);
-            return $locked->fresh();
+            return $this->projected($locked->fresh());
         });
     }
 
@@ -154,7 +154,7 @@ class SupportCaseService
             $this->event($locked,$actor,'status_changed',$from,$status);
             $this->audit->record($actor,'support.status_changed',$locked,['from'=>$from,'to'=>$status,'reference'=>$locked->reference],$request,$locked->requester_user_id);
             if($locked->requester_user_id){$this->notifications->create((int)$locked->requester_user_id,'support_status','تم تحديث حالة الدعم','تم تحديث حالة طلب الدعم الخاص بك.','support_case',$locked->id,['status'=>$status,'reference'=>$locked->reference]);}
-            return $locked->fresh();
+            return $this->projected($locked->fresh());
         });
     }
 
@@ -173,7 +173,7 @@ class SupportCaseService
             $this->message($locked,$actor,'staff',true,'إعادة فتح الحالة: '.$reason);
             $this->event($locked,$actor,'reopened',$from,'in_progress',['reason'=>$reason]);
             $this->audit->record($actor,'support.case_reopened',$locked,['from'=>$from,'reason'=>$reason,'reference'=>$locked->reference],$request,$locked->requester_user_id);
-            return $locked->fresh();
+            return $this->projected($locked->fresh());
         });
     }
 
@@ -190,7 +190,7 @@ class SupportCaseService
             ])->save();
             $this->event($locked,$actor,'assigned',$locked->status,$locked->status,['from_user_id'=>$before,'to_user_id'=>$assignee->id]);
             $this->audit->record($actor,'support.case_assigned',$locked,['from_user_id'=>$before,'to_user_id'=>$assignee->id,'reference'=>$locked->reference],$request,$locked->requester_user_id);
-            return $locked->fresh();
+            return $this->projected($locked->fresh());
         });
     }
 
@@ -210,7 +210,7 @@ class SupportCaseService
             $this->message($locked,$actor,'staff',true,'تصعيد الحالة: '.$reason);
             $this->event($locked,$actor,'manual_escalated',$from,$locked->status,['reason'=>$reason,'level'=>$locked->escalation_level]);
             $this->audit->record($actor,'support.case_escalated',$locked,['reason'=>$reason,'level'=>$locked->escalation_level,'reference'=>$locked->reference],$request,$locked->requester_user_id);
-            return $locked->fresh();
+            return $this->projected($locked->fresh());
         });
     }
 
@@ -232,12 +232,19 @@ class SupportCaseService
                     'priority'=>$case->priority==='normal'?'high':$case->priority,
                     'last_activity_at'=>now(),
                 ])->save();
+                $this->tasks->projectSupportCase($case);
                 $this->event($case,null,'sla_escalated',$case->status,$case->status,['sla_due_at'=>$case->sla_due_at?->toIso8601String(),'level'=>$case->escalation_level]);
                 $this->audit->record(null,'support.sla_escalated',$case,['reference'=>$case->reference,'level'=>$case->escalation_level],$request,$case->requester_user_id);
                 $count++;
             });
         }
         return $count;
+    }
+
+    private function projected(SupportCase $case): SupportCase
+    {
+        $this->tasks->projectSupportCase($case);
+        return $case;
     }
 
     private function message(SupportCase $case, ?User $actor, string $role, bool $internal, string $body): SupportCaseMessage
