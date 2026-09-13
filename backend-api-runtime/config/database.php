@@ -25,8 +25,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Below are all of the database connections defined for your application.
-    | An example configuration is provided for each database system which is
-    | supported by Laravel. You're free to add / remove connections.
+    | An example configuration is provided for each database system which
+    | is supported by Laravel. You're free to add / remove connections.
     |
     */
 
@@ -124,9 +124,9 @@ return [
     | Migration Repository Table
     |--------------------------------------------------------------------------
     |
-    | This table keeps track of all the migrations that have already run for
+    | This table keeps track of all of the migrations that have already run for
     | your application. Using this information, we can determine which of the
-    | migrations on disk haven't actually been run.
+    | migrations on disk haven't actually been run in the database.
     |
     */
 
@@ -141,8 +141,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Redis is an open source, fast, and advanced key-value store that provides
-    | richer functionality than a typical key-value store. You may define its
-    | connections below.
+    | richer functionality than a typical key-value store. You may define your
+    | connection settings here.
     |
     */
 
@@ -152,7 +152,7 @@ return [
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'Laravel')).'-database-'),
+            'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-database-'),
             'persistent' => env('REDIS_PERSISTENT', false),
         ],
 
