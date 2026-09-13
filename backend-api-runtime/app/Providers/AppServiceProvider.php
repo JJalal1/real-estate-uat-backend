@@ -7,7 +7,9 @@ use App\Http\Controllers\Api\FinancialAgreementContractController;
 use App\Http\Controllers\Api\FinancialPropertyController;
 use App\Http\Controllers\Api\PropertyController;
 use App\Http\Middleware\EnsureSupportTaskOwnership;
+use App\Services\CompletePropertyFinancialService;
 use App\Services\FinancialAwareSupportTaskService;
+use App\Services\PropertyFinancialService;
 use App\Services\SupportTaskService;
 use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
@@ -19,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(SupportTaskService::class, FinancialAwareSupportTaskService::class);
+        $this->app->bind(PropertyFinancialService::class, CompletePropertyFinancialService::class);
         $this->app->bind(PropertyController::class, FinancialPropertyController::class);
         $this->app->bind(AgreementContractController::class, FinancialAgreementContractController::class);
     }
