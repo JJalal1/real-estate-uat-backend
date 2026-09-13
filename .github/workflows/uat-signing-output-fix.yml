@@ -1,0 +1,39 @@
+name: UAT Signing Output Fix
+
+on:
+  push:
+    branches:
+      - hardening/uat-android-signing
+    paths:
+      - '.github/workflows/uat-signing-output-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hardening/uat-android-signing
+      - name: Patch signer metadata matcher and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/build-uat-apk.yml')
+          text = path.read_text(encoding='utf-8')
+          old = "grep -E 'Signer #1 certificate DN:|Signer #1 certificate SHA-256 digest:' /tmp/uat-apk-certs.txt"
+          new = "grep -E 'certificate DN:|certificate SHA-256 digest:' /tmp/uat-apk-certs.txt"
+          if old not in text:
+              raise SystemExit('expected signer metadata matcher not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/uat-signing-output-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/build-uat-apk.yml .github/workflows/uat-signing-output-fix.yml
+          git commit -m 'Fix UAT APK signer metadata verification'
+          git push origin HEAD:hardening/uat-android-signing
