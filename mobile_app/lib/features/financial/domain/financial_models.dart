@@ -13,6 +13,12 @@ class FinancialPaymentMethod {
     this.unavailableReason,
     this.requiresSenderPhone = false,
     this.requiresProviderReference = false,
+    this.isEnabled = true,
+    this.allowsFullPayment = true,
+    this.allowsSaiOnly = true,
+    this.minAmount,
+    this.maxAmount,
+    this.sortOrder = 0,
   });
 
   final int id;
@@ -28,6 +34,12 @@ class FinancialPaymentMethod {
   final String? unavailableReason;
   final bool requiresSenderPhone;
   final bool requiresProviderReference;
+  final bool isEnabled;
+  final bool allowsFullPayment;
+  final bool allowsSaiOnly;
+  final double? minAmount;
+  final double? maxAmount;
+  final int sortOrder;
 
   factory FinancialPaymentMethod.fromJson(Map<String, dynamic> json) =>
       FinancialPaymentMethod(
@@ -38,16 +50,33 @@ class FinancialPaymentMethod {
         destinationLabel: '${json['destination_label'] ?? ''}',
         destinationValue: '${json['destination_value'] ?? ''}',
         currency: '${json['currency'] ?? 'YER'}',
-        available: json['available'] != false && json['available'] != 0,
+        available: json.containsKey('available')
+            ? json['available'] != false && json['available'] != 0
+            : json['is_enabled'] != false && json['is_enabled'] != 0,
         instructions: _text(json['instructions_ar']),
         assetKey: _text(json['asset_key']),
         unavailableReason: _text(json['unavailable_reason']),
-        requiresSenderPhone: json['requires_sender_phone'] == true ||
-            json['requires_sender_phone'] == 1,
-        requiresProviderReference:
-            json['requires_provider_reference'] == true ||
-                json['requires_provider_reference'] == 1,
+        requiresSenderPhone: _bool(json['requires_sender_phone']),
+        requiresProviderReference: _bool(json['requires_provider_reference']),
+        isEnabled: json['is_enabled'] == null ? true : _bool(json['is_enabled']),
+        allowsFullPayment: json['allows_full_payment'] == null
+            ? true
+            : _bool(json['allows_full_payment']),
+        allowsSaiOnly: json['allows_sai_only'] == null
+            ? true
+            : _bool(json['allows_sai_only']),
+        minAmount: _nullableDouble(json['min_amount']),
+        maxAmount: _nullableDouble(json['max_amount']),
+        sortOrder: _int(json['sort_order']),
       );
+
+  String? get localAssetPath {
+    if (key == 'jeeb') return 'assets/payments/jeeb.png';
+    if (key == 'kuraimi') return 'assets/payments/kuraimi.png';
+    if (key == 'jawali') return 'assets/payments/jawali.png';
+    if (assetKey?.startsWith('assets/payments/') == true) return assetKey;
+    return null;
+  }
 }
 
 class FinancialPayment {
@@ -61,7 +90,7 @@ class FinancialPayment {
     this.propertyId,
     this.propertyTitle,
     this.mode,
-    this.paymentMethod,
+    this.method,
     this.providerReference,
     this.senderName,
     this.senderPhone,
@@ -82,7 +111,7 @@ class FinancialPayment {
   final int? propertyId;
   final String? propertyTitle;
   final String? mode;
-  final String? paymentMethod;
+  final FinancialPaymentMethod? method;
   final String? providerReference;
   final String? senderName;
   final String? senderPhone;
@@ -93,12 +122,14 @@ class FinancialPayment {
   final DateTime? submittedAt;
   final DateTime? confirmedAt;
 
+  String? get paymentMethod => method?.name;
+
   String get statusLabel => switch (status) {
         'waiting_payment' => 'بانتظار الدفع',
         'proof_submitted' => 'تم رفع الإثبات',
         'under_review' => 'قيد التحقق',
         'correction_required' => 'يحتاج تصحيح',
-        'confirmed' => 'تم التأكيد',
+        'confirmed' => 'تم تأكيد الدفع ✅',
         'rejected' => 'مرفوض',
         'cancelled' => 'ملغي',
         _ => status,
@@ -115,13 +146,14 @@ class FinancialPayment {
         propertyId: _nullableInt(json['property_id']),
         propertyTitle: _text(json['property_title']),
         mode: _text(json['mode']),
-        paymentMethod: json['payment_method'] is Map
-            ? _text((json['payment_method'] as Map)['name_ar'])
-            : _text(json['payment_method']),
+        method: json['payment_method'] is Map
+            ? FinancialPaymentMethod.fromJson(
+                Map<String, dynamic>.from(json['payment_method'] as Map))
+            : null,
         providerReference: _text(json['provider_reference']),
         senderName: _text(json['sender_name']),
         senderPhone: _text(json['sender_phone']),
-        hasProof: json['has_proof'] == true || json['has_proof'] == 1,
+        hasProof: _bool(json['has_proof']),
         proofUrl: _text(json['proof_url']),
         reviewNote: _text(json['review_note']),
         createdAt: _date(json['created_at']),
@@ -198,8 +230,8 @@ class FinancialDeal {
         payments: _maps(json['payments'])
             .map(FinancialPayment.fromJson)
             .toList(growable: false),
-        receivable: json['receivable'] is Map<String, dynamic>
-            ? json['receivable'] as Map<String, dynamic>
+        receivable: json['receivable'] is Map
+            ? Map<String, dynamic>.from(json['receivable'] as Map)
             : null,
       );
 }
@@ -227,13 +259,39 @@ class FinancialAccountSummary {
         overduePlatformDue: _double(json['overdue_platform_due']),
         pendingPayouts: _double(json['pending_payouts']),
         paidPayouts: _double(json['paid_payouts']),
-        listingCreationBlocked: json['listing_creation_blocked'] == true,
-        publishedListingsHidden: json['published_listings_hidden'] == true,
+        listingCreationBlocked: _bool(json['listing_creation_blocked']),
+        publishedListingsHidden: _bool(json['published_listings_hidden']),
+      );
+}
+
+class FinancialAdvertiserAccount {
+  const FinancialAdvertiserAccount({
+    required this.summary,
+    required this.receivables,
+    required this.payouts,
+    required this.deals,
+  });
+
+  final FinancialAccountSummary summary;
+  final List<Map<String, dynamic>> receivables;
+  final List<Map<String, dynamic>> payouts;
+  final List<Map<String, dynamic>> deals;
+
+  factory FinancialAdvertiserAccount.fromJson(Map<String, dynamic> json) =>
+      FinancialAdvertiserAccount(
+        summary: FinancialAccountSummary.fromJson(
+            Map<String, dynamic>.from(json['summary'] as Map? ?? const {})),
+        receivables: _maps(json['receivables']),
+        payouts: _maps(json['payouts']),
+        deals: _maps(json['deals']),
       );
 }
 
 List<Map<String, dynamic>> _maps(dynamic value) => value is List
-    ? value.whereType<Map<String, dynamic>>().toList(growable: false)
+    ? value
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList(growable: false)
     : const <Map<String, dynamic>>[];
 int _int(dynamic value) =>
     value is num ? value.toInt() : int.tryParse('$value') ?? 0;
@@ -241,6 +299,7 @@ int? _nullableInt(dynamic value) => value == null ? null : _int(value);
 double _double(dynamic value) =>
     value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
 double? _nullableDouble(dynamic value) => value == null ? null : _double(value);
+bool _bool(dynamic value) => value == true || value == 1 || value == '1';
 String? _text(dynamic value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : text;
