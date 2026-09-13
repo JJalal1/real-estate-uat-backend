@@ -62,17 +62,20 @@ void main() {
     expect(source, contains('لقد أتممت التحويل'));
     expect(source, contains('إرسال للتحقق'));
     expect(source, contains('لا تدفع مرة أخرى لهذه العملية'));
-    expect(source, contains("'assets/payments/jeeb.png'"));
-    expect(source, contains("'assets/payments/kuraimi.png'"));
-    expect(source, contains("'assets/payments/jawali.png'"));
   });
 
-  test('wallet logos are bundled and declared as Flutter assets', () {
+  test('wallet logos are bundled declared and mapped to their payment methods', () {
     expect(File('assets/payments/jeeb.png').existsSync(), isTrue);
     expect(File('assets/payments/kuraimi.png').existsSync(), isTrue);
     expect(File('assets/payments/jawali.png').existsSync(), isTrue);
     final pubspec = File('pubspec.yaml').readAsStringSync();
+    final models = File(
+      'lib/features/financial/domain/financial_models.dart',
+    ).readAsStringSync();
     expect(pubspec, contains('assets/payments/'));
+    expect(models, contains("'assets/payments/jeeb.png'"));
+    expect(models, contains("'assets/payments/kuraimi.png'"));
+    expect(models, contains("'assets/payments/jawali.png'"));
   });
 
   test('advertiser financial account includes deals payouts and platform receivables', () {
