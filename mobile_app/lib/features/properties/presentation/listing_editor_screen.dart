@@ -18,6 +18,7 @@ import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import '../domain/property_location_address.dart';
 import '../domain/property_sai.dart';
+import 'property_land_boundary_picker_screen.dart';
 import 'property_location_picker_screen.dart';
 import 'property_sai_configuration_sheet.dart';
 
@@ -86,6 +87,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   final _governorate = TextEditingController();
   final _district = TextEditingController();
   final _street = TextEditingController();
+  final _buildingReference = TextEditingController();
+  final _unitNumber = TextEditingController();
+  final _floorNumber = TextEditingController();
   final _phone = TextEditingController();
   final _whatsapp = TextEditingController();
   final _documentOwnerName = TextEditingController();
@@ -102,6 +106,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   String? _relationshipType;
   double? _latitude;
   double? _longitude;
+  Map<String, dynamic>? _landBoundaryGeoJson;
   bool _busy = false;
   bool _resolvingLocation = false;
   bool _replaceImages = false;
@@ -131,6 +136,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       _purpose == 'sale' && _saleTenureTypes.contains(_type);
   bool get _requiresResidential => _residentialTypes.contains(_type);
   bool get _requiresStructure => _structureTypes.contains(_type);
+  bool get _isUnitType => const {'apartment', 'office', 'shop'}.contains(_type);
+  bool get _unitNeedsFloor => const {'apartment', 'office'}.contains(_type);
   bool? get _parkingValue =>
       _parkingChoice == null ? null : _parkingChoice == 'yes';
   bool get _visitorPaysSai => const {'buyer', 'tenant'}.contains(
@@ -196,6 +203,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     _street.text = address.street ?? '';
     _latitude = property.latitude;
     _longitude = property.longitude;
+    _buildingReference.text = property.buildingReference ?? '';
+    _unitNumber.text = property.unitNumber ?? '';
+    _floorNumber.text = property.floorNumber ?? '';
+    _landBoundaryGeoJson = property.landBoundaryGeoJson;
     _phone.text = property.contactPhone ?? '';
     _whatsapp.text = property.contactWhatsapp ?? '';
     _ownershipDocumentType = property.ownershipDocumentType;
@@ -229,6 +240,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       _governorate,
       _district,
       _street,
+      _buildingReference,
+      _unitNumber,
+      _floorNumber,
       _phone,
       _whatsapp,
       _documentOwnerName,
@@ -348,6 +362,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                               _parkingChoice = null;
                               _facade = null;
                             }
+                            if (!_isUnitType) {
+                              _buildingReference.clear();
+                              _unitNumber.clear();
+                              _floorNumber.clear();
+                            }
+                            if (_type != 'land') {
+                              _landBoundaryGeoJson = null;
+                            }
                           }),
                 ),
               )
@@ -463,6 +485,30 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           label: 'الشارع',
           enabled: !_busy && hasLocation,
         ),
+        if (_type == 'land' && hasLocation) ...[
+          const SizedBox(height: AppSpacing.s16),
+          AppInlineMessage(
+            title: _landBoundaryGeoJson == null
+                ? 'حدود الأرض غير محددة'
+                : 'تم تحديد حدود الأرض',
+            message: _landBoundaryGeoJson == null
+                ? 'ارسم زوايا الأرض حتى لا يعتمد منع التكرار على الدبوس فقط.'
+                : 'سيستخدم النظام حدود القطعة والمساحة معاً لمنع تكرارها.',
+            tone: _landBoundaryGeoJson == null
+                ? AppStatusTone.warning
+                : AppStatusTone.success,
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          AppButton(
+            label: _landBoundaryGeoJson == null
+                ? 'رسم حدود الأرض'
+                : 'تعديل حدود الأرض',
+            icon: Icons.polyline_outlined,
+            style: AppButtonStyle.tonal,
+            onPressed: _busy ? null : _pickLandBoundary,
+            expand: true,
+          ),
+        ],
       ],
     );
   }
@@ -475,6 +521,36 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           title: 'المواصفات',
           subtitle: 'أدخل المعلومات التي تساعد الباحث على مقارنة العقار بدقة.',
         ),
+        if (_isUnitType) ...[
+          const SizedBox(height: AppSpacing.s16),
+          AppInlineMessage(
+            title: 'هوية الوحدة داخل المبنى',
+            message:
+                'يمكن نشر وحدات مختلفة في نفس العمارة، لكن لا يمكن نشر نفس الوحدة مرتين.',
+            tone: AppStatusTone.info,
+          ),
+          const SizedBox(height: AppSpacing.s12),
+          AppTextField(
+            controller: _buildingReference,
+            label: 'اسم أو رقم المبنى *',
+            hint: 'مثال: عمارة النور 12',
+            enabled: !_busy,
+          ),
+          const SizedBox(height: AppSpacing.s12),
+          Row(children: [
+            Expanded(
+                child: AppTextField(
+                    controller: _unitNumber,
+                    label: 'رقم الوحدة *',
+                    enabled: !_busy)),
+            const SizedBox(width: AppSpacing.s8),
+            Expanded(
+                child: AppTextField(
+                    controller: _floorNumber,
+                    label: _unitNeedsFloor ? 'الدور *' : 'الدور',
+                    enabled: !_busy)),
+          ]),
+        ],
         const SizedBox(height: AppSpacing.s16),
         Row(
           children: [
@@ -1003,10 +1079,24 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       }
       if (_governorate.text.trim().length < 2) return 'أكمل اسم المحافظة.';
       if (_composedAddress.length < 3) return 'أكمل معلومات عنوان العقار.';
+      if (_type == 'land' && _landBoundaryGeoJson == null) {
+        return 'ارسم حدود الأرض حتى نتحقق من هوية القطعة ولا نعتمد على الدبوس وحده.';
+      }
     }
     if (step == 2) {
       final areaValue = double.tryParse(_area.text.trim());
       if (areaValue == null || areaValue <= 0) return 'أدخل عدداً صحيحاً للبن.';
+      if (_isUnitType) {
+        if (_buildingReference.text.trim().isEmpty) {
+          return 'أدخل اسم أو رقم المبنى.';
+        }
+        if (_unitNumber.text.trim().isEmpty) {
+          return 'أدخل رقم الوحدة.';
+        }
+        if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) {
+          return 'أدخل رقم الدور.';
+        }
+      }
       if (_requiresResidential) {
         if ((_optionalInt(_bedrooms) ?? 0) < 1) return 'أدخل عدد غرف النوم.';
         if ((_optionalInt(_bathrooms) ?? 0) < 1) return 'أدخل عدد الحمامات.';
@@ -1112,6 +1202,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       hasParking: _requiresStructure ? _parkingValue : null,
       buildingFacade: _requiresStructure ? _facade : null,
       address: _composedAddress,
+      buildingReference: _isUnitType ? _buildingReference.text.trim() : null,
+      unitNumber: _isUnitType ? _unitNumber.text.trim() : null,
+      floorNumber: _isUnitType && _floorNumber.text.trim().isNotEmpty
+          ? _floorNumber.text.trim()
+          : null,
+      landBoundaryGeoJson: _type == 'land' ? _landBoundaryGeoJson : null,
       latitude: _latitude!,
       longitude: _longitude!,
       contactPhone: _phone.text.trim(),
@@ -1178,6 +1274,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
 
       if (submit) {
         try {
+          final identityReady = await _checkIdentityBeforeSubmit(draft.id);
+          if (!identityReady) return;
           draft = await repository.submitListing(draft.id);
           ref.read(propertyDataRevisionProvider.notifier).state++;
         } catch (error) {
@@ -1350,6 +1448,127 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     ref.read(propertyDataRevisionProvider.notifier).state++;
     await _clearUploadedTemporaryFiles();
     return draft;
+  }
+
+  Future<bool> _checkIdentityBeforeSubmit(int propertyId) async {
+    final repository = ref.read(propertyRepositoryProvider);
+    final result = await repository.checkPropertyIdentity(propertyId);
+    if (result.isDistinct) {
+      return true;
+    }
+    if (result.isConfirmedDuplicate) {
+      _message(
+          'هذا العقار أو هذه الوحدة مسجلة بالفعل على المنصة ولا يمكن إنشاء إعلان آخر لها.');
+      return false;
+    }
+    final answer = await _duplicateSelfVerificationDialog();
+    if (answer == null || !mounted) return false;
+    final verified = await repository.selfVerifyPropertyIdentity(
+      propertyId,
+      differenceType: answer.$1,
+      differenceNote: answer.$2,
+    );
+    if (verified.isConfirmedDuplicate) {
+      _message(
+          'بعد التحقق ما زال هذا العقار مطابقاً لعقار مسجل، لذلك لا يمكن إرساله.');
+      return false;
+    }
+    if (verified.needsSupport) {
+      _message(
+          'تم تسجيل توضيحك. بقي تشابه غير محسوم وسيشاهده موظف الدعم كمقارنة جاهزة فقط.');
+    }
+    return true;
+  }
+
+  Future<(String, String)?> _duplicateSelfVerificationDialog() async {
+    final note = TextEditingController();
+    var type = 'different_address';
+    String? error;
+    final result = await showDialog<(String, String)>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text('وجدنا عقاراً مشابهاً'),
+            content: SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text(
+                  'إذا كان هذا عقاراً مختلفاً، اختر الفرق واكتب معلومة تساعد النظام على التمييز. الحالات غير المحسومة فقط تذهب للدعم.'),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: type,
+                decoration:
+                    const InputDecoration(labelText: 'ما الفرق الأساسي؟'),
+                items: const [
+                  DropdownMenuItem(
+                      value: 'different_building', child: Text('مبنى مختلف')),
+                  DropdownMenuItem(
+                      value: 'different_unit', child: Text('وحدة مختلفة')),
+                  DropdownMenuItem(
+                      value: 'different_area', child: Text('مساحة مختلفة')),
+                  DropdownMenuItem(
+                      value: 'different_boundary',
+                      child: Text('حدود أرض مختلفة')),
+                  DropdownMenuItem(
+                      value: 'different_address',
+                      child: Text('عنوان/رقم عقار مختلف')),
+                  DropdownMenuItem(value: 'other', child: Text('فرق آخر')),
+                ],
+                onChanged: (value) =>
+                    setDialogState(() => type = value ?? type),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: note,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                      labelText: 'وضح الفرق *', errorText: error)),
+            ])),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('رجوع')),
+              FilledButton(
+                  onPressed: () {
+                    final text = note.text.trim();
+                    if (text.length < 10) {
+                      setDialogState(
+                          () => error = 'اكتب توضيحاً من 10 أحرف على الأقل.');
+                      return;
+                    }
+                    Navigator.pop(dialogContext, (type, text));
+                  },
+                  child: const Text('أؤكد أنه عقار مختلف')),
+            ],
+          ),
+        ),
+      ),
+    );
+    note.dispose();
+    return result;
+  }
+
+  Future<void> _pickLandBoundary() async {
+    final latitude = _latitude;
+    final longitude = _longitude;
+    if (latitude == null || longitude == null) {
+      _message('حدد موقع الأرض أولاً.');
+      return;
+    }
+    final selection =
+        await Navigator.of(context).push<PropertyLandBoundarySelection>(
+      MaterialPageRoute(
+          builder: (_) => PropertyLandBoundaryPickerScreen(
+                initialLatitude: latitude,
+                initialLongitude: longitude,
+                initialBoundary: _landBoundaryGeoJson,
+              )),
+    );
+    if (selection != null && mounted) {
+      setState(() => _landBoundaryGeoJson = selection.geoJson);
+    }
   }
 
   Future<void> _configureSai() async {

@@ -52,7 +52,9 @@ class _PropertyLandBoundaryPickerScreenState
 
   List<LatLng> _decode(Map<String, dynamic>? value) {
     final coordinates = value?['coordinates'];
-    if (coordinates is! List || coordinates.isEmpty || coordinates.first is! List) {
+    if (coordinates is! List ||
+        coordinates.isEmpty ||
+        coordinates.first is! List) {
       return <LatLng>[];
     }
     final ring = coordinates.first as List;
@@ -107,9 +109,8 @@ class _PropertyLandBoundaryPickerScreenState
         ));
       }
       if (_points.length >= 2) {
-        final line = _points.length >= 3
-            ? <LatLng>[..._points, _points.first]
-            : _points;
+        final line =
+            _points.length >= 3 ? <LatLng>[..._points, _points.first] : _points;
         await map.addLine(LineOptions(
           geometry: line,
           lineColor: '#0B8A55',
@@ -149,7 +150,8 @@ class _PropertyLandBoundaryPickerScreenState
       );
       return;
     }
-    Navigator.of(context).pop(PropertyLandBoundarySelection(List.unmodifiable(_points)));
+    Navigator.of(context)
+        .pop(PropertyLandBoundarySelection(List.unmodifiable(_points)));
   }
 
   @override

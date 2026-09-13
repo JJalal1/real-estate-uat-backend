@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class PropertyImageItem {
   const PropertyImageItem({
     required this.id,
@@ -55,6 +57,7 @@ class PropertySummary {
   final String purpose;
   final String type;
   final String? tenureType;
+
   /// User-facing amount; Financial V1 uses display_price when returned.
   final double price;
   final double? basePrice;
@@ -184,6 +187,12 @@ class PropertyDetails {
     this.hasParking,
     this.buildingFacade,
     this.address,
+    this.buildingReference,
+    this.unitNumber,
+    this.floorNumber,
+    this.landBoundaryGeoJson,
+    this.duplicateCheckStatus,
+    this.duplicateCheckScore = 0,
     this.status = 'published',
     this.reviewStatus = 'approved',
     this.lastReviewReason,
@@ -210,6 +219,7 @@ class PropertyDetails {
   final String purpose;
   final String type;
   final String? tenureType;
+
   /// User-facing amount. Use [basePrice] when editing the listing itself.
   final double price;
   final double? basePrice;
@@ -229,6 +239,12 @@ class PropertyDetails {
   final bool? hasParking;
   final String? buildingFacade;
   final String? address;
+  final String? buildingReference;
+  final String? unitNumber;
+  final String? floorNumber;
+  final Map<String, dynamic>? landBoundaryGeoJson;
+  final String? duplicateCheckStatus;
+  final int duplicateCheckScore;
   final double latitude;
   final double longitude;
   final String status;
@@ -286,7 +302,8 @@ class PropertyDetails {
       rentalTermMonths: _asInt(json['rental_term_months']),
       advanceMonths: _asInt(json['advance_months']),
       financialHold: _asBool(json['financial_hold']) ?? false,
-      saiAttestationRequired: _asBool(json['sai_attestation_required']) ?? false,
+      saiAttestationRequired:
+          _asBool(json['sai_attestation_required']) ?? false,
       currency: json['currency']?.toString() ?? 'YER',
       areaM2: _asInt(json['area_m2']),
       areaValue: _asDouble(json['area_value']) ?? _asDouble(json['area_m2']),
@@ -297,6 +314,15 @@ class PropertyDetails {
       hasParking: _asBool(json['has_parking']),
       buildingFacade: _nullableString(json['building_facade']),
       address: _nullableString(json['address']),
+      buildingReference: _nullableString(json['building_reference']),
+      unitNumber: _nullableString(json['unit_number']),
+      floorNumber: _nullableString(json['floor_number']),
+      landBoundaryGeoJson: json['land_boundary_geojson'] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(
+              json['land_boundary_geojson'] as Map<String, dynamic>)
+          : null,
+      duplicateCheckStatus: _nullableString(json['duplicate_check_status']),
+      duplicateCheckScore: _asInt(json['duplicate_check_score']) ?? 0,
       latitude: _asDouble(json['latitude']) ?? 0,
       longitude: _asDouble(json['longitude']) ?? 0,
       status: json['status']?.toString() ?? 'published',
@@ -390,6 +416,10 @@ class PropertyListingInput {
     this.hasParking,
     this.buildingFacade,
     this.address,
+    this.buildingReference,
+    this.unitNumber,
+    this.floorNumber,
+    this.landBoundaryGeoJson,
     this.contactPhone,
     this.contactWhatsapp,
     this.ownershipDocumentType,
@@ -417,6 +447,10 @@ class PropertyListingInput {
   final bool? hasParking;
   final String? buildingFacade;
   final String? address;
+  final String? buildingReference;
+  final String? unitNumber;
+  final String? floorNumber;
+  final Map<String, dynamic>? landBoundaryGeoJson;
   final double latitude;
   final double longitude;
   final String? contactPhone;
@@ -439,13 +473,12 @@ class PropertyListingInput {
       'currency': currency.toUpperCase(),
       if (priceDisplayMode != null && priceDisplayMode!.isNotEmpty)
         'price_display_mode': priceDisplayMode,
-      if (purpose == 'rent' && monthlyRent != null)
-        'monthly_rent': monthlyRent,
+      if (purpose == 'rent' && monthlyRent != null) 'monthly_rent': monthlyRent,
       if (purpose == 'rent' && rentalTermMonths != null)
         'rental_term_months': rentalTermMonths,
       if (purpose == 'rent' && advanceMonths != null)
         'advance_months': advanceMonths,
-      'listing_input_version': 2,
+      'listing_input_version': 3,
       if (areaValue != null) 'area_value': areaValue,
       if (areaUnit != null && areaUnit!.trim().isNotEmpty)
         'area_unit': areaUnit,
@@ -459,6 +492,14 @@ class PropertyListingInput {
         'building_facade': buildingFacade,
       if (address != null && address!.trim().isNotEmpty)
         'address': address!.trim(),
+      if (buildingReference != null && buildingReference!.trim().isNotEmpty)
+        'building_reference': buildingReference!.trim(),
+      if (unitNumber != null && unitNumber!.trim().isNotEmpty)
+        'unit_number': unitNumber!.trim(),
+      if (floorNumber != null && floorNumber!.trim().isNotEmpty)
+        'floor_number': floorNumber!.trim(),
+      if (landBoundaryGeoJson != null)
+        'land_boundary_geojson': jsonEncode(landBoundaryGeoJson),
       'latitude': latitude,
       'longitude': longitude,
       'contact_phone': contactPhone?.trim() ?? '',

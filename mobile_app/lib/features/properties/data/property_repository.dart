@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
 import '../domain/property_details.dart';
+import '../domain/property_identity.dart';
 import '../domain/property_marker.dart';
 import '../domain/property_location_address.dart';
 import '../domain/property_sai.dart';
@@ -367,6 +368,39 @@ class PropertyRepository {
       '/properties/$propertyId',
       options: await _auth.requiredAuthOptions(),
     );
+  }
+
+  Future<PropertyIdentityResult> checkPropertyIdentity(int propertyId) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/properties/$propertyId/identity/check',
+      options: await _auth.requiredAuthOptions(),
+    );
+    final data = response.data?['data'];
+    if (data is! Map<String, dynamic>) {
+      throw StateError('Invalid property identity response.');
+    }
+    return PropertyIdentityResult.fromJson(data);
+  }
+
+  Future<PropertyIdentityResult> selfVerifyPropertyIdentity(
+    int propertyId, {
+    required String differenceType,
+    required String differenceNote,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/properties/$propertyId/identity/self-verify',
+      data: <String, dynamic>{
+        'assert_different': true,
+        'difference_type': differenceType,
+        'difference_note': differenceNote.trim(),
+      },
+      options: await _auth.requiredAuthOptions(),
+    );
+    final data = response.data?['data'];
+    if (data is! Map<String, dynamic>) {
+      throw StateError('Invalid property identity response.');
+    }
+    return PropertyIdentityResult.fromJson(data);
   }
 
   Future<PropertyDetails> submitListing(int propertyId) async {
