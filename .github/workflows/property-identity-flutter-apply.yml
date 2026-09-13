@@ -3,7 +3,9 @@ name: Property Identity V2 Flutter Apply
 on:
   push:
     branches: [feature/property-identity-duplicate-prevention]
-    paths: [.github/workflows/property-identity-flutter-apply.yml]
+    paths:
+      - '.github/workflows/property-identity-flutter-apply.yml'
+      - '.github/scripts/property_identity_flutter_repair.py'
 
 permissions:
   contents: write
@@ -23,74 +25,9 @@ jobs:
           channel: stable
           cache: true
       - name: Apply Flutter integration
-        run: python3 .github/scripts/property_identity_flutter_apply.py
-      - name: Repair generated PropertyDetails wiring
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('mobile_app/lib/features/properties/domain/property_details.dart')
-          text = path.read_text()
-          summary_start = text.index('class PropertySummary {')
-          details_start = text.index('class PropertyDetails {')
-          input_start = text.index('class PropertyListingInput {')
-
-          summary = text[summary_start:details_start]
-          bad_summary = """    this.address,
-              this.buildingReference,
-              this.unitNumber,
-              this.floorNumber,
-              this.landBoundaryGeoJson,
-              this.duplicateCheckStatus,
-              this.duplicateCheckScore = 0,
-              this.status = 'published',
-          """
-          good_summary = """    this.address,
-              this.status = 'published',
-          """
-          if bad_summary not in summary:
-              raise SystemExit('PropertySummary generated identity constructor block not found')
-          summary = summary.replace(bad_summary, good_summary, 1)
-
-          details = text[details_start:input_start]
-          details_old = """    this.address,
-              this.status = 'published',
-          """
-          details_new = """    this.address,
-              this.buildingReference,
-              this.unitNumber,
-              this.floorNumber,
-              this.landBoundaryGeoJson,
-              this.duplicateCheckStatus,
-              this.duplicateCheckScore = 0,
-              this.status = 'published',
-          """
-          if details_old not in details:
-              raise SystemExit('PropertyDetails constructor insertion point not found')
-          details = details.replace(details_old, details_new, 1)
-          text = text[:summary_start] + summary + details + text[input_start:]
-          path.write_text(text)
-
-          editor = Path('mobile_app/lib/features/properties/presentation/listing_editor_screen.dart')
-          text = editor.read_text()
-          replacements = {
-              "                            if (_type != 'land') _landBoundaryGeoJson = null;": """                            if (_type != 'land') {
-                              _landBoundaryGeoJson = null;
-                            }""",
-              "        if (_buildingReference.text.trim().isEmpty) return 'أدخل اسم أو رقم المبنى.';": """        if (_buildingReference.text.trim().isEmpty) {
-          return 'أدخل اسم أو رقم المبنى.';
-        }""",
-              "        if (_unitNumber.text.trim().isEmpty) return 'أدخل رقم الوحدة.';": """        if (_unitNumber.text.trim().isEmpty) {
-          return 'أدخل رقم الوحدة.';
-        }""",
-              "        if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) return 'أدخل رقم الدور.';": """        if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) {
-          return 'أدخل رقم الدور.';
-        }""",
-          }
-          for old, new in replacements.items():
-              text = text.replace(old, new)
-          editor.write_text(text)
-          PY
+          python3 .github/scripts/property_identity_flutter_apply.py
+          python3 .github/scripts/property_identity_flutter_repair.py
       - name: Format changed Dart
         working-directory: mobile_app
         run: dart format lib/features/properties/domain/property_details.dart lib/features/properties/domain/property_identity.dart lib/features/properties/data/property_repository.dart lib/features/properties/presentation/listing_editor_screen.dart lib/features/properties/presentation/property_land_boundary_picker_screen.dart
@@ -107,7 +44,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/scripts/property_identity_flutter_apply.py .github/workflows/property-identity-flutter-apply.yml
+          git rm .github/scripts/property_identity_flutter_apply.py .github/scripts/property_identity_flutter_repair.py .github/workflows/property-identity-flutter-apply.yml
           git add mobile_app
           git diff --cached --check
           git commit -m "Integrate Property Identity V2 advertiser UX"
