@@ -33,7 +33,7 @@ void main() {
     expect(source, contains('financialRepositoryProvider).attestSai(item.id)'));
   });
 
-  test('Financial V1 repository uses the authoritative API routes', () {
+  test('Financial V1 repository uses authoritative user and GM API routes', () {
     final source = File(
       'lib/features/financial/data/financial_repository.dart',
     ).readAsStringSync();
@@ -41,9 +41,51 @@ void main() {
     expect(source, contains('/properties/\$propertyId/financial-config'));
     expect(source, contains('/finance/sai-attestations/pending'));
     expect(source, contains('/finance/payments/\$paymentId/proof'));
+    expect(source, contains('/finance/receivables/\$receivableId/payments'));
     expect(source, contains('/admin/finance/payments/\$paymentId'));
     expect(source, contains('/admin/finance/payments/\$paymentId/review'));
     expect(source, contains('/admin/finance/summary'));
+    expect(source, contains('/admin/finance/workspace'));
+    expect(source, contains('/admin/finance/payment-methods'));
+  });
+
+  test('manual payment journey contains locked anti fraud and evidence steps', () {
+    final source = File(
+      'lib/features/financial/presentation/deal_financial_screen.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('إتمام الدفع'));
+    expect(source, contains('لا تحول إلى أي رقم آخر يرسله لك شخص عبر المحادثات'));
+    expect(source, contains('بيانات الدفع المعتمدة تظهر في هذه الصفحة فقط'));
+    expect(source, contains('نسخ الرقم'));
+    expect(source, contains('نسخ المبلغ'));
+    expect(source, contains('لقد أتممت التحويل'));
+    expect(source, contains('إرسال للتحقق'));
+    expect(source, contains('لا تدفع مرة أخرى لهذه العملية'));
+    expect(source, contains("'assets/payments/jeeb.png'"));
+    expect(source, contains("'assets/payments/kuraimi.png'"));
+    expect(source, contains("'assets/payments/jawali.png'"));
+  });
+
+  test('wallet logos are bundled and declared as Flutter assets', () {
+    expect(File('assets/payments/jeeb.png').existsSync(), isTrue);
+    expect(File('assets/payments/kuraimi.png').existsSync(), isTrue);
+    expect(File('assets/payments/jawali.png').existsSync(), isTrue);
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    expect(pubspec, contains('assets/payments/'));
+  });
+
+  test('advertiser financial account includes deals payouts and platform receivables', () {
+    final source = File(
+      'lib/features/financial/presentation/financial_account_screen.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('ملخص الحساب'));
+    expect(source, contains('مستحقات المنصة عليّ'));
+    expect(source, contains('مستحق لي / التحويلات'));
+    expect(source, contains('صفقاتي'));
+    expect(source, contains('مدفوعاتي'));
+    expect(source, contains('سداد مستحق المنصة'));
   });
 
   test('support task resolution handles payment proof inside the claimed task', () {
@@ -60,14 +102,32 @@ void main() {
     expect(source, contains('actingAsAgent: widget.actingAsAgent'));
   });
 
-  test('general manager reports include the executive finance summary', () {
+  test('general manager finance workspace exposes complete sections and filters', () {
     final source = File(
-      'lib/features/admin/presentation/general_manager_pages.dart',
+      'lib/features/admin/presentation/general_manager_finance_screens.dart',
+    ).readAsStringSync();
+    final hubs = File(
+      'lib/features/admin/presentation/general_manager_finance_hubs.dart',
     ).readAsStringSync();
 
-    expect(source, contains("const _SectionTitle('المالية')"));
-    expect(source, contains('financialRepositoryProvider).adminSummary()'));
-    expect(source, contains('جاري تحميل الملخص المالي'));
-    expect(source, contains('تعذر تحميل الملخص المالي'));
+    expect(source, contains('إدارة طرق الدفع'));
+    expect(source, contains('السماح بالدفع الكامل للصفقة'));
+    expect(source, contains('السماح بالسعي / مستحقات المنصة فقط'));
+    expect(source, contains('الصفقات والمعاملات'));
+    expect(source, contains('المدفوعات الواردة'));
+    expect(source, contains('التحويلات للمعلنين'));
+    expect(source, contains('مستحقات المنصة'));
+    expect(source, contains('المتأخر بعد 24 ساعة'));
+    expect(source, contains('القيود المالية'));
+    expect(source, contains('الاستردادات'));
+    expect(source, contains('النزاعات'));
+    expect(source, contains('سجل التدقيق المالي'));
+    expect(source, contains("labelText: 'الفترة'"));
+    expect(source, contains("labelText: 'نوع الصفقة'"));
+    expect(source, contains("labelText: 'نوع المعلن'"));
+    expect(source, contains("labelText: 'المحافظة'"));
+    expect(hubs, contains('GeneralManagerHomeFinancialOverlay'));
+    expect(hubs, contains('GeneralManagerAdministrationFinancialHubScreen'));
+    expect(hubs, contains('GeneralManagerReportsFinancialHubScreen'));
   });
 }
