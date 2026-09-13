@@ -39,7 +39,10 @@ jobs:
         run: flutter analyze
       - name: Test
         working-directory: mobile_app
-        run: flutter test
+        run: >-
+          flutter test
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
       - name: Commit applied Flutter integration
         run: |
           git config user.name "github-actions[bot]"
