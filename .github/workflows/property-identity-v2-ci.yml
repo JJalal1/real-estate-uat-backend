@@ -52,11 +52,11 @@ jobs:
       postgres:
         image: postgis/postgis:17-3.5
         env:
-          POSTGRES_DB: real_estate_identity
+          POSTGRES_DB: real_estate_audit
           POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres -d real_estate_identity"
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -65,7 +65,7 @@ jobs:
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
       DB_PORT: 5432
-      DB_DATABASE: real_estate_identity
+      DB_DATABASE: real_estate_audit
       DB_USERNAME: postgres
       DB_PASSWORD: ''
       DB_URL: ''
@@ -86,7 +86,29 @@ jobs:
           key="$(php -r 'echo base64_encode(random_bytes(32));')"
           printf 'APP_KEY=base64:%s\n' "$key" > .env
       - name: Prepare API roles
-        run: psql -h 127.0.0.1 -U postgres -d real_estate_identity -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+        run: psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
       - run: php artisan migrate --force
       - run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - run: php artisan test tests/Feature/PropertyIdentityV2Test.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+
+  flutter:
+    name: Flutter analyze and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: mobile_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - name: Flutter regression tests
+        run: >-
+          flutter test
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
