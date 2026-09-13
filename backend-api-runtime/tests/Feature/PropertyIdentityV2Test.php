@@ -49,13 +49,13 @@ class PropertyIdentityV2Test extends TestCase
         [, $second] = $this->user('identity-neighbour-2@example.test', '+967733000004');
         $a = $this->createReady($first, [
             'title' => 'البيت الشمالي', 'address' => 'صنعاء بيت بوس شارع أ مبنى 10',
-            'latitude' => 15.300000, 'longitude' => 44.210000, 'area_m2' => 180, 'bedrooms' => 3, 'bathrooms' => 2,
+            'latitude' => 15.300000, 'longitude' => 44.210000, 'area_m2' => 180, 'area_value' => 180, 'bedrooms' => 3, 'bathrooms' => 2,
         ]);
         $this->withHeaders($first)->postJson("/api/properties/$a/submit")->assertOk();
 
         $b = $this->createReady($second, [
             'title' => 'البيت الجنوبي', 'address' => 'صنعاء بيت بوس شارع ب مبنى 11',
-            'latitude' => 15.300090, 'longitude' => 44.210040, 'area_m2' => 340, 'bedrooms' => 5, 'bathrooms' => 4,
+            'latitude' => 15.300700, 'longitude' => 44.210040, 'area_m2' => 340, 'area_value' => 340, 'bedrooms' => 5, 'bathrooms' => 4,
         ]);
         $this->withHeaders($second)->postJson("/api/properties/$b/identity/check")
             ->assertOk()->assertJsonPath('data.decision', 'distinct');

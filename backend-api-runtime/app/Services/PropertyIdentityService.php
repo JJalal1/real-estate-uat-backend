@@ -57,8 +57,9 @@ class PropertyIdentityService
     public function validateIdentityInput(array $listing): void
     {
         $type = (string) ($listing['type'] ?? '');
+        $inputVersion = (int) ($listing['listing_input_version'] ?? 1);
         $errors = [];
-        if (in_array($type, self::UNIT_TYPES, true)) {
+        if ($inputVersion >= 3 && in_array($type, self::UNIT_TYPES, true)) {
             if (trim((string) ($listing['building_reference'] ?? '')) === '') {
                 $errors['building_reference'][] = 'حدد اسم أو رقم المبنى حتى نميز الوحدة عن العقارات المجاورة.';
             }
@@ -409,6 +410,19 @@ class PropertyIdentityService
         $this->validateIdentityInput($listing);
         $type = (string) $listing['type'];
         $kind = $this->kindForType($type);
+        $inputVersion = (int) ($listing['listing_input_version'] ?? 1);
+        if (
+            $kind === 'unit'
+            && $inputVersion < 3
+            && (
+                trim((string) ($listing['building_reference'] ?? '')) === ''
+                || trim((string) ($listing['unit_number'] ?? '')) === ''
+            )
+        ) {
+            // Legacy v1/v2 clients did not send unit identity fields. Preserve
+            // their contract while v3+ uses the stricter unit identity model.
+            $kind = 'standalone';
+        }
         $address = $this->normalizedText((string) ($listing['address'] ?? ''));
         $buildingReference = $kind === 'unit' ? $this->normalizedText((string) ($listing['building_reference'] ?? '')) : null;
         $unitNumber = $kind === 'unit' ? $this->normalizedText((string) ($listing['unit_number'] ?? '')) : null;

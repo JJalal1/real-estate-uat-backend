@@ -214,6 +214,7 @@ class PropertyController extends Controller
         $this->assertV2ListingCompleteness($validated);
         $cell=$this->regions->assertListingAllowed($user,(float)$validated['latitude'],(float)$validated['longitude']);
         $asset=$this->identity->resolveOrCreateAsset($user,$validated);
+        $this->assets->assertPurposeNotBlocked($asset,(string)$validated['purpose']);
         $storedPublic=[];$storedPrivate=[];
         try{
             $property=DB::transaction(function()use($request,$validated,$user,$cell,$asset,&$storedPublic,&$storedPrivate){

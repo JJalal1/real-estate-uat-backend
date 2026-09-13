@@ -38,9 +38,9 @@ class Phase2ListingJourneyApiTest extends TestCase
         ]);
         $secondId = $this->createReady($secondHeaders, [
             'title' => 'المنزل الثاني',
-            'address' => 'صنعاء - حدة - شارع المدرسة',
-            'latitude' => 15.369520,
-            'longitude' => 44.191080,
+            'address' => 'صنعاء حدة جوار السوق الخلفي',
+            'latitude' => 15.369700,
+            'longitude' => 44.191120,
             'area_m2' => 202,
             'bedrooms' => 4,
             'bathrooms' => 3,
@@ -50,6 +50,14 @@ class Phase2ListingJourneyApiTest extends TestCase
             ->postJson("/api/properties/$firstId/submit")
             ->assertOk()
             ->assertJsonPath('data.review_status', 'submitted');
+        $this->withHeaders($secondHeaders)
+            ->postJson("/api/properties/$secondId/identity/self-verify", [
+                'assert_different' => true,
+                'difference_type' => 'different_address',
+                'difference_note' => 'العقاران متجاوران لكن لكل منهما عنوان ومدخل مستقل عن الآخر.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'needs_support');
         $this->withHeaders($secondHeaders)
             ->postJson("/api/properties/$secondId/submit")
             ->assertOk()
