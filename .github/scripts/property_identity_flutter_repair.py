@@ -39,6 +39,7 @@ replacements = {
     "        if (_unitNumber.text.trim().isEmpty) return 'أدخل رقم الوحدة.';": """        if (_unitNumber.text.trim().isEmpty) {\n          return 'أدخل رقم الوحدة.';\n        }""",
     "        if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) return 'أدخل رقم الدور.';": """        if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) {\n          return 'أدخل رقم الدور.';\n        }""",
     "    if (result.isDistinct) return true;": """    if (result.isDistinct) {\n      return true;\n    }""",
+    "    if (selection != null && mounted) setState(() => _landBoundaryGeoJson = selection.geoJson);": """    if (selection != null && mounted) {\n      setState(() => _landBoundaryGeoJson = selection.geoJson);\n    }""",
 }
 for old, new in replacements.items():
     text = text.replace(old, new)
