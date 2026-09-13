@@ -269,13 +269,45 @@ jobs:
           print('Render UAT health after load: OK')
           PY
 
+      - name: Materialize protected UAT signing keystore
+        shell: bash
+        env:
+          UAT_ANDROID_KEYSTORE_B64: ${{ secrets.UAT_ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$UAT_ANDROID_KEYSTORE_B64"
+          umask 077
+          printf '%s' "$UAT_ANDROID_KEYSTORE_B64" | base64 --decode > "${RUNNER_TEMP}/uat-signing.jks"
+          test -s "${RUNNER_TEMP}/uat-signing.jks"
+
       - name: Build release UAT APK
         working-directory: mobile_app
+        env:
+          UAT_ANDROID_SIGNING_REQUIRED: 'true'
+          UAT_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/uat-signing.jks
+          UAT_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.UAT_ANDROID_KEYSTORE_PASSWORD }}
+          UAT_ANDROID_KEY_ALIAS: ${{ secrets.UAT_ANDROID_KEY_ALIAS }}
+          UAT_ANDROID_KEY_PASSWORD: ${{ secrets.UAT_ANDROID_KEY_PASSWORD }}
         run: >-
           flutter build apk --release
           --build-number=${{ github.run_number }}
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+
+      - name: Reject debug-signed distributable APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="mobile_app/build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$apk"
+          apksigner="$(find "${ANDROID_HOME}/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$apksigner"
+          "$apksigner" verify --print-certs "$apk" > /tmp/uat-apk-certs.txt
+          if grep -Fq 'CN=Android Debug' /tmp/uat-apk-certs.txt; then
+            echo 'Refusing to publish a UAT APK signed with the Android Debug identity.' >&2
+            exit 1
+          fi
+          grep -E 'certificate DN:|certificate SHA-256 digest:' /tmp/uat-apk-certs.txt
 
       - name: Prepare verified APK artifact
         shell: bash

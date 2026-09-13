@@ -1,0 +1,99 @@
+name: UAT Android Signing CI
+
+on:
+  push:
+    branches:
+      - hardening/uat-android-signing
+    paths:
+      - 'mobile_app/android/app/build.gradle'
+      - '.github/workflows/build-uat-apk.yml'
+      - '.github/workflows/uat-android-signing-ci.yml'
+  pull_request:
+    branches:
+      - audit/system-stabilization
+    paths:
+      - 'mobile_app/android/app/build.gradle'
+      - '.github/workflows/build-uat-apk.yml'
+      - '.github/workflows/uat-android-signing-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uat-android-signing-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-signing-config:
+    name: Validate Android release signing configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Flutter 3.27.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        working-directory: mobile_app
+        run: flutter pub get
+
+      - name: Create disposable CI signing identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          keytool -genkeypair -noprompt \
+            -keystore "${RUNNER_TEMP}/uat-ci-signing.jks" \
+            -storepass ci-disposable-only \
+            -keypass ci-disposable-only \
+            -alias uat-ci \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 1 \
+            -dname 'CN=UAT CI Disposable,O=CI,C=US'
+
+      - name: Build disposable release APK through required-signing path
+        working-directory: mobile_app
+        env:
+          UAT_ANDROID_SIGNING_REQUIRED: 'true'
+          UAT_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/uat-ci-signing.jks
+          UAT_ANDROID_KEYSTORE_PASSWORD: ci-disposable-only
+          UAT_ANDROID_KEY_ALIAS: uat-ci
+          UAT_ANDROID_KEY_PASSWORD: ci-disposable-only
+        run: >-
+          flutter build apk --release
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
+
+      - name: Verify non-debug certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="mobile_app/build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$apk"
+          apksigner="$(find "${ANDROID_HOME}/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$apksigner"
+          "$apksigner" verify --print-certs "$apk" > /tmp/uat-ci-apk-certs.txt
+          echo 'APK signer public certificate metadata:'
+          cat /tmp/uat-ci-apk-certs.txt
+          grep -Fq 'CN=UAT CI Disposable' /tmp/uat-ci-apk-certs.txt
+          if grep -Fq 'CN=Android Debug' /tmp/uat-ci-apk-certs.txt; then
+            echo 'Android release signing unexpectedly fell back to the debug identity.' >&2
+            exit 1
+          fi
