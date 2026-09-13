@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\Property;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\PropertyIdentityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Tests\TestCase;
 
 class PropertyIdentityV2Test extends TestCase
@@ -134,6 +137,52 @@ class PropertyIdentityV2Test extends TestCase
             ->assertOk()->assertJsonPath('data.review_status', 'submitted');
         $this->assertDatabaseHas('listing_reviews', ['listing_id'=>$b,'action'=>'duplicate_suspected_after_self_verification']);
         $this->assertDatabaseHas('support_tasks', ['source_type'=>'listing_review','source_id'=>$b]);
+    }
+
+    public function test_representation_claim_conflict_is_controlled_and_preserves_the_winner(): void
+    {
+        [$firstUser, $firstHeaders] = $this->user('identity-claim-1@example.test', '+967733000014');
+        [$secondUser, $secondHeaders] = $this->user('identity-claim-2@example.test', '+967733000015');
+
+        $firstId = $this->createReady($firstHeaders, [
+            'title' => 'العقار صاحب التمثيل',
+            'address' => 'صنعاء حدة شارع 50 منزل 1',
+            'latitude' => 15.371000,
+            'longitude' => 44.192000,
+        ]);
+        $secondId = $this->createReady($secondHeaders, [
+            'title' => 'عقار ثان لاختبار تعارض التمثيل',
+            'address' => 'صنعاء شملان شارع 20 منزل 8',
+            'latitude' => 15.430000,
+            'longitude' => 44.150000,
+        ]);
+
+        $first = Property::query()->findOrFail($firstId);
+        $second = Property::query()->findOrFail($secondId);
+        $second->forceFill(['property_asset_id' => $first->property_asset_id])->saveQuietly();
+
+        $identity = app(PropertyIdentityService::class);
+        $identity->ensureRepresentation($first);
+        $identity->ensureRepresentation($first); // idempotent for the same advertiser.
+
+        try {
+            $identity->ensureRepresentation($second);
+            $this->fail('A competing advertiser must not acquire an active representation claim.');
+        } catch (ConflictHttpException $exception) {
+            $this->assertSame(409, $exception->getStatusCode());
+        }
+
+        $this->assertDatabaseCount('property_representation_claims', 1);
+        $this->assertDatabaseHas('property_representation_claims', [
+            'property_asset_id' => $first->property_asset_id,
+            'property_id' => $first->id,
+            'advertiser_user_id' => $firstUser->id,
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseMissing('property_representation_claims', [
+            'advertiser_user_id' => $secondUser->id,
+            'status' => 'active',
+        ]);
     }
 
     public function test_identity_audit_journal_rejects_mutation(): void

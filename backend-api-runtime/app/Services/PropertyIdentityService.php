@@ -209,7 +209,12 @@ class PropertyIdentityService
                 ]);
                 return;
             }
-            DB::table('property_representation_claims')->insert([
+
+            // lockForUpdate cannot lock a row that does not exist. Two approvals can
+            // therefore both observe no active claim. Let the database's partial
+            // unique index arbitrate atomically, then turn the loser into a stable
+            // domain conflict instead of leaking a unique-violation SQL error.
+            $inserted = DB::table('property_representation_claims')->insertOrIgnore([
                 'property_asset_id' => $listing->property_asset_id,
                 'property_id' => $listing->id,
                 'advertiser_user_id' => $listing->user_id,
@@ -217,6 +222,25 @@ class PropertyIdentityService
                 'status' => 'active',
                 'started_at' => now(),
                 'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            if ($inserted === 1) return;
+
+            $raceWinner = DB::table('property_representation_claims')
+                ->where('property_asset_id', $listing->property_asset_id)
+                ->where('status', 'active')
+                ->lockForUpdate()
+                ->first();
+            if (! $raceWinner) {
+                throw new ConflictHttpException('تعذر حجز تمثيل العقار بسبب تعارض متزامن. أعد المحاولة.');
+            }
+            if ((int) $raceWinner->advertiser_user_id !== (int) $listing->user_id) {
+                throw new ConflictHttpException('يوجد ممثل نشط لهذا العقار على المنصة. لا يمكن إنشاء تمثيل موازٍ للعقار نفسه.');
+            }
+
+            DB::table('property_representation_claims')->where('id', $raceWinner->id)->update([
+                'property_id' => $listing->id,
+                'purpose' => $listing->purpose,
                 'updated_at' => now(),
             ]);
         });
