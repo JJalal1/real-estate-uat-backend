@@ -1,6 +1,7 @@
 name: Property Identity V2 CI
 
 # Permanent merge gate for Property Identity V2 across Laravel, PostgreSQL/PostGIS, and Flutter.
+# Backend regression coverage includes representation-claim conflict handling.
 on:
   push:
     branches: [feature/property-identity-duplicate-prevention]
