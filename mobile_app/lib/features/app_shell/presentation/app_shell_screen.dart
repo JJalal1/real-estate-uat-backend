@@ -6,6 +6,7 @@ import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/presentation/account_screen.dart';
 import '../../account/presentation/auth_gate.dart';
+import '../../admin/presentation/general_manager_finance_hubs.dart';
 import '../../admin/presentation/general_manager_pages.dart';
 import '../../bookings/presentation/bookings_screen.dart';
 import '../../map/presentation/map_screen.dart';
@@ -164,10 +165,10 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       case 'platform':
         return const _ShellData(
           pages: [
-            GeneralManagerHomeScreen(),
+            GeneralManagerHomeFinancialOverlay(),
             GeneralManagerMarketScreen(),
-            GeneralManagerAdministrationScreen(),
-            GeneralManagerReportsScreen(),
+            GeneralManagerAdministrationFinancialHubScreen(),
+            GeneralManagerReportsFinancialHubScreen(),
             AccountScreen(),
           ],
           items: [
