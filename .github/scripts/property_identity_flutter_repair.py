@@ -33,21 +33,14 @@ path.write_text(text[:summary_start] + summary + details + text[input_start:])
 
 editor = Path('mobile_app/lib/features/properties/presentation/listing_editor_screen.dart')
 text = editor.read_text()
-text = text.replace(
-    "                            if (_type != 'land') _landBoundaryGeoJson = null;",
-    """                            if (_type != 'land') {\n                              _landBoundaryGeoJson = null;\n                            }""",
-)
-text = text.replace(
-    "        if (_buildingReference.text.trim().isEmpty) return 'أدخل اسم أو رقم المبنى.';",
-    """        if (_buildingReference.text.trim().isEmpty) {\n          return 'أدخل اسم أو رقم المبنى.';\n        }""",
-)
-text = text.replace(
-    "        if (_unitNumber.text.trim().isEmpty) return 'أدخل رقم الوحدة.';",
-    """        if (_unitNumber.text.trim().isEmpty) {\n          return 'أدخل رقم الوحدة.';\n        }""",
-)
-text = text.replace(
-    "        if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) return 'أدخل رقم الدور.';",
-    """        if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) {\n          return 'أدخل رقم الدور.';\n        }""",
-)
+replacements = {
+    "                            if (_type != 'land') _landBoundaryGeoJson = null;": """                            if (_type != 'land') {\n                              _landBoundaryGeoJson = null;\n                            }""",
+    "        if (_buildingReference.text.trim().isEmpty) return 'أدخل اسم أو رقم المبنى.';": """        if (_buildingReference.text.trim().isEmpty) {\n          return 'أدخل اسم أو رقم المبنى.';\n        }""",
+    "        if (_unitNumber.text.trim().isEmpty) return 'أدخل رقم الوحدة.';": """        if (_unitNumber.text.trim().isEmpty) {\n          return 'أدخل رقم الوحدة.';\n        }""",
+    "        if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) return 'أدخل رقم الدور.';": """        if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) {\n          return 'أدخل رقم الدور.';\n        }""",
+    "    if (result.isDistinct) return true;": """    if (result.isDistinct) {\n      return true;\n    }""",
+}
+for old, new in replacements.items():
+    text = text.replace(old, new)
 editor.write_text(text)
 print('Property Identity V2 generated Flutter repair applied')
