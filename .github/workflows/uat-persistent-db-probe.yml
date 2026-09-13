@@ -1,5 +1,6 @@
 name: Temporary UAT Persistent DB Probe
 
+# Second run intentionally repeats the identical probe after Apache workers have established persistent DB connections.
 on:
   push:
     branches:
