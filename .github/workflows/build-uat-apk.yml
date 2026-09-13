@@ -307,7 +307,7 @@ jobs:
             echo 'Refusing to publish a UAT APK signed with the Android Debug identity.' >&2
             exit 1
           fi
-          grep -E 'Signer #1 certificate DN:|Signer #1 certificate SHA-256 digest:' /tmp/uat-apk-certs.txt
+          grep -E 'certificate DN:|certificate SHA-256 digest:' /tmp/uat-apk-certs.txt
 
       - name: Prepare verified APK artifact
         shell: bash
