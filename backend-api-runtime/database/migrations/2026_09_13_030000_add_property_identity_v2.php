@@ -33,21 +33,20 @@ return new class extends Migration
             $table->timestampTz('duplicate_checked_at')->nullable();
         });
 
+        // This table is an immutable audit journal. Reference IDs deliberately
+        // remain scalar snapshots instead of cascading foreign keys so deletion
+        // of an editable draft cannot mutate or erase an earlier identity check.
         Schema::create('property_identity_checks', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('property_id')->constrained('properties')->cascadeOnDelete();
-            $table->foreignId('candidate_property_id')->nullable()->constrained('properties')->nullOnDelete();
-            $table->foreignId('candidate_property_asset_id')->nullable()->constrained('property_assets')->nullOnDelete();
-            $table->foreignId('actor_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->unsignedBigInteger('property_id')->index('property_identity_checks_property_idx');
+            $table->unsignedBigInteger('candidate_property_id')->nullable()->index('property_identity_checks_candidate_property_idx');
+            $table->unsignedBigInteger('candidate_property_asset_id')->nullable()->index('property_identity_checks_candidate_asset_idx');
+            $table->unsignedBigInteger('actor_user_id')->nullable()->index('property_identity_checks_actor_idx');
             $table->string('result', 32)->index();
             $table->unsignedSmallInteger('score')->default(0);
             $table->json('signals');
             $table->json('metadata')->nullable();
             $table->timestampTz('created_at')->useCurrent();
-            $table->index('property_id', 'property_identity_checks_property_idx');
-            $table->index('candidate_property_id', 'property_identity_checks_candidate_property_idx');
-            $table->index('candidate_property_asset_id', 'property_identity_checks_candidate_asset_idx');
-            $table->index('actor_user_id', 'property_identity_checks_actor_idx');
             $table->index(['property_id', 'created_at'], 'property_identity_checks_property_time_idx');
         });
 
