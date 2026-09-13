@@ -18,6 +18,7 @@ class ListingWorkflowService
     public function __construct(
         private readonly AuditLogService $audit,
         private readonly PropertyAssetService $assets,
+        private readonly PropertyIdentityService $identity,
         private readonly RegionService $regions,
         private readonly BrokerListingVerificationService $brokerVerification,
         private readonly UserNotificationService $notifications,
@@ -39,6 +40,7 @@ class ListingWorkflowService
             $asset = PropertyAsset::query()->whereKey($locked->property_asset_id)->lockForUpdate()->firstOrFail();
             $this->assets->assertPurposeNotBlocked($asset, $locked->purpose);
             $this->assets->assertNotAlreadyPublished($asset, $locked->purpose, $locked->id);
+            $identityResult = $this->identity->assertSubmissionAllowed($actor, $locked);
             $this->regions->assertListingAllowed($actor, (float) $locked->latitude, (float) $locked->longitude);
 
             $from = $locked->review_status;
@@ -54,16 +56,15 @@ class ListingWorkflowService
 
             $this->review($actor, $locked, 'submitted', $from, 'submitted');
 
-            $candidates = $this->assets->likelyDuplicates($locked);
-            if ($candidates !== []) {
+            if (($identityResult['decision'] ?? 'distinct') === 'possible_duplicate') {
                 $this->review(
                     $actor,
                     $locked,
-                    'duplicate_suspected',
+                    'duplicate_suspected_after_self_verification',
                     'submitted',
                     'submitted',
-                    'Likely duplicate signals require human review before approval.',
-                    ['candidates' => $candidates],
+                    'Automated identity checks remained ambiguous after advertiser self-verification.',
+                    ['identity_result' => $identityResult],
                 );
             }
 
@@ -73,7 +74,8 @@ class ListingWorkflowService
                 $locked,
                 [
                     'review_status' => 'submitted',
-                    'likely_duplicate_count' => count($candidates),
+                    'property_identity_status' => $identityResult['status'] ?? 'distinct',
+                    'property_identity_score' => $identityResult['score'] ?? 0,
                 ],
                 $request,
                 $actor->id,
@@ -195,16 +197,9 @@ class ListingWorkflowService
             $this->assets->assertNotAlreadyPublished($asset, $locked->purpose, $locked->id);
             $this->regions->assertListingAllowed($owner, (float) $locked->latitude, (float) $locked->longitude);
 
-            $candidates = $this->assets->likelyDuplicates($locked);
-            if ($candidates !== []) {
+            $identityResult = $this->identity->assertApprovalAllowed($actor, $locked, $duplicateReviewReason);
+            if (($identityResult['decision'] ?? 'distinct') === 'possible_duplicate') {
                 $acknowledgement = trim((string) $duplicateReviewReason);
-                if (mb_strlen($acknowledgement) < 10) {
-                    throw ValidationException::withMessages([
-                        'duplicate_review_reason' => [
-                            'توجد عقارات مشابهة محتملة. راجع المرشحات وسجل سبب اعتبار الإعلان غير مكرر، أو اربطه بهوية العقار الصحيحة قبل الموافقة.',
-                        ],
-                    ]);
-                }
                 $this->review(
                     $actor,
                     $locked,
@@ -212,21 +207,19 @@ class ListingWorkflowService
                     $locked->review_status,
                     $locked->review_status,
                     $acknowledgement,
-                    ['candidates' => $candidates],
+                    ['identity_result' => $identityResult],
                 );
                 $this->audit->record(
                     $actor,
                     'listing.duplicate_review_cleared',
                     $locked,
-                    [
-                        'reason' => $acknowledgement,
-                        'candidate_listing_ids' => array_column($candidates, 'listing_id'),
-                    ],
+                    ['reason' => $acknowledgement, 'identity_result' => $identityResult],
                     $request,
                     $locked->user_id,
                 );
             }
 
+            $this->identity->ensureRepresentation($locked);
             $from = $locked->review_status;
             $locked->forceFill([
                 'status' => 'published',
@@ -243,7 +236,7 @@ class ListingWorkflowService
                 $actor,
                 'listing.approved',
                 $locked,
-                ['reason' => $reason, 'duplicate_candidates_reviewed' => count($candidates)],
+                ['reason' => $reason, 'property_identity_status' => $identityResult['status'] ?? 'distinct'],
                 $request,
                 $locked->user_id,
             );
@@ -563,6 +556,10 @@ class ListingWorkflowService
             'longitude' => (float) $listing->longitude,
             'status' => $listing->status,
             'review_status' => $listing->review_status,
+            'duplicate_check_status' => $listing->duplicate_check_status,
+            'building_reference' => $listing->building_reference,
+            'unit_number' => $listing->unit_number,
+            'floor_number' => $listing->floor_number,
         ];
     }
 }
