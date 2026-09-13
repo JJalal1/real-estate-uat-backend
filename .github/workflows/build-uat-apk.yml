@@ -4,19 +4,120 @@ on:
   push:
     branches:
       - main
+      - audit/system-stabilization
     paths:
       - 'mobile_app/**'
+      - 'backend-api-runtime/**'
       - '.github/workflows/build-uat-apk.yml'
   workflow_dispatch:
 
 env:
-  UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+
+permissions:
+  contents: read
 
 jobs:
+  backend-tests:
+    name: Validate and test Laravel API
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+
+      - name: Prepare isolated test environment
+        run: install -m 600 /dev/null .env
+
+      - name: Install backend dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run Laravel test suite
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+
+  postgres-audit:
+    name: Audit PostgreSQL migrations and security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_audit
+          POSTGRES_PASSWORD: ci-disposable-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: real_estate_audit
+      DB_USERNAME: postgres
+      DB_PASSWORD: ci-disposable-only
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Prepare isolated test environment
+        run: install -m 600 /dev/null .env
+      - name: Install backend dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare API roles in disposable PostgreSQL
+        env:
+          PGPASSWORD: ci-disposable-only
+        run: >-
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
+          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+      - name: Apply complete migration chain to disposable PostgreSQL
+        run: php artisan migrate --force
+      - name: Test PostgreSQL schema and access boundaries
+        run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Test PostGIS overlap regression
+        run: >-
+          php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php
+          --filter=test_postgis_rejects_interior_overlap_but_allows_touching_borders
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+
   build-uat-apk:
     name: Analyze, test and build UAT APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: [backend-tests, postgres-audit]
 
     steps:
       - name: Checkout repository
@@ -45,7 +146,7 @@ jobs:
           check_hash() {
             file="$1"
             expected="$2"
-            actual="$(sha256sum "$file" | awk '{print $1}')"
+            actual="$(git hash-object "$file")"
             if [ "$actual" != "$expected" ]; then
               echo "$file: FAILED"
               echo "Expected: $expected"
@@ -56,11 +157,11 @@ jobs:
           }
 
           check_hash "mobile_app/lib/core/network/api_client.dart" \
-            "82516ed55490f1a2d903c00023a363b1f9e825e459fe5be71b370ac6afc39462"
+            "ab1db55e0ba0058a1e992e2df677b03871bbe95c"
           check_hash "mobile_app/lib/router/app_router.dart" \
-            "ea33a25db0ca9041bd0b49b6906e82154ecfdf6e0ba6a04e0b932492a23c3c5a"
+            "89ae86ee056585f1ea50423005282e695ce12a06"
           check_hash "mobile_app/lib/features/services/presentation/services_screen.dart" \
-            "27f2972403a40c6e2f6b0b0803881d609aa752d8e977c9f8fdf7c5f7b665c392"
+            "7b6c3f3ae5947ad30b898606e93b1ae31ac6d04f"
 
       - name: Flutter version
         working-directory: mobile_app
@@ -111,6 +212,61 @@ jobs:
           assert data.get('database') is True, data
           assert data.get('postgis') is True, data
           print('Render UAT health: OK')
+          PY
+
+      - name: Probe concurrent nearby-property load
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="${UAT_API_BASE_URL}/properties/nearby?latitude=15.3694&longitude=44.1910&radius_km=30"
+          health_url="${UAT_API_BASE_URL%/api}/api/health"
+          rm -rf /tmp/uat-load
+          mkdir -p /tmp/uat-load
+          export endpoint
+
+          echo "Running 40 read-only nearby-property requests with concurrency 20"
+          seq 1 40 | xargs -P 20 -I{} bash -c '
+            i="$1"
+            curl --fail --silent --show-error --max-time 30 \
+              -o "/tmp/uat-load/body-${i}.json" \
+              -w "%{http_code} %{time_total}\n" \
+              "$endpoint" > "/tmp/uat-load/result-${i}.txt"
+          ' _ {}
+
+          python3 - <<'PY'
+          import glob
+          import json
+          from pathlib import Path
+
+          results = []
+          for result_path in sorted(glob.glob('/tmp/uat-load/result-*.txt')):
+              code_text, time_text = Path(result_path).read_text(encoding='utf-8').strip().split()
+              results.append((int(code_text), float(time_text)))
+          assert len(results) == 40, len(results)
+          assert all(code == 200 for code, _ in results), results
+
+          bodies = sorted(glob.glob('/tmp/uat-load/body-*.json'))
+          assert len(bodies) == 40, len(bodies)
+          for body_path in bodies:
+              payload = json.loads(Path(body_path).read_text(encoding='utf-8'))
+              assert isinstance(payload.get('data'), list), payload
+
+          times = sorted(t for _, t in results)
+          p50 = times[len(times) // 2]
+          p95 = times[max(0, int(len(times) * 0.95) - 1)]
+          print(f'UAT nearby load probe: 40/40 HTTP 200; p50={p50:.3f}s; p95={p95:.3f}s; max={max(times):.3f}s')
+          PY
+
+          response="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 --max-time 30 "$health_url")"
+          printf '%s' "$response" > /tmp/uat-health-after-load.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/uat-health-after-load.json', encoding='utf-8') as f:
+              data = json.load(f)
+          assert data.get('status') == 'ok', data
+          assert data.get('database') is True, data
+          assert data.get('postgis') is True, data
+          print('Render UAT health after load: OK')
           PY
 
       - name: Build release UAT APK

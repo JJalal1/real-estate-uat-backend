@@ -12,8 +12,13 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
+import '../data/property_discovery_history_store.dart';
+import '../../account/data/auth_controller.dart';
+import '../../account/data/auth_return_intent.dart';
+import '../../properties/data/favorites_repository.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_marker.dart';
+import '../../properties/presentation/saved_search_builder_screen.dart';
 
 const double mapPropertyPriceIconSize = 1.0;
 
@@ -271,10 +276,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   List<Offset> _areaDraftPoints = <Offset>[];
   bool _selectingArea = false;
   bool _listMode = false;
+  bool _changingFavorite = false;
   int _sortMode = 0;
 
   final TextEditingController _searchController = TextEditingController();
+  final PropertyDiscoveryHistoryStore _historyStore = const PropertyDiscoveryHistoryStore();
   String _searchText = '';
+  List<String> _recentSearches = const <String>[];
 
   bool _styleLoaded = false;
   String? _mapMessage;
@@ -286,6 +294,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(_restoreDiscoveryHistory());
     _loadCurrentLocation();
   }
 
@@ -294,6 +303,62 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _styleLoadTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _restoreDiscoveryHistory() async {
+    final history = await _historyStore.load();
+    if (!mounted) return;
+    final filters = history.lastFilters;
+    final search = filters['search']?.toString().trim() ?? '';
+    setState(() {
+      _recentSearches = history.recentSearches;
+      _filterPurpose = _historyString(filters['purpose']);
+      _filterType = _historyString(filters['type']);
+      _filterMinPrice = _historyDouble(filters['min_price']);
+      _filterMaxPrice = _historyDouble(filters['max_price']);
+      _filterMinBedrooms = _historyInt(filters['min_bedrooms']);
+      _filterMinBathrooms = _historyInt(filters['min_bathrooms']);
+      _filterMinArea = _historyDouble(filters['min_area_m2']);
+      _filterMaxArea = _historyDouble(filters['max_area_m2']);
+      _searchText = search;
+      _searchController.text = search;
+    });
+  }
+
+  String? _historyString(dynamic value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  double? _historyDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  int? _historyInt(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  Map<String, dynamic> _discoveryHistorySnapshot() => <String, dynamic>{
+        if (_filterPurpose != null) 'purpose': _filterPurpose,
+        if (_filterType != null) 'type': _filterType,
+        if (_filterMinPrice != null) 'min_price': _filterMinPrice,
+        if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
+        if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
+        if (_filterMinBathrooms != null) 'min_bathrooms': _filterMinBathrooms,
+        if (_filterMinArea != null) 'min_area_m2': _filterMinArea,
+        if (_filterMaxArea != null) 'max_area_m2': _filterMaxArea,
+        if (_searchText.trim().isNotEmpty) 'search': _searchText.trim(),
+      };
+
+  void _persistDiscoveryHistory() {
+    unawaited(
+      _historyStore.record(
+        query: _searchText,
+        filters: _discoveryHistorySnapshot(),
+      ),
+    );
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -422,10 +487,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final visible = items.take(150).toList(growable: false);
 
     try {
-      // Price markers are native MapLibre symbols. Their label is rendered by
-      // Flutter into a PNG first so Arabic remains reliable, while MapLibre
-      // owns the geographic position and moves the marker with every camera
-      // frame without Flutter overlay lag or post-pan jumping.
       final options = <SymbolOptions>[];
       final data = <Map<String, dynamic>>[];
 
@@ -552,6 +613,62 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     context.push('/properties/${property.id}');
   }
 
+  Future<void> _toggleFavorite(
+    int propertyId, {
+    required bool currentlyFavorite,
+  }) async {
+    final user = ref.read(authControllerProvider).asData?.value;
+    if (user == null) {
+      ref.read(pendingFavoriteAfterAuthProvider.notifier).state = propertyId;
+      setAuthReturnLocation(ref, '/properties/$propertyId');
+      await context.push('/auth');
+      if (!mounted) return;
+      if (ref.read(authControllerProvider).asData?.value == null) {
+        if (ref.read(pendingFavoriteAfterAuthProvider) == propertyId) {
+          ref.read(pendingFavoriteAfterAuthProvider.notifier).state = null;
+        }
+        takeAuthReturnLocation(ref);
+      }
+      return;
+    }
+
+    if (!user.isActive) {
+      ref.read(pendingFavoriteAfterAuthProvider.notifier).state = propertyId;
+      setAuthReturnLocation(ref, '/properties/$propertyId');
+      await context.push('/verify-phone');
+      return;
+    }
+    if (_changingFavorite) return;
+
+    setState(() => _changingFavorite = true);
+    try {
+      final repository = ref.read(favoritesRepositoryProvider);
+      if (currentlyFavorite) {
+        await repository.remove(propertyId);
+      } else {
+        await repository.add(propertyId);
+      }
+      ref.read(favoriteDataRevisionProvider.notifier).state++;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            currentlyFavorite
+                ? 'تمت إزالة العقار من المفضلة.'
+                : 'تم حفظ العقار في المفضلة.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyApiError(error))),
+      );
+    } finally {
+      if (mounted) setState(() => _changingFavorite = false);
+    }
+  }
+
   bool _typeUsesRooms(String? type) {
     return type == 'apartment' || type == 'house' || type == 'villa';
   }
@@ -562,6 +679,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   void _setQuickType(String? type) {
@@ -574,6 +692,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   void _resetFilters() {
@@ -589,6 +708,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   int get _filterCount {
@@ -633,6 +753,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   Future<void> _showSearchSheet(List<PropertyMarker> items) async {
@@ -643,6 +764,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       builder: (context) => _SearchSheet(
         initialValue: _searchController.text,
         suggestions: _searchSuggestions(items),
+        recentSearches: _recentSearches,
       ),
     );
     if (!mounted || value == null) return;
@@ -651,9 +773,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _searchController.text = normalized;
     setState(() {
       _searchText = normalized;
+      if (normalized.isNotEmpty) {
+        _recentSearches = <String>[
+          normalized,
+          ..._recentSearches.where(
+            (value) => value.toLowerCase() != normalized.toLowerCase(),
+          ),
+        ].take(5).toList(growable: false);
+      }
       _selected = null;
       _lastMarkerSignature = '';
     });
+    _persistDiscoveryHistory();
   }
 
   List<String> _searchSuggestions(List<PropertyMarker> items) {
@@ -848,6 +979,70 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     });
   }
 
+
+  Map<String, dynamic> _currentSavedSearchFilters() {
+    final bounds = _selectedAreaBounds;
+    final filters = <String, dynamic>{
+      if (_filterPurpose != null) 'purpose': _filterPurpose,
+      if (_filterType != null) 'type': _filterType,
+      if (_filterMinPrice != null) 'min_price': _filterMinPrice,
+      if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
+      if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
+      if (_filterMinBathrooms != null) 'min_bathrooms': _filterMinBathrooms,
+      if (_filterMinArea != null) 'min_area_m2': _filterMinArea,
+      if (_filterMaxArea != null) 'max_area_m2': _filterMaxArea,
+      if (_searchText.trim().isNotEmpty) 'search': _searchText.trim(),
+    };
+    if (bounds != null) {
+      filters.addAll({
+        'south': bounds.southwest.latitude,
+        'west': bounds.southwest.longitude,
+        'north': bounds.northeast.latitude,
+        'east': bounds.northeast.longitude,
+      });
+    } else {
+      filters.addAll({
+        'latitude': _center.latitude,
+        'longitude': _center.longitude,
+        'radius_km': _defaultRadiusKm,
+      });
+    }
+    return filters;
+  }
+
+  Future<void> _saveCurrentSearch() async {
+    final user = ref.read(authControllerProvider).asData?.value;
+    if (user == null) {
+      setAuthReturnLocation(ref, '/');
+      await context.push('/auth');
+      if (!mounted || ref.read(authControllerProvider).asData?.value == null) {
+        return;
+      }
+    }
+    final currentUser = ref.read(authControllerProvider).asData?.value;
+    if (currentUser == null) return;
+    if (!currentUser.isActive) {
+      setAuthReturnLocation(ref, '/');
+      await context.push('/verify-phone');
+      if (!mounted || ref.read(authControllerProvider).asData?.value?.isActive != true) {
+        return;
+      }
+    }
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => SavedSearchBuilderScreen(
+          initialFilters: _currentSavedSearchFilters(),
+        ),
+      ),
+    );
+    if (!mounted || saved != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('تم حفظ البحث وسيصلك تنبيه عند ظهور عقار مطابق.'),
+      ),
+    );
+  }
+
   void _openAddProperty() {
     context.push('/add-property');
   }
@@ -874,6 +1069,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
     final rawProperties = ref.watch(nearbyPropertiesProvider(query));
     final properties = rawProperties.whenData(_filterToSelectedArea);
+    final user = ref.watch(authControllerProvider).asData?.value;
+    final favoriteIds = user == null
+        ? const <int>{}
+        : ref.watch(favoritePropertyIdsProvider).maybeWhen(
+              data: (value) => value,
+              orElse: () => const <int>{},
+            );
 
     properties.when(
       data: (items) => _queueMarkerSync(_selectingArea ? const [] : items),
@@ -882,7 +1084,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
 
     if (_listMode) {
-      return _buildListMode(properties, query);
+      return _buildListMode(properties, query, favoriteIds);
     }
 
     final apiError = properties.asError?.error;
@@ -912,7 +1114,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             if (_selectingArea) _buildAreaSelectionOverlay(),
             if (!_selectingArea) _buildMapBottomBar(properties),
             if (!_selectingArea && _selected != null)
-              _buildSelectedPreview(_selected!),
+              _buildSelectedPreview(
+                _selected!,
+                favorite: favoriteIds.contains(_selected!.id),
+              ),
             if (_mapMessage != null && !_selectingArea)
               PositionedDirectional(
                 start: 14,
@@ -973,6 +1178,30 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          Material(
+            elevation: 5,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            child: InkWell(
+              onTap: _saveCurrentSearch,
+              borderRadius: BorderRadius.circular(18),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.notifications_active_outlined, color: AppTheme.brand),
+                    SizedBox(width: 7),
+                    Text(
+                      'حفظ البحث',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           Material(
             elevation: 5,
             color: Colors.white,
@@ -1132,7 +1361,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       bottom: 10,
       child: _MapListSwitcherBar(
         countText: properties.when(
-          data: (items) => '${items.length} إعلان',
+          data: (items) => '${items.length} نتيجة',
           loading: () => 'جاري التحميل…',
           error: (_, __) => 'تعذر الاتصال',
         ),
@@ -1143,13 +1372,23 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  Widget _buildSelectedPreview(PropertyMarker property) {
+  Widget _buildSelectedPreview(
+    PropertyMarker property, {
+    required bool favorite,
+  }) {
     return PositionedDirectional(
       start: 12,
       end: 12,
       bottom: 78,
       child: _MapSelectionCard(
         property: property,
+        favorite: favorite,
+        onFavorite: _changingFavorite
+            ? null
+            : () => _toggleFavorite(
+                  property.id,
+                  currentlyFavorite: favorite,
+                ),
         onDetails: () => _openDetails(property),
         onClose: () {
           setState(() {
@@ -1164,6 +1403,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget _buildListMode(
     AsyncValue<List<PropertyMarker>> properties,
     NearbyQuery query,
+    Set<int> favoriteIds,
   ) {
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -1171,6 +1411,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         appBar: AppBar(
           title: const Text('قائمة العقارات'),
           actions: [
+            IconButton.filledTonal(
+              tooltip: 'حفظ البحث الحالي',
+              onPressed: _saveCurrentSearch,
+              icon: const Icon(Icons.notifications_active_outlined),
+            ),
+            const SizedBox(width: 8),
             IconButton.filledTonal(
               tooltip: 'بحث وتصفية',
               onPressed: () {
@@ -1223,6 +1469,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         onDeleted: () {
                           _searchController.clear();
                           setState(() => _searchText = '');
+                          _persistDiscoveryHistory();
                         },
                       ),
                     if (_selectedAreaBounds != null)
@@ -1234,7 +1481,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ],
                 ),
               ),
-            Expanded(child: _buildListContent(properties, query)),
+            Expanded(
+              child: _buildListContent(properties, query, favoriteIds),
+            ),
           ],
         ),
         bottomNavigationBar: SafeArea(
@@ -1243,7 +1492,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
             child: _MapListSwitcherBar(
               countText: properties.when(
-                data: (items) => '${items.length} إعلان',
+                data: (items) => '${items.length} نتيجة',
                 loading: () => 'جاري التحميل…',
                 error: (_, __) => 'تعذر الاتصال',
               ),
@@ -1260,6 +1509,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget _buildListContent(
     AsyncValue<List<PropertyMarker>> properties,
     NearbyQuery query,
+    Set<int> favoriteIds,
   ) {
     return properties.when(
       loading: () => ListView.separated(
@@ -1287,7 +1537,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         }
 
         final sorted = List<PropertyMarker>.of(items);
-        if (_sortMode == 1) {
+        if (_sortMode == 0) {
+          sorted.sort((a, b) => b.id.compareTo(a.id));
+        } else if (_sortMode == 1) {
           sorted.sort((a, b) => a.price.compareTo(b.price));
         } else if (_sortMode == 2) {
           sorted.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
@@ -1299,9 +1551,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           separatorBuilder: (_, __) => const SizedBox(height: 10),
           itemBuilder: (context, index) {
             final property = sorted[index];
+            final favorite = favoriteIds.contains(property.id);
             return _PropertyResultCard(
               property: property,
               selected: property.id == _selected?.id,
+              favorite: favorite,
+              onFavorite: _changingFavorite
+                  ? null
+                  : () => _toggleFavorite(
+                        property.id,
+                        currentlyFavorite: favorite,
+                      ),
               onMap: () => _focusProperty(property),
               onDetails: () => _openDetails(property),
             );
@@ -1695,10 +1955,15 @@ class _FilterCountButton extends StatelessWidget {
 }
 
 class _SearchSheet extends StatefulWidget {
-  const _SearchSheet({required this.initialValue, required this.suggestions});
+  const _SearchSheet({
+    required this.initialValue,
+    required this.suggestions,
+    required this.recentSearches,
+  });
 
   final String initialValue;
   final List<String> suggestions;
+  final List<String> recentSearches;
 
   @override
   State<_SearchSheet> createState() => _SearchSheetState();
@@ -1767,6 +2032,32 @@ class _SearchSheetState extends State<_SearchSheet> {
             onChanged: (_) => setState(() {}),
             onSubmitted: (value) => Navigator.of(context).pop(value),
           ),
+          if (query.isEmpty && widget.recentSearches.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                'بحثت مؤخراً',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: widget.recentSearches
+                  .map(
+                    (value) => ActionChip(
+                      avatar: const Icon(Icons.history_rounded, size: 18),
+                      label: Text(value),
+                      onPressed: () => Navigator.of(context).pop(value),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
           if (suggestions.isNotEmpty) ...[
             const SizedBox(height: 10),
             ConstrainedBox(
@@ -1818,12 +2109,16 @@ class _PropertyResultCard extends StatelessWidget {
   const _PropertyResultCard({
     required this.property,
     required this.selected,
+    required this.favorite,
+    required this.onFavorite,
     required this.onMap,
     required this.onDetails,
   });
 
   final PropertyMarker property;
   final bool selected;
+  final bool favorite;
+  final VoidCallback? onFavorite;
   final VoidCallback onMap;
   final VoidCallback onDetails;
 
@@ -1869,18 +2164,26 @@ class _PropertyResultCard extends StatelessWidget {
                               },
                             ),
                       PositionedDirectional(
-                        top: 0,
-                        start: 10,
-                        child: Container(
-                          width: 26,
-                          height: 34,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.warning,
-                            borderRadius: BorderRadius.vertical(
-                                bottom: Radius.circular(6)),
+                        top: 8,
+                        start: 8,
+                        child: Material(
+                          color: Colors.white.withValues(alpha: 0.94),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            tooltip: favorite
+                                ? 'إزالة من المفضلة'
+                                : 'حفظ في المفضلة',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: onFavorite,
+                            icon: Icon(
+                              favorite
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              color: favorite
+                                  ? Theme.of(context).colorScheme.error
+                                  : AppTheme.textStrong,
+                            ),
                           ),
-                          child: const Icon(Icons.bookmark_border,
-                              size: 18, color: Colors.white),
                         ),
                       ),
                     ],
@@ -2034,11 +2337,15 @@ class _MiniTag extends StatelessWidget {
 class _MapSelectionCard extends StatelessWidget {
   const _MapSelectionCard({
     required this.property,
+    required this.favorite,
+    required this.onFavorite,
     required this.onDetails,
     required this.onClose,
   });
 
   final PropertyMarker property;
+  final bool favorite;
+  final VoidCallback? onFavorite;
   final VoidCallback onDetails;
   final VoidCallback onClose;
 
@@ -2100,10 +2407,29 @@ class _MapSelectionCard extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'إغلاق',
-                onPressed: onClose,
-                icon: const Icon(Icons.close),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    tooltip: favorite
+                        ? 'إزالة من المفضلة'
+                        : 'حفظ في المفضلة',
+                    onPressed: onFavorite,
+                    icon: Icon(
+                      favorite
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: favorite
+                          ? Theme.of(context).colorScheme.error
+                          : AppTheme.textStrong,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'إغلاق',
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
               ),
             ],
           ),

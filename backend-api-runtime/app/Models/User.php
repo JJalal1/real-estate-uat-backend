@@ -29,6 +29,12 @@ class User extends Authenticatable
     public const BROKER_VERIFICATION_APPROVED = 'approved';
     public const BROKER_VERIFICATION_REJECTED = 'rejected';
 
+    /** @var array<string,bool> */
+    private array $roleDecisionCache = [];
+
+    /** @var array<string,bool> */
+    private array $permissionDecisionCache = [];
+
     protected $fillable = [
         'name','email','phone','password','account_type','identity_policy_version','account_status','phone_verified_at','profile_completed_at','last_login_at','is_platform_owner',
         'broker_verification_status','broker_verification_submitted_at','broker_verified_at','broker_verified_by_user_id','broker_verification_note',
@@ -150,19 +156,30 @@ class User extends Authenticatable
 
     public function hasRole(string $key): bool
     {
-        if ($this->relationLoaded('roles')) return $this->roles->contains('key',$key);
-        return $this->roles()->where('roles.key',$key)->exists();
+        if (array_key_exists($key, $this->roleDecisionCache)) {
+            return $this->roleDecisionCache[$key];
+        }
+        $allowed = $this->relationLoaded('roles')
+            ? $this->roles->contains('key',$key)
+            : $this->roles()->where('roles.key',$key)->exists();
+        return $this->roleDecisionCache[$key] = $allowed;
     }
 
     public function hasPermission(string $key): bool
     {
-        if ($this->is_platform_owner || $this->hasRole('super_admin')) return true;
+        if (array_key_exists($key, $this->permissionDecisionCache)) {
+            return $this->permissionDecisionCache[$key];
+        }
+        if ($this->is_platform_owner || $this->hasRole('super_admin')) {
+            return $this->permissionDecisionCache[$key] = true;
+        }
         $permission=Permission::query()->where('key',$key)->first();
-        if (! $permission) return false;
+        if (! $permission) return $this->permissionDecisionCache[$key] = false;
         $override=$this->permissionOverrides()->where('permission_id',$permission->id)->value('effect');
-        if ($override === 'deny') return false;
-        if ($override === 'allow') return true;
-        return $this->roles()->whereHas('permissions',fn($q)=>$q->where('permissions.id',$permission->id))->exists();
+        if ($override === 'deny') return $this->permissionDecisionCache[$key] = false;
+        if ($override === 'allow') return $this->permissionDecisionCache[$key] = true;
+        $allowed = $this->roles()->whereHas('permissions',fn($q)=>$q->where('permissions.id',$permission->id))->exists();
+        return $this->permissionDecisionCache[$key] = $allowed;
     }
 
     public function roleKeys(): array

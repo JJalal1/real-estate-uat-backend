@@ -1,8 +1,23 @@
 #!/bin/sh
 set -eu
 
+listen_port="${PORT:-10000}"
+case "$listen_port" in
+  ''|*[!0-9]*)
+    echo "PORT must be a numeric TCP port." >&2
+    exit 1
+    ;;
+esac
+sed -ri "s/^Listen [0-9]+$/Listen ${listen_port}/" /etc/apache2/ports.conf
+sed -ri "s#<VirtualHost \*:[0-9]+>#<VirtualHost *:${listen_port}>#" /etc/apache2/sites-available/000-default.conf
+
 php artisan config:clear
 php artisan cache:clear || true
+
+# Fail fast in UAT if the cloud runtime is misconfigured. This command verifies
+# HTTPS URL, PostgreSQL/PostGIS, Supabase Storage, and UAT guards without
+# printing secrets.
+php artisan uat:cloud-check
 
 if [ "${UAT_RUN_MIGRATIONS:-false}" = "true" ]; then
   php artisan migrate --force

@@ -107,7 +107,7 @@ class UatAdminSupportWorkspaceApiTest extends TestCase
     public function test_support_manager_can_assign_reopen_and_view_team_metrics(): void
     {
         [$manager,$managerHeaders]=$this->user('workspace-manager@example.test','+967733330005',['support_manager']);
-        [$agent]=$this->user('workspace-agent2@example.test','+967733330006',['support_agent']);
+        [$agent,$agentHeaders]=$this->user('workspace-agent2@example.test','+967733330006',['support_agent']);
         [, $requesterHeaders]=$this->user('workspace-requester2@example.test','+967733330007');
         $caseId=(int)$this->withHeaders($requesterHeaders)->postJson('/api/support/cases',[
             'subject'=>'تذكرة للإسناد','description'=>'اختبار إسناد التذكرة وإعادة فتحها من مدير الدعم.','category'=>'technical',
@@ -115,7 +115,9 @@ class UatAdminSupportWorkspaceApiTest extends TestCase
 
         $this->withHeaders($managerHeaders)->putJson('/api/admin/support/cases/'.$caseId.'/assign',['user_id'=>$agent->id])
             ->assertOk()->assertJsonPath('data.assigned_to_user_id',$agent->id);
-        $this->withHeaders($managerHeaders)->patchJson('/api/admin/support/cases/'.$caseId.'/status',['status'=>'resolved'])->assertOk();
+        // The manager owns distribution, not the normal end-user decision path.
+        $this->withHeaders($managerHeaders)->patchJson('/api/admin/support/cases/'.$caseId.'/status',['status'=>'resolved'])->assertStatus(409);
+        $this->withHeaders($agentHeaders)->patchJson('/api/admin/support/cases/'.$caseId.'/status',['status'=>'resolved'])->assertOk();
         $this->withHeaders($managerHeaders)->postJson('/api/admin/support/cases/'.$caseId.'/reopen',['reason'=>'الحالة تحتاج متابعة إضافية.'])
             ->assertOk()->assertJsonPath('data.status','in_progress');
         $summary=$this->withHeaders($managerHeaders)->getJson('/api/admin/support/summary')->assertOk();

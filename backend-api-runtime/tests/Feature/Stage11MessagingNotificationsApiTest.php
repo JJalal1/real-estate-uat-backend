@@ -35,7 +35,7 @@ class Stage11MessagingNotificationsApiTest extends TestCase
     public function test_private_content_admin_access_requires_report_permission_and_is_logged(): void
     {
         [$advertiser]=$this->user('s11-report-ad@example.test','+967730000004');
-        [, $buyerHeaders]=$this->user('s11-report-buyer@example.test','+967730000005');
+        [$buyer, $buyerHeaders]=$this->user('s11-report-buyer@example.test','+967730000005');
         [, $agentHeaders]=$this->user('s11-report-agent@example.test','+967730000006',['support_agent']);
         [, $managerHeaders]=$this->user('s11-report-manager@example.test','+967730000007',['support_manager']);
         $listing=$this->publishedListing($advertiser,'Stage 11 complaint listing');
@@ -43,6 +43,7 @@ class Stage11MessagingNotificationsApiTest extends TestCase
         $this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/messages",['body'=>'Private smoke-worthy message.'])->assertCreated();
         $report=$this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/report",['reason'=>'abuse','details'=>'I need support to review this conversation.'])->assertCreated();
         $reportId=(int)$report->json('data.id');
+        $supportCaseId=(int)$report->json('data.support_case_id');
         $queue=$this->withHeaders($agentHeaders)->getJson('/api/admin/messages/reports')->assertOk();
         $this->assertArrayNotHasKey('messages',$queue->json('data.0'));
         $this->assertArrayNotHasKey('details',$queue->json('data.0'));
@@ -51,6 +52,12 @@ class Stage11MessagingNotificationsApiTest extends TestCase
         $this->assertDatabaseHas('audit_logs',['action'=>'conversations.private_content_opened','subject_id'=>$reportId]);
         $this->assertDatabaseHas('private_message_access_events',['conversation_report_id'=>$reportId,'action'=>'opened_reported_private_content']);
         $this->withHeaders($managerHeaders)->patchJson("/api/admin/messages/reports/$reportId/resolve",['status'=>'resolved','resolution_note'=>'Reviewed under the authorized complaint workflow.'])->assertOk()->assertJsonPath('data.status','resolved');
+        $this->assertDatabaseHas('user_notifications',[
+            'user_id'=>$buyer->id,
+            'type'=>'conversation_report_closed',
+            'entity_type'=>'support_case',
+            'entity_id'=>$supportCaseId,
+        ]);
     }
 
     public function test_private_access_history_is_immutable(): void
@@ -63,12 +70,21 @@ class Stage11MessagingNotificationsApiTest extends TestCase
 
     public function test_support_staff_reply_creates_in_app_notification(): void
     {
-        [, $requesterHeaders]=$this->user('s11-support-requester@example.test','+967730000008');
+        [$requester, $requesterHeaders]=$this->user('s11-support-requester@example.test','+967730000008');
         [, $agentHeaders]=$this->user('s11-support-agent@example.test','+967730000009',['support_agent']);
         $caseId=(int)$this->withHeaders($requesterHeaders)->postJson('/api/support/cases',['subject'=>'Notification case','description'=>'Please send me a support reply notification.','category'=>'other'])->assertCreated()->json('data.id');
+        $queue=$this->withHeaders($agentHeaders)->getJson('/api/admin/workspace/tasks?scope=inbox&type=support_ticket')->assertOk();
+        $task=collect($queue->json('data'))->first(fn(array $item):bool=>(int)$item['source_id']===$caseId);
+        $this->assertNotNull($task);
+        $this->withHeaders($agentHeaders)->postJson('/api/admin/workspace/tasks/'.(int)$task['id'].'/claim')->assertOk();
         $this->withHeaders($agentHeaders)->postJson("/api/admin/support/cases/$caseId/reply",['body'=>'Support notification test reply.'])->assertOk();
         $items=$this->withHeaders($requesterHeaders)->getJson('/api/notifications')->assertOk();
         $this->assertContains('support_reply',collect($items->json('data'))->pluck('type')->all());
+        $this->assertDatabaseHas('user_notifications',[
+            'user_id'=>$requester->id,
+            'entity_type'=>'support_case',
+            'entity_id'=>$caseId,
+        ]);
     }
 
     private function user(string $email,string $phone,array $roles=[]): array
