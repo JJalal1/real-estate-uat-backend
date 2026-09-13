@@ -70,7 +70,7 @@ replace_once(
     "backend-api-runtime/tests/Feature/PropertyIdentityV2Test.php",
     """            'latitude' => 15.300090, 'longitude' => 44.210040, 'area_m2' => 340, 'bedrooms' => 5, 'bathrooms' => 4,
 """,
-    """            'latitude' => 15.300090, 'longitude' => 44.210040, 'area_m2' => 340, 'area_value' => 340, 'bedrooms' => 5, 'bathrooms' => 4,
+    """            'latitude' => 15.300300, 'longitude' => 44.210040, 'area_m2' => 340, 'area_value' => 340, 'bedrooms' => 5, 'bathrooms' => 4,
 """,
 )
 
@@ -83,5 +83,35 @@ replace_once(
     """            'address' => 'صنعاء حدة جوار السوق الخلفي',
             'latitude' => 15.369700,
             'longitude' => 44.191120,
+""",
+)
+
+replace_once(
+    "backend-api-runtime/tests/Feature/Phase2ListingJourneyApiTest.php",
+    """        $this->withHeaders($firstHeaders)
+            ->postJson(\"/api/properties/$firstId/submit\")
+            ->assertOk()
+            ->assertJsonPath('data.review_status', 'submitted');
+        $this->withHeaders($secondHeaders)
+            ->postJson(\"/api/properties/$secondId/submit\")
+            ->assertOk()
+            ->assertJsonPath('data.review_status', 'submitted');
+""",
+    """        $this->withHeaders($firstHeaders)
+            ->postJson(\"/api/properties/$firstId/submit\")
+            ->assertOk()
+            ->assertJsonPath('data.review_status', 'submitted');
+        $this->withHeaders($secondHeaders)
+            ->postJson(\"/api/properties/$secondId/identity/self-verify\", [
+                'assert_different' => true,
+                'difference_type' => 'different_address',
+                'difference_note' => 'العقاران متجاوران لكن لكل منهما عنوان ومدخل مستقل عن الآخر.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'needs_support');
+        $this->withHeaders($secondHeaders)
+            ->postJson(\"/api/properties/$secondId/submit\")
+            ->assertOk()
+            ->assertJsonPath('data.review_status', 'submitted');
 """,
 )
