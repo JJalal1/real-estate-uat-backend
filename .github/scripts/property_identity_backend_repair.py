@@ -70,7 +70,7 @@ replace_once(
     "backend-api-runtime/tests/Feature/PropertyIdentityV2Test.php",
     """            'latitude' => 15.300090, 'longitude' => 44.210040, 'area_m2' => 340, 'bedrooms' => 5, 'bathrooms' => 4,
 """,
-    """            'latitude' => 15.300300, 'longitude' => 44.210040, 'area_m2' => 340, 'area_value' => 340, 'bedrooms' => 5, 'bathrooms' => 4,
+    """            'latitude' => 15.300700, 'longitude' => 44.210040, 'area_m2' => 340, 'area_value' => 340, 'bedrooms' => 5, 'bathrooms' => 4,
 """,
 )
 
