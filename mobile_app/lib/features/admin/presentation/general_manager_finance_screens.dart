@@ -17,7 +17,7 @@ class GeneralManagerPaymentMethodsScreen extends ConsumerStatefulWidget {
 
 class _GeneralManagerPaymentMethodsScreenState
     extends ConsumerState<GeneralManagerPaymentMethodsScreen> {
-  List<FinancialPaymentMethod> _methods = const [];
+  List<FinancialPaymentMethod> _rows = const [];
   bool _loading = true;
   String? _error;
 
@@ -29,11 +29,10 @@ class _GeneralManagerPaymentMethodsScreenState
 
   Future<void> _load() async {
     try {
-      final rows =
-          await ref.read(financialRepositoryProvider).adminPaymentMethods();
+      final rows = await ref.read(financialRepositoryProvider).adminPaymentMethods();
       if (!mounted) return;
       setState(() {
-        _methods = rows;
+        _rows = rows;
         _loading = false;
         _error = null;
       });
@@ -52,14 +51,12 @@ class _GeneralManagerPaymentMethodsScreenState
         child: Scaffold(
           appBar: AppBar(
             title: const Text('إدارة طرق الدفع'),
-            actions: [
-              IconButton(onPressed: _load, icon: const Icon(Icons.refresh))
-            ],
+            actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
           ),
           body: _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
-                  ? _Error(message: _error!, retry: _load)
+                  ? _FinanceError(message: _error!, retry: _load)
                   : ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
@@ -67,23 +64,25 @@ class _GeneralManagerPaymentMethodsScreenState
                           child: Padding(
                             padding: EdgeInsets.all(14),
                             child: Text(
-                                'بيانات المستفيد والحدود والتفعيل تُدار من الخادم. لا توجد مفاتيح مزود دفع داخل التطبيق، وهذه النسخة لا تنفذ تحويل أموال آليًا.'),
+                              'تتحكم هذه الصفحة في بيانات التحويل المعتمدة والحدود والتفعيل. لا توجد مفاتيح مزود دفع داخل التطبيق ولا يتم تحريك أموال آليًا في Financial V1.',
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
-                        ..._methods.map(_methodCard),
+                        ..._rows.map(_tile),
                       ],
                     ),
         ),
       );
 
-  Widget _methodCard(FinancialPaymentMethod method) => Card(
+  Widget _tile(FinancialPaymentMethod method) => Card(
         child: ListTile(
           leading: _logo(method),
-          title: Text(method.name,
-              style: const TextStyle(fontWeight: FontWeight.w900)),
+          title: Text(method.name, style: const TextStyle(fontWeight: FontWeight.w900)),
           subtitle: Text(
-              '${method.currency} • ${method.isEnabled ? 'مفعلة' : 'متوقفة'}\nدفع كامل: ${method.allowsFullPayment ? 'نعم' : 'لا'} • سعي فقط: ${method.allowsSaiOnly ? 'نعم' : 'لا'}'),
+            '${method.currency} • ${method.isEnabled ? 'مفعلة' : 'متوقفة'}\n'
+            'دفع كامل: ${method.allowsFullPayment ? 'نعم' : 'لا'} • سعي فقط: ${method.allowsSaiOnly ? 'نعم' : 'لا'}',
+          ),
           isThreeLine: true,
           trailing: const Icon(Icons.edit_outlined),
           onTap: () => _edit(method),
@@ -93,17 +92,17 @@ class _GeneralManagerPaymentMethodsScreenState
   Future<void> _edit(FinancialPaymentMethod method) async {
     final name = TextEditingController(text: method.name);
     final beneficiary = TextEditingController(text: method.beneficiaryName);
-    final label = TextEditingController(text: method.destinationLabel);
-    final destination = TextEditingController(text: method.destinationValue);
+    final destinationLabel = TextEditingController(text: method.destinationLabel);
+    final destinationValue = TextEditingController(text: method.destinationValue);
     final currency = TextEditingController(text: method.currency);
-    final min = TextEditingController(text: method.minAmount?.toString() ?? '');
-    final max = TextEditingController(text: method.maxAmount?.toString() ?? '');
+    final minAmount = TextEditingController(text: method.minAmount?.toString() ?? '');
+    final maxAmount = TextEditingController(text: method.maxAmount?.toString() ?? '');
     final instructions = TextEditingController(text: method.instructions ?? '');
     var enabled = method.isEnabled;
     var full = method.allowsFullPayment;
-    var sai = method.allowsSaiOnly;
+    var saiOnly = method.allowsSaiOnly;
     var senderPhone = method.requiresSenderPhone;
-    var providerRef = method.requiresProviderReference;
+    var providerReference = method.requiresProviderReference;
 
     final save = await showDialog<bool>(
       context: context,
@@ -122,20 +121,20 @@ class _GeneralManagerPaymentMethodsScreenState
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم العرض')),
                   TextField(controller: beneficiary, decoration: const InputDecoration(labelText: 'اسم المستفيد')),
-                  TextField(controller: label, decoration: const InputDecoration(labelText: 'وصف الرقم / الحساب')),
-                  TextField(controller: destination, decoration: const InputDecoration(labelText: 'رقم الحساب / المحفظة')),
+                  TextField(controller: destinationLabel, decoration: const InputDecoration(labelText: 'وصف الحساب / المحفظة')),
+                  TextField(controller: destinationValue, decoration: const InputDecoration(labelText: 'رقم الحساب / المحفظة')),
                   TextField(controller: currency, maxLength: 3, decoration: const InputDecoration(labelText: 'العملة')),
                   Row(children: [
-                    Expanded(child: TextField(controller: min, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الحد الأدنى'))),
+                    Expanded(child: TextField(controller: minAmount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الحد الأدنى'))),
                     const SizedBox(width: 8),
-                    Expanded(child: TextField(controller: max, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الحد الأعلى'))),
+                    Expanded(child: TextField(controller: maxAmount, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الحد الأعلى'))),
                   ]),
                   TextField(controller: instructions, minLines: 2, maxLines: 4, decoration: const InputDecoration(labelText: 'التعليمات')),
                   SwitchListTile(value: enabled, onChanged: (v) => setLocal(() => enabled = v), title: const Text('الوسيلة مفعلة')),
                   SwitchListTile(value: full, onChanged: (v) => setLocal(() => full = v), title: const Text('السماح بالدفع الكامل للصفقة')),
-                  SwitchListTile(value: sai, onChanged: (v) => setLocal(() => sai = v), title: const Text('السماح بالسعي / مستحقات المنصة فقط')),
+                  SwitchListTile(value: saiOnly, onChanged: (v) => setLocal(() => saiOnly = v), title: const Text('السماح بالسعي / مستحقات المنصة فقط')),
                   SwitchListTile(value: senderPhone, onChanged: (v) => setLocal(() => senderPhone = v), title: const Text('رقم المرسل مطلوب')),
-                  SwitchListTile(value: providerRef, onChanged: (v) => setLocal(() => providerRef = v), title: const Text('رقم العملية مطلوب')),
+                  SwitchListTile(value: providerReference, onChanged: (v) => setLocal(() => providerReference = v), title: const Text('رقم العملية مطلوب')),
                 ]),
               ),
             ),
@@ -147,38 +146,57 @@ class _GeneralManagerPaymentMethodsScreenState
         ),
       ),
     );
+
     if (save == true && mounted) {
       try {
         await ref.read(financialRepositoryProvider).updatePaymentMethod(method.id, {
           'name_ar': name.text.trim(),
           'beneficiary_name': beneficiary.text.trim(),
-          'destination_label': label.text.trim(),
-          'destination_value': destination.text.trim(),
+          'destination_label': destinationLabel.text.trim(),
+          'destination_value': destinationValue.text.trim(),
           'currency': currency.text.trim().toUpperCase(),
-          'min_amount': min.text.trim().isEmpty ? null : double.tryParse(min.text.trim()),
-          'max_amount': max.text.trim().isEmpty ? null : double.tryParse(max.text.trim()),
+          'min_amount': minAmount.text.trim().isEmpty ? null : double.tryParse(minAmount.text.trim()),
+          'max_amount': maxAmount.text.trim().isEmpty ? null : double.tryParse(maxAmount.text.trim()),
           'instructions_ar': instructions.text.trim().isEmpty ? null : instructions.text.trim(),
           'is_enabled': enabled,
           'allows_full_payment': full,
-          'allows_sai_only': sai,
+          'allows_sai_only': saiOnly,
           'requires_sender_phone': senderPhone,
-          'requires_provider_reference': providerRef,
+          'requires_provider_reference': providerReference,
         });
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث طريقة الدفع.')));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث طريقة الدفع.')));
+        }
         await _load();
       } catch (error) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+        }
       }
     }
-    name.dispose(); beneficiary.dispose(); label.dispose(); destination.dispose(); currency.dispose(); min.dispose(); max.dispose(); instructions.dispose();
+
+    name.dispose();
+    beneficiary.dispose();
+    destinationLabel.dispose();
+    destinationValue.dispose();
+    currency.dispose();
+    minAmount.dispose();
+    maxAmount.dispose();
+    instructions.dispose();
   }
 
   Widget _logo(FinancialPaymentMethod method) {
     final path = method.localAssetPath;
-    return path == null
-        ? const SizedBox(width: 42, height: 42, child: Icon(Icons.send_to_mobile_outlined))
-        : Image.asset(path, width: 42, height: 42, fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const SizedBox(width: 42, height: 42, child: Icon(Icons.account_balance_wallet_outlined)));
+    if (path == null) {
+      return const SizedBox(width: 42, height: 42, child: Icon(Icons.send_to_mobile_outlined));
+    }
+    return Image.asset(
+      path,
+      width: 42,
+      height: 42,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => const SizedBox(width: 42, height: 42, child: Icon(Icons.account_balance_wallet_outlined)),
+    );
   }
 }
 
@@ -186,10 +204,12 @@ class GeneralManagerFinanceWorkspaceScreen extends ConsumerStatefulWidget {
   const GeneralManagerFinanceWorkspaceScreen({super.key});
 
   @override
-  ConsumerState<GeneralManagerFinanceWorkspaceScreen> createState() => _GeneralManagerFinanceWorkspaceScreenState();
+  ConsumerState<GeneralManagerFinanceWorkspaceScreen> createState() =>
+      _GeneralManagerFinanceWorkspaceScreenState();
 }
 
-class _GeneralManagerFinanceWorkspaceScreenState extends ConsumerState<GeneralManagerFinanceWorkspaceScreen> {
+class _GeneralManagerFinanceWorkspaceScreenState
+    extends ConsumerState<GeneralManagerFinanceWorkspaceScreen> {
   Map<String, dynamic>? _data;
   List<GovernorateModel> _governorates = const [];
   bool _loading = true;
@@ -206,26 +226,39 @@ class _GeneralManagerFinanceWorkspaceScreenState extends ConsumerState<GeneralMa
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
-      final values = await Future.wait([
-        ref.read(financialRepositoryProvider).adminWorkspace(
-          period: _period,
-          transactionType: _transactionType,
-          advertiserType: _advertiserType,
-          governorateId: _governorateId,
-        ),
-        ref.read(regionRepositoryProvider).governorates(),
-      ]);
+      final workspace = await ref.read(financialRepositoryProvider).adminWorkspace(
+            period: _period,
+            transactionType: _transactionType,
+            advertiserType: _advertiserType,
+            governorateId: _governorateId,
+          );
+      List<GovernorateModel> governorates = _governorates;
+      if (governorates.isEmpty) {
+        try {
+          governorates = await ref.read(regionRepositoryProvider).governorates();
+        } catch (_) {
+          governorates = const [];
+        }
+      }
       if (!mounted) return;
       setState(() {
-        _data = values[0] as Map<String, dynamic>;
-        _governorates = values[1] as List<GovernorateModel>;
+        _data = workspace;
+        _governorates = governorates;
         _loading = false;
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() { _loading = false; _error = friendlyApiError(error); });
+      setState(() {
+        _loading = false;
+        _error = friendlyApiError(error);
+      });
     }
   }
 
@@ -233,11 +266,14 @@ class _GeneralManagerFinanceWorkspaceScreenState extends ConsumerState<GeneralMa
   Widget build(BuildContext context) => Directionality(
         textDirection: TextDirection.rtl,
         child: Scaffold(
-          appBar: AppBar(title: const Text('المالية')),
+          appBar: AppBar(
+            title: const Text('المالية'),
+            actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
+          ),
           body: _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
-                  ? _Error(message: _error!, retry: _load)
+                  ? _FinanceError(message: _error!, retry: _load)
                   : RefreshIndicator(onRefresh: _load, child: _body()),
         ),
       );
@@ -251,7 +287,7 @@ class _GeneralManagerFinanceWorkspaceScreenState extends ConsumerState<GeneralMa
       children: [
         _filters(),
         const SizedBox(height: 12),
-        _metricGrid(summary),
+        _metrics(summary),
         const SizedBox(height: 18),
         _section('الصفقات والمعاملات', 'deals', Icons.handshake_outlined),
         _section('المدفوعات الواردة', 'payments', Icons.payments_outlined),
@@ -270,78 +306,109 @@ class _GeneralManagerFinanceWorkspaceScreenState extends ConsumerState<GeneralMa
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Wrap(spacing: 10, runSpacing: 8, children: [
-            SizedBox(width: 150, child: DropdownButtonFormField<String>(
-              value: _period,
-              decoration: const InputDecoration(labelText: 'الفترة'),
-              items: const [
-                DropdownMenuItem(value: 'day', child: Text('اليوم')),
-                DropdownMenuItem(value: '7d', child: Text('7 أيام')),
-                DropdownMenuItem(value: '30d', child: Text('30 يومًا')),
-                DropdownMenuItem(value: 'all', child: Text('كل الفترات')),
-              ],
-              onChanged: (v) { if (v != null) { _period = v; _load(); } },
-            )),
-            SizedBox(width: 150, child: DropdownButtonFormField<String?>(
-              value: _transactionType,
-              decoration: const InputDecoration(labelText: 'الصفقة'),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('الكل')),
-                DropdownMenuItem(value: 'sale', child: Text('بيع')),
-                DropdownMenuItem(value: 'rent', child: Text('إيجار')),
-              ],
-              onChanged: (v) { _transactionType = v; _load(); },
-            )),
-            SizedBox(width: 160, child: DropdownButtonFormField<String?>(
-              value: _advertiserType,
-              decoration: const InputDecoration(labelText: 'نوع المعلن'),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('الكل')),
-                DropdownMenuItem(value: 'owner', child: Text('مالك')),
-                DropdownMenuItem(value: 'broker', child: Text('دلال')),
-                DropdownMenuItem(value: 'office', child: Text('مكتب')),
-              ],
-              onChanged: (v) { _advertiserType = v; _load(); },
-            )),
-            SizedBox(width: 190, child: DropdownButtonFormField<int?>(
-              value: _governorateId,
-              decoration: const InputDecoration(labelText: 'المحافظة'),
-              items: [
-                const DropdownMenuItem<int?>(value: null, child: Text('كل المحافظات')),
-                ..._governorates.map((g) => DropdownMenuItem<int?>(value: g.id, child: Text(g.nameAr))),
-              ],
-              onChanged: (v) { _governorateId = v; _load(); },
-            )),
+            SizedBox(
+              width: 150,
+              child: DropdownButtonFormField<String>(
+                value: _period,
+                decoration: const InputDecoration(labelText: 'الفترة'),
+                items: const [
+                  DropdownMenuItem(value: 'day', child: Text('اليوم')),
+                  DropdownMenuItem(value: '7d', child: Text('7 أيام')),
+                  DropdownMenuItem(value: '30d', child: Text('30 يومًا')),
+                  DropdownMenuItem(value: 'all', child: Text('كل الفترات')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    _period = value;
+                    _load();
+                  }
+                },
+              ),
+            ),
+            SizedBox(
+              width: 150,
+              child: DropdownButtonFormField<String?>(
+                value: _transactionType,
+                decoration: const InputDecoration(labelText: 'نوع الصفقة'),
+                items: const [
+                  DropdownMenuItem<String?>(value: null, child: Text('الكل')),
+                  DropdownMenuItem<String?>(value: 'sale', child: Text('بيع')),
+                  DropdownMenuItem<String?>(value: 'rent', child: Text('إيجار')),
+                ],
+                onChanged: (value) {
+                  _transactionType = value;
+                  _load();
+                },
+              ),
+            ),
+            SizedBox(
+              width: 160,
+              child: DropdownButtonFormField<String?>(
+                value: _advertiserType,
+                decoration: const InputDecoration(labelText: 'نوع المعلن'),
+                items: const [
+                  DropdownMenuItem<String?>(value: null, child: Text('الكل')),
+                  DropdownMenuItem<String?>(value: 'owner', child: Text('مالك')),
+                  DropdownMenuItem<String?>(value: 'broker', child: Text('دلال')),
+                  DropdownMenuItem<String?>(value: 'office', child: Text('مكتب')),
+                ],
+                onChanged: (value) {
+                  _advertiserType = value;
+                  _load();
+                },
+              ),
+            ),
+            SizedBox(
+              width: 190,
+              child: DropdownButtonFormField<int?>(
+                value: _governorateId,
+                decoration: const InputDecoration(labelText: 'المحافظة'),
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('كل المحافظات')),
+                  ..._governorates.map((g) => DropdownMenuItem<int?>(value: g.id, child: Text(g.nameAr))),
+                ],
+                onChanged: (value) {
+                  _governorateId = value;
+                  _load();
+                },
+              ),
+            ),
           ]),
         ),
       );
 
-  Widget _metricGrid(Map<String, dynamic> s) => GridView.count(
+  Widget _metrics(Map<String, dynamic> summary) => GridView.count(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         crossAxisCount: 2,
         mainAxisSpacing: 8,
         crossAxisSpacing: 8,
-        childAspectRatio: 1.8,
+        childAspectRatio: 1.75,
         children: [
-          _metric('قيمة الصفقات', _money(s['gross_transaction_value']), Icons.monetization_on_outlined),
-          _metric('إجمالي السعي', _money(s['total_sai_amount']), Icons.receipt_long_outlined),
-          _metric('مستحق المنصة', _money(s['platform_entitlement_amount']), Icons.account_balance_outlined),
-          _metric('بانتظار التحقق', '${s['payments_waiting_review'] ?? 0}', Icons.fact_check_outlined),
-          _metric('مستحقات غير محصلة', _money(s['open_receivables_amount']), Icons.pending_actions_outlined),
-          _metric('متأخر >24 ساعة', _money(s['overdue_receivables_amount']), Icons.timer_off_outlined),
-          _metric('مستحق للمعلنين', _money(s['pending_payouts_amount']), Icons.account_balance_wallet_outlined),
-          _metric('قيود مالية نشطة', '${s['active_financial_holds'] ?? 0}', Icons.visibility_off_outlined),
+          _metric('قيمة الصفقات', _money(summary['gross_transaction_value']), Icons.monetization_on_outlined),
+          _metric('إجمالي السعي', _money(summary['total_sai_amount']), Icons.receipt_long_outlined),
+          _metric('مستحق المنصة', _money(summary['platform_entitlement_amount']), Icons.account_balance_outlined),
+          _metric('بانتظار التحقق', '${summary['payments_waiting_review'] ?? 0}', Icons.fact_check_outlined),
+          _metric('غير محصل', _money(summary['open_receivables_amount']), Icons.pending_actions_outlined),
+          _metric('متأخر >24 ساعة', _money(summary['overdue_receivables_amount']), Icons.timer_off_outlined),
+          _metric('مستحق للمعلنين', _money(summary['pending_payouts_amount']), Icons.account_balance_wallet_outlined),
+          _metric('قيود مالية نشطة', '${summary['active_financial_holds'] ?? 0}', Icons.visibility_off_outlined),
         ],
       );
 
   Widget _metric(String title, String value, IconData icon) => Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 20), const SizedBox(height: 5),
-            Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
-            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 20),
+              const SizedBox(height: 5),
+              Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ],
+          ),
         ),
       );
 
@@ -354,7 +421,7 @@ class _GeneralManagerFinanceWorkspaceScreenState extends ConsumerState<GeneralMa
         subtitle: Text('${rows.length} سجل'),
         children: rows.isEmpty
             ? const [Padding(padding: EdgeInsets.all(16), child: Text('لا توجد بيانات ضمن الفلاتر الحالية.'))]
-            : rows.take(250).map((row) => ListTile(
+            : rows.map((row) => ListTile(
                   dense: true,
                   title: Text(_rowTitle(row, key)),
                   subtitle: Text(_rowSubtitle(row, key), maxLines: 4, overflow: TextOverflow.ellipsis),
@@ -372,12 +439,16 @@ class _GeneralManagerFinanceWorkspaceScreenState extends ConsumerState<GeneralMa
     if (key == 'refunds') return '${row['reference'] ?? 'استرداد'} • ${row['status'] ?? ''}';
     if (key == 'disputes') return '${row['reference'] ?? 'نزاع'} • ${row['status'] ?? ''}';
     if (key == 'audit_log') return '${row['action'] ?? 'إجراء مالي'}';
-    return '${row['reference'] ?? row['id'] ?? title}';
+    return '${row['reference'] ?? row['id'] ?? 'سجل'}';
   }
 
   String _rowSubtitle(Map<String, dynamic> row, String key) {
-    if (key == 'deals') return 'القيمة: ${_money(row['base_amount'], row['currency'])} • السعي: ${_money(row['sai_total_amount'], row['currency'])}\nالمعلن: ${row['advertiser_name'] ?? '-'} • المحافظة: ${row['governorate_name'] ?? '-'}';
-    if (key == 'payments') return 'المبلغ: ${_money(row['required_amount'], row['currency'])} • الطريقة: ${row['payment_method'] ?? '-'}\n${row['property_title'] ?? ''}';
+    if (key == 'deals') {
+      return 'القيمة: ${_money(row['base_amount'], row['currency'])} • السعي: ${_money(row['sai_total_amount'], row['currency'])}\nالمعلن: ${row['advertiser_name'] ?? '-'} • المحافظة: ${row['governorate_name'] ?? '-'}';
+    }
+    if (key == 'payments') {
+      return 'المبلغ: ${_money(row['required_amount'], row['currency'])} • الطريقة: ${row['payment_method'] ?? '-'}\n${row['property_title'] ?? ''}';
+    }
     if (key == 'payouts') return 'المبلغ: ${_money(row['amount'], row['currency'])} • الحالة: ${row['status'] ?? ''}';
     if (key == 'receivables' || key == 'overdue') return 'المتبقي: ${_money(row['remaining_amount'], row['currency'])} • الاستحقاق: ${row['due_at'] ?? '-'}\n${row['property_title'] ?? ''}';
     if (key == 'holds') return 'السبب: ${row['reason'] ?? '-'} • بدأ: ${row['started_at'] ?? '-'}';
@@ -389,17 +460,19 @@ class _GeneralManagerFinanceWorkspaceScreenState extends ConsumerState<GeneralMa
 
   List<Map<String, dynamic>> _maps(dynamic value) => value is List
       ? value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(growable: false)
-      : const [];
+      : const <Map<String, dynamic>>[];
+
   String _money(dynamic value, [dynamic currency = 'YER']) {
     final number = value is num ? value.toDouble() : double.tryParse('${value ?? 0}') ?? 0;
     return '${number.toStringAsFixed(number == number.roundToDouble() ? 0 : 2)} ${currency ?? 'YER'}';
   }
 }
 
-class _Error extends StatelessWidget {
-  const _Error({required this.message, required this.retry});
+class _FinanceError extends StatelessWidget {
+  const _FinanceError({required this.message, required this.retry});
   final String message;
   final VoidCallback retry;
+
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
