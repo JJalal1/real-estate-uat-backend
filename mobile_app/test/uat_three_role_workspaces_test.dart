@@ -19,10 +19,10 @@ void main() {
 
   test('general manager has executive-only primary navigation', () {
     final shell = read('lib/features/app_shell/presentation/app_shell_screen.dart');
-    expect(shell, contains('GeneralManagerHomeScreen()'));
+    expect(shell, contains('GeneralManagerHomeFinancialOverlay()'));
     expect(shell, contains('GeneralManagerMarketScreen()'));
-    expect(shell, contains('GeneralManagerAdministrationScreen()'));
-    expect(shell, contains('GeneralManagerReportsScreen()'));
+    expect(shell, contains('GeneralManagerAdministrationFinancialHubScreen()'));
+    expect(shell, contains('GeneralManagerReportsFinancialHubScreen()'));
     expect(shell, contains("label: 'الرئيسية'"));
     expect(shell, contains("label: 'السوق'"));
     expect(shell, contains("label: 'الإدارة'"));
@@ -52,7 +52,7 @@ void main() {
     expect(pages, contains('الحسابات والأدوار والصلاحيات'));
     expect(pages, contains('GeneralManagerAccountsScreen'));
     expect(pages, contains('رحلة العقار داخل المنصة'));
-    expect(pages, contains('المالية والتقارير'));
+    expect(pages, contains("const _SectionTitle('المالية')"));
     expect(pages, contains("ButtonSegment(value: '7d'"));
     expect(pages, contains("ButtonSegment(value: '30d'"));
     expect(pages, isNot(contains('SupportTasksScreen(')));

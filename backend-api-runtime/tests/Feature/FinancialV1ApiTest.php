@@ -1,0 +1,345 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Property;
+use App\Models\PropertyAsset;
+use App\Models\PropertySaiTerm;
+use App\Models\Role;
+use App\Models\SupportTask;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use App\Services\PropertyFinancialService;
+use App\Services\SupportTaskService;
+use Tests\TestCase;
+
+class FinancialV1ApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_financial_routes_require_authentication(): void
+    {
+        $this->getJson('/api/finance/payments/mine')->assertUnauthorized();
+        $this->getJson('/api/finance/account')->assertUnauthorized();
+        $this->getJson('/api/admin/finance/summary')->assertUnauthorized();
+    }
+
+    public function test_support_roles_receive_payment_review_without_finance_management(): void
+    {
+        $reviewId = DB::table('permissions')->where('key', 'payments.review')->value('id');
+        $viewId = DB::table('permissions')->where('key', 'finance.view')->value('id');
+        $manageId = DB::table('permissions')->where('key', 'finance.manage')->value('id');
+
+        foreach (['support_agent', 'support_manager'] as $roleKey) {
+            $roleId = DB::table('roles')->where('key', $roleKey)->value('id');
+            $this->assertDatabaseHas('role_permission', ['role_id'=>$roleId, 'permission_id'=>$reviewId]);
+            $this->assertDatabaseMissing('role_permission', ['role_id'=>$roleId, 'permission_id'=>$viewId]);
+            $this->assertDatabaseMissing('role_permission', ['role_id'=>$roleId, 'permission_id'=>$manageId]);
+        }
+    }
+
+    public function test_accepted_agreement_freezes_financial_terms_once(): void
+    {
+        [$agreementId, $property, $advertiser, $buyer, $advertiserHeaders, $buyerHeaders] = $this->acceptedSaleDeal('buyer');
+
+        $this->assertDatabaseCount('property_deal_financial_terms', 1);
+        $this->assertDatabaseHas('property_deal_financial_terms', [
+            'property_agreement_id'=>$agreementId,
+            'property_id'=>$property->id,
+            'buyer_user_id'=>$buyer->id,
+            'advertiser_user_id'=>$advertiser->id,
+            'transaction_type'=>'sale',
+            'sai_payer'=>'buyer',
+            'base_amount'=>90_000_000,
+            'sai_total_amount'=>900_000,
+            'platform_share_amount'=>900_000,
+        ]);
+
+        $revisionId = (int) DB::table('property_agreement_revisions')->where('property_agreement_id', $agreementId)->value('id');
+        $this->withHeaders($advertiserHeaders)->postJson("/api/agreements/$agreementId/accept", ['revision_id'=>$revisionId])->assertOk();
+        $this->assertDatabaseCount('property_deal_financial_terms', 1);
+
+        $this->withHeaders($buyerHeaders)->getJson("/api/finance/agreements/$agreementId")
+            ->assertOk()
+            ->assertJsonPath('data.base_amount', 90000000)
+            ->assertJsonPath('data.sai_total_amount', 900000)
+            ->assertJsonPath('data.required_full_payment', 90900000);
+    }
+
+    public function test_public_property_uses_financial_price_display_without_internal_split(): void
+    {
+        [$advertiser] = $this->user('financial-price-owner@example.test', '+967772000011');
+        $property = $this->property($advertiser, 100_000_000, 'Financial public price');
+        $term = $this->term($property, 'buyer');
+        $property->forceFill(['current_sai_term_id'=>$term->id, 'price_display_mode'=>'includes_sai'])->save();
+
+        $this->flushHeaders();
+        $this->getJson("/api/properties/{$property->id}")
+            ->assertOk()
+            ->assertJsonPath('data.base_price', 100000000)
+            ->assertJsonPath('data.display_price', 101000000)
+            ->assertJsonPath('data.price_display_note', 'المبلغ شامل السعي')
+            ->assertJsonPath('data.sai.amount', 1000000)
+            ->assertJsonMissingPath('data.platform_share_amount')
+            ->assertJsonMissingPath('data.advertiser_sai_share_amount');
+    }
+
+    public function test_direct_deal_creates_24_hour_receivable_blocks_new_listing_and_hides_after_deadline(): void
+    {
+        [$agreementId, $property, $advertiser, , $advertiserHeaders, $buyerHeaders] = $this->acceptedSaleDeal('seller');
+
+        $this->withHeaders($buyerHeaders)
+            ->postJson("/api/finance/agreements/$agreementId/direct-confirmation", ['decision'=>'confirmed'])
+            ->assertOk()->assertJsonPath('data.completed', false);
+
+        $this->withHeaders($advertiserHeaders)
+            ->postJson("/api/finance/agreements/$agreementId/direct-confirmation", ['decision'=>'confirmed'])
+            ->assertOk()->assertJsonPath('data.completed', true);
+
+        $receivable = DB::table('property_platform_receivables')->where('advertiser_user_id', $advertiser->id)->first();
+        $this->assertNotNull($receivable);
+        $this->assertSame('open', $receivable->status);
+        $this->assertEquals(900000.0, (float) $receivable->amount_total);
+        $this->assertTrue(now()->diffInMinutes(\Carbon\Carbon::parse($receivable->due_at), false) >= 1439);
+        $this->assertDatabaseHas('property_financial_holds', [
+            'user_id'=>$advertiser->id,
+            'reason'=>'platform_receivable_open',
+            'source_id'=>$receivable->id,
+        ]);
+        $this->assertDatabaseHas('property_financial_ledger_entries', [
+            'entry_type'=>'platform_receivable_created',
+            'source_type'=>'property_platform_receivable',
+            'source_id'=>$receivable->id,
+        ]);
+
+        $this->withHeaders($advertiserHeaders)
+            ->postJson('/api/properties', [])
+            ->assertStatus(409)
+            ->assertJsonFragment(['message'=>'لديك مستحقات للمنصة. سدّد المستحقات الحالية قبل إنشاء أو إرسال إعلان جديد.']);
+
+        $this->flushHeaders();
+        $this->getJson("/api/properties/{$property->id}")->assertOk();
+
+        DB::table('property_platform_receivables')->where('id', $receivable->id)->update([
+            'due_at'=>now()->subMinute(),
+            'updated_at'=>now(),
+        ]);
+        $this->getJson("/api/properties/{$property->id}")->assertNotFound();
+        $this->getJson('/api/properties')
+            ->assertOk()
+            ->assertJsonMissing(['id'=>$property->id]);
+
+        $this->withHeaders($advertiserHeaders)
+            ->getJson('/api/properties/mine/list')
+            ->assertOk()
+            ->assertJsonFragment(['id'=>$property->id]);
+        $this->assertDatabaseHas('properties', ['id'=>$property->id, 'status'=>'published']);
+    }
+
+    public function test_rental_financial_configuration_is_complete_and_snapshotted_on_listing(): void
+    {
+        [$advertiser, $headers] = $this->user('financial-rent-owner@example.test', '+967772000041');
+        $property = $this->property($advertiser, 1_000_000, 'Financial rent config');
+        $property->forceFill(['purpose'=>'rent','status'=>'draft','review_status'=>'draft','published_at'=>null])->saveQuietly();
+
+        $this->withHeaders($headers)->patchJson("/api/properties/{$property->id}/financial-config", [
+            'monthly_rent'=>250000,
+            'rental_term_months'=>12,
+            'advance_months'=>3,
+            'price_display_mode'=>'excludes_sai',
+        ])->assertOk()
+          ->assertJsonPath('data.price', 750000)
+          ->assertJsonPath('data.monthly_rent', 250000)
+          ->assertJsonPath('data.rental_term_months', 12)
+          ->assertJsonPath('data.advance_months', 3);
+
+        $this->assertDatabaseHas('properties', [
+            'id'=>$property->id,'purpose'=>'rent','price'=>750000,
+            'monthly_rent'=>250000,'rental_term_months'=>12,'advance_months'=>3,
+            'price_display_mode'=>'excludes_sai',
+        ]);
+        $this->withHeaders($headers)->patchJson("/api/properties/{$property->id}/financial-config", [
+            'monthly_rent'=>250000,'rental_term_months'=>2,'advance_months'=>3,
+        ])->assertStatus(422);
+    }
+
+    public function test_published_sai_attestation_uses_exact_snapshot_and_disappears_from_pending(): void
+    {
+        [$advertiser, $headers] = $this->user('financial-oath-owner@example.test', '+967772000042');
+        $property = $this->property($advertiser, 100_000_000, 'Financial oath');
+        $term = $this->term($property, 'seller');
+        $property->forceFill(['current_sai_term_id'=>$term->id])->saveQuietly();
+
+        $this->withHeaders($headers)->getJson('/api/finance/sai-attestations/pending')
+            ->assertOk()->assertJsonFragment(['property_id'=>$property->id,'text'=>PropertyFinancialService::SAI_ATTESTATION_TEXT]);
+        $this->withHeaders($headers)->postJson("/api/properties/{$property->id}/sai-attestation", ['accepted'=>false])->assertStatus(422);
+        $this->withHeaders($headers)->postJson("/api/properties/{$property->id}/sai-attestation", ['accepted'=>true])->assertOk();
+        $this->assertDatabaseHas('property_sai_attestations', [
+            'property_id'=>$property->id,'sai_term_id'=>$term->id,'user_id'=>$advertiser->id,
+            'text_snapshot'=>PropertyFinancialService::SAI_ATTESTATION_TEXT,
+        ]);
+        $this->withHeaders($headers)->getJson('/api/finance/sai-attestations/pending')->assertOk()->assertJsonMissing(['property_id'=>$property->id]);
+    }
+
+    public function test_payment_review_task_is_visible_claimed_and_reviewed_only_by_assigned_agent(): void
+    {
+        [$agreementId, $property, , $buyer, , ] = $this->acceptedSaleDeal('buyer');
+        $termId=(int)DB::table('property_deal_financial_terms')->where('property_agreement_id',$agreementId)->value('id');
+        $methodId=(int)DB::table('property_payment_methods')->value('id');
+        $paymentId=(int)DB::table('property_payments')->insertGetId([
+            'reference'=>'PAY-TEST-REVIEW','deal_financial_term_id'=>$termId,'property_id'=>$property->id,
+            'payer_user_id'=>$buyer->id,'advertiser_user_id'=>$property->user_id,'payment_method_id'=>$methodId,
+            'mode'=>'platform_sai_only','status'=>'proof_submitted','required_amount'=>900000,'currency'=>'YER',
+            'submitted_at'=>now(),'created_at'=>now(),'updated_at'=>now(),
+        ]);
+        app(SupportTaskService::class)->projectPayment($paymentId);
+
+        $projected=SupportTask::query()->where('source_type','payment_review')->where('source_id',$paymentId)->firstOrFail();
+        $this->assertSame('new',$projected->status);
+        $this->assertNull($projected->assigned_to_user_id);
+        $this->assertNotNull($projected->support_team_id);
+
+        [$agent, $agentHeaders] = $this->user(
+            'financial-support-agent@example.test',
+            '+967772000043',
+            ['support_agent'],
+        );
+        $agent=$agent->fresh();
+        $this->assertTrue($agent->hasRole('support_agent'));
+        $this->assertTrue($agent->hasPermission('payments.review'));
+        $this->assertFalse($agent->hasPermission('support.manage'));
+
+        $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertForbidden();
+        $inbox=$this->withHeaders($agentHeaders)->getJson('/api/admin/workspace/tasks?scope=inbox&type=payment_review')->assertOk();
+
+        $this->assertDatabaseHas('support_team_members',[
+            'user_id'=>$agent->id,
+            'support_team_id'=>$projected->support_team_id,
+            'member_role'=>'agent',
+        ]);
+        $this->assertSame(1,(int)$inbox->json('meta.total'));
+        $taskId=(int)$inbox->json('data.0.id');
+        $this->assertSame((int)$projected->id,$taskId);
+
+        $this->withHeaders($agentHeaders)->postJson("/api/admin/workspace/tasks/$taskId/claim")->assertOk()->assertJsonPath('data.is_mine',true);
+        $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertOk()->assertJsonPath('data.status','under_review');
+        $this->withHeaders($agentHeaders)->postJson("/api/admin/finance/payments/$paymentId/review",['decision'=>'correction','note'=>'صورة الإثبات غير واضحة'])->assertOk()->assertJsonPath('data.status','correction_required');
+        $this->assertDatabaseHas('support_tasks',['id'=>$taskId,'source_type'=>'payment_review','status'=>'waiting_user','assigned_to_user_id'=>$agent->id]);
+    }
+
+    private function acceptedSaleDeal(string $payer): array
+    {
+        [$advertiser, $advertiserHeaders] = $this->user('financial-deal-owner-'.$payer.'@example.test', '+96777200'.($payer === 'buyer' ? '0021' : '0031'));
+        [$buyer, $buyerHeaders] = $this->user('financial-deal-buyer-'.$payer.'@example.test', '+96777200'.($payer === 'buyer' ? '0022' : '0032'));
+        $property = $this->property($advertiser, 100_000_000, 'Financial deal '.$payer);
+        $term = $this->term($property, $payer);
+        $property->forceFill(['current_sai_term_id'=>$term->id, 'price_display_mode'=>$payer === 'buyer' ? 'excludes_sai' : null])->save();
+
+        $threadId = (int) $this->withHeaders($buyerHeaders)
+            ->postJson("/api/properties/{$property->id}/conversation")
+            ->assertCreated()->json('data.id');
+
+        $created = $this->withHeaders($buyerHeaders)
+            ->postJson("/api/messages/threads/$threadId/agreement", [
+                'agreed_amount'=>90_000_000,
+                'currency'=>'YER',
+            ])->assertCreated();
+        $agreementId = (int) $created->json('data.id');
+        $revisionId = (int) $created->json('data.current_revision.id');
+
+        $this->withHeaders($buyerHeaders)
+            ->postJson("/api/agreements/$agreementId/accept", ['revision_id'=>$revisionId])
+            ->assertOk()->assertJsonPath('data.status', 'draft');
+        $this->withHeaders($advertiserHeaders)
+            ->postJson("/api/agreements/$agreementId/accept", ['revision_id'=>$revisionId])
+            ->assertOk()->assertJsonPath('data.status', 'accepted');
+
+        return [$agreementId, $property, $advertiser, $buyer, $advertiserHeaders, $buyerHeaders];
+    }
+
+    private function user(string $email, string $phone, array $roles = []): array
+    {
+        $user = User::query()->create([
+            'name'=>'Financial V1 User',
+            'email'=>$email,
+            'phone'=>$phone,
+            'phone_verified_at'=>now(),
+            'profile_completed_at'=>now(),
+            'account_status'=>User::STATUS_ACTIVE,
+            'password'=>Hash::make('financial-v1-test-password'),
+        ]);
+        $roleIds = [];
+        foreach (array_unique(array_merge(['registered_user'], $roles)) as $key) {
+            $role = Role::query()->where('key', $key)->firstOrFail();
+            $roleIds[$role->id] = ['assigned_by_user_id'=>null,'created_at'=>now()];
+        }
+        $user->roles()->sync($roleIds);
+        $plain = 'finv1_'.substr(hash('sha512', $email), 0, 72);
+        $user->apiTokens()->create([
+            'name'=>'financial-v1-test',
+            'token_hash'=>hash('sha256', $plain),
+            'token_prefix'=>substr($plain, 0, 12),
+            'expires_at'=>now()->addHour(),
+        ]);
+        return [$user, ['Authorization'=>'Bearer '.$plain, 'Accept'=>'application/json']];
+    }
+
+    private function property(User $advertiser, float $price, string $title): Property
+    {
+        $asset = PropertyAsset::query()->create([
+            'created_by_user_id'=>$advertiser->id,
+            'identity_hash'=>hash('sha256', $title.uniqid('', true)),
+            'identity_version'=>1,
+            'property_type'=>'apartment',
+            'canonical_address'=>'Financial V1 address',
+            'canonical_latitude'=>15.3694,
+            'canonical_longitude'=>44.1910,
+            'area_m2'=>120,
+            'bedrooms'=>3,
+            'bathrooms'=>2,
+            'status'=>'active',
+        ]);
+        return Property::query()->create([
+            'user_id'=>$advertiser->id,
+            'property_asset_id'=>$asset->id,
+            'title'=>$title,
+            'description'=>'Financial V1 acceptance fixture',
+            'purpose'=>'sale',
+            'type'=>'apartment',
+            'price'=>$price,
+            'currency'=>'YER',
+            'area_m2'=>120,
+            'bedrooms'=>3,
+            'bathrooms'=>2,
+            'address'=>'Financial V1 address',
+            'latitude'=>15.3694,
+            'longitude'=>44.1910,
+            'status'=>'published',
+            'review_status'=>'approved',
+            'published_at'=>now(),
+        ]);
+    }
+
+    private function term(Property $property, string $payer): PropertySaiTerm
+    {
+        return PropertySaiTerm::query()->create([
+            'property_id'=>$property->id,
+            'version'=>1,
+            'advertiser_type'=>'owner',
+            'purpose'=>'sale',
+            'source_mode'=>'owner_fixed',
+            'requested_broker_rate_percent'=>null,
+            'sai_rate_percent'=>1,
+            'payer'=>$payer,
+            'calculation_basis'=>'final_sale_value',
+            'platform_share_percent'=>100,
+            'broker_share_percent'=>0,
+            'platform_terms_status'=>'not_required',
+            'platform_terms_accepted_at'=>null,
+            'platform_terms_rejected_at'=>null,
+            'created_by_user_id'=>$property->user_id,
+        ]);
+    }
+}

@@ -27,7 +27,8 @@ class ListingEditorScreen extends ConsumerStatefulWidget {
   final PropertyDetails? existingProperty;
 
   @override
-  ConsumerState<ListingEditorScreen> createState() => _ListingEditorScreenState();
+  ConsumerState<ListingEditorScreen> createState() =>
+      _ListingEditorScreenState();
 }
 
 class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
@@ -76,6 +77,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   final _title = TextEditingController();
   final _description = TextEditingController();
   final _price = TextEditingController();
+  final _monthlyRent = TextEditingController();
+  final _rentalTermMonths = TextEditingController();
+  final _advanceMonths = TextEditingController();
   final _area = TextEditingController();
   final _bedrooms = TextEditingController();
   final _bathrooms = TextEditingController();
@@ -106,6 +110,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   PropertyDetails? _workingDraft;
   PropertySaiEnvelope? _saiEnvelope;
   bool _saiBusy = false;
+  String _priceDisplayMode = 'excludes_sai';
 
   PropertyDetails? get _existing => _workingDraft ?? widget.existingProperty;
   bool get _startedAsEditing => widget.existingProperty != null;
@@ -128,11 +133,38 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   bool get _requiresStructure => _structureTypes.contains(_type);
   bool? get _parkingValue =>
       _parkingChoice == null ? null : _parkingChoice == 'yes';
+  bool get _visitorPaysSai => const {'buyer', 'tenant'}.contains(
+        _saiEnvelope?.sai?.payer ?? _saiEnvelope?.management?.payer,
+      );
+  double? get _effectivePrice {
+    if (_purpose == 'rent') {
+      final monthly = double.tryParse(_monthlyRent.text.trim());
+      final advance = int.tryParse(_advanceMonths.text.trim());
+      if (monthly == null || monthly <= 0 || advance == null || advance <= 0) {
+        return null;
+      }
+      return monthly * advance;
+    }
+    return double.tryParse(_price.text.trim());
+  }
+
+  String get _priceSummaryText {
+    if (_purpose == 'rent') {
+      final monthly = _monthlyRent.text.trim();
+      final advance = _advanceMonths.text.trim();
+      return monthly.isEmpty
+          ? '—'
+          : '$monthly YER شهرياً${advance.isEmpty ? '' : ' · مقدم $advance شهر'}';
+    }
+    return '${_price.text.trim()} YER';
+  }
 
   @override
   void initState() {
     super.initState();
     _price.addListener(_onPriceChanged);
+    _monthlyRent.addListener(_onPriceChanged);
+    _advanceMonths.addListener(_onPriceChanged);
     final property = _existing;
     if (property == null) return;
 
@@ -141,7 +173,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     _tenureType = property.tenureType;
     _title.text = property.title;
     _description.text = property.description ?? '';
-    _price.text = property.price.toStringAsFixed(0);
+    _price.text = property.editablePrice.toStringAsFixed(0);
+    _monthlyRent.text = property.monthlyRent?.toStringAsFixed(0) ?? '';
+    _rentalTermMonths.text = property.rentalTermMonths?.toString() ?? '';
+    _advanceMonths.text = property.advanceMonths?.toString() ?? '';
+    _priceDisplayMode = property.priceDisplayMode ?? 'excludes_sai';
     _area.text = property.areaValue != null
         ? formatPropertyAreaValue(property.areaValue!)
         : property.areaM2?.toString() ?? '';
@@ -172,18 +208,21 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   @override
   void dispose() {
     _price.removeListener(_onPriceChanged);
+    _monthlyRent.removeListener(_onPriceChanged);
+    _advanceMonths.removeListener(_onPriceChanged);
     unawaited(
-      _mediaPicker
-          .clearTemporaryFiles(<String>[
-            ..._imagePaths,
-            if (_ownershipProofPath != null) _ownershipProofPath!,
-          ])
-          .catchError((_) {}),
+      _mediaPicker.clearTemporaryFiles(<String>[
+        ..._imagePaths,
+        if (_ownershipProofPath != null) _ownershipProofPath!,
+      ]).catchError((_) {}),
     );
     for (final controller in <TextEditingController>[
       _title,
       _description,
       _price,
+      _monthlyRent,
+      _rentalTermMonths,
+      _advanceMonths,
       _area,
       _bedrooms,
       _bathrooms,
@@ -202,9 +241,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final correctionReason = _existing?.reviewStatus == 'returned_for_correction'
-        ? _existing?.lastReviewReason
-        : null;
+    final correctionReason =
+        _existing?.reviewStatus == 'returned_for_correction'
+            ? _existing?.lastReviewReason
+            : null;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -215,7 +255,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              if (correctionReason != null && correctionReason.trim().isNotEmpty)
+              if (correctionReason != null &&
+                  correctionReason.trim().isNotEmpty)
                 Padding(
                   padding: const EdgeInsetsDirectional.fromSTEB(
                     AppLayout.compactPageGutter,
@@ -321,7 +362,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               DropdownMenuItem(value: 'freehold', child: Text('حر')),
               DropdownMenuItem(value: 'waqf', child: Text('وقف')),
             ],
-            onChanged: _busy ? null : (value) => setState(() => _tenureType = value),
+            onChanged:
+                _busy ? null : (value) => setState(() => _tenureType = value),
           ),
         ],
         const SizedBox(height: AppSpacing.s16),
@@ -350,14 +392,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       children: [
         const AppSectionHeader(
           title: 'موقع العقار',
-          subtitle: 'النقطة على الخريطة هي المرجع الأساسي، والعنوان يساعد البحث والمراجعة.',
+          subtitle:
+              'النقطة على الخريطة هي المرجع الأساسي، والعنوان يساعد البحث والمراجعة.',
         ),
         const SizedBox(height: AppSpacing.s16),
         AppSurface(
           child: Row(
             children: [
               Icon(
-                hasLocation ? Icons.check_circle_outline : Icons.location_on_outlined,
+                hasLocation
+                    ? Icons.check_circle_outline
+                    : Icons.location_on_outlined,
                 color: hasLocation
                     ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.onSurfaceVariant,
@@ -389,7 +434,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               child: AppButton(
                 label: 'تحديد موقعي الحالي',
                 icon: Icons.my_location,
-                onPressed: _busy || _resolvingLocation ? null : _useCurrentLocation,
+                onPressed:
+                    _busy || _resolvingLocation ? null : _useCurrentLocation,
                 expand: true,
               ),
             ),
@@ -437,7 +483,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               child: AppTextField(
                 controller: _area,
                 label: 'عدد اللبن *',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 enabled: !_busy,
               ),
             ),
@@ -451,11 +498,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     .map(
                       (entry) => DropdownMenuItem(
                         value: entry.key,
-                        child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                        child:
+                            Text(entry.value, overflow: TextOverflow.ellipsis),
                       ),
                     )
                     .toList(growable: false),
-                onChanged: _busy ? null : (value) => setState(() => _areaUnit = value ?? 'sqm'),
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() => _areaUnit = value ?? 'sqm'),
               ),
             ),
           ],
@@ -493,16 +543,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               DropdownMenuItem(value: 'yes', child: Text('يوجد')),
               DropdownMenuItem(value: 'no', child: Text('لا يوجد')),
             ],
-            onChanged: _busy ? null : (value) => setState(() => _parkingChoice = value),
+            onChanged: _busy
+                ? null
+                : (value) => setState(() => _parkingChoice = value),
           ),
           const SizedBox(height: AppSpacing.s12),
           DropdownButtonFormField<String>(
             value: _facade,
             decoration: const InputDecoration(labelText: 'واجهة البناء *'),
             items: propertyFacadeLabels.entries
-                .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                .map((entry) => DropdownMenuItem(
+                    value: entry.key, child: Text(entry.value)))
                 .toList(growable: false),
-            onChanged: _busy ? null : (value) => setState(() => _facade = value),
+            onChanged:
+                _busy ? null : (value) => setState(() => _facade = value),
           ),
         ],
       ],
@@ -510,28 +564,94 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 
   Widget _priceStep() {
-    final amountWords = arabicRiyalAmountInWords(_price.text) ?? '';
+    final wordsSource = _purpose == 'rent' ? _monthlyRent.text : _price.text;
+    final amountWords = arabicRiyalAmountInWords(wordsSource) ?? '';
+    final initialAmount = _effectivePrice;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const AppSectionHeader(
-          title: 'السعر والتواصل',
-          subtitle: 'حدد السعر ووسائل التواصل التي تريد إظهارها للمهتمين.',
+        AppSectionHeader(
+          title: _purpose == 'rent' ? 'الإيجار والتواصل' : 'السعر والتواصل',
+          subtitle: _purpose == 'rent'
+              ? 'أدخل الإيجار الشهري ومدة التأجير وعدد أشهر المقدم.'
+              : 'حدد السعر ووسائل التواصل التي تريد إظهارها للمهتمين.',
         ),
         const SizedBox(height: AppSpacing.s16),
-        AppTextField(
-          controller: _price,
-          label: 'السعر بالريال اليمني *',
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          enabled: !_busy,
-        ),
+        if (_purpose == 'sale')
+          AppTextField(
+            controller: _price,
+            label: 'سعر البيع بالريال اليمني *',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            enabled: !_busy,
+          )
+        else ...[
+          AppTextField(
+            controller: _monthlyRent,
+            label: 'الإيجار الشهري بالريال اليمني *',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            enabled: !_busy,
+          ),
+          const SizedBox(height: AppSpacing.s12),
+          Row(
+            children: [
+              Expanded(
+                child: AppTextField(
+                  controller: _rentalTermMonths,
+                  label: 'مدة التأجير بالأشهر *',
+                  keyboardType: TextInputType.number,
+                  enabled: !_busy,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.s8),
+              Expanded(
+                child: AppTextField(
+                  controller: _advanceMonths,
+                  label: 'أشهر المقدم *',
+                  keyboardType: TextInputType.number,
+                  enabled: !_busy,
+                ),
+              ),
+            ],
+          ),
+          if (initialAmount != null) ...[
+            const SizedBox(height: AppSpacing.s8),
+            AppInlineMessage(
+              title: 'المبلغ الأساسي عند البداية',
+              message: '${initialAmount.toStringAsFixed(0)} YER قبل السعي',
+              tone: AppStatusTone.info,
+            ),
+          ],
+        ],
         if (amountWords.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.s8),
           AppInlineMessage(
-            title: 'المبلغ بالحروف',
+            title: _purpose == 'rent'
+                ? 'الإيجار الشهري بالحروف'
+                : 'المبلغ بالحروف',
             message: amountWords,
             tone: AppStatusTone.info,
           ),
+        ],
+        if (_isSaiReady && _visitorPaysSai) ...[
+          const SizedBox(height: AppSpacing.s16),
+          Text('طريقة عرض السعر للباحث',
+              style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.s8),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(
+                  value: 'excludes_sai', label: Text('السعر + السعي')),
+              ButtonSegment(
+                  value: 'includes_sai', label: Text('السعر شامل السعي')),
+            ],
+            selected: {_priceDisplayMode},
+            onSelectionChanged: _busy
+                ? null
+                : (value) => setState(() => _priceDisplayMode = value.first),
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          const Text(
+              'سيظهر للباحث إجمالي السعي والطرف الذي يتحمله فقط، بدون إظهار أي تقسيم داخلي.'),
         ],
         const SizedBox(height: AppSpacing.s12),
         AppTextField(
@@ -566,7 +686,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       children: [
         const AppSectionHeader(
           title: 'الصور والإثبات والمراجعة',
-          subtitle: 'احفظ كمسودة متى شئت، ثم أرسل للمراجعة فقط عندما يصبح الإعلان جاهزاً.',
+          subtitle:
+              'احفظ كمسودة متى شئت، ثم أرسل للمراجعة فقط عندما يصبح الإعلان جاهزاً.',
         ),
         const SizedBox(height: AppSpacing.s16),
         AppSurface(
@@ -596,7 +717,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                   title: const Text('استبدال الصور الحالية بالكامل'),
                   subtitle: Text('الصور الحالية: $existingImages'),
                   value: _replaceImages,
-                  onChanged: _busy ? null : (value) => setState(() => _replaceImages = value),
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() => _replaceImages = value),
                 ),
               ],
               if (_imagePaths.isNotEmpty) ...[
@@ -620,16 +743,19 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                       return Container(
                         key: ValueKey(path),
                         width: 110,
-                        margin: const EdgeInsetsDirectional.only(end: AppSpacing.s8),
+                        margin: const EdgeInsetsDirectional.only(
+                            end: AppSpacing.s8),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(AppRadii.control),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.control),
                               child: Image.file(
                                 File(path),
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined)),
+                                errorBuilder: (_, __, ___) => const Center(
+                                    child: Icon(Icons.broken_image_outlined)),
                               ),
                             ),
                             PositionedDirectional(
@@ -637,11 +763,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                               end: 4,
                               child: IconButton.filled(
                                 tooltip: 'إزالة الصورة',
-                                onPressed: _busy ? null : () => _removeImage(index),
+                                onPressed:
+                                    _busy ? null : () => _removeImage(index),
                                 icon: const Icon(Icons.close, size: 18),
                               ),
                             ),
-                            if (index == 0 && (_replaceImages || existingImages == 0))
+                            if (index == 0 &&
+                                (_replaceImages || existingImages == 0))
                               const PositionedDirectional(
                                 start: 5,
                                 bottom: 5,
@@ -668,7 +796,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         if (isProfessional) ...[
           const SizedBox(height: AppSpacing.s12),
           const AppInlineMessage(
-            message: 'الحساب المهني الموثق لا يُطلب منه إثبات ملكية لا يخصه. الإعلان نفسه يبقى خاضعاً للمراجعة ومنع التكرار.',
+            message:
+                'الحساب المهني الموثق لا يُطلب منه إثبات ملكية لا يخصه. الإعلان نفسه يبقى خاضعاً للمراجعة ومنع التكرار.',
             tone: AppStatusTone.info,
           ),
         ],
@@ -676,16 +805,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           const SizedBox(height: AppSpacing.s16),
           const AppSectionHeader(
             title: 'إثبات علاقتك بهذا العقار',
-            subtitle: 'هويتك موثقة في الحساب؛ هنا نراجع علاقتك بهذا العقار فقط.',
+            subtitle:
+                'هويتك موثقة في الحساب؛ هنا نراجع علاقتك بهذا العقار فقط.',
           ),
           const SizedBox(height: AppSpacing.s12),
           DropdownButtonFormField<String>(
             value: _ownershipDocumentType,
             decoration: const InputDecoration(labelText: 'نوع مستند العقار'),
             items: _ownershipDocumentTypes.entries
-                .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                .map((entry) => DropdownMenuItem(
+                    value: entry.key, child: Text(entry.value)))
                 .toList(growable: false),
-            onChanged: _busy ? null : (value) => setState(() => _ownershipDocumentType = value),
+            onChanged: _busy
+                ? null
+                : (value) => setState(() => _ownershipDocumentType = value),
           ),
           const SizedBox(height: AppSpacing.s12),
           AppTextField(
@@ -698,9 +831,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
             value: _relationshipType,
             decoration: const InputDecoration(labelText: 'صفتك بالنسبة للعقار'),
             items: _relationshipTypes.entries
-                .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                .map((entry) => DropdownMenuItem(
+                    value: entry.key, child: Text(entry.value)))
                 .toList(growable: false),
-            onChanged: _busy ? null : (value) => setState(() => _relationshipType = value),
+            onChanged: _busy
+                ? null
+                : (value) => setState(() => _relationshipType = value),
           ),
           if (_relationshipType != null && _relationshipType != 'owner') ...[
             const SizedBox(height: AppSpacing.s12),
@@ -745,11 +881,16 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           child: Column(
             children: [
               _SummaryRow(label: 'العنوان', value: _title.text.trim()),
-              _SummaryRow(label: 'الغرض', value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
+              _SummaryRow(
+                  label: 'الغرض',
+                  value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
               _SummaryRow(label: 'النوع', value: _typeLabels[_type] ?? _type),
-              _SummaryRow(label: 'السعر', value: '${_price.text.trim()} YER'),
+              _SummaryRow(label: 'السعر', value: _priceSummaryText),
               _SummaryRow(label: 'الموقع', value: _composedAddress),
-              _SummaryRow(label: 'عدد اللبن', value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
+              _SummaryRow(
+                  label: 'عدد اللبن',
+                  value:
+                      '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
               _SummaryRow(label: 'السعي', value: _saiDisplayText),
             ],
           ),
@@ -767,7 +908,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           Row(
             children: [
               Icon(
-                _isSaiReady ? Icons.check_circle_rounded : Icons.payments_outlined,
+                _isSaiReady
+                    ? Icons.check_circle_rounded
+                    : Icons.payments_outlined,
                 color: _isSaiReady ? scheme.primary : scheme.onSurfaceVariant,
               ),
               const SizedBox(width: AppSpacing.s8),
@@ -847,11 +990,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
 
   String? _validationMessageForStep(int step) {
     if (step == 0) {
-      if (_title.text.trim().length < 4) return 'اكتب عنواناً واضحاً من 4 أحرف على الأقل.';
-      if (_requiresSaleTenure && _tenureType == null) return 'حدد نوع الملكية: حر أو وقف.';
+      if (_title.text.trim().length < 4) {
+        return 'اكتب عنواناً واضحاً من 4 أحرف على الأقل.';
+      }
+      if (_requiresSaleTenure && _tenureType == null) {
+        return 'حدد نوع الملكية: حر أو وقف.';
+      }
     }
     if (step == 1) {
-      if (_latitude == null || _longitude == null) return 'حدد موقع العقار على الخريطة أو باستخدام موقعك الحالي.';
+      if (_latitude == null || _longitude == null) {
+        return 'حدد موقع العقار على الخريطة أو باستخدام موقعك الحالي.';
+      }
       if (_governorate.text.trim().length < 2) return 'أكمل اسم المحافظة.';
       if (_composedAddress.length < 3) return 'أكمل معلومات عنوان العقار.';
     }
@@ -862,12 +1011,31 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         if ((_optionalInt(_bedrooms) ?? 0) < 1) return 'أدخل عدد غرف النوم.';
         if ((_optionalInt(_bathrooms) ?? 0) < 1) return 'أدخل عدد الحمامات.';
       }
-      if (_requiresStructure && _parkingChoice == null) return 'حدد هل يوجد موقف سيارة.';
+      if (_requiresStructure && _parkingChoice == null) {
+        return 'حدد هل يوجد موقف سيارة.';
+      }
       if (_requiresStructure && _facade == null) return 'اختر واجهة البناء.';
     }
     if (step == 3) {
-      final value = double.tryParse(_price.text.trim());
-      if (value == null || value <= 0) return 'أدخل سعراً صحيحاً أكبر من صفر.';
+      if (_purpose == 'sale') {
+        final value = double.tryParse(_price.text.trim());
+        if (value == null || value <= 0) {
+          return 'أدخل سعراً صحيحاً أكبر من صفر.';
+        }
+      } else {
+        final monthly = double.tryParse(_monthlyRent.text.trim());
+        final term = int.tryParse(_rentalTermMonths.text.trim());
+        final advance = int.tryParse(_advanceMonths.text.trim());
+        if (monthly == null || monthly <= 0) {
+          return 'أدخل الإيجار الشهري بشكل صحيح.';
+        }
+        if (term == null || term < 1 || term > 24) {
+          return 'مدة التأجير يجب أن تكون من شهر إلى 24 شهراً.';
+        }
+        if (advance == null || advance < 1 || advance > term) {
+          return 'أشهر المقدم يجب أن تكون من شهر وحتى مدة التأجير.';
+        }
+      }
     }
     return null;
   }
@@ -883,27 +1051,38 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   String? _validateForSubmit() {
     final core = _validateCore();
     if (core != null) return core;
-    if (!_isSaiReady) return 'حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.';
+    if (!_isSaiReady) {
+      return 'حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.';
+    }
 
     final existingImages = _existing?.images.length ?? 0;
     final effectiveImageCount = _replaceImages
         ? _imagePaths.length
         : existingImages + _imagePaths.length;
-    if (effectiveImageCount < 1) return 'أضف صورة واحدة على الأقل قبل إرسال الإعلان للمراجعة.';
+    if (effectiveImageCount < 1) {
+      return 'أضف صورة واحدة على الأقل قبل إرسال الإعلان للمراجعة.';
+    }
 
     final user = ref.read(authControllerProvider).asData?.value;
     if (user?.isOwner == true) {
-      if (_ownershipDocumentType == null) return 'اختر نوع مستند ملكية أو علاقة العقار.';
-      if (_documentOwnerName.text.trim().length < 3) return 'اكتب اسم صاحب الحق كما يظهر في مستند العقار.';
+      if (_ownershipDocumentType == null) {
+        return 'اختر نوع مستند ملكية أو علاقة العقار.';
+      }
+      if (_documentOwnerName.text.trim().length < 3) {
+        return 'اكتب اسم صاحب الحق كما يظهر في مستند العقار.';
+      }
       if (_relationshipType == null) return 'حدد صفتك بالنسبة للعقار.';
-      if (_ownershipProofPath == null && _existing?.ownershipProofPresent != true) {
+      if (_ownershipProofPath == null &&
+          _existing?.ownershipProofPresent != true) {
         return 'أرفق مستند ملكية أو علاقة هذا العقار.';
       }
       if (_relationshipType == 'owner' &&
-          _normalizedName(_documentOwnerName.text) != _normalizedName(user!.name)) {
+          _normalizedName(_documentOwnerName.text) !=
+              _normalizedName(user!.name)) {
         return 'الاسم في مستند العقار لا يطابق اسم الحساب. اختر صفتك الصحيحة مثل وكيل أو وارث أو شريك.';
       }
-      if (_relationshipType == 'other' && _relationshipNote.text.trim().length < 3) {
+      if (_relationshipType == 'other' &&
+          _relationshipNote.text.trim().length < 3) {
         return 'وضح صفتك أو علاقتك بالعقار.';
       }
     }
@@ -918,7 +1097,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       purpose: _purpose,
       type: _type,
       tenureType: _requiresSaleTenure ? _tenureType : null,
-      price: double.parse(_price.text.trim()),
+      price: _effectivePrice!,
+      priceDisplayMode: _visitorPaysSai ? _priceDisplayMode : 'excludes_sai',
+      monthlyRent:
+          _purpose == 'rent' ? double.parse(_monthlyRent.text.trim()) : null,
+      rentalTermMonths:
+          _purpose == 'rent' ? int.parse(_rentalTermMonths.text.trim()) : null,
+      advanceMonths:
+          _purpose == 'rent' ? int.parse(_advanceMonths.text.trim()) : null,
       areaValue: double.parse(_area.text.trim()),
       areaUnit: _areaUnit,
       bedrooms: _requiresResidential ? _optionalInt(_bedrooms) : null,
@@ -930,10 +1116,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       longitude: _longitude!,
       contactPhone: _phone.text.trim(),
       contactWhatsapp: _whatsapp.text.trim(),
-      ownershipDocumentType: user?.isOwner == true ? _ownershipDocumentType : null,
-      documentOwnerName: user?.isOwner == true ? _documentOwnerName.text.trim() : null,
+      ownershipDocumentType:
+          user?.isOwner == true ? _ownershipDocumentType : null,
+      documentOwnerName:
+          user?.isOwner == true ? _documentOwnerName.text.trim() : null,
       ownerRelationshipType: user?.isOwner == true ? _relationshipType : null,
-      ownerRelationshipNote: user?.isOwner == true ? _relationshipNote.text.trim() : null,
+      ownerRelationshipNote:
+          user?.isOwner == true ? _relationshipNote.text.trim() : null,
     );
   }
 
@@ -952,8 +1141,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           'سيتم حفظ آخر تعديلاتك أولاً، ثم إرسال نفس الإعلان إلى فريق الدعم. أثناء المراجعة لن يكون قابلاً للتعديل حتى يعود للتصحيح أو يصدر القرار.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حفظ وإرسال')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('إلغاء')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('حفظ وإرسال')),
         ],
       );
       if (confirmed != true || !mounted) return;
@@ -990,7 +1183,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         } catch (error) {
           if (mounted) {
             final message = friendlyApiError(error);
-            _message('تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: $message');
+            _message(
+                'تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: $message');
             if (message.contains('السعي')) {
               await _refreshSai(draft.id);
             }
@@ -1000,7 +1194,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       }
 
       if (!mounted) return;
-      _message(submit ? 'تم حفظ الإعلان وإرساله للمراجعة.' : 'تم حفظ الإعلان كمسودة. يمكنك إكماله وإرساله لاحقاً.');
+      _message(submit
+          ? 'تم حفظ الإعلان وإرساله للمراجعة.'
+          : 'تم حفظ الإعلان كمسودة. يمكنك إكماله وإرساله لاحقاً.');
       await Future<void>.delayed(const Duration(milliseconds: 500));
       if (mounted) _finish(draft);
     } catch (error) {
@@ -1074,18 +1270,24 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     ),
                   ),
                 const SizedBox(height: AppSpacing.s16),
-                Text(_title.text.trim(), style: Theme.of(context).textTheme.headlineSmall),
+                Text(_title.text.trim(),
+                    style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: AppSpacing.s8),
                 Text(
-                  '${_price.text.trim()} YER',
+                  _priceSummaryText,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: Theme.of(context).colorScheme.primary,
                       ),
                 ),
                 const SizedBox(height: AppSpacing.s12),
-                _SummaryRow(label: 'الغرض', value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
+                _SummaryRow(
+                    label: 'الغرض',
+                    value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
                 _SummaryRow(label: 'النوع', value: _typeLabels[_type] ?? _type),
-                _SummaryRow(label: 'عدد اللبن', value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
+                _SummaryRow(
+                    label: 'عدد اللبن',
+                    value:
+                        '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
                 _SummaryRow(label: 'السعي', value: _saiDisplayText),
                 _SummaryRow(label: 'الموقع', value: _composedAddress),
                 if (_description.text.trim().isNotEmpty) ...[
@@ -1113,7 +1315,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
 
   Future<void> _refreshSai(int propertyId) async {
     try {
-      final envelope = await ref.read(propertyRepositoryProvider).sai(propertyId);
+      final envelope =
+          await ref.read(propertyRepositoryProvider).sai(propertyId);
       if (mounted) setState(() => _saiEnvelope = envelope);
     } catch (_) {
       // Sai configuration remains explicitly available in the final step.
@@ -1164,7 +1367,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       if (!mounted) return;
       await _refreshSai(draft.id);
       if (!ready && mounted) {
-        _message('لم يتم تأكيد السعي. أكمل بيانات السعي قبل إرسال الإعلان للمراجعة.');
+        _message(
+            'لم يتم تأكيد السعي. أكمل بيانات السعي قبل إرسال الإعلان للمراجعة.');
       }
     } catch (error) {
       if (mounted) _message(friendlyApiError(error));
@@ -1178,14 +1382,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       final picked = await _mediaPicker.pickImages();
       if (!mounted || picked.isEmpty) return;
 
-      final existingCount = _replaceImages ? 0 : (_existing?.images.length ?? 0);
+      final existingCount =
+          _replaceImages ? 0 : (_existing?.images.length ?? 0);
       final available = (12 - existingCount - _imagePaths.length).clamp(0, 12);
       final accepted = picked.take(available).toList(growable: false);
       final discarded = picked.where((path) => !accepted.contains(path));
       await _mediaPicker.clearTemporaryFiles(discarded);
       if (!mounted) return;
       setState(() => _imagePaths = <String>[..._imagePaths, ...accepted]);
-      if (accepted.length < picked.length) _message('الحد الأقصى للإعلان هو 12 صورة.');
+      if (accepted.length < picked.length) {
+        _message('الحد الأقصى للإعلان هو 12 صورة.');
+      }
     } on PlatformException {
       _message('تعذر فتح معرض الصور على هذا الجهاز.');
     } catch (_) {
@@ -1210,7 +1417,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       await _mediaPicker.clearTemporaryFiles(picked.skip(1));
       final old = _ownershipProofPath;
       setState(() => _ownershipProofPath = next);
-      if (old != null && old != next) await _mediaPicker.clearTemporaryFiles([old]);
+      if (old != null && old != next) {
+        await _mediaPicker.clearTemporaryFiles([old]);
+      }
     } on PlatformException {
       _message('تعذر فتح معرض الصور لاختيار المستند.');
     } catch (_) {
@@ -1219,7 +1428,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 
   Future<void> _selectOnMap() async {
-    final selection = await Navigator.of(context).push<PropertyLocationSelection>(
+    final selection =
+        await Navigator.of(context).push<PropertyLocationSelection>(
       MaterialPageRoute<PropertyLocationSelection>(
         builder: (_) => PropertyLocationPickerScreen(
           initialLatitude: _latitude,
@@ -1235,7 +1445,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       _latitude = selection.latitude;
       _longitude = selection.longitude;
     });
-    await _fillAddress(selection.address, selection.latitude, selection.longitude);
+    await _fillAddress(
+        selection.address, selection.latitude, selection.longitude);
   }
 
   Future<void> _useCurrentLocation() async {
@@ -1290,12 +1501,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       }
       if (!mounted) return;
       setState(() {
-        if (address.governorate != null) _governorate.text = address.governorate!;
+        if (address.governorate != null) {
+          _governorate.text = address.governorate!;
+        }
         if (address.district != null) _district.text = address.district!;
         if (address.street != null) _street.text = address.street!;
       });
     } catch (_) {
-      if (mounted) _message('تم تثبيت الموقع، لكن تعذر جلب العنوان تلقائياً. أكمله يدوياً.');
+      if (mounted) {
+        _message(
+            'تم تثبيت الموقع، لكن تعذر جلب العنوان تلقائياً. أكمله يدوياً.');
+      }
     } finally {
       if (mounted) setState(() => _resolvingLocation = false);
     }

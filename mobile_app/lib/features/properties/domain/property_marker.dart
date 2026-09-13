@@ -7,6 +7,12 @@ class PropertyMarker {
     required this.latitude,
     required this.longitude,
     required this.distanceKm,
+    this.basePrice,
+    this.priceDisplayMode,
+    this.priceDisplayNote,
+    this.monthlyRent,
+    this.rentalTermMonths,
+    this.advanceMonths,
     this.purpose,
     this.type,
     this.areaM2,
@@ -18,7 +24,14 @@ class PropertyMarker {
 
   final int id;
   final String title;
+  /// User-facing amount. Financial V1 prefers display_price when present.
   final double price;
+  final double? basePrice;
+  final String? priceDisplayMode;
+  final String? priceDisplayNote;
+  final double? monthlyRent;
+  final int? rentalTermMonths;
+  final int? advanceMonths;
   final String currency;
   final double latitude;
   final double longitude;
@@ -32,10 +45,17 @@ class PropertyMarker {
   final String? mainImage;
 
   factory PropertyMarker.fromJson(Map<String, dynamic> json) {
+    final rawPrice = _asDouble(json['price']) ?? 0;
     return PropertyMarker(
       id: _asInt(json['id']) ?? 0,
       title: json['title']?.toString() ?? '',
-      price: _asDouble(json['price']) ?? 0,
+      price: _asDouble(json['display_price']) ?? rawPrice,
+      basePrice: _asDouble(json['base_price']) ?? rawPrice,
+      priceDisplayMode: _nullableString(json['price_display_mode']),
+      priceDisplayNote: _nullableString(json['price_display_note']),
+      monthlyRent: _asDouble(json['monthly_rent']),
+      rentalTermMonths: _asInt(json['rental_term_months']),
+      advanceMonths: _asInt(json['advance_months']),
       currency: json['currency']?.toString() ?? 'YER',
       latitude: _asDouble(json['latitude']) ?? 0,
       longitude: _asDouble(json['longitude']) ?? 0,

@@ -2,7 +2,15 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\Api\AgreementContractController;
+use App\Http\Controllers\Api\FinancialAgreementContractController;
+use App\Http\Controllers\Api\FinancialPropertyController;
+use App\Http\Controllers\Api\PropertyController;
 use App\Http\Middleware\EnsureSupportTaskOwnership;
+use App\Services\CompletePropertyFinancialService;
+use App\Services\FinancialAwareSupportTaskService;
+use App\Services\PropertyFinancialService;
+use App\Services\SupportTaskService;
 use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -12,20 +20,23 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->bind(SupportTaskService::class, FinancialAwareSupportTaskService::class);
+        $this->app->bind(PropertyFinancialService::class, CompletePropertyFinancialService::class);
+        $this->app->bind(PropertyController::class, FinancialPropertyController::class);
+        $this->app->bind(AgreementContractController::class, FinancialAgreementContractController::class);
     }
 
     public function boot(): void
     {
-        // The workspace routes are kept separate so the existing API contract is not rewritten.
         if (! $this->app->routesAreCached()) {
             Route::middleware(['api', 'auth.api', 'account.active'])
                 ->prefix('api/admin/workspace')
                 ->group(base_path('routes/support_workspace.php'));
+            Route::middleware(['api', 'auth.api', 'account.active'])
+                ->prefix('api')
+                ->group(base_path('routes/financial_v1.php'));
         }
 
-        // Add ownership enforcement only to sensitive legacy actions, after the route is matched.
-        // This preserves old API contracts while making the new claim/assignee state authoritative.
         Event::listen(RouteMatched::class, function (RouteMatched $event): void {
             $uri = $event->route->uri();
             $sensitive =
@@ -33,10 +44,7 @@ class AppServiceProvider extends ServiceProvider
                     && preg_match('#/(approve|more-info|reject)$#', $uri) === 1)
                 || str_starts_with($uri, 'api/account-verification/users/')
                 || str_starts_with($uri, 'api/admin/support/cases/');
-
-            if ($sensitive) {
-                $event->route->middleware(EnsureSupportTaskOwnership::class);
-            }
+            if ($sensitive) $event->route->middleware(EnsureSupportTaskOwnership::class);
         });
     }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../financial/presentation/deal_financial_screen.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
 import 'agreement_forms.dart';
@@ -230,8 +231,20 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
             label: const Text('إلغاء مسودة الاتفاق'),
           ),
         ],
-        if (agreement.isAccepted && agreement.isRental) ...[
+        if (agreement.isAccepted) ...[
           const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => DealFinancialScreen(agreementId: agreement.id),
+              ),
+            ),
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            label: const Text('فتح تسوية الصفقة'),
+          ),
+        ],
+        if (agreement.isAccepted && agreement.isRental) ...[
+          const SizedBox(height: 10),
           if (agreement.rentalContractId == null)
             FilledButton.tonalIcon(
               onPressed: _busy ? null : _createRentalContract,
@@ -246,7 +259,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
             ),
         ],
         if (agreement.isAccepted && !agreement.isRental) ...[
-          const SizedBox(height: 18),
+          const SizedBox(height: 10),
           const Card(
             child: Padding(
               padding: EdgeInsets.all(14),
