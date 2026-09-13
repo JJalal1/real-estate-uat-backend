@@ -99,7 +99,7 @@ RETURNS trigger AS $$
 BEGIN
   RAISE EXCEPTION 'property_identity_checks is immutable';
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = pg_catalog, public;
 CREATE TRIGGER property_identity_checks_immutable_update
 BEFORE UPDATE ON property_identity_checks
 FOR EACH ROW EXECUTE FUNCTION property_identity_checks_immutable();
