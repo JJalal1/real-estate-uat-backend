@@ -35,13 +35,16 @@ class FinancialRepository {
         .toList(growable: false);
   }
 
-  Future<FinancialAccountSummary> account() async {
+  Future<FinancialAdvertiserAccount> advertiserAccount() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/finance/account',
       options: await _auth.requiredAuthOptions(),
     );
-    return FinancialAccountSummary.fromJson(_data(response.data));
+    return FinancialAdvertiserAccount.fromJson(_data(response.data));
   }
+
+  Future<FinancialAccountSummary> account() async =>
+      (await advertiserAccount()).summary;
 
   Future<Map<String, dynamic>> configureListing({
     required int propertyId,
@@ -143,12 +146,54 @@ class FinancialRepository {
     _bump();
   }
 
-  Future<Map<String, dynamic>> adminSummary() async {
+  Future<Map<String, dynamic>> adminSummary({
+    String period = '30d',
+    String? transactionType,
+    String? advertiserType,
+    int? governorateId,
+  }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/finance/summary',
+      queryParameters: _adminFilters(period, transactionType, advertiserType, governorateId),
       options: await _auth.requiredAuthOptions(),
     );
     return _data(response.data);
+  }
+
+  Future<Map<String, dynamic>> adminWorkspace({
+    String period = '30d',
+    String? transactionType,
+    String? advertiserType,
+    int? governorateId,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/admin/finance/workspace',
+      queryParameters: _adminFilters(period, transactionType, advertiserType, governorateId),
+      options: await _auth.requiredAuthOptions(),
+    );
+    return _data(response.data);
+  }
+
+  Future<List<FinancialPaymentMethod>> adminPaymentMethods() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/admin/finance/payment-methods',
+      options: await _auth.requiredAuthOptions(),
+    );
+    return _list(response.data)
+        .map(FinancialPaymentMethod.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<FinancialPaymentMethod> updatePaymentMethod(
+    int id,
+    Map<String, dynamic> values,
+  ) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/admin/finance/payment-methods/$id',
+      data: values,
+      options: await _auth.requiredAuthOptions(),
+    );
+    return FinancialPaymentMethod.fromJson(_data(response.data));
   }
 
   Future<FinancialPayment> adminPayment(
@@ -194,21 +239,36 @@ class FinancialRepository {
     );
   }
 
+  Map<String, dynamic> _adminFilters(
+    String period,
+    String? transactionType,
+    String? advertiserType,
+    int? governorateId,
+  ) => <String, dynamic>{
+        'period': period,
+        if (transactionType != null) 'transaction_type': transactionType,
+        if (advertiserType != null) 'advertiser_type': advertiserType,
+        if (governorateId != null) 'governorate_id': governorateId,
+      };
+
   void _bump() {
     // Screens that mutate finance invalidate their local state explicitly.
   }
 
   Map<String, dynamic> _data(Map<String, dynamic>? body) {
     final value = body?['data'];
-    if (value is! Map<String, dynamic>) {
+    if (value is! Map) {
       throw StateError('Invalid Financial V1 response.');
     }
-    return value;
+    return Map<String, dynamic>.from(value);
   }
 
   List<Map<String, dynamic>> _list(Map<String, dynamic>? body) {
     final value = body?['data'];
     if (value is! List) return const <Map<String, dynamic>>[];
-    return value.whereType<Map<String, dynamic>>().toList(growable: false);
+    return value
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList(growable: false);
   }
 }
