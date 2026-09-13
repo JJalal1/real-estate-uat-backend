@@ -1,0 +1,92 @@
+name: Property Identity V2 CI
+
+on:
+  push:
+    branches: [feature/property-identity-duplicate-prevention]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/property-identity-v2-ci.yml'
+  pull_request:
+    branches: [audit/system-stabilization]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/property-identity-v2-ci.yml'
+
+concurrency:
+  group: property-identity-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Laravel full regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare environment
+        run: |
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - run: composer validate --no-check-publish
+      - run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+
+  postgres:
+    name: PostgreSQL 17 PostGIS identity/security
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_identity
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_identity"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: real_estate_identity
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare environment
+        run: |
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Prepare API roles
+        run: psql -h 127.0.0.1 -U postgres -d real_estate_identity -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+      - run: php artisan migrate --force
+      - run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - run: php artisan test tests/Feature/PropertyIdentityV2Test.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
