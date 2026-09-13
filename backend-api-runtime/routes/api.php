@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\MessagingController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PropertyController;
 use App\Http\Controllers\Api\PropertyFavoriteController;
+use App\Http\Controllers\Api\PropertyIdentityController;
 use App\Http\Controllers\Api\PropertySaiController;
 use App\Http\Controllers\Api\RegionsController;
 use App\Http\Controllers\Api\SupportController;
@@ -86,6 +87,8 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/properties/{property}', [PropertyController::class, 'update']);
     Route::delete('/properties/{property}', [PropertyController::class, 'destroy']);
     Route::post('/properties/{property}/submit', [PropertyController::class, 'submit']);
+    Route::post('/properties/{property}/identity/check', [PropertyIdentityController::class, 'check']);
+    Route::post('/properties/{property}/identity/self-verify', [PropertyIdentityController::class, 'selfVerify']);
     Route::put('/properties/{property}/sai', [PropertySaiController::class, 'update']);
     Route::post('/properties/{property}/proof-documents', [PropertyController::class, 'uploadProofDocuments']);
     Route::delete('/properties/{property}/proof-documents/{document}', [PropertyController::class, 'deleteProofDocument']);
@@ -228,6 +231,7 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::post('/listings/{property}/approve', [ListingReviewController::class, 'approve'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/reject-final', [ListingReviewController::class, 'rejectFinal'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/link-property', [ListingReviewController::class, 'linkPropertyAsset'])->middleware('permission:listings.moderate');
+        Route::post('/listings/{property}/transfer-representation', [PropertyIdentityController::class, 'transferRepresentation'])->middleware('permission:listings.manage_blocks');
         Route::get('/blocks', [ListingReviewController::class, 'blocks'])->middleware('permission:listings.moderate');
         Route::post('/blocks/{block}/lift', [ListingReviewController::class, 'liftBlock'])->middleware('permission:listings.manage_blocks');
     });

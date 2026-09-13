@@ -10,6 +10,7 @@ use App\Services\CloudAssetStorageService;
 use App\Services\ListingWorkflowService;
 use App\Services\PropertyAssetService;
 use App\Services\PropertyFinancialService;
+use App\Services\PropertyIdentityService;
 use App\Services\RegionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,10 +28,11 @@ class FinancialPropertyController extends PropertyController
         CloudAssetStorageService $storage,
         RegionService $regions,
         PropertyAssetService $assets,
+        PropertyIdentityService $identity,
         ListingWorkflowService $workflow,
         private readonly PropertyFinancialService $finance,
     ) {
-        parent::__construct($financialTokens,$audit,$storage,$regions,$assets,$workflow);
+        parent::__construct($financialTokens,$audit,$storage,$regions,$assets,$identity,$workflow);
     }
 
     public function index(Request $request): JsonResponse { return $this->enrich(parent::index($request),$request,true); }
