@@ -43,7 +43,7 @@ Resumed from remote `f8dba503` after Work restored an older local checkout. Pres
 
 # Next Exact Step
 
-Publish the experimental CI SDK-package correction and the tonal text contrast/visual-capture fix as separate commits. Run fresh CI, require the sliver retry test and rendered tonal contrast test to pass, and inspect replacement discovery images. Then proceed to marketplace property cards and responsive list presentation. Do not repeat Phase 0/1 or replace the experimental base.
+Verify fresh CI after the separate SDK setup and tonal contrast commits; require the sliver retry test and rendered tonal contrast test to pass, and inspect replacement discovery images. Then proceed to marketplace property cards and responsive list presentation. Do not repeat Phase 0/1 or replace the experimental base.
 
 # Files Changed
 
@@ -65,6 +65,7 @@ Publish the experimental CI SDK-package correction and the tonal text contrast/v
 - `mobile_app/test/startup_navigation_layout_test.dart` — current manager and GM labels added to existing stress tests.
 - `mobile_app/android/app/build.gradle` and `AndroidManifest.xml` — separate installable experimental identity; unchanged native namespace and permissions.
 - Experimental CI verifies compiled package, Arabic launcher label and native activity before upload.
+- `mobile_app/test/support/capture_design.dart` — real shadow rendering for captured evidence, with test debug globals restored before invariant checks.
 - This checkpoint.
 
 # Screens Completed
@@ -107,7 +108,7 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Phase 2 map preview/cards/bottom bars retain their prior sizing until Phase 3; do not claim the entire discovery screen complete based on the new top panel alone.
 - Regression discovered by source review: LayoutBuilder in feedback is incompatible with SliverFillRemaining(hasScrollBody:false) intrinsic sizing used by Messages and My Listings. Replaced it with intrinsic-safe centered scrolling; added a rendered sliver/retry test and retained a meaningful no-competing-inner-scroll assertion. Fresh CI pending.
 - CI Environment: run `34910136499` failed in Android setup before Flutter because the default legacy `tools` package is unavailable. Experimental workflow now explicitly requests supported `platform-tools`; SDK command-line setup and every analyzer/test/APK gate remain enabled.
-- UI Bug: visual inspection found white tonal-button text on a pale container, inherited from the global FilledButtonTheme. An explicit tonal foreground and rendered contrast regression are prepared in a separate change.
+- UI Bug: visual inspection found white tonal-button text on a pale container, inherited from the global FilledButtonTheme. An explicit tonal foreground and rendered contrast regression are implemented in a separate change; fresh CI pending.
 - No WHY_BACKEND_CHANGE_IS_NEEDED: none identified; backend changes are not planned.
 
 # Decisions

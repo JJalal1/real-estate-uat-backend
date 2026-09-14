@@ -1,17 +1,43 @@
-import 'dart:io';
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/design/app_design.dart';
 
 import 'support/design_test_fonts.dart';
+import 'support/capture_design.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(loadDesignTestFonts);
+
+  testWidgets('tonal button rendered text meets contrast against its surface',
+      (tester) async {
+    await tester.pumpWidget(_app(
+      scale: 1,
+      child: Scaffold(
+        body: AppButton(
+          label: 'للإيجار',
+          style: AppButtonStyle.tonal,
+          onPressed: () {},
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final label = tester.widget<RichText>(find.descendant(
+      of: find.text('للإيجار'),
+      matching: find.byType(RichText),
+    ));
+    final material = tester.widget<Material>(find.descendant(
+      of: find.byType(FilledButton),
+      matching: find.byType(Material),
+    ));
+    final foreground = label.text.style!.color!.computeLuminance();
+    final background = material.color!.computeLuminance();
+    final contrast = foreground > background
+        ? (foreground + 0.05) / (background + 0.05)
+        : (background + 0.05) / (foreground + 0.05);
+    expect(contrast, greaterThanOrEqualTo(4.5));
+  });
 
   for (final width in [320.0, 360.0, 412.0, 600.0]) {
     for (final scale in [1.0, 2.4]) {
@@ -91,7 +117,7 @@ void main() {
         // golden assertions or a claim of authenticated Android screen QA.
         await tester.drag(find.byType(SingleChildScrollView), const Offset(0, 3000));
         await tester.pumpAndSettle();
-        await _capture(tester, captureKey, 'foundation-${width.toInt()}-$scale');
+        await captureDesign(tester, captureKey, 'foundation-${width.toInt()}-$scale');
       });
     }
   }
@@ -204,20 +230,3 @@ Widget _app({required double scale, required Widget child}) => MaterialApp(
       ),
       home: child,
     );
-
-Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
-  if (Platform.environment['CI'] != 'true') return;
-  final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-  await tester.runAsync(() async {
-    final image = await boundary.toImage();
-    try {
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      final directory = Directory('build/ui-qa')..createSync(recursive: true);
-      await File('${directory.path}/$name.png').writeAsBytes(
-        bytes!.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
-      );
-    } finally {
-      image.dispose();
-    }
-  });
-}

@@ -1,13 +1,12 @@
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/design/app_design.dart';
 import 'package:real_estate_mobile/features/map/presentation/discovery_filter_panel.dart';
 
 import 'support/design_test_fonts.dart';
+import 'support/capture_design.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -83,20 +82,11 @@ void main() {
         await tester.ensureVisible(find.text('الكل'));
         await tester.ensureVisible(find.text('صنعاء، حدة'));
         await tester.pumpAndSettle();
-        if (Platform.environment['CI'] == 'true') {
-          final boundary = captureKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-          await tester.runAsync(() async {
-            final image = await boundary.toImage();
-            try {
-              final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-              final directory = Directory('build/ui-qa')..createSync(recursive: true);
-              await File('${directory.path}/discovery-entry-${size.width.toInt()}-$scale.png')
-                  .writeAsBytes(bytes!.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes));
-            } finally {
-              image.dispose();
-            }
-          });
-        }
+        await captureDesign(
+          tester,
+          captureKey,
+          'discovery-entry-${size.width.toInt()}-$scale',
+        );
       });
     }
   }

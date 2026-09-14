@@ -45,7 +45,16 @@ class AppButton extends StatelessWidget {
 
     final Widget button = switch (style) {
       AppButtonStyle.filled => FilledButton(onPressed: callback, child: child),
-      AppButtonStyle.tonal => FilledButton.tonal(onPressed: callback, child: child),
+      AppButtonStyle.tonal => FilledButton.tonal(
+          onPressed: callback,
+          // FilledButtonTheme's white foreground is for solid primary buttons;
+          // tonal buttons need their matching container foreground.
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+            foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+          ),
+          child: child,
+        ),
       AppButtonStyle.outlined => OutlinedButton(onPressed: callback, child: child),
       AppButtonStyle.text => TextButton(onPressed: callback, child: child),
     };
