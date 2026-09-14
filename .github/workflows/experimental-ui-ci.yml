@@ -289,6 +289,23 @@ jobs:
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
 
+      - name: Verify isolated Android package
+        shell: bash
+        run: |
+          python3 - <<'PYAPK'
+          import os
+          import subprocess
+          from pathlib import Path
+          candidates = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
+          assert candidates, 'Android packaging inspector unavailable'
+          apk = Path('mobile_app/build/app/outputs/flutter-apk/app-release.apk')
+          badging = subprocess.check_output([str(candidates[-1]), 'dump', 'badging', str(apk)], text=True)
+          assert "package: name='com.example.real_estate_mobile.ui_experiment'" in badging
+          assert "application-label:'عقارات حولك — تجريبي'" in badging
+          assert "launchable-activity: name='com.example.real_estate_mobile.MainActivity'" in badging
+          print('Experimental package, Arabic launcher label and native activity: verified')
+          PYAPK
+
       - name: Prepare verified APK artifact
         shell: bash
         run: |
@@ -296,7 +313,7 @@ jobs:
           mkdir -p dist
           apk="mobile_app/build/app/outputs/flutter-apk/app-release.apk"
           test -f "$apk"
-          out="dist/real-estate-uat-${GITHUB_RUN_NUMBER}.apk"
+          out="dist/real-estate-experimental-ui-${GITHUB_RUN_NUMBER}.apk"
           cp "$apk" "$out"
           sha256sum "$out" > dist/SHA256.txt
           cat > dist/BUILD_INFO.txt <<EOF
@@ -304,7 +321,7 @@ jobs:
           api_base_url=${UAT_API_BASE_URL}
           github_run_number=${GITHUB_RUN_NUMBER}
           github_sha=${GITHUB_SHA}
-          android_application_id=com.example.real_estate_mobile
+          android_application_id=com.example.real_estate_mobile.ui_experiment
           flutter_version=3.27.3
           EOF
 

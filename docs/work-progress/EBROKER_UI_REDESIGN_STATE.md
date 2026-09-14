@@ -43,7 +43,7 @@ Implemented DiscoveryFilterPanel with the existing purpose/type/search/more call
 
 # Next Exact Step
 
-Isolate the Android application ID/launcher label in a separate packaging commit, publish Phase 2, and run full CI. Inspect discovery-entry screenshots, including both horizontal category scrolling and vertical large-text scrolling. Continue with marketplace cards/list layout only after that gate passes.
+Publish the Phase 2 UI and separate Android packaging commits, then verify the exact-head CI including packaged application ID/label/native activity. Inspect discovery-entry screenshots, including both horizontal category scrolling and vertical large-text scrolling. Continue with marketplace cards/list layout only after that gate passes.
 
 # Files Changed
 
@@ -63,6 +63,8 @@ Isolate the Android application ID/launcher label in a separate packaging commit
 - `mobile_app/lib/features/map/presentation/map_screen.dart` — panel composition and flow-positioned area chip only.
 - `mobile_app/test/experimental_discovery_entry_test.dart` — controls/gesture wiring/RTL rendering coverage.
 - `mobile_app/test/startup_navigation_layout_test.dart` — current manager and GM labels added to existing stress tests.
+- `mobile_app/android/app/build.gradle` and `AndroidManifest.xml` — separate installable experimental identity; unchanged native namespace and permissions.
+- Experimental CI verifies compiled package, Arabic launcher label and native activity before upload.
 - This checkpoint.
 
 # Screens Completed
@@ -99,7 +101,7 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - UI Bug candidates from source audit: property-detail similar-card list has fixed height 340; map result/selection cards use fixed heights and compact 32px actions; generic centered feedback is not scrollable. Address with responsive presentation and rendered tests in corresponding phases.
 - Delivery environment: direct `git push` has no local credential. GitHub connector create-tree/create-commit/non-forced update-ref succeeded. Local tree was verified identical, then aligned with the published SHA via fetch + soft reset. Do not request or expose a token.
 - Visual QA harness issue RESOLVED: corrected artifact `10364505958` inspected at all four widths / both scales. Supersedes square-glyph artifact `10363582427`. These remain isolated component images, not authenticated Android screen evidence.
-- Experimental packaging still uses the baseline UAT application ID. Do not recommend installing interim APKs alongside stable until package identity is isolated; native file-provider authority already follows packageName dynamically.
+- Earlier Phase 0/1 APKs use the baseline UAT application ID. The Phase 2 packaging commit changes only experimental application ID and launcher label; compiled package verification is pending. Namespace/native channels/deep-link scheme/permissions/debug signing stay unchanged, and file-provider authority follows packageName dynamically.
 - Phase 2 map preview/cards/bottom bars retain their prior sizing until Phase 3; do not claim the entire discovery screen complete based on the new top panel alone.
 - No WHY_BACKEND_CHANGE_IS_NEEDED: none identified; backend changes are not planned.
 
