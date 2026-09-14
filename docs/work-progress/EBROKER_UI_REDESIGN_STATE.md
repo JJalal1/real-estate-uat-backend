@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `1993b9675cd931749e71b35157933c93de45754d` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `ca7b36282b893467500213a0b69408f68d4df1d9` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,15 +35,15 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 2 — discovery entry and navigation presentation. No complete screen is claimed redesigned yet.
+PHASE 2 — map discovery entry implemented; CI pending. Added current manager/GM label stress cases while preserving prior tests. Map/list cards and sheets remain in Phase 3; no complete screen is claimed redesigned yet.
 
 # Exact Last Completed Step
 
-Verified complete Phase 1 CI `34882892445` SUCCESS (198 Flutter tests and APK); inspected all eight corrected screenshots from `34883532270`, artifact `10364505958`. Latin reference/currency and Material icons render correctly; long Arabic wraps and actions remain reachable. No protected source changed.
+Implemented DiscoveryFilterPanel with the existing purpose/type/search/more callbacks. Moved the drawn-area chip below its actual panel height. Verified exact equality of the complete map State fields/mutation methods and build query/provider expressions against stable source using a local comparison. All 346 locked files match. Added narrow/large-text callback tests and current five-tab GM/manager stress fixtures.
 
 # Next Exact Step
 
-Implement the map discovery entry using the design system while preserving map-first state, exact existing filter values/toggle callbacks, search history and all routes. Preserve full map coordinate space. Monitor final APK step of `34883532270`; application code is identical to the successful Phase 1 APK. Isolate Android application ID before handing an experimental APK to the user.
+Isolate the Android application ID/launcher label in a separate packaging commit, publish Phase 2, and run full CI. Inspect discovery-entry screenshots, including both horizontal category scrolling and vertical large-text scrolling. Continue with marketplace cards/list layout only after that gate passes.
 
 # Files Changed
 
@@ -59,6 +59,10 @@ Implement the map discovery entry using the design system while preserving map-f
 - `mobile_app/lib/core/widgets/app_components.dart` — responsive headings/facts, scroll-safe feedback, reduced motion.
 - `mobile_app/test/experimental_design_foundation_test.dart` — 11 rendering/interaction cases plus CI screenshots.
 - `docs/work-progress/EBROKER_UI_DESIGN_SYSTEM.md` — component responsibilities and verification.
+- `mobile_app/lib/features/map/presentation/discovery_filter_panel.dart` — pure discovery controls; same values/order/callback contract.
+- `mobile_app/lib/features/map/presentation/map_screen.dart` — panel composition and flow-positioned area chip only.
+- `mobile_app/test/experimental_discovery_entry_test.dart` — controls/gesture wiring/RTL rendering coverage.
+- `mobile_app/test/startup_navigation_layout_test.dart` — current manager and GM labels added to existing stress tests.
 - This checkpoint.
 
 # Screens Completed
@@ -96,6 +100,7 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Delivery environment: direct `git push` has no local credential. GitHub connector create-tree/create-commit/non-forced update-ref succeeded. Local tree was verified identical, then aligned with the published SHA via fetch + soft reset. Do not request or expose a token.
 - Visual QA harness issue RESOLVED: corrected artifact `10364505958` inspected at all four widths / both scales. Supersedes square-glyph artifact `10363582427`. These remain isolated component images, not authenticated Android screen evidence.
 - Experimental packaging still uses the baseline UAT application ID. Do not recommend installing interim APKs alongside stable until package identity is isolated; native file-provider authority already follows packageName dynamically.
+- Phase 2 map preview/cards/bottom bars retain their prior sizing until Phase 3; do not claim the entire discovery screen complete based on the new top panel alone.
 - No WHY_BACKEND_CHANGE_IS_NEEDED: none identified; backend changes are not planned.
 
 # Decisions

@@ -10,6 +10,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
+import 'discovery_filter_panel.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
 import '../data/property_discovery_history_store.dart';
@@ -1109,8 +1110,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       ref.invalidate(nearbyPropertiesProvider(query)),
                 ),
               ),
-            if (_selectedAreaBounds != null && !_selectingArea)
-              _buildAreaChip(),
             if (_selectingArea) _buildAreaSelectionOverlay(),
             if (!_selectingArea) _buildMapBottomBar(properties),
             if (!_selectingArea && _selected != null)
@@ -1152,21 +1151,39 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _buildTopFilterPanel(AsyncValue<List<PropertyMarker>> properties) {
     return PositionedDirectional(
-      top: MediaQuery.paddingOf(context).top + 8,
-      start: 10,
-      end: 10,
-      child: _MapQuickFilterPanel(
-        purpose: _filterPurpose,
-        type: _filterType,
-        filterCount: _filterCount,
-        searchText: _searchText,
-        onPurpose: _setQuickPurpose,
-        onType: _setQuickType,
-        onSearch: () {
-          final items = properties.asData?.value ?? const <PropertyMarker>[];
-          _showSearchSheet(items);
-        },
-        onMore: _showFilters,
+      top: MediaQuery.paddingOf(context).top + AppSpacing.s8,
+      start: AppLayout.compactPageGutter,
+      end: AppLayout.compactPageGutter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.4,
+        ),
+        child: SingleChildScrollView(
+          primary: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DiscoveryFilterPanel(
+                purpose: _filterPurpose,
+                type: _filterType,
+                filterCount: _filterCount,
+                searchText: _searchText,
+                onPurpose: _setQuickPurpose,
+                onType: _setQuickType,
+                onSearch: () {
+                  final items = properties.asData?.value ?? const <PropertyMarker>[];
+                  _showSearchSheet(items);
+                },
+                onMore: _showFilters,
+              ),
+              if (_selectedAreaBounds != null) ...[
+                const SizedBox(height: AppSpacing.s8),
+                _buildAreaChip(),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1237,17 +1254,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildAreaChip() {
-    return PositionedDirectional(
-      top: MediaQuery.paddingOf(context).top + 154,
-      start: 14,
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
       child: Material(
-        elevation: 3,
-        borderRadius: BorderRadius.circular(14),
-        color: Colors.white,
+        elevation: AppElevation.floating,
+        borderRadius: BorderRadius.circular(AppRadii.control),
+        color: Theme.of(context).colorScheme.surface,
         child: InputChip(
-          avatar: const Icon(Icons.gesture_rounded, size: 18),
+          avatar: const Icon(Icons.gesture_rounded),
           label: const Text('منطقة مرسومة'),
-          deleteIcon: const Icon(Icons.close_rounded, size: 18),
+          deleteIcon: const Icon(Icons.close_rounded),
           onDeleted: _clearSelectedArea,
         ),
       ),
@@ -1568,213 +1584,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           },
         );
       },
-    );
-  }
-}
-
-class _MapQuickFilterPanel extends StatelessWidget {
-  const _MapQuickFilterPanel({
-    required this.purpose,
-    required this.type,
-    required this.filterCount,
-    required this.searchText,
-    required this.onPurpose,
-    required this.onType,
-    required this.onSearch,
-    required this.onMore,
-  });
-
-  final String? purpose;
-  final String? type;
-  final int filterCount;
-  final String searchText;
-  final ValueChanged<String?> onPurpose;
-  final ValueChanged<String?> onType;
-  final VoidCallback onSearch;
-  final VoidCallback onMore;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 6,
-      shadowColor: Colors.black.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(22),
-      color: Colors.white.withValues(alpha: 0.97),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _PurposeButton(
-                    label: 'للإيجار',
-                    icon: Icons.key_outlined,
-                    selected: purpose == 'rent',
-                    onTap: () => onPurpose('rent'),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: _PurposeButton(
-                    label: 'للبيع',
-                    icon: Icons.sell_outlined,
-                    selected: purpose == 'sale',
-                    onTap: () => onPurpose('sale'),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                FilledButton.icon(
-                  onPressed: onSearch,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.accent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  icon: const Icon(Icons.search),
-                  label: Text(searchText.isEmpty ? 'بحث' : 'بحث ✓'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 9),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _TypeChip(
-                      label: 'الكل',
-                      selected: type == null,
-                      onTap: () => onType(null)),
-                  _TypeChip(
-                      label: 'شقة',
-                      selected: type == 'apartment',
-                      onTap: () => onType('apartment')),
-                  _TypeChip(
-                      label: 'فيلا',
-                      selected: type == 'villa',
-                      onTap: () => onType('villa')),
-                  _TypeChip(
-                      label: 'منزل',
-                      selected: type == 'house',
-                      onTap: () => onType('house')),
-                  _TypeChip(
-                      label: 'أرض',
-                      selected: type == 'land',
-                      onTap: () => onType('land')),
-                  _TypeChip(
-                      label: 'محل',
-                      selected: type == 'shop',
-                      onTap: () => onType('shop')),
-                  _TypeChip(
-                      label: 'مكتب',
-                      selected: type == 'office',
-                      onTap: () => onType('office')),
-                  const SizedBox(width: 4),
-                  OutlinedButton.icon(
-                    onPressed: onMore,
-                    icon: const Icon(Icons.tune, size: 17),
-                    label: Text(
-                        filterCount == 0 ? 'المزيد' : 'المزيد ($filterCount)'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PurposeButton extends StatelessWidget {
-  const _PurposeButton({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppTheme.brandSoft : Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          height: 48,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected ? AppTheme.brand : AppTheme.outlineSoft,
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 19,
-                color: selected ? AppTheme.brandStrong : AppTheme.textStrong,
-              ),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color:
-                        selected ? AppTheme.brandStrong : AppTheme.textStrong,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TypeChip extends StatelessWidget {
-  const _TypeChip(
-      {required this.label, required this.selected, required this.onTap});
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 6),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        showCheckmark: selected,
-        checkmarkColor: AppTheme.brandStrong,
-        backgroundColor: Colors.white,
-        selectedColor: AppTheme.brandSoft,
-        side: BorderSide(
-          color: selected ? AppTheme.brand : AppTheme.outlineSoft,
-          width: selected ? 1.5 : 1.1,
-        ),
-        labelStyle: TextStyle(
-          color: selected ? AppTheme.brandStrong : AppTheme.textStrong,
-          fontWeight: FontWeight.w900,
-        ),
-        onSelected: (_) => onTap(),
-      ),
     );
   }
 }

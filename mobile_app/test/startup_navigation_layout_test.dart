@@ -11,6 +11,9 @@ const _roleLabels = <String, List<String>>{
   'agent': ['لوحة الدعم', 'الوارد', 'مهامي', 'الرسائل', 'حسابي'],
   'manager': ['لوحة الدعم', 'الأعمال', 'الفريق', 'حسابي'],
   'platform': ['لوحة الإدارة', 'المراجعات', 'المستخدمون', 'المنصة', 'حسابي'],
+  // Keep historical long-label stress cases above and cover shipped labels.
+  'manager-current': ['لوحة الفريق', 'الأعمال', 'الفريق', 'الرسائل', 'حسابي'],
+  'platform-current': ['الرئيسية', 'السوق', 'الإدارة', 'التقارير', 'حسابي'],
 };
 
 void main() {
