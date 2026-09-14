@@ -32,3 +32,5 @@ Existing AppButton, AppTextField, AppSurface, AppFilterChip, AppStatusBadge, App
 New rendered tests exercise 320/360/412/600 widths, text scale 1 and 2.4, real bundled Arabic fonts, long labels, mixed reference strings and currency, independent search/filter callbacks, contextual actions and short-screen retry reachability. Existing theme contrast and navigation regressions remain intact.
 
 CI saves eight isolated component screenshots under the visual QA artifact. Fixtures live only in tests, explicitly labeled as component examples. They are not authenticated screen evidence and are not runtime demo listings. Phase 1 is not closed until the fresh analyze/tests/APK gate passes and captured layouts are inspected.
+
+Verified 2026-09-14: run `34882892445` passed analyze, all 198 Flutter tests, backend/PostGIS guards and APK. Corrected screenshots from run `34883532270`, artifact `10364505958`, were inspected at all four widths and both scales. Test harness explicitly loads bundled Arabic/Material fonts and SDK Roboto under the existing Latin fallback aliases. No runtime font dependency was added.

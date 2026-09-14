@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `3630b94b3c11561e35c80e87aed2d714cf3fd316` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `1993b9675cd931749e71b35157933c93de45754d` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -31,17 +31,19 @@ PHASE 0 completed at source/automated-baseline level (runtime per-screen review 
 - Captured immutable hashes for 346 backend and Flutter boundary files.
 - Inspected all eight Google Play screenshots in the browser; located official WRTeam additional visual references.
 
+PHASE 1 design foundations completed: reusable compositions, responsive feedback/headings/facts, Arabic typography and semantic colors preserved, reduced motion, 11 new widget cases, corrected eight-image visual QA. Application source at `3630b94` passed complete CI/APK. Test-only correction at `1993b96` passed analyze/tests and produced inspected corrected screenshots; its redundant APK rebuild is pending.
+
 # Current Phase
 
-PHASE 1 — central design foundations implemented; fresh CI and visual inspection pending. No screen is claimed redesigned.
+PHASE 2 — discovery entry and navigation presentation. No complete screen is claimed redesigned yet.
 
 # Exact Last Completed Step
 
-Phase 1 implementation `3630b94b3c11561e35c80e87aed2d714cf3fd316` passed analyze and Flutter tests in run `34882892445`; backend jobs passed, APK build running. Downloaded and inspected all eight images in visual artifact `10363582427`. Arabic wraps correctly, but Latin/icon glyphs used test fallback squares. Added an explicit test-only font loader before accepting screenshots.
+Verified complete Phase 1 CI `34882892445` SUCCESS (198 Flutter tests and APK); inspected all eight corrected screenshots from `34883532270`, artifact `10364505958`. Latin reference/currency and Material icons render correctly; long Arabic wraps and actions remain reachable. No protected source changed.
 
 # Next Exact Step
 
-Verify fresh CI for the test-font correction and inspect replacement foundation screenshots (Latin currency/reference and Material icons must be real glyphs). Record final APK outcome for both Phase 1 runs. Do not close Phase 1 on the superseded square-glyph screenshots.
+Implement the map discovery entry using the design system while preserving map-first state, exact existing filter values/toggle callbacks, search history and all routes. Preserve full map coordinate space. Monitor final APK step of `34883532270`; application code is identical to the successful Phase 1 APK. Isolate Android application ID before handing an experimental APK to the user.
 
 # Files Changed
 
@@ -79,8 +81,8 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Independent prior stable-SHA CI: `34788153227` / Build UAT Android APK #55 SUCCESS, including all analysis/tests/build and Frankfurt health/load.
 - Local PHP/Composer: unavailable; disposable CI Laravel/PostgreSQL checks are required.
 - Baseline APK: PASS, 45.8 MB; artifact `10327673645`. Android visual QA not yet run.
-- Phase 1 CI `34882892445` / `3630b94`: analyze and all Flutter tests PASS; APK pending at font-fix checkpoint.
-- Phase 1 local: `git diff --check` and locked-source verifier PASS. Flutter execution remains unavailable locally; fresh CI pending, not claimed passing.
+- Phase 1 CI `34882892445` / `3630b94`: analyze and all Flutter tests PASS; complete run SUCCESS; 198 Flutter tests and APK passed.
+- Phase 1 local: `git diff --check` and locked-source verifier PASS. Flutter execution remains unavailable locally; CI now passed for application implementation; see above.
 
 # Known Issues
 
@@ -92,7 +94,8 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Test Coverage Debt: startup navigation layout fixtures include historical manager/GM labels; source-contract tests check the current labels. Preserve stress fixtures and add actual current-role rendered tests during role review.
 - UI Bug candidates from source audit: property-detail similar-card list has fixed height 340; map result/selection cards use fixed heights and compact 32px actions; generic centered feedback is not scrollable. Address with responsive presentation and rendered tests in corresponding phases.
 - Delivery environment: direct `git push` has no local credential. GitHub connector create-tree/create-commit/non-forced update-ref succeeded. Local tree was verified identical, then aligned with the published SHA via fetch + soft reset. Do not request or expose a token.
-- Visual QA harness: first eight screenshots had Ahem Latin/icon squares; test-only font loading corrected, replacement images pending. This is not claimed as a confirmed Android runtime defect.
+- Visual QA harness issue RESOLVED: corrected artifact `10364505958` inspected at all four widths / both scales. Supersedes square-glyph artifact `10363582427`. These remain isolated component images, not authenticated Android screen evidence.
+- Experimental packaging still uses the baseline UAT application ID. Do not recommend installing interim APKs alongside stable until package identity is isolated; native file-provider authority already follows packageName dynamically.
 - No WHY_BACKEND_CHANGE_IS_NEEDED: none identified; backend changes are not planned.
 
 # Decisions
