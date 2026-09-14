@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `ca7b36282b893467500213a0b69408f68d4df1d9` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `f8dba503620b253d9ed5b41ac478989bbee06ea3` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -43,7 +43,7 @@ Implemented DiscoveryFilterPanel with the existing purpose/type/search/more call
 
 # Next Exact Step
 
-Publish the Phase 2 UI and separate Android packaging commits, then verify the exact-head CI including packaged application ID/label/native activity. Inspect discovery-entry screenshots, including both horizontal category scrolling and vertical large-text scrolling. Continue with marketplace cards/list layout only after that gate passes.
+Monitor Phase 2 run `34884689076` at `f8dba503`, then the follow-up feedback fix CI. Require the sliver/intrinsic-size test, complete suite and packaged ID/label/native activity checks to pass. Inspect discovery-entry screenshots, including both horizontal category scrolling and vertical large-text scrolling. Continue with marketplace cards/list layout only after that gate passes.
 
 # Files Changed
 
@@ -103,6 +103,7 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Visual QA harness issue RESOLVED: corrected artifact `10364505958` inspected at all four widths / both scales. Supersedes square-glyph artifact `10363582427`. These remain isolated component images, not authenticated Android screen evidence.
 - Earlier Phase 0/1 APKs use the baseline UAT application ID. The Phase 2 packaging commit changes only experimental application ID and launcher label; compiled package verification is pending. Namespace/native channels/deep-link scheme/permissions/debug signing stay unchanged, and file-provider authority follows packageName dynamically.
 - Phase 2 map preview/cards/bottom bars retain their prior sizing until Phase 3; do not claim the entire discovery screen complete based on the new top panel alone.
+- Regression discovered by source review: LayoutBuilder in feedback is incompatible with SliverFillRemaining(hasScrollBody:false) intrinsic sizing used by Messages and My Listings. Replaced it with intrinsic-safe centered scrolling; added a rendered sliver/retry test and retained a meaningful no-competing-inner-scroll assertion. Fresh CI pending.
 - No WHY_BACKEND_CHANGE_IS_NEEDED: none identified; backend changes are not planned.
 
 # Decisions

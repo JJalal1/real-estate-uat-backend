@@ -623,35 +623,26 @@ class _CenteredState extends StatelessWidget {
 }
 
 /// Centers short feedback but keeps long Arabic copy and its action reachable
-/// in a short viewport. When embedded in a list, that list owns scrolling.
+/// in a short viewport. The inner scroll extent is zero inside an unbounded
+/// parent list. Avoid LayoutBuilder here: SliverFillRemaining with
+/// hasScrollBody:false must be able to query this child's intrinsic height.
 class _FeedbackViewport extends StatelessWidget {
   const _FeedbackViewport({required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          final content = Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppLayout.feedbackMaxWidth,
-              ),
-              child: Padding(
-                padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
-                child: child,
-              ),
-            ),
-          );
-          if (!constraints.hasBoundedHeight) return content;
-          return SingleChildScrollView(
+  Widget build(BuildContext context) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppLayout.feedbackMaxWidth),
+          child: SingleChildScrollView(
             primary: false,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: content,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
+              child: child,
             ),
-          );
-        },
+          ),
+        ),
       );
 }
 

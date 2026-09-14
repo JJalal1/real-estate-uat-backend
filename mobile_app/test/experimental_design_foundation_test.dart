@@ -119,7 +119,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('feedback embedded in an existing list keeps one scroll owner',
+  testWidgets('feedback embedded in a list leaves scrolling to its parent',
       (tester) async {
     _viewport(tester, const Size(320, 568));
     await tester.pumpWidget(_app(
@@ -134,7 +134,42 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    final inner = find.descendant(
+      of: find.byType(AppEmptyState),
+      matching: find.byType(Scrollable),
+    );
+    expect(tester.state<ScrollableState>(inner).position.maxScrollExtent, 0,
+        reason: 'The inner viewport must not compete with its enclosing list.');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sliver feedback supports intrinsic sizing and retry interaction',
+      (tester) async {
+    _viewport(tester, const Size(320, 280));
+    var retries = 0;
+    await tester.pumpWidget(_app(
+      scale: 2.4,
+      child: Scaffold(
+        body: CustomScrollView(
+          slivers: [
+            const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.s48)),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: AppErrorState(
+                message: 'تعذر تحميل المحادثات. تحقق من الاتصال ثم حاول مرة أخرى.',
+                onRetry: () => retries++,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final retry = find.text('إعادة المحاولة');
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    expect(retries, 1);
     expect(tester.takeException(), isNull);
   });
 
