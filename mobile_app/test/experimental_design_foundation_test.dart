@@ -3,19 +3,15 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/design/app_design.dart';
+
+import 'support/design_test_fonts.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUpAll(() async {
-    final loader = FontLoader(AppTypography.fontFamily)
-      ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))
-      ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'));
-    await loader.load();
-  });
+  setUpAll(loadDesignTestFonts);
 
   for (final width in [320.0, 360.0, 412.0, 600.0]) {
     for (final scale in [1.0, 2.4]) {

@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `de27bd352b361bd81e8f28ab375be630615433ac` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `3630b94b3c11561e35c80e87aed2d714cf3fd316` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -37,11 +37,11 @@ PHASE 1 — central design foundations implemented; fresh CI and visual inspecti
 
 # Exact Last Completed Step
 
-Verified experimental CI run `34791688437` completed successfully on `60012ac677df7fcc79a8a30129513c22dfd28af8`: all three jobs passed, 187 Flutter tests passed, APK built and uploaded as artifact `10327673645`. Baseline report records source audit findings. Draft PR #54 remains review-only.
+Phase 1 implementation `3630b94b3c11561e35c80e87aed2d714cf3fd316` passed analyze and Flutter tests in run `34882892445`; backend jobs passed, APK build running. Downloaded and inspected all eight images in visual artifact `10363582427`. Arabic wraps correctly, but Latin/icon glyphs used test fallback squares. Added an explicit test-only font loader before accepting screenshots.
 
 # Next Exact Step
 
-Verify the CI run for this Phase 1 commit: analyze, all tests, visual QA artifact and APK. Inspect the eight foundation screenshots; fix any regression before Phase 2.
+Verify fresh CI for the test-font correction and inspect replacement foundation screenshots (Latin currency/reference and Material icons must be real glyphs). Record final APK outcome for both Phase 1 runs. Do not close Phase 1 on the superseded square-glyph screenshots.
 
 # Files Changed
 
@@ -79,6 +79,7 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Independent prior stable-SHA CI: `34788153227` / Build UAT Android APK #55 SUCCESS, including all analysis/tests/build and Frankfurt health/load.
 - Local PHP/Composer: unavailable; disposable CI Laravel/PostgreSQL checks are required.
 - Baseline APK: PASS, 45.8 MB; artifact `10327673645`. Android visual QA not yet run.
+- Phase 1 CI `34882892445` / `3630b94`: analyze and all Flutter tests PASS; APK pending at font-fix checkpoint.
 - Phase 1 local: `git diff --check` and locked-source verifier PASS. Flutter execution remains unavailable locally; fresh CI pending, not claimed passing.
 
 # Known Issues
@@ -91,6 +92,7 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Test Coverage Debt: startup navigation layout fixtures include historical manager/GM labels; source-contract tests check the current labels. Preserve stress fixtures and add actual current-role rendered tests during role review.
 - UI Bug candidates from source audit: property-detail similar-card list has fixed height 340; map result/selection cards use fixed heights and compact 32px actions; generic centered feedback is not scrollable. Address with responsive presentation and rendered tests in corresponding phases.
 - Delivery environment: direct `git push` has no local credential. GitHub connector create-tree/create-commit/non-forced update-ref succeeded. Local tree was verified identical, then aligned with the published SHA via fetch + soft reset. Do not request or expose a token.
+- Visual QA harness: first eight screenshots had Ahem Latin/icon squares; test-only font loading corrected, replacement images pending. This is not claimed as a confirmed Android runtime defect.
 - No WHY_BACKEND_CHANGE_IS_NEEDED: none identified; backend changes are not planned.
 
 # Decisions
