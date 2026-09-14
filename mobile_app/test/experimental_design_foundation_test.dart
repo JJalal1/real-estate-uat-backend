@@ -1,0 +1,192 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:real_estate_mobile/core/design/app_design.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    final loader = FontLoader(AppTypography.fontFamily)
+      ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))
+      ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'));
+    await loader.load();
+  });
+
+  for (final width in [320.0, 360.0, 412.0, 600.0]) {
+    for (final scale in [1.0, 2.4]) {
+      testWidgets('Arabic foundation $width / $scale preserves every action',
+          (tester) async {
+        _viewport(tester, Size(width, 915));
+        final captureKey = GlobalKey();
+        var searches = 0;
+        var filters = 0;
+        var sections = 0;
+        await tester.pumpWidget(_app(
+          scale: scale,
+          child: RepaintBoundary(
+            key: captureKey,
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: AppContentFrame(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const AppPageHeading(
+                        eyebrow: 'عقارات حولك',
+                        title: 'اعثر على المساحة التي تناسبك',
+                        subtitle: 'اختبار مكونات معزول — لا يمثل بيانات عقارات حقيقية',
+                      ),
+                      AppSearchEntry(
+                        label: 'ابحث باسم المنطقة أو وصف العقار',
+                        onTap: () => searches++,
+                        onFilter: () => filters++,
+                      ),
+                      const SizedBox(height: AppSpacing.s24),
+                      AppSectionCard(
+                        title: 'تفاصيل العقار والمعلومات المتاحة',
+                        subtitle: 'صنعاء · رقم مرجعي ABC-123',
+                        actionLabel: 'عرض جميع التفاصيل والمواصفات',
+                        onAction: () => sections++,
+                        child: const AppPropertyFacts(facts: [
+                          AppPropertyFact(
+                            icon: Icons.square_foot,
+                            label: '420 م² — مساحة الأرض والمبنى حسب الإعلان',
+                          ),
+                          AppPropertyFact(icon: Icons.bed_outlined, label: '5 غرف'),
+                        ]),
+                      ),
+                      const SizedBox(height: AppSpacing.s24),
+                      const AppPropertyPrice(price: '12,500,000', currency: 'YER'),
+                      const SizedBox(height: AppSpacing.s24),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(FittedBox), findsNothing);
+        final search = find.text('ابحث باسم المنطقة أو وصف العقار');
+        await tester.ensureVisible(search);
+        await tester.tap(search);
+        final filter = find.byTooltip('تصفية النتائج');
+        await tester.tap(filter);
+        expect(searches, 1);
+        expect(filters, 1);
+        expect(tester.getSize(find.byType(AppIconButton)).shortestSide,
+            greaterThanOrEqualTo(AppSizes.touchTarget));
+        final action = find.text('عرض جميع التفاصيل والمواصفات');
+        await tester.ensureVisible(action);
+        await tester.tap(action);
+        expect(sections, 1);
+        final price = find.byType(AppPropertyPrice);
+        await tester.ensureVisible(price);
+        expect(Directionality.of(tester.element(price)), TextDirection.rtl);
+        expect(tester.takeException(), isNull);
+
+        // Artifacts are evidence of real Flutter rendering, not replacement
+        // golden assertions or a claim of authenticated Android screen QA.
+        await tester.drag(find.byType(SingleChildScrollView), const Offset(0, 3000));
+        await tester.pumpAndSettle();
+        await _capture(tester, captureKey, 'foundation-${width.toInt()}-$scale');
+      });
+    }
+  }
+
+  testWidgets('short viewport keeps large Arabic retry reachable by scrolling',
+      (tester) async {
+    _viewport(tester, const Size(320, 280));
+    var retries = 0;
+    await tester.pumpWidget(_app(
+      scale: 2.4,
+      child: Scaffold(
+        body: AppErrorState(
+          title: 'تعذر تحميل المعلومات المطلوبة الآن',
+          message: 'تحقق من الاتصال ثم حاول مرة أخرى للاطلاع على بيانات العقار.',
+          onRetry: () => retries++,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final retry = find.text('إعادة المحاولة');
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    expect(retries, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('feedback embedded in an existing list keeps one scroll owner',
+      (tester) async {
+    _viewport(tester, const Size(320, 568));
+    await tester.pumpWidget(_app(
+      scale: 2.4,
+      child: const Scaffold(
+        body: SingleChildScrollView(
+          child: AppEmptyState(
+            title: 'لا توجد نتائج مطابقة',
+            message: 'يمكن تعديل معايير البحث والمحاولة مرة أخرى.',
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('loading copy can scroll in a short large-text viewport',
+      (tester) async {
+    _viewport(tester, const Size(320, 180));
+    await tester.pumpWidget(_app(
+      scale: 2.4,
+      child: const Scaffold(
+        body: AppLoadingState(label: 'جارٍ تحميل معلومات العقار والبيانات المرتبطة به...'),
+      ),
+    ));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.textContaining('جارٍ تحميل معلومات'));
+    expect(tester.takeException(), isNull);
+  });
+}
+
+void _viewport(WidgetTester tester, Size size) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = size;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+Widget _app({required double scale, required Widget child}) => MaterialApp(
+      theme: AppTheme.light,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+        child: Directionality(textDirection: TextDirection.rtl, child: child!),
+      ),
+      home: child,
+    );
+
+Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
+  if (Platform.environment['CI'] != 'true') return;
+  final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  await tester.runAsync(() async {
+    final image = await boundary.toImage();
+    try {
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      final directory = Directory('build/ui-qa')..createSync(recursive: true);
+      await File('${directory.path}/$name.png').writeAsBytes(
+        bytes!.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+      );
+    } finally {
+      image.dispose();
+    }
+  });
+}

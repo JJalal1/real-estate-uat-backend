@@ -191,6 +191,15 @@ jobs:
           test "${#tests[@]}" -gt 0
           flutter test "${tests[@]}"
 
+      - name: Upload Flutter visual QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-ui-visual-qa-${{ github.run_number }}
+          path: mobile_app/build/ui-qa/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Verify compile-time UAT endpoint
         working-directory: mobile_app
         run: >-

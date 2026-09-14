@@ -240,30 +240,60 @@ class AppSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final theme = Theme.of(context);
+    final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              if (subtitle != null) ...[
-                const SizedBox(height: AppSpacing.s4),
-                Text(
-                  subtitle!,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
-            ],
-          ),
+        Semantics(
+          header: true,
+          child: Text(title, style: theme.textTheme.titleLarge),
         ),
-        if (actionLabel != null && onAction != null)
-          TextButton(onPressed: onAction, child: Text(actionLabel!)),
+        if (subtitle != null) ...[
+          const SizedBox(height: AppSpacing.s4),
+          Text(
+            subtitle!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ],
     );
+    if (actionLabel == null || onAction == null) return heading;
+
+    final action = AppButton(
+      label: actionLabel!,
+      onPressed: onAction,
+      style: AppButtonStyle.text,
+    );
+    return LayoutBuilder(builder: (context, constraints) {
+      final largeText = MediaQuery.textScalerOf(context).scale(16) > 20;
+      if (constraints.maxWidth < AppLayout.narrowBreakpoint || largeText) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            heading,
+            const SizedBox(height: AppSpacing.s8),
+            Align(alignment: AlignmentDirectional.centerEnd, child: action),
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: heading),
+          const SizedBox(width: AppSpacing.s12),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: (constraints.maxWidth * 0.4)
+                  .clamp(0.0, AppLayout.sectionActionMaxWidth)
+                  .toDouble(),
+            ),
+            child: action,
+          ),
+        ],
+      );
+    });
   }
 }
 
@@ -413,14 +443,14 @@ class AppLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
+    return _FeedbackViewport(
+      child: Semantics(
+        liveRegion: true,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const CircularProgressIndicator(),
-            const SizedBox(height: AppSpacing.s12),
+            const SizedBox(height: AppSpacing.s16),
             Text(label, textAlign: TextAlign.center),
           ],
         ),
@@ -545,44 +575,84 @@ class _CenteredState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 48, color: scheme.onSurfaceVariant),
-              const SizedBox(height: AppSpacing.s12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
+    return _FeedbackViewport(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ExcludeSemantics(
+            child: Container(
+              width: AppSizes.feedbackMark,
+              height: AppSizes.feedbackMark,
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(AppRadii.modal),
+                border: Border.all(color: scheme.outlineVariant),
               ),
-              const SizedBox(height: AppSpacing.s8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              if (actionLabel != null && onAction != null) ...[
-                const SizedBox(height: AppSpacing.s20),
-                AppButton(
-                  label: actionLabel!,
-                  onPressed: onAction,
-                  style: AppButtonStyle.outlined,
-                ),
-              ],
-            ],
+              child: Icon(icon, size: AppSpacing.s32, color: scheme.onPrimaryContainer),
+            ),
           ),
-        ),
+          const SizedBox(height: AppSpacing.s24),
+          Semantics(
+            header: true,
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: AppSpacing.s24),
+            AppButton(
+              label: actionLabel!,
+              onPressed: onAction,
+              style: AppButtonStyle.outlined,
+            ),
+          ],
+        ],
       ),
     );
   }
+}
+
+/// Centers short feedback but keeps long Arabic copy and its action reachable
+/// in a short viewport. When embedded in a list, that list owns scrolling.
+class _FeedbackViewport extends StatelessWidget {
+  const _FeedbackViewport({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final content = Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppLayout.feedbackMaxWidth,
+              ),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
+                child: child,
+              ),
+            ),
+          );
+          if (!constraints.hasBoundedHeight) return content;
+          return SingleChildScrollView(
+            primary: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: content,
+            ),
+          );
+        },
+      );
 }
 
 class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -673,7 +743,9 @@ class AppNavigationBar extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           AnimatedContainer(
-                            duration: AppMotion.fast,
+                            duration: MediaQuery.disableAnimationsOf(context)
+                                ? AppMotion.instant
+                                : AppMotion.fast,
                             curve: AppMotion.curve,
                             constraints: const BoxConstraints(
                               minWidth: AppSizes.touchTarget,
@@ -866,12 +938,14 @@ class AppPropertyFacts extends StatelessWidget {
               children: [
                 Icon(fact.icon, size: 18, color: scheme.onSurfaceVariant),
                 const SizedBox(width: AppSpacing.s4),
-                Text(
-                  fact.label,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
+                Flexible(
+                  child: Text(
+                    fact.label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
                 ),
               ],
             ),

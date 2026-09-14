@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `60012ac677df7fcc79a8a30129513c22dfd28af8` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `de27bd352b361bd81e8f28ab375be630615433ac` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -33,7 +33,7 @@ PHASE 0 completed at source/automated-baseline level (runtime per-screen review 
 
 # Current Phase
 
-PHASE 1 — central design foundations. Implementation is next; no screen is claimed redesigned.
+PHASE 1 — central design foundations implemented; fresh CI and visual inspection pending. No screen is claimed redesigned.
 
 # Exact Last Completed Step
 
@@ -41,7 +41,7 @@ Verified experimental CI run `34791688437` completed successfully on `60012ac677
 
 # Next Exact Step
 
-Implement Phase 1 by evolving existing core/theme and core/widgets: responsive Arabic compositions, scroll-safe feedback, reusable section/search/surface primitives. Add narrow-width and large-text rendered tests; run the complete experimental CI before expanding into screens.
+Verify the CI run for this Phase 1 commit: analyze, all tests, visual QA artifact and APK. Inspect the eight foundation screenshots; fix any regression before Phase 2.
 
 # Files Changed
 
@@ -52,11 +52,16 @@ Implement Phase 1 by evolving existing core/theme and core/widgets: responsive A
 - `docs/work-progress/EBROKER_UI_FEATURE_INVENTORY.md` — journey/route/screen checklist.
 - `.github/workflows/experimental-ui-ci.yml` — experimental branch checks only; no deployment.
 - `docs/work-progress/EBROKER_UI_BASELINE.md` — verified baseline and audit findings.
+- `mobile_app/lib/core/design/` — shared facade and responsive page/section/search/action/identity compositions.
+- `mobile_app/lib/core/theme/app_tokens.dart` — centralized foundation dimensions.
+- `mobile_app/lib/core/widgets/app_components.dart` — responsive headings/facts, scroll-safe feedback, reduced motion.
+- `mobile_app/test/experimental_design_foundation_test.dart` — 11 rendering/interaction cases plus CI screenshots.
+- `docs/work-progress/EBROKER_UI_DESIGN_SYSTEM.md` — component responsibilities and verification.
 - This checkpoint.
 
 # Screens Completed
 
-None. Existing UI is untouched.
+None. Shared foundations changed; screen composition phases remain open.
 
 # Screens Remaining
 
@@ -74,6 +79,7 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Independent prior stable-SHA CI: `34788153227` / Build UAT Android APK #55 SUCCESS, including all analysis/tests/build and Frankfurt health/load.
 - Local PHP/Composer: unavailable; disposable CI Laravel/PostgreSQL checks are required.
 - Baseline APK: PASS, 45.8 MB; artifact `10327673645`. Android visual QA not yet run.
+- Phase 1 local: `git diff --check` and locked-source verifier PASS. Flutter execution remains unavailable locally; fresh CI pending, not claimed passing.
 
 # Known Issues
 
