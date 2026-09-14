@@ -64,23 +64,28 @@ void main() {
 
         for (final label in ['للإيجار', 'للإيجار', 'للبيع']) {
           await tester.ensureVisible(find.text(label));
+          await tester.pumpAndSettle();
           await tester.tap(find.text(label));
         }
         expect(purposes, ['rent', 'rent', 'sale'],
             reason: 'The parent retains its original toggle semantics.');
         for (final label in ['الكل', 'شقة', 'فيلا', 'منزل', 'أرض', 'محل', 'مكتب']) {
           await tester.ensureVisible(find.text(label));
+          await tester.pumpAndSettle();
           await tester.tap(find.text(label));
         }
         expect(types, [null, 'apartment', 'villa', 'house', 'land', 'shop', 'office']);
         await tester.ensureVisible(find.text('المزيد (2)'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('المزيد (2)'));
         expect(filters, 2);
         expect(tester.takeException(), isNull);
 
         // Capture the initial panel and its first RTL category after scrolling.
         await tester.ensureVisible(find.text('الكل'));
+        await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('صنعاء، حدة'));
+        await tester.pumpAndSettle();
         await tester.pumpAndSettle();
         await captureDesign(
           tester,

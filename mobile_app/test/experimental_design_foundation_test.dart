@@ -97,6 +97,7 @@ void main() {
         expect(find.byType(FittedBox), findsNothing);
         final search = find.text('ابحث باسم المنطقة أو وصف العقار');
         await tester.ensureVisible(search);
+        await tester.pumpAndSettle();
         await tester.tap(search);
         final filter = find.byTooltip('تصفية النتائج');
         await tester.tap(filter);
@@ -106,10 +107,12 @@ void main() {
             greaterThanOrEqualTo(AppSizes.touchTarget));
         final action = find.text('عرض جميع التفاصيل والمواصفات');
         await tester.ensureVisible(action);
+        await tester.pumpAndSettle();
         await tester.tap(action);
         expect(sections, 1);
         final price = find.byType(AppPropertyPrice);
         await tester.ensureVisible(price);
+        await tester.pumpAndSettle();
         expect(Directionality.of(tester.element(price)), TextDirection.rtl);
         expect(tester.takeException(), isNull);
 
@@ -140,6 +143,7 @@ void main() {
     expect(tester.takeException(), isNull);
     final retry = find.text('إعادة المحاولة');
     await tester.ensureVisible(retry);
+    await tester.pumpAndSettle();
     await tester.tap(retry);
     expect(retries, 1);
     expect(tester.takeException(), isNull);
@@ -194,6 +198,7 @@ void main() {
     expect(tester.takeException(), isNull);
     final retry = find.text('إعادة المحاولة');
     await tester.ensureVisible(retry);
+    await tester.pumpAndSettle();
     await tester.tap(retry);
     expect(retries, 1);
     expect(tester.takeException(), isNull);
@@ -211,6 +216,7 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
     await tester.ensureVisible(find.textContaining('جارٍ تحميل معلومات'));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 }

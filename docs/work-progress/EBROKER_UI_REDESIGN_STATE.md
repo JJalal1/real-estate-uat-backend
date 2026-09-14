@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `4b2cab0206e5acd9734325536c66b351f46c9a5c` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `fea1b42c7c202706aba63ebb0417e6285b310bd0` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -38,6 +38,8 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 PHASE 2 — map discovery entry and isolated Android package passed CI at `f8dba503` (215 Flutter tests). Follow-up feedback and contrast fixes are being validated. Added current manager/GM label stress cases while preserving prior tests. Map/list cards and sheets remain in Phase 3; no complete screen is claimed redesigned yet.
 
 # Exact Last Completed Step
+
+Run `34910573934` verified SDK repair, analyze, backend and rendered tonal contrast. One sliver retry test failed because its synthetic tap occurred before a frame applied ensureVisible scroll offsets (tap y=623 outside 280px viewport). Added frame settling after scrolling in foundation/discovery interaction tests; original callback assertions remain intact. Phase 3 card work is saved in local stash `phase3: property card presentation in progress` and is not published.
 
 Resumed from remote `f8dba503` after Work restored an older local checkout. Preserved old local notes in a named stash. Recovered the exact three-file sliver feedback fix from Git tree `bc2ac513` with blob hash checks and published it as `4b2cab0206e5acd9734325536c66b351f46c9a5c`. Verified prior Phase 2 CI/APK success and inspected four discovery screenshots. The fresh run `34910136499` failed before Flutter setup because sdkmanager could not resolve retired package `tools`; backend jobs passed.
 
@@ -77,6 +79,8 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- Run `34910573934`, SHA `fea1b42`: backend/PostGIS, pub get/analyze, cloud-readiness and tonal contrast PASS; full Flutter suite failed only sliver retry interaction; APK not built. Scroll-before-tap test scheduling correction pending CI.
 
 Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` (application code identical to stable `46b8fed8fd119b223d4a1e67312d38ff9429e569`).
 - Repository status/branch/log: clean source; experimental branch at verified stable HEAD before audit files.
