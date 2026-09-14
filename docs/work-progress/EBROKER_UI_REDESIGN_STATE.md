@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `f8dba503620b253d9ed5b41ac478989bbee06ea3` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `4b2cab0206e5acd9734325536c66b351f46c9a5c` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -31,19 +31,19 @@ PHASE 0 completed at source/automated-baseline level (runtime per-screen review 
 - Captured immutable hashes for 346 backend and Flutter boundary files.
 - Inspected all eight Google Play screenshots in the browser; located official WRTeam additional visual references.
 
-PHASE 1 design foundations completed: reusable compositions, responsive feedback/headings/facts, Arabic typography and semantic colors preserved, reduced motion, 11 new widget cases, corrected eight-image visual QA. Application source at `3630b94` passed complete CI/APK. Test-only correction at `1993b96` passed analyze/tests and produced inspected corrected screenshots; its redundant APK rebuild is pending.
+PHASE 1 design foundations completed: reusable compositions, responsive feedback/headings/facts, Arabic typography and semantic colors preserved, reduced motion, 11 new widget cases, corrected eight-image visual QA. Application source at `3630b94` passed complete CI/APK. Test-only correction at `1993b96` passed analyze/tests and produced inspected corrected screenshots; its full CI/APK rebuild succeeded.
 
 # Current Phase
 
-PHASE 2 — map discovery entry implemented; CI pending. Added current manager/GM label stress cases while preserving prior tests. Map/list cards and sheets remain in Phase 3; no complete screen is claimed redesigned yet.
+PHASE 2 — map discovery entry and isolated Android package passed CI at `f8dba503` (215 Flutter tests). Follow-up feedback and contrast fixes are being validated. Added current manager/GM label stress cases while preserving prior tests. Map/list cards and sheets remain in Phase 3; no complete screen is claimed redesigned yet.
 
 # Exact Last Completed Step
 
-Implemented DiscoveryFilterPanel with the existing purpose/type/search/more callbacks. Moved the drawn-area chip below its actual panel height. Verified exact equality of the complete map State fields/mutation methods and build query/provider expressions against stable source using a local comparison. All 346 locked files match. Added narrow/large-text callback tests and current five-tab GM/manager stress fixtures.
+Resumed from remote `f8dba503` after Work restored an older local checkout. Preserved old local notes in a named stash. Recovered the exact three-file sliver feedback fix from Git tree `bc2ac513` with blob hash checks and published it as `4b2cab0206e5acd9734325536c66b351f46c9a5c`. Verified prior Phase 2 CI/APK success and inspected four discovery screenshots. The fresh run `34910136499` failed before Flutter setup because sdkmanager could not resolve retired package `tools`; backend jobs passed.
 
 # Next Exact Step
 
-Monitor Phase 2 run `34884689076` at `f8dba503`, then the follow-up feedback fix CI. Require the sliver/intrinsic-size test, complete suite and packaged ID/label/native activity checks to pass. Inspect discovery-entry screenshots, including both horizontal category scrolling and vertical large-text scrolling. Continue with marketplace cards/list layout only after that gate passes.
+Publish the experimental CI SDK-package correction and the tonal text contrast/visual-capture fix as separate commits. Run fresh CI, require the sliver retry test and rendered tonal contrast test to pass, and inspect replacement discovery images. Then proceed to marketplace property cards and responsive list presentation. Do not repeat Phase 0/1 or replace the experimental base.
 
 # Files Changed
 
@@ -88,6 +88,8 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Local PHP/Composer: unavailable; disposable CI Laravel/PostgreSQL checks are required.
 - Baseline APK: PASS, 45.8 MB; artifact `10327673645`. Android visual QA not yet run.
 - Phase 1 CI `34882892445` / `3630b94`: analyze and all Flutter tests PASS; complete run SUCCESS; 198 Flutter tests and APK passed.
+- Phase 2 CI `34884689076` / `f8dba503`: pub get/analyze, 215 Flutter tests, backend/PostGIS, Frankfurt guards/health/load and APK PASS; isolated package/Arabic label/native activity verified.
+- Sliver fix CI `34910136499` / `4b2cab0`: backend PASS; Flutter NOT RUN due to Android SDK setup failure.
 - Phase 1 local: `git diff --check` and locked-source verifier PASS. Flutter execution remains unavailable locally; CI now passed for application implementation; see above.
 
 # Known Issues
@@ -101,9 +103,11 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - UI Bug candidates from source audit: property-detail similar-card list has fixed height 340; map result/selection cards use fixed heights and compact 32px actions; generic centered feedback is not scrollable. Address with responsive presentation and rendered tests in corresponding phases.
 - Delivery environment: direct `git push` has no local credential. GitHub connector create-tree/create-commit/non-forced update-ref succeeded. Local tree was verified identical, then aligned with the published SHA via fetch + soft reset. Do not request or expose a token.
 - Visual QA harness issue RESOLVED: corrected artifact `10364505958` inspected at all four widths / both scales. Supersedes square-glyph artifact `10363582427`. These remain isolated component images, not authenticated Android screen evidence.
-- Earlier Phase 0/1 APKs use the baseline UAT application ID. The Phase 2 packaging commit changes only experimental application ID and launcher label; compiled package verification is pending. Namespace/native channels/deep-link scheme/permissions/debug signing stay unchanged, and file-provider authority follows packageName dynamically.
+- Earlier Phase 0/1 APKs use the baseline UAT application ID. The Phase 2 packaging commit changes only experimental application ID and launcher label; compiled package verification passed in run `34884689076`. Namespace/native channels/deep-link scheme/permissions/debug signing stay unchanged, and file-provider authority follows packageName dynamically.
 - Phase 2 map preview/cards/bottom bars retain their prior sizing until Phase 3; do not claim the entire discovery screen complete based on the new top panel alone.
 - Regression discovered by source review: LayoutBuilder in feedback is incompatible with SliverFillRemaining(hasScrollBody:false) intrinsic sizing used by Messages and My Listings. Replaced it with intrinsic-safe centered scrolling; added a rendered sliver/retry test and retained a meaningful no-competing-inner-scroll assertion. Fresh CI pending.
+- CI Environment: run `34910136499` failed in Android setup before Flutter because the default legacy `tools` package is unavailable. Experimental workflow now explicitly requests supported `platform-tools`; SDK command-line setup and every analyzer/test/APK gate remain enabled.
+- UI Bug: visual inspection found white tonal-button text on a pale container, inherited from the global FilledButtonTheme. An explicit tonal foreground and rendered contrast regression are prepared in a separate change.
 - No WHY_BACKEND_CHANGE_IS_NEEDED: none identified; backend changes are not planned.
 
 # Decisions
