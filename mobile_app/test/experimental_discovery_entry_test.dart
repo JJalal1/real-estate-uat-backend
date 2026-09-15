@@ -70,9 +70,10 @@ void main() {
         expect(purposes, ['rent', 'rent', 'sale'],
             reason: 'The parent retains its original toggle semantics.');
         for (final label in ['الكل', 'شقة', 'فيلا', 'منزل', 'أرض', 'محل', 'مكتب']) {
-          await tester.ensureVisible(find.text(label));
+          final chip = find.ancestor(of: find.text(label), matching: find.byType(FilterChip));
+          await tester.ensureVisible(chip);
           await tester.pumpAndSettle();
-          await tester.tap(find.text(label));
+          await tester.tap(chip);
         }
         expect(types, [null, 'apartment', 'villa', 'house', 'land', 'shop', 'office']);
         await tester.ensureVisible(find.text('المزيد (2)'));

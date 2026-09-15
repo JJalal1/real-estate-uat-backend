@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `fea1b42c7c202706aba63ebb0417e6285b310bd0` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `477b65e4ce4baa92dbd728abe96b3e81747e9708` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -38,6 +38,8 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 PHASE 2 — map discovery entry and isolated Android package passed CI at `f8dba503` (215 Flutter tests). Follow-up feedback and contrast fixes are being validated. Added current manager/GM label stress cases while preserving prior tests. Map/list cards and sheets remain in Phase 3; no complete screen is claimed redesigned yet.
 
 # Exact Last Completed Step
+
+Run `34911058132` confirmed sliver retry PASS. A loading-only test timed out because the progress indicator never stops animating; use one frame after its jump-to-scroll instead of waiting for animation settlement. Discovery taps now target the actual FilterChip surface (selected chip labels are ignored in hit testing) while retaining all value/count assertions. Phase 3 work remains local and unpublished until this gate passes.
 
 Run `34910573934` verified SDK repair, analyze, backend and rendered tonal contrast. One sliver retry test failed because its synthetic tap occurred before a frame applied ensureVisible scroll offsets (tap y=623 outside 280px viewport). Added frame settling after scrolling in foundation/discovery interaction tests; original callback assertions remain intact. Phase 3 card work is saved in local stash `phase3: property card presentation in progress` and is not published.
 

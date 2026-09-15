@@ -216,7 +216,8 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
     await tester.ensureVisible(find.textContaining('جارٍ تحميل معلومات'));
-    await tester.pumpAndSettle();
+    // The progress indicator intentionally animates continuously.
+    await tester.pump();
     expect(tester.takeException(), isNull);
   });
 }
