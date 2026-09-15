@@ -1107,7 +1107,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     alignment: Alignment.bottomCenter,
                     child: SafeArea(
                       top: false,
-                      minimum: const EdgeInsetsDirectional.fromSTEB(
+                      minimum: const EdgeInsets.fromLTRB(
                         AppLayout.compactPageGutter, 0,
                         AppLayout.compactPageGutter, AppSpacing.s8,
                       ),
@@ -1166,7 +1166,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           alignment: Alignment.topCenter,
           child: SafeArea(
             bottom: false,
-            minimum: const EdgeInsetsDirectional.fromSTEB(
+            minimum: const EdgeInsets.fromLTRB(
               AppLayout.compactPageGutter, AppSpacing.s8,
               AppLayout.compactPageGutter, 0,
             ),

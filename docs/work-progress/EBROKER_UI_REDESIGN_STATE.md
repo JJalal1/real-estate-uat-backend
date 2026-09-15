@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-15 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `cd483d5c78c870ef7e710a84ae70b6b0e0b5b747` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `1f48e5199a8526422e687742171c6a81f71134df` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,9 +35,11 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 3 — marketplace cards and map overlays. Card regression passed the companion Flutter/backend/PostGIS workflow at `cd483d5` (226 Flutter tests including the compile-time guard). Main experimental workflow `34957755283` passed analysis/tests/Frankfurt checks and is building its APK. Six card images inspected; fixtures cover missing-image presentation and Arabic text, not real property photography.
+PHASE 3 — marketplace cards and map overlays. Card regression passed the companion Flutter/backend/PostGIS workflow at `cd483d5` (226 Flutter tests including the compile-time guard). Main experimental workflow `34957755283` passed all jobs including the isolated release APK. Six card images inspected; fixtures cover missing-image presentation and Arabic text, not real property photography.
 
 # Exact Last Completed Step
+
+Dock CI `34958533200` failed static analysis because Flutter 3.27 SafeArea.minimum requires concrete EdgeInsets, not EdgeInsetsDirectional. Replaced the two symmetric left/right minimum insets with EdgeInsets.fromLTRB; RTL spacing is identical. Fresh dock tests/APK remain required. Search-sheet draft is preserved in stash `phase3: responsive search sheet awaiting dock gate`.
 
 Implemented content-driven `DiscoveryMapDock`, `DiscoveryModeBar` and `DiscoveryPropertyPreview`. Replaced overlapping fixed bottom offsets with flowing error/preview/message content and retained mode actions. Short viewports scroll the entire dock. Top/bottom panel bounds use the actual map viewport; native map and area-drawing overlay remain full-size. All map State methods, native map options and drawing overlay were compared exactly to the preceding commit. Added four integrated RTL portrait/landscape cases with independent actions and an exposed-map input check. The dock change has not yet passed CI; no full screen is marked complete.
 
