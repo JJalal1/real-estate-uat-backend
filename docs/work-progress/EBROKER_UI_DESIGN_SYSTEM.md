@@ -34,3 +34,11 @@ New rendered tests exercise 320/360/412/600 widths, text scale 1 and 2.4, real b
 CI saves eight isolated component screenshots under the visual QA artifact. Fixtures live only in tests, explicitly labeled as component examples. They are not authenticated screen evidence and are not runtime demo listings. Phase 1 is not closed until the fresh analyze/tests/APK gate passes and captured layouts are inspected.
 
 Verified 2026-09-14: run `34882892445` passed analyze, all 198 Flutter tests, backend/PostGIS guards and APK. Corrected screenshots from run `34883532270`, artifact `10364505958`, were inspected at all four widths and both scales. Test harness explicitly loads bundled Arabic/Material fonts and SDK Roboto under the existing Latin fallback aliases. No runtime font dependency was added.
+
+## Marketplace presentation
+
+`AppPropertyCard` uses an inset photo, price-first hierarchy, unrestricted Arabic title/location, and a grouped facts surface. It accepts only caller-provided values and actions. Category and selection are explicit, never inferred. `AppPropertyCardSkeleton` follows the same hierarchy. `AppPropertyRail` is for the backend-bounded set of six similar properties only; result lists stay lazy.
+
+`DiscoveryMapDock`, `DiscoveryModeBar` and `DiscoveryPropertyPreview` compose the existing map actions without owning selection, permissions, queries or navigation. Contextual content scrolls above the mode bar; very short viewports allow the whole dock to scroll. The native map and area-drawing overlay still fill the original viewport. The dock must not intercept input outside its visible children.
+
+Regression coverage includes 320/412/600px Arabic card layouts at 1x and 2.4x text, independent callbacks and 48px favorite input bounds. Dock tests additionally cover 600x280 landscape, simultaneous error/preview/message, and exposed canvas input. These additions require their own fresh CI and visual acceptance; they do not close the remaining screen phases.

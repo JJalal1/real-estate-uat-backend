@@ -11,6 +11,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/design/app_design.dart';
 import 'discovery_filter_panel.dart';
+import 'discovery_map_dock.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
 import '../data/property_discovery_history_store.dart';
@@ -1098,31 +1099,40 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           children: [
             Positioned.fill(child: _buildMap()),
             if (!_selectingArea) _buildTopFilterPanel(properties),
-            if (!_selectingArea) _buildMapControls(),
-            if (apiError != null)
-              PositionedDirectional(
-                start: 12,
-                end: 12,
-                bottom: 78,
-                child: _ApiFailureBanner(
-                  message: friendlyApiError(apiError),
-                  onRetry: () =>
-                      ref.invalidate(nearbyPropertiesProvider(query)),
-                ),
-              ),
             if (_selectingArea) _buildAreaSelectionOverlay(),
-            if (!_selectingArea) _buildMapBottomBar(properties),
-            if (!_selectingArea && _selected != null)
-              _buildSelectedPreview(
-                _selected!,
-                favorite: favoriteIds.contains(_selected!.id),
-              ),
-            if (_mapMessage != null && !_selectingArea)
-              PositionedDirectional(
-                start: 14,
-                end: 14,
-                bottom: 82,
-                child: _MessageCard(text: _mapMessage!),
+            if (!_selectingArea)
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Align(
+                    alignment: Alignment.bottomCenter,
+                    child: SafeArea(
+                      top: false,
+                      minimum: const EdgeInsetsDirectional.fromSTEB(
+                        AppLayout.compactPageGutter, 0,
+                        AppLayout.compactPageGutter, AppSpacing.s8,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: (constraints.maxHeight - MediaQuery.paddingOf(context).vertical) *
+                              AppLayout.mapDockMaxHeightFraction,
+                        ),
+                        child: DiscoveryMapDock(
+                          controls: _buildMapControls(),
+                          error: apiError == null ? null : _ApiFailureBanner(
+                            message: friendlyApiError(apiError),
+                            onRetry: () => ref.invalidate(nearbyPropertiesProvider(query)),
+                          ),
+                          preview: _selected == null ? null : _buildSelectedPreview(
+                            _selected!,
+                            favorite: favoriteIds.contains(_selected!.id),
+                          ),
+                          message: _mapMessage == null ? null : _MessageCard(text: _mapMessage!),
+                          modeBar: _buildMapBottomBar(properties),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
@@ -1150,108 +1160,82 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildTopFilterPanel(AsyncValue<List<PropertyMarker>> properties) {
-    return PositionedDirectional(
-      top: MediaQuery.paddingOf(context).top + AppSpacing.s8,
-      start: AppLayout.compactPageGutter,
-      end: AppLayout.compactPageGutter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.4,
-        ),
-        child: SingleChildScrollView(
-          primary: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              DiscoveryFilterPanel(
-                purpose: _filterPurpose,
-                type: _filterType,
-                filterCount: _filterCount,
-                searchText: _searchText,
-                onPurpose: _setQuickPurpose,
-                onType: _setQuickType,
-                onSearch: () {
-                  final items = properties.asData?.value ?? const <PropertyMarker>[];
-                  _showSearchSheet(items);
-                },
-                onMore: _showFilters,
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) => Align(
+          alignment: Alignment.topCenter,
+          child: SafeArea(
+            bottom: false,
+            minimum: const EdgeInsetsDirectional.fromSTEB(
+              AppLayout.compactPageGutter, AppSpacing.s8,
+              AppLayout.compactPageGutter, 0,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: (constraints.maxHeight - MediaQuery.paddingOf(context).vertical) *
+                    AppLayout.mapFilterMaxHeightFraction,
               ),
-              if (_selectedAreaBounds != null) ...[
-                const SizedBox(height: AppSpacing.s8),
-                _buildAreaChip(),
-              ],
-            ],
+              child: SingleChildScrollView(
+                primary: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DiscoveryFilterPanel(
+                      purpose: _filterPurpose,
+                      type: _filterType,
+                      filterCount: _filterCount,
+                      searchText: _searchText,
+                      onPurpose: _setQuickPurpose,
+                      onType: _setQuickType,
+                      onSearch: () {
+                        final items = properties.asData?.value ?? const <PropertyMarker>[];
+                        _showSearchSheet(items);
+                      },
+                      onMore: _showFilters,
+                    ),
+                    if (_selectedAreaBounds != null) ...[
+                      const SizedBox(height: AppSpacing.s8),
+                      _buildAreaChip(),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildMapControls() {
-    return PositionedDirectional(
-      end: 12,
-      bottom: 86,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Material(
-            elevation: 5,
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            child: InkWell(
-              onTap: _saveCurrentSearch,
-              borderRadius: BorderRadius.circular(18),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.notifications_active_outlined, color: AppTheme.brand),
-                    SizedBox(width: 7),
-                    Text(
-                      'حفظ البحث',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
-              ),
+  Widget _buildMapControls() => AppSurface(
+        padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
+        child: Wrap(
+          alignment: WrapAlignment.start,
+          spacing: AppSpacing.s8,
+          runSpacing: AppSpacing.s8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            AppButton(
+              label: 'حفظ البحث',
+              icon: Icons.notifications_active_outlined,
+              style: AppButtonStyle.text,
+              onPressed: _saveCurrentSearch,
             ),
-          ),
-          const SizedBox(height: 8),
-          Material(
-            elevation: 5,
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            child: InkWell(
-              onTap: _beginAreaSelection,
-              borderRadius: BorderRadius.circular(18),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.gesture_rounded, color: AppTheme.brand),
-                    SizedBox(width: 7),
-                    Text(
-                      'رسم منطقة',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
-              ),
+            AppButton(
+              label: 'رسم منطقة',
+              icon: Icons.gesture_rounded,
+              style: AppButtonStyle.text,
+              onPressed: _beginAreaSelection,
             ),
-          ),
-          const SizedBox(height: 8),
-          _MapActionButton(
-            tooltip: 'موقعي',
-            icon: Icons.my_location,
-            onPressed: _userLocation == null ? null : _moveToMyLocation,
-          ),
-        ],
-      ),
-    );
-  }
+            AppIconButton(
+              tooltip: 'موقعي',
+              icon: Icons.my_location,
+              onPressed: _userLocation == null ? null : _moveToMyLocation,
+            ),
+          ],
+        ),
+      );
 
   Widget _buildAreaChip() {
     return Align(
@@ -1371,20 +1355,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildMapBottomBar(AsyncValue<List<PropertyMarker>> properties) {
-    return PositionedDirectional(
-      start: 12,
-      end: 12,
-      bottom: 10,
-      child: _MapListSwitcherBar(
-        countText: properties.when(
-          data: (items) => '${items.length} نتيجة',
-          loading: () => 'جاري التحميل…',
-          error: (_, __) => 'تعذر الاتصال',
-        ),
-        mapMode: true,
-        onSwitch: () => setState(() => _listMode = true),
-        onAdd: _openAddProperty,
+    return DiscoveryModeBar(
+      countText: properties.when(
+        data: (items) => '${items.length} نتيجة',
+        loading: () => 'جاري التحميل…',
+        error: (_, __) => 'تعذر الاتصال',
       ),
+      mapMode: true,
+      onSwitch: () => setState(() => _listMode = true),
+      onAdd: _openAddProperty,
     );
   }
 
@@ -1392,27 +1371,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     PropertyMarker property, {
     required bool favorite,
   }) {
-    return PositionedDirectional(
-      start: 12,
-      end: 12,
-      bottom: 78,
-      child: _MapSelectionCard(
-        property: property,
-        favorite: favorite,
-        onFavorite: _changingFavorite
-            ? null
-            : () => _toggleFavorite(
-                  property.id,
-                  currentlyFavorite: favorite,
-                ),
-        onDetails: () => _openDetails(property),
-        onClose: () {
-          setState(() {
-            _selected = null;
-            _lastMarkerSignature = '';
-          });
-        },
-      ),
+    return _MapSelectionCard(
+      property: property,
+      favorite: favorite,
+      onFavorite: _changingFavorite
+          ? null
+          : () => _toggleFavorite(
+                property.id,
+                currentlyFavorite: favorite,
+              ),
+      onDetails: () => _openDetails(property),
+      onClose: () {
+        setState(() {
+          _selected = null;
+          _lastMarkerSignature = '';
+        });
+      },
     );
   }
 
@@ -1506,7 +1480,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: _MapListSwitcherBar(
+            child: DiscoveryModeBar(
               countText: properties.when(
                 data: (items) => '${items.length} نتيجة',
                 loading: () => 'جاري التحميل…',
@@ -1588,90 +1562,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 }
 
-class _MapListSwitcherBar extends StatelessWidget {
-  const _MapListSwitcherBar({
-    required this.countText,
-    required this.mapMode,
-    required this.onSwitch,
-    required this.onAdd,
-  });
-
-  final String countText;
-  final bool mapMode;
-  final VoidCallback onSwitch;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.16),
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: 58,
-        child: Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: onSwitch,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(mapMode
-                        ? Icons.view_list_outlined
-                        : Icons.map_outlined),
-                    const SizedBox(width: 7),
-                    Text(
-                      mapMode ? 'قائمة' : 'خريطة',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const VerticalDivider(),
-            Expanded(
-              child: Center(
-                child: Text(
-                  countText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textStrong,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ),
-            const VerticalDivider(),
-            Expanded(
-              child: InkWell(
-                onTap: onAdd,
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_circle, color: AppTheme.brandStrong),
-                    SizedBox(width: 7),
-                    Text(
-                      'إضافة',
-                      style: TextStyle(
-                        color: AppTheme.brandStrong,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _AreaStrokePainter extends CustomPainter {
   const _AreaStrokePainter({required this.points});
 
@@ -1717,33 +1607,6 @@ class _AreaStrokePainter extends CustomPainter {
     if (points.length != oldDelegate.points.length) return true;
     if (points.isEmpty) return false;
     return points.last != oldDelegate.points.last;
-  }
-}
-
-class _MapActionButton extends StatelessWidget {
-  const _MapActionButton({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.14),
-      shape: const CircleBorder(),
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon),
-      ),
-    );
   }
 }
 
@@ -1984,108 +1847,16 @@ class _MapSelectionCard extends StatelessWidget {
   final VoidCallback onClose;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 8,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onDetails,
-        child: SizedBox(
-          height: 112,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 108,
-                height: double.infinity,
-                child: property.mainImage == null
-                    ? const _PropertyImageFallback()
-                    : Image.network(
-                        property.mainImage!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const _PropertyImageFallback(),
-                      ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      property.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w900, fontSize: 16),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '${_formatPrice(property.price)} ${_currencyLabel(property.currency)}',
-                      style: const TextStyle(
-                        color: AppTheme.brandStrong,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      property.address ?? 'اضغط لعرض التفاصيل',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: AppTheme.textMuted, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    tooltip: favorite
-                        ? 'إزالة من المفضلة'
-                        : 'حفظ في المفضلة',
-                    onPressed: onFavorite,
-                    icon: Icon(
-                      favorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: favorite
-                          ? Theme.of(context).colorScheme.error
-                          : AppTheme.textStrong,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'إغلاق',
-                    onPressed: onClose,
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PropertyImageFallback extends StatelessWidget {
-  const _PropertyImageFallback();
-
-  @override
-  Widget build(BuildContext context) => const ColoredBox(
-        color: AppTheme.brandSoft,
-        child: Center(
-          child: Icon(
-            Icons.home_work_outlined,
-            color: AppTheme.brandStrong,
-            size: 38,
-          ),
-        ),
+  Widget build(BuildContext context) => DiscoveryPropertyPreview(
+        title: property.title,
+        price: _formatPrice(property.price),
+        currency: _currencyLabel(property.currency),
+        imageUrl: property.mainImage,
+        location: property.address ?? 'اضغط لعرض التفاصيل',
+        favorite: favorite,
+        onFavorite: onFavorite,
+        onDetails: onDetails,
+        onClose: onClose,
       );
 }
 
@@ -2614,45 +2385,17 @@ class _ApiFailureBanner extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFFFFF7F4),
-      elevation: 6,
-      shadowColor: Colors.black.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE5A497), width: 1.2),
-        ),
-        child: Row(
+  Widget build(BuildContext context) => AppSurface(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.cloud_off_outlined, color: Color(0xFF9B3D2B)),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                message,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF6D2D21),
-                  fontWeight: FontWeight.w800,
-                  height: 1.35,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('إعادة'),
-            ),
+            AppInlineMessage(message: message, tone: AppStatusTone.error, icon: Icons.cloud_off_outlined),
+            const SizedBox(height: AppSpacing.s8),
+            AppButton(label: 'إعادة', icon: Icons.refresh, onPressed: onRetry, style: AppButtonStyle.tonal),
           ],
         ),
-      ),
-    );
-  }
+      );
 }
 
 class _MessageCard extends StatelessWidget {
@@ -2662,26 +2405,11 @@ class _MessageCard extends StatelessWidget {
   final bool error;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: error ? const Color(0xFFFFECEC) : Colors.white,
-      elevation: error ? 0 : 4,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(
-              error ? Icons.error_outline : Icons.info_outline,
-              color: error ? Colors.red.shade700 : AppTheme.accent,
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: Text(text)),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppInlineMessage(
+        message: text,
+        tone: error ? AppStatusTone.error : AppStatusTone.info,
+        icon: error ? Icons.error_outline : Icons.info_outline,
+      );
 }
 
 String _purposeLabel(String value) {

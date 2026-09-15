@@ -33,7 +33,7 @@ void main() {
                     purposeLabel: 'للبيع',
                     categoryLabel: 'فيلا',
                     location: 'صنعاء، حدة، بالقرب من جولة المصباحي — ABC-123',
-                    selected: true,
+                    selected: width == 320,
                     facts: const [
                       AppPropertyFact(icon: Icons.square_foot, label: '420 م²'),
                       AppPropertyFact(icon: Icons.bed_outlined, label: '5 غرف'),
@@ -79,8 +79,10 @@ void main() {
         expect(maps, 1);
         expect(details, 1, reason: 'Map and favorite actions must not open details.');
         expect(tester.takeException(), isNull);
-        await tester.drag(find.byType(SingleChildScrollView), const Offset(0, 4000));
+        final scroll = tester.state<ScrollableState>(find.byType(Scrollable)).position;
+        scroll.jumpTo(scroll.minScrollExtent);
         await tester.pumpAndSettle();
+        expect(scroll.pixels, scroll.minScrollExtent);
         await captureDesign(tester, captureKey, 'property-card-${width.toInt()}-$scale');
       });
     }

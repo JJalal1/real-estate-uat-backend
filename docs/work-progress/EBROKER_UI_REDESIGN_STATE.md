@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-15 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `8f78856bb7acc05de25d9c887f3fb3c88cd6d9e4` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `cd483d5c78c870ef7e710a84ae70b6b0e0b5b747` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,19 +35,15 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 3 — marketplace card presentation, first bounded change. Shared image/price/title/location/facts hierarchy now drives map list results, favorites and saved-search cards. Similar-property rail follows content height. New card tests and CI visual evidence are pending. Search/filter sheets, map selection card and bottom controls remain to redesign before Phase 3 completion.
+PHASE 3 — marketplace cards and map overlays. Card regression passed the companion Flutter/backend/PostGIS workflow at `cd483d5` (226 Flutter tests including the compile-time guard). Main experimental workflow `34957755283` passed analysis/tests/Frankfurt checks and is building its APK. Six card images inspected; fixtures cover missing-image presentation and Arabic text, not real property photography.
 
 # Exact Last Completed Step
 
-Companion Flutter CI at `8f78856` found the new accessibility test measured the 40px tooltip/painted surface rather than Material IconButton input padding. Test now measures the actual button and taps its outer padding edge, still requiring >=48px and independent favorite callback. No app/test security condition was relaxed. Fresh full CI required.
-
-Marketplace CI `34957029506` stopped at analyze: the removed result-card renderer left an unused optional loading parameter on the map-preview fallback. Removed that now-unreachable parameter/branch; the preview keeps its original fallback. Card rendering/tests require fresh CI. Further dock work is preserved in local stash `phase3: map dock layout in progress`; do not publish it before card regression passes.
-
-Phase 2 follow-up CI `34911352983` at `f02a114acb3ea2c555760b5902dcb748441da430` PASSED all three jobs, including analyze, complete Flutter suite, sliver retry, contrast, backend/PostGIS, Frankfurt guards and release APK. Corrected discovery rendering inspected at 320px/normal text and 412px/2.4 text: tonal text readable and real shadows captured. Implemented shared marketplace cards, removed fixed 164px map-result height, preserved all callbacks and map state, and replaced fixed 340px similar-property viewport with a content-height rail. Added eight RTL/card/independent-action regression tests. No Phase 3 screen is yet marked complete.
+Implemented content-driven `DiscoveryMapDock`, `DiscoveryModeBar` and `DiscoveryPropertyPreview`. Replaced overlapping fixed bottom offsets with flowing error/preview/message content and retained mode actions. Short viewports scroll the entire dock. Top/bottom panel bounds use the actual map viewport; native map and area-drawing overlay remain full-size. All map State methods, native map options and drawing overlay were compared exactly to the preceding commit. Added four integrated RTL portrait/landscape cases with independent actions and an exposed-map input check. The dock change has not yet passed CI; no full screen is marked complete.
 
 # Next Exact Step
 
-Push and verify marketplace-card CI for this commit. Inspect six new card images and check all existing favorites/details/navigation tests. Fix regressions before moving on. Then redesign map selection/bottom controls and existing search/filter sheets without changing State methods or API contracts. Do not repeat Phase 0/1/2.
+Require `34957755283` APK success, then publish and validate this map-dock commit. Inspect four dock captures and deterministic card captures; require existing map-coordinate/navigation/permission tests and new interaction cases to pass. Next redesign the existing search/filter sheets and list sort controls, preserving every validation and result value. Do not repeat completed foundations/cards.
 
 # Files Changed
 
@@ -73,6 +69,8 @@ Push and verify marketplace-card CI for this commit. Inspect six new card images
 - `mobile_app/test/experimental_property_card_test.dart` — six RTL size/text cases plus rail and disabled-action regressions.
 - `mobile_app/lib/features/properties/presentation/favorites_screen.dart` — shared card skeleton and selection surface; original comparison/remove logic.
 - `mobile_app/lib/features/properties/presentation/property_details_screen.dart` — similar-property rail height compatibility only; full details redesign remains Phase 4.
+- `mobile_app/lib/features/map/presentation/discovery_map_dock.dart` — responsive map context/mode/preview presentation only.
+- `mobile_app/test/experimental_map_dock_test.dart` — simultaneous states, portrait/landscape RTL, input passthrough and every dock callback.
 - This checkpoint.
 
 # Screens Completed
@@ -84,6 +82,10 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- 2026-09-15: companion run `34957760977`, SHA `cd483d5`, SUCCESS; analyze and all 226 Flutter tests including UAT compile-time guard, Laravel and PostgreSQL/PostGIS. Experimental APK run `34957755283` still building at this checkpoint.
+- 2026-09-15: live protected refs rechecked: main `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`, stable `46b8fed8fd119b223d4a1e67312d38ff9429e569`, both unchanged. No production access/deployment.
+- Dock preflight: `git diff --check`, locked-source verifier, exact map State/native options/drawing-overlay comparison PASS. New tests await CI.
 
 - 2026-09-15: run `34911352983`, SHA `f02a114`: all experimental CI jobs SUCCESS, including Flutter pub get/analyze/full tests, backend/PostGIS, Frankfurt endpoint/health/load, APK build and isolated package verification. Replaces failed runs `34910573934` and `34911058132`; sliver interaction and loading scheduling regressions resolved.
 - Marketplace local preflight: `git diff --check`, 346-file immutable source verifier, and exact comparison of map State/query/navigation source PASS. Flutter regression awaits new CI; local VM limitation remains.
@@ -113,11 +115,11 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Inventory limitation: static anchors do not prove every callback/state has been manually reviewed or rendered. Review the complete affected file and its tests before each redesign commit.
 - Architecture Debt (confirmed): `ProjectsScreen` contains static `_ProjectData` and is referenced only in its own file; accepted IA tests explicitly keep projects out of active navigation. Preserve it as an unreachable legacy file, do not promote it or claim a connected redesign. Real developments use the existing repository.
 - Test Coverage Debt: startup navigation layout fixtures include historical manager/GM labels; source-contract tests check the current labels. Preserve stress fixtures and add actual current-role rendered tests during role review.
-- UI Bug candidates from source audit: property-detail similar-card list has fixed height 340; map result/selection cards use fixed heights and compact 32px actions; generic centered feedback is not scrollable. Address with responsive presentation and rendered tests in corresponding phases.
+- UI Bug audit: similar-card fixed height and map-result fixed height addressed with shared cards/rail; preview and bottom-overlay replacement implemented pending CI. Full details and remaining discovery controls still need per-screen QA.
 - Delivery environment: direct `git push` has no local credential. GitHub connector create-tree/create-commit/non-forced update-ref succeeded. Local tree was verified identical, then aligned with the published SHA via fetch + soft reset. Do not request or expose a token.
 - Visual QA harness issue RESOLVED: corrected artifact `10364505958` inspected at all four widths / both scales. Supersedes square-glyph artifact `10363582427`. These remain isolated component images, not authenticated Android screen evidence.
 - Earlier Phase 0/1 APKs use the baseline UAT application ID. The Phase 2 packaging commit changes only experimental application ID and launcher label; compiled package verification passed in run `34884689076`. Namespace/native channels/deep-link scheme/permissions/debug signing stay unchanged, and file-provider authority follows packageName dynamically.
-- Phase 2 map preview/cards/bottom bars retain their prior sizing until Phase 3; do not claim the entire discovery screen complete based on the new top panel alone.
+- Map cards and dock have new presentation; search/filter sheets and list-sort layout remain to complete Phase 3. Do not claim the whole discovery screen complete yet.
 - Regression discovered by source review: LayoutBuilder in feedback is incompatible with SliverFillRemaining(hasScrollBody:false) intrinsic sizing used by Messages and My Listings. Replaced it with intrinsic-safe centered scrolling; added a rendered sliver/retry test and retained a meaningful no-competing-inner-scroll assertion. Verified in run `34911352983`.
 - CI Environment: run `34910136499` failed in Android setup before Flutter because the default legacy `tools` package is unavailable. Experimental workflow now explicitly requests supported `platform-tools`; SDK command-line setup and every analyzer/test/APK gate remain enabled.
 - UI Bug: visual inspection found white tonal-button text on a pale container, inherited from the global FilledButtonTheme. An explicit tonal foreground and rendered contrast regression are implemented in a separate change; verified in run `34911352983`.

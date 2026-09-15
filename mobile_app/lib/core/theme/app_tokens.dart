@@ -28,6 +28,9 @@ abstract final class AppLayout {
   static const double feedbackMaxWidth = 420;
   static const double sectionActionMaxWidth = 200;
   static const double propertyRailWidth = 280;
+  static const double mapDockStickyMinHeight = 240;
+  static const double mapDockMaxHeightFraction = 0.5;
+  static const double mapFilterMaxHeightFraction = 0.4;
   static const double sectionGap = AppSpacing.s32;
   static const double groupGap = AppSpacing.s24;
   static const double itemGap = AppSpacing.s12;
@@ -79,6 +82,7 @@ abstract final class AppSizes {
   static const double identityMark = 56;
   static const double feedbackMark = 80;
   static const double propertyMediaHeight = 192;
+  static const double propertyPreviewMedia = 96;
 }
 
 /// Accepted interaction timing. Respect reduced-motion settings by using
