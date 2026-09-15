@@ -1,8 +1,8 @@
 # Current State
 
-Last updated: 2026-09-14 UTC
+Last updated: 2026-09-15 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `477b65e4ce4baa92dbd728abe96b3e81747e9708` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `f02a114acb3ea2c555760b5902dcb748441da430` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,19 +35,15 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 2 — map discovery entry and isolated Android package passed CI at `f8dba503` (215 Flutter tests). Follow-up feedback and contrast fixes are being validated. Added current manager/GM label stress cases while preserving prior tests. Map/list cards and sheets remain in Phase 3; no complete screen is claimed redesigned yet.
+PHASE 3 — marketplace card presentation, first bounded change. Shared image/price/title/location/facts hierarchy now drives map list results, favorites and saved-search cards. Similar-property rail follows content height. New card tests and CI visual evidence are pending. Search/filter sheets, map selection card and bottom controls remain to redesign before Phase 3 completion.
 
 # Exact Last Completed Step
 
-Run `34911058132` confirmed sliver retry PASS. A loading-only test timed out because the progress indicator never stops animating; use one frame after its jump-to-scroll instead of waiting for animation settlement. Discovery taps now target the actual FilterChip surface (selected chip labels are ignored in hit testing) while retaining all value/count assertions. Phase 3 work remains local and unpublished until this gate passes.
-
-Run `34910573934` verified SDK repair, analyze, backend and rendered tonal contrast. One sliver retry test failed because its synthetic tap occurred before a frame applied ensureVisible scroll offsets (tap y=623 outside 280px viewport). Added frame settling after scrolling in foundation/discovery interaction tests; original callback assertions remain intact. Phase 3 card work is saved in local stash `phase3: property card presentation in progress` and is not published.
-
-Resumed from remote `f8dba503` after Work restored an older local checkout. Preserved old local notes in a named stash. Recovered the exact three-file sliver feedback fix from Git tree `bc2ac513` with blob hash checks and published it as `4b2cab0206e5acd9734325536c66b351f46c9a5c`. Verified prior Phase 2 CI/APK success and inspected four discovery screenshots. The fresh run `34910136499` failed before Flutter setup because sdkmanager could not resolve retired package `tools`; backend jobs passed.
+Phase 2 follow-up CI `34911352983` at `f02a114acb3ea2c555760b5902dcb748441da430` PASSED all three jobs, including analyze, complete Flutter suite, sliver retry, contrast, backend/PostGIS, Frankfurt guards and release APK. Corrected discovery rendering inspected at 320px/normal text and 412px/2.4 text: tonal text readable and real shadows captured. Implemented shared marketplace cards, removed fixed 164px map-result height, preserved all callbacks and map state, and replaced fixed 340px similar-property viewport with a content-height rail. Added eight RTL/card/independent-action regression tests. No Phase 3 screen is yet marked complete.
 
 # Next Exact Step
 
-Verify fresh CI after the separate SDK setup and tonal contrast commits; require the sliver retry test and rendered tonal contrast test to pass, and inspect replacement discovery images. Then proceed to marketplace property cards and responsive list presentation. Do not repeat Phase 0/1 or replace the experimental base.
+Push and verify marketplace-card CI for this commit. Inspect six new card images and check all existing favorites/details/navigation tests. Fix regressions before moving on. Then redesign map selection/bottom controls and existing search/filter sheets without changing State methods or API contracts. Do not repeat Phase 0/1/2.
 
 # Files Changed
 
@@ -70,6 +66,9 @@ Verify fresh CI after the separate SDK setup and tonal contrast commits; require
 - `mobile_app/android/app/build.gradle` and `AndroidManifest.xml` — separate installable experimental identity; unchanged native namespace and permissions.
 - Experimental CI verifies compiled package, Arabic launcher label and native activity before upload.
 - `mobile_app/test/support/capture_design.dart` — real shadow rendering for captured evidence, with test debug globals restored before invariant checks.
+- `mobile_app/test/experimental_property_card_test.dart` — six RTL size/text cases plus rail and disabled-action regressions.
+- `mobile_app/lib/features/properties/presentation/favorites_screen.dart` — shared card skeleton and selection surface; original comparison/remove logic.
+- `mobile_app/lib/features/properties/presentation/property_details_screen.dart` — similar-property rail height compatibility only; full details redesign remains Phase 4.
 - This checkpoint.
 
 # Screens Completed
@@ -81,6 +80,9 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- 2026-09-15: run `34911352983`, SHA `f02a114`: all experimental CI jobs SUCCESS, including Flutter pub get/analyze/full tests, backend/PostGIS, Frankfurt endpoint/health/load, APK build and isolated package verification. Replaces failed runs `34910573934` and `34911058132`; sliver interaction and loading scheduling regressions resolved.
+- Marketplace local preflight: `git diff --check`, 346-file immutable source verifier, and exact comparison of map State/query/navigation source PASS. Flutter regression awaits new CI; local VM limitation remains.
 
 - Run `34910573934`, SHA `fea1b42`: backend/PostGIS, pub get/analyze, cloud-readiness and tonal contrast PASS; full Flutter suite failed only sliver retry interaction; APK not built. Scroll-before-tap test scheduling correction pending CI.
 
@@ -112,12 +114,15 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Visual QA harness issue RESOLVED: corrected artifact `10364505958` inspected at all four widths / both scales. Supersedes square-glyph artifact `10363582427`. These remain isolated component images, not authenticated Android screen evidence.
 - Earlier Phase 0/1 APKs use the baseline UAT application ID. The Phase 2 packaging commit changes only experimental application ID and launcher label; compiled package verification passed in run `34884689076`. Namespace/native channels/deep-link scheme/permissions/debug signing stay unchanged, and file-provider authority follows packageName dynamically.
 - Phase 2 map preview/cards/bottom bars retain their prior sizing until Phase 3; do not claim the entire discovery screen complete based on the new top panel alone.
-- Regression discovered by source review: LayoutBuilder in feedback is incompatible with SliverFillRemaining(hasScrollBody:false) intrinsic sizing used by Messages and My Listings. Replaced it with intrinsic-safe centered scrolling; added a rendered sliver/retry test and retained a meaningful no-competing-inner-scroll assertion. Fresh CI pending.
+- Regression discovered by source review: LayoutBuilder in feedback is incompatible with SliverFillRemaining(hasScrollBody:false) intrinsic sizing used by Messages and My Listings. Replaced it with intrinsic-safe centered scrolling; added a rendered sliver/retry test and retained a meaningful no-competing-inner-scroll assertion. Verified in run `34911352983`.
 - CI Environment: run `34910136499` failed in Android setup before Flutter because the default legacy `tools` package is unavailable. Experimental workflow now explicitly requests supported `platform-tools`; SDK command-line setup and every analyzer/test/APK gate remain enabled.
-- UI Bug: visual inspection found white tonal-button text on a pale container, inherited from the global FilledButtonTheme. An explicit tonal foreground and rendered contrast regression are implemented in a separate change; fresh CI pending.
+- UI Bug: visual inspection found white tonal-button text on a pale container, inherited from the global FilledButtonTheme. An explicit tonal foreground and rendered contrast regression are implemented in a separate change; verified in run `34911352983`.
+- Visual test scheduling RESOLVED: jump-to-scroll interactions settle before tapping; continuously animated loading uses a single frame. No action assertions were removed.
 - No WHY_BACKEND_CHANGE_IS_NEEDED: none identified; backend changes are not planned.
 
 # Decisions
+
+- Related rail uses a content-height horizontal Row only for the existing server-bounded similar-property set (`PropertyController::show`, limit 6). Large marketplace results remain lazy lists. No field, sort or request was added.
 
 - Reuse and evolve `core/theme` and `core/widgets`; avoid a parallel theme system. A central `core/design` facade/compositions may build on these foundations.
 - Keep the existing original Arabic name `عقارات حولك`, locally bundled NotoSansArabic, semantic status meanings, and green identity; reference layout quality rather than copying eBroker's teal branding.

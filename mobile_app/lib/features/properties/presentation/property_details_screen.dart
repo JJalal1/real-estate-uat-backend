@@ -326,58 +326,49 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             const SizedBox(height: AppSpacing.s32),
             const AppSectionHeader(title: 'عقارات مشابهة'),
             const SizedBox(height: AppSpacing.s12),
-            SizedBox(
-              height: 340,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: property.similar.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(width: AppSpacing.s12),
-                itemBuilder: (context, index) {
-                  final item = property.similar[index];
-                  final isFavorite = favoriteIds.contains(item.id);
-                  return SizedBox(
-                    width: 260,
-                    child: AppPropertyCard(
-                      title: item.title,
-                      price: _formatPrice(item.price),
-                      currency: item.currency,
-                      imageUrl: item.mainImage,
-                      location: item.address,
-                      purposeLabel: _purposeLabel(item.purpose),
-                      facts: [
-                        if (item.areaM2 != null)
-                          AppPropertyFact(
-                            icon: Icons.square_foot,
-                            label: '${item.areaM2} م²',
-                          ),
-                        if (item.bedrooms != null)
-                          AppPropertyFact(
-                            icon: Icons.bed_outlined,
-                            label: '${item.bedrooms} غرف',
-                          ),
-                      ],
-                      trailing: IconButton.filledTonal(
-                        tooltip:
-                            isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-                        icon: Icon(
-                          isFavorite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                        ),
-                        onPressed: _changingFavorite || _consumingPendingFavorite
-                            ? null
-                            : () => _toggleFavorite(
-                                  item.id,
-                                  currentlyFavorite: isFavorite,
-                                ),
+            AppPropertyRail(
+              itemCount: property.similar.length,
+              itemBuilder: (context, index) {
+                final item = property.similar[index];
+                final isFavorite = favoriteIds.contains(item.id);
+                return AppPropertyCard(
+                  title: item.title,
+                  price: _formatPrice(item.price),
+                  currency: item.currency,
+                  imageUrl: item.mainImage,
+                  location: item.address,
+                  purposeLabel: _purposeLabel(item.purpose),
+                  facts: [
+                    if (item.areaM2 != null)
+                      AppPropertyFact(
+                        icon: Icons.square_foot,
+                        label: '${item.areaM2} م²',
                       ),
-                      unavailable: item.status != 'published',
-                      onTap: () => context.push('/properties/${item.id}'),
+                    if (item.bedrooms != null)
+                      AppPropertyFact(
+                        icon: Icons.bed_outlined,
+                        label: '${item.bedrooms} غرف',
+                      ),
+                  ],
+                  trailing: IconButton.filledTonal(
+                    tooltip:
+                        isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
+                    icon: Icon(
+                      isFavorite
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
                     ),
-                  );
-                },
-              ),
+                    onPressed: _changingFavorite || _consumingPendingFavorite
+                        ? null
+                        : () => _toggleFavorite(
+                              item.id,
+                              currentlyFavorite: isFavorite,
+                            ),
+                  ),
+                  unavailable: item.status != 'published',
+                  onTap: () => context.push('/properties/${item.id}'),
+                );
+              },
             ),
           ],
         ],

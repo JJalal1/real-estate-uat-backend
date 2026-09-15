@@ -88,7 +88,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
               ),
               itemCount: 4,
               separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
-              itemBuilder: (_, __) => const AppSkeleton(height: 300),
+              itemBuilder: (_, __) => const AppPropertyCardSkeleton(),
             ),
             error: (error, _) => ListView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -140,6 +140,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         location: property.address,
                         purposeLabel: _purposeLabel(property.purpose),
                         facts: _facts(property),
+                        selected: selected,
                         trailing: _compareMode
                             ? Icon(
                                 selected
