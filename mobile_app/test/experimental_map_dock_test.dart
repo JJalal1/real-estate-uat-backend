@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/design/app_design.dart';
 import 'package:real_estate_mobile/features/map/presentation/discovery_filter_panel.dart';
@@ -136,6 +137,12 @@ void main() {
       }
       expect(calls, ['map', 'save', 'retry', 'details', 'close', 'favorite', 'switch', 'add']);
       expect(tester.takeException(), isNull);
+      final addLabel = tester.renderObject<RenderParagraph>(find.descendant(
+        of: find.text('إضافة'), matching: find.byType(RichText),
+      ));
+      expect(addLabel.getBoxesForSelection(const TextSelection(baseOffset: 0, extentOffset: 5)),
+          hasLength(1), reason: 'The Arabic action word must not split across lines.');
+      await captureDesign(tester, captureKey, 'map-mode-${size.width.toInt()}-${size.height.toInt()}-${viewport.$2}');
       await tester.ensureVisible(find.text('عقار مختار بعنوان عربي طويل في صنعاء ومنطقة حدة'));
       await tester.pumpAndSettle();
       await captureDesign(tester, captureKey, 'map-dock-${size.width.toInt()}-${size.height.toInt()}-${viewport.$2}');

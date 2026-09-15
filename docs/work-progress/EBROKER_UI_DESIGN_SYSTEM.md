@@ -42,3 +42,7 @@ Verified 2026-09-14: run `34882892445` passed analyze, all 198 Flutter tests, ba
 `DiscoveryMapDock`, `DiscoveryModeBar` and `DiscoveryPropertyPreview` compose the existing map actions without owning selection, permissions, queries or navigation. Contextual content scrolls above the mode bar; very short viewports allow the whole dock to scroll. The native map and area-drawing overlay still fill the original viewport. The dock must not intercept input outside its visible children.
 
 Regression coverage includes 320/412/600px Arabic card layouts at 1x and 2.4x text, independent callbacks and 48px favorite input bounds. Dock tests additionally cover 600x280 landscape, simultaneous error/preview/message, and exposed canvas input. These additions require their own fresh CI and visual acceptance; they do not close the remaining screen phases.
+
+## Search and filter forms
+
+DiscoverySearchSheet retains the original controller, suggestion limit and Navigator result values in a scrollable keyboard-aware sheet. DiscoveryFilterSheet retains the original validation sequence and result fields; headings, sections and input pairs change presentation only. AppFieldPair lays out existing field widgets horizontally when space permits and vertically for narrow/large-text constraints. The theme supplies the modal drag handle, avoiding duplicate handles.

@@ -3,6 +3,33 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_components.dart';
 
+/// Keeps two related inputs readable without changing their controllers,
+/// validators, focus behavior or field order.
+class AppFieldPair extends StatelessWidget {
+  const AppFieldPair({required this.first, required this.second, super.key});
+
+  final Widget first;
+  final Widget second;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < AppLayout.narrowBreakpoint ||
+              MediaQuery.textScalerOf(context).scale(16) > 20) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [first, const SizedBox(height: AppLayout.fieldGap), second],
+            );
+          }
+          return Row(children: [
+            Expanded(child: first),
+            const SizedBox(width: AppLayout.fieldGap),
+            Expanded(child: second),
+          ]);
+        },
+      );
+}
+
 /// Constrains content, not its height. The caller retains scroll ownership.
 class AppContentFrame extends StatelessWidget {
   const AppContentFrame({required this.child, super.key});

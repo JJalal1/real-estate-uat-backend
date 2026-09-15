@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-15 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `29f087c334f59147a54dd407ffef57239b049bd0` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `b5dea675f7bd12bde33a907c8737cada78f56554` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,15 +35,15 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 3 — search, filtering and discovery. Cards and map dock passed full CI/APK at `7fa15d7` (229 Flutter tests); follow-up enlarged-text action polish at `29f087c` passed companion regression and its main APK workflow is being monitored. Search-sheet redesign is now implemented with eight new tests pending CI. Advanced filters and list sort layout remain next.
+PHASE 3 — advanced filters and discovery polish. Map/cards are verified through full CI/APK `34987573433` at `29f087c`. Search-sheet commit `b5dea675` is published and its companion regression passed; experimental run `34988479360` is being monitored. Advanced filters are implemented locally with 11 new tests pending CI.
 
 # Exact Last Completed Step
 
-Extracted `DiscoverySearchSheet` from MapScreen. Preserved controller lifetime, case-insensitive matching, six-suggestion cap, recent-search visibility, exact pop values, clear behavior and keyboard search action. Replaced fixed/unscrollable modal content with shared headings/surfaces/actions and a single keyboard-aware scroll view; removed the duplicate custom drag handle because the app theme already renders one. Updated the existing visual source-location assertion to the extracted file, adding checks that MapScreen still passes real recent searches. Added four keyboard/RTL layout cases and four behavior regressions. No backend/state/navigation handler changed.
+Extracted `DiscoveryFilterSheet` and its presentation result type. Exact source comparison proves initialization, type/room reset, numeric parsing, validation order/messages, reset and submit logic are unchanged apart from class names. Shared sections group purpose/type/rooms/area/price; AppFieldPair stacks related inputs when necessary. Theme owns the single modal handle. Added seven RTL/size cases and four behavior regressions including the complete malformed/negative/price/area rejection sequence. Added a map-action single-line Arabic assertion and explicit mode-action screenshots. None of these new changes are yet CI-accepted.
 
 # Next Exact Step
 
-Verify the latest map-polish gate (`34987573433`), publish this search-sheet commit and require its new tests, full regression and APK to pass. Inspect four new search images and the corrected narrow map mode actions. Then redesign the advanced filter sheet and list-sort controls, preserving the exact validation sequence and values. Do not redo earlier phases.
+Verify search run `34988479360`, publish the advanced-filter changes and require full regression/APK. Review filter/search and explicit enlarged map-action images. Finish list sort layout and favorite comparison selection presentation, then audit Phase 3 completion against the inventory before starting property details. Do not redo completed work.
 
 # Files Changed
 
@@ -74,6 +74,9 @@ Verify the latest map-polish gate (`34987573433`), publish this search-sheet com
 - `mobile_app/lib/features/map/presentation/discovery_search_sheet.dart` — existing search state/returns with responsive modal presentation.
 - `mobile_app/test/experimental_discovery_search_test.dart` — eight keyboard/RTL/query/selection/clear/submit tests.
 - `mobile_app/test/final_uat_polish_contract_test.dart` — moved visual-copy source assertion follows the extracted sheet; history and map wiring assertions retained/extended.
+- `mobile_app/lib/features/map/presentation/discovery_filter_sheet.dart` — preserved filter state/validation with grouped responsive UI.
+- `mobile_app/test/experimental_discovery_filter_test.dart` — 11 RTL/size/validation/reset/type/room regressions.
+- `AppFieldPair` in the shared layouts — responsive input composition; no validation/controller ownership.
 - This checkpoint.
 
 # Screens Completed
@@ -85,6 +88,10 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- Map polish `34987573433`, SHA `29f087c`: full experimental workflow SUCCESS, including APK. Companion `34987576488` also SUCCESS.
+- Search `34988484659`, SHA `b5dea675`: companion workflow SUCCESS; main experimental `34988479360` in progress at checkpoint.
+- Advanced-filter preflight: 346-file source guard and whitespace check PASS; exact filter State/validation comparison and map handler comparison PASS. New tests await CI.
 
 - Map dock run `34958864562`, SHA `7fa15d7`: complete SUCCESS, 229 Flutter tests, analyze/backend/PostGIS/Frankfurt/APK. Visual artifact `10392751138`, APK artifact `10392458132`. Four dock images inspected; 320px/2.4 word-wrap issue addressed separately at `29f087c`.
 - Search preflight: exact map source comparison (only search-widget binding changed), `git diff --check` and immutable 346-file verifier PASS. Search tests pending fresh CI.
