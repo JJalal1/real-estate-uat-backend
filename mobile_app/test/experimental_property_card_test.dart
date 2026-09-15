@@ -62,9 +62,11 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(tester.widget<Text>(find.text(title)).maxLines, isNull);
         expect(Directionality.of(tester.element(find.text(title))), TextDirection.rtl);
-        final favorite = find.byTooltip('حفظ في المفضلة');
+        // Tooltip wraps the 40px painted icon surface inside Material's
+        // 48px input padding. Measure and exercise the actual button target.
+        final favorite = find.widgetWithIcon(IconButton, Icons.favorite_border_rounded);
         expect(tester.getSize(favorite).shortestSide, greaterThanOrEqualTo(48));
-        await tester.tap(favorite);
+        await tester.tapAt(tester.getRect(favorite).centerLeft + const Offset(2, 0));
         expect(favorites, 1);
         expect(details, 0);
         await tester.ensureVisible(find.text(title));

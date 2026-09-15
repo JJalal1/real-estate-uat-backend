@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-15 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `6d17062fbb5c2ba165b2fb20cee5f97f3d5778a1` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `8f78856bb7acc05de25d9c887f3fb3c88cd6d9e4` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -38,6 +38,8 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 PHASE 3 — marketplace card presentation, first bounded change. Shared image/price/title/location/facts hierarchy now drives map list results, favorites and saved-search cards. Similar-property rail follows content height. New card tests and CI visual evidence are pending. Search/filter sheets, map selection card and bottom controls remain to redesign before Phase 3 completion.
 
 # Exact Last Completed Step
+
+Companion Flutter CI at `8f78856` found the new accessibility test measured the 40px tooltip/painted surface rather than Material IconButton input padding. Test now measures the actual button and taps its outer padding edge, still requiring >=48px and independent favorite callback. No app/test security condition was relaxed. Fresh full CI required.
 
 Marketplace CI `34957029506` stopped at analyze: the removed result-card renderer left an unused optional loading parameter on the map-preview fallback. Removed that now-unreachable parameter/branch; the preview keeps its original fallback. Card rendering/tests require fresh CI. Further dock work is preserved in local stash `phase3: map dock layout in progress`; do not publish it before card regression passes.
 
