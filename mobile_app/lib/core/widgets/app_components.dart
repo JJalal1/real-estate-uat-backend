@@ -45,7 +45,16 @@ class AppButton extends StatelessWidget {
 
     final Widget button = switch (style) {
       AppButtonStyle.filled => FilledButton(onPressed: callback, child: child),
-      AppButtonStyle.tonal => FilledButton.tonal(onPressed: callback, child: child),
+      AppButtonStyle.tonal => FilledButton.tonal(
+          onPressed: callback,
+          // FilledButtonTheme's white foreground is for solid primary buttons;
+          // tonal buttons need their matching container foreground.
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+            foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+          ),
+          child: child,
+        ),
       AppButtonStyle.outlined => OutlinedButton(onPressed: callback, child: child),
       AppButtonStyle.text => TextButton(onPressed: callback, child: child),
     };
@@ -240,30 +249,60 @@ class AppSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final theme = Theme.of(context);
+    final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              if (subtitle != null) ...[
-                const SizedBox(height: AppSpacing.s4),
-                Text(
-                  subtitle!,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
-            ],
-          ),
+        Semantics(
+          header: true,
+          child: Text(title, style: theme.textTheme.titleLarge),
         ),
-        if (actionLabel != null && onAction != null)
-          TextButton(onPressed: onAction, child: Text(actionLabel!)),
+        if (subtitle != null) ...[
+          const SizedBox(height: AppSpacing.s4),
+          Text(
+            subtitle!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ],
     );
+    if (actionLabel == null || onAction == null) return heading;
+
+    final action = AppButton(
+      label: actionLabel!,
+      onPressed: onAction,
+      style: AppButtonStyle.text,
+    );
+    return LayoutBuilder(builder: (context, constraints) {
+      final largeText = MediaQuery.textScalerOf(context).scale(16) > 20;
+      if (constraints.maxWidth < AppLayout.narrowBreakpoint || largeText) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            heading,
+            const SizedBox(height: AppSpacing.s8),
+            Align(alignment: AlignmentDirectional.centerEnd, child: action),
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: heading),
+          const SizedBox(width: AppSpacing.s12),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: (constraints.maxWidth * 0.4)
+                  .clamp(0.0, AppLayout.sectionActionMaxWidth)
+                  .toDouble(),
+            ),
+            child: action,
+          ),
+        ],
+      );
+    });
   }
 }
 
@@ -413,14 +452,14 @@ class AppLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
+    return _FeedbackViewport(
+      child: Semantics(
+        liveRegion: true,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const CircularProgressIndicator(),
-            const SizedBox(height: AppSpacing.s12),
+            const SizedBox(height: AppSpacing.s16),
             Text(label, textAlign: TextAlign.center),
           ],
         ),
@@ -545,44 +584,75 @@ class _CenteredState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 48, color: scheme.onSurfaceVariant),
-              const SizedBox(height: AppSpacing.s12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
+    return _FeedbackViewport(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ExcludeSemantics(
+            child: Container(
+              width: AppSizes.feedbackMark,
+              height: AppSizes.feedbackMark,
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(AppRadii.modal),
+                border: Border.all(color: scheme.outlineVariant),
               ),
-              const SizedBox(height: AppSpacing.s8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              if (actionLabel != null && onAction != null) ...[
-                const SizedBox(height: AppSpacing.s20),
-                AppButton(
-                  label: actionLabel!,
-                  onPressed: onAction,
-                  style: AppButtonStyle.outlined,
-                ),
-              ],
-            ],
+              child: Icon(icon, size: AppSpacing.s32, color: scheme.onPrimaryContainer),
+            ),
           ),
-        ),
+          const SizedBox(height: AppSpacing.s24),
+          Semantics(
+            header: true,
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: AppSpacing.s24),
+            AppButton(
+              label: actionLabel!,
+              onPressed: onAction,
+              style: AppButtonStyle.outlined,
+            ),
+          ],
+        ],
       ),
     );
   }
+}
+
+/// Centers short feedback but keeps long Arabic copy and its action reachable
+/// in a short viewport. The inner scroll extent is zero inside an unbounded
+/// parent list. Avoid LayoutBuilder here: SliverFillRemaining with
+/// hasScrollBody:false must be able to query this child's intrinsic height.
+class _FeedbackViewport extends StatelessWidget {
+  const _FeedbackViewport({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppLayout.feedbackMaxWidth),
+          child: SingleChildScrollView(
+            primary: false,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
+              child: child,
+            ),
+          ),
+        ),
+      );
 }
 
 class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -673,7 +743,9 @@ class AppNavigationBar extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           AnimatedContainer(
-                            duration: AppMotion.fast,
+                            duration: MediaQuery.disableAnimationsOf(context)
+                                ? AppMotion.instant
+                                : AppMotion.fast,
                             curve: AppMotion.curve,
                             constraints: const BoxConstraints(
                               minWidth: AppSizes.touchTarget,
@@ -760,7 +832,7 @@ class AppPropertyFact {
 class AppPropertyMedia extends StatelessWidget {
   const AppPropertyMedia({
     this.imageUrl,
-    this.height = 190,
+    this.height = AppSizes.propertyMediaHeight,
     this.badge,
     this.overlay,
     super.key,
@@ -803,11 +875,18 @@ class AppPropertyMedia extends StatelessWidget {
               ),
               loadingBuilder: (context, child, progress) {
                 if (progress == null) return child;
-                return const AppSkeleton(height: 190, radius: 0);
+                return AppSkeleton(height: height, radius: 0);
               },
             ),
           if (badge != null)
-            PositionedDirectional(top: AppSpacing.s12, start: AppSpacing.s12, child: badge!),
+            PositionedDirectional(
+              top: AppSpacing.s12,
+              start: AppSpacing.s12,
+              end: overlay == null
+                  ? AppSpacing.s12
+                  : AppSizes.touchTarget + AppSpacing.s24,
+              child: Align(alignment: AlignmentDirectional.centerStart, child: badge!),
+            ),
           if (overlay != null)
             PositionedDirectional(top: AppSpacing.s8, end: AppSpacing.s8, child: overlay!),
         ],
@@ -866,12 +945,14 @@ class AppPropertyFacts extends StatelessWidget {
               children: [
                 Icon(fact.icon, size: 18, color: scheme.onSurfaceVariant),
                 const SizedBox(width: AppSpacing.s4),
-                Text(
-                  fact.label,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
+                Flexible(
+                  child: Text(
+                    fact.label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
                 ),
               ],
             ),
@@ -891,8 +972,11 @@ class AppPropertyCard extends StatelessWidget {
     this.location,
     this.facts = const <AppPropertyFact>[],
     this.purposeLabel,
+    this.categoryLabel,
+    this.selected = false,
     this.unavailable = false,
     this.trailing,
+    this.footer,
     super.key,
   });
 
@@ -904,21 +988,25 @@ class AppPropertyCard extends StatelessWidget {
   final String? location;
   final List<AppPropertyFact> facts;
   final String? purposeLabel;
+  final String? categoryLabel;
+  final bool selected;
   final bool unavailable;
   final Widget? trailing;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AppSurface(
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
       onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppPropertyMedia(
+      selected: selected,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.control),
+            child: AppPropertyMedia(
               imageUrl: imageUrl,
               badge: purposeLabel == null
                   ? null
@@ -928,60 +1016,124 @@ class AppPropertyCard extends StatelessWidget {
                     ),
               overlay: trailing,
             ),
-            Padding(
-              padding: const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.s8),
-                  AppPropertyPrice(price: price, currency: currency),
-                  if (location != null && location!.trim().isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.s8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.location_on_outlined, size: 18, color: scheme.onSurfaceVariant),
-                        const SizedBox(width: AppSpacing.s4),
-                        Expanded(
-                          child: Text(
-                            location!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (facts.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.s12),
-                    AppPropertyFacts(facts: facts),
-                  ],
-                  if (unavailable) ...[
-                    const SizedBox(height: AppSpacing.s12),
-                    const AppInlineMessage(
-                      message: 'هذا الإعلان غير متاح حالياً.',
-                      tone: AppStatusTone.neutral,
-                      icon: Icons.visibility_off_outlined,
-                    ),
-                  ],
-                ],
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              AppSpacing.s8, AppSpacing.s16, AppSpacing.s8, AppSpacing.s8,
             ),
-          ],
-        ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppPropertyPrice(price: price, currency: currency),
+                const SizedBox(height: AppSpacing.s8),
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                if (categoryLabel != null) ...[
+                  const SizedBox(height: AppSpacing.s8),
+                  AppStatusBadge(label: categoryLabel!),
+                ],
+                if (location != null && location!.trim().isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.s8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.location_on_outlined, size: 18, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: AppSpacing.s4),
+                      Expanded(
+                        child: Text(
+                          location!,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (facts.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.s16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsetsDirectional.all(AppSpacing.s12),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(AppRadii.control),
+                    ),
+                    child: AppPropertyFacts(facts: facts),
+                  ),
+                ],
+                if (unavailable) ...[
+                  const SizedBox(height: AppSpacing.s12),
+                  const AppInlineMessage(
+                    message: 'هذا الإعلان غير متاح حالياً.',
+                    tone: AppStatusTone.neutral,
+                    icon: Icons.visibility_off_outlined,
+                  ),
+                ],
+                if (footer != null) ...[
+                  const SizedBox(height: AppSpacing.s12),
+                  const Divider(),
+                  const SizedBox(height: AppSpacing.s4),
+                  footer!,
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// For a small, server-bounded set of related properties. Height follows the
+/// tallest card, including scaled Arabic text; callers retain every action.
+class AppPropertyRail extends StatelessWidget {
+  const AppPropertyRail({required this.itemCount, required this.itemBuilder, super.key});
+
+  final int itemCount;
+  final IndexedWidgetBuilder itemBuilder;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth < AppLayout.propertyRailWidth
+              ? constraints.maxWidth
+              : AppLayout.propertyRailWidth;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var index = 0; index < itemCount; index++) ...[
+                  if (index > 0) const SizedBox(width: AppSpacing.s12),
+                  SizedBox(width: width, child: itemBuilder(context, index)),
+                ],
+              ],
+            ),
+          );
+        },
+      );
+}
+
+class AppPropertyCardSkeleton extends StatelessWidget {
+  const AppPropertyCardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) => AppSurface(
+        padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: const [
+            AppSkeleton(height: AppSizes.propertyMediaHeight, radius: AppRadii.control),
+            SizedBox(height: AppSpacing.s16),
+            AppSkeleton(height: AppSpacing.s24),
+            SizedBox(height: AppSpacing.s12),
+            AppSkeleton(),
+            SizedBox(height: AppSpacing.s12),
+            AppSkeleton(height: AppSpacing.s40),
+          ],
+        ),
+      );
 }
 
 (Color, Color) _semantic(BuildContext context, AppStatusTone tone) {

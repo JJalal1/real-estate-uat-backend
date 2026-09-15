@@ -9,7 +9,12 @@ import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/design/app_design.dart';
+import 'discovery_filter_panel.dart';
+import 'discovery_map_dock.dart';
+import 'discovery_search_sheet.dart';
+import 'discovery_filter_sheet.dart';
+import 'discovery_results_layout.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
 import '../data/property_discovery_history_store.dart';
@@ -723,12 +728,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _showFilters() async {
-    final result = await showModalBottomSheet<_FilterResult>(
+    final result = await showModalBottomSheet<DiscoveryFilterResult>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _PropertyFilterSheet(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (context) => DiscoveryFilterSheet(
         initialPurpose: _filterPurpose,
         initialType: _filterType,
         initialMinPrice: _filterMinPrice,
@@ -761,7 +766,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => _SearchSheet(
+      builder: (context) => DiscoverySearchSheet(
         initialValue: _searchController.text,
         suggestions: _searchSuggestions(items),
         recentSearches: _recentSearches,
@@ -1097,33 +1102,40 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           children: [
             Positioned.fill(child: _buildMap()),
             if (!_selectingArea) _buildTopFilterPanel(properties),
-            if (!_selectingArea) _buildMapControls(),
-            if (apiError != null)
-              PositionedDirectional(
-                start: 12,
-                end: 12,
-                bottom: 78,
-                child: _ApiFailureBanner(
-                  message: friendlyApiError(apiError),
-                  onRetry: () =>
-                      ref.invalidate(nearbyPropertiesProvider(query)),
-                ),
-              ),
-            if (_selectedAreaBounds != null && !_selectingArea)
-              _buildAreaChip(),
             if (_selectingArea) _buildAreaSelectionOverlay(),
-            if (!_selectingArea) _buildMapBottomBar(properties),
-            if (!_selectingArea && _selected != null)
-              _buildSelectedPreview(
-                _selected!,
-                favorite: favoriteIds.contains(_selected!.id),
-              ),
-            if (_mapMessage != null && !_selectingArea)
-              PositionedDirectional(
-                start: 14,
-                end: 14,
-                bottom: 82,
-                child: _MessageCard(text: _mapMessage!),
+            if (!_selectingArea)
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Align(
+                    alignment: Alignment.bottomCenter,
+                    child: SafeArea(
+                      top: false,
+                      minimum: const EdgeInsets.fromLTRB(
+                        AppLayout.compactPageGutter, 0,
+                        AppLayout.compactPageGutter, AppSpacing.s8,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: (constraints.maxHeight - MediaQuery.paddingOf(context).vertical) *
+                              AppLayout.mapDockMaxHeightFraction,
+                        ),
+                        child: DiscoveryMapDock(
+                          controls: _buildMapControls(),
+                          error: apiError == null ? null : _ApiFailureBanner(
+                            message: friendlyApiError(apiError),
+                            onRetry: () => ref.invalidate(nearbyPropertiesProvider(query)),
+                          ),
+                          preview: _selected == null ? null : _buildSelectedPreview(
+                            _selected!,
+                            favorite: favoriteIds.contains(_selected!.id),
+                          ),
+                          message: _mapMessage == null ? null : _MessageCard(text: _mapMessage!),
+                          modeBar: _buildMapBottomBar(properties),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
@@ -1151,103 +1163,94 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildTopFilterPanel(AsyncValue<List<PropertyMarker>> properties) {
-    return PositionedDirectional(
-      top: MediaQuery.paddingOf(context).top + 8,
-      start: 10,
-      end: 10,
-      child: _MapQuickFilterPanel(
-        purpose: _filterPurpose,
-        type: _filterType,
-        filterCount: _filterCount,
-        searchText: _searchText,
-        onPurpose: _setQuickPurpose,
-        onType: _setQuickType,
-        onSearch: () {
-          final items = properties.asData?.value ?? const <PropertyMarker>[];
-          _showSearchSheet(items);
-        },
-        onMore: _showFilters,
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) => Align(
+          alignment: Alignment.topCenter,
+          child: SafeArea(
+            bottom: false,
+            minimum: const EdgeInsets.fromLTRB(
+              AppLayout.compactPageGutter, AppSpacing.s8,
+              AppLayout.compactPageGutter, 0,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: (constraints.maxHeight - MediaQuery.paddingOf(context).vertical) *
+                    AppLayout.mapFilterMaxHeightFraction,
+              ),
+              child: SingleChildScrollView(
+                primary: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DiscoveryFilterPanel(
+                      purpose: _filterPurpose,
+                      type: _filterType,
+                      filterCount: _filterCount,
+                      searchText: _searchText,
+                      onPurpose: _setQuickPurpose,
+                      onType: _setQuickType,
+                      onSearch: () {
+                        final items = properties.asData?.value ?? const <PropertyMarker>[];
+                        _showSearchSheet(items);
+                      },
+                      onMore: _showFilters,
+                    ),
+                    if (_selectedAreaBounds != null) ...[
+                      const SizedBox(height: AppSpacing.s8),
+                      _buildAreaChip(),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildMapControls() {
-    return PositionedDirectional(
-      end: 12,
-      bottom: 86,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Material(
-            elevation: 5,
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            child: InkWell(
-              onTap: _saveCurrentSearch,
-              borderRadius: BorderRadius.circular(18),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.notifications_active_outlined, color: AppTheme.brand),
-                    SizedBox(width: 7),
-                    Text(
-                      'حفظ البحث',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
-              ),
+  Widget _buildMapControls() => AppSurface(
+        padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
+        child: Wrap(
+          alignment: WrapAlignment.start,
+          spacing: AppSpacing.s8,
+          runSpacing: AppSpacing.s8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            AppButton(
+              label: 'حفظ البحث',
+              icon: Icons.notifications_active_outlined,
+              style: AppButtonStyle.text,
+              onPressed: _saveCurrentSearch,
             ),
-          ),
-          const SizedBox(height: 8),
-          Material(
-            elevation: 5,
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            child: InkWell(
-              onTap: _beginAreaSelection,
-              borderRadius: BorderRadius.circular(18),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.gesture_rounded, color: AppTheme.brand),
-                    SizedBox(width: 7),
-                    Text(
-                      'رسم منطقة',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
-              ),
+            AppButton(
+              label: 'رسم منطقة',
+              icon: Icons.gesture_rounded,
+              style: AppButtonStyle.text,
+              onPressed: _beginAreaSelection,
             ),
-          ),
-          const SizedBox(height: 8),
-          _MapActionButton(
-            tooltip: 'موقعي',
-            icon: Icons.my_location,
-            onPressed: _userLocation == null ? null : _moveToMyLocation,
-          ),
-        ],
-      ),
-    );
-  }
+            AppIconButton(
+              tooltip: 'موقعي',
+              icon: Icons.my_location,
+              onPressed: _userLocation == null ? null : _moveToMyLocation,
+            ),
+          ],
+        ),
+      );
 
   Widget _buildAreaChip() {
-    return PositionedDirectional(
-      top: MediaQuery.paddingOf(context).top + 154,
-      start: 14,
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
       child: Material(
-        elevation: 3,
-        borderRadius: BorderRadius.circular(14),
-        color: Colors.white,
+        elevation: AppElevation.floating,
+        borderRadius: BorderRadius.circular(AppRadii.control),
+        color: Theme.of(context).colorScheme.surface,
         child: InputChip(
-          avatar: const Icon(Icons.gesture_rounded, size: 18),
+          avatar: const Icon(Icons.gesture_rounded),
           label: const Text('منطقة مرسومة'),
-          deleteIcon: const Icon(Icons.close_rounded, size: 18),
+          deleteIcon: const Icon(Icons.close_rounded),
           onDeleted: _clearSelectedArea,
         ),
       ),
@@ -1355,20 +1358,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildMapBottomBar(AsyncValue<List<PropertyMarker>> properties) {
-    return PositionedDirectional(
-      start: 12,
-      end: 12,
-      bottom: 10,
-      child: _MapListSwitcherBar(
-        countText: properties.when(
-          data: (items) => '${items.length} نتيجة',
-          loading: () => 'جاري التحميل…',
-          error: (_, __) => 'تعذر الاتصال',
-        ),
-        mapMode: true,
-        onSwitch: () => setState(() => _listMode = true),
-        onAdd: _openAddProperty,
+    return DiscoveryModeBar(
+      countText: properties.when(
+        data: (items) => '${items.length} نتيجة',
+        loading: () => 'جاري التحميل…',
+        error: (_, __) => 'تعذر الاتصال',
       ),
+      mapMode: true,
+      onSwitch: () => setState(() => _listMode = true),
+      onAdd: _openAddProperty,
     );
   }
 
@@ -1376,27 +1374,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     PropertyMarker property, {
     required bool favorite,
   }) {
-    return PositionedDirectional(
-      start: 12,
-      end: 12,
-      bottom: 78,
-      child: _MapSelectionCard(
-        property: property,
-        favorite: favorite,
-        onFavorite: _changingFavorite
-            ? null
-            : () => _toggleFavorite(
-                  property.id,
-                  currentlyFavorite: favorite,
-                ),
-        onDetails: () => _openDetails(property),
-        onClose: () {
-          setState(() {
-            _selected = null;
-            _lastMarkerSignature = '';
-          });
-        },
-      ),
+    return _MapSelectionCard(
+      property: property,
+      favorite: favorite,
+      onFavorite: _changingFavorite
+          ? null
+          : () => _toggleFavorite(
+                property.id,
+                currentlyFavorite: favorite,
+              ),
+      onDetails: () => _openDetails(property),
+      onClose: () {
+        setState(() {
+          _selected = null;
+          _lastMarkerSignature = '';
+        });
+      },
     );
   }
 
@@ -1429,68 +1422,57 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SegmentedButton<int>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment(value: 0, label: Text('الأحدث')),
-                        ButtonSegment(value: 1, label: Text('السعر')),
-                        ButtonSegment(value: 2, label: Text('الأقرب')),
-                      ],
-                      selected: {_sortMode},
-                      onSelectionChanged: (value) {
-                        setState(() => _sortMode = value.first);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterCountButton(
-                      count: _filterCount, onPressed: _showFilters),
-                ],
-              ),
-            ),
-            if (_searchText.isNotEmpty || _selectedAreaBounds != null)
+        body: DiscoveryResultsLayout(
+          header: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                child: Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: [
-                    if (_searchText.isNotEmpty)
-                      InputChip(
-                        avatar: const Icon(Icons.search, size: 18),
-                        label: Text(_searchText),
-                        onDeleted: () {
-                          _searchController.clear();
-                          setState(() => _searchText = '');
-                          _persistDiscoveryHistory();
-                        },
-                      ),
-                    if (_selectedAreaBounds != null)
-                      InputChip(
-                        avatar: const Icon(Icons.crop_free, size: 18),
-                        label: const Text('منطقة محددة'),
-                        onDeleted: _clearSelectedArea,
-                      ),
-                  ],
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  AppLayout.compactPageGutter, AppSpacing.s8,
+                  AppLayout.compactPageGutter, AppSpacing.s12,
+                ),
+                child: DiscoverySortBar(
+                  sortMode: _sortMode,
+                  filterCount: _filterCount,
+                  onSort: (value) => setState(() => _sortMode = value),
+                  onFilters: _showFilters,
                 ),
               ),
-            Expanded(
-              child: _buildListContent(properties, query, favoriteIds),
-            ),
-          ],
+              if (_searchText.isNotEmpty || _selectedAreaBounds != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                  child: Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: [
+                      if (_searchText.isNotEmpty)
+                        InputChip(
+                          avatar: const Icon(Icons.search, size: 18),
+                          label: Text(_searchText),
+                          onDeleted: () {
+                            _searchController.clear();
+                            setState(() => _searchText = '');
+                            _persistDiscoveryHistory();
+                          },
+                        ),
+                      if (_selectedAreaBounds != null)
+                        InputChip(
+                          avatar: const Icon(Icons.crop_free, size: 18),
+                          label: const Text('منطقة محددة'),
+                          onDeleted: _clearSelectedArea,
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          results: _buildListContent(properties, query, favoriteIds),
         ),
         bottomNavigationBar: SafeArea(
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: _MapListSwitcherBar(
+            child: DiscoveryModeBar(
               countText: properties.when(
                 data: (items) => '${items.length} نتيجة',
                 loading: () => 'جاري التحميل…',
@@ -1572,297 +1554,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 }
 
-class _MapQuickFilterPanel extends StatelessWidget {
-  const _MapQuickFilterPanel({
-    required this.purpose,
-    required this.type,
-    required this.filterCount,
-    required this.searchText,
-    required this.onPurpose,
-    required this.onType,
-    required this.onSearch,
-    required this.onMore,
-  });
-
-  final String? purpose;
-  final String? type;
-  final int filterCount;
-  final String searchText;
-  final ValueChanged<String?> onPurpose;
-  final ValueChanged<String?> onType;
-  final VoidCallback onSearch;
-  final VoidCallback onMore;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 6,
-      shadowColor: Colors.black.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(22),
-      color: Colors.white.withValues(alpha: 0.97),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _PurposeButton(
-                    label: 'للإيجار',
-                    icon: Icons.key_outlined,
-                    selected: purpose == 'rent',
-                    onTap: () => onPurpose('rent'),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: _PurposeButton(
-                    label: 'للبيع',
-                    icon: Icons.sell_outlined,
-                    selected: purpose == 'sale',
-                    onTap: () => onPurpose('sale'),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                FilledButton.icon(
-                  onPressed: onSearch,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.accent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  icon: const Icon(Icons.search),
-                  label: Text(searchText.isEmpty ? 'بحث' : 'بحث ✓'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 9),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _TypeChip(
-                      label: 'الكل',
-                      selected: type == null,
-                      onTap: () => onType(null)),
-                  _TypeChip(
-                      label: 'شقة',
-                      selected: type == 'apartment',
-                      onTap: () => onType('apartment')),
-                  _TypeChip(
-                      label: 'فيلا',
-                      selected: type == 'villa',
-                      onTap: () => onType('villa')),
-                  _TypeChip(
-                      label: 'منزل',
-                      selected: type == 'house',
-                      onTap: () => onType('house')),
-                  _TypeChip(
-                      label: 'أرض',
-                      selected: type == 'land',
-                      onTap: () => onType('land')),
-                  _TypeChip(
-                      label: 'محل',
-                      selected: type == 'shop',
-                      onTap: () => onType('shop')),
-                  _TypeChip(
-                      label: 'مكتب',
-                      selected: type == 'office',
-                      onTap: () => onType('office')),
-                  const SizedBox(width: 4),
-                  OutlinedButton.icon(
-                    onPressed: onMore,
-                    icon: const Icon(Icons.tune, size: 17),
-                    label: Text(
-                        filterCount == 0 ? 'المزيد' : 'المزيد ($filterCount)'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PurposeButton extends StatelessWidget {
-  const _PurposeButton({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppTheme.brandSoft : Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          height: 48,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected ? AppTheme.brand : AppTheme.outlineSoft,
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 19,
-                color: selected ? AppTheme.brandStrong : AppTheme.textStrong,
-              ),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color:
-                        selected ? AppTheme.brandStrong : AppTheme.textStrong,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TypeChip extends StatelessWidget {
-  const _TypeChip(
-      {required this.label, required this.selected, required this.onTap});
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 6),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        showCheckmark: selected,
-        checkmarkColor: AppTheme.brandStrong,
-        backgroundColor: Colors.white,
-        selectedColor: AppTheme.brandSoft,
-        side: BorderSide(
-          color: selected ? AppTheme.brand : AppTheme.outlineSoft,
-          width: selected ? 1.5 : 1.1,
-        ),
-        labelStyle: TextStyle(
-          color: selected ? AppTheme.brandStrong : AppTheme.textStrong,
-          fontWeight: FontWeight.w900,
-        ),
-        onSelected: (_) => onTap(),
-      ),
-    );
-  }
-}
-
-class _MapListSwitcherBar extends StatelessWidget {
-  const _MapListSwitcherBar({
-    required this.countText,
-    required this.mapMode,
-    required this.onSwitch,
-    required this.onAdd,
-  });
-
-  final String countText;
-  final bool mapMode;
-  final VoidCallback onSwitch;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.16),
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: 58,
-        child: Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: onSwitch,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(mapMode
-                        ? Icons.view_list_outlined
-                        : Icons.map_outlined),
-                    const SizedBox(width: 7),
-                    Text(
-                      mapMode ? 'قائمة' : 'خريطة',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const VerticalDivider(),
-            Expanded(
-              child: Center(
-                child: Text(
-                  countText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textStrong,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ),
-            const VerticalDivider(),
-            Expanded(
-              child: InkWell(
-                onTap: onAdd,
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_circle, color: AppTheme.brandStrong),
-                    SizedBox(width: 7),
-                    Text(
-                      'إضافة',
-                      style: TextStyle(
-                        color: AppTheme.brandStrong,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _AreaStrokePainter extends CustomPainter {
   const _AreaStrokePainter({required this.points});
 
@@ -1911,200 +1602,6 @@ class _AreaStrokePainter extends CustomPainter {
   }
 }
 
-class _MapActionButton extends StatelessWidget {
-  const _MapActionButton({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.14),
-      shape: const CircleBorder(),
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon),
-      ),
-    );
-  }
-}
-
-class _FilterCountButton extends StatelessWidget {
-  const _FilterCountButton({required this.count, required this.onPressed});
-
-  final int count;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: const Icon(Icons.tune, size: 18),
-      label: Text(count == 0 ? 'تصفية' : '$count'),
-    );
-  }
-}
-
-class _SearchSheet extends StatefulWidget {
-  const _SearchSheet({
-    required this.initialValue,
-    required this.suggestions,
-    required this.recentSearches,
-  });
-
-  final String initialValue;
-  final List<String> suggestions;
-  final List<String> recentSearches;
-
-  @override
-  State<_SearchSheet> createState() => _SearchSheetState();
-}
-
-class _SearchSheetState extends State<_SearchSheet> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final query = _controller.text.trim().toLowerCase();
-    final suggestions = widget.suggestions
-        .where((value) => query.isEmpty || value.toLowerCase().contains(query))
-        .take(6)
-        .toList(growable: false);
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        18,
-        12,
-        18,
-        MediaQuery.viewInsetsOf(context).bottom + 18,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              width: 44,
-              height: 5,
-              decoration: BoxDecoration(
-                color: AppTheme.outlineSoft,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'ابحث عن عقارك',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(
-              hintText: 'اسم منطقة، شارع أو عقار',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (value) => Navigator.of(context).pop(value),
-          ),
-          if (query.isEmpty && widget.recentSearches.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                'بحثت مؤخراً',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-            ),
-            const SizedBox(height: 7),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: widget.recentSearches
-                  .map(
-                    (value) => ActionChip(
-                      avatar: const Icon(Icons.history_rounded, size: 18),
-                      label: Text(value),
-                      onPressed: () => Navigator.of(context).pop(value),
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
-          ],
-          if (suggestions.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: suggestions.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (context, index) => ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.location_on_outlined),
-                  title: Text(
-                    suggestions[index],
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () => Navigator.of(context).pop(suggestions[index]),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(''),
-                  child: const Text('مسح البحث'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).pop(_controller.text),
-                  icon: const Icon(Icons.search),
-                  label: const Text('عرض النتائج'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _PropertyResultCard extends StatelessWidget {
   const _PropertyResultCard({
     required this.property,
@@ -2124,212 +1621,37 @@ class _PropertyResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = property.mainImage;
-
-    return SizedBox(
-      height: 164,
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onDetails,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: selected ? AppTheme.brand : AppTheme.outlineSoft,
-                width: selected ? 1.6 : 1,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 132,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      imageUrl == null
-                          ? const _PropertyImageFallback()
-                          : Image.network(
-                              imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  const _PropertyImageFallback(),
-                              loadingBuilder: (context, child, progress) {
-                                if (progress == null) return child;
-                                return const _PropertyImageFallback(
-                                    showLoader: true);
-                              },
-                            ),
-                      PositionedDirectional(
-                        top: 8,
-                        start: 8,
-                        child: Material(
-                          color: Colors.white.withValues(alpha: 0.94),
-                          shape: const CircleBorder(),
-                          child: IconButton(
-                            tooltip: favorite
-                                ? 'إزالة من المفضلة'
-                                : 'حفظ في المفضلة',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: onFavorite,
-                            icon: Icon(
-                              favorite
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              color: favorite
-                                  ? Theme.of(context).colorScheme.error
-                                  : AppTheme.textStrong,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            if (property.purpose != null)
-                              _MiniTag(label: _purposeLabel(property.purpose!)),
-                            if (property.type != null) ...[
-                              const SizedBox(width: 6),
-                              _MiniTag(label: _typeLabel(property.type!)),
-                            ],
-                            const Spacer(),
-                            IconButton(
-                              tooltip: 'عرض على الخريطة',
-                              visualDensity: VisualDensity.compact,
-                              constraints: const BoxConstraints.tightFor(
-                                  width: 32, height: 32),
-                              padding: EdgeInsets.zero,
-                              onPressed: onMap,
-                              icon: const Icon(Icons.location_on_outlined,
-                                  size: 19),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          property.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${_formatPrice(property.price)} ${_currencyLabel(property.currency)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: AppTheme.brandStrong,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                        ),
-                        const Spacer(),
-                        _PropertyFacts(property: property),
-                        const SizedBox(height: 6),
-                        Text(
-                          property.address ??
-                              '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.textMuted,
-                                  ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PropertyFacts extends StatelessWidget {
-  const _PropertyFacts({required this.property});
-
-  final PropertyMarker property;
-
-  @override
-  Widget build(BuildContext context) {
-    final facts = <Widget>[];
-    if (property.areaM2 != null) {
-      facts.add(_Fact(icon: Icons.square_foot, text: '${property.areaM2} م²'));
-    }
-    if (property.bedrooms != null) {
-      facts.add(_Fact(icon: Icons.bed_outlined, text: '${property.bedrooms}'));
-    }
-    if (property.bathrooms != null) {
-      facts.add(
-          _Fact(icon: Icons.bathtub_outlined, text: '${property.bathrooms}'));
-    }
-    if (facts.isEmpty) return const SizedBox(height: 20);
-    return Wrap(spacing: 10, runSpacing: 4, children: facts);
-  }
-}
-
-class _Fact extends StatelessWidget {
-  const _Fact({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: AppTheme.textMuted),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textMuted,
-              ),
-        ),
+    return AppPropertyCard(
+      title: property.title,
+      price: _formatPrice(property.price),
+      currency: _currencyLabel(property.currency),
+      imageUrl: property.mainImage,
+      location: property.address ??
+          '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
+      purposeLabel: property.purpose == null ? null : _purposeLabel(property.purpose!),
+      categoryLabel: property.type == null ? null : _typeLabel(property.type!),
+      selected: selected,
+      facts: [
+        if (property.areaM2 != null)
+          AppPropertyFact(icon: Icons.square_foot, label: '${property.areaM2} م²'),
+        if (property.bedrooms != null)
+          AppPropertyFact(icon: Icons.bed_outlined, label: '${property.bedrooms}'),
+        if (property.bathrooms != null)
+          AppPropertyFact(icon: Icons.bathtub_outlined, label: '${property.bathrooms}'),
       ],
-    );
-  }
-}
-
-class _MiniTag extends StatelessWidget {
-  const _MiniTag({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppTheme.brandSoft,
-        borderRadius: BorderRadius.circular(999),
+      trailing: IconButton.filledTonal(
+        tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
+        onPressed: onFavorite,
+        icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppTheme.brandStrong,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
+      footer: AppButton(
+        label: 'عرض على الخريطة',
+        icon: Icons.location_on_outlined,
+        style: AppButtonStyle.text,
+        expand: true,
+        onPressed: onMap,
       ),
+      onTap: onDetails,
     );
   }
 }
@@ -2350,181 +1672,24 @@ class _MapSelectionCard extends StatelessWidget {
   final VoidCallback onClose;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 8,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onDetails,
-        child: SizedBox(
-          height: 112,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 108,
-                height: double.infinity,
-                child: property.mainImage == null
-                    ? const _PropertyImageFallback()
-                    : Image.network(
-                        property.mainImage!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const _PropertyImageFallback(),
-                      ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      property.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w900, fontSize: 16),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '${_formatPrice(property.price)} ${_currencyLabel(property.currency)}',
-                      style: const TextStyle(
-                        color: AppTheme.brandStrong,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      property.address ?? 'اضغط لعرض التفاصيل',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: AppTheme.textMuted, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    tooltip: favorite
-                        ? 'إزالة من المفضلة'
-                        : 'حفظ في المفضلة',
-                    onPressed: onFavorite,
-                    icon: Icon(
-                      favorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: favorite
-                          ? Theme.of(context).colorScheme.error
-                          : AppTheme.textStrong,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'إغلاق',
-                    onPressed: onClose,
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PropertyImageFallback extends StatelessWidget {
-  const _PropertyImageFallback({this.showLoader = false});
-
-  final bool showLoader;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: AppTheme.brandSoft,
-      child: Center(
-        child: showLoader
-            ? const SizedBox.square(
-                dimension: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              )
-            : const Icon(
-                Icons.home_work_outlined,
-                color: AppTheme.brandStrong,
-                size: 38,
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => DiscoveryPropertyPreview(
+        title: property.title,
+        price: _formatPrice(property.price),
+        currency: _currencyLabel(property.currency),
+        imageUrl: property.mainImage,
+        location: property.address ?? 'اضغط لعرض التفاصيل',
+        favorite: favorite,
+        onFavorite: onFavorite,
+        onDetails: onDetails,
+        onClose: onClose,
+      );
 }
 
 class _LoadingPropertyCard extends StatelessWidget {
   const _LoadingPropertyCard();
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 164,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.outlineSoft),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          Container(
-            width: 118,
-            decoration: BoxDecoration(
-              color: AppTheme.brandSoft,
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                _LoadingLine(widthFactor: 0.8),
-                SizedBox(height: 10),
-                _LoadingLine(widthFactor: 0.55),
-                SizedBox(height: 16),
-                _LoadingLine(widthFactor: 0.68),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LoadingLine extends StatelessWidget {
-  const _LoadingLine({required this.widthFactor});
-
-  final double widthFactor;
-
-  @override
-  Widget build(BuildContext context) {
-    return FractionallySizedBox(
-      widthFactor: widthFactor,
-      alignment: AlignmentDirectional.centerStart,
-      child: Container(
-        height: 12,
-        decoration: BoxDecoration(
-          color: const Color(0xFFEAF1F0),
-          borderRadius: BorderRadius.circular(999),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const AppPropertyCardSkeleton();
 }
 
 class _ResultsState extends StatelessWidget {
@@ -2543,522 +1708,13 @@ class _ResultsState extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: AppTheme.textMuted),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-            const SizedBox(height: 6),
-            Text(message, textAlign: TextAlign.center),
-            if (buttonLabel != null && onPressed != null) ...[
-              const SizedBox(height: 14),
-              FilledButton.tonal(
-                onPressed: onPressed,
-                child: Text(buttonLabel!),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterResult {
-  const _FilterResult({
-    this.purpose,
-    this.type,
-    this.minPrice,
-    this.maxPrice,
-    this.minBedrooms,
-    this.minBathrooms,
-    this.minArea,
-    this.maxArea,
-  });
-
-  final String? purpose;
-  final String? type;
-  final double? minPrice;
-  final double? maxPrice;
-  final int? minBedrooms;
-  final int? minBathrooms;
-  final double? minArea;
-  final double? maxArea;
-}
-
-class _PropertyFilterSheet extends StatefulWidget {
-  const _PropertyFilterSheet({
-    this.initialPurpose,
-    this.initialType,
-    this.initialMinPrice,
-    this.initialMaxPrice,
-    this.initialMinBedrooms,
-    this.initialMinBathrooms,
-    this.initialMinArea,
-    this.initialMaxArea,
-  });
-
-  final String? initialPurpose;
-  final String? initialType;
-  final double? initialMinPrice;
-  final double? initialMaxPrice;
-  final int? initialMinBedrooms;
-  final int? initialMinBathrooms;
-  final double? initialMinArea;
-  final double? initialMaxArea;
-
-  @override
-  State<_PropertyFilterSheet> createState() => _PropertyFilterSheetState();
-}
-
-class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
-  late String? _purpose;
-  late String? _type;
-  late int? _minBedrooms;
-  late int? _minBathrooms;
-  late final TextEditingController _minPriceController;
-  late final TextEditingController _maxPriceController;
-  late final TextEditingController _minAreaController;
-  late final TextEditingController _maxAreaController;
-
-  String? _error;
-  bool _submitting = false;
-  bool _showMore = false;
-
-  bool get _showRoomFilters =>
-      _type == 'apartment' || _type == 'house' || _type == 'villa';
-
-  @override
-  void initState() {
-    super.initState();
-    _purpose = widget.initialPurpose;
-    _type = widget.initialType;
-    _minBedrooms = widget.initialMinBedrooms;
-    _minBathrooms = widget.initialMinBathrooms;
-    _minPriceController = TextEditingController(
-      text: widget.initialMinPrice?.toStringAsFixed(0) ?? '',
-    );
-    _maxPriceController = TextEditingController(
-      text: widget.initialMaxPrice?.toStringAsFixed(0) ?? '',
-    );
-    _minAreaController = TextEditingController(
-      text: widget.initialMinArea?.toStringAsFixed(0) ?? '',
-    );
-    _maxAreaController = TextEditingController(
-      text: widget.initialMaxArea?.toStringAsFixed(0) ?? '',
-    );
-    _showMore = widget.initialMinPrice != null ||
-        widget.initialMaxPrice != null ||
-        widget.initialMinBedrooms != null ||
-        widget.initialMinBathrooms != null ||
-        widget.initialMinArea != null ||
-        widget.initialMaxArea != null;
-  }
-
-  @override
-  void dispose() {
-    _minPriceController.dispose();
-    _maxPriceController.dispose();
-    _minAreaController.dispose();
-    _maxAreaController.dispose();
-    super.dispose();
-  }
-
-  void _setType(String? value) {
-    setState(() {
-      _type = value;
-      if (!_showRoomFilters) {
-        _minBedrooms = null;
-        _minBathrooms = null;
-      }
-    });
-  }
-
-  void _reset() {
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() {
-      _purpose = null;
-      _type = null;
-      _minBedrooms = null;
-      _minBathrooms = null;
-      _minPriceController.clear();
-      _maxPriceController.clear();
-      _minAreaController.clear();
-      _maxAreaController.clear();
-      _error = null;
-      _showMore = false;
-    });
-  }
-
-  double? _parseOptionalDouble(TextEditingController controller) {
-    final value = controller.text.trim();
-    if (value.isEmpty) return null;
-    return double.tryParse(value);
-  }
-
-  void _apply() {
-    if (_submitting) return;
-    FocusManager.instance.primaryFocus?.unfocus();
-
-    final minPriceText = _minPriceController.text.trim();
-    final maxPriceText = _maxPriceController.text.trim();
-    final minAreaText = _minAreaController.text.trim();
-    final maxAreaText = _maxAreaController.text.trim();
-
-    final minPrice = _parseOptionalDouble(_minPriceController);
-    final maxPrice = _parseOptionalDouble(_maxPriceController);
-    final minArea = _parseOptionalDouble(_minAreaController);
-    final maxArea = _parseOptionalDouble(_maxAreaController);
-
-    final invalidNumber = (minPriceText.isNotEmpty && minPrice == null) ||
-        (maxPriceText.isNotEmpty && maxPrice == null) ||
-        (minAreaText.isNotEmpty && minArea == null) ||
-        (maxAreaText.isNotEmpty && maxArea == null);
-    if (invalidNumber) {
-      setState(() => _error = 'تأكد من كتابة الأرقام بشكل صحيح.');
-      return;
-    }
-
-    final hasNegative = (minPrice != null && minPrice < 0) ||
-        (maxPrice != null && maxPrice < 0) ||
-        (minArea != null && minArea < 0) ||
-        (maxArea != null && maxArea < 0);
-    if (hasNegative) {
-      setState(() => _error = 'القيم لا يمكن أن تكون سالبة.');
-      return;
-    }
-
-    if (minPrice != null && maxPrice != null && maxPrice < minPrice) {
-      setState(() => _error = 'أعلى سعر يجب أن يكون أكبر من أقل سعر.');
-      return;
-    }
-
-    if (minArea != null && maxArea != null && maxArea < minArea) {
-      setState(() => _error = 'أكبر مساحة يجب أن تكون أكبر من أقل مساحة.');
-      return;
-    }
-
-    setState(() {
-      _error = null;
-      _submitting = true;
-    });
-
-    Navigator.of(context).pop(
-      _FilterResult(
-        purpose: _purpose,
-        type: _type,
-        minPrice: minPrice,
-        maxPrice: maxPrice,
-        minBedrooms: _showRoomFilters ? _minBedrooms : null,
-        minBathrooms: _showRoomFilters ? _minBathrooms : null,
-        minArea: minArea,
-        maxArea: maxArea,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints:
-          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
-      decoration: const BoxDecoration(
-        color: AppTheme.page,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 10),
-          Container(
-            width: 44,
-            height: 5,
-            decoration: BoxDecoration(
-              color: AppTheme.outlineSoft,
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'تصفية العقارات',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'الفلاتر الأساسية أمامك، واضغط المزيد للخيارات التفصيلية.',
-                        style: TextStyle(color: AppTheme.textMuted),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  onPressed: _submitting ? null : _reset,
-                  child: const Text('مسح'),
-                ),
-              ],
-            ),
-          ),
-          const Divider(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                16,
-                20,
-                MediaQuery.viewInsetsOf(context).bottom + 20,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _FilterSectionTitle('الغرض'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _choice('الكل', _purpose == null,
-                          () => setState(() => _purpose = null)),
-                      _choice('للبيع', _purpose == 'sale',
-                          () => setState(() => _purpose = 'sale')),
-                      _choice('للإيجار', _purpose == 'rent',
-                          () => setState(() => _purpose = 'rent')),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const _FilterSectionTitle('نوع العقار'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _choice('الكل', _type == null, () => _setType(null)),
-                      _choice('شقة', _type == 'apartment',
-                          () => _setType('apartment')),
-                      _choice(
-                          'منزل', _type == 'house', () => _setType('house')),
-                      _choice(
-                          'فيلا', _type == 'villa', () => _setType('villa')),
-                      _choice('أرض', _type == 'land', () => _setType('land')),
-                      _choice('محل', _type == 'shop', () => _setType('shop')),
-                      _choice(
-                          'مكتب', _type == 'office', () => _setType('office')),
-                      _choice('مزرعة', _type == 'farm', () => _setType('farm')),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Material(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () => setState(() => _showMore = !_showMore),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.tune, color: AppTheme.accent),
-                            const SizedBox(width: 9),
-                            const Expanded(
-                              child: Text(
-                                'المزيد من الفلاتر',
-                                style: TextStyle(fontWeight: FontWeight.w900),
-                              ),
-                            ),
-                            Icon(_showMore
-                                ? Icons.expand_less
-                                : Icons.expand_more),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  AnimatedCrossFade(
-                    duration: const Duration(milliseconds: 180),
-                    crossFadeState: _showMore
-                        ? CrossFadeState.showSecond
-                        : CrossFadeState.showFirst,
-                    firstChild: const SizedBox.shrink(),
-                    secondChild: Padding(
-                      padding: const EdgeInsets.only(top: 18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_showRoomFilters) ...[
-                            const _FilterSectionTitle('غرف النوم'),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                for (final number in [1, 2, 3, 4, 5])
-                                  _numberChoice(
-                                    label: '$number+',
-                                    value: _minBedrooms,
-                                    number: number,
-                                    onChanged: (value) =>
-                                        setState(() => _minBedrooms = value),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            const _FilterSectionTitle('الحمامات'),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                for (final number in [1, 2, 3, 4])
-                                  _numberChoice(
-                                    label: '$number+',
-                                    value: _minBathrooms,
-                                    number: number,
-                                    onChanged: (value) =>
-                                        setState(() => _minBathrooms = value),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                          ],
-                          const _FilterSectionTitle('المساحة (م²)'),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _minAreaController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true),
-                                  decoration:
-                                      const InputDecoration(labelText: 'من'),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: TextField(
-                                  controller: _maxAreaController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true),
-                                  decoration:
-                                      const InputDecoration(labelText: 'إلى'),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-                          const _FilterSectionTitle('السعر'),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _minPriceController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true),
-                                  decoration: const InputDecoration(
-                                      labelText: 'أقل سعر'),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: TextField(
-                                  controller: _maxPriceController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true),
-                                  decoration: const InputDecoration(
-                                      labelText: 'أعلى سعر'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 14),
-                    _MessageCard(text: _error!, error: true),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _submitting ? null : _apply,
-                icon: const Icon(Icons.search),
-                label: const Text('عرض العقارات'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _choice(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: _submitting ? null : (_) => onTap(),
-    );
-  }
-
-  Widget _numberChoice({
-    required String label,
-    required int? value,
-    required int number,
-    required ValueChanged<int?> onChanged,
-  }) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: value == number,
-      onSelected: _submitting
-          ? null
-          : (_) => onChanged(value == number ? null : number),
-    );
-  }
-}
-
-class _FilterSectionTitle extends StatelessWidget {
-  const _FilterSectionTitle(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w900,
-          ),
-    );
-  }
+  Widget build(BuildContext context) => AppEmptyState(
+        icon: icon,
+        title: title,
+        message: message,
+        actionLabel: buttonLabel,
+        onAction: onPressed,
+      );
 }
 
 class _ApiFailureBanner extends StatelessWidget {
@@ -3068,74 +1724,30 @@ class _ApiFailureBanner extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFFFFF7F4),
-      elevation: 6,
-      shadowColor: Colors.black.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE5A497), width: 1.2),
-        ),
-        child: Row(
+  Widget build(BuildContext context) => AppSurface(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.cloud_off_outlined, color: Color(0xFF9B3D2B)),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                message,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF6D2D21),
-                  fontWeight: FontWeight.w800,
-                  height: 1.35,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('إعادة'),
-            ),
+            AppInlineMessage(message: message, tone: AppStatusTone.error, icon: Icons.cloud_off_outlined),
+            const SizedBox(height: AppSpacing.s8),
+            AppButton(label: 'إعادة', icon: Icons.refresh, onPressed: onRetry, style: AppButtonStyle.tonal),
           ],
         ),
-      ),
-    );
-  }
+      );
 }
 
 class _MessageCard extends StatelessWidget {
-  const _MessageCard({required this.text, this.error = false});
+  const _MessageCard({required this.text});
 
   final String text;
-  final bool error;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: error ? const Color(0xFFFFECEC) : Colors.white,
-      elevation: error ? 0 : 4,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(
-              error ? Icons.error_outline : Icons.info_outline,
-              color: error ? Colors.red.shade700 : AppTheme.accent,
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: Text(text)),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppInlineMessage(
+        message: text,
+        tone: AppStatusTone.info,
+        icon: Icons.info_outline,
+      );
 }
 
 String _purposeLabel(String value) {

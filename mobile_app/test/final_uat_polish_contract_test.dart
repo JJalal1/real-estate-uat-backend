@@ -36,7 +36,12 @@ void main() {
       'lib/features/map/data/property_discovery_history_store.dart',
     ).readAsStringSync();
 
-    expect(mapSource, contains('بحثت مؤخراً'));
+    final searchSource = File(
+      'lib/features/map/presentation/discovery_search_sheet.dart',
+    ).readAsStringSync();
+    expect(searchSource, contains('بحثت مؤخراً'));
+    expect(mapSource, contains('builder: (context) => DiscoverySearchSheet('));
+    expect(mapSource, contains('recentSearches: _recentSearches'));
     expect(mapSource, contains('_restoreDiscoveryHistory'));
     expect(mapSource, contains(r"'${items.length} نتيجة'"));
     expect(historySource, contains('property_discovery_history_v1.json'));
