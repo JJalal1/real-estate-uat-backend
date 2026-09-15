@@ -2074,28 +2074,19 @@ class _MapSelectionCard extends StatelessWidget {
 }
 
 class _PropertyImageFallback extends StatelessWidget {
-  const _PropertyImageFallback({this.showLoader = false});
-
-  final bool showLoader;
+  const _PropertyImageFallback();
 
   @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: AppTheme.brandSoft,
-      child: Center(
-        child: showLoader
-            ? const SizedBox.square(
-                dimension: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              )
-            : const Icon(
-                Icons.home_work_outlined,
-                color: AppTheme.brandStrong,
-                size: 38,
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const ColoredBox(
+        color: AppTheme.brandSoft,
+        child: Center(
+          child: Icon(
+            Icons.home_work_outlined,
+            color: AppTheme.brandStrong,
+            size: 38,
+          ),
+        ),
+      );
 }
 
 class _LoadingPropertyCard extends StatelessWidget {

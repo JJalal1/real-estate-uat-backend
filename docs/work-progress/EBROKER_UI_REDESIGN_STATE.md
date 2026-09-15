@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-15 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `f02a114acb3ea2c555760b5902dcb748441da430` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `6d17062fbb5c2ba165b2fb20cee5f97f3d5778a1` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -38,6 +38,8 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 PHASE 3 — marketplace card presentation, first bounded change. Shared image/price/title/location/facts hierarchy now drives map list results, favorites and saved-search cards. Similar-property rail follows content height. New card tests and CI visual evidence are pending. Search/filter sheets, map selection card and bottom controls remain to redesign before Phase 3 completion.
 
 # Exact Last Completed Step
+
+Marketplace CI `34957029506` stopped at analyze: the removed result-card renderer left an unused optional loading parameter on the map-preview fallback. Removed that now-unreachable parameter/branch; the preview keeps its original fallback. Card rendering/tests require fresh CI. Further dock work is preserved in local stash `phase3: map dock layout in progress`; do not publish it before card regression passes.
 
 Phase 2 follow-up CI `34911352983` at `f02a114acb3ea2c555760b5902dcb748441da430` PASSED all three jobs, including analyze, complete Flutter suite, sliver retry, contrast, backend/PostGIS, Frankfurt guards and release APK. Corrected discovery rendering inspected at 320px/normal text and 412px/2.4 text: tonal text readable and real shadows captured. Implemented shared marketplace cards, removed fixed 164px map-result height, preserved all callbacks and map state, and replaced fixed 340px similar-property viewport with a content-height rail. Added eight RTL/card/independent-action regression tests. No Phase 3 screen is yet marked complete.
 
