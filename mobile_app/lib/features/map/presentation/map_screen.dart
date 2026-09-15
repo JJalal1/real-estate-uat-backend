@@ -14,6 +14,7 @@ import 'discovery_filter_panel.dart';
 import 'discovery_map_dock.dart';
 import 'discovery_search_sheet.dart';
 import 'discovery_filter_sheet.dart';
+import 'discovery_results_layout.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
 import '../data/property_discovery_history_store.dart';
@@ -1421,62 +1422,51 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SegmentedButton<int>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment(value: 0, label: Text('الأحدث')),
-                        ButtonSegment(value: 1, label: Text('السعر')),
-                        ButtonSegment(value: 2, label: Text('الأقرب')),
-                      ],
-                      selected: {_sortMode},
-                      onSelectionChanged: (value) {
-                        setState(() => _sortMode = value.first);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterCountButton(
-                      count: _filterCount, onPressed: _showFilters),
-                ],
-              ),
-            ),
-            if (_searchText.isNotEmpty || _selectedAreaBounds != null)
+        body: DiscoveryResultsLayout(
+          header: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                child: Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: [
-                    if (_searchText.isNotEmpty)
-                      InputChip(
-                        avatar: const Icon(Icons.search, size: 18),
-                        label: Text(_searchText),
-                        onDeleted: () {
-                          _searchController.clear();
-                          setState(() => _searchText = '');
-                          _persistDiscoveryHistory();
-                        },
-                      ),
-                    if (_selectedAreaBounds != null)
-                      InputChip(
-                        avatar: const Icon(Icons.crop_free, size: 18),
-                        label: const Text('منطقة محددة'),
-                        onDeleted: _clearSelectedArea,
-                      ),
-                  ],
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  AppLayout.compactPageGutter, AppSpacing.s8,
+                  AppLayout.compactPageGutter, AppSpacing.s12,
+                ),
+                child: DiscoverySortBar(
+                  sortMode: _sortMode,
+                  filterCount: _filterCount,
+                  onSort: (value) => setState(() => _sortMode = value),
+                  onFilters: _showFilters,
                 ),
               ),
-            Expanded(
-              child: _buildListContent(properties, query, favoriteIds),
-            ),
-          ],
+              if (_searchText.isNotEmpty || _selectedAreaBounds != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                  child: Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: [
+                      if (_searchText.isNotEmpty)
+                        InputChip(
+                          avatar: const Icon(Icons.search, size: 18),
+                          label: Text(_searchText),
+                          onDeleted: () {
+                            _searchController.clear();
+                            setState(() => _searchText = '');
+                            _persistDiscoveryHistory();
+                          },
+                        ),
+                      if (_selectedAreaBounds != null)
+                        InputChip(
+                          avatar: const Icon(Icons.crop_free, size: 18),
+                          label: const Text('منطقة محددة'),
+                          onDeleted: _clearSelectedArea,
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          results: _buildListContent(properties, query, favoriteIds),
         ),
         bottomNavigationBar: SafeArea(
           top: false,
@@ -1609,22 +1599,6 @@ class _AreaStrokePainter extends CustomPainter {
     if (points.length != oldDelegate.points.length) return true;
     if (points.isEmpty) return false;
     return points.last != oldDelegate.points.last;
-  }
-}
-
-class _FilterCountButton extends StatelessWidget {
-  const _FilterCountButton({required this.count, required this.onPressed});
-
-  final int count;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: const Icon(Icons.tune, size: 18),
-      label: Text(count == 0 ? 'تصفية' : '$count'),
-    );
   }
 }
 

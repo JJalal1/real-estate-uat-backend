@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-15 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `b5dea675f7bd12bde33a907c8737cada78f56554` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `8997066b20b28ee45f2de7b18f35f53f27c2eca1` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -39,11 +39,13 @@ PHASE 3 — advanced filters and discovery polish. Map/cards are verified throug
 
 # Exact Last Completed Step
 
+Completed result-control polish: responsive sort chips retain the original three values and comparators; NestedScrollView lets header controls scroll away while result lists stay lazy. Favorite comparison order now appears below facts, outside the property image/purpose badge. Exact comparison proves result branches/callbacks and favorite selection/limit/repository methods unchanged. Seven new tests cover sort selection/lazy reachability and the four-property comparison limit. Map notices/selected preview precede secondary controls. Full search gate `34988479360` is SUCCESS; filter/results regression is next.
+
 Extracted `DiscoveryFilterSheet` and its presentation result type. Exact source comparison proves initialization, type/room reset, numeric parsing, validation order/messages, reset and submit logic are unchanged apart from class names. Shared sections group purpose/type/rooms/area/price; AppFieldPair stacks related inputs when necessary. Theme owns the single modal handle. Added seven RTL/size cases and four behavior regressions including the complete malformed/negative/price/area rejection sequence. Added a map-action single-line Arabic assertion and explicit mode-action screenshots. None of these new changes are yet CI-accepted.
 
 # Next Exact Step
 
-Verify search run `34988479360`, publish the advanced-filter changes and require full regression/APK. Review filter/search and explicit enlarged map-action images. Finish list sort layout and favorite comparison selection presentation, then audit Phase 3 completion against the inventory before starting property details. Do not redo completed work.
+Publish the advanced-filter and result-control commits together, then require full regression/APK and inspect new filter/search/map-action evidence. Resolve any regressions before advancing. Audit discovery/favorites/saved-search presentation against the inventory; then start property details (Phase 4). Do not redo completed work.
 
 # Files Changed
 
@@ -77,6 +79,9 @@ Verify search run `34988479360`, publish the advanced-filter changes and require
 - `mobile_app/lib/features/map/presentation/discovery_filter_sheet.dart` — preserved filter state/validation with grouped responsive UI.
 - `mobile_app/test/experimental_discovery_filter_test.dart` — 11 RTL/size/validation/reset/type/room regressions.
 - `AppFieldPair` in the shared layouts — responsive input composition; no validation/controller ownership.
+- `mobile_app/lib/features/map/presentation/discovery_results_layout.dart` — scrolling header and lazy results; original sort values.
+- `mobile_app/test/experimental_discovery_results_test.dart` — six portrait/landscape RTL sort/lazy-scroll cases.
+- `mobile_app/test/experimental_favorite_selection_test.dart` — comparison order placement, four-item cap and cancel.
 - This checkpoint.
 
 # Screens Completed
@@ -88,6 +93,8 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- Search `34988479360`, SHA `b5dea675`: full experimental CI/APK SUCCESS. Filters and result controls await their final-head run.
 
 - Map polish `34987573433`, SHA `29f087c`: full experimental workflow SUCCESS, including APK. Companion `34987576488` also SUCCESS.
 - Search `34988484659`, SHA `b5dea675`: companion workflow SUCCESS; main experimental `34988479360` in progress at checkpoint.

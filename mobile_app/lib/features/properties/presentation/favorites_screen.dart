@@ -130,48 +130,41 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 itemBuilder: (context, index) {
                   final property = items[index];
                   final selected = _selected.contains(property.id);
-                  return Stack(
-                    children: [
-                      AppPropertyCard(
-                        title: property.title,
-                        price: _formatPrice(property.price),
-                        currency: property.currency,
-                        imageUrl: property.mainImage,
-                        location: property.address,
-                        purposeLabel: _purposeLabel(property.purpose),
-                        facts: _facts(property),
-                        selected: selected,
-                        trailing: _compareMode
-                            ? Icon(
-                                selected
-                                    ? Icons.check_circle_rounded
-                                    : Icons.radio_button_unchecked_rounded,
-                                color: selected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.onSurfaceVariant,
-                              )
-                            : IconButton.filledTonal(
-                                tooltip: 'إزالة من المفضلة',
-                                onPressed: () => _remove(context, property.id),
-                                icon: Icon(
-                                  Icons.favorite_rounded,
-                                  color: Theme.of(context).colorScheme.error,
-                                ),
-                              ),
-                        onTap: _compareMode
-                            ? () => _toggleSelection(property.id)
-                            : () => context.push('/properties/${property.id}'),
-                      ),
-                      if (_compareMode && selected)
-                        PositionedDirectional(
-                          top: AppSpacing.s8,
-                          start: AppSpacing.s8,
-                          child: AppStatusBadge(
-                            label: '${_selectionPosition(property.id)}',
-                            tone: AppStatusTone.success,
+                  return AppPropertyCard(
+                    title: property.title,
+                    price: _formatPrice(property.price),
+                    currency: property.currency,
+                    imageUrl: property.mainImage,
+                    location: property.address,
+                    purposeLabel: _purposeLabel(property.purpose),
+                    facts: _facts(property),
+                    selected: selected,
+                    trailing: _compareMode
+                        ? Icon(
+                            selected
+                                ? Icons.check_circle_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            color: selected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                          )
+                        : IconButton.filledTonal(
+                            tooltip: 'إزالة من المفضلة',
+                            onPressed: () => _remove(context, property.id),
+                            icon: Icon(
+                              Icons.favorite_rounded,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
                           ),
-                        ),
-                    ],
+                    onTap: _compareMode
+                        ? () => _toggleSelection(property.id)
+                        : () => context.push('/properties/${property.id}'),
+                    footer: _compareMode && selected
+                        ? AppStatusBadge(
+                            label: 'اختيار ${_selectionPosition(property.id)}',
+                            tone: AppStatusTone.success,
+                          )
+                        : null,
                   );
                 },
               );

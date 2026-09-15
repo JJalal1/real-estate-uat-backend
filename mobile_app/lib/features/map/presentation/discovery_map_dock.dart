@@ -27,19 +27,19 @@ class DiscoveryMapDock extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              controls,
-              if (error != null) ...[
+              if (message != null) ...[
+                message!,
                 const SizedBox(height: AppSpacing.s8),
+              ],
+              if (error != null) ...[
                 error!,
+                const SizedBox(height: AppSpacing.s8),
               ],
               if (preview != null) ...[
-                const SizedBox(height: AppSpacing.s8),
                 preview!,
-              ],
-              if (message != null) ...[
                 const SizedBox(height: AppSpacing.s8),
-                message!,
               ],
+              controls,
             ],
           );
           final stackActions = constraints.maxWidth < AppLayout.narrowBreakpoint &&
