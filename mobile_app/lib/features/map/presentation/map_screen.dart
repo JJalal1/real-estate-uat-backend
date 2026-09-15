@@ -12,6 +12,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/design/app_design.dart';
 import 'discovery_filter_panel.dart';
 import 'discovery_map_dock.dart';
+import 'discovery_search_sheet.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
 import '../data/property_discovery_history_store.dart';
@@ -763,7 +764,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => _SearchSheet(
+      builder: (context) => DiscoverySearchSheet(
         initialValue: _searchController.text,
         suggestions: _searchSuggestions(items),
         recentSearches: _recentSearches,
@@ -1622,157 +1623,6 @@ class _FilterCountButton extends StatelessWidget {
       onPressed: onPressed,
       icon: const Icon(Icons.tune, size: 18),
       label: Text(count == 0 ? 'تصفية' : '$count'),
-    );
-  }
-}
-
-class _SearchSheet extends StatefulWidget {
-  const _SearchSheet({
-    required this.initialValue,
-    required this.suggestions,
-    required this.recentSearches,
-  });
-
-  final String initialValue;
-  final List<String> suggestions;
-  final List<String> recentSearches;
-
-  @override
-  State<_SearchSheet> createState() => _SearchSheetState();
-}
-
-class _SearchSheetState extends State<_SearchSheet> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final query = _controller.text.trim().toLowerCase();
-    final suggestions = widget.suggestions
-        .where((value) => query.isEmpty || value.toLowerCase().contains(query))
-        .take(6)
-        .toList(growable: false);
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        18,
-        12,
-        18,
-        MediaQuery.viewInsetsOf(context).bottom + 18,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              width: 44,
-              height: 5,
-              decoration: BoxDecoration(
-                color: AppTheme.outlineSoft,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'ابحث عن عقارك',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(
-              hintText: 'اسم منطقة، شارع أو عقار',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (value) => Navigator.of(context).pop(value),
-          ),
-          if (query.isEmpty && widget.recentSearches.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                'بحثت مؤخراً',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-            ),
-            const SizedBox(height: 7),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: widget.recentSearches
-                  .map(
-                    (value) => ActionChip(
-                      avatar: const Icon(Icons.history_rounded, size: 18),
-                      label: Text(value),
-                      onPressed: () => Navigator.of(context).pop(value),
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
-          ],
-          if (suggestions.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: suggestions.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (context, index) => ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.location_on_outlined),
-                  title: Text(
-                    suggestions[index],
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () => Navigator.of(context).pop(suggestions[index]),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(''),
-                  child: const Text('مسح البحث'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).pop(_controller.text),
-                  icon: const Icon(Icons.search),
-                  label: const Text('عرض النتائج'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }

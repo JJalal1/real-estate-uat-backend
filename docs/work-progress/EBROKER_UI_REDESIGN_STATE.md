@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-15 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `7fa15d7ce1b0629e39b0fd3ff588b00e46456341` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `29f087c334f59147a54dd407ffef57239b049bd0` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,19 +35,15 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 3 — marketplace cards and map overlays. Card regression passed the companion Flutter/backend/PostGIS workflow at `cd483d5` (226 Flutter tests including the compile-time guard). Main experimental workflow `34957755283` passed all jobs including the isolated release APK. Six card images inspected; fixtures cover missing-image presentation and Arabic text, not real property photography.
+PHASE 3 — search, filtering and discovery. Cards and map dock passed full CI/APK at `7fa15d7` (229 Flutter tests); follow-up enlarged-text action polish at `29f087c` passed companion regression and its main APK workflow is being monitored. Search-sheet redesign is now implemented with eight new tests pending CI. Advanced filters and list sort layout remain next.
 
 # Exact Last Completed Step
 
-Dock CI `34958864562` at `7fa15d7` passed analyze, 229 Flutter tests, backend/PostGIS, Frankfurt and APK. Inspected all four dock screenshots: discovered awkward Arabic word wrapping in 320px/2.4 mode actions. Stack those actions and allow whole-dock scrolling at this size. Existing callback/map input tests retained. Search sheet plus eight tests are saved separately in local stash while this visual fix is verified.
-
-Dock CI `34958533200` failed static analysis because Flutter 3.27 SafeArea.minimum requires concrete EdgeInsets, not EdgeInsetsDirectional. Replaced the two symmetric left/right minimum insets with EdgeInsets.fromLTRB; RTL spacing is identical. Fresh dock tests/APK remain required. Search-sheet draft is preserved in stash `phase3: responsive search sheet awaiting dock gate`.
-
-Implemented content-driven `DiscoveryMapDock`, `DiscoveryModeBar` and `DiscoveryPropertyPreview`. Replaced overlapping fixed bottom offsets with flowing error/preview/message content and retained mode actions. Short viewports scroll the entire dock. Top/bottom panel bounds use the actual map viewport; native map and area-drawing overlay remain full-size. All map State methods, native map options and drawing overlay were compared exactly to the preceding commit. Added four integrated RTL portrait/landscape cases with independent actions and an exposed-map input check. The dock change has not yet passed CI; no full screen is marked complete.
+Extracted `DiscoverySearchSheet` from MapScreen. Preserved controller lifetime, case-insensitive matching, six-suggestion cap, recent-search visibility, exact pop values, clear behavior and keyboard search action. Replaced fixed/unscrollable modal content with shared headings/surfaces/actions and a single keyboard-aware scroll view; removed the duplicate custom drag handle because the app theme already renders one. Updated the existing visual source-location assertion to the extracted file, adding checks that MapScreen still passes real recent searches. Added four keyboard/RTL layout cases and four behavior regressions. No backend/state/navigation handler changed.
 
 # Next Exact Step
 
-Require `34957755283` APK success, then publish and validate this map-dock commit. Inspect four dock captures and deterministic card captures; require existing map-coordinate/navigation/permission tests and new interaction cases to pass. Next redesign the existing search/filter sheets and list sort controls, preserving every validation and result value. Do not repeat completed foundations/cards.
+Verify the latest map-polish gate (`34987573433`), publish this search-sheet commit and require its new tests, full regression and APK to pass. Inspect four new search images and the corrected narrow map mode actions. Then redesign the advanced filter sheet and list-sort controls, preserving the exact validation sequence and values. Do not redo earlier phases.
 
 # Files Changed
 
@@ -75,6 +71,9 @@ Require `34957755283` APK success, then publish and validate this map-dock commi
 - `mobile_app/lib/features/properties/presentation/property_details_screen.dart` — similar-property rail height compatibility only; full details redesign remains Phase 4.
 - `mobile_app/lib/features/map/presentation/discovery_map_dock.dart` — responsive map context/mode/preview presentation only.
 - `mobile_app/test/experimental_map_dock_test.dart` — simultaneous states, portrait/landscape RTL, input passthrough and every dock callback.
+- `mobile_app/lib/features/map/presentation/discovery_search_sheet.dart` — existing search state/returns with responsive modal presentation.
+- `mobile_app/test/experimental_discovery_search_test.dart` — eight keyboard/RTL/query/selection/clear/submit tests.
+- `mobile_app/test/final_uat_polish_contract_test.dart` — moved visual-copy source assertion follows the extracted sheet; history and map wiring assertions retained/extended.
 - This checkpoint.
 
 # Screens Completed
@@ -86,6 +85,9 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- Map dock run `34958864562`, SHA `7fa15d7`: complete SUCCESS, 229 Flutter tests, analyze/backend/PostGIS/Frankfurt/APK. Visual artifact `10392751138`, APK artifact `10392458132`. Four dock images inspected; 320px/2.4 word-wrap issue addressed separately at `29f087c`.
+- Search preflight: exact map source comparison (only search-widget binding changed), `git diff --check` and immutable 346-file verifier PASS. Search tests pending fresh CI.
 
 - 2026-09-15: companion run `34957760977`, SHA `cd483d5`, SUCCESS; analyze and all 226 Flutter tests including UAT compile-time guard, Laravel and PostgreSQL/PostGIS. Experimental APK run `34957755283` still building at this checkpoint.
 - 2026-09-15: live protected refs rechecked: main `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`, stable `46b8fed8fd119b223d4a1e67312d38ff9429e569`, both unchanged. No production access/deployment.
