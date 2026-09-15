@@ -42,7 +42,9 @@ class DiscoveryMapDock extends StatelessWidget {
               ],
             ],
           );
-          if (constraints.maxHeight < AppLayout.mapDockStickyMinHeight) {
+          final stackActions = constraints.maxWidth < AppLayout.narrowBreakpoint &&
+              MediaQuery.textScalerOf(context).scale(16) > 20;
+          if (constraints.maxHeight < AppLayout.mapDockStickyMinHeight || stackActions) {
             return SingleChildScrollView(
               primary: false,
               child: Column(
@@ -80,43 +82,47 @@ class DiscoveryModeBar extends StatelessWidget {
   final VoidCallback onAdd;
 
   @override
-  Widget build(BuildContext context) => AppSurface(
-        padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              countText,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            const SizedBox(height: AppSpacing.s4),
-            Row(
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final stacked = constraints.maxWidth < AppLayout.narrowBreakpoint &&
+              MediaQuery.textScalerOf(context).scale(16) > 20;
+          final switchButton = AppButton(
+            label: mapMode ? 'قائمة' : 'خريطة',
+            icon: mapMode ? Icons.view_list_outlined : Icons.map_outlined,
+            style: AppButtonStyle.tonal,
+            onPressed: onSwitch,
+            expand: true,
+          );
+          final addButton = AppButton(
+            label: 'إضافة',
+            icon: Icons.add_circle_outline,
+            style: AppButtonStyle.outlined,
+            onPressed: onAdd,
+            expand: true,
+          );
+          return AppSurface(
+            padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: AppButton(
-                    label: mapMode ? 'قائمة' : 'خريطة',
-                    icon: mapMode ? Icons.view_list_outlined : Icons.map_outlined,
-                    style: AppButtonStyle.tonal,
-                    onPressed: onSwitch,
-                    expand: true,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s8),
-                Expanded(
-                  child: AppButton(
-                    label: 'إضافة',
-                    icon: Icons.add_circle_outline,
-                    style: AppButtonStyle.outlined,
-                    onPressed: onAdd,
-                    expand: true,
-                  ),
-                ),
+                Text(countText, textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: AppSpacing.s4),
+                if (stacked) ...[
+                  switchButton,
+                  const SizedBox(height: AppSpacing.s8),
+                  addButton,
+                ] else
+                  Row(children: [
+                    Expanded(child: switchButton),
+                    const SizedBox(width: AppSpacing.s8),
+                    Expanded(child: addButton),
+                  ]),
               ],
             ),
-          ],
-        ),
+          );
+        },
       );
 }
 
