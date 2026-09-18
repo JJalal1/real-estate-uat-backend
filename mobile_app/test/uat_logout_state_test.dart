@@ -41,7 +41,7 @@ void main() {
       addTearDown(container.dispose);
       expect(await container.read(authControllerProvider.future), isNotNull);
       container.read(whatsAppAuthPendingProvider.notifier).state =
-          const WhatsAppAuthPending(phone: 'test-only', isNewAccount: false);
+          const WhatsAppAuthPending(phone: 'test-only', intent: 'login', isNewAccount: false);
 
       final logout = container.read(authControllerProvider.notifier).logout();
       if (offline) {
