@@ -90,7 +90,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     try {
       await ref
           .read(authControllerProvider.notifier)
-          .startWhatsApp(phone: _phone.text);
+          .startWhatsApp(phone: _phone.text, intent: 'login');
       if (!mounted) return;
       context.push('/verify-phone');
     } catch (error) {
