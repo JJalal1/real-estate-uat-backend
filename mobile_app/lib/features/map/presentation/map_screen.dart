@@ -709,22 +709,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _persistDiscoveryHistory();
   }
 
-  void _resetFilters() {
-    setState(() {
-      _filterPurpose = null;
-      _filterType = null;
-      _filterMinPrice = null;
-      _filterMaxPrice = null;
-      _filterMinBedrooms = null;
-      _filterMinBathrooms = null;
-      _filterMinArea = null;
-      _filterMaxArea = null;
-      _selected = null;
-      _lastMarkerSignature = '';
-    });
-    _persistDiscoveryHistory();
-  }
-
   int get _filterCount {
     var count = 0;
     if (_filterPurpose != null) count++;
