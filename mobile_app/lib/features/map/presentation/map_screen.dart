@@ -2300,7 +2300,18 @@ class _PropertyFacts extends StatelessWidget {
     }
     if (property.bathrooms != null) {
       facts.add(
-          _Fact(icon: Icons.bathtub_outlined, text: '${property.bathrooms}'));
+        _Fact(icon: Icons.bathtub_outlined, text: '${property.bathrooms}'),
+      );
+    }
+    if (property.hasParking == true) {
+      facts.add(
+        const _Fact(icon: Icons.local_parking_outlined, text: 'موقف'),
+      );
+    }
+    if (property.hasGarden == true) {
+      facts.add(
+        const _Fact(icon: Icons.park_outlined, text: 'حديقة'),
+      );
     }
     if (facts.isEmpty) return const SizedBox(height: 20);
     return Wrap(spacing: 10, runSpacing: 4, children: facts);
@@ -2315,18 +2326,26 @@ class _Fact extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: AppTheme.textMuted),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textMuted,
-              ),
-        ),
-      ],
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: scheme.secondary),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }
