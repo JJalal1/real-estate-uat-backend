@@ -27,6 +27,22 @@ permissions:
   issues: write
 
 jobs:
+  announce-p01:
+    name: Announce P01 CI run
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/v2/p01-foundation-identity-ux'
+    steps:
+      - name: Comment run id
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 55,
+              body: 'P01 CI started: run_id=' + context.runId + ', run_number=' + context.runNumber + ', sha=' + context.sha,
+            });
+
   backend-tests:
     name: Validate and test Laravel API
     runs-on: ubuntu-latest
