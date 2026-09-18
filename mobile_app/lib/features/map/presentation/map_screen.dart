@@ -18,6 +18,7 @@ import '../../account/data/auth_return_intent.dart';
 import '../../properties/data/favorites_repository.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_marker.dart';
+import '../../properties/domain/property_field_options.dart';
 import '../../properties/presentation/saved_search_builder_screen.dart';
 
 const double mapPropertyPriceIconSize = 1.0;
@@ -2287,7 +2288,14 @@ class _PropertyFacts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final facts = <Widget>[];
-    if (property.areaM2 != null) {
+    if (property.areaValue != null) {
+      facts.add(
+        _Fact(
+          icon: Icons.square_foot,
+          text: '${formatPropertyAreaValue(property.areaValue!)} ${propertyAreaUnitLabel(property.areaUnit)}',
+        ),
+      );
+    } else if (property.areaM2 != null) {
       facts.add(_Fact(icon: Icons.square_foot, text: '${property.areaM2} م²'));
     }
     if (property.bedrooms != null) {
