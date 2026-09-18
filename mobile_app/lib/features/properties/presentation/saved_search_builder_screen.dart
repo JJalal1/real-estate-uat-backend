@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/saved_search_repository.dart';
 import '../domain/saved_property_search.dart';
+import '../domain/property_field_options.dart';
 
 class SavedSearchBuilderScreen extends ConsumerStatefulWidget {
   const SavedSearchBuilderScreen({
@@ -35,6 +36,8 @@ class _SavedSearchBuilderScreenState
   late Map<String, dynamic> _baseFilters;
   String? _purpose;
   String? _type;
+  String? _currency;
+  String _areaUnit = 'sqm';
   String _frequency = 'instant';
   bool _saving = false;
 
@@ -47,6 +50,8 @@ class _SavedSearchBuilderScreenState
     _baseFilters = Map<String, dynamic>.from(filters);
     _purpose = _nullable(filters['purpose']);
     _type = _nullable(filters['type']);
+    _currency = _nullable(filters['currency']);
+    _areaUnit = _nullable(filters['area_unit']) ?? 'sqm';
     _keywords = TextEditingController(text: _nullable(filters['search']) ?? '');
     _minPrice = TextEditingController(text: _numberText(filters['min_price']));
     _maxPrice = TextEditingController(text: _numberText(filters['max_price']));
@@ -54,10 +59,12 @@ class _SavedSearchBuilderScreenState
         TextEditingController(text: _numberText(filters['min_bedrooms']));
     _minBathrooms =
         TextEditingController(text: _numberText(filters['min_bathrooms']));
-    _minArea =
-        TextEditingController(text: _numberText(filters['min_area_m2']));
-    _maxArea =
-        TextEditingController(text: _numberText(filters['max_area_m2']));
+    _minArea = TextEditingController(
+      text: _numberText(filters['min_area_value'] ?? filters['min_area_m2']),
+    );
+    _maxArea = TextEditingController(
+      text: _numberText(filters['max_area_value'] ?? filters['max_area_m2']),
+    );
     _name = TextEditingController(
       text: widget.existingSearch?.name ?? _suggestedName(filters),
     );
@@ -117,7 +124,7 @@ class _SavedSearchBuilderScreenState
               maxLength: 120,
               decoration: const InputDecoration(
                 labelText: 'اسم الطلب',
-                hintText: 'مثال: مثال: أرض للبيع في الحوبان',
+                hintText: 'مثال: أرض للبيع في الحوبان',
                 prefixIcon: Icon(Icons.bookmark_add_outlined),
               ),
             ),
@@ -166,6 +173,23 @@ class _SavedSearchBuilderScreenState
             ),
             const SizedBox(height: AppSpacing.s20),
             const AppSectionHeader(
+              title: 'العملة',
+              subtitle: 'لا يوجد تحويل تلقائي بين العملات.',
+            ),
+            const SizedBox(height: AppSpacing.s8),
+            DropdownButtonFormField<String>(
+              value: _currency,
+              decoration: const InputDecoration(labelText: 'عملة السعر'),
+              items: const [
+                DropdownMenuItem(value: 'YER_NORTH', child: Text('ريال يمني - شمال')),
+                DropdownMenuItem(value: 'YER_SOUTH', child: Text('ريال يمني - جنوب')),
+                DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي')),
+                DropdownMenuItem(value: 'USD', child: Text('دولار أمريكي')),
+              ],
+              onChanged: (value) => setState(() => _currency = value),
+            ),
+            const SizedBox(height: AppSpacing.s20),
+            const AppSectionHeader(
               title: 'السعر',
               subtitle: 'اترك أي خانة فارغة إذا ما تبغى تحددها.',
             ),
@@ -178,7 +202,7 @@ class _SavedSearchBuilderScreenState
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'أقل سعر',
-                      suffixText: 'ريال',
+                      suffixText: _currencyLabel(_currency),
                     ),
                   ),
                 ),
@@ -189,7 +213,7 @@ class _SavedSearchBuilderScreenState
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'أعلى سعر',
-                      suffixText: 'ريال',
+                      suffixText: _currencyLabel(_currency),
                     ),
                   ),
                 ),
@@ -220,6 +244,20 @@ class _SavedSearchBuilderScreenState
               ],
             ),
             const SizedBox(height: AppSpacing.s12),
+            DropdownButtonFormField<String>(
+              value: _areaUnit,
+              decoration: const InputDecoration(labelText: 'وحدة المساحة'),
+              items: propertyAreaUnitLabels.entries
+                  .map(
+                    (entry) => DropdownMenuItem<String>(
+                      value: entry.key,
+                      child: Text(entry.value),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (value) => setState(() => _areaUnit = value ?? 'sqm'),
+            ),
+            const SizedBox(height: AppSpacing.s12),
             Row(
               children: [
                 Expanded(
@@ -228,7 +266,7 @@ class _SavedSearchBuilderScreenState
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'أقل مساحة',
-                      suffixText: 'م²',
+                      suffixText: propertyAreaUnitLabel(_areaUnit),
                     ),
                   ),
                 ),
@@ -239,7 +277,7 @@ class _SavedSearchBuilderScreenState
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'أعلى مساحة',
-                      suffixText: 'م²',
+                      suffixText: propertyAreaUnitLabel(_areaUnit),
                     ),
                   ),
                 ),
@@ -376,7 +414,7 @@ class _SavedSearchBuilderScreenState
   Future<void> _save() async {
     final name = _name.text.trim();
     if (name.isEmpty) {
-      _showMessage('اكتب اسمًا واضحًا للبحث.');
+      _showMessage('اكتب اسمًا واضحًا للطلب.');
       return;
     }
 
@@ -431,6 +469,7 @@ class _SavedSearchBuilderScreenState
     for (final key in const [
       'purpose',
       'type',
+      'currency',
       'search',
       'min_price',
       'max_price',
@@ -438,11 +477,15 @@ class _SavedSearchBuilderScreenState
       'min_bathrooms',
       'min_area_m2',
       'max_area_m2',
+      'area_unit',
+      'min_area_value',
+      'max_area_value',
     ]) {
       filters.remove(key);
     }
     if (_purpose != null) filters['purpose'] = _purpose;
     if (_type != null) filters['type'] = _type;
+    if (_currency != null) filters['currency'] = _currency;
     if (_keywords.text.trim().isNotEmpty) {
       filters['search'] = _keywords.text.trim();
     }
@@ -450,11 +493,12 @@ class _SavedSearchBuilderScreenState
     if (maxPrice != null) filters['max_price'] = maxPrice;
     if (minBedrooms != null) filters['min_bedrooms'] = minBedrooms;
     if (minBathrooms != null) filters['min_bathrooms'] = minBathrooms;
-    if (minArea != null) filters['min_area_m2'] = minArea;
-    if (maxArea != null) filters['max_area_m2'] = maxArea;
+    if (minArea != null || maxArea != null) filters['area_unit'] = _areaUnit;
+    if (minArea != null) filters['min_area_value'] = minArea;
+    if (maxArea != null) filters['max_area_value'] = maxArea;
 
     if (filters.isEmpty) {
-      _showMessage('حدد شرطًا واحدًا على الأقل حتى يكون البحث مفيدًا.');
+      _showMessage('حدد شرطًا واحدًا على الأقل حتى يكون الطلب مفيدًا.');
       return;
     }
 
@@ -528,4 +572,12 @@ String _typeLabel(String type) => switch (type) {
       'office' => 'مكتب',
       'farm' => 'مزرعة',
       _ => type,
+    };
+
+String _currencyLabel(String? value) => switch (value) {
+      'YER_NORTH' => 'ريال شمال',
+      'YER_SOUTH' => 'ريال جنوب',
+      'SAR' => 'ر.س',
+      'USD' => 'دولار',
+      _ => '',
     };
