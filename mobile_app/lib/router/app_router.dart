@@ -19,7 +19,7 @@ import '../features/admin/presentation/platform_settings_screen.dart';
 import '../features/agreements/presentation/agreement_detail_screen.dart';
 import '../features/agreements/presentation/agreements_screen.dart';
 import '../features/agreements/presentation/rental_contract_detail_screen.dart';
-import '../features/app_shell/presentation/p01_app_shell_screen.dart';
+import '../features/app_shell/presentation/p02_app_shell_screen.dart';
 import '../features/bookings/presentation/bookings_screen.dart';
 import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
@@ -30,6 +30,8 @@ import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/favorites_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
 import '../features/properties/presentation/property_details_screen.dart';
+import '../features/properties/presentation/saved_search_builder_screen.dart';
+import '../features/properties/presentation/saved_searches_screen.dart';
 import '../features/regions/presentation/regions_management_screen.dart';
 import '../features/reviews/presentation/listing_review_screen.dart';
 import '../features/services/presentation/services_screen.dart';
@@ -46,7 +48,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) => internalLocationForAppLink(state.uri),
     errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
-      GoRoute(path: '/', builder: (context, state) => const P01AppShellScreen()),
+      GoRoute(path: '/', builder: (context, state) => const P02AppShellScreen()),
       GoRoute(
         path: '/auth',
         builder: (context, state) => P01AuthScreen(
@@ -275,7 +277,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/property-market',
-        builder: (context, state) => const MapScreen(),
+        builder: (context, state) => const MapScreen(enableListingCreation: false),
+      ),
+      GoRoute(
+        path: '/property-requests',
+        builder: (context, state) => const Stage6AuthGate(
+          child: SavedSearchesScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/property-request/new',
+        builder: (context, state) => const Stage6AuthGate(
+          child: SavedSearchBuilderScreen(),
+        ),
       ),
     ],
   );
