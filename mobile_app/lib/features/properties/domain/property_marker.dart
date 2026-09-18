@@ -16,6 +16,8 @@ class PropertyMarker {
     this.purpose,
     this.type,
     this.areaM2,
+    this.areaValue,
+    this.areaUnit,
     this.bedrooms,
     this.bathrooms,
     this.address,
@@ -39,6 +41,8 @@ class PropertyMarker {
   final String? purpose;
   final String? type;
   final int? areaM2;
+  final double? areaValue;
+  final String? areaUnit;
   final int? bedrooms;
   final int? bathrooms;
   final String? address;
@@ -63,6 +67,8 @@ class PropertyMarker {
       purpose: _nullableString(json['purpose']),
       type: _nullableString(json['type']),
       areaM2: _asInt(json['area_m2']),
+      areaValue: _asDouble(json['area_value']),
+      areaUnit: _nullableString(json['area_unit']),
       bedrooms: _asInt(json['bedrooms']),
       bathrooms: _asInt(json['bathrooms']),
       address: _nullableString(json['address']),
