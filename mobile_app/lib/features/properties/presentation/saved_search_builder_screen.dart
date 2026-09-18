@@ -83,7 +83,7 @@ class _SavedSearchBuilderScreenState
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppAppBar(
-          title: _editing ? 'تعديل البحث المحفوظ' : 'حفظ بحث جديد',
+          title: _editing ? 'تعديل طلب العقار' : 'إنشاء طلب عقار',
         ),
         body: ListView(
           padding: const EdgeInsetsDirectional.fromSTEB(
@@ -98,12 +98,12 @@ class _SavedSearchBuilderScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    _editing ? 'عدّل شروط البحث' : 'خلّ التطبيق يتابع لك',
+                    _editing ? 'عدّل طلب العقار' : 'خلّ النظام يتابع لك',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.s4),
                   Text(
-                    'نحفظ شروط البحث في حسابك ونرسل تنبيهًا عند نشر عقار جديد يطابقها.',
+                    'هذا الطلب خاص بحسابك ولا يظهر للدلالين أو المكاتب. يطابق النظام العقارات الجديدة ويرسل لك تنبيهًا عند وجود عقار مناسب.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -116,8 +116,8 @@ class _SavedSearchBuilderScreenState
               controller: _name,
               maxLength: 120,
               decoration: const InputDecoration(
-                labelText: 'اسم البحث',
-                hintText: 'مثال: شقة غرفتين في صنعاء',
+                labelText: 'اسم الطلب',
+                hintText: 'مثال: مثال: أرض للبيع في الحوبان',
                 prefixIcon: Icon(Icons.bookmark_add_outlined),
               ),
             ),
@@ -317,7 +317,7 @@ class _SavedSearchBuilderScreenState
                   ? 'جارٍ الحفظ...'
                   : _editing
                       ? 'حفظ التعديلات'
-                      : 'حفظ البحث',
+                      : 'حفظ الطلب',
               icon: _frequency == 'instant'
                   ? Icons.notifications_active_outlined
                   : Icons.bookmark_add_outlined,
