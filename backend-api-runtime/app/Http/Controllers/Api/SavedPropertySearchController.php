@@ -123,6 +123,7 @@ class SavedPropertySearchController extends Controller
             'filters.search' => ['nullable', 'string', 'max:120'],
             'filters.purpose' => ['nullable', Rule::in(SavedPropertySearchService::PURPOSES)],
             'filters.type' => ['nullable', Rule::in(SavedPropertySearchService::TYPES)],
+            'filters.currency' => ['nullable', Rule::in(['YER', 'YER_NORTH', 'YER_SOUTH', 'SAR', 'USD'])],
             'filters.min_price' => ['nullable', 'numeric', 'min:0'],
             'filters.max_price' => ['nullable', 'numeric', 'min:0'],
             'filters.min_bedrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
