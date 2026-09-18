@@ -6,20 +6,20 @@ import '../features/account/presentation/access_control_screen.dart';
 import '../features/account/presentation/account_verification_admin_screen.dart';
 import '../features/account/presentation/account_verification_screen.dart';
 import '../features/account/presentation/auth_gate.dart';
-import '../features/account/presentation/auth_screen.dart';
+import '../features/account/presentation/p01/p01_auth_screen.dart';
 import '../features/account/presentation/broker_account_verification_screen.dart';
 import '../features/account/presentation/broker_verification_admin_screen.dart';
-import '../features/account/presentation/complete_profile_screen.dart';
+import '../features/account/presentation/p01/p01_complete_profile_screen.dart';
 import '../features/account/presentation/forgot_password_screen.dart';
-import '../features/account/presentation/phone_verification_screen.dart';
-import '../features/account/presentation/profile_screen.dart';
+import '../features/account/presentation/p01/p01_phone_verification_screen.dart';
+import '../features/account/presentation/p01/p01_profile_screen.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/admin/presentation/audit_log_screen.dart';
 import '../features/admin/presentation/platform_settings_screen.dart';
 import '../features/agreements/presentation/agreement_detail_screen.dart';
 import '../features/agreements/presentation/agreements_screen.dart';
 import '../features/agreements/presentation/rental_contract_detail_screen.dart';
-import '../features/app_shell/presentation/app_shell_screen.dart';
+import '../features/app_shell/presentation/p01_app_shell_screen.dart';
 import '../features/bookings/presentation/bookings_screen.dart';
 import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
@@ -46,22 +46,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) => internalLocationForAppLink(state.uri),
     errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
-      GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
+      GoRoute(path: '/', builder: (context, state) => const P01AppShellScreen()),
       GoRoute(
         path: '/auth',
-        builder: (context, state) => AuthScreen(
+        builder: (context, state) => P01AuthScreen(
           startWithRegister: state.uri.queryParameters['register'] == '1',
         ),
       ),
       GoRoute(
         path: '/verify-phone',
-        builder: (context, state) => const PhoneVerificationScreen(),
+        builder: (context, state) => const P01PhoneVerificationScreen(),
       ),
       GoRoute(
         path: '/complete-profile',
         builder: (context, state) => const Stage6AuthGate(
           requireActive: false,
-          child: CompleteProfileScreen(),
+          child: P01CompleteProfileScreen(),
         ),
       ),
       GoRoute(
@@ -78,7 +78,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/profile',
         builder: (context, state) => const Stage6AuthGate(
           requireActive: false,
-          child: ProfileScreen(),
+          child: P01ProfileScreen(),
         ),
       ),
       GoRoute(
