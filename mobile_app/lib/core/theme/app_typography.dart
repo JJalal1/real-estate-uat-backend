@@ -1,92 +1,91 @@
 import 'package:flutter/material.dart';
 
-/// Accepted Arabic-first scale; line heights are expressed as size ratios.
-/// W3B2 activates the bundled Noto Sans Arabic family from ThemeData while
-/// styles keep the family unset so Material can inherit it consistently.
+/// Arabic-first type scale tuned for mobile readability and quick scanning.
+/// The bundled family is retained so no network font is required.
 abstract final class AppTypography {
   static const fontFamily = 'NotoSansArabic';
   static const fontFamilyFallback = <String>['Arial', 'sans-serif'];
 
   static const headlineLarge = TextStyle(
-    fontSize: 28,
-    height: 40 / 28,
+    fontSize: 30,
+    height: 1.35,
     fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const headlineMedium = TextStyle(
-    fontSize: 24,
-    height: 36 / 24,
+    fontSize: 25,
+    height: 1.4,
     fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const headlineSmall = TextStyle(
     fontSize: 22,
-    height: 32 / 22,
-    fontWeight: FontWeight.w600,
+    height: 1.42,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const titleLarge = TextStyle(
-    fontSize: 20,
-    height: 32 / 20,
-    fontWeight: FontWeight.w600,
+    fontSize: 19,
+    height: 1.45,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const titleMedium = TextStyle(
-    fontSize: 18,
-    height: 28 / 18,
-    fontWeight: FontWeight.w600,
+    fontSize: 17,
+    height: 1.45,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const titleSmall = TextStyle(
-    fontSize: 16,
-    height: 24 / 16,
+    fontSize: 15,
+    height: 1.45,
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const bodyLarge = TextStyle(
     fontSize: 16,
-    height: 28 / 16,
+    height: 1.65,
     fontWeight: FontWeight.w400,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const bodyMedium = TextStyle(
     fontSize: 14,
-    height: 24 / 14,
+    height: 1.65,
     fontWeight: FontWeight.w400,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const bodySmall = TextStyle(
-    fontSize: 12,
-    height: 20 / 12,
+    fontSize: 12.5,
+    height: 1.6,
     fontWeight: FontWeight.w400,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const labelLarge = TextStyle(
-    fontSize: 16,
-    height: 24 / 16,
-    fontWeight: FontWeight.w600,
+    fontSize: 15.5,
+    height: 1.4,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const labelMedium = TextStyle(
-    fontSize: 14,
-    height: 20 / 14,
-    fontWeight: FontWeight.w600,
+    fontSize: 13.5,
+    height: 1.4,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const labelSmall = TextStyle(
-    fontSize: 12,
-    height: 20 / 12,
+    fontSize: 11.5,
+    height: 1.4,
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,

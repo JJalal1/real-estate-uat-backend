@@ -309,6 +309,7 @@ class PropertyController extends Controller
             'search' => ['nullable', 'string', 'max:120'],
             'purpose' => ['nullable', Rule::in(self::PURPOSES)],
             'type' => ['nullable', Rule::in(self::TYPES)],
+            'currency' => ['nullable', Rule::in(['YER', 'YER_NORTH', 'YER_SOUTH', 'SAR', 'USD'])],
             'min_price' => ['nullable', 'numeric', 'min:0'],
             'max_price' => ['nullable', 'numeric', 'gte:min_price'],
             'min_bedrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
@@ -329,7 +330,7 @@ class PropertyController extends Controller
             'type' => array_merge($required, [Rule::in(self::TYPES)]),
             'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
-            'currency' => ['sometimes', 'string', 'size:3'],
+            'currency' => ['sometimes', Rule::in(['YER', 'YER_NORTH', 'YER_SOUTH', 'SAR', 'USD'])],
             'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3])],
             'area_m2' => ['nullable', 'integer', 'min:1', 'max:10000000'],
             'area_value' => ['nullable', 'numeric', 'gt:0', 'max:10000000'],
@@ -337,6 +338,7 @@ class PropertyController extends Controller
             'bedrooms' => ['nullable', 'integer', 'min:0', 'max:100'],
             'bathrooms' => ['nullable', 'integer', 'min:0', 'max:100'],
             'has_parking' => ['nullable', 'boolean'],
+            'has_garden' => ['nullable', 'boolean'],
             'building_facade' => ['nullable', 'string', Rule::in(self::FACADES)],
             'address' => ['nullable', 'string', 'max:255'],
             'building_reference' => ['nullable', 'string', 'max:160'],
@@ -368,7 +370,7 @@ class PropertyController extends Controller
     {
         $allowed = [
             'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
-            'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude',
+            'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'has_garden', 'building_facade', 'address', 'latitude', 'longitude',
             'building_reference', 'unit_number', 'floor_number', 'land_boundary_geojson',
             'contact_phone', 'contact_whatsapp',
             'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note',
@@ -445,6 +447,7 @@ class PropertyController extends Controller
             $validated['bedrooms'] = null;
             $validated['bathrooms'] = null;
             $validated['has_parking'] = null;
+            $validated['has_garden'] = null;
             $validated['building_facade'] = null;
             $validated['building_reference'] = null;
             $validated['unit_number'] = null;
@@ -525,6 +528,7 @@ class PropertyController extends Controller
             'bedrooms' => $property->bedrooms,
             'bathrooms' => $property->bathrooms,
             'has_parking' => $property->has_parking,
+            'has_garden' => $property->has_garden,
             'building_facade' => $property->building_facade,
             'address' => $property->address,
             'latitude' => $property->latitude,
@@ -563,7 +567,7 @@ class PropertyController extends Controller
             });
         }
 
-        foreach (['purpose', 'type'] as $field) {
+        foreach (['purpose', 'type', 'currency'] as $field) {
             if (! empty($validated[$field])) {
                 $query->where($field, $validated[$field]);
             }
@@ -776,6 +780,7 @@ class PropertyController extends Controller
             'bedrooms' => $property->bedrooms,
             'bathrooms' => $property->bathrooms,
             'has_parking' => $property->has_parking,
+            'has_garden' => $property->has_garden,
             'building_facade' => $property->building_facade,
             'address' => $property->address,
             'latitude' => (float) $property->latitude,

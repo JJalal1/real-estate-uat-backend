@@ -46,6 +46,7 @@ class PropertySummary {
     this.bedrooms,
     this.bathrooms,
     this.hasParking,
+    this.hasGarden,
     this.buildingFacade,
     this.address,
     this.status = 'published',
@@ -75,6 +76,7 @@ class PropertySummary {
   final int? bedrooms;
   final int? bathrooms;
   final bool? hasParking;
+  final bool? hasGarden;
   final String? buildingFacade;
   final String? address;
   final String status;
@@ -105,6 +107,7 @@ class PropertySummary {
       bedrooms: _asInt(json['bedrooms']),
       bathrooms: _asInt(json['bathrooms']),
       hasParking: _asBool(json['has_parking']),
+      hasGarden: _asBool(json['has_garden']),
       buildingFacade: _nullableString(json['building_facade']),
       address: _nullableString(json['address']),
       status: json['status']?.toString() ?? 'published',
@@ -185,6 +188,7 @@ class PropertyDetails {
     this.bedrooms,
     this.bathrooms,
     this.hasParking,
+    this.hasGarden,
     this.buildingFacade,
     this.address,
     this.buildingReference,
@@ -237,6 +241,7 @@ class PropertyDetails {
   final int? bedrooms;
   final int? bathrooms;
   final bool? hasParking;
+  final bool? hasGarden;
   final String? buildingFacade;
   final String? address;
   final String? buildingReference;
@@ -312,6 +317,7 @@ class PropertyDetails {
       bedrooms: _asInt(json['bedrooms']),
       bathrooms: _asInt(json['bathrooms']),
       hasParking: _asBool(json['has_parking']),
+      hasGarden: _asBool(json['has_garden']),
       buildingFacade: _nullableString(json['building_facade']),
       address: _nullableString(json['address']),
       buildingReference: _nullableString(json['building_reference']),
@@ -385,6 +391,7 @@ class PropertyDetails {
       bedrooms: bedrooms,
       bathrooms: bathrooms,
       hasParking: hasParking,
+      hasGarden: hasGarden,
       buildingFacade: buildingFacade,
       address: address,
       status: status,
@@ -414,6 +421,7 @@ class PropertyListingInput {
     this.bedrooms,
     this.bathrooms,
     this.hasParking,
+    this.hasGarden,
     this.buildingFacade,
     this.address,
     this.buildingReference,
@@ -445,6 +453,7 @@ class PropertyListingInput {
   final int? bedrooms;
   final int? bathrooms;
   final bool? hasParking;
+  final bool? hasGarden;
   final String? buildingFacade;
   final String? address;
   final String? buildingReference;
@@ -486,6 +495,7 @@ class PropertyListingInput {
       if (type != 'land' && bedrooms != null) 'bedrooms': bedrooms,
       if (type != 'land' && bathrooms != null) 'bathrooms': bathrooms,
       if (type != 'land' && hasParking != null) 'has_parking': hasParking,
+      if (type != 'land' && hasGarden != null) 'has_garden': hasGarden,
       if (type != 'land' &&
           buildingFacade != null &&
           buildingFacade!.isNotEmpty)

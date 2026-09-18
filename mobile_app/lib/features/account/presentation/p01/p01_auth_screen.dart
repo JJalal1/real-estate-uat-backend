@@ -120,7 +120,7 @@ class _P01AuthScreenState extends ConsumerState<P01AuthScreen> {
     try {
       await ref
           .read(authControllerProvider.notifier)
-          .startWhatsApp(phone: phone);
+          .startWhatsApp(phone: phone, intent: 'login');
       if (!mounted) return;
       context.push('/verify-phone');
     } catch (error) {

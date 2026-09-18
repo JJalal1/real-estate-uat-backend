@@ -1,6 +1,5 @@
 import 'package:flutter/animation.dart';
 
-/// Shared logical-pixel tokens from PHASE1_ACCEPTED_DESIGN_SYSTEM.md.
 abstract final class AppSpacing {
   static const double none = 0;
   static const double s4 = 4;
@@ -12,21 +11,21 @@ abstract final class AppSpacing {
   static const double s16 = 16;
   static const double s20 = 20;
   static const double s24 = 24;
+  static const double s28 = 28;
   static const double s32 = 32;
   static const double s40 = 40;
   static const double s48 = 48;
   static const double s64 = 64;
 }
 
-/// Use directional insets/alignment when applying these layout values.
 abstract final class AppLayout {
   static const double compactPageGutter = AppSpacing.s16;
   static const double widePageGutter = AppSpacing.s24;
   static const double narrowBreakpoint = 360;
   static const double wideBreakpoint = 600;
-  static const double contentMaxWidth = 840;
-  static const double sectionGap = AppSpacing.s32;
-  static const double groupGap = AppSpacing.s24;
+  static const double contentMaxWidth = 760;
+  static const double sectionGap = AppSpacing.s28;
+  static const double groupGap = AppSpacing.s20;
   static const double itemGap = AppSpacing.s12;
   static const double fieldGap = AppSpacing.s16;
   static const double inlineGap = AppSpacing.s8;
@@ -36,10 +35,10 @@ abstract final class AppLayout {
 }
 
 abstract final class AppRadii {
-  static const double small = 8;
-  static const double control = 12;
-  static const double card = 16;
-  static const double modal = 24;
+  static const double small = 10;
+  static const double control = 16;
+  static const double card = 20;
+  static const double modal = 28;
   static const double pill = 999;
 }
 
@@ -55,37 +54,24 @@ abstract final class AppElevation {
   static const double modal = 6;
 }
 
-/// Minimums, never fixed heights for content-bearing surfaces.
 abstract final class AppSizes {
-  /// Applies to both width and height of every independent action.
   static const double touchTarget = 48;
-  static const double buttonMinHeight = 48;
-
-  /// Excludes helper and error text.
+  static const double buttonMinHeight = 54;
   static const double fieldMinHeight = 56;
-
-  /// Visual height only; interactive chips still need [touchTarget].
-  static const double chipMinHeight = 32;
+  static const double chipMinHeight = 34;
   static const double badgeMinHeight = 28;
-
-  /// Add the system inset; allow content to grow.
-  static const double appBarMinHeight = 64;
-
-  /// Add the system inset and grow for scaled or wrapped labels.
-  static const double navigationMinHeight = 80;
+  static const double appBarMinHeight = 60;
+  static const double navigationMinHeight = 70;
 }
 
-/// Accepted interaction timing. Respect reduced-motion settings by using
-/// [instant] when the platform requests reduced animation.
 abstract final class AppMotion {
   static const Duration instant = Duration.zero;
   static const Duration fast = Duration(milliseconds: 120);
-  static const Duration standard = Duration(milliseconds: 200);
+  static const Duration standard = Duration(milliseconds: 180);
+  static const Duration relaxed = Duration(milliseconds: 260);
   static const Curve curve = Curves.easeOutCubic;
 }
 
-/// Accepted Material state-layer and modal opacity values.
-/// Use semantic disabled colors rather than fading a whole content subtree.
 abstract final class AppOpacity {
   static const double transparent = 0;
   static const double hover = 0.08;

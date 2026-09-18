@@ -19,7 +19,7 @@ class SavedSearchesScreen extends ConsumerWidget {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: const AppAppBar(title: 'البحوث المحفوظة'),
+        appBar: const AppAppBar(title: 'طلباتي العقارية الخاصة'),
         body: searches.when(
           loading: () => const _SavedSearchSkeleton(),
           error: (error, _) => AppErrorState(
@@ -29,8 +29,8 @@ class SavedSearchesScreen extends ConsumerWidget {
           data: (items) {
             if (items.isEmpty) {
               return const AppEmptyState(
-                title: 'ما حفظت أي بحث حتى الآن',
-                message: 'اضبط الفلاتر التي تناسبك من شاشة العقارات ثم اختر «حفظ البحث».',
+                title: 'ما عندك طلب عقار حتى الآن',
+                message: 'اضبط الفلاتر التي تناسبك من شاشة العقارات ثم اختر «حفظ الطلب».',
                 icon: Icons.manage_search_outlined,
               );
             }
@@ -108,14 +108,14 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
               ),
               PopupMenuButton<String>(
                 enabled: !_busy,
-                tooltip: 'إعدادات البحث',
+                tooltip: 'إعدادات الطلب',
                 onSelected: _handleMenu,
                 itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('تعديل البحث')),
+                  PopupMenuItem(value: 'edit', child: Text('تعديل الطلب')),
                   PopupMenuItem(value: 'instant', child: Text('تنبيه فوري')),
                   PopupMenuItem(value: 'off', child: Text('إيقاف التنبيهات')),
                   PopupMenuDivider(),
-                  PopupMenuItem(value: 'delete', child: Text('حذف البحث')),
+                  PopupMenuItem(value: 'delete', child: Text('حذف الطلب')),
                 ],
               ),
             ],
@@ -204,7 +204,7 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
       final approved = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('حذف البحث المحفوظ؟'),
+          title: const Text('حذف طلب العقار؟'),
           content: const Text('سيتم إيقاف تنبيهاته وحذفه من حسابك.'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
@@ -263,7 +263,7 @@ class SavedSearchResultsScreen extends ConsumerWidget {
             if (items.isEmpty) {
               return const AppEmptyState(
                 title: 'لا توجد نتائج مطابقة الآن',
-                message: 'سيبقى البحث محفوظًا ويمكن للتنبيهات إخبارك عند ظهور عقار جديد مطابق.',
+                message: 'سيبقى الطلب محفوظًا ويمكن للتنبيهات إخبارك عند ظهور عقار جديد مطابق.',
                 icon: Icons.notifications_active_outlined,
               );
             }

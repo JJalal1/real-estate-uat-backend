@@ -18,6 +18,7 @@ import '../../account/data/auth_return_intent.dart';
 import '../../properties/data/favorites_repository.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_marker.dart';
+import '../../properties/domain/property_field_options.dart';
 import '../../properties/presentation/saved_search_builder_screen.dart';
 
 const double mapPropertyPriceIconSize = 1.0;
@@ -143,6 +144,7 @@ class NearbyQuery {
     this.radiusKm = 30,
     this.purpose,
     this.type,
+    this.currency,
     this.minPrice,
     this.maxPrice,
     this.minBedrooms,
@@ -160,6 +162,7 @@ class NearbyQuery {
   final double radiusKm;
   final String? purpose;
   final String? type;
+  final String? currency;
   final double? minPrice;
   final double? maxPrice;
   final int? minBedrooms;
@@ -181,6 +184,7 @@ class NearbyQuery {
             other.radiusKm == radiusKm &&
             other.purpose == purpose &&
             other.type == type &&
+            other.currency == currency &&
             other.minPrice == minPrice &&
             other.maxPrice == maxPrice &&
             other.minBedrooms == minBedrooms &&
@@ -201,6 +205,7 @@ class NearbyQuery {
         radiusKm,
         purpose,
         type,
+        currency,
         minPrice,
         maxPrice,
         minBedrooms,
@@ -225,6 +230,7 @@ final nearbyPropertiesProvider =
           radiusKm: query.radiusKm,
           purpose: query.purpose,
           type: query.type,
+          currency: query.currency,
           minPrice: query.minPrice,
           maxPrice: query.maxPrice,
           minBedrooms: query.minBedrooms,
@@ -241,7 +247,12 @@ final nearbyPropertiesProvider =
 );
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({
+    this.enableListingCreation = true,
+    super.key,
+  });
+
+  final bool enableListingCreation;
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
@@ -262,6 +273,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   String? _filterPurpose;
   String? _filterType;
+  String? _filterCurrency;
   double? _filterMinPrice;
   double? _filterMaxPrice;
   int? _filterMinBedrooms;
@@ -314,6 +326,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _recentSearches = history.recentSearches;
       _filterPurpose = _historyString(filters['purpose']);
       _filterType = _historyString(filters['type']);
+      _filterCurrency = _historyString(filters['currency']);
       _filterMinPrice = _historyDouble(filters['min_price']);
       _filterMaxPrice = _historyDouble(filters['max_price']);
       _filterMinBedrooms = _historyInt(filters['min_bedrooms']);
@@ -343,6 +356,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Map<String, dynamic> _discoveryHistorySnapshot() => <String, dynamic>{
         if (_filterPurpose != null) 'purpose': _filterPurpose,
         if (_filterType != null) 'type': _filterType,
+        if (_filterCurrency != null) 'currency': _filterCurrency,
         if (_filterMinPrice != null) 'min_price': _filterMinPrice,
         if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
         if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
@@ -695,26 +709,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _persistDiscoveryHistory();
   }
 
-  void _resetFilters() {
-    setState(() {
-      _filterPurpose = null;
-      _filterType = null;
-      _filterMinPrice = null;
-      _filterMaxPrice = null;
-      _filterMinBedrooms = null;
-      _filterMinBathrooms = null;
-      _filterMinArea = null;
-      _filterMaxArea = null;
-      _selected = null;
-      _lastMarkerSignature = '';
-    });
-    _persistDiscoveryHistory();
-  }
-
   int get _filterCount {
     var count = 0;
     if (_filterPurpose != null) count++;
     if (_filterType != null) count++;
+    if (_filterCurrency != null) count++;
     if (_filterMinPrice != null || _filterMaxPrice != null) count++;
     if (_filterMinBedrooms != null) count++;
     if (_filterMinBathrooms != null) count++;
@@ -731,6 +730,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       builder: (context) => _PropertyFilterSheet(
         initialPurpose: _filterPurpose,
         initialType: _filterType,
+        initialCurrency: _filterCurrency,
         initialMinPrice: _filterMinPrice,
         initialMaxPrice: _filterMaxPrice,
         initialMinBedrooms: _filterMinBedrooms,
@@ -744,6 +744,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     setState(() {
       _filterPurpose = result.purpose;
       _filterType = result.type;
+      _filterCurrency = result.currency;
       _filterMinPrice = result.minPrice;
       _filterMaxPrice = result.maxPrice;
       _filterMinBedrooms = result.minBedrooms;
@@ -985,6 +986,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final filters = <String, dynamic>{
       if (_filterPurpose != null) 'purpose': _filterPurpose,
       if (_filterType != null) 'type': _filterType,
+      if (_filterCurrency != null) 'currency': _filterCurrency,
       if (_filterMinPrice != null) 'min_price': _filterMinPrice,
       if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
       if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
@@ -1038,7 +1040,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (!mounted || saved != true) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('تم حفظ البحث وسيصلك تنبيه عند ظهور عقار مطابق.'),
+        content: Text('تم حفظ طلبك الخاص وسيصلك تنبيه عند ظهور عقار مطابق.'),
       ),
     );
   }
@@ -1055,6 +1057,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       radiusKm: _defaultRadiusKm,
       purpose: _filterPurpose,
       type: _filterType,
+      currency: _filterCurrency,
       minPrice: _filterMinPrice,
       maxPrice: _filterMaxPrice,
       minBedrooms: _filterMinBedrooms,
@@ -1193,7 +1196,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     Icon(Icons.notifications_active_outlined, color: AppTheme.brand),
                     SizedBox(width: 7),
                     Text(
-                      'حفظ البحث',
+                      'إنشاء طلب',
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ],
@@ -1367,7 +1370,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
         mapMode: true,
         onSwitch: () => setState(() => _listMode = true),
-        onAdd: _openAddProperty,
+        onAdd: widget.enableListingCreation ? _openAddProperty : _saveCurrentSearch,
+        actionLabel: widget.enableListingCreation ? 'إضافة' : 'طلب عقار',
+        actionIcon: widget.enableListingCreation
+            ? Icons.add_circle
+            : Icons.manage_search_outlined,
       ),
     );
   }
@@ -1412,7 +1419,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           title: const Text('قائمة العقارات'),
           actions: [
             IconButton.filledTonal(
-              tooltip: 'حفظ البحث الحالي',
+              tooltip: 'إنشاء طلب عقار من البحث الحالي',
               onPressed: _saveCurrentSearch,
               icon: const Icon(Icons.notifications_active_outlined),
             ),
@@ -1498,7 +1505,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
               mapMode: false,
               onSwitch: () => setState(() => _listMode = false),
-              onAdd: _openAddProperty,
+              onAdd: widget.enableListingCreation ? _openAddProperty : _saveCurrentSearch,
+              actionLabel: widget.enableListingCreation ? 'إضافة' : 'طلب عقار',
+              actionIcon: widget.enableListingCreation
+                  ? Icons.add_circle
+                  : Icons.manage_search_outlined,
             ),
           ),
         ),
@@ -1531,8 +1542,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             icon: Icons.search_off_outlined,
             title: 'لا توجد نتائج مطابقة',
             message: 'جرّب تغيير المنطقة أو البحث أو إزالة بعض الفلاتر.',
-            buttonLabel: _filterCount > 0 ? 'مسح الفلاتر' : null,
-            onPressed: _filterCount > 0 ? _resetFilters : null,
+            buttonLabel: 'إنشاء طلب عقار خاص',
+            onPressed: _saveCurrentSearch,
           );
         }
 
@@ -1785,12 +1796,16 @@ class _MapListSwitcherBar extends StatelessWidget {
     required this.mapMode,
     required this.onSwitch,
     required this.onAdd,
+    required this.actionLabel,
+    required this.actionIcon,
   });
 
   final String countText;
   final bool mapMode;
   final VoidCallback onSwitch;
   final VoidCallback onAdd;
+  final String actionLabel;
+  final IconData actionIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -1840,14 +1855,14 @@ class _MapListSwitcherBar extends StatelessWidget {
             Expanded(
               child: InkWell(
                 onTap: onAdd,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_circle, color: AppTheme.brandStrong),
-                    SizedBox(width: 7),
+                    Icon(actionIcon, color: AppTheme.brandStrong),
+                    const SizedBox(width: 7),
                     Text(
-                      'إضافة',
-                      style: TextStyle(
+                      actionLabel,
+                      style: const TextStyle(
                         color: AppTheme.brandStrong,
                         fontWeight: FontWeight.w900,
                       ),
@@ -2270,7 +2285,14 @@ class _PropertyFacts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final facts = <Widget>[];
-    if (property.areaM2 != null) {
+    if (property.areaValue != null) {
+      facts.add(
+        _Fact(
+          icon: Icons.square_foot,
+          text: '${formatPropertyAreaValue(property.areaValue!)} ${propertyAreaUnitLabel(property.areaUnit)}',
+        ),
+      );
+    } else if (property.areaM2 != null) {
       facts.add(_Fact(icon: Icons.square_foot, text: '${property.areaM2} م²'));
     }
     if (property.bedrooms != null) {
@@ -2278,7 +2300,18 @@ class _PropertyFacts extends StatelessWidget {
     }
     if (property.bathrooms != null) {
       facts.add(
-          _Fact(icon: Icons.bathtub_outlined, text: '${property.bathrooms}'));
+        _Fact(icon: Icons.bathtub_outlined, text: '${property.bathrooms}'),
+      );
+    }
+    if (property.hasParking == true) {
+      facts.add(
+        const _Fact(icon: Icons.local_parking_outlined, text: 'موقف'),
+      );
+    }
+    if (property.hasGarden == true) {
+      facts.add(
+        const _Fact(icon: Icons.park_outlined, text: 'حديقة'),
+      );
     }
     if (facts.isEmpty) return const SizedBox(height: 20);
     return Wrap(spacing: 10, runSpacing: 4, children: facts);
@@ -2293,18 +2326,26 @@ class _Fact extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: AppTheme.textMuted),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textMuted,
-              ),
-        ),
-      ],
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: scheme.secondary),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2579,6 +2620,7 @@ class _FilterResult {
   const _FilterResult({
     this.purpose,
     this.type,
+    this.currency,
     this.minPrice,
     this.maxPrice,
     this.minBedrooms,
@@ -2589,6 +2631,7 @@ class _FilterResult {
 
   final String? purpose;
   final String? type;
+  final String? currency;
   final double? minPrice;
   final double? maxPrice;
   final int? minBedrooms;
@@ -2601,6 +2644,7 @@ class _PropertyFilterSheet extends StatefulWidget {
   const _PropertyFilterSheet({
     this.initialPurpose,
     this.initialType,
+    this.initialCurrency,
     this.initialMinPrice,
     this.initialMaxPrice,
     this.initialMinBedrooms,
@@ -2611,6 +2655,7 @@ class _PropertyFilterSheet extends StatefulWidget {
 
   final String? initialPurpose;
   final String? initialType;
+  final String? initialCurrency;
   final double? initialMinPrice;
   final double? initialMaxPrice;
   final int? initialMinBedrooms;
@@ -2625,6 +2670,7 @@ class _PropertyFilterSheet extends StatefulWidget {
 class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
   late String? _purpose;
   late String? _type;
+  late String? _currency;
   late int? _minBedrooms;
   late int? _minBathrooms;
   late final TextEditingController _minPriceController;
@@ -2644,6 +2690,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
     super.initState();
     _purpose = widget.initialPurpose;
     _type = widget.initialType;
+    _currency = widget.initialCurrency;
     _minBedrooms = widget.initialMinBedrooms;
     _minBathrooms = widget.initialMinBathrooms;
     _minPriceController = TextEditingController(
@@ -2658,7 +2705,8 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
     _maxAreaController = TextEditingController(
       text: widget.initialMaxArea?.toStringAsFixed(0) ?? '',
     );
-    _showMore = widget.initialMinPrice != null ||
+    _showMore = widget.initialCurrency != null ||
+        widget.initialMinPrice != null ||
         widget.initialMaxPrice != null ||
         widget.initialMinBedrooms != null ||
         widget.initialMinBathrooms != null ||
@@ -2690,6 +2738,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
     setState(() {
       _purpose = null;
       _type = null;
+      _currency = null;
       _minBedrooms = null;
       _minBathrooms = null;
       _minPriceController.clear();
@@ -2758,6 +2807,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
       _FilterResult(
         purpose: _purpose,
         type: _type,
+        currency: _currency,
         minPrice: minPrice,
         maxPrice: maxPrice,
         minBedrooms: _showRoomFilters ? _minBedrooms : null,
@@ -2962,6 +3012,40 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
                                   decoration:
                                       const InputDecoration(labelText: 'إلى'),
                                 ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          const _FilterSectionTitle('العملة'),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _choice(
+                                'الكل',
+                                _currency == null,
+                                () => setState(() => _currency = null),
+                              ),
+                              _choice(
+                                'ريال شمال',
+                                _currency == 'YER_NORTH',
+                                () => setState(() => _currency = 'YER_NORTH'),
+                              ),
+                              _choice(
+                                'ريال جنوب',
+                                _currency == 'YER_SOUTH',
+                                () => setState(() => _currency = 'YER_SOUTH'),
+                              ),
+                              _choice(
+                                'ريال سعودي',
+                                _currency == 'SAR',
+                                () => setState(() => _currency = 'SAR'),
+                              ),
+                              _choice(
+                                'دولار',
+                                _currency == 'USD',
+                                () => setState(() => _currency = 'USD'),
                               ),
                             ],
                           ),
@@ -3173,7 +3257,11 @@ String _typeLabel(String value) {
 String _currencyLabel(String value) {
   switch (value.toUpperCase()) {
     case 'YER':
-      return 'ريال';
+      return 'ريال يمني';
+    case 'YER_NORTH':
+      return 'ريال يمني - شمال';
+    case 'YER_SOUTH':
+      return 'ريال يمني - جنوب';
     case 'SAR':
       return 'ريال سعودي';
     case 'USD':

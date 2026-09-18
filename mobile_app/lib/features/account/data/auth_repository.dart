@@ -35,12 +35,18 @@ class AuthRepository {
     }
   }
 
-  Future<WhatsAppAuthPending> startWhatsApp({required String phone}) async {
+  Future<WhatsAppAuthPending> startWhatsApp({
+    required String phone,
+    required String intent,
+    String? name,
+  }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/whatsapp/start',
       data: {
-        'intent': 'continue',
+        'intent': intent,
         'phone': phone.trim(),
+        if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+        if (intent == 'register') 'account_type': 'regular',
       },
     );
     final data = response.data?['data'];
@@ -49,7 +55,10 @@ class AuthRepository {
     }
     return WhatsAppAuthPending(
       phone: data['phone']?.toString() ?? phone.trim(),
-      isNewAccount: data['is_new_account'] == true || data['is_new_account'] == 1,
+      intent: data['intent']?.toString() ?? intent,
+      isNewAccount:
+          data['is_new_account'] == true || data['is_new_account'] == 1,
+      name: name?.trim(),
       debugCode: _nullableText(data['debug_code']),
     );
   }

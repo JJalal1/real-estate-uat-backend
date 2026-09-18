@@ -16,7 +16,7 @@ class Property extends Model
     protected $fillable = [
         'user_id', 'property_asset_id', 'current_sai_term_id', 'geo_cell_id', 'owner_key', 'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
         'price_display_mode', 'monthly_rent', 'rental_term_months', 'advance_months', 'financial_hold_at', 'financial_hold_reason',
-        'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude', 'status',
+        'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'has_garden', 'building_facade', 'address', 'latitude', 'longitude', 'status',
         'building_reference', 'unit_number', 'floor_number', 'land_boundary_geojson',
         'duplicate_check_status', 'duplicate_check_score', 'duplicate_check_metadata', 'duplicate_self_verification', 'duplicate_checked_at',
         'contact_phone', 'contact_whatsapp', 'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note', 'review_status', 'submitted_at', 'published_at', 'reviewed_at', 'last_review_reason',
@@ -25,7 +25,7 @@ class Property extends Model
     protected $casts = [
         'price' => 'float', 'monthly_rent'=>'float', 'rental_term_months'=>'integer', 'advance_months'=>'integer',
         'latitude' => 'float', 'longitude' => 'float', 'area_m2' => 'integer', 'area_value' => 'float',
-        'bedrooms' => 'integer', 'bathrooms' => 'integer', 'has_parking' => 'boolean', 'submitted_at' => 'datetime', 'published_at' => 'datetime', 'reviewed_at' => 'datetime',
+        'bedrooms' => 'integer', 'bathrooms' => 'integer', 'has_parking' => 'boolean', 'has_garden' => 'boolean', 'submitted_at' => 'datetime', 'published_at' => 'datetime', 'reviewed_at' => 'datetime',
         'financial_hold_at'=>'datetime','land_boundary_geojson'=>'array','duplicate_check_score'=>'integer','duplicate_check_metadata'=>'array','duplicate_self_verification'=>'array','duplicate_checked_at'=>'datetime',
     ];
 

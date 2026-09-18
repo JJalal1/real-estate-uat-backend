@@ -16,8 +16,12 @@ class PropertyMarker {
     this.purpose,
     this.type,
     this.areaM2,
+    this.areaValue,
+    this.areaUnit,
     this.bedrooms,
     this.bathrooms,
+    this.hasParking,
+    this.hasGarden,
     this.address,
     this.mainImage,
   });
@@ -39,8 +43,12 @@ class PropertyMarker {
   final String? purpose;
   final String? type;
   final int? areaM2;
+  final double? areaValue;
+  final String? areaUnit;
   final int? bedrooms;
   final int? bathrooms;
+  final bool? hasParking;
+  final bool? hasGarden;
   final String? address;
   final String? mainImage;
 
@@ -63,8 +71,12 @@ class PropertyMarker {
       purpose: _nullableString(json['purpose']),
       type: _nullableString(json['type']),
       areaM2: _asInt(json['area_m2']),
+      areaValue: _asDouble(json['area_value']),
+      areaUnit: _nullableString(json['area_unit']),
       bedrooms: _asInt(json['bedrooms']),
       bathrooms: _asInt(json['bathrooms']),
+      hasParking: _asBool(json['has_parking']),
+      hasGarden: _asBool(json['has_garden']),
       address: _nullableString(json['address']),
       mainImage: _nullableString(json['main_image']),
     );
@@ -86,4 +98,15 @@ String? _nullableString(dynamic value) {
   final text = value?.toString().trim();
   if (text == null || text.isEmpty) return null;
   return text;
+}
+
+
+bool? _asBool(dynamic value) {
+  if (value == null) return null;
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  final text = value.toString().trim().toLowerCase();
+  if (text == 'true' || text == '1') return true;
+  if (text == 'false' || text == '0') return false;
+  return null;
 }

@@ -115,33 +115,28 @@ class AuthController extends Controller
             $this->validateFullName($name,$accountType);
             $user=User::query()->where('phone',$phone)->first();
             if($user){
-                if($user->account_type!==$accountType){
-                    throw ValidationException::withMessages(['account_type'=>['رقم واتساب مسجل بنوع حساب مختلف.']]);
-                }
-                if($user->phone_verified_at!==null){
-                    throw ValidationException::withMessages(['phone'=>['هذا الرقم مسجل مسبقاً. اختر تسجيل الدخول.']]);
-                }
-                $user->forceFill(['name'=>$name,'identity_policy_version'=>1,'profile_completed_at'=>now()])->save();
-            }else{
-                $user=DB::transaction(function()use($name,$phone,$accountType,&$createdNow){
-                    $createdNow=true;
-                    $user=User::query()->create([
-                        'name'=>$name,
-                        'email'=>$this->phoneOnlyPlaceholderEmail($phone),
-                        'phone'=>$phone,
-                        'password'=>Hash::make(Str::random(64)),
-                        'account_type'=>$accountType,
-                        'identity_policy_version'=>1,
-                        'account_status'=>User::STATUS_PENDING_VERIFICATION,
-                        'broker_verification_status'=>$accountType===User::ACCOUNT_TYPE_BROKER
-                            ? User::BROKER_VERIFICATION_NOT_SUBMITTED
-                            : User::BROKER_VERIFICATION_NOT_REQUIRED,
-                        'profile_completed_at'=>now(),
-                    ]);
-                    $this->access->ensureRegisteredUser($user);
-                    return $user;
-                });
+                throw ValidationException::withMessages([
+                    'phone'=>['هذا الرقم مسجل مسبقاً. استخدم تسجيل الدخول.'],
+                ]);
             }
+            $user=DB::transaction(function()use($name,$phone,$accountType,&$createdNow){
+                $createdNow=true;
+                $user=User::query()->create([
+                    'name'=>$name,
+                    'email'=>$this->phoneOnlyPlaceholderEmail($phone),
+                    'phone'=>$phone,
+                    'password'=>Hash::make(Str::random(64)),
+                    'account_type'=>$accountType,
+                    'identity_policy_version'=>1,
+                    'account_status'=>User::STATUS_PENDING_VERIFICATION,
+                    'broker_verification_status'=>$accountType===User::ACCOUNT_TYPE_BROKER
+                        ? User::BROKER_VERIFICATION_NOT_SUBMITTED
+                        : User::BROKER_VERIFICATION_NOT_REQUIRED,
+                    'profile_completed_at'=>now(),
+                ]);
+                $this->access->ensureRegisteredUser($user);
+                return $user;
+            });
         }else{
             $user=User::query()->where('phone',$phone)->first();
             if(!$user){

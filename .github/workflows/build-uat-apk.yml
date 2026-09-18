@@ -6,6 +6,7 @@ on:
       - main
       - audit/system-stabilization
       - v2/p01-foundation-identity-ux
+      - v2/p02-marketplace-discovery
     paths:
       - 'mobile_app/**'
       - 'backend-api-runtime/**'
@@ -13,6 +14,7 @@ on:
   pull_request:
     branches:
       - audit/system-stabilization
+      - v2/p01-foundation-identity-ux
     paths:
       - 'mobile_app/**'
       - 'backend-api-runtime/**'
@@ -170,7 +172,7 @@ jobs:
           check_hash "mobile_app/lib/core/network/api_client.dart" \
             "ab1db55e0ba0058a1e992e2df677b03871bbe95c"
           check_hash "mobile_app/lib/router/app_router.dart" \
-            "caf69c261363a209d9193f0154a1f37c494ad140"
+            "6bf4377eacfdbf0b980d4a6427442cfedf368610"
           check_hash "mobile_app/lib/features/services/presentation/services_screen.dart" \
             "7b6c3f3ae5947ad30b898606e93b1ae31ac6d04f"
 
@@ -205,7 +207,7 @@ jobs:
           flutter test
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
-          --dart-define=V2_PACKAGE=P01
+          --dart-define=V2_PACKAGE=P02-R1
           test/uat_compiled_environment_test.dart
 
       - name: Verify live Render health before APK build
@@ -288,7 +290,7 @@ jobs:
           --build-number=${{ github.run_number }}
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
-          --dart-define=V2_PACKAGE=P01
+          --dart-define=V2_PACKAGE=P02-R1
 
       - name: Prepare verified APK artifact
         shell: bash
@@ -297,12 +299,12 @@ jobs:
           mkdir -p dist
           apk="mobile_app/build/app/outputs/flutter-apk/app-release.apk"
           test -f "$apk"
-          out="dist/real-estate-v2-p01-uat-${GITHUB_RUN_NUMBER}.apk"
+          out="dist/real-estate-v2-p02-r1-uat-${GITHUB_RUN_NUMBER}.apk"
           cp "$apk" "$out"
           sha256sum "$out" > dist/SHA256.txt
           cat > dist/BUILD_INFO.txt <<EOF
           environment=uat
-          package=P01
+          package=P02-R1
           api_base_url=${UAT_API_BASE_URL}
           github_run_number=${GITHUB_RUN_NUMBER}
           github_sha=${GITHUB_SHA}
@@ -313,7 +315,7 @@ jobs:
       - name: Upload UAT APK
         uses: actions/upload-artifact@v4
         with:
-          name: real-estate-v2-p01-uat-apk-${{ github.run_number }}
+          name: real-estate-v2-p02-r1-uat-apk-${{ github.run_number }}
           path: dist/
           if-no-files-found: error
           retention-days: 14

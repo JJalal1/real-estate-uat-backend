@@ -6,7 +6,8 @@ import '../features/account/presentation/access_control_screen.dart';
 import '../features/account/presentation/account_verification_admin_screen.dart';
 import '../features/account/presentation/account_verification_screen.dart';
 import '../features/account/presentation/auth_gate.dart';
-import '../features/account/presentation/p01/p01_auth_screen.dart';
+import '../features/account/presentation/p02/p02_login_screen.dart';
+import '../features/account/presentation/p02/p02_register_screen.dart';
 import '../features/account/presentation/broker_account_verification_screen.dart';
 import '../features/account/presentation/broker_verification_admin_screen.dart';
 import '../features/account/presentation/p01/p01_complete_profile_screen.dart';
@@ -19,7 +20,7 @@ import '../features/admin/presentation/platform_settings_screen.dart';
 import '../features/agreements/presentation/agreement_detail_screen.dart';
 import '../features/agreements/presentation/agreements_screen.dart';
 import '../features/agreements/presentation/rental_contract_detail_screen.dart';
-import '../features/app_shell/presentation/p01_app_shell_screen.dart';
+import '../features/app_shell/presentation/p02_app_shell_screen.dart';
 import '../features/bookings/presentation/bookings_screen.dart';
 import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
@@ -30,11 +31,14 @@ import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/favorites_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
 import '../features/properties/presentation/property_details_screen.dart';
+import '../features/properties/presentation/saved_search_builder_screen.dart';
+import '../features/properties/presentation/saved_searches_screen.dart';
 import '../features/regions/presentation/regions_management_screen.dart';
 import '../features/reviews/presentation/listing_review_screen.dart';
 import '../features/services/presentation/services_screen.dart';
 import '../features/support/presentation/support_admin_screen.dart';
 import '../features/support/presentation/support_center_screen.dart';
+import '../features/support/presentation/p02_support_info_screen.dart';
 import '../features/support/presentation/support_users_screen.dart';
 import '../features/support/presentation/support_work_log_screen.dart';
 import '../features/support/presentation/support_workspace_screen.dart';
@@ -46,12 +50,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) => internalLocationForAppLink(state.uri),
     errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
-      GoRoute(path: '/', builder: (context, state) => const P01AppShellScreen()),
+      GoRoute(path: '/', builder: (context, state) => const P02AppShellScreen()),
       GoRoute(
         path: '/auth',
-        builder: (context, state) => P01AuthScreen(
-          startWithRegister: state.uri.queryParameters['register'] == '1',
-        ),
+        builder: (context, state) =>
+            state.uri.queryParameters['register'] == '1'
+                ? const P02RegisterScreen()
+                : const P02LoginScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const P02LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const P02RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/support-info',
+        builder: (context, state) => const P02SupportInfoScreen(),
       ),
       GoRoute(
         path: '/verify-phone',
@@ -275,7 +292,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/property-market',
-        builder: (context, state) => const MapScreen(),
+        builder: (context, state) => const MapScreen(enableListingCreation: false),
+      ),
+      GoRoute(
+        path: '/property-requests',
+        builder: (context, state) => const Stage6AuthGate(
+          child: SavedSearchesScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/property-request/new',
+        builder: (context, state) => const Stage6AuthGate(
+          child: SavedSearchBuilderScreen(),
+        ),
       ),
     ],
   );

@@ -64,7 +64,7 @@ class _GuestAccount extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.s6),
               Text(
-                'سجّل برقم واتساب. لا تحتاج لاختيار مشتري أو مستأجر عند إنشاء الحساب.',
+                'الدخول وإنشاء الحساب منفصلان. استخدم رقم هاتف واحد لحساب واحد.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -72,10 +72,26 @@ class _GuestAccount extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.s20),
               AppButton(
-                label: 'تسجيل الدخول أو إنشاء حساب',
-                icon: Icons.login,
+                label: 'تسجيل الدخول',
+                icon: Icons.login_rounded,
                 expand: true,
-                onPressed: () => context.push('/auth'),
+                onPressed: () => context.push('/login'),
+              ),
+              const SizedBox(height: AppSpacing.s8),
+              AppButton(
+                label: 'إنشاء حساب جديد',
+                icon: Icons.person_add_alt_1_rounded,
+                style: AppButtonStyle.outlined,
+                expand: true,
+                onPressed: () => context.push('/register'),
+              ),
+              const SizedBox(height: AppSpacing.s8),
+              AppButton(
+                label: 'الدعم الفني',
+                icon: Icons.headset_mic_outlined,
+                style: AppButtonStyle.text,
+                expand: true,
+                onPressed: () => context.push('/support-info'),
               ),
             ],
           ),
@@ -137,6 +153,25 @@ class _SignedInAccount extends ConsumerWidget {
               onTap: user.needsProfileCompletion
                   ? () => context.push('/complete-profile')
                   : () => context.push('/account-verification'),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.s24),
+        const AppSectionHeader(title: 'البحث عن عقار'),
+        const SizedBox(height: AppSpacing.s8),
+        _AccountGroup(
+          rows: [
+            _AccountRow(
+              title: 'المفضلة',
+              subtitle: 'العقارات التي حفظتها',
+              icon: Icons.favorite_border_rounded,
+              onTap: () => context.push('/favorites'),
+            ),
+            _AccountRow(
+              title: 'طلباتي العقارية الخاصة',
+              subtitle: 'طلبات لا يراها المعلنون ويطابقها النظام لك',
+              icon: Icons.manage_search_outlined,
+              onTap: () => context.push('/property-requests'),
             ),
           ],
         ),

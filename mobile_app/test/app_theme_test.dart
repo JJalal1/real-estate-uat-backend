@@ -3,81 +3,70 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 
 void main() {
-  test('light theme implements the accepted Material role contract', () {
+  test('P02 revision implements the accepted real-estate color contract', () {
     final theme = AppTheme.light;
     final scheme = theme.colorScheme;
     expect(theme.useMaterial3, isTrue);
     expect(scheme.brightness, Brightness.light);
+
     final roles = <(Color, int)>[
-      (scheme.primary, 0xFF0C7A50),
-      (scheme.primaryContainer, 0xFFE8F5EF),
-      (scheme.onPrimaryContainer, 0xFF075338),
-      (scheme.secondary, 0xFF2C6EAA),
-      (scheme.secondaryContainer, 0xFFEAF2F9),
-      (scheme.onSecondaryContainer, 0xFF174E79),
-      (scheme.onSurface, 0xFF15201B),
-      (scheme.onSurfaceVariant, 0xFF5F6B65),
-      (scheme.surfaceContainerLow, 0xFFF8F9F7),
-      (scheme.surfaceContainer, 0xFFF2F5F3),
-      (scheme.surfaceContainerHigh, 0xFFEBEFEC),
-      (scheme.surfaceContainerHighest, 0xFFE3E8E5),
-      (scheme.outline, 0xFF89948E),
-      (scheme.outlineVariant, 0xFFDCE2DF),
-      (scheme.error, 0xFFB3261E),
-      (scheme.errorContainer, 0xFFF9DEDC),
-      (scheme.onErrorContainer, 0xFF410E0B),
-      (scheme.inverseSurface, 0xFF24312B),
+      (scheme.primary, 0xFF123C4A),
+      (scheme.primaryContainer, 0xFFE8F1F3),
+      (scheme.onPrimaryContainer, 0xFF0A2933),
+      (scheme.secondary, 0xFF0B7D78),
+      (scheme.secondaryContainer, 0xFFE3F3F1),
+      (scheme.onSecondaryContainer, 0xFF075E5B),
+      (scheme.tertiary, 0xFFC99A3D),
+      (scheme.tertiaryContainer, 0xFFFFF4D9),
+      (scheme.onSurface, 0xFF142126),
+      (scheme.onSurfaceVariant, 0xFF617077),
+      (scheme.surfaceContainerLow, 0xFFF6F8FA),
+      (scheme.surfaceContainer, 0xFFF0F4F6),
+      (scheme.surfaceContainerHigh, 0xFFE8EEF1),
+      (scheme.surfaceContainerHighest, 0xFFE0E8EB),
+      (scheme.outline, 0xFF849197),
+      (scheme.outlineVariant, 0xFFD8E0E4),
+      (scheme.error, 0xFFB42318),
+      (scheme.errorContainer, 0xFFFDECEA),
+      (scheme.onErrorContainer, 0xFF7A271A),
+      (scheme.inverseSurface, 0xFF1E2D33),
     ];
     for (final (actual, expected) in roles) {
       expect(actual, Color(expected));
     }
-    for (final color in [
-      scheme.onPrimary,
-      scheme.onSecondary,
-      scheme.surface,
-      scheme.onError,
-      scheme.onInverseSurface,
-    ]) {
-      expect(color, Colors.white);
-    }
-    expect(theme.scaffoldBackgroundColor, scheme.surfaceContainerLow);
+
+    expect(theme.scaffoldBackgroundColor, const Color(0xFFF6F8FA));
     expect(theme.extension<AppSemanticColors>(), AppSemanticColors.light);
-    expect(theme.progressIndicatorTheme.color, scheme.primary);
+    expect(theme.progressIndicatorTheme.color, scheme.secondary);
     expect(scheme.primary, AppTheme.brandSeed);
+    expect(theme.snackBarTheme.behavior, SnackBarBehavior.floating);
   });
 
-  test('accepted text scale uses explicit metrics and the safe fallback', () {
+  test('P02 Arabic type scale favors quick scanning and safe fallback', () {
     final text = AppTheme.light.textTheme;
     final scale = <(TextStyle?, double, double, FontWeight)>[
-      (text.headlineLarge, 28, 40, FontWeight.w700),
-      (text.headlineMedium, 24, 36, FontWeight.w700),
-      (text.headlineSmall, 22, 32, FontWeight.w600),
-      (text.titleLarge, 20, 32, FontWeight.w600),
-      (text.titleMedium, 18, 28, FontWeight.w600),
-      (text.titleSmall, 16, 24, FontWeight.w600),
-      (text.bodyLarge, 16, 28, FontWeight.w400),
-      (text.bodyMedium, 14, 24, FontWeight.w400),
-      (text.bodySmall, 12, 20, FontWeight.w400),
-      (text.labelLarge, 16, 24, FontWeight.w600),
-      (text.labelMedium, 14, 20, FontWeight.w600),
-      (text.labelSmall, 12, 20, FontWeight.w600),
+      (text.headlineLarge, 30, 1.35, FontWeight.w700),
+      (text.headlineMedium, 25, 1.40, FontWeight.w700),
+      (text.headlineSmall, 22, 1.42, FontWeight.w700),
+      (text.titleLarge, 19, 1.45, FontWeight.w700),
+      (text.titleMedium, 17, 1.45, FontWeight.w700),
+      (text.titleSmall, 15, 1.45, FontWeight.w600),
+      (text.bodyLarge, 16, 1.65, FontWeight.w400),
+      (text.bodyMedium, 14, 1.65, FontWeight.w400),
+      (text.bodySmall, 12.5, 1.60, FontWeight.w400),
+      (text.labelLarge, 15.5, 1.40, FontWeight.w700),
+      (text.labelMedium, 13.5, 1.40, FontWeight.w700),
+      (text.labelSmall, 11.5, 1.40, FontWeight.w600),
     ];
-    for (final (style, size, lineHeight, weight) in scale) {
+    for (final (style, size, height, weight) in scale) {
       expect(style!.fontSize, size);
-      expect(style.height! * size, closeTo(lineHeight, 0.000001));
+      expect(style.height, closeTo(height, 0.000001));
       expect(style.fontWeight, weight);
       expect(style.letterSpacing, 0);
       expect(style.fontFamilyFallback, ['Arial', 'sans-serif']);
-      expect(style.color, const Color(0xFF15201B));
+      expect(style.color, const Color(0xFF142126));
     }
     expect(AppTypography.bodyLarge.fontFamily, isNull);
-    for (final style in [
-      text.displayLarge,
-      text.displayMedium,
-      text.displaySmall,
-    ]) {
-      expect(style!.letterSpacing, 0);
-    }
   });
 
   test('enabled semantic and Material text pairs meet accepted contrast', () {
@@ -182,13 +171,14 @@ void main() {
     }
   });
 
-  test('legacy theme constants remain usable in const expressions', () {
-    const legacy = [
+  test('theme constants remain usable in const expressions', () {
+    const palette = [
       AppTheme.brand,
       AppTheme.brandStrong,
       AppTheme.brandSoft,
       AppTheme.accent,
       AppTheme.accentSoft,
+      AppTheme.highlight,
       AppTheme.page,
       AppTheme.surface,
       AppTheme.outlineSoft,
@@ -196,18 +186,19 @@ void main() {
       AppTheme.textMuted,
       AppTheme.warning,
     ];
-    expect(legacy, const [
-      Color(0xFF0C7A50),
-      Color(0xFF075338),
-      Color(0xFFE8F5EF),
-      Color(0xFF2C6EAA),
-      Color(0xFFEAF2F9),
-      Color(0xFFF8F9F7),
+    expect(palette, const [
+      Color(0xFF123C4A),
+      Color(0xFF0A2933),
+      Color(0xFFE8F1F3),
+      Color(0xFF0B7D78),
+      Color(0xFFE3F3F1),
+      Color(0xFFC99A3D),
+      Color(0xFFF6F8FA),
       Colors.white,
-      Color(0xFFDCE2DF),
-      Color(0xFF15201B),
-      Color(0xFF5F6B65),
-      Color(0xFFC88700),
+      Color(0xFFD8E0E4),
+      Color(0xFF142126),
+      Color(0xFF617077),
+      Color(0xFFB56D00),
     ]);
   });
 
@@ -216,22 +207,27 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       theme: AppTheme.light,
       builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(2)),
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: const TextScaler.linear(2)),
         child: Directionality(textDirection: TextDirection.rtl, child: child!),
       ),
       home: Scaffold(body: Builder(builder: (context) {
         expect(Directionality.of(context), TextDirection.rtl);
         expect(MediaQuery.textScalerOf(context).scale(16), 32);
         expect(Theme.of(context).extension<AppSemanticColors>(), isNotNull);
-        return Text('تفاصيل العقار', style: Theme.of(context).textTheme.bodyLarge);
+        return Text(
+          'تفاصيل العقار',
+          style: Theme.of(context).textTheme.bodyLarge,
+        );
       })),
     ));
 
     final text = tester.widget<Text>(find.text('تفاصيل العقار'));
-    expect(text.textDirection, isNull,
-        reason: 'Text should inherit RTL from Directionality rather than force it.');
-    expect(Directionality.of(tester.element(find.text('تفاصيل العقار'))),
-        TextDirection.rtl);
+    expect(text.textDirection, isNull);
+    expect(
+      Directionality.of(tester.element(find.text('تفاصيل العقار'))),
+      TextDirection.rtl,
+    );
     final richText = tester.widget<RichText>(find.descendant(
       of: find.text('تفاصيل العقار'),
       matching: find.byType(RichText),

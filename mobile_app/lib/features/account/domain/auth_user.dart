@@ -184,13 +184,20 @@ class AuthResult {
 class WhatsAppAuthPending {
   const WhatsAppAuthPending({
     required this.phone,
+    required this.intent,
     required this.isNewAccount,
+    this.name,
     this.debugCode,
   });
 
   final String phone;
+  final String intent;
   final bool isNewAccount;
+  final String? name;
   final String? debugCode;
+
+  bool get isRegister => intent == 'register';
+  bool get isLogin => intent == 'login';
 }
 
 String? _nullable(dynamic value) {

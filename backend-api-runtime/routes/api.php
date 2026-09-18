@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\PropertyFavoriteController;
 use App\Http\Controllers\Api\PropertyIdentityController;
 use App\Http\Controllers\Api\PropertySaiController;
 use App\Http\Controllers\Api\RegionsController;
+use App\Http\Controllers\Api\SavedPropertySearchController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\ServicePaymentController;
 use Illuminate\Support\Facades\DB;
@@ -93,6 +94,11 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/properties/{property}/proof-documents', [PropertyController::class, 'uploadProofDocuments']);
     Route::delete('/properties/{property}/proof-documents/{document}', [PropertyController::class, 'deleteProofDocument']);
     Route::get('/listing-documents/{document}', [ListingReviewController::class, 'document']);
+
+    Route::get('/saved-searches', [SavedPropertySearchController::class, 'index']);
+    Route::post('/saved-searches', [SavedPropertySearchController::class, 'store'])->middleware('throttle:12,1');
+    Route::patch('/saved-searches/{savedSearch}', [SavedPropertySearchController::class, 'update'])->middleware('throttle:20,1');
+    Route::delete('/saved-searches/{savedSearch}', [SavedPropertySearchController::class, 'destroy'])->middleware('throttle:20,1');
 
     Route::get('/favorites', [PropertyFavoriteController::class, 'index']);
     Route::get('/favorites/ids', [PropertyFavoriteController::class, 'ids']);

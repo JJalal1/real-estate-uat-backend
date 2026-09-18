@@ -57,6 +57,39 @@ class ProductExperienceSavedSearchTest extends TestCase
         ]);
     }
 
+    public function test_private_request_matches_currency_and_original_local_area_unit_without_conversion(): void
+    {
+        [, $headers] = $this->user('local-area-searcher@example.test', '+967770001009');
+
+        $matching = $this->property('أرض مناسبة', 'sale', 'land', 25000000, 'published');
+        $matching->forceFill([
+            'currency' => 'YER_NORTH',
+            'area_value' => 20,
+            'area_unit' => 'libna_sanaani',
+        ])->save();
+
+        $otherUnit = $this->property('أرض بوحدة مختلفة', 'sale', 'land', 25000000, 'published');
+        $otherUnit->forceFill([
+            'currency' => 'YER_NORTH',
+            'area_value' => 20,
+            'area_unit' => 'libna_dhamari',
+        ])->save();
+
+        $this->withHeaders($headers)->postJson('/api/saved-searches', [
+            'name' => 'أرض 20 لبنة صنعاني',
+            'alert_frequency' => 'instant',
+            'filters' => [
+                'purpose' => 'sale',
+                'type' => 'land',
+                'currency' => 'YER_NORTH',
+                'area_unit' => 'libna_sanaani',
+                'min_area_value' => 20,
+                'max_area_value' => 20,
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('data.matching_count', 1);
+    }
+
     public function test_instant_saved_search_alert_does_not_notify_listing_owner(): void
     {
         [$searcher, $headers] = $this->user('alert@example.test', '+967770001003');
