@@ -309,6 +309,7 @@ class PropertyController extends Controller
             'search' => ['nullable', 'string', 'max:120'],
             'purpose' => ['nullable', Rule::in(self::PURPOSES)],
             'type' => ['nullable', Rule::in(self::TYPES)],
+            'currency' => ['nullable', Rule::in(['YER', 'YER_NORTH', 'YER_SOUTH', 'SAR', 'USD'])],
             'min_price' => ['nullable', 'numeric', 'min:0'],
             'max_price' => ['nullable', 'numeric', 'gte:min_price'],
             'min_bedrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
@@ -329,7 +330,7 @@ class PropertyController extends Controller
             'type' => array_merge($required, [Rule::in(self::TYPES)]),
             'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
-            'currency' => ['sometimes', 'string', 'size:3'],
+            'currency' => ['sometimes', Rule::in(['YER', 'YER_NORTH', 'YER_SOUTH', 'SAR', 'USD'])],
             'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3])],
             'area_m2' => ['nullable', 'integer', 'min:1', 'max:10000000'],
             'area_value' => ['nullable', 'numeric', 'gt:0', 'max:10000000'],
@@ -563,7 +564,7 @@ class PropertyController extends Controller
             });
         }
 
-        foreach (['purpose', 'type'] as $field) {
+        foreach (['purpose', 'type', 'currency'] as $field) {
             if (! empty($validated[$field])) {
                 $query->where($field, $validated[$field]);
             }
