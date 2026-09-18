@@ -1419,7 +1419,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           title: const Text('قائمة العقارات'),
           actions: [
             IconButton.filledTonal(
-              tooltip: 'إنشاء طلب الحالي',
+              tooltip: 'إنشاء طلب عقار من البحث الحالي',
               onPressed: _saveCurrentSearch,
               icon: const Icon(Icons.notifications_active_outlined),
             ),
