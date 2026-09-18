@@ -45,3 +45,5 @@ P01 is not closed until:
 7. The owner explicitly accepts P01.
 
 After acceptance, the resulting commit becomes the baseline for P02.
+
+Draft review: PR #55. P01 remains unmerged during team UAT.
