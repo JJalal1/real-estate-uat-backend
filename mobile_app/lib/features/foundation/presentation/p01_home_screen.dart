@@ -54,7 +54,7 @@ class P01HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.s16),
                   Text(
-                    user == null ? 'أهلاً بك' : 'مرحباً ' + _firstName(user.name),
+                    user == null ? 'أهلاً بك' : 'مرحباً ${_firstName(user.name)}',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: AppSpacing.s6),
