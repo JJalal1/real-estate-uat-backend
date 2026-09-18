@@ -17,6 +17,6 @@ void main() {
     expect(source, contains("'latitude': _center.latitude"));
     expect(source, contains("'radius_km': _defaultRadiusKm"));
     expect(source, contains('إنشاء طلب عقار من البحث الحالي'));
-    expect(source, contains('حفظ البحث'));
+    expect(source, contains("'إنشاء طلب'"));
   });
 }
