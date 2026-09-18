@@ -24,6 +24,7 @@ env:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   backend-tests:
@@ -139,6 +140,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Set up Flutter 3.27.3
         uses: subosito/flutter-action@v2
@@ -314,3 +317,4 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 14
+
