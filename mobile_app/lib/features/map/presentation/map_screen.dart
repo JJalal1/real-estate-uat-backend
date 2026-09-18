@@ -1857,14 +1857,14 @@ class _MapListSwitcherBar extends StatelessWidget {
             Expanded(
               child: InkWell(
                 onTap: onAdd,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(actionIcon, color: AppTheme.brandStrong),
                     const SizedBox(width: 7),
                     Text(
                       actionLabel,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: AppTheme.brandStrong,
                         fontWeight: FontWeight.w900,
                       ),
