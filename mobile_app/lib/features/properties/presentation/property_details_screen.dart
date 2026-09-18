@@ -137,6 +137,16 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           icon: Icons.local_parking_outlined,
           label: 'موقف سيارة',
         ),
+      if (property.hasGarden == true)
+        const AppPropertyFact(
+          icon: Icons.park_outlined,
+          label: 'حديقة',
+        ),
+      if (property.floorNumber != null)
+        AppPropertyFact(
+          icon: Icons.layers_outlined,
+          label: 'الطابق ${property.floorNumber}',
+        ),
       if (property.tenureType != null)
         AppPropertyFact(
           icon: Icons.account_balance_outlined,
