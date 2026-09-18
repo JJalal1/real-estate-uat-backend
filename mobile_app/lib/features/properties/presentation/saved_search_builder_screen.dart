@@ -200,7 +200,7 @@ class _SavedSearchBuilderScreenState
                   child: TextField(
                     controller: _minPrice,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'أقل سعر',
                       suffixText: _currencyLabel(_currency),
                     ),
@@ -211,7 +211,7 @@ class _SavedSearchBuilderScreenState
                   child: TextField(
                     controller: _maxPrice,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'أعلى سعر',
                       suffixText: _currencyLabel(_currency),
                     ),
@@ -264,7 +264,7 @@ class _SavedSearchBuilderScreenState
                   child: TextField(
                     controller: _minArea,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'أقل مساحة',
                       suffixText: propertyAreaUnitLabel(_areaUnit),
                     ),
@@ -275,7 +275,7 @@ class _SavedSearchBuilderScreenState
                   child: TextField(
                     controller: _maxArea,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'أعلى مساحة',
                       suffixText: propertyAreaUnitLabel(_areaUnit),
                     ),
