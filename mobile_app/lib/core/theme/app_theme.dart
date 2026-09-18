@@ -81,12 +81,6 @@ abstract final class AppTheme {
       fontFamily: AppTypography.fontFamily,
       fontFamilyFallback: AppTypography.fontFamilyFallback,
       textTheme: readableTextTheme,
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-        },
-      ),
       appBarTheme: AppBarTheme(
         centerTitle: false,
         backgroundColor: page,
@@ -233,7 +227,7 @@ abstract final class AppTheme {
           fontFamily: AppTypography.fontFamily,
           fontWeight: FontWeight.w600,
         ),
-        insetPadding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 18),
+        insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
         ),
