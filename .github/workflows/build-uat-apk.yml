@@ -10,6 +10,13 @@ on:
       - 'mobile_app/**'
       - 'backend-api-runtime/**'
       - '.github/workflows/build-uat-apk.yml'
+  pull_request:
+    branches:
+      - audit/system-stabilization
+    paths:
+      - 'mobile_app/**'
+      - 'backend-api-runtime/**'
+      - '.github/workflows/build-uat-apk.yml'
   workflow_dispatch:
 
 env:
