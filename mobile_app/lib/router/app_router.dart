@@ -6,7 +6,8 @@ import '../features/account/presentation/access_control_screen.dart';
 import '../features/account/presentation/account_verification_admin_screen.dart';
 import '../features/account/presentation/account_verification_screen.dart';
 import '../features/account/presentation/auth_gate.dart';
-import '../features/account/presentation/p01/p01_auth_screen.dart';
+import '../features/account/presentation/p02/p02_login_screen.dart';
+import '../features/account/presentation/p02/p02_register_screen.dart';
 import '../features/account/presentation/broker_account_verification_screen.dart';
 import '../features/account/presentation/broker_verification_admin_screen.dart';
 import '../features/account/presentation/p01/p01_complete_profile_screen.dart';
@@ -37,6 +38,7 @@ import '../features/reviews/presentation/listing_review_screen.dart';
 import '../features/services/presentation/services_screen.dart';
 import '../features/support/presentation/support_admin_screen.dart';
 import '../features/support/presentation/support_center_screen.dart';
+import '../features/support/presentation/p02_support_info_screen.dart';
 import '../features/support/presentation/support_users_screen.dart';
 import '../features/support/presentation/support_work_log_screen.dart';
 import '../features/support/presentation/support_workspace_screen.dart';
@@ -51,9 +53,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (context, state) => const P02AppShellScreen()),
       GoRoute(
         path: '/auth',
-        builder: (context, state) => P01AuthScreen(
-          startWithRegister: state.uri.queryParameters['register'] == '1',
-        ),
+        builder: (context, state) =>
+            state.uri.queryParameters['register'] == '1'
+                ? const P02RegisterScreen()
+                : const P02LoginScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const P02LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const P02RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/support-info',
+        builder: (context, state) => const P02SupportInfoScreen(),
       ),
       GoRoute(
         path: '/verify-phone',
