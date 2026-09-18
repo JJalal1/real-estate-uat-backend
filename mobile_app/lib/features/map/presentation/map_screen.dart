@@ -144,6 +144,7 @@ class NearbyQuery {
     this.radiusKm = 30,
     this.purpose,
     this.type,
+    this.currency,
     this.minPrice,
     this.maxPrice,
     this.minBedrooms,
@@ -161,6 +162,7 @@ class NearbyQuery {
   final double radiusKm;
   final String? purpose;
   final String? type;
+  final String? currency;
   final double? minPrice;
   final double? maxPrice;
   final int? minBedrooms;
@@ -182,6 +184,7 @@ class NearbyQuery {
             other.radiusKm == radiusKm &&
             other.purpose == purpose &&
             other.type == type &&
+            other.currency == currency &&
             other.minPrice == minPrice &&
             other.maxPrice == maxPrice &&
             other.minBedrooms == minBedrooms &&
@@ -202,6 +205,7 @@ class NearbyQuery {
         radiusKm,
         purpose,
         type,
+        currency,
         minPrice,
         maxPrice,
         minBedrooms,
@@ -226,6 +230,7 @@ final nearbyPropertiesProvider =
           radiusKm: query.radiusKm,
           purpose: query.purpose,
           type: query.type,
+          currency: query.currency,
           minPrice: query.minPrice,
           maxPrice: query.maxPrice,
           minBedrooms: query.minBedrooms,
@@ -268,6 +273,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   String? _filterPurpose;
   String? _filterType;
+  String? _filterCurrency;
   double? _filterMinPrice;
   double? _filterMaxPrice;
   int? _filterMinBedrooms;
@@ -320,6 +326,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _recentSearches = history.recentSearches;
       _filterPurpose = _historyString(filters['purpose']);
       _filterType = _historyString(filters['type']);
+      _filterCurrency = _historyString(filters['currency']);
       _filterMinPrice = _historyDouble(filters['min_price']);
       _filterMaxPrice = _historyDouble(filters['max_price']);
       _filterMinBedrooms = _historyInt(filters['min_bedrooms']);
@@ -349,6 +356,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Map<String, dynamic> _discoveryHistorySnapshot() => <String, dynamic>{
         if (_filterPurpose != null) 'purpose': _filterPurpose,
         if (_filterType != null) 'type': _filterType,
+        if (_filterCurrency != null) 'currency': _filterCurrency,
         if (_filterMinPrice != null) 'min_price': _filterMinPrice,
         if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
         if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
@@ -721,6 +729,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     var count = 0;
     if (_filterPurpose != null) count++;
     if (_filterType != null) count++;
+    if (_filterCurrency != null) count++;
     if (_filterMinPrice != null || _filterMaxPrice != null) count++;
     if (_filterMinBedrooms != null) count++;
     if (_filterMinBathrooms != null) count++;
@@ -737,6 +746,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       builder: (context) => _PropertyFilterSheet(
         initialPurpose: _filterPurpose,
         initialType: _filterType,
+        initialCurrency: _filterCurrency,
         initialMinPrice: _filterMinPrice,
         initialMaxPrice: _filterMaxPrice,
         initialMinBedrooms: _filterMinBedrooms,
@@ -750,6 +760,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     setState(() {
       _filterPurpose = result.purpose;
       _filterType = result.type;
+      _filterCurrency = result.currency;
       _filterMinPrice = result.minPrice;
       _filterMaxPrice = result.maxPrice;
       _filterMinBedrooms = result.minBedrooms;
@@ -991,6 +1002,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final filters = <String, dynamic>{
       if (_filterPurpose != null) 'purpose': _filterPurpose,
       if (_filterType != null) 'type': _filterType,
+      if (_filterCurrency != null) 'currency': _filterCurrency,
       if (_filterMinPrice != null) 'min_price': _filterMinPrice,
       if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
       if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
@@ -1061,6 +1073,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       radiusKm: _defaultRadiusKm,
       purpose: _filterPurpose,
       type: _filterType,
+      currency: _filterCurrency,
       minPrice: _filterMinPrice,
       maxPrice: _filterMaxPrice,
       minBedrooms: _filterMinBedrooms,
@@ -2604,6 +2617,7 @@ class _FilterResult {
   const _FilterResult({
     this.purpose,
     this.type,
+    this.currency,
     this.minPrice,
     this.maxPrice,
     this.minBedrooms,
@@ -2614,6 +2628,7 @@ class _FilterResult {
 
   final String? purpose;
   final String? type;
+  final String? currency;
   final double? minPrice;
   final double? maxPrice;
   final int? minBedrooms;
@@ -2626,6 +2641,7 @@ class _PropertyFilterSheet extends StatefulWidget {
   const _PropertyFilterSheet({
     this.initialPurpose,
     this.initialType,
+    this.initialCurrency,
     this.initialMinPrice,
     this.initialMaxPrice,
     this.initialMinBedrooms,
@@ -2636,6 +2652,7 @@ class _PropertyFilterSheet extends StatefulWidget {
 
   final String? initialPurpose;
   final String? initialType;
+  final String? initialCurrency;
   final double? initialMinPrice;
   final double? initialMaxPrice;
   final int? initialMinBedrooms;
@@ -2650,6 +2667,7 @@ class _PropertyFilterSheet extends StatefulWidget {
 class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
   late String? _purpose;
   late String? _type;
+  late String? _currency;
   late int? _minBedrooms;
   late int? _minBathrooms;
   late final TextEditingController _minPriceController;
@@ -2669,6 +2687,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
     super.initState();
     _purpose = widget.initialPurpose;
     _type = widget.initialType;
+    _currency = widget.initialCurrency;
     _minBedrooms = widget.initialMinBedrooms;
     _minBathrooms = widget.initialMinBathrooms;
     _minPriceController = TextEditingController(
@@ -2683,7 +2702,8 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
     _maxAreaController = TextEditingController(
       text: widget.initialMaxArea?.toStringAsFixed(0) ?? '',
     );
-    _showMore = widget.initialMinPrice != null ||
+    _showMore = widget.initialCurrency != null ||
+        widget.initialMinPrice != null ||
         widget.initialMaxPrice != null ||
         widget.initialMinBedrooms != null ||
         widget.initialMinBathrooms != null ||
@@ -2715,6 +2735,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
     setState(() {
       _purpose = null;
       _type = null;
+      _currency = null;
       _minBedrooms = null;
       _minBathrooms = null;
       _minPriceController.clear();
@@ -2783,6 +2804,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
       _FilterResult(
         purpose: _purpose,
         type: _type,
+        currency: _currency,
         minPrice: minPrice,
         maxPrice: maxPrice,
         minBedrooms: _showRoomFilters ? _minBedrooms : null,
@@ -2987,6 +3009,40 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
                                   decoration:
                                       const InputDecoration(labelText: 'إلى'),
                                 ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          const _FilterSectionTitle('العملة'),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _choice(
+                                'الكل',
+                                _currency == null,
+                                () => setState(() => _currency = null),
+                              ),
+                              _choice(
+                                'ريال شمال',
+                                _currency == 'YER_NORTH',
+                                () => setState(() => _currency = 'YER_NORTH'),
+                              ),
+                              _choice(
+                                'ريال جنوب',
+                                _currency == 'YER_SOUTH',
+                                () => setState(() => _currency = 'YER_SOUTH'),
+                              ),
+                              _choice(
+                                'ريال سعودي',
+                                _currency == 'SAR',
+                                () => setState(() => _currency = 'SAR'),
+                              ),
+                              _choice(
+                                'دولار',
+                                _currency == 'USD',
+                                () => setState(() => _currency = 'USD'),
                               ),
                             ],
                           ),
@@ -3198,7 +3254,11 @@ String _typeLabel(String value) {
 String _currencyLabel(String value) {
   switch (value.toUpperCase()) {
     case 'YER':
-      return 'ريال';
+      return 'ريال يمني';
+    case 'YER_NORTH':
+      return 'ريال يمني - شمال';
+    case 'YER_SOUTH':
+      return 'ريال يمني - جنوب';
     case 'SAR':
       return 'ريال سعودي';
     case 'USD':
