@@ -16,7 +16,7 @@ class SavedPropertySearchService
     public function normalizeFilters(array $filters): array
     {
         $allowed = [
-            'search', 'purpose', 'type', 'min_price', 'max_price',
+            'search', 'purpose', 'type', 'currency', 'min_price', 'max_price',
             'min_bedrooms', 'min_bathrooms', 'min_area_m2', 'max_area_m2',
             'latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east',
         ];
@@ -26,7 +26,7 @@ class SavedPropertySearchService
                 continue;
             }
             $normalized[$key] = match ($key) {
-                'search', 'purpose', 'type' => trim((string) $filters[$key]),
+                'search', 'purpose', 'type', 'currency' => trim((string) $filters[$key]),
                 'min_bedrooms', 'min_bathrooms' => (int) $filters[$key],
                 default => (float) $filters[$key],
             };
@@ -59,7 +59,7 @@ class SavedPropertySearchService
             });
         }
 
-        foreach (['purpose', 'type'] as $field) {
+        foreach (['purpose', 'type', 'currency'] as $field) {
             if (! empty($filters[$field])) {
                 $query->where($field, $filters[$field]);
             }
