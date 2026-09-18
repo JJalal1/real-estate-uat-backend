@@ -58,7 +58,7 @@ class _P01PhoneVerificationScreenState
                   Text(
                     phone == null
                         ? 'أدخل الرمز المرسل عبر واتساب.'
-                        : 'أرسلنا رمزًا من 6 أرقام إلى ' + phone,
+                        : 'أرسلنا رمزًا من 6 أرقام إلى $phone',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Theme.of(context)
                               .colorScheme
