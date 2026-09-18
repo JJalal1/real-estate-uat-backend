@@ -338,6 +338,7 @@ class PropertyController extends Controller
             'bedrooms' => ['nullable', 'integer', 'min:0', 'max:100'],
             'bathrooms' => ['nullable', 'integer', 'min:0', 'max:100'],
             'has_parking' => ['nullable', 'boolean'],
+            'has_garden' => ['nullable', 'boolean'],
             'building_facade' => ['nullable', 'string', Rule::in(self::FACADES)],
             'address' => ['nullable', 'string', 'max:255'],
             'building_reference' => ['nullable', 'string', 'max:160'],
@@ -369,7 +370,7 @@ class PropertyController extends Controller
     {
         $allowed = [
             'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
-            'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude',
+            'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'has_garden', 'building_facade', 'address', 'latitude', 'longitude',
             'building_reference', 'unit_number', 'floor_number', 'land_boundary_geojson',
             'contact_phone', 'contact_whatsapp',
             'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note',
@@ -446,6 +447,7 @@ class PropertyController extends Controller
             $validated['bedrooms'] = null;
             $validated['bathrooms'] = null;
             $validated['has_parking'] = null;
+            $validated['has_garden'] = null;
             $validated['building_facade'] = null;
             $validated['building_reference'] = null;
             $validated['unit_number'] = null;
@@ -526,6 +528,7 @@ class PropertyController extends Controller
             'bedrooms' => $property->bedrooms,
             'bathrooms' => $property->bathrooms,
             'has_parking' => $property->has_parking,
+            'has_garden' => $property->has_garden,
             'building_facade' => $property->building_facade,
             'address' => $property->address,
             'latitude' => $property->latitude,
@@ -777,6 +780,7 @@ class PropertyController extends Controller
             'bedrooms' => $property->bedrooms,
             'bathrooms' => $property->bathrooms,
             'has_parking' => $property->has_parking,
+            'has_garden' => $property->has_garden,
             'building_facade' => $property->building_facade,
             'address' => $property->address,
             'latitude' => (float) $property->latitude,
