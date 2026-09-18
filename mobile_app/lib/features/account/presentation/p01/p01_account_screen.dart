@@ -141,6 +141,25 @@ class _SignedInAccount extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.s24),
+        const AppSectionHeader(title: 'البحث عن عقار'),
+        const SizedBox(height: AppSpacing.s8),
+        _AccountGroup(
+          rows: [
+            _AccountRow(
+              title: 'المفضلة',
+              subtitle: 'العقارات التي حفظتها',
+              icon: Icons.favorite_border_rounded,
+              onTap: () => context.push('/favorites'),
+            ),
+            _AccountRow(
+              title: 'طلباتي العقارية الخاصة',
+              subtitle: 'طلبات لا يراها المعلنون ويطابقها النظام لك',
+              icon: Icons.manage_search_outlined,
+              onTap: () => context.push('/property-requests'),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.s24),
         const AppSectionHeader(title: 'المساعدة'),
         const SizedBox(height: AppSpacing.s8),
         _AccountGroup(
