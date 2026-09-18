@@ -5,7 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('P01 foundation remains present in cumulative packages', () {
     final router = File('lib/router/app_router.dart').readAsStringSync();
-    expect(router, contains('P01AuthScreen'));
+    expect(router, contains('P02LoginScreen'));
+    expect(router, contains('P02RegisterScreen'));
     expect(router, contains('P01PhoneVerificationScreen'));
     expect(router, contains('P01CompleteProfileScreen'));
     expect(router, contains('P01ProfileScreen'));
