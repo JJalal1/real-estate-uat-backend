@@ -241,7 +241,12 @@ final nearbyPropertiesProvider =
 );
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({
+    this.enableListingCreation = true,
+    super.key,
+  });
+
+  final bool enableListingCreation;
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
@@ -1038,7 +1043,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (!mounted || saved != true) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('تم حفظ البحث وسيصلك تنبيه عند ظهور عقار مطابق.'),
+        content: Text('تم حفظ طلبك الخاص وسيصلك تنبيه عند ظهور عقار مطابق.'),
       ),
     );
   }
@@ -1193,7 +1198,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     Icon(Icons.notifications_active_outlined, color: AppTheme.brand),
                     SizedBox(width: 7),
                     Text(
-                      'حفظ البحث',
+                      'إنشاء طلب',
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ],
@@ -1367,7 +1372,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
         mapMode: true,
         onSwitch: () => setState(() => _listMode = true),
-        onAdd: _openAddProperty,
+        onAdd: widget.enableListingCreation ? _openAddProperty : _saveCurrentSearch,
+        actionLabel: widget.enableListingCreation ? 'إضافة' : 'طلب عقار',
+        actionIcon: widget.enableListingCreation
+            ? Icons.add_circle
+            : Icons.manage_search_outlined,
       ),
     );
   }
@@ -1412,7 +1421,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           title: const Text('قائمة العقارات'),
           actions: [
             IconButton.filledTonal(
-              tooltip: 'حفظ البحث الحالي',
+              tooltip: 'إنشاء طلب الحالي',
               onPressed: _saveCurrentSearch,
               icon: const Icon(Icons.notifications_active_outlined),
             ),
@@ -1498,7 +1507,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
               mapMode: false,
               onSwitch: () => setState(() => _listMode = false),
-              onAdd: _openAddProperty,
+              onAdd: widget.enableListingCreation ? _openAddProperty : _saveCurrentSearch,
+              actionLabel: widget.enableListingCreation ? 'إضافة' : 'طلب عقار',
+              actionIcon: widget.enableListingCreation
+                  ? Icons.add_circle
+                  : Icons.manage_search_outlined,
             ),
           ),
         ),
@@ -1531,8 +1544,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             icon: Icons.search_off_outlined,
             title: 'لا توجد نتائج مطابقة',
             message: 'جرّب تغيير المنطقة أو البحث أو إزالة بعض الفلاتر.',
-            buttonLabel: _filterCount > 0 ? 'مسح الفلاتر' : null,
-            onPressed: _filterCount > 0 ? _resetFilters : null,
+            buttonLabel: 'إنشاء طلب عقار خاص',
+            onPressed: _saveCurrentSearch,
           );
         }
 
@@ -1785,12 +1798,16 @@ class _MapListSwitcherBar extends StatelessWidget {
     required this.mapMode,
     required this.onSwitch,
     required this.onAdd,
+    required this.actionLabel,
+    required this.actionIcon,
   });
 
   final String countText;
   final bool mapMode;
   final VoidCallback onSwitch;
   final VoidCallback onAdd;
+  final String actionLabel;
+  final IconData actionIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -1843,10 +1860,10 @@ class _MapListSwitcherBar extends StatelessWidget {
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_circle, color: AppTheme.brandStrong),
-                    SizedBox(width: 7),
+                    Icon(actionIcon, color: AppTheme.brandStrong),
+                    const SizedBox(width: 7),
                     Text(
-                      'إضافة',
+                      actionLabel,
                       style: TextStyle(
                         color: AppTheme.brandStrong,
                         fontWeight: FontWeight.w900,
