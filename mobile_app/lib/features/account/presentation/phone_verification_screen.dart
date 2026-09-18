@@ -102,7 +102,11 @@ class _PhoneVerificationScreenState
     try {
       await ref
           .read(authControllerProvider.notifier)
-          .startWhatsApp(phone: pending.phone);
+          .startWhatsApp(
+            phone: pending.phone,
+            intent: pending.intent,
+            name: pending.name,
+          );
       if (mounted) {
         setState(() {});
       }
