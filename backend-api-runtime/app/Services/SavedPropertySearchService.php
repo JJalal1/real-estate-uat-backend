@@ -18,6 +18,7 @@ class SavedPropertySearchService
         $allowed = [
             'search', 'purpose', 'type', 'currency', 'min_price', 'max_price',
             'min_bedrooms', 'min_bathrooms', 'min_area_m2', 'max_area_m2',
+            'area_unit', 'min_area_value', 'max_area_value',
             'latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east',
         ];
         $normalized = [];
@@ -26,7 +27,7 @@ class SavedPropertySearchService
                 continue;
             }
             $normalized[$key] = match ($key) {
-                'search', 'purpose', 'type', 'currency' => trim((string) $filters[$key]),
+                'search', 'purpose', 'type', 'currency', 'area_unit' => trim((string) $filters[$key]),
                 'min_bedrooms', 'min_bathrooms' => (int) $filters[$key],
                 default => (float) $filters[$key],
             };
@@ -75,6 +76,16 @@ class SavedPropertySearchService
         ] as $input => [$column, $operator]) {
             if (isset($filters[$input])) {
                 $query->where($column, $operator, $filters[$input]);
+            }
+        }
+
+        if (! empty($filters['area_unit'])) {
+            $query->where('area_unit', $filters['area_unit']);
+            if (isset($filters['min_area_value'])) {
+                $query->where('area_value', '>=', $filters['min_area_value']);
+            }
+            if (isset($filters['max_area_value'])) {
+                $query->where('area_value', '<=', $filters['max_area_value']);
             }
         }
 
