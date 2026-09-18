@@ -38,7 +38,11 @@ class _P01PhoneVerificationScreenState
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('تأكيد رقم واتساب')),
+        appBar: AppBar(
+          title: Text(
+            pending?.isRegister == true ? 'تأكيد إنشاء الحساب' : 'تأكيد تسجيل الدخول',
+          ),
+        ),
         body: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsetsDirectional.all(
@@ -50,8 +54,24 @@ class _P01PhoneVerificationScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(
+                      Icons.verified_user_outlined,
+                      color: Theme.of(context).colorScheme.secondary,
+                      size: 29,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.s20),
                   Text(
-                    'أدخل رمز التحقق',
+                    pending?.isRegister == true
+                        ? 'أكد رقمك لإنشاء الحساب'
+                        : 'أكد رقمك للدخول',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: AppSpacing.s6),
@@ -120,9 +140,11 @@ class _P01PhoneVerificationScreenState
     if (pending == null) return;
     setState(() => _busy = true);
     try {
-      await ref
-          .read(authControllerProvider.notifier)
-          .startWhatsApp(phone: pending.phone);
+      await ref.read(authControllerProvider.notifier).startWhatsApp(
+            phone: pending.phone,
+            intent: pending.intent,
+            name: pending.name,
+          );
       _message('تم إرسال رمز جديد.');
     } catch (error) {
       _message(friendlyApiError(error));
