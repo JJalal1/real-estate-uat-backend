@@ -59,6 +59,34 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         $this->assertNotNull(User::query()->where('phone', '+967711111101')->value('profile_completed_at'));
     }
 
+    public function test_registration_rejects_a_phone_number_that_already_has_an_account(): void
+    {
+        $phone = '+967711111109';
+
+        $start = $this->postJson('/api/auth/whatsapp/start', [
+            'intent' => 'register',
+            'account_type' => 'regular',
+            'name' => 'أحمد محمد علي',
+            'phone' => $phone,
+        ])->assertOk()
+            ->assertJsonPath('data.is_new_account', true);
+
+        $this->postJson('/api/auth/whatsapp/verify', [
+            'phone' => $phone,
+            'code' => (string) $start->json('data.debug_code'),
+        ])->assertOk();
+
+        $this->postJson('/api/auth/whatsapp/start', [
+            'intent' => 'register',
+            'account_type' => 'regular',
+            'name' => 'شخص آخر مختلف',
+            'phone' => $phone,
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors('phone');
+
+        $this->assertSame(1, User::query()->where('phone', $phone)->count());
+    }
+
     public function test_base_account_cannot_create_listing_until_public_account_type_is_verified(): void
     {
         [, $headers] = $this->unifiedUser('+967711111102', 'أمين أحمد محمد علي');
