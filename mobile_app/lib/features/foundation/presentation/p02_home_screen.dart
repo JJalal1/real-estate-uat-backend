@@ -21,97 +21,98 @@ class P02HomeScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const Text('عقارات حولك'),
           actions: [
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: AppSpacing.s16),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: AppSpacing.s10,
-                    vertical: AppSpacing.s4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Text(
-                    V2Package.code,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: scheme.onPrimaryContainer,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-              ),
+            IconButton(
+              tooltip: 'الدعم الفني',
+              onPressed: () => context.push('/support-info'),
+              icon: const Icon(Icons.headset_mic_outlined),
             ),
+            const SizedBox(width: 6),
           ],
         ),
         body: ListView(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s20,
-            AppLayout.compactPageGutter,
-            AppSpacing.s40,
-          ),
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 32),
           children: [
             Text(
-              user == null ? 'وين تريد العقار؟' : 'وين تريد العقار يا ${_firstName(user.name)}؟',
+              user == null
+                  ? 'ابحث عن عقارك بسهولة'
+                  : 'أهلاً ${_firstName(user.name)}',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
-            const SizedBox(height: AppSpacing.s8),
+            const SizedBox(height: 6),
             Text(
-              'ابدأ بالمكان، ثم اختر بيع أو إيجار ونوع العقار والفلاتر التي تحتاجها فقط.',
+              'حدد ما تريد، اختر المكان، وشاهد النتائج.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
             ),
-            const SizedBox(height: AppSpacing.s20),
-            AppSurface(
+            const SizedBox(height: 22),
+            Container(
+              padding: const EdgeInsetsDirectional.all(18),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [scheme.primary, scheme.secondary],
+                  begin: AlignmentDirectional.topStart,
+                  end: AlignmentDirectional.bottomEnd,
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  InkWell(
-                    borderRadius: BorderRadius.circular(AppRadii.control),
-                    onTap: () => context.push('/property-market'),
-                    child: Container(
-                      padding: const EdgeInsetsDirectional.all(AppSpacing.s16),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: scheme.outlineVariant),
-                        borderRadius: BorderRadius.circular(AppRadii.control),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.search_rounded, color: scheme.primary),
-                          const SizedBox(width: AppSpacing.s12),
-                          Expanded(
-                            child: Text(
-                              'ابحث بالمنطقة أو حرّك الخريطة',
-                              style: Theme.of(context).textTheme.titleMedium,
+                  Text(
+                    'وين تريد العقار؟',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => context.push('/property-market'),
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.search_rounded, color: scheme.secondary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'ابحث بالحي أو المنطقة',
+                                style: Theme.of(context).textTheme.bodyLarge,
+                              ),
                             ),
-                          ),
-                          const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
-                        ],
+                            Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 16,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.s12),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
-                        child: AppButton(
-                          label: 'للبيع',
+                        child: _QuickIntent(
                           icon: Icons.sell_outlined,
-                          expand: true,
-                          onPressed: () => context.push('/property-market'),
+                          label: 'شراء',
+                          onTap: () => context.push('/property-market'),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.s8),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: AppButton(
-                          label: 'للإيجار',
+                        child: _QuickIntent(
                           icon: Icons.key_outlined,
-                          style: AppButtonStyle.outlined,
-                          expand: true,
-                          onPressed: () => context.push('/property-market'),
+                          label: 'إيجار',
+                          onTap: () => context.push('/property-market'),
                         ),
                       ),
                     ],
@@ -119,38 +120,49 @@ class P02HomeScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(
-              title: 'اختصارات مفيدة',
-              subtitle: 'أشياء تحتاجها بعد البحث، بدون ازدحام في الصفحة الرئيسية.',
-            ),
-            const SizedBox(height: AppSpacing.s10),
-            AppSurface(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  AppListRow(
-                    title: 'المفضلة',
-                    subtitle: 'العقارات التي حفظتها للرجوع لها',
-                    leading: const Icon(Icons.favorite_border_rounded),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniAction(
+                    icon: Icons.favorite_border_rounded,
+                    label: 'المفضلة',
                     onTap: () => context.push('/favorites'),
                   ),
-                  const Divider(height: 1),
-                  AppListRow(
-                    title: 'طلباتي العقارية الخاصة',
-                    subtitle: 'إذا ما لقيت المناسب، خلّ النظام يتابع لك',
-                    leading: const Icon(Icons.manage_search_outlined),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MiniAction(
+                    icon: Icons.manage_search_outlined,
+                    label: 'طلب عقار',
                     onTap: () => context.push('/property-requests'),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MiniAction(
+                    icon: Icons.map_outlined,
+                    label: 'الخريطة',
+                    onTap: () => context.push('/property-market'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: AppSpacing.s24),
+            const SizedBox(height: 22),
             AppInlineMessage(
-              title: 'طلباتك خاصة',
-              message:
-                  'طلب العقار لا يظهر للدلالين أو المكاتب. يستخدمه النظام لمطابقة العقارات الجديدة وإشعارك.',
+              title: 'رحلة قصيرة',
+              message: 'اختيار العملية ← تحديد المكان ← مشاهدة العقارات.',
               tone: AppStatusTone.info,
+            ),
+            const SizedBox(height: 18),
+            Align(
+              alignment: AlignmentDirectional.center,
+              child: Text(
+                V2Package.displayLabel,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+              ),
             ),
           ],
         ),
@@ -161,5 +173,87 @@ class P02HomeScreen extends ConsumerWidget {
   static String _firstName(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
     return parts.isEmpty || parts.first.isEmpty ? name : parts.first;
+  }
+}
+
+class _QuickIntent extends StatelessWidget {
+  const _QuickIntent({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Colors.white,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniAction extends StatelessWidget {
+  const _MiniAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsetsDirectional.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            border: Border.all(color: scheme.outlineVariant),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: scheme.secondary, size: 24),
+              const SizedBox(height: 6),
+              Text(label, style: Theme.of(context).textTheme.labelMedium),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
