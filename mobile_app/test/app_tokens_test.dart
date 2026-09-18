@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 
 void main() {
-  test('spacing and layout match the accepted scale', () {
+  test('spacing and layout match the P02 simplified scale', () {
     expect([
       AppSpacing.none,
       AppSpacing.s4,
@@ -31,17 +31,17 @@ void main() {
       AppLayout.surfacePadding,
       AppLayout.compactSurfacePadding,
       AppLayout.dialogPadding,
-    ], [16, 24, 360, 600, 840, 32, 24, 12, 16, 8, 16, 12, 24]);
+    ], [16, 24, 360, 600, 760, 28, 20, 12, 16, 8, 16, 12, 24]);
   });
 
-  test('shape and elevation match the accepted scale', () {
+  test('shape and elevation match the P02 redesigned scale', () {
     expect([
       AppRadii.small,
       AppRadii.control,
       AppRadii.card,
       AppRadii.modal,
       AppRadii.pill,
-    ], [8, 12, 16, 24, 999]);
+    ], [10, 16, 20, 28, 999]);
     expect([AppBorderWidths.standard, AppBorderWidths.emphasized], [1, 2]);
     expect([
       AppElevation.flat,
@@ -51,7 +51,7 @@ void main() {
     ], [0, 1, 3, 6]);
   });
 
-  test('minimum sizes and existing themed buttons preserve touch targets', () {
+  test('minimum sizes preserve comfortable touch targets', () {
     expect([
       AppSizes.touchTarget,
       AppSizes.buttonMinHeight,
@@ -60,7 +60,7 @@ void main() {
       AppSizes.badgeMinHeight,
       AppSizes.appBarMinHeight,
       AppSizes.navigationMinHeight,
-    ], [48, 48, 56, 32, 28, 64, 80]);
+    ], [48, 54, 56, 34, 28, 60, 70]);
     final theme = AppTheme.light;
     for (final style in [
       theme.filledButtonTheme.style!,
@@ -74,10 +74,11 @@ void main() {
     }
   });
 
-  test('motion and state layers match the accepted foundation', () {
+  test('motion and state layers match the P02 foundation', () {
     expect(AppMotion.instant, Duration.zero);
     expect(AppMotion.fast, const Duration(milliseconds: 120));
-    expect(AppMotion.standard, const Duration(milliseconds: 200));
+    expect(AppMotion.standard, const Duration(milliseconds: 180));
+    expect(AppMotion.relaxed, const Duration(milliseconds: 260));
     expect(AppMotion.curve, Curves.easeOutCubic);
     expect([
       AppOpacity.transparent,
