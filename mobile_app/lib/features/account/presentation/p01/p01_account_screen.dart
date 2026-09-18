@@ -177,7 +177,7 @@ class _SignedInAccount extends ConsumerWidget {
 
   static String _verificationSubtitle(AuthUser user) {
     if (user.verificationProfile.status == 'approved') {
-      return 'موثق كـ ' + user.accountTypeLabel;
+      return 'موثق كـ ${user.accountTypeLabel}';
     }
     if (user.verificationProfile.status == 'pending') {
       return 'طلب التوثيق قيد المراجعة';
