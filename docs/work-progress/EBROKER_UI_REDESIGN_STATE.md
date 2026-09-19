@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-19 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `1c449b8afc10868e42b35f29676943664f23a378` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `fcf1bc719633e2222ef48cc0c2d3389ca5f60235` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,9 +35,11 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 4 — property details summary, advertiser and persistent actions. Phase 3 implemented discovery cards/map/search/filters/sorting/favorite comparison has passed full regression and APK at `cd9ab965`; secondary saved searches and the complete Phase 3 screen checklist remain open. No whole-screen completion is claimed before full evidence review.
+PHASE 3 secondary discovery completion (saved searches), alongside PHASE 4 details verification. Details gallery/context at `fcf1bc7` passed analyze/full Flutter/backend; its APK build is running. Details summary at `2a114f7` has complete successful CI/APK. No full-project completion is claimed.
 
 # Exact Last Completed Step
+
+Saved-search editor now uses the central page frame, heading, wrapped purpose controls, grouped price/specification cards and responsive field pairs. Saved-search list/results use constrained layouts, shared identity and matching skeleton presentation. All form initialization/disposal, validation messages/order, location handling, payload construction, create/update, delete/alert actions and result navigation compared unchanged. Purpose control preserves exclusive selection plus deselection. Added ten tests covering seven RTL viewport/text sizes, exact create/edit payloads, legacy disabled daily choice, location removal, alert/purpose choices and complete malformed-number/range validation sequence. These saved-search changes await CI.
 
 Gallery presentation now uses one shared adaptive frame for loading/data (4:3, capped at 420px and half screen height). Fullscreen caption is bounded/scrollable; original page controller, initial index, zoom limits, network images and close action remain unchanged. Gallery counter/caption no longer overlay the property photo. Market sample badge is below the heading; all medians/deltas/disclaimers unchanged. Sai retry is vertically arranged; public display_text remains verbatim. Added two image-error/paging/fullscreen/close tests and six context layout/loading/empty/independent retry tests. New changes await CI.
 
@@ -47,7 +49,7 @@ Implemented details summary surface with status/price/title/Sai, shared section 
 
 # Next Exact Step
 
-Publish the gallery/context refinements and eight additional tests. Require full CI/APK and inspect top-of-details, advertiser, gallery and context evidence. Verify pending APK run `35468704166` independently; its analysis/full Flutter/backend gates already passed. Keep Phase 4 open until new gallery/context tests pass. Secondary discovery/saved-search completion audit is still outstanding.
+Publish saved-search UI and its ten tests, then resolve any CI regression and inspect the new images. Check full APK completion of `35469149328` (fcf1bc7) and download its details/gallery/context evidence. Once these gates are green, continue the remaining discovery comparison presentation and full details action audit before Phase 5 listing editor. Preserve every backend/domain lock.
 
 # Files Changed
 
@@ -89,6 +91,7 @@ Publish the gallery/context refinements and eight additional tests. Require full
 - Details summary/advertiser sections in the existing details screen; callbacks remain unchanged.
 - `mobile_app/test/experimental_property_context_test.dart` — server wording, market/Sai loading/empty/error/retry and scaled RTL rendering.
 - Gallery/frame/skeleton plus market/Sai presentation files — shared tokens and responsive layout only.
+- Saved-search builder/list/results presentation files and `experimental_saved_search_test.dart` — responsive editor/list and ten behavior/layout cases.
 - This checkpoint.
 
 # Screens Completed
@@ -100,6 +103,10 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- 2026-09-19: `2a114f7`, experimental `35468704166`, complete SUCCESS including release APK.
+- 2026-09-19: `fcf1bc7`, companion `35469151219` SUCCESS; experimental `35469149328` analyze/full Flutter/cloud guard/health/load/backend/PostGIS PASS; release APK running. Gallery/context test fixture and capture ordering corrections verified.
+- Saved-search preflight: 346-file guard/whitespace PASS; full validation/submission/lifecycle and saved-card menu logic compared exactly unchanged. Ten new tests await CI.
 
 - Gallery/context `1c449b8`, companion `35468915060`: analyze/backend/PostGIS and all six context cases PASS. Details capture traversal attempted to reach an already disposed earlier heading by scrolling forward; corrected capture order to match natural reading order. Two gallery tests encountered the default test HTTP 400 response; they now use an isolated deterministic PNG HTTP fixture restored in finally, with a separate failed-image fallback test. No production network behavior or action assertions changed. CI rerun required.
 
