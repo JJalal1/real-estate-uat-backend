@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-19 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `fcf1bc719633e2222ef48cc0c2d3389ca5f60235` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `0874b0a611411463e91595ceb5bcb2ddc30b5b93` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -103,6 +103,8 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- Visual review at fcf1bc7 artifact `10592695789`: normal top-of-details and full advertiser section inspected; 320px/2.4 market metrics inspected. Fullscreen capture occurred before synthetic image decoding; tests now await engine decoding in runAsync and assert a non-null RawImage before capture. No production image loading changed. Saved-search CI remains pending.
 
 - 2026-09-19: `2a114f7`, experimental `35468704166`, complete SUCCESS including release APK.
 - 2026-09-19: `fcf1bc7`, companion `35469151219` SUCCESS; experimental `35469149328` analyze/full Flutter/cloud guard/health/load/backend/PostGIS PASS; release APK running. Gallery/context test fixture and capture ordering corrections verified.

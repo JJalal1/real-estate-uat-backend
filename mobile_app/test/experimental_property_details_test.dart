@@ -106,6 +106,12 @@ void main() {
         ]),
       );
       // Exercise actual NetworkImage decoding with deterministic local PNG bytes.
+      await tester.runAsync(() => decodePropertyImageFixtures([
+        'https://example.invalid/property-1.jpg',
+        'https://example.invalid/property-2.jpg',
+      ]));
+      await tester.pumpAndSettle();
+      expect(tester.widgetList<RawImage>(find.byType(RawImage)).any((image) => image.image != null), isTrue);
       expect(find.text('1/2'), findsOneWidget);
       final gallery = find.byType(PageView);
       await tester.drag(gallery, Offset(size.width * .8, 0));
