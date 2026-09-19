@@ -46,3 +46,5 @@ Regression coverage includes 320/412/600px Arabic card layouts at 1x and 2.4x te
 ## Search and filter forms
 
 DiscoverySearchSheet retains the original controller, suggestion limit and Navigator result values in a scrollable keyboard-aware sheet. DiscoveryFilterSheet retains the original validation sequence and result fields; headings, sections and input pairs change presentation only. AppFieldPair lays out existing field widgets horizontally when space permits and vertically for narrow/large-text constraints. The theme supplies the modal drag handle, avoiding duplicate handles.
+
+- `AppActionDock`: safe-area persistent actions bounded to 40% of screen height, with independent scrolling on short screens. Compose existing callbacks with `AppFieldPair`; caller retains all visibility/authorization rules.

@@ -1,8 +1,8 @@
 # Current State
 
-Last updated: 2026-09-15 UTC
+Last updated: 2026-09-16 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `8997066b20b28ee45f2de7b18f35f53f27c2eca1` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `cd9ab965b9e3137cd6caeec2c5e2785b574baf95` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,17 +35,17 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 3 — advanced filters and discovery polish. Map/cards are verified through full CI/APK `34987573433` at `29f087c`. Search-sheet commit `b5dea675` is published and its companion regression passed; experimental run `34988479360` is being monitored. Advanced filters are implemented locally with 11 new tests pending CI.
+PHASE 4 — property details summary, advertiser and persistent actions. Phase 3 implemented discovery cards/map/search/filters/sorting/favorite comparison has passed full regression and APK at `cd9ab965`; secondary saved searches and the complete Phase 3 screen checklist remain open. No whole-screen completion is claimed before full evidence review.
 
 # Exact Last Completed Step
 
-Completed result-control polish: responsive sort chips retain the original three values and comparators; NestedScrollView lets header controls scroll away while result lists stay lazy. Favorite comparison order now appears below facts, outside the property image/purpose badge. Exact comparison proves result branches/callbacks and favorite selection/limit/repository methods unchanged. Seven new tests cover sort selection/lazy reachability and the four-property comparison limit. Map notices/selected preview precede secondary controls. Full search gate `34988479360` is SUCCESS; filter/results regression is next.
+Verified full experimental CI `34990219383` and companion `34990224480` SUCCESS at `cd9ab965b9e3137cd6caeec2c5e2785b574baf95`. Analyze clean, 255 Flutter cases plus compile-time Frankfurt guard, Laravel/PostGIS and APK successful. Downloaded APK artifact `10405732322`; computed actual APK SHA-256 matches supplied checksum: `24092b1e677b753d13466b67617bf74e472995779500937f56e36ec3849639db`. Verified BUILD_INFO identifies the experimental package and Frankfurt endpoint. Visual artifact `10404484325`: inspected 320px normal/2.4 filter and enlarged map-action images; map Arabic action labels no longer split mid-word. Search 320px images also inspected; enlarged/keyboard screenshots are scrolled viewports, not complete modal images.
 
-Extracted `DiscoveryFilterSheet` and its presentation result type. Exact source comparison proves initialization, type/room reset, numeric parsing, validation order/messages, reset and submit logic are unchanged apart from class names. Shared sections group purpose/type/rooms/area/price; AppFieldPair stacks related inputs when necessary. Theme owns the single modal handle. Added seven RTL/size cases and four behavior regressions including the complete malformed/negative/price/area rejection sequence. Added a map-action single-line Arabic assertion and explicit mode-action screenshots. None of these new changes are yet CI-accepted.
+Implemented details summary surface with status/price/title/Sai, shared section cards and bounded page width. Advertiser badges no longer compete horizontally with long names; trust signals wrap, rating/comments wrap independently. Added shared height-bounded AppActionDock with responsive action pair. Original provider/auth/favorite/owner/viewing/message/copy/refresh methods and all six trust-flag predicates compared exactly unchanged. Twelve new tests cover seven size/scale layouts, owner/unpublished visibility, public auth actions, loading/error/retry. These details changes await CI.
 
 # Next Exact Step
 
-Publish the advanced-filter and result-control commits together, then require full regression/APK and inspect new filter/search/map-action evidence. Resolve any regressions before advancing. Audit discovery/favorites/saved-search presentation against the inventory; then start property details (Phase 4). Do not redo completed work.
+Publish this details-summary/advertiser/action commit and require full CI/APK. Inspect its rendered summary/advertiser images and fix regressions before expanding Phase 4. Continue gallery/fullscreen/loading presentation and Sai/market-context size review; then finish the discovery secondary-screen audit. Do not recreate the branch or rerun prior completed phases.
 
 # Files Changed
 
@@ -82,6 +82,9 @@ Publish the advanced-filter and result-control commits together, then require fu
 - `mobile_app/lib/features/map/presentation/discovery_results_layout.dart` — scrolling header and lazy results; original sort values.
 - `mobile_app/test/experimental_discovery_results_test.dart` — six portrait/landscape RTL sort/lazy-scroll cases.
 - `mobile_app/test/experimental_favorite_selection_test.dart` — comparison order placement, four-item cap and cancel.
+- `mobile_app/test/experimental_property_details_test.dart` — responsive details, trust flags, role/status visibility, auth CTA and retry regressions.
+- `AppActionDock` in shared layouts — bounded scrollable persistent action surface.
+- Details summary/advertiser sections in the existing details screen; callbacks remain unchanged.
 - This checkpoint.
 
 # Screens Completed
@@ -93,6 +96,10 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- 2026-09-16: `34990219383` at `cd9ab965`: pub get/analyze, 255 Flutter cases, compile-time UAT guard, Laravel/PostGIS, Frankfurt health/load, APK/package verification ALL PASS. Companion `34990224480` SUCCESS.
+- 2026-09-16: main/stable refs rechecked and still exactly the Initial main SHA / Latest stable source SHA above. No production action.
+- Details preflight: immutable 346-file verifier, whitespace, exact State/actions/provider/gallery/fact/trust-predicate comparison PASS. Twelve new rendered details cases await CI.
 
 - Search `34988479360`, SHA `b5dea675`: full experimental CI/APK SUCCESS. Filters and result controls await their final-head run.
 
@@ -139,7 +146,7 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Delivery environment: direct `git push` has no local credential. GitHub connector create-tree/create-commit/non-forced update-ref succeeded. Local tree was verified identical, then aligned with the published SHA via fetch + soft reset. Do not request or expose a token.
 - Visual QA harness issue RESOLVED: corrected artifact `10364505958` inspected at all four widths / both scales. Supersedes square-glyph artifact `10363582427`. These remain isolated component images, not authenticated Android screen evidence.
 - Earlier Phase 0/1 APKs use the baseline UAT application ID. The Phase 2 packaging commit changes only experimental application ID and launcher label; compiled package verification passed in run `34884689076`. Namespace/native channels/deep-link scheme/permissions/debug signing stay unchanged, and file-provider authority follows packageName dynamically.
-- Map cards and dock have new presentation; search/filter sheets and list-sort layout remain to complete Phase 3. Do not claim the whole discovery screen complete yet.
+- Discovery cards/dock/search/filter/sort and favorites comparison passed CI at cd9ab965. Saved-search secondary screens and complete journey visual review remain open.
 - Regression discovered by source review: LayoutBuilder in feedback is incompatible with SliverFillRemaining(hasScrollBody:false) intrinsic sizing used by Messages and My Listings. Replaced it with intrinsic-safe centered scrolling; added a rendered sliver/retry test and retained a meaningful no-competing-inner-scroll assertion. Verified in run `34911352983`.
 - CI Environment: run `34910136499` failed in Android setup before Flutter because the default legacy `tools` package is unavailable. Experimental workflow now explicitly requests supported `platform-tools`; SDK command-line setup and every analyzer/test/APK gate remain enabled.
 - UI Bug: visual inspection found white tonal-button text on a pale container, inherited from the global FilledButtonTheme. An explicit tonal foreground and rendered contrast regression are implemented in a separate change; verified in run `34911352983`.

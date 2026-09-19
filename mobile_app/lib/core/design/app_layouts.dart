@@ -252,3 +252,35 @@ class AppIdentityMark extends StatelessWidget {
     );
   }
 }
+
+/// Bounds persistent actions on short screens and lets large labels scroll.
+/// The caller owns visibility, permissions, enabled states and callbacks.
+class AppActionDock extends StatelessWidget {
+  const AppActionDock({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        elevation: AppElevation.floating,
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height *
+                  AppLayout.actionDockMaxHeightFraction,
+            ),
+            child: SingleChildScrollView(
+              primary: false,
+              child: AppContentFrame(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.s12),
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+}
