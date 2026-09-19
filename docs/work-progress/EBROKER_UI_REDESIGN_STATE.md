@@ -1,8 +1,8 @@
 # Current State
 
-Last updated: 2026-09-16 UTC
+Last updated: 2026-09-19 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `cd9ab965b9e3137cd6caeec2c5e2785b574baf95` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `2a7661016325a7880b6abbae5aa7f3ace7233c18` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -45,7 +45,7 @@ Implemented details summary surface with status/price/title/Sai, shared section 
 
 # Next Exact Step
 
-Publish this details-summary/advertiser/action commit and require full CI/APK. Inspect its rendered summary/advertiser images and fix regressions before expanding Phase 4. Continue gallery/fullscreen/loading presentation and Sai/market-context size review; then finish the discovery secondary-screen audit. Do not recreate the branch or rerun prior completed phases.
+Publish the isolated community-test scroll scheduling correction, then require successful CI/APK before accepting details. Gallery/loading/market/Sai presentation refinements are being prepared locally and are NOT included in this test correction. Next finish their responsive tests, publish a separate coherent commit, inspect CI visual artifacts. Do not redo the initial details implementation.
 
 # Files Changed
 
@@ -96,6 +96,8 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- 2026-09-19: details `2a76610`, experimental `35468502283` and companion `35468504456`: analyze/backend/PostGIS PASS, all 12 new details cases PASS; one existing community-return test failed because its synthetic tap occurred at y=608 outside the 600px test viewport immediately after scroll. Added settling and centered ensureVisible plus hitTestable assertions before existing interactions. No route/count assertions removed; fix awaits CI.
 
 - 2026-09-16: `34990219383` at `cd9ab965`: pub get/analyze, 255 Flutter cases, compile-time UAT guard, Laravel/PostGIS, Frankfurt health/load, APK/package verification ALL PASS. Companion `34990224480` SUCCESS.
 - 2026-09-16: main/stable refs rechecked and still exactly the Initial main SHA / Latest stable source SHA above. No production action.
