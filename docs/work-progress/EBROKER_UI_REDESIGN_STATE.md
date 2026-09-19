@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-19 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `2a114f78ab6f2d3628898badc913d11b5671e73b` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `1c449b8afc10868e42b35f29676943664f23a378` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -100,6 +100,8 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- Gallery/context `1c449b8`, companion `35468915060`: analyze/backend/PostGIS and all six context cases PASS. Details capture traversal attempted to reach an already disposed earlier heading by scrolling forward; corrected capture order to match natural reading order. Two gallery tests encountered the default test HTTP 400 response; they now use an isolated deterministic PNG HTTP fixture restored in finally, with a separate failed-image fallback test. No production network behavior or action assertions changed. CI rerun required.
 
 - 2026-09-19: test scheduling correction `2a114f78`: companion `35468706084` SUCCESS; experimental `35468704166` analyze/full Flutter including all new 12 details cases/backend/PostGIS PASS, APK still in progress. Artifact `10592625288`; inspected 320 normal summary/advertiser and enlarged advertiser. Scrolled captures intentionally clip off-viewport content; upcoming evidence adds top-of-page and advertiser-heading captures.
 - Gallery/context local checks: 346-file immutable guard and whitespace PASS; details action methods, fullscreen page/controller/zoom and provider contracts compared unchanged. Eight additional tests not yet run.

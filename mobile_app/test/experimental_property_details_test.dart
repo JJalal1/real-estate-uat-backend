@@ -16,6 +16,7 @@ import 'package:real_estate_mobile/features/properties/presentation/property_sai
 
 import 'support/capture_design.dart';
 import 'support/design_test_fonts.dart';
+import 'support/property_image_fixture.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -41,15 +42,16 @@ void main() {
           'property-details-summary-${viewport.$1.width.toInt()}-${viewport.$1.height.toInt()}-${viewport.$2}');
       await _reveal(tester, find.text(_saiText));
       expect(find.text(_saiText), findsOneWidget);
-      for (final text in ['الموقع', 'مواصفات العقار', 'وصف العقار', 'هوية المعلن متحققة', 'موقع المكتب مسجل']) {
+      for (final text in ['الموقع', 'مواصفات العقار', 'وصف العقار', 'المعلن والثقة', 'هوية المعلن متحققة', 'موقع المكتب مسجل']) {
         await _reveal(tester, find.text(text));
         expect(tester.takeException(), isNull, reason: text);
+        if (text == 'المعلن والثقة') {
+          await captureDesign(tester, key,
+              'property-details-advertiser-${viewport.$1.width.toInt()}-${viewport.$1.height.toInt()}-${viewport.$2}');
+        }
       }
       expect(find.text('السجل التجاري متحقق'), findsNothing);
       expect(find.text('بيانات مهنية متحققة'), findsNothing);
-      await _reveal(tester, find.text('المعلن والثقة'));
-      await captureDesign(tester, key,
-          'property-details-advertiser-${viewport.$1.width.toInt()}-${viewport.$1.height.toInt()}-${viewport.$2}');
       await _reveal(tester, find.text('الهاتف'));
       expect(find.text('777123456'), findsOneWidget);
       await _reveal(tester, find.text('واتساب'));
@@ -95,6 +97,7 @@ void main() {
 
   for (final size in [const Size(320, 568), const Size(600, 280)]) {
     testWidgets('gallery paging, fullscreen and close remain reachable at $size', (tester) async {
+      await withPropertyImageFixture(() async {
       final key = GlobalKey();
       await _open(tester, size: size, scale: 2.4, captureKey: key,
         property: _property(images: const [
@@ -102,7 +105,7 @@ void main() {
           PropertyImageItem(id: 2, url: 'https://example.invalid/property-2.jpg', isPrimary: false, sortOrder: 1),
         ]),
       );
-      // Test HTTP returns errors: the image fallback must preserve gallery actions.
+      // Exercise actual NetworkImage decoding with deterministic local PNG bytes.
       expect(find.text('1/2'), findsOneWidget);
       final gallery = find.byType(PageView);
       await tester.drag(gallery, Offset(size.width * .8, 0));
@@ -125,8 +128,21 @@ void main() {
       expect(find.byType(InteractiveViewer), findsNothing);
       expect(find.text('2/2'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      });
     });
   }
+
+  testWidgets('failed gallery image keeps the placeholder and fullscreen entry', (tester) async {
+    await withPropertyImageFixture(() async {
+      await _open(tester, property: _property(images: const [
+        PropertyImageItem(id: 3, url: 'https://example.invalid/unavailable.jpg', isPrimary: true, sortOrder: 0),
+      ]));
+      expect(find.text('1/1'), findsOneWidget);
+      expect(find.byIcon(Icons.home_work_outlined), findsWidgets);
+      expect(find.descendant(of: find.byType(PageView), matching: find.byType(InkWell)).hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }, statusCode: 400);
+  });
 
   testWidgets('details loading and failure retain successful retry', (tester) async {
     final response = Completer<PropertyDetails>();
