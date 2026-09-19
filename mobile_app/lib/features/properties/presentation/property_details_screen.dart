@@ -589,95 +589,76 @@ class _Gallery extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadii.card),
-      child: AspectRatio(
-        aspectRatio: 4 / 3,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (images.isEmpty)
-              const AppPropertyMedia(height: double.infinity)
-            else
-              PageView.builder(
-                itemCount: images.length,
-                onPageChanged: onChanged,
-                itemBuilder: (context, imageIndex) => Semantics(
-                  button: true,
-                  label: 'فتح صورة العقار ${imageIndex + 1} من ${images.length}',
-                  child: InkWell(
-                    onTap: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute<void>(
-                        builder: (_) => _FullscreenGallery(
-                          images: images,
-                          initialIndex: imageIndex,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.card),
+          child: _PropertyGalleryFrame(
+            child: images.isEmpty
+                ? const AppPropertyMedia(height: double.infinity)
+                : PageView.builder(
+                    itemCount: images.length,
+                    onPageChanged: onChanged,
+                    itemBuilder: (context, imageIndex) => Semantics(
+                      button: true,
+                      label: 'فتح صورة العقار ${imageIndex + 1} من ${images.length}',
+                      child: InkWell(
+                        onTap: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => _FullscreenGallery(
+                              images: images,
+                              initialIndex: imageIndex,
+                            ),
+                          ),
+                        ),
+                        child: AppPropertyMedia(
+                          imageUrl: images[imageIndex].url,
+                          height: double.infinity,
                         ),
                       ),
                     ),
-                    child: AppPropertyMedia(
-                      imageUrl: images[imageIndex].url,
-                      height: double.infinity,
-                    ),
                   ),
-                ),
-              ),
-            if (images.isNotEmpty)
-              PositionedDirectional(
-                top: AppSpacing.s12,
-                end: AppSpacing.s12,
-                child: IgnorePointer(
-                  child: Container(
-                    padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: AppSpacing.s10,
-                      vertical: AppSpacing.s6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: .58),
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: AppSpacing.s4),
-                        Text(
-                          'تكبير الصور',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            if (images.isNotEmpty)
-              PositionedDirectional(
-                bottom: AppSpacing.s12,
-                end: AppSpacing.s12,
-                child: Container(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: AppSpacing.s12,
-                    vertical: AppSpacing.s4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .inverseSurface
-                        .withValues(alpha: .86),
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Text(
-                    '${index + 1}/${images.length}',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onInverseSurface,
-                        ),
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
-      ),
+        if (images.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.s12),
+          Row(
+            children: [
+              const Icon(Icons.fullscreen_rounded),
+              const SizedBox(width: AppSpacing.s8),
+              Expanded(
+                child: Text('تكبير الصور', style: Theme.of(context).textTheme.labelLarge),
+              ),
+              const SizedBox(width: AppSpacing.s8),
+              AppStatusBadge(label: '${index + 1}/${images.length}'),
+            ],
+          ),
+        ],
+      ],
     );
   }
+}
+
+/// Shared by the real gallery and its loading placeholder.
+class _PropertyGalleryFrame extends StatelessWidget {
+  const _PropertyGalleryFrame({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final maxHeight = (MediaQuery.sizeOf(context).height *
+                  AppLayout.galleryViewportHeightFraction)
+              .clamp(0.0, AppSizes.propertyGalleryMaxHeight);
+          return SizedBox(
+            width: double.infinity,
+            height: (constraints.maxWidth / AppLayout.propertyGalleryAspectRatio)
+                .clamp(0.0, maxHeight),
+            child: child,
+          );
+        },
+      );
 }
 
 class _FullscreenGallery extends StatefulWidget {
@@ -752,16 +733,27 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                 bottom: AppSpacing.s16,
                 start: 0,
                 end: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: .58),
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.sizeOf(context).height *
+                          AppLayout.galleryCaptionMaxHeightFraction,
                     ),
-                    child: Text(
-                      '${_index + 1}/${widget.images.length} • اسحب للتنقل واضغط بإصبعين للتكبير',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    child: SingleChildScrollView(
+                      primary: false,
+                      child: Container(
+                        padding: const EdgeInsets.all(AppSpacing.s12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: AppOpacity.mediaScrim),
+                          borderRadius: BorderRadius.circular(AppRadii.card),
+                        ),
+                        child: Text(
+                          '${_index + 1}/${widget.images.length} • اسحب للتنقل واضغط بإصبعين للتكبير',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -935,19 +927,21 @@ class _PropertyDetailsSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
-      children: const [
-        AppSkeleton(height: 260, radius: AppRadii.card),
-        SizedBox(height: AppSpacing.s40),
-        AppSkeleton(height: 32),
-        SizedBox(height: AppSpacing.s12),
-        AppSkeleton(height: 24, width: 180),
-        SizedBox(height: AppSpacing.s24),
-        AppSkeleton(height: 120, radius: AppRadii.card),
-        SizedBox(height: AppSpacing.s16),
-        AppSkeleton(height: 160, radius: AppRadii.card),
-      ],
+    return AppContentFrame(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s12),
+        children: const [
+          _PropertyGalleryFrame(child: AppSkeleton(height: double.infinity, radius: AppRadii.card)),
+          SizedBox(height: AppSpacing.s16),
+          AppSkeleton(height: 32),
+          SizedBox(height: AppSpacing.s12),
+          AppSkeleton(height: 24, width: 180),
+          SizedBox(height: AppSpacing.s24),
+          AppSkeleton(height: 120, radius: AppRadii.card),
+          SizedBox(height: AppSpacing.s16),
+          AppSkeleton(height: 160, radius: AppRadii.card),
+        ],
+      ),
     );
   }
 }

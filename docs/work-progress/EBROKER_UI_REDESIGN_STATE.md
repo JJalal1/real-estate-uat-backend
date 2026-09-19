@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-19 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `2a7661016325a7880b6abbae5aa7f3ace7233c18` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `2a114f78ab6f2d3628898badc913d11b5671e73b` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -39,13 +39,15 @@ PHASE 4 — property details summary, advertiser and persistent actions. Phase 3
 
 # Exact Last Completed Step
 
+Gallery presentation now uses one shared adaptive frame for loading/data (4:3, capped at 420px and half screen height). Fullscreen caption is bounded/scrollable; original page controller, initial index, zoom limits, network images and close action remain unchanged. Gallery counter/caption no longer overlay the property photo. Market sample badge is below the heading; all medians/deltas/disclaimers unchanged. Sai retry is vertically arranged; public display_text remains verbatim. Added two image-error/paging/fullscreen/close tests and six context layout/loading/empty/independent retry tests. New changes await CI.
+
 Verified full experimental CI `34990219383` and companion `34990224480` SUCCESS at `cd9ab965b9e3137cd6caeec2c5e2785b574baf95`. Analyze clean, 255 Flutter cases plus compile-time Frankfurt guard, Laravel/PostGIS and APK successful. Downloaded APK artifact `10405732322`; computed actual APK SHA-256 matches supplied checksum: `24092b1e677b753d13466b67617bf74e472995779500937f56e36ec3849639db`. Verified BUILD_INFO identifies the experimental package and Frankfurt endpoint. Visual artifact `10404484325`: inspected 320px normal/2.4 filter and enlarged map-action images; map Arabic action labels no longer split mid-word. Search 320px images also inspected; enlarged/keyboard screenshots are scrolled viewports, not complete modal images.
 
 Implemented details summary surface with status/price/title/Sai, shared section cards and bounded page width. Advertiser badges no longer compete horizontally with long names; trust signals wrap, rating/comments wrap independently. Added shared height-bounded AppActionDock with responsive action pair. Original provider/auth/favorite/owner/viewing/message/copy/refresh methods and all six trust-flag predicates compared exactly unchanged. Twelve new tests cover seven size/scale layouts, owner/unpublished visibility, public auth actions, loading/error/retry. These details changes await CI.
 
 # Next Exact Step
 
-Publish the isolated community-test scroll scheduling correction, then require successful CI/APK before accepting details. Gallery/loading/market/Sai presentation refinements are being prepared locally and are NOT included in this test correction. Next finish their responsive tests, publish a separate coherent commit, inspect CI visual artifacts. Do not redo the initial details implementation.
+Publish the gallery/context refinements and eight additional tests. Require full CI/APK and inspect top-of-details, advertiser, gallery and context evidence. Verify pending APK run `35468704166` independently; its analysis/full Flutter/backend gates already passed. Keep Phase 4 open until new gallery/context tests pass. Secondary discovery/saved-search completion audit is still outstanding.
 
 # Files Changed
 
@@ -85,6 +87,8 @@ Publish the isolated community-test scroll scheduling correction, then require s
 - `mobile_app/test/experimental_property_details_test.dart` — responsive details, trust flags, role/status visibility, auth CTA and retry regressions.
 - `AppActionDock` in shared layouts — bounded scrollable persistent action surface.
 - Details summary/advertiser sections in the existing details screen; callbacks remain unchanged.
+- `mobile_app/test/experimental_property_context_test.dart` — server wording, market/Sai loading/empty/error/retry and scaled RTL rendering.
+- Gallery/frame/skeleton plus market/Sai presentation files — shared tokens and responsive layout only.
 - This checkpoint.
 
 # Screens Completed
@@ -96,6 +100,9 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- 2026-09-19: test scheduling correction `2a114f78`: companion `35468706084` SUCCESS; experimental `35468704166` analyze/full Flutter including all new 12 details cases/backend/PostGIS PASS, APK still in progress. Artifact `10592625288`; inspected 320 normal summary/advertiser and enlarged advertiser. Scrolled captures intentionally clip off-viewport content; upcoming evidence adds top-of-page and advertiser-heading captures.
+- Gallery/context local checks: 346-file immutable guard and whitespace PASS; details action methods, fullscreen page/controller/zoom and provider contracts compared unchanged. Eight additional tests not yet run.
 
 - 2026-09-19: details `2a76610`, experimental `35468502283` and companion `35468504456`: analyze/backend/PostGIS PASS, all 12 new details cases PASS; one existing community-return test failed because its synthetic tap occurred at y=608 outside the 600px test viewport immediately after scroll. Added settling and centered ensureVisible plus hitTestable assertions before existing interactions. No route/count assertions removed; fix awaits CI.
 

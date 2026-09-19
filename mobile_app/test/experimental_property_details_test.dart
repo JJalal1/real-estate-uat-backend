@@ -32,6 +32,8 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byType(AppActionDock), findsOneWidget);
       expect(find.byTooltip('إدارة الإعلان'), findsNothing);
+      await captureDesign(tester, key,
+          'property-details-top-${viewport.$1.width.toInt()}-${viewport.$1.height.toInt()}-${viewport.$2}');
       await _reveal(tester, find.text(_title));
       final title = tester.widget<Text>(find.text(_title));
       expect(title.maxLines, isNull);
@@ -45,7 +47,7 @@ void main() {
       }
       expect(find.text('السجل التجاري متحقق'), findsNothing);
       expect(find.text('بيانات مهنية متحققة'), findsNothing);
-      await _reveal(tester, find.text('التعليقات والتقييم والبلاغات'));
+      await _reveal(tester, find.text('المعلن والثقة'));
       await captureDesign(tester, key,
           'property-details-advertiser-${viewport.$1.width.toInt()}-${viewport.$1.height.toInt()}-${viewport.$2}');
       await _reveal(tester, find.text('الهاتف'));
@@ -91,6 +93,41 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final size in [const Size(320, 568), const Size(600, 280)]) {
+    testWidgets('gallery paging, fullscreen and close remain reachable at $size', (tester) async {
+      final key = GlobalKey();
+      await _open(tester, size: size, scale: 2.4, captureKey: key,
+        property: _property(images: const [
+          PropertyImageItem(id: 1, url: 'https://example.invalid/property-1.jpg', isPrimary: true, sortOrder: 0),
+          PropertyImageItem(id: 2, url: 'https://example.invalid/property-2.jpg', isPrimary: false, sortOrder: 1),
+        ]),
+      );
+      // Test HTTP returns errors: the image fallback must preserve gallery actions.
+      expect(find.text('1/2'), findsOneWidget);
+      final gallery = find.byType(PageView);
+      await tester.drag(gallery, Offset(size.width * .8, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('2/2'), findsOneWidget);
+      final openImage = find.descendant(of: gallery, matching: find.byType(InkWell)).hitTestable().first;
+      await tester.tap(openImage);
+      await tester.pumpAndSettle();
+      expect(find.byType(InteractiveViewer), findsWidgets);
+      final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer).first);
+      expect(viewer.minScale, 1);
+      expect(viewer.maxScale, 4);
+      expect(find.textContaining('2/2 •'), findsOneWidget);
+      await captureDesign(tester, key, 'property-gallery-${size.width.toInt()}-${size.height.toInt()}-2.4');
+      await tester.drag(find.byType(PageView), Offset(-size.width * .8, 0));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('1/2 •'), findsOneWidget);
+      await tester.tap(find.byTooltip('إغلاق الصور'));
+      await tester.pumpAndSettle();
+      expect(find.byType(InteractiveViewer), findsNothing);
+      expect(find.text('2/2'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('details loading and failure retain successful retry', (tester) async {
     final response = Completer<PropertyDetails>();
     var calls = 0;
@@ -114,9 +151,9 @@ void main() {
 const _title = 'منزل واسع في صنعاء شارع حدة بالقرب من الخدمات ABC-123';
 const _saiText = 'نص السعي المعتمد من الخادم كما هو دون إعادة احتساب';
 
-PropertyDetails _property({bool owner = false, String status = 'published'}) => PropertyDetails(
+PropertyDetails _property({bool owner = false, String status = 'published', List<PropertyImageItem> images = const []}) => PropertyDetails(
   id: 77, title: _title, purpose: 'sale', type: 'house', price: 12500000,
-  currency: 'YER', latitude: 15.3, longitude: 44.2, images: const [],
+  currency: 'YER', latitude: 15.3, longitude: 44.2, images: images,
   status: status, isOwner: owner, areaValue: 250, areaUnit: 'sqm', bedrooms: 4,
   bathrooms: 2, hasParking: true, tenureType: 'freehold', buildingFacade: 'north',
   description: 'وصف العقار الحقيقي القادم من نموذج البيانات مع مساحة كافية للنص الطويل.',
@@ -161,7 +198,7 @@ Future<GoRouter> _open(WidgetTester tester, {
       propertyMarketContextProvider(77).overrideWith((ref) async => const PropertyMarketContext(sufficientData: false, sampleCount: 0)),
     ],
     child: RepaintBoundary(key: captureKey, child: MaterialApp.router(
-      theme: AppTheme.light, routerConfig: router,
+      theme: AppTheme.light, routerConfig: router, debugShowCheckedModeBanner: false,
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
         child: child!,

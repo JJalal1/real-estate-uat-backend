@@ -128,40 +128,15 @@ class _MarketDataCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: scheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AppRadii.control),
-                ),
-                child: Icon(Icons.insights_rounded, color: scheme.primary),
-              ),
-              const SizedBox(width: AppSpacing.s12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('مؤشر السوق', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.s4),
-                    Text(
-                      market.positionLabel,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              AppStatusBadge(
-                label: '${market.sampleCount} مقارنة',
-                tone: AppStatusTone.info,
-                icon: Icons.dataset_outlined,
-              ),
-            ],
+          AppSectionHeader(
+            title: 'مؤشر السوق',
+            subtitle: market.positionLabel,
+          ),
+          const SizedBox(height: AppSpacing.s12),
+          AppStatusBadge(
+            label: '${market.sampleCount} مقارنة',
+            tone: AppStatusTone.info,
+            icon: Icons.dataset_outlined,
           ),
           const SizedBox(height: AppSpacing.s16),
           Wrap(
