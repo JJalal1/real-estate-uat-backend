@@ -4,6 +4,21 @@ Stable source: `46b8fed8fd119b223d4a1e67312d38ff9429e569`.
 
 This checklist covers every Dart presentation file, every declared GoRouter path, and source anchors for all detected actions, forms, validation, dialogs, state branches, permissions, providers, and API calls. The JSON companion retains file/line references. Mechanical coverage is complete; manual journey and runtime verification remain open until explicitly marked. Do not equate anchor counts with unique features.
 
+## Implementation ledger (2026-09-20)
+
+This ledger distinguishes implemented presentation and automated checks from the still-open manual/device journey checkboxes below. Source inventory anchors remain the original stable baseline.
+
+| Surface | Implementation / latest automated evidence | Remaining acceptance |
+| --- | --- | --- |
+| Design system, feedback, navigation | Central tokens/compositions; persona navigation stress tests pass | Native accessibility/device review |
+| Discovery map controls, search/filter sheets, results/sort | Implemented; query/filter/reset/sort and responsive tests pass | Native map gestures/GPS with existing UAT data |
+| Property cards, favorites selection | Implemented; loading, selection cap/order/cancel tests pass | Authenticated persisted favorite add/remove |
+| Comparison | `18677a9` full CI/APK; six RTL, aligned-row, limits/retry/route tests pass | Native comparison with real account data |
+| Saved-search editor/list/results | `cbf6519` full CI/APK; ten payload/edit/validation/layout tests pass | Authenticated list toggle/delete/result journeys |
+| Details/gallery/advertiser/Sai/market | `cbf6519` full CI/APK; responsive/trust/status/auth-route/gallery/error tests pass | Authenticated share/report/contact/viewing and device map/zoom review |
+| Listing editor | Responsive shell/forms/action layout implemented; seven new cases awaiting CI | Preview, media/evidence/Sai/identity/pickers and all-role device acceptance |
+| Messaging/account/KYC/management/support/financial/agreements/role hubs | Original functionality retained; redesign not yet complete | Remaining implementation and full regression |
+
 ## Architecture and locked boundaries
 
 - Flutter Material 3, Arabic locale, bundled NotoSansArabic, Riverpod 2.6.1, GoRouter 15, Dio 5, MapLibre 0.22.

@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `cbf6519046086921ed186147f12a37d364d97688` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `18677a960ef557542723bd185bb5b39e037012c3` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,17 +35,17 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 3 secondary discovery completion — comparison table. PHASE 4 details/gallery/advertiser/Sai/market presentation and saved-search editor/list/results are implemented and passed full CI/APK through `cbf6519`. Complete per-screen journey audit and Android device acceptance remain open; no full-project completion is claimed.
+PHASE 5 — responsive listing editor. Discovery, saved searches, comparison and property details presentation have passed automated regression; per-screen authenticated Android acceptance remains open.
 
 # Exact Last Completed Step
 
-Verified `35469555165` and companion `35469558183` SUCCESS at `cbf6519046086921ed186147f12a37d364d97688`: pub get/analyze, 286 Flutter tests, compile-time Frankfurt guard, Laravel/PostGIS, live Frankfurt health/load and isolated release APK all passed. Previous saved-search gate `35469419123` also SUCCESS. Downloaded visual artifact `10592172482` and APK `10592087899`. Reviewed normal/enlarged saved-search fields and decoded fullscreen gallery, plus earlier details summary/advertiser/context images. Image fixtures are deterministic original test pixels only; no demo data/assets in app code.
+Comparison commit `18677a960ef557542723bd185bb5b39e037012c3` passed Experimental UI `35482673515` and companion `35482675141`: analyze, complete Flutter suites, backend/PostGIS, Frankfurt guards/live checks, isolated APK. Reviewed comparison screenshots from artifact `10596810629`; APK artifact `10597320142`. Stable/main refs reverified unchanged on 2026-09-20.
 
-Implemented comparison table with aligned criterion rows, full Arabic property titles, shared imagery/loading and central widths. Original positive-ID filtering/deduplication/four-item limit, load ordering, optional market failure, retry and property routes unchanged. Existing Sai/area/market/rating formatting and null-state meanings retained. Added six tests covering RTL sizes/text, row alignment, fourth-property navigation, filtering/limit, load retry and minimum selection. Comparison changes await CI.
+Read the complete listing editor and its existing contract tests. Implemented shared bounded action dock, scrolling correction/progress, constrained form surface, responsive field pairs and wrapping single-choice controls. Kept all validators, payload, persistence, identity checks, Sai and media methods byte-for-byte unchanged. Added seven widget cases for all five steps across narrow/enlarged/landscape RTL, rental draft payload and busy actions, title/tenure/location gates, unit identity and rental validation order. Editor changes await CI; not accepted yet.
 
 # Next Exact Step
 
-Publish comparison implementation and six tests. Require full CI/APK and inspect comparison screenshots. Then update the feature inventory with precise implemented/verified versus pending states, finish details action audit, and continue Phase 5 listing editor. Do not repeat completed foundations/discovery/saved-search/gallery work.
+Publish listing editor changes and require complete CI/APK. Diagnose any failure before expanding scope. Inspect editor visual artifacts, then cover remaining listing preview/evidence/Sai/map journeys and continue messaging. Do not repeat completed discovery/comparison work.
 
 # Files Changed
 
@@ -89,17 +89,22 @@ Publish comparison implementation and six tests. Require full CI/APK and inspect
 - Gallery/frame/skeleton plus market/Sai presentation files — shared tokens and responsive layout only.
 - Saved-search builder/list/results presentation files and `experimental_saved_search_test.dart` — responsive editor/list and ten behavior/layout cases.
 - `property_compare_screen.dart` and `experimental_property_compare_test.dart` — aligned comparison table, original values/actions and six regression cases.
+- `listing_editor_screen.dart` and `experimental_listing_editor_test.dart` — responsive five-step presentation and seven regression cases.
 - This checkpoint.
 
 # Screens Completed
 
-None. Shared foundations changed; screen composition phases remain open.
+Implemented and automated-verified: main navigation/discovery controls and results, property cards, favorites selection, comparison, saved-search editor/list/results, details summary/gallery/advertiser/Sai/market context. Full native/authenticated per-screen acceptance remains pending; no claim that all 71 presentation files are finished.
 
 # Screens Remaining
 
-All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
+Listing editor and related modals/pickers, messaging, account/KYC, management, support, financial/agreements, role-specific hubs, remaining secondary screens and router error presentation. See the inventory implementation ledger; native/authenticated acceptance still applies to previously automated-verified screens.
 
 # Tests Last Run
+
+- 2026-09-20, `18677a9`: Experimental `35482673515` and companion `35482675141` SUCCESS including full Flutter analyze/tests, backend/PostGIS, live Frankfurt guards/load and isolated APK.
+- 2026-09-20, editor working changes: `git diff --check`, `python3 scripts/verify_ui_locked_source.py` PASS (346 immutable files). Validator/persistence/identity/Sai/media method range compared byte-for-byte with parent. Flutter execution remains CI-only due local VM sandbox limitation.
+
 
 - 2026-09-20: verified `35469555165` / cbf6519 complete SUCCESS: 286 Flutter tests plus compile-time guard, clean analyze/pub get, backend/PostGIS, Frankfurt checks and APK. Companion `35469558183` and saved-search `35469419123` SUCCESS.
 - Comparison local preflight: 346-file guard and whitespace PASS; selection/load/retry/optional-market-failure code and area formatter compared exactly unchanged. Six new tests await CI.
