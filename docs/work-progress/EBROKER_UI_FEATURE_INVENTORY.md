@@ -16,7 +16,7 @@ This ledger distinguishes implemented presentation and automated checks from the
 | Comparison | `18677a9` full CI/APK; six RTL, aligned-row, limits/retry/route tests pass | Native comparison with real account data |
 | Saved-search editor/list/results | `cbf6519` full CI/APK; ten payload/edit/validation/layout tests pass | Authenticated list toggle/delete/result journeys |
 | Details/gallery/advertiser/Sai/market | `cbf6519` full CI/APK; responsive/trust/status/auth-route/gallery/error tests pass | Authenticated share/report/contact/viewing and device map/zoom review |
-| Listing editor | Responsive shell/forms/action layout implemented; seven new cases awaiting CI | Preview, media/evidence/Sai/identity/pickers and all-role device acceptance |
+| Listing editor | Responsive editor/Sai/map controls implemented; seven editor, nine Sai and five map control cases pass CI. Preview/identity dialogs and four new cases await CI | Preview, media/evidence/Sai/identity/pickers and all-role device acceptance |
 | Messaging/account/KYC/management/support/financial/agreements/role hubs | Original functionality retained; redesign not yet complete | Remaining implementation and full regression |
 
 ## Architecture and locked boundaries

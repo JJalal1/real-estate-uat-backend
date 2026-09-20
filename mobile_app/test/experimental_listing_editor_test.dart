@@ -11,6 +11,7 @@ import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_identity.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 
 import 'support/capture_design.dart';
@@ -72,6 +73,63 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pumpAndSettle();
       expect(find.text('SAVED 9'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final size in [const Size(320, 568), const Size(600, 280)]) {
+    testWidgets('listing preview closes without saving at $size / 2.4', (tester) async {
+      final repository = _Repository();
+      final key = GlobalKey();
+      await _open(tester, repository, size: size, scale: 2.4, captureKey: key);
+      for (var step = 0; step < 4; step++) { await _tap(tester, _button('التالي')); }
+      await _tap(tester, _button('معاينة'));
+      expect(find.text('هذه المعاينة لا تحفظ ولا تغيّر حالة الإعلان.'), findsOneWidget);
+      expect(repository.input, isNull);
+      await _reveal(tester, find.text(_property.title).last);
+      await captureDesign(tester, key, 'listing-preview-${size.width.toInt()}-${size.height.toInt()}-2.4');
+      await _tap(tester, _button('إغلاق المعاينة'));
+      expect(find.text('معاينة قبل الإرسال'), findsNothing);
+      expect(find.text('الخطوة 5 من 5'), findsOneWidget);
+      expect(repository.input, isNull);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final selfVerification in [false, true]) {
+    testWidgets('server duplicate blocks publish after draft save (self=$selfVerification)', (tester) async {
+      final repository = _Repository(ready: true, selfVerification: selfVerification);
+      repository.saved.complete(_submissionProperty);
+      await _open(tester, repository, existing: _submissionProperty,
+        size: const Size(600, 280), scale: 2.4);
+      for (var step = 0; step < 4; step++) { await _tap(tester, _button('التالي')); }
+      await _tap(tester, _button('إرسال للمراجعة'));
+      expect(repository.input, isNull);
+      await _tapWhileSaving(tester, find.text('حفظ وإرسال'));
+      expect(repository.input, isNotNull);
+      expect(repository.submitForReview, isFalse);
+      expect(repository.identityCalls, 1);
+      if (selfVerification) {
+        expect(find.text('وجدنا عقاراً مشابهاً'), findsOneWidget);
+        await _tapWhileSaving(tester, find.text('أؤكد أنه عقار مختلف'));
+        expect(find.text('اكتب توضيحاً من 10 أحرف على الأقل.'), findsOneWidget);
+        expect(repository.differenceNote, isNull);
+        final field = _field('وضح الفرق *');
+        await Scrollable.ensureVisible(tester.element(field), alignment: .5);
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.enterText(field, 'وحدة مختلفة في نفس المبنى ABC-12');
+        await tester.pump();
+        await _tapWhileSaving(tester, find.text('أؤكد أنه عقار مختلف'));
+        expect(repository.differenceType, 'different_address');
+        expect(repository.differenceNote, 'وحدة مختلفة في نفس المبنى ABC-12');
+      }
+      await tester.pumpAndSettle();
+      expect(repository.submitCalls, 0);
+      expect(find.text('SAVED 9'), findsNothing);
+      expect(find.text('الخطوة 5 من 5'), findsOneWidget);
+      expect(find.text(selfVerification
+        ? 'بعد التحقق ما زال هذا العقار مطابقاً لعقار مسجل، لذلك لا يمكن إرساله.'
+        : 'هذا العقار أو هذه الوحدة مسجلة بالفعل على المنصة ولا يمكن إنشاء إعلان آخر لها.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
@@ -164,15 +222,53 @@ const _property = PropertyDetails(
   address: 'صنعاء - حدة - شارع الزبيري', status: 'draft', reviewStatus: 'returned_for_correction',
   lastReviewReason: 'يرجى توضيح المعلومات وإكمال مستند العلاقة بالعقار حتى يتمكن فريق الدعم من مراجعة الإعلان.',
 );
+final _submissionProperty = PropertyDetails.fromJson({
+  'id': 9, 'title': 'شقة للاختبار', 'purpose': 'rent', 'type': 'apartment',
+  'price': 150000, 'monthly_rent': 50000, 'rental_term_months': 12, 'advance_months': 3,
+  'currency': 'YER', 'latitude': 15.3, 'longitude': 44.2,
+  'images': [{'id': 1, 'url': 'https://example.invalid/fixture.jpg', 'is_primary': true}],
+  'area_value': 4, 'area_unit': 'libna_sanaani', 'bedrooms': 2, 'bathrooms': 1,
+  'has_parking': false, 'building_facade': 'north', 'building_reference': 'عمارة النور 12',
+  'unit_number': 'A-2', 'floor_number': '3', 'address': 'صنعاء - حدة - شارع الزبيري',
+  'status': 'draft', 'ownership_document_type': 'purchase_deed',
+  'document_owner_name': 'مالك الاختبار', 'owner_relationship_type': 'owner', 'ownership_proof_present': true,
+});
+
 class _Repository extends PropertyRepository {
-  _Repository() : super(Dio(), AuthRepository(Dio()));
+  _Repository({this.ready = false, this.selfVerification = false}) : super(Dio(), AuthRepository(Dio()));
+  final bool ready;
+  final bool selfVerification;
+  int identityCalls = 0;
+  int submitCalls = 0;
+  String? differenceType;
+  String? differenceNote;
   final saved = Completer<PropertyDetails>();
   PropertyListingInput? input;
   int? id;
   bool? submitForReview;
   bool? replaceImages;
   @override
-  Future<PropertySaiEnvelope> sai(int propertyId) async => const PropertySaiEnvelope();
+  Future<PropertySaiEnvelope> sai(int propertyId) async => ready
+      ? const PropertySaiEnvelope(management: PropertySaiManagement(configured: true, advertiserType: 'owner'))
+      : const PropertySaiEnvelope();
+  @override
+  Future<PropertyIdentityResult> checkPropertyIdentity(int propertyId) async {
+    identityCalls++;
+    return PropertyIdentityResult(decision: selfVerification ? 'self_verification' : 'confirmed_duplicate',
+      status: selfVerification ? 'self_verification_required' : 'confirmed_duplicate',
+      score: 90, signals: const [], message: 'fixture server decision');
+  }
+  @override
+  Future<PropertyIdentityResult> selfVerifyPropertyIdentity(int propertyId, {required String differenceType, required String differenceNote}) async {
+    this.differenceType = differenceType;
+    this.differenceNote = differenceNote;
+    return const PropertyIdentityResult(decision: 'confirmed_duplicate', status: 'confirmed_duplicate', score: 95, signals: [], message: 'fixture server decision');
+  }
+  @override
+  Future<PropertyDetails> submitListing(int propertyId) async {
+    submitCalls++;
+    return _submissionProperty;
+  }
   @override
   Future<PropertyDetails> updateListing(int propertyId, PropertyListingInput input, {
     List<String> imagePaths = const [], bool replaceImages = false, bool submitForReview = false,
@@ -203,6 +299,14 @@ Future<void> _tap(WidgetTester tester, Finder target, {bool settle = true}) asyn
   await _reveal(tester, target);
   await tester.tap(target);
   if (settle) { await tester.pumpAndSettle(); } else { await tester.pump(); }
+}
+// The editor intentionally stays busy while a server-identity dialog is open.
+// Advance frames instead of settling its continuously animated busy indicator.
+Future<void> _tapWhileSaving(WidgetTester tester, Finder target) async {
+  await Scrollable.ensureVisible(tester.element(target), alignment: .5);
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tap(target);
+  await tester.pump(const Duration(milliseconds: 300));
 }
 Future<void> _enter(WidgetTester tester, String label, String value) async {
   await _reveal(tester, _field(label));

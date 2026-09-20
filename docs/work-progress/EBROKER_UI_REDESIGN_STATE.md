@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `d36f4e6d0b248616f5995a6ae17179fe7aede9c4` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `5da5ebd6a4a3ee936829485c799ac232edca932d` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -47,9 +47,13 @@ Sai configuration now uses central content/heading/section/paired actions. All m
 
 Location and land-boundary pickers now share a bounded scrolling `ListingMapDock`. Instructions and confirm/current-location actions remain accessible on narrow/large-text/landscape displays while map viewport stays unchanged. All pre-build state/mutation methods and native MapLibre construction compared byte-for-byte against parent. Added five cases for exposed-map input, all callbacks, height bounds, loading and disabled confirmation. Native map device interaction remains pending.
 
+Picker controls published as `5da5ebd`. Companion `35528958604` SUCCESS; Experimental `35528956651` analyze/tests/Frankfurt checks passed, APK building. Visual artifact `10611220022`. Sai artifact `10610319985` reviewed: owner/professional terms remain readable and the previous button no longer splits at 320px/2.4.
+
+Preview now uses the central content frame/heading/media tokens. Submission confirmation and identity explanation dialogs can scroll their title/content on short screens; original confirm/cancel, 10-character note validation, request parameters and backend outcomes remain unchanged. Four new editor cases cover preview without writes at two sizes and confirmed-duplicate blocking both before and after self-verification. New dialog changes await CI.
+
 # Next Exact Step
 
-Publish picker controls and require complete CI/APK; inspect Sai/editor and picker artifacts. Then finish listing preview/evidence/identity dialog presentation audit and proceed to messaging. Preserve all native map/device acceptance items as pending until actually exercised.
+Publish preview/identity-dialog changes, require CI/APK, inspect preview and picker screenshots. Then continue Phase 6 inbox/conversation; retain native image picking, map interaction and authenticated end-to-end listing acceptance as explicit remaining device checks.
 
 # Files Changed
 
@@ -96,6 +100,7 @@ Publish picker controls and require complete CI/APK; inspect Sai/editor and pick
 - `listing_editor_screen.dart` and `experimental_listing_editor_test.dart` — responsive five-step presentation and seven regression cases.
 - `property_sai_configuration_sheet.dart` and `experimental_sai_configuration_test.dart` — responsive existing terms and nine regressions.
 - `listing_map_dock.dart`, location/boundary picker presentation and `experimental_listing_map_dock_test.dart` — bounded controls and five map-input/action cases.
+- Preview/identity-dialog presentation and four additional editor tests; `AppDialog.show` adds optional scrolling, default unchanged for other callers.
 - This checkpoint.
 
 # Screens Completed
@@ -107,6 +112,9 @@ Implemented and automated-verified: main navigation/discovery controls and resul
 Listing editor and related modals/pickers, messaging, account/KYC, management, support, financial/agreements, role-specific hubs, remaining secondary screens and router error presentation. See the inventory implementation ledger; native/authenticated acceptance still applies to previously automated-verified screens.
 
 # Tests Last Run
+
+- 2026-09-20, `5da5ebd`: companion `35528958604` SUCCESS; Experimental `35528956651` analyze/tests/Frankfurt checks passed, APK building. New preview/identity cases await CI.
+
 
 - 2026-09-20, `d36f4e6`: Experimental `35528739995` analyze/full Flutter tests passed; APK gate still running. Five additional map-dock cases await CI. `git diff --check` and 346-file locked-source guard pass.
 

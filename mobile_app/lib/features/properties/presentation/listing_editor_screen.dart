@@ -1192,6 +1192,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       final confirmed = await AppDialog.show<bool>(
         context,
         title: 'إرسال الإعلان للمراجعة؟',
+        scrollable: true,
         content: const Text(
           'سيتم حفظ آخر تعديلاتك أولاً، ثم إرسال نفس الإعلان إلى فريق الدعم. أثناء المراجعة لن يكون قابلاً للتعديل حتى يعود للتصحيح أو يصدر القرار.',
         ),
@@ -1282,18 +1283,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       context,
       builder: (sheetContext) => Directionality(
         textDirection: TextDirection.rtl,
-        child: Padding(
-          padding: EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s16,
-            AppLayout.compactPageGutter,
-            MediaQuery.viewInsetsOf(sheetContext).bottom + AppSpacing.s24,
-          ),
+        child: AppContentFrame(
           child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + AppSpacing.s24,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const AppSectionHeader(
+                const AppPageHeading(
                   title: 'معاينة قبل الإرسال',
                   subtitle: 'هذه المعاينة لا تحفظ ولا تغيّر حالة الإعلان.',
                 ),
@@ -1303,11 +1301,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     borderRadius: BorderRadius.circular(AppRadii.card),
                     child: Image.file(
                       File(_imagePaths.first),
-                      height: 210,
+                      height: AppSizes.propertyMediaHeight,
                       width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
-                        height: 160,
+                        height: AppSizes.propertyPreviewMedia,
                         child: Center(child: Icon(Icons.broken_image_outlined)),
                       ),
                     ),
@@ -1317,11 +1315,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     borderRadius: BorderRadius.circular(AppRadii.card),
                     child: Image.network(
                       _existing!.mainImage!,
-                      height: 210,
+                      height: AppSizes.propertyMediaHeight,
                       width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
-                        height: 160,
+                        height: AppSizes.propertyPreviewMedia,
                         child: Center(child: Icon(Icons.home_work_outlined)),
                       ),
                     ),
@@ -1450,13 +1448,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         builder: (context, setDialogState) => Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
+            scrollable: true,
             title: const Text('وجدنا عقاراً مشابهاً'),
             content: SingleChildScrollView(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
               const Text(
                   'إذا كان هذا عقاراً مختلفاً، اختر الفرق واكتب معلومة تساعد النظام على التمييز. الحالات غير المحسومة فقط تذهب للدعم.'),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.s12),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 value: type,
                 decoration:
                     const InputDecoration(labelText: 'ما الفرق الأساسي؟'),
@@ -1478,7 +1478,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                 onChanged: (value) =>
                     setDialogState(() => type = value ?? type),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.s12),
               TextField(
                   controller: note,
                   maxLines: 3,

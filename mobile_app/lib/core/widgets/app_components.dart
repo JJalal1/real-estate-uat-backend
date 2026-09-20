@@ -810,10 +810,12 @@ abstract final class AppDialog {
     required String title,
     required Widget content,
     required List<Widget> actions,
+    bool scrollable = false,
   }) {
     return showDialog<T>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: scrollable,
         title: Text(title),
         content: content,
         actions: actions,
