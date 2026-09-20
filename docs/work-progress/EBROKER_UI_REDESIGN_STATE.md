@@ -1,8 +1,8 @@
 # Current State
 
-Last updated: 2026-09-19 UTC
+Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `0874b0a611411463e91595ceb5bcb2ddc30b5b93` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `cbf6519046086921ed186147f12a37d364d97688` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,21 +35,17 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 3 secondary discovery completion (saved searches), alongside PHASE 4 details verification. Details gallery/context at `fcf1bc7` passed analyze/full Flutter/backend; its APK build is running. Details summary at `2a114f7` has complete successful CI/APK. No full-project completion is claimed.
+PHASE 3 secondary discovery completion — comparison table. PHASE 4 details/gallery/advertiser/Sai/market presentation and saved-search editor/list/results are implemented and passed full CI/APK through `cbf6519`. Complete per-screen journey audit and Android device acceptance remain open; no full-project completion is claimed.
 
 # Exact Last Completed Step
 
-Saved-search editor now uses the central page frame, heading, wrapped purpose controls, grouped price/specification cards and responsive field pairs. Saved-search list/results use constrained layouts, shared identity and matching skeleton presentation. All form initialization/disposal, validation messages/order, location handling, payload construction, create/update, delete/alert actions and result navigation compared unchanged. Purpose control preserves exclusive selection plus deselection. Added ten tests covering seven RTL viewport/text sizes, exact create/edit payloads, legacy disabled daily choice, location removal, alert/purpose choices and complete malformed-number/range validation sequence. These saved-search changes await CI.
+Verified `35469555165` and companion `35469558183` SUCCESS at `cbf6519046086921ed186147f12a37d364d97688`: pub get/analyze, 286 Flutter tests, compile-time Frankfurt guard, Laravel/PostGIS, live Frankfurt health/load and isolated release APK all passed. Previous saved-search gate `35469419123` also SUCCESS. Downloaded visual artifact `10592172482` and APK `10592087899`. Reviewed normal/enlarged saved-search fields and decoded fullscreen gallery, plus earlier details summary/advertiser/context images. Image fixtures are deterministic original test pixels only; no demo data/assets in app code.
 
-Gallery presentation now uses one shared adaptive frame for loading/data (4:3, capped at 420px and half screen height). Fullscreen caption is bounded/scrollable; original page controller, initial index, zoom limits, network images and close action remain unchanged. Gallery counter/caption no longer overlay the property photo. Market sample badge is below the heading; all medians/deltas/disclaimers unchanged. Sai retry is vertically arranged; public display_text remains verbatim. Added two image-error/paging/fullscreen/close tests and six context layout/loading/empty/independent retry tests. New changes await CI.
-
-Verified full experimental CI `34990219383` and companion `34990224480` SUCCESS at `cd9ab965b9e3137cd6caeec2c5e2785b574baf95`. Analyze clean, 255 Flutter cases plus compile-time Frankfurt guard, Laravel/PostGIS and APK successful. Downloaded APK artifact `10405732322`; computed actual APK SHA-256 matches supplied checksum: `24092b1e677b753d13466b67617bf74e472995779500937f56e36ec3849639db`. Verified BUILD_INFO identifies the experimental package and Frankfurt endpoint. Visual artifact `10404484325`: inspected 320px normal/2.4 filter and enlarged map-action images; map Arabic action labels no longer split mid-word. Search 320px images also inspected; enlarged/keyboard screenshots are scrolled viewports, not complete modal images.
-
-Implemented details summary surface with status/price/title/Sai, shared section cards and bounded page width. Advertiser badges no longer compete horizontally with long names; trust signals wrap, rating/comments wrap independently. Added shared height-bounded AppActionDock with responsive action pair. Original provider/auth/favorite/owner/viewing/message/copy/refresh methods and all six trust-flag predicates compared exactly unchanged. Twelve new tests cover seven size/scale layouts, owner/unpublished visibility, public auth actions, loading/error/retry. These details changes await CI.
+Implemented comparison table with aligned criterion rows, full Arabic property titles, shared imagery/loading and central widths. Original positive-ID filtering/deduplication/four-item limit, load ordering, optional market failure, retry and property routes unchanged. Existing Sai/area/market/rating formatting and null-state meanings retained. Added six tests covering RTL sizes/text, row alignment, fourth-property navigation, filtering/limit, load retry and minimum selection. Comparison changes await CI.
 
 # Next Exact Step
 
-Publish saved-search UI and its ten tests, then resolve any CI regression and inspect the new images. Check full APK completion of `35469149328` (fcf1bc7) and download its details/gallery/context evidence. Once these gates are green, continue the remaining discovery comparison presentation and full details action audit before Phase 5 listing editor. Preserve every backend/domain lock.
+Publish comparison implementation and six tests. Require full CI/APK and inspect comparison screenshots. Then update the feature inventory with precise implemented/verified versus pending states, finish details action audit, and continue Phase 5 listing editor. Do not repeat completed foundations/discovery/saved-search/gallery work.
 
 # Files Changed
 
@@ -92,6 +88,7 @@ Publish saved-search UI and its ten tests, then resolve any CI regression and in
 - `mobile_app/test/experimental_property_context_test.dart` — server wording, market/Sai loading/empty/error/retry and scaled RTL rendering.
 - Gallery/frame/skeleton plus market/Sai presentation files — shared tokens and responsive layout only.
 - Saved-search builder/list/results presentation files and `experimental_saved_search_test.dart` — responsive editor/list and ten behavior/layout cases.
+- `property_compare_screen.dart` and `experimental_property_compare_test.dart` — aligned comparison table, original values/actions and six regression cases.
 - This checkpoint.
 
 # Screens Completed
@@ -103,6 +100,9 @@ None. Shared foundations changed; screen composition phases remain open.
 All 71 presentation files and router error presentation. See the per-file checklist in `EBROKER_UI_FEATURE_INVENTORY.md`; this includes secondary/internal screens and modal/forms, not just top-level routes.
 
 # Tests Last Run
+
+- 2026-09-20: verified `35469555165` / cbf6519 complete SUCCESS: 286 Flutter tests plus compile-time guard, clean analyze/pub get, backend/PostGIS, Frankfurt checks and APK. Companion `35469558183` and saved-search `35469419123` SUCCESS.
+- Comparison local preflight: 346-file guard and whitespace PASS; selection/load/retry/optional-market-failure code and area formatter compared exactly unchanged. Six new tests await CI.
 
 - Visual review at fcf1bc7 artifact `10592695789`: normal top-of-details and full advertiser section inspected; 320px/2.4 market metrics inspected. Fullscreen capture occurred before synthetic image decoding; tests now await engine decoding in runAsync and assert a non-null RawImage before capture. No production image loading changed. Saved-search CI remains pending.
 

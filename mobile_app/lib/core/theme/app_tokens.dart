@@ -27,6 +27,8 @@ abstract final class AppLayout {
   static const double contentMaxWidth = 840;
   static const double feedbackMaxWidth = 420;
   static const double sectionActionMaxWidth = 200;
+  static const double comparisonLabelWidth = 140;
+  static const double comparisonColumnWidth = 280;
   static const double propertyRailWidth = 280;
   static const double mapDockStickyMinHeight = 240;
   static const double mapDockMaxHeightFraction = 0.5;
