@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_components.dart';
+import '../../../core/design/app_design.dart';
 import '../data/message_repository.dart';
 import '../domain/message_models.dart';
 import 'conversation_screen.dart';
@@ -75,15 +74,16 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
         appBar: const AppAppBar(title: 'الرسائل'),
         body: RefreshIndicator(
           onRefresh: _load,
-          child: CustomScrollView(
+          child: AppContentFrame(
+            child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsetsDirectional.fromSTEB(
-                    AppLayout.compactPageGutter,
+                    0,
                     AppSpacing.s12,
-                    AppLayout.compactPageGutter,
+                    0,
                     0,
                   ),
                   child: _InboxHeader(
@@ -96,12 +96,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                 ),
               ),
               if (_loading)
-                const SliverPadding(
-                  padding: EdgeInsetsDirectional.all(
-                    AppLayout.compactPageGutter,
-                  ),
-                  sliver: SliverToBoxAdapter(child: _MessagesSkeleton()),
-                )
+                const SliverToBoxAdapter(child: _MessagesSkeleton())
               else if (_error != null)
                 SliverFillRemaining(
                   hasScrollBody: false,
@@ -129,9 +124,9 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
               else
                 SliverPadding(
                   padding: const EdgeInsetsDirectional.fromSTEB(
-                    AppLayout.compactPageGutter,
+                    0,
                     AppSpacing.s12,
-                    AppLayout.compactPageGutter,
+                    0,
                     AppSpacing.s40,
                   ),
                   sliver: SliverList.separated(
@@ -155,6 +150,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                 ),
             ],
           ),
+          ),
         ),
       ),
     );
@@ -175,65 +171,20 @@ class _InboxHeader extends StatelessWidget {
   final ValueChanged<bool> onUnreadChanged;
 
   @override
-  Widget build(BuildContext context) {
-    return AppSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      unreadCount > 0
-                          ? 'عندك $unreadCount رسالة غير مقروءة'
-                          : 'كل الرسائل مقروءة',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.s4),
-                    Text(
-                      '$conversations محادثة مرتبطة برحلات عقارية داخل التطبيق.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AppRadii.control),
-                ),
-                child: Icon(
-                  unreadCount > 0
-                      ? Icons.mark_chat_unread_outlined
-                      : Icons.mark_chat_read_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s12),
+  Widget build(BuildContext context) => AppPageHeading(
+        title: unreadCount > 0
+            ? 'عندك $unreadCount رسالة غير مقروءة' : 'كل الرسائل مقروءة',
+        subtitle: '$conversations محادثة مرتبطة برحلات عقارية داخل التطبيق.',
+        actions: [
           FilterChip(
             selected: unreadOnly,
-            avatar: const Icon(Icons.mark_email_unread_outlined, size: 18),
-            label: Text(
-              unreadCount > 0
-                  ? 'غير المقروء فقط ($unreadCount)'
-                  : 'غير المقروء فقط',
-            ),
+            avatar: const Icon(Icons.mark_email_unread_outlined, size: AppSpacing.s20),
+            label: Text(unreadCount > 0
+                ? 'غير المقروء فقط ($unreadCount)' : 'غير المقروء فقط'),
             onSelected: onUnreadChanged,
           ),
         ],
-      ),
-    );
-  }
+      );
 }
 
 class _ConversationCard extends StatelessWidget {
@@ -244,133 +195,85 @@ class _ConversationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final unread = item.unreadCount > 0;
     final firstLetter = item.otherUserName.trim().isEmpty
-        ? '?'
-        : item.otherUserName.trim().characters.first;
+        ? '?' : item.otherUserName.trim().characters.first;
 
     return AppSurface(
-      padding: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.all(AppSpacing.s14),
-          child: Row(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
-                radius: 24,
-                backgroundColor: unread
-                    ? scheme.primaryContainer
-                    : scheme.surfaceContainerHighest,
-                child: Text(
-                  firstLetter,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: unread ? scheme.primary : scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
+                radius: AppSizes.touchTarget / 2,
+                backgroundColor: unread ? scheme.primaryContainer : scheme.surfaceContainerHighest,
+                child: Text(firstLetter, style: theme.textTheme.titleMedium?.copyWith(
+                  color: unread ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                )),
               ),
               const SizedBox(width: AppSpacing.s12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.otherUserName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight:
-                                      unread ? FontWeight.w800 : FontWeight.w600,
-                                ),
-                          ),
-                        ),
-                        if (item.lastMessageAt != null)
-                          Text(
-                            _relativeTime(item.lastMessageAt!),
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                          ),
-                      ],
-                    ),
-                    if (item.propertyTitle != null) ...[
-                      const SizedBox(height: AppSpacing.s4),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.home_work_outlined,
-                            size: 16,
-                            color: scheme.primary,
-                          ),
-                          const SizedBox(width: AppSpacing.s4),
-                          Expanded(
-                            child: Text(
-                              item.propertyTitle!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: scheme.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.s6),
-                    Text(
-                      item.lastMessagePreview ?? 'ابدأ المحادثة حول هذا العقار.',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: unread
-                                ? scheme.onSurface
-                                : scheme.onSurfaceVariant,
-                            fontWeight:
-                                unread ? FontWeight.w600 : FontWeight.normal,
-                          ),
-                    ),
-                    if (item.isPropertyUnavailable) ...[
-                      const SizedBox(height: AppSpacing.s8),
-                      const AppStatusBadge(
-                        label: 'الإعلان غير متاح حاليًا • المحادثة محفوظة',
-                        tone: AppStatusTone.warning,
-                        icon: Icons.info_outline,
-                      ),
-                    ],
-                  ],
+              Expanded(child: Text(item.otherUserName,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: unread ? FontWeight.w800 : FontWeight.w600,
                 ),
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              if (unread)
-                Container(
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: scheme.primary,
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Text(
-                    item.unreadCount > 99 ? '99+' : '${item.unreadCount}',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: scheme.onPrimary,
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                )
-              else
-                Icon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
+              )),
             ],
           ),
-        ),
+          const SizedBox(height: AppSpacing.s12),
+          Wrap(
+            spacing: AppSpacing.s8,
+            runSpacing: AppSpacing.s8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (unread)
+                Semantics(
+                  label: '${item.unreadCount} رسائل غير مقروءة',
+                  child: AppStatusBadge(
+                    label: item.unreadCount > 99 ? '99+' : '${item.unreadCount}',
+                    tone: AppStatusTone.info,
+                    icon: Icons.mark_chat_unread_outlined,
+                  ),
+                ),
+              if (item.lastMessageAt != null)
+                Text(_relativeTime(item.lastMessageAt!),
+                    style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
+            ],
+          ),
+          if (item.propertyTitle != null) ...[
+            const SizedBox(height: AppSpacing.s12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.home_work_outlined, size: AppSpacing.s20, color: scheme.primary),
+                const SizedBox(width: AppSpacing.s8),
+                Expanded(child: Text(item.propertyTitle!, style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.primary, fontWeight: FontWeight.w600,
+                ))),
+              ],
+            ),
+          ],
+          const SizedBox(height: AppSpacing.s8),
+          Text(item.lastMessagePreview ?? 'ابدأ المحادثة حول هذا العقار.',
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: unread ? scheme.onSurface : scheme.onSurfaceVariant,
+              fontWeight: unread ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+          if (item.isPropertyUnavailable) ...[
+            const SizedBox(height: AppSpacing.s12),
+            const AppStatusBadge(
+              label: 'الإعلان غير متاح حاليًا • المحادثة محفوظة',
+              tone: AppStatusTone.warning, icon: Icons.info_outline,
+            ),
+          ],
+        ],
       ),
     );
   }

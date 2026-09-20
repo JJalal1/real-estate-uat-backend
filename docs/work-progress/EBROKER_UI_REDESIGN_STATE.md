@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `59f58f190141229abcf6451351db885e678feff6` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `f77238e3a847294ba4d7287a4f8620d29ad2b215` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,7 +35,7 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 5 — responsive listing editor. Discovery, saved searches, comparison and property details presentation have passed automated regression; per-screen authenticated Android acceptance remains open.
+PHASE 6 — inbox presentation. Phase 5 editor, Sai, picker controls, preview and identity-dialog implementation have passed automated tests. Native media/GPS/map and authenticated device acceptance remain explicitly open, as do later redesign phases.
 
 # Exact Last Completed Step
 
@@ -49,11 +49,13 @@ Location and land-boundary pickers now share a bounded scrolling `ListingMapDock
 
 Picker controls published as `5da5ebd`. Companion `35528958604` SUCCESS; Experimental `35528956651` analyze/tests/Frankfurt checks passed, APK building. Visual artifact `10611220022`. Sai artifact `10610319985` reviewed: owner/professional terms remain readable and the previous button no longer splits at 320px/2.4.
 
-Preview now uses the central content frame/heading/media tokens. Submission confirmation and identity explanation dialogs can scroll their title/content on short screens; original confirm/cancel, 10-character note validation, request parameters and backend outcomes remain unchanged. Four new editor cases cover preview without writes at two sizes and confirmed-duplicate blocking both before and after self-verification. Preview and direct-duplicate tests passed at `59f58f1`; self-verification test exposed a real controller-lifecycle bug on dialog dismissal. The old method disposed its local controller before the reverse route transition finished. Moved note/type/error ownership to a private StatefulWidget that disposes at unmount, preserving all six options, default, 10-character validation, barrier and record result. CI `35529232060` / `35529234183` failed from that bug and subsequent teardown errors; correction pending.
+Preview now uses the central content frame/heading/media tokens. Submission confirmation and identity explanation dialogs can scroll their title/content on short screens; original confirm/cancel, 10-character note validation, request parameters and backend outcomes remain unchanged. Four new editor cases cover preview without writes at two sizes and confirmed-duplicate blocking both before and after self-verification. Preview and direct-duplicate tests passed at `59f58f1`; self-verification test exposed a real controller-lifecycle bug on dialog dismissal. The old method disposed its local controller before the reverse route transition finished. Moved note/type/error ownership to a private StatefulWidget that disposes at unmount, preserving all six options, default, 10-character validation, barrier and record result. CI `35529232060` / `35529234183` failed from that bug and subsequent teardown errors. Correction `f77238e3` passed companion `35529531648` including all Flutter regressions; experimental `35529528061` still runs.
+
+Implemented inbox content frame, readable sender/property hierarchy, wrapped time/unread metadata and preserved unavailable-listing context. Fetch/revision/filter/count logic, navigation/return refresh and time formatting compared byte-for-byte with parent. Seven tests cover RTL widths/scales, local unread filter, route ID/return refresh, loading/error/retry/empty and revision reload. Inbox awaits CI.
 
 # Next Exact Step
 
-Publish identity-dialog lifecycle correction and require CI/APK before continuing. Local inbox presentation and seven tests are prepared but intentionally unpublished pending this gate. Then inspect picker/preview evidence and continue Phase 6. Native media/map/authenticated acceptance remains open.
+Publish inbox and seven tests. Require CI/APK, inspect inbox and preview/picker evidence. Then redesign conversation body/composer/context/bubbles and report/reason dialogs with existing send-retry idempotency, older-page merge, booking and agreement permissions intact. Native map/media and authenticated device acceptance stay pending.
 
 # Files Changed
 
@@ -101,6 +103,7 @@ Publish identity-dialog lifecycle correction and require CI/APK before continuin
 - `property_sai_configuration_sheet.dart` and `experimental_sai_configuration_test.dart` — responsive existing terms and nine regressions.
 - `listing_map_dock.dart`, location/boundary picker presentation and `experimental_listing_map_dock_test.dart` — bounded controls and five map-input/action cases.
 - Preview/identity-dialog presentation and four additional editor tests; `AppDialog.show` adds optional scrolling, default unchanged for other callers.
+- `messages_screen.dart` and `experimental_inbox_test.dart` — responsive inbox and seven state/filter/navigation cases.
 - This checkpoint.
 
 # Screens Completed
@@ -112,6 +115,9 @@ Implemented and automated-verified: main navigation/discovery controls and resul
 Listing editor and related modals/pickers, messaging, account/KYC, management, support, financial/agreements, role-specific hubs, remaining secondary screens and router error presentation. See the inventory implementation ledger; native/authenticated acceptance still applies to previously automated-verified screens.
 
 # Tests Last Run
+
+- 2026-09-20, `f77238e3`: companion `35529531648` SUCCESS including analyze/full Flutter regression. New inbox tests await CI.
+
 
 - 2026-09-20, `5da5ebd`: companion `35528958604` SUCCESS; Experimental `35528956651` analyze/tests/Frankfurt checks passed, APK building. New preview/identity cases await CI.
 
@@ -184,7 +190,7 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 
 # Known Issues
 
-- UI Bug / Architecture Debt: identity explanation dialog disposed its TextEditingController before reverse transition completed. New test reproduced this at `59f58f1`; route-owned StatefulWidget correction in this checkpoint awaits CI. Backend decision flow unchanged.
+- UI Bug / Architecture Debt: identity explanation dialog disposed its TextEditingController before reverse transition completed. New test reproduced this at `59f58f1`; route-owned StatefulWidget correction verified in companion CI `35529531648` at `f77238e3`. Backend decision flow unchanged.
 
 
 - Architecture Debt: several project overview/roadmap docs predate live financial and agreement implementation. Current stable source + tests + this task override stale roadmap descriptions.
