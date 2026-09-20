@@ -59,9 +59,14 @@ void main() {
     await _open(tester, repository, size: const Size(600, 280), scale: 2.4, settle: false);
     // The enlarged heading fills this short viewport. Scroll the lazy sliver
     // into view without settling the continuously animated loading state.
-    await tester.scrollUntilVisible(find.byType(AppSkeleton).first, 200,
-      scrollable: find.descendant(of: find.byType(CustomScrollView),
-        matching: find.byType(Scrollable)).first);
+    final scroll = find.descendant(of: find.byType(CustomScrollView),
+      matching: find.byType(Scrollable)).first;
+    for (var attempts = 0;
+        find.byType(AppSkeleton).evaluate().isEmpty && attempts < 20;
+        attempts++) {
+      await tester.drag(scroll, const Offset(0, -200));
+      await tester.pump(const Duration(milliseconds: 50));
+    }
     expect(find.byType(AppSkeleton), findsWidgets);
     initial.completeError(StateError('fixture unavailable'));
     await tester.pumpAndSettle();
