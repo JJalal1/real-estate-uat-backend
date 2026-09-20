@@ -191,31 +191,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Future<String?> _bookingReason(String title, String label) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
+    final input = await showDialog<(String?, String)>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          minLines: 2,
-          maxLines: 4,
-          maxLength: 1500,
-          decoration: InputDecoration(labelText: label),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('تأكيد'),
-          ),
-        ],
+      builder: (_) => _ConversationInputDialog(
+        title: title, label: label, submitLabel: 'تأكيد',
+        minLines: 2, maxLines: 4, maxLength: 1500,
       ),
     );
-    controller.dispose();
+    final result = input?.$2;
     if (result == null || result.trim().length < 2) return null;
     return result.trim();
   }
@@ -334,48 +317,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       'spam': 'إزعاج',
       'other': 'أخرى'
     };
-    var reason = 'abuse';
-    final details = TextEditingController();
-    final accepted = await showDialog<bool>(
+    final input = await showDialog<(String?, String)>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('بلاغ عن المحادثة'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text(
-                'لن يفتح فريق الدعم محتوى المحادثة إلا ضمن هذا البلاغ وبصلاحية فتح المحادثات الخاصة، وسيتم تسجيل عملية الفتح.'),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-                value: reason,
-                items: reasons.entries
-                    .map((e) =>
-                        DropdownMenuItem(value: e.key, child: Text(e.value)))
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) setDialogState(() => reason = value);
-                }),
-            const SizedBox(height: 12),
-            TextField(
-                controller: details,
-                minLines: 3,
-                maxLines: 6,
-                maxLength: 5000,
-                decoration: const InputDecoration(labelText: 'تفاصيل البلاغ')),
-          ]),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('إلغاء')),
-            FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('إرسال البلاغ')),
-          ],
-        ),
+      builder: (_) => const _ConversationInputDialog(
+        title: 'بلاغ عن المحادثة', label: 'تفاصيل البلاغ',
+        submitLabel: 'إرسال البلاغ',
+        description: 'لن يفتح فريق الدعم محتوى المحادثة إلا ضمن هذا البلاغ وبصلاحية فتح المحادثات الخاصة، وسيتم تسجيل عملية الفتح.',
+        reasons: reasons, initialReason: 'abuse',
+        minLines: 3, maxLines: 6, maxLength: 5000,
       ),
     );
-    final text = details.text.trim();
-    details.dispose();
-    if (accepted != true) return;
+    if (input == null) return;
+    final reason = input.$1!;
+    final text = input.$2;
     if (text.length < 5) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -540,4 +494,81 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       },
     );
   }
+}
+
+/// Owns input until the dialog route finishes its reverse transition.
+/// The caller retains post-dismiss validation and every backend mutation.
+class _ConversationInputDialog extends StatefulWidget {
+  const _ConversationInputDialog({
+    required this.title, required this.label, required this.submitLabel,
+    required this.minLines, required this.maxLines, required this.maxLength,
+    this.description, this.reasons, this.initialReason,
+  });
+
+  final String title;
+  final String label;
+  final String submitLabel;
+  final int minLines;
+  final int maxLines;
+  final int maxLength;
+  final String? description;
+  final Map<String, String>? reasons;
+  final String? initialReason;
+
+  @override
+  State<_ConversationInputDialog> createState() => _ConversationInputDialogState();
+}
+
+class _ConversationInputDialogState extends State<_ConversationInputDialog> {
+  final _text = TextEditingController();
+  late String? _reason = widget.initialReason;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: AlertDialog(
+      scrollable: true,
+      title: Text(widget.title),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (widget.description != null) ...[
+          Text(widget.description!),
+          const SizedBox(height: AppSpacing.s12),
+        ],
+        if (widget.reasons != null) ...[
+          DropdownButtonFormField<String>(
+            value: _reason,
+            isExpanded: true,
+            itemHeight: null,
+            decoration: const InputDecoration(labelText: 'سبب البلاغ'),
+            items: widget.reasons!.entries.map((entry) => DropdownMenuItem(
+              value: entry.key, child: Text(entry.value),
+            )).toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _reason = value);
+            },
+          ),
+          const SizedBox(height: AppSpacing.s12),
+        ],
+        TextField(
+          controller: _text,
+          minLines: widget.minLines, maxLines: widget.maxLines,
+          maxLength: widget.maxLength,
+          decoration: InputDecoration(labelText: widget.label),
+        ),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, (_reason, _text.text.trim())),
+          child: Text(widget.submitLabel),
+        ),
+      ],
+    ),
+  );
 }

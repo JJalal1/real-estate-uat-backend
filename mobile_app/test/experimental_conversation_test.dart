@@ -47,6 +47,72 @@ void main() {
     });
   }
 
+  for (final size in [const Size(320, 568), const Size(600, 280)]) {
+    testWidgets('report dialog preserves reasons, validation and payload at $size', (tester) async {
+      final repository = _Messages();
+      final key = GlobalKey();
+      await _open(tester, repository, size: size, scale: 2.4, captureKey: key);
+      await _tap(tester, find.byTooltip('بلاغ'));
+      final field = find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField));
+      expect(tester.widget<TextField>(field).maxLength, 5000);
+      expect(find.textContaining('لن يفتح فريق الدعم'), findsOneWidget);
+      await _reveal(tester, field);
+      await tester.enterText(field, 'قصير');
+      await _tap(tester, find.text('إرسال البلاغ'));
+      expect(repository.reports, isEmpty);
+      expect(find.text('اكتب تفاصيل واضحة للبلاغ لا تقل عن 5 أحرف.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await _tap(tester, find.byTooltip('بلاغ'));
+      final choices = find.byType(DropdownButtonFormField<String>);
+      await _tap(tester, choices);
+      await _tap(tester, find.text('خصوصية').last);
+      await _reveal(tester, field);
+      await tester.enterText(field, '  تفاصيل واضحة لبلاغ الخصوصية  ');
+      await captureDesign(tester, key, 'conversation-report-${size.width.toInt()}-${size.height.toInt()}-2.4');
+      await _tap(tester, find.text('إرسال البلاغ'));
+      expect(repository.reports, [(10, 'privacy', 'تفاصيل واضحة لبلاغ الخصوصية')]);
+      expect(tester.takeException(), isNull);
+
+      await _tap(tester, find.byTooltip('بلاغ'));
+      expect(tester.widget<DropdownButtonFormField<String>>(choices).initialValue, 'abuse');
+      await _reveal(tester, field);
+      await tester.enterText(field, 'لا ترسل هذا البلاغ');
+      await _tap(tester, find.descendant(of: find.byType(AlertDialog), matching: find.text('إلغاء')));
+      expect(repository.reports, hasLength(1));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final action in ['decline', 'cancel']) {
+    testWidgets('booking $action reason retains post-dismiss validation and cancellation', (tester) async {
+      final repository = _Messages();
+      final bookings = _Bookings(reasonAction: action);
+      await _open(tester, repository, bookings: bookings, size: const Size(600, 280), scale: 2.4);
+      final actionLabel = action == 'decline' ? 'رفض' : 'إلغاء';
+      await _tap(tester, find.text(actionLabel));
+      final field = find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField));
+      expect(tester.widget<TextField>(field).maxLength, 1500);
+      await _reveal(tester, field);
+      await tester.enterText(field, 'س');
+      await _tap(tester, find.text('تأكيد'));
+      expect(bookings.reasons, isEmpty);
+      expect(tester.takeException(), isNull);
+      await _tap(tester, find.text(actionLabel));
+      await _reveal(tester, field);
+      await tester.enterText(field, 'سبب لن يتم إرساله');
+      await _tap(tester, find.descendant(of: find.byType(AlertDialog), matching: find.text('إلغاء')));
+      expect(bookings.reasons, isEmpty);
+      expect(tester.takeException(), isNull);
+      await _tap(tester, find.text(actionLabel));
+      await _reveal(tester, field);
+      await tester.enterText(field, '  سبب واضح للطلب  ');
+      await _tap(tester, find.text('تأكيد'));
+      expect(bookings.reasons, [(action, 7, 'سبب واضح للطلب')]);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('edited retry gets a new key; identical retry keeps the key', (tester) async {
     final repository = _Messages()..sendFailures = 2;
     await _open(tester, repository);
@@ -119,6 +185,7 @@ PrivateMessageItem _message(int id, String text, {bool mine = false}) => Private
 class _Messages extends MessageRepository {
   _Messages() : super(Dio(), AuthRepository(Dio()));
   List<PrivateMessageItem> items = [_message(2, 'رسالة العقار الحالية'), _message(3, 'أهلاً، هل العقار متاح للمعاينة؟', mine: true)];
+  final reports = <(int, String, String)>[];
   final sent = <String>[];
   final keys = <String?>[];
   int sendFailures = 0;
@@ -138,6 +205,10 @@ class _Messages extends MessageRepository {
       hasMore: beforeId == null && items.isNotEmpty, nextBeforeId: beforeId == null ? 2 : null);
   }
   @override
+  Future<void> report(int threadId, {required String reason, required String details}) async {
+    reports.add((threadId, reason, details));
+  }
+  @override
   Future<PrivateMessageItem> send(int threadId, String body, {String? clientMessageId}) async {
     sent.add(body); keys.add(clientMessageId);
     if (sendFailures > 0) { sendFailures--; throw StateError('fixture send failure'); }
@@ -147,15 +218,26 @@ class _Messages extends MessageRepository {
   }
 }
 class _Bookings extends BookingRepository {
-  _Bookings({this.empty = false}) : super(Dio(), AuthRepository(Dio()));
+  _Bookings({this.empty = false, this.reasonAction}) : super(Dio(), AuthRepository(Dio()));
   final bool empty;
+  final String? reasonAction;
+  final reasons = <(String, int, String)>[];
   int? confirmed;
   ViewingBooking _booking({bool confirmed = false}) => ViewingBooking.fromJson({
     'id': 7, 'reference': 'QA-7', 'requester_user_id': 1, 'requester_name': 'طالب المعاينة',
     'host_user_id': 4, 'host_name': 'المعلن', 'message_thread_id': 10, 'target_id': 9,
     'target_title': 'شقة الاختبار', 'starts_at': '2030-01-01T12:00:00Z', 'ends_at': '2030-01-01T13:00:00Z',
     'status': confirmed ? 'confirmed' : 'requested', 'can_confirm': !confirmed, 'can_manage': true,
+    'can_decline': reasonAction == 'decline', 'can_cancel': reasonAction == 'cancel',
   });
+  @override
+  Future<ViewingBooking> decline(int bookingId, String reason) async {
+    reasons.add(('decline', bookingId, reason)); return _booking();
+  }
+  @override
+  Future<ViewingBooking> cancel(int bookingId, String reason) async {
+    reasons.add(('cancel', bookingId, reason)); return _booking();
+  }
   @override
   Future<List<ViewingBooking>> mine() async => empty ? [] : [_booking()];
   @override

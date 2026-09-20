@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `dd1ad05100c5f08f281430b3f358eaad7b02adce` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `0ad43783c127927563487ab467fa14087f6bd17d` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -53,11 +53,11 @@ Preview now uses the central content frame/heading/media tokens. Submission conf
 
 Implemented inbox content frame, readable sender/property hierarchy, wrapped time/unread metadata and preserved unavailable-listing context. Fetch/revision/filter/count logic, navigation/return refresh and time formatting compared byte-for-byte with parent. Seven tests cover RTL widths/scales, local unread filter, route ID/return refresh, loading/error/retry/empty and revision reload. Inbox published as `767dc6e7`. Analyze passed, 324 tests passed and one new loading test failed in companion `35529736828`; experimental `35529734715` also failed. The enlarged heading fills the short landscape viewport, so the skeleton sliver must be scrolled into view before asserting it. Added that user interaction without removing any loading/error/retry assertions. First correction `f7de439` exposed that Flutter Finder.first throws when the lazy widget is not built yet (CI `35545212824`, 324 pass/1 fail). Replaced it with bounded drag/frame interactions until any skeleton is built; same assertions retained. Latest fully successful implementation is `f77238e3`: both experimental `35529528061` (including APK) and companion `35529531648` succeeded, 318 tests including the compile-time guard.
 
-Implemented conversation layout with bounded scrollable agreement/viewing context, responsive RTL bubbles and composer, accessible send label, and loading/error/retry/empty presentation. Agreement card typography and prompt use the shared design system. All load/send/idempotency/paging/booking/reason/report and agreement load/start methods compared byte-for-byte with parent. Eight widget cases cover four viewport/scales, real message payload, unchanged/edited retry keys, older-message merge, unavailable-listing conversation and load/retry/empty. No new message attachment capability: existing model is text-only. Conversation `dd1ad051` passed analyze and six of eight new tests. Companion `35545524790` found two test-harness issues: transient error SnackBar intercepted immediate retry taps, and byTooltip returns Tooltip rather than IconButton. Wait for the original SnackBar duration before retry taps and assert enabled state on the actual IconButton. Keep all payload/key assertions. Correction awaits CI. Four additional report/reason cases and route-owned dialog UI are prepared locally for a separate commit; not yet verified.
+Implemented conversation layout with bounded scrollable agreement/viewing context, responsive RTL bubbles and composer, accessible send label, and loading/error/retry/empty presentation. Agreement card typography and prompt use the shared design system. All load/send/idempotency/paging/booking/reason/report and agreement load/start methods compared byte-for-byte with parent. Eight widget cases cover four viewport/scales, real message payload, unchanged/edited retry keys, older-message merge, unavailable-listing conversation and load/retry/empty. No new message attachment capability: existing model is text-only. Conversation `dd1ad051` passed analyze and six of eight new tests. Companion `35545524790` found two test-harness issues: transient error SnackBar intercepted immediate retry taps, and byTooltip returns Tooltip rather than IconButton. Wait for the original SnackBar duration before retry taps and assert enabled state on the actual IconButton. Keep all payload/key assertions. Correction awaits CI. Report/reason dialogs now own their controller until unmount and explicitly render RTL scrollable title/content with flexible-height reason options. Reasons/default/privacy wording, limits (report 5000, reason 1500), cancellation, post-dismiss validation (5 and 2 characters), payload and API calls are unchanged. Four added cases cover report validation/privacy selection/reset/cancel at 320×568 and 600×280 with 2.4 text scale, and decline/cancel reason validation plus trimmed payload. Dialog changes await CI.
 
 # Next Exact Step
 
-Inbox correction `d2db5372` passed companion `35545375008` (analyze and all 325 tests including guard; backend/PostGIS success). Experimental `35545371491` remains in progress. Publish conversation test interaction corrections, require green analyze/tests/APK and inspect screenshots. Then publish prepared report/reason dialogs and four cases after review. Implement route-owned scrollable report/reason dialogs with validation still performed after dismissal (5-character report, 2-character booking reason), unchanged reasons/default/payload/privacy copy, and controller disposal only on widget unmount. Add dedicated cancellation, validation, submission, role/action and short-screen tests. Continue Phase 7 account/profile/KYC after Phase 6 gate. Native map/media/authenticated device acceptance remains pending.
+Conversation correction `0ad43783` passed companion `35545698238` including analyze and all 333 tests (guard included); experimental `35545696661` remains in progress. Publish report/reason dialog ownership/layout and four new tests, require green analyze/tests/APK and inspect conversation/dialog visual artifacts. Then continue Phase 7 account/profile/KYC; start with AccountScreen, ProfileScreen and CompleteProfileScreen while preserving all administrative/professional/anonymous visibility and name-lock/profile requirements. Native map/media/authenticated device acceptance remains pending.
 
 # Files Changed
 
@@ -106,7 +106,7 @@ Inbox correction `d2db5372` passed companion `35545375008` (analyze and all 325 
 - `listing_map_dock.dart`, location/boundary picker presentation and `experimental_listing_map_dock_test.dart` — bounded controls and five map-input/action cases.
 - Preview/identity-dialog presentation and four additional editor tests; `AppDialog.show` adds optional scrolling, default unchanged for other callers.
 - `messages_screen.dart` and `experimental_inbox_test.dart` — responsive inbox and seven state/filter/navigation cases.
-- `conversation_screen.dart`, `conversation_agreement_card.dart`, `experimental_conversation_test.dart` — responsive context, bubbles/composer, feedback and eight contract/rendering cases.
+- `conversation_screen.dart`, `conversation_agreement_card.dart`, `experimental_conversation_test.dart` — responsive context, bubbles/composer, feedback and twelve contract/rendering/dialog cases.
 - This checkpoint.
 
 # Screens Completed
@@ -194,6 +194,9 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Phase 1 local: `git diff --check` and locked-source verifier PASS. Flutter execution remains unavailable locally; CI now passed for application implementation; see above.
 
 # Known Issues
+
+- UI lifecycle debt addressed in Phase 6: reason/report dialogs formerly disposed text controllers before reverse transition finished; changed to route-owned state with unchanged post-dismiss validation. Dedicated tests await CI.
+- Existing transient SnackBar overlays the body composer until dismissal; retry tests wait for its normal duration. Persistent feedback/composer placement may be revisited in polish without changing send semantics.
 
 - UI Bug / Architecture Debt: identity explanation dialog disposed its TextEditingController before reverse transition completed. New test reproduced this at `59f58f1`; route-owned StatefulWidget correction verified in companion CI `35529531648` at `f77238e3`. Backend decision flow unchanged.
 
