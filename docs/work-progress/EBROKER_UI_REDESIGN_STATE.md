@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `5da5ebd6a4a3ee936829485c799ac232edca932d` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `59f58f190141229abcf6451351db885e678feff6` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -49,11 +49,11 @@ Location and land-boundary pickers now share a bounded scrolling `ListingMapDock
 
 Picker controls published as `5da5ebd`. Companion `35528958604` SUCCESS; Experimental `35528956651` analyze/tests/Frankfurt checks passed, APK building. Visual artifact `10611220022`. Sai artifact `10610319985` reviewed: owner/professional terms remain readable and the previous button no longer splits at 320px/2.4.
 
-Preview now uses the central content frame/heading/media tokens. Submission confirmation and identity explanation dialogs can scroll their title/content on short screens; original confirm/cancel, 10-character note validation, request parameters and backend outcomes remain unchanged. Four new editor cases cover preview without writes at two sizes and confirmed-duplicate blocking both before and after self-verification. New dialog changes await CI.
+Preview now uses the central content frame/heading/media tokens. Submission confirmation and identity explanation dialogs can scroll their title/content on short screens; original confirm/cancel, 10-character note validation, request parameters and backend outcomes remain unchanged. Four new editor cases cover preview without writes at two sizes and confirmed-duplicate blocking both before and after self-verification. Preview and direct-duplicate tests passed at `59f58f1`; self-verification test exposed a real controller-lifecycle bug on dialog dismissal. The old method disposed its local controller before the reverse route transition finished. Moved note/type/error ownership to a private StatefulWidget that disposes at unmount, preserving all six options, default, 10-character validation, barrier and record result. CI `35529232060` / `35529234183` failed from that bug and subsequent teardown errors; correction pending.
 
 # Next Exact Step
 
-Publish preview/identity-dialog changes, require CI/APK, inspect preview and picker screenshots. Then continue Phase 6 inbox/conversation; retain native image picking, map interaction and authenticated end-to-end listing acceptance as explicit remaining device checks.
+Publish identity-dialog lifecycle correction and require CI/APK before continuing. Local inbox presentation and seven tests are prepared but intentionally unpublished pending this gate. Then inspect picker/preview evidence and continue Phase 6. Native media/map/authenticated acceptance remains open.
 
 # Files Changed
 
@@ -183,6 +183,9 @@ Date: 2026-09-14 UTC. Source tested: `60012ac677df7fcc79a8a30129513c22dfd28af8` 
 - Phase 1 local: `git diff --check` and locked-source verifier PASS. Flutter execution remains unavailable locally; CI now passed for application implementation; see above.
 
 # Known Issues
+
+- UI Bug / Architecture Debt: identity explanation dialog disposed its TextEditingController before reverse transition completed. New test reproduced this at `59f58f1`; route-owned StatefulWidget correction in this checkpoint awaits CI. Backend decision flow unchanged.
+
 
 - Architecture Debt: several project overview/roadmap docs predate live financial and agreement implementation. Current stable source + tests + this task override stale roadmap descriptions.
 - Architecture Debt: legacy phase workflows reference the previous non-Frankfurt endpoint. Do not run those workflows. Dedicated experimental CI reuses the current Frankfurt APK gate.

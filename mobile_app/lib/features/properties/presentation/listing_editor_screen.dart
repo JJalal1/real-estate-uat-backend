@@ -1437,77 +1437,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     return true;
   }
 
-  Future<(String, String)?> _duplicateSelfVerificationDialog() async {
-    final note = TextEditingController();
-    var type = 'different_address';
-    String? error;
-    final result = await showDialog<(String, String)>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => Directionality(
-          textDirection: TextDirection.rtl,
-          child: AlertDialog(
-            scrollable: true,
-            title: const Text('وجدنا عقاراً مشابهاً'),
-            content: SingleChildScrollView(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text(
-                  'إذا كان هذا عقاراً مختلفاً، اختر الفرق واكتب معلومة تساعد النظام على التمييز. الحالات غير المحسومة فقط تذهب للدعم.'),
-              const SizedBox(height: AppSpacing.s12),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                value: type,
-                decoration:
-                    const InputDecoration(labelText: 'ما الفرق الأساسي؟'),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'different_building', child: Text('مبنى مختلف')),
-                  DropdownMenuItem(
-                      value: 'different_unit', child: Text('وحدة مختلفة')),
-                  DropdownMenuItem(
-                      value: 'different_area', child: Text('مساحة مختلفة')),
-                  DropdownMenuItem(
-                      value: 'different_boundary',
-                      child: Text('حدود أرض مختلفة')),
-                  DropdownMenuItem(
-                      value: 'different_address',
-                      child: Text('عنوان/رقم عقار مختلف')),
-                  DropdownMenuItem(value: 'other', child: Text('فرق آخر')),
-                ],
-                onChanged: (value) =>
-                    setDialogState(() => type = value ?? type),
-              ),
-              const SizedBox(height: AppSpacing.s12),
-              TextField(
-                  controller: note,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                      labelText: 'وضح الفرق *', errorText: error)),
-            ])),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('رجوع')),
-              FilledButton(
-                  onPressed: () {
-                    final text = note.text.trim();
-                    if (text.length < 10) {
-                      setDialogState(
-                          () => error = 'اكتب توضيحاً من 10 أحرف على الأقل.');
-                      return;
-                    }
-                    Navigator.pop(dialogContext, (type, text));
-                  },
-                  child: const Text('أؤكد أنه عقار مختلف')),
-            ],
-          ),
-        ),
-      ),
-    );
-    note.dispose();
-    return result;
-  }
+  Future<(String, String)?> _duplicateSelfVerificationDialog() =>
+      showDialog<(String, String)>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const _PropertyIdentityExplanationDialog(),
+      );
 
   Future<void> _pickLandBoundary() async {
     final latitude = _latitude;
@@ -1856,4 +1791,78 @@ class _SummaryRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Owns its controller until the route's exit transition has finished.
+class _PropertyIdentityExplanationDialog extends StatefulWidget {
+  const _PropertyIdentityExplanationDialog();
+
+  @override
+  State<_PropertyIdentityExplanationDialog> createState() =>
+      _PropertyIdentityExplanationDialogState();
+}
+
+class _PropertyIdentityExplanationDialogState
+    extends State<_PropertyIdentityExplanationDialog> {
+  final _note = TextEditingController();
+  String _type = 'different_address';
+  String? _error;
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          scrollable: true,
+          title: const Text('وجدنا عقاراً مشابهاً'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'إذا كان هذا عقاراً مختلفاً، اختر الفرق واكتب معلومة تساعد النظام على التمييز. الحالات غير المحسومة فقط تذهب للدعم.',
+              ),
+              const SizedBox(height: AppSpacing.s12),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                value: _type,
+                decoration: const InputDecoration(labelText: 'ما الفرق الأساسي؟'),
+                items: const [
+                  DropdownMenuItem(value: 'different_building', child: Text('مبنى مختلف')),
+                  DropdownMenuItem(value: 'different_unit', child: Text('وحدة مختلفة')),
+                  DropdownMenuItem(value: 'different_area', child: Text('مساحة مختلفة')),
+                  DropdownMenuItem(value: 'different_boundary', child: Text('حدود أرض مختلفة')),
+                  DropdownMenuItem(value: 'different_address', child: Text('عنوان/رقم عقار مختلف')),
+                  DropdownMenuItem(value: 'other', child: Text('فرق آخر')),
+                ],
+                onChanged: (value) => setState(() => _type = value ?? _type),
+              ),
+              const SizedBox(height: AppSpacing.s12),
+              TextField(
+                controller: _note,
+                maxLines: 3,
+                decoration: InputDecoration(labelText: 'وضح الفرق *', errorText: _error),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('رجوع')),
+            FilledButton(
+              onPressed: () {
+                final text = _note.text.trim();
+                if (text.length < 10) {
+                  setState(() => _error = 'اكتب توضيحاً من 10 أحرف على الأقل.');
+                  return;
+                }
+                Navigator.pop(context, (_type, text));
+              },
+              child: const Text('أؤكد أنه عقار مختلف'),
+            ),
+          ],
+        ),
+      );
 }
