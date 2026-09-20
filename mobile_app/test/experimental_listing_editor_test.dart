@@ -147,7 +147,8 @@ void main() {
     expect(find.text('الخطوة 5 من 5'), findsOneWidget);
     // Missing server Sai configuration still blocks submit before image evidence.
     await _tap(tester, _button('إرسال للمراجعة'));
-    expect(find.text('حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.'), findsOneWidget);
+    expect(find.descendant(of: find.byType(SnackBar),
+      matching: find.text('حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.')), findsOneWidget);
     expect(repository.input, isNull);
     expect(tester.takeException(), isNull);
   });

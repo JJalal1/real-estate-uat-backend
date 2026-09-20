@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `18677a960ef557542723bd185bb5b39e037012c3` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `8aab16d97386ed1977e848c81cfef70e3e3915c9` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -41,11 +41,11 @@ PHASE 5 — responsive listing editor. Discovery, saved searches, comparison and
 
 Comparison commit `18677a960ef557542723bd185bb5b39e037012c3` passed Experimental UI `35482673515` and companion `35482675141`: analyze, complete Flutter suites, backend/PostGIS, Frankfurt guards/live checks, isolated APK. Reviewed comparison screenshots from artifact `10596810629`; APK artifact `10597320142`. Stable/main refs reverified unchanged on 2026-09-20.
 
-Read the complete listing editor and its existing contract tests. Implemented shared bounded action dock, scrolling correction/progress, constrained form surface, responsive field pairs and wrapping single-choice controls. Kept all validators, payload, persistence, identity checks, Sai and media methods byte-for-byte unchanged. Added seven widget cases for all five steps across narrow/enlarged/landscape RTL, rental draft payload and busy actions, title/tenure/location gates, unit identity and rental validation order. Editor changes await CI; not accepted yet.
+Read the complete listing editor and its existing contract tests. Implemented shared bounded action dock, scrolling correction/progress, constrained form surface, responsive field pairs and wrapping single-choice controls. Kept all validators, payload, persistence, identity checks, Sai and media methods byte-for-byte unchanged. Added seven widget cases for all five steps across narrow/enlarged/landscape RTL, rental draft payload and busy actions, title/tenure/location gates, unit identity and rental validation order. Editor analyze and six of seven new cases passed at `8aab16d`; companion CI `35483237033` found one test-finder ambiguity: Sai warning text exists both in section subtitle and SnackBar. Scoped the existing exact warning assertion to SnackBar; retained all validation/no-write assertions. Correction awaits full CI/APK.
 
 # Next Exact Step
 
-Publish listing editor changes and require complete CI/APK. Diagnose any failure before expanding scope. Inspect editor visual artifacts, then cover remaining listing preview/evidence/Sai/map journeys and continue messaging. Do not repeat completed discovery/comparison work.
+Publish the test-finder correction and require complete CI/APK. Diagnose any failure before expanding scope. Inspect editor visual artifacts, then cover remaining listing preview/evidence/Sai/map journeys and continue messaging. Do not repeat completed discovery/comparison work.
 
 # Files Changed
 
@@ -101,6 +101,9 @@ Implemented and automated-verified: main navigation/discovery controls and resul
 Listing editor and related modals/pickers, messaging, account/KYC, management, support, financial/agreements, role-specific hubs, remaining secondary screens and router error presentation. See the inventory implementation ledger; native/authenticated acceptance still applies to previously automated-verified screens.
 
 # Tests Last Run
+
+- 2026-09-20, `8aab16d`: companion `35483237033` analyze/backend/PostGIS PASS; Flutter 299 passed, one failed due new warning finder matching subtitle and SnackBar. Exact SnackBar-scoped correction in this commit; no app logic change.
+
 
 - 2026-09-20, `18677a9`: Experimental `35482673515` and companion `35482675141` SUCCESS including full Flutter analyze/tests, backend/PostGIS, live Frankfurt guards/load and isolated APK.
 - 2026-09-20, editor working changes: `git diff --check`, `python3 scripts/verify_ui_locked_source.py` PASS (346 immutable files). Validator/persistence/identity/Sai/media method range compared byte-for-byte with parent. Flutter execution remains CI-only due local VM sandbox limitation.
