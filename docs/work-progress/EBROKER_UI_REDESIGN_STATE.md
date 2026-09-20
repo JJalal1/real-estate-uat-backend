@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `f7de439fa06433855e48efcd745dc4617f114ffb` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `d2db5372e2023a53fbeb1c207e353dc2c3ae110e` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -35,7 +35,7 @@ PHASE 1 design foundations completed: reusable compositions, responsive feedback
 
 # Current Phase
 
-PHASE 6 — inbox presentation. Phase 5 editor, Sai, picker controls, preview and identity-dialog implementation have passed automated tests. Native media/GPS/map and authenticated device acceptance remain explicitly open, as do later redesign phases.
+PHASE 6 — conversation presentation. Phase 5 editor, Sai, picker controls, preview and identity-dialog implementation have passed automated tests. Native media/GPS/map and authenticated device acceptance remain explicitly open, as do later redesign phases.
 
 # Exact Last Completed Step
 
@@ -53,9 +53,11 @@ Preview now uses the central content frame/heading/media tokens. Submission conf
 
 Implemented inbox content frame, readable sender/property hierarchy, wrapped time/unread metadata and preserved unavailable-listing context. Fetch/revision/filter/count logic, navigation/return refresh and time formatting compared byte-for-byte with parent. Seven tests cover RTL widths/scales, local unread filter, route ID/return refresh, loading/error/retry/empty and revision reload. Inbox published as `767dc6e7`. Analyze passed, 324 tests passed and one new loading test failed in companion `35529736828`; experimental `35529734715` also failed. The enlarged heading fills the short landscape viewport, so the skeleton sliver must be scrolled into view before asserting it. Added that user interaction without removing any loading/error/retry assertions. First correction `f7de439` exposed that Flutter Finder.first throws when the lazy widget is not built yet (CI `35545212824`, 324 pass/1 fail). Replaced it with bounded drag/frame interactions until any skeleton is built; same assertions retained. Latest fully successful implementation is `f77238e3`: both experimental `35529528061` (including APK) and companion `35529531648` succeeded, 318 tests including the compile-time guard.
 
+Implemented conversation layout with bounded scrollable agreement/viewing context, responsive RTL bubbles and composer, accessible send label, and loading/error/retry/empty presentation. Agreement card typography and prompt use the shared design system. All load/send/idempotency/paging/booking/reason/report and agreement load/start methods compared byte-for-byte with parent. Eight widget cases cover four viewport/scales, real message payload, unchanged/edited retry keys, older-message merge, unavailable-listing conversation and load/retry/empty. No new message attachment capability: existing model is text-only. Conversation changes await CI and visual QA.
+
 # Next Exact Step
 
-Publish inbox loading-test scroll correction and require green CI/APK. Conversation layout and eight tests are prepared locally but not yet published or verified. After the inbox gate, review/publish them and inspect inbox and preview/picker evidence. Then redesign conversation body/composer/context/bubbles and report/reason dialogs with existing send-retry idempotency, older-page merge, booking and agreement permissions intact. Native map/media and authenticated device acceptance stay pending.
+Inbox correction `d2db5372` passed companion `35545375008` (analyze and all 325 tests including guard; backend/PostGIS success). Experimental `35545371491` remains in progress. Publish conversation, require green analyze/tests/APK and inspect screenshots. Implement route-owned scrollable report/reason dialogs with validation still performed after dismissal (5-character report, 2-character booking reason), unchanged reasons/default/payload/privacy copy, and controller disposal only on widget unmount. Add dedicated cancellation, validation, submission, role/action and short-screen tests. Continue Phase 7 account/profile/KYC after Phase 6 gate. Native map/media/authenticated device acceptance remains pending.
 
 # Files Changed
 
@@ -104,28 +106,31 @@ Publish inbox loading-test scroll correction and require green CI/APK. Conversat
 - `listing_map_dock.dart`, location/boundary picker presentation and `experimental_listing_map_dock_test.dart` — bounded controls and five map-input/action cases.
 - Preview/identity-dialog presentation and four additional editor tests; `AppDialog.show` adds optional scrolling, default unchanged for other callers.
 - `messages_screen.dart` and `experimental_inbox_test.dart` — responsive inbox and seven state/filter/navigation cases.
+- `conversation_screen.dart`, `conversation_agreement_card.dart`, `experimental_conversation_test.dart` — responsive context, bubbles/composer, feedback and eight contract/rendering cases.
 - This checkpoint.
 
 # Screens Completed
 
-Implemented and automated-verified: main navigation/discovery controls and results, property cards, favorites selection, comparison, saved-search editor/list/results, details summary/gallery/advertiser/Sai/market context. Full native/authenticated per-screen acceptance remains pending; no claim that all 71 presentation files are finished.
+Implemented and automated-verified: main navigation/discovery controls and results, property cards, favorites selection, comparison, saved-search editor/list/results, details summary/gallery/advertiser/Sai/market context; listing editor, Sai configuration, location/land picker controls, preview and identity dialogs. Full native/authenticated per-screen acceptance remains pending; no claim that all 71 presentation files are finished.
 
 # Screens Remaining
 
-Listing editor and related modals/pickers, messaging, account/KYC, management, support, financial/agreements, role-specific hubs, remaining secondary screens and router error presentation. See the inventory implementation ledger; native/authenticated acceptance still applies to previously automated-verified screens.
+Messaging (conversation/dialogs currently in progress), account/KYC, management, support, financial/agreements, role-specific hubs, remaining secondary screens and router error presentation. See the inventory implementation ledger; native/authenticated acceptance still applies to previously automated-verified screens.
 
 # Tests Last Run
 
-- 2026-09-20, `f77238e3`: companion `35529531648` SUCCESS including analyze/full Flutter regression. New inbox tests await CI.
+- 2026-09-20, `f77238e3`: companion `35529531648` and experimental `35529528061` SUCCESS: analyze, 318 Flutter tests including guard, backend/PostGIS, Frankfurt checks and APK. QA `10611166482` (preview narrow/landscape 2.4 inspected), APK `10610997182`.
+- 2026-09-20, `767dc6e7` / `f7de439`: analyze clean, 324 passed / 1 new loading-finder test failed; bounded lazy-scroll correction at `d2db5372` passed companion `35545375008`, 325 tests including guard. Experimental `35545371491` runs. All assertions retained.
+- Local conversation working tree: `git diff --check` and `python3 scripts/verify_ui_locked_source.py` PASS; 346 boundary files unchanged. Flutter VM unavailable locally; CI is the execution gate.
 
 
-- 2026-09-20, `5da5ebd`: companion `35528958604` SUCCESS; Experimental `35528956651` analyze/tests/Frankfurt checks passed, APK building. New preview/identity cases await CI.
+- 2026-09-20, `5da5ebd`: companion `35528958604` SUCCESS; Experimental `35528956651` analyze/tests/Frankfurt checks passed, complete SUCCESS including APK. Five picker-control cases pass.
 
 
-- 2026-09-20, `d36f4e6`: Experimental `35528739995` analyze/full Flutter tests passed; APK gate still running. Five additional map-dock cases await CI. `git diff --check` and 346-file locked-source guard pass.
+- 2026-09-20, `d36f4e6`: Experimental `35528739995` analyze/full Flutter tests passed; complete SUCCESS including APK. Nine Sai cases pass. `git diff --check` and 346-file locked-source guard pass.
 
 
-- 2026-09-20, `327bb9c`: companion `35483354668` SUCCESS, analyze and 300 tests including compile-time guard. Experimental `35483351367` tests/Frankfurt checks passed; APK pending at checkpoint. Visual artifact `10597111112` reviewed at normal/enlarged/landscape sizes.
+- 2026-09-20, `327bb9c`: companion `35483354668` SUCCESS, analyze and 300 tests including compile-time guard. Experimental `35483351367` complete SUCCESS including APK. Visual artifact `10597111112` reviewed at normal/enlarged/landscape sizes.
 
 
 - 2026-09-20, `8aab16d`: companion `35483237033` analyze/backend/PostGIS PASS; Flutter 299 passed, one failed due new warning finder matching subtitle and SnackBar. Exact SnackBar-scoped correction in this commit; no app logic change.
@@ -238,7 +243,7 @@ Official supplementary source: https://www.marketplace.wrteam.in/products/ebroke
 # Resume Instructions
 
 Draft PR: https://github.com/JJalal1/real-estate-uat-backend/pull/54
-Experimental CI (latest tested checkpoint): https://github.com/JJalal1/real-estate-uat-backend/actions/runs/35483351367
+Experimental CI (latest complete success before messaging): https://github.com/JJalal1/real-estate-uat-backend/actions/runs/35529528061
 
 1. Read this file, `AGENTS.md`, then `git status`, `git branch --show-current`, `git log -5 --oneline` and remote experimental HEAD.
 2. Continue only on `experiment/ebroker-inspired-ui-v1`; preserve unrelated user changes.

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/design/app_design.dart';
 import '../../messages/domain/message_models.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
@@ -78,10 +79,10 @@ class _ConversationAgreementCardState
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Card(
-        margin: EdgeInsets.fromLTRB(12, 8, 12, 0),
+      return const AppSurface(
+        padding: EdgeInsets.zero,
         child: Padding(
-          padding: EdgeInsets.all(12),
+          padding: EdgeInsets.all(AppSpacing.s12),
           child: LinearProgressIndicator(),
         ),
       );
@@ -90,29 +91,29 @@ class _ConversationAgreementCardState
     final agreement = _agreement;
     if (agreement != null) {
       final revision = agreement.currentRevision;
-      return Card(
-        margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      return AppSurface(
+        padding: EdgeInsets.zero,
         child: InkWell(
           onTap: () async {
             await context.push('/agreements/${agreement.id}');
             if (mounted) _load();
           },
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadii.card),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.s12),
             child: Row(
               children: [
                 const Icon(Icons.handshake_outlined),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpacing.s12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'اتفاق مرتبط بهذه المحادثة • ${agreement.statusLabel}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: AppSpacing.s4),
                       Text(
                         '${moneyLabel(revision.agreedAmount, revision.currency)} • نسخة ${revision.revisionNumber}',
                       ),
@@ -137,35 +138,14 @@ class _ConversationAgreementCardState
       return const SizedBox.shrink();
     }
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.handshake_outlined),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('جاهزون للاتفاق؟',
-                      style: TextStyle(fontWeight: FontWeight.w900)),
-                  SizedBox(height: 4),
-                  Text(
-                    'أنشئ مسودة شروط مرتبطة بهذا العقار. لا تصبح مقبولة حتى يوافق الطرفان على نفس النسخة.',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.tonal(
-              onPressed: _busy ? null : _start,
-              child: const Text('بدء اتفاق'),
-            ),
-          ],
-        ),
+    return AppSectionCard(
+      title: 'جاهزون للاتفاق؟',
+      subtitle: 'أنشئ مسودة شروط مرتبطة بهذا العقار. لا تصبح مقبولة حتى يوافق الطرفان على نفس النسخة.',
+      child: AppButton(
+        label: 'بدء اتفاق',
+        style: AppButtonStyle.tonal,
+        onPressed: _busy ? null : _start,
+        expand: true,
       ),
     );
   }

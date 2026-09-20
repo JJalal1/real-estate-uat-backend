@@ -37,6 +37,10 @@ abstract final class AppLayout {
   static const double galleryViewportHeightFraction = 0.5;
   static const double galleryCaptionMaxHeightFraction = 0.3;
   static const double actionDockMaxHeightFraction = 0.4;
+  static const double conversationContextMaxHeightFraction = 0.35;
+  static const double conversationComposerMaxHeightFraction = 0.4;
+  static const double messageBubbleWidthFraction = 0.9;
+  static const double messageBubbleMaxWidth = 560;
   static const double sectionGap = AppSpacing.s32;
   static const double groupGap = AppSpacing.s24;
   static const double itemGap = AppSpacing.s12;
