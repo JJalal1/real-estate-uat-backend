@@ -69,6 +69,7 @@ void main() {
       await _tap(tester, find.text('خصوصية').last);
       await _reveal(tester, field);
       await tester.enterText(field, '  تفاصيل واضحة لبلاغ الخصوصية  ');
+      await tester.pumpAndSettle();
       await captureDesign(tester, key, 'conversation-report-${size.width.toInt()}-${size.height.toInt()}-2.4');
       await _tap(tester, find.text('إرسال البلاغ'));
       expect(repository.reports, [(10, 'privacy', 'تفاصيل واضحة لبلاغ الخصوصية')]);
