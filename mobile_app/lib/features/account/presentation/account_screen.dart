@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_components.dart';
+import '../../../core/design/app_design.dart';
+import '../domain/auth_user.dart';
 import '../../financial/presentation/financial_account_screen.dart';
 import '../../properties/presentation/favorites_screen.dart';
 import '../data/auth_controller.dart';
@@ -31,13 +31,8 @@ class AccountScreen extends ConsumerWidget {
                     user.roles.contains('super_admin') ||
                     user.roles.contains('support_manager') ||
                     user.roles.contains('support_agent'));
-            return ListView(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                AppLayout.compactPageGutter,
-                AppSpacing.s12,
-                AppLayout.compactPageGutter,
-                AppSpacing.s32,
-              ),
+            return AppContentFrame(child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s24),
               children: [
                 _ProfileHeader(user: user),
                 const SizedBox(height: AppSpacing.s16),
@@ -68,6 +63,8 @@ class AccountScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.s12),
                   ],
+                  const AppSectionHeader(title: 'الحساب والتواصل'),
+                  const SizedBox(height: AppSpacing.s12),
                   _AccountGroup(
                     rows: [
                       _AccountRow(
@@ -203,7 +200,7 @@ class AccountScreen extends ConsumerWidget {
                   ),
                 ],
               ],
-            );
+            ));
           },
         ),
       ),
@@ -214,45 +211,31 @@ class AccountScreen extends ConsumerWidget {
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({required this.user});
 
-  final dynamic user;
+  final AuthUser? user;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsetsDirectional.all(AppSpacing.s20),
-      decoration: BoxDecoration(
-        color: scheme.primaryContainer,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-      ),
-      child: Row(
+    final theme = Theme.of(context);
+    final contact = user?.phone ?? user?.email;
+    return AppSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: scheme.surface,
-            child: Icon(Icons.person_outline, size: 32, color: scheme.primary),
-          ),
-          const SizedBox(width: AppSpacing.s12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user == null ? 'مرحباً بك' : user.name,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.s4),
-                Text(
-                  user == null
-                      ? 'تصفح العقارات بحرية وسجّل الدخول عند الحاجة.'
-                      : (user.phone ?? user.email),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
-            ),
-          ),
+          const AppIdentityMark(),
+          const SizedBox(height: AppSpacing.s16),
+          Text('عقارات حولك', style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.primary,
+          )),
+          const SizedBox(height: AppSpacing.s8),
+          Text(user?.name ?? 'مرحباً بك', style: theme.textTheme.headlineMedium),
+          const SizedBox(height: AppSpacing.s8),
+          if (contact != null)
+            Directionality(textDirection: TextDirection.ltr,
+              child: Text(contact, style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              )))
+          else
+            const Text('تصفح العقارات بحرية وسجّل الدخول عند الحاجة.'),
         ],
       ),
     );
@@ -275,7 +258,16 @@ class _AccountGroup extends StatelessWidget {
             children: [
               AppListRow(
                 title: row.title,
-                leading: Icon(row.icon),
+                leading: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(AppRadii.control),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.s8),
+                    child: Icon(row.icon, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                  ),
+                ),
                 onTap: row.onTap,
               ),
               if (index != rows.length - 1) const Divider(height: 1),

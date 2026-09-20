@@ -25,6 +25,22 @@ abstract final class AppLayout {
   static const double narrowBreakpoint = 360;
   static const double wideBreakpoint = 600;
   static const double contentMaxWidth = 840;
+  static const double feedbackMaxWidth = 420;
+  static const double sectionActionMaxWidth = 200;
+  static const double comparisonLabelWidth = 140;
+  static const double comparisonColumnWidth = 280;
+  static const double propertyRailWidth = 280;
+  static const double mapDockStickyMinHeight = 240;
+  static const double mapDockMaxHeightFraction = 0.5;
+  static const double mapFilterMaxHeightFraction = 0.4;
+  static const double propertyGalleryAspectRatio = 4 / 3;
+  static const double galleryViewportHeightFraction = 0.5;
+  static const double galleryCaptionMaxHeightFraction = 0.3;
+  static const double actionDockMaxHeightFraction = 0.4;
+  static const double conversationContextMaxHeightFraction = 0.35;
+  static const double conversationComposerMaxHeightFraction = 0.4;
+  static const double messageBubbleWidthFraction = 0.9;
+  static const double messageBubbleMaxWidth = 560;
   static const double sectionGap = AppSpacing.s32;
   static const double groupGap = AppSpacing.s24;
   static const double itemGap = AppSpacing.s12;
@@ -73,6 +89,11 @@ abstract final class AppSizes {
 
   /// Add the system inset and grow for scaled or wrapped labels.
   static const double navigationMinHeight = 80;
+  static const double identityMark = 56;
+  static const double feedbackMark = 80;
+  static const double propertyMediaHeight = 192;
+  static const double propertyGalleryMaxHeight = 420;
+  static const double propertyPreviewMedia = 96;
 }
 
 /// Accepted interaction timing. Respect reduced-motion settings by using

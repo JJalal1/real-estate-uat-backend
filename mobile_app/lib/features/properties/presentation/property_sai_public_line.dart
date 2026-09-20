@@ -27,17 +27,19 @@ class PropertySaiPublicLine extends ConsumerWidget {
       ),
       error: (_, __) => Padding(
         padding: const EdgeInsetsDirectional.only(top: AppSpacing.s8),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                'تعذر تحميل السعي لهذا الإعلان.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+            const AppInlineMessage(
+              message: 'تعذر تحميل السعي لهذا الإعلان.',
+              tone: AppStatusTone.warning,
             ),
-            TextButton(
+            const SizedBox(height: AppSpacing.s8),
+            AppButton(
+              label: 'إعادة المحاولة',
+              icon: Icons.refresh_rounded,
+              style: AppButtonStyle.outlined,
               onPressed: () => ref.invalidate(propertySaiPublicProvider(propertyId)),
-              child: const Text('إعادة المحاولة'),
             ),
           ],
         ),

@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_components.dart';
+import '../../../core/design/app_design.dart';
 import '../data/property_market_repository.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
@@ -85,116 +84,88 @@ class PropertyCompareScreen extends ConsumerWidget {
 
 class _ComparisonTable extends StatelessWidget {
   const _ComparisonTable({required this.items});
-
   final List<_CompareItem> items;
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final columnWidth = width < 420 ? 210.0 : 240.0;
-    return SingleChildScrollView(
-      padding: const EdgeInsetsDirectional.only(bottom: AppSpacing.s40),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsetsDirectional.fromSTEB(
-          AppLayout.compactPageGutter,
-          AppSpacing.s16,
-          AppLayout.compactPageGutter,
-          AppSpacing.s16,
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    TableRow values(String label, String Function(_CompareItem) value) => TableRow(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.s16),
+          child: Text(label, style: theme.textTheme.labelLarge),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: items
-              .map((item) => Padding(
-                    padding: const EdgeInsetsDirectional.only(end: AppSpacing.s12),
-                    child: SizedBox(width: columnWidth, child: _PropertyCompareColumn(item: item)),
-                  ))
-              .toList(growable: false),
-        ),
-      ),
-    );
-  }
-}
-
-class _PropertyCompareColumn extends StatelessWidget {
-  const _PropertyCompareColumn({required this.item});
-
-  final _CompareItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final property = item.property;
-    final image = property.images.isEmpty ? null : property.images.first.url;
-    return AppSurface(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.card)),
-            child: AspectRatio(
-              aspectRatio: 4 / 3,
-              child: image == null
-                  ? Container(
-                      color: Theme.of(context).colorScheme.surfaceContainer,
-                      child: const Icon(Icons.home_work_outlined, size: 44),
-                    )
-                  : Image.network(
-                      image,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: Theme.of(context).colorScheme.surfaceContainer,
-                        child: const Icon(Icons.broken_image_outlined, size: 40),
-                      ),
-                    ),
-            ),
-          ),
+        for (final item in items)
           Padding(
-            padding: const EdgeInsetsDirectional.all(AppSpacing.s16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  property.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
+            padding: const EdgeInsets.all(AppSpacing.s16),
+            child: Text(value(item), style: theme.textTheme.bodyMedium),
+          ),
+      ],
+    );
+    return SingleChildScrollView(
+      padding: const EdgeInsetsDirectional.only(bottom: AppSpacing.s32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppContentFrame(child: AppPageHeading(
+            title: '${items.length} عقارات للمقارنة',
+            subtitle: 'اسحب الجدول جانبياً لعرض العقارات، ومرّر لأسفل لمراجعة المواصفات.',
+          )),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
+            child: AppSurface(
+              padding: EdgeInsets.zero,
+              child: Table(
+                textDirection: TextDirection.rtl,
+                defaultColumnWidth: const FixedColumnWidth(AppLayout.comparisonColumnWidth),
+                columnWidths: const {0: FixedColumnWidth(AppLayout.comparisonLabelWidth)},
+                defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                border: TableBorder(
+                  horizontalInside: BorderSide(color: scheme.outlineVariant),
+                  verticalInside: BorderSide(color: scheme.outlineVariant),
                 ),
-                const SizedBox(height: AppSpacing.s8),
-                AppPropertyPrice(
-                  price: _formatPrice(property.price),
-                  currency: property.currency,
-                  suffix: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
-                ),
-                const SizedBox(height: AppSpacing.s8),
-                _valueRow(context, 'السعي', item.sai.sai?.displayText ?? 'غير متاح'),
-                _marketRows(context, item.market, property.currency),
-                _valueRow(context, 'المساحة', _area(property)),
-                _valueRow(context, 'الغرف', property.bedrooms?.toString() ?? '—'),
-                _valueRow(context, 'الحمامات', property.bathrooms?.toString() ?? '—'),
-                _valueRow(context, 'الموقع', property.address ?? 'غير محدد'),
-                _valueRow(
-                  context,
-                  'المعلن',
-                  property.advertiser?.verificationLabel ?? 'معلن',
-                ),
-                if (property.advertiser != null)
-                  _valueRow(
-                    context,
-                    'التقييم',
-                    property.advertiser!.ratingCount > 0
-                        ? '${property.advertiser!.ratingAverage.toStringAsFixed(1)} (${property.advertiser!.ratingCount})'
-                        : 'لا توجد تقييمات بعد',
+                children: [
+                  TableRow(
+                    decoration: BoxDecoration(color: scheme.surfaceContainerLow),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.s16),
+                        child: Text('العقار', style: theme.textTheme.titleMedium),
+                      ),
+                      for (final item in items) _ComparisonHeading(property: item.property),
+                    ],
                   ),
-                const SizedBox(height: AppSpacing.s12),
-                AppButton(
-                  label: 'فتح العقار',
-                  icon: Icons.open_in_new_rounded,
-                  style: AppButtonStyle.tonal,
-                  onPressed: () => context.push('/properties/${property.id}'),
-                  expand: true,
-                ),
-              ],
+                  values('السعي', (item) => item.sai.sai?.displayText ?? 'غير متاح'),
+                  values('مؤشر السوق', (item) => _marketValue(item.market, item.property.currency)),
+                  values('المساحة', (item) => _area(item.property)),
+                  values('الغرف', (item) => item.property.bedrooms?.toString() ?? '—'),
+                  values('الحمامات', (item) => item.property.bathrooms?.toString() ?? '—'),
+                  values('الموقع', (item) => item.property.address ?? 'غير محدد'),
+                  values('المعلن', (item) => item.property.advertiser?.verificationLabel ?? 'معلن'),
+                  if (items.any((item) => item.property.advertiser != null))
+                    values('التقييم', (item) {
+                      final advertiser = item.property.advertiser;
+                      if (advertiser == null) return '—';
+                      return advertiser.ratingCount > 0
+                          ? '${advertiser.ratingAverage.toStringAsFixed(1)} (${advertiser.ratingCount})'
+                          : 'لا توجد تقييمات بعد';
+                    }),
+                  TableRow(children: [
+                    const SizedBox.shrink(),
+                    for (final item in items)
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.s16),
+                        child: AppButton(
+                          label: 'فتح العقار', icon: Icons.open_in_new_rounded,
+                          style: AppButtonStyle.tonal, expand: true,
+                          onPressed: () => context.push('/properties/${item.property.id}'),
+                        ),
+                      ),
+                  ]),
+                ],
+              ),
             ),
           ),
         ],
@@ -202,51 +173,21 @@ class _PropertyCompareColumn extends StatelessWidget {
     );
   }
 
-  Widget _marketRows(
-    BuildContext context,
+  String _marketValue(
     PropertyMarketContext? market,
     String currency,
   ) {
     if (market == null) {
-      return _valueRow(context, 'مؤشر السوق', 'تعذر تحميل المؤشر الآن');
+      return 'تعذر تحميل المؤشر الآن';
     }
     if (!market.sufficientData) {
-      return _valueRow(
-        context,
-        'مؤشر السوق',
-        'البيانات غير كافية (${market.sampleCount}/${market.minimumSampleSize ?? 5})',
-      );
+      return 'البيانات غير كافية (${market.sampleCount}/${market.minimumSampleSize ?? 5})';
     }
     final median = market.medianPrice;
     final medianText = median == null
         ? market.positionLabel
         : '${market.positionLabel}\nوسيط المقارنات: ${_formatPrice(median)} $currency';
-    return _valueRow(
-      context,
-      'مؤشر السوق',
-      '$medianText\n${market.sampleCount} عقار مقارنة',
-    );
-  }
-
-  Widget _valueRow(BuildContext context, String label, String value) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(vertical: AppSpacing.s8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: AppSpacing.s4),
-          Text(value, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: AppSpacing.s8),
-          const Divider(height: 1),
-        ],
-      ),
-    );
+    return '$medianText\n${market.sampleCount} عقار مقارنة';
   }
 
   String _area(PropertyDetails property) {
@@ -255,6 +196,32 @@ class _PropertyCompareColumn extends StatelessWidget {
     }
     return property.areaM2 == null ? '—' : '${property.areaM2} م²';
   }
+}
+
+class _ComparisonHeading extends StatelessWidget {
+  const _ComparisonHeading({required this.property});
+  final PropertyDetails property;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(AppSpacing.s12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadii.control),
+              child: AppPropertyMedia(imageUrl: property.images.isEmpty ? null : property.images.first.url),
+            ),
+            const SizedBox(height: AppSpacing.s16),
+            AppPropertyPrice(
+              price: _formatPrice(property.price), currency: property.currency,
+              suffix: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
+            ),
+            const SizedBox(height: AppSpacing.s8),
+            Text(property.title, style: Theme.of(context).textTheme.titleMedium),
+          ],
+        ),
+      );
 }
 
 class _CompareItem {
@@ -274,14 +241,17 @@ class _CompareSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
-      child: const Row(
-        children: [
-          SizedBox(width: 220, child: AppSkeleton(height: 600)),
-          SizedBox(width: AppSpacing.s12),
-          SizedBox(width: 220, child: AppSkeleton(height: 600)),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.all(AppSpacing.s16),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: AppLayout.comparisonColumnWidth, child: AppPropertyCardSkeleton()),
+            SizedBox(width: AppSpacing.s12),
+            SizedBox(width: AppLayout.comparisonColumnWidth, child: AppPropertyCardSkeleton()),
+          ],
+        ),
       ),
     );
   }

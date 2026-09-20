@@ -9,8 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_components.dart';
+import '../../../core/design/app_design.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/property_repository.dart';
 import '../domain/arabic_price_words.dart';
@@ -266,44 +265,38 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         appBar: AppAppBar(
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
         ),
+        bottomNavigationBar: _actions(),
         body: SafeArea(
-          child: Column(
-            children: [
-              if (correctionReason != null &&
-                  correctionReason.trim().isNotEmpty)
-                Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(
-                    AppLayout.compactPageGutter,
-                    AppSpacing.s8,
-                    AppLayout.compactPageGutter,
-                    0,
-                  ),
-                  child: AppInlineMessage(
-                    title: 'مطلوب تصحيح قبل إعادة الإرسال',
-                    message: correctionReason,
-                    tone: AppStatusTone.warning,
-                  ),
-                ),
-              _ProgressHeader(step: _step),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsetsDirectional.fromSTEB(
-                    AppLayout.compactPageGutter,
-                    AppSpacing.s8,
-                    AppLayout.compactPageGutter,
-                    AppSpacing.s24,
-                  ),
-                  child: AnimatedSwitcher(
-                    duration: AppMotion.fast,
-                    child: KeyedSubtree(
-                      key: ValueKey<int>(_step),
-                      child: _buildStep(),
+          child: AppContentFrame(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (correctionReason != null &&
+                      correctionReason.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.s16),
+                      child: AppInlineMessage(
+                        title: 'مطلوب تصحيح قبل إعادة الإرسال',
+                        message: correctionReason,
+                        tone: AppStatusTone.warning,
+                      ),
                     ),
+                  _ProgressHeader(step: _step),
+                  const SizedBox(height: AppSpacing.s20),
+                  AppSurface(
+                      child: AnimatedSwitcher(
+                        duration: AppMotion.fast,
+                        child: KeyedSubtree(
+                          key: ValueKey<int>(_step),
+                          child: _buildStep(),
+                        ),
+                      ),
                   ),
-                ),
+                ],
               ),
-              _actions(),
-            ],
+            ),
           ),
         ),
       ),
@@ -327,18 +320,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           subtitle: 'اختر الغرض والنوع واكتب عنواناً ووصفاً واضحين.',
         ),
         const SizedBox(height: AppSpacing.s16),
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'sale', label: Text('للبيع')),
-            ButtonSegment(value: 'rent', label: Text('للإيجار')),
+        Wrap(
+          spacing: AppSpacing.s8,
+          runSpacing: AppSpacing.s8,
+          children: [
+            for (final entry in const {'sale': 'للبيع', 'rent': 'للإيجار'}.entries)
+              ChoiceChip(
+                label: Text(entry.value),
+                selected: _purpose == entry.key,
+                onSelected: _busy ? null : (_) => setState(() {
+                  _purpose = entry.key;
+                  if (!_requiresSaleTenure) _tenureType = null;
+                }),
+              ),
           ],
-          selected: {_purpose},
-          onSelectionChanged: _busy
-              ? null
-              : (values) => setState(() {
-                    _purpose = values.first;
-                    if (!_requiresSaleTenure) _tenureType = null;
-                  }),
         ),
         const SizedBox(height: AppSpacing.s16),
         Wrap(
@@ -378,6 +373,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         if (_requiresSaleTenure) ...[
           const SizedBox(height: AppSpacing.s16),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _tenureType,
             decoration: const InputDecoration(labelText: 'نوع الملكية *'),
             items: const [
@@ -441,27 +437,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.s12),
-        Row(
-          children: [
-            Expanded(
-              child: AppButton(
+        AppFieldPair(
+          first: AppButton(
                 label: 'اختيار من الخريطة',
                 icon: Icons.map_outlined,
                 onPressed: _busy || _resolvingLocation ? null : _selectOnMap,
                 expand: true,
               ),
-            ),
-            const SizedBox(width: AppSpacing.s8),
-            Expanded(
-              child: AppButton(
+          second: AppButton(
                 label: 'تحديد موقعي الحالي',
                 icon: Icons.my_location,
                 onPressed:
                     _busy || _resolvingLocation ? null : _useCurrentLocation,
                 expand: true,
               ),
-            ),
-          ],
         ),
         if (_resolvingLocation) ...[
           const SizedBox(height: AppSpacing.s12),
@@ -537,37 +526,28 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
             enabled: !_busy,
           ),
           const SizedBox(height: AppSpacing.s12),
-          Row(children: [
-            Expanded(
-                child: AppTextField(
+          AppFieldPair(
+          first: AppTextField(
                     controller: _unitNumber,
                     label: 'رقم الوحدة *',
-                    enabled: !_busy)),
-            const SizedBox(width: AppSpacing.s8),
-            Expanded(
-                child: AppTextField(
+                    enabled: !_busy),
+          second: AppTextField(
                     controller: _floorNumber,
                     label: _unitNeedsFloor ? 'الدور *' : 'الدور',
-                    enabled: !_busy)),
-          ]),
+                    enabled: !_busy),
+        ),
         ],
         const SizedBox(height: AppSpacing.s16),
-        Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: AppTextField(
+        AppFieldPair(
+          first: AppTextField(
                 controller: _area,
                 label: 'عدد اللبن *',
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 enabled: !_busy,
               ),
-            ),
-            const SizedBox(width: AppSpacing.s8),
-            Expanded(
-              flex: 3,
-              child: DropdownButtonFormField<String>(
+          second: DropdownButtonFormField<String>(
+            isExpanded: true,
                 value: _areaUnit,
                 decoration: const InputDecoration(labelText: 'وحدة المساحة'),
                 items: propertyAreaUnitLabels.entries
@@ -583,36 +563,28 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     ? null
                     : (value) => setState(() => _areaUnit = value ?? 'sqm'),
               ),
-            ),
-          ],
         ),
         if (_requiresResidential) ...[
           const SizedBox(height: AppSpacing.s12),
-          Row(
-            children: [
-              Expanded(
-                child: AppTextField(
+          AppFieldPair(
+          first: AppTextField(
                   controller: _bedrooms,
                   label: 'غرف النوم *',
                   keyboardType: TextInputType.number,
                   enabled: !_busy,
                 ),
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              Expanded(
-                child: AppTextField(
+          second: AppTextField(
                   controller: _bathrooms,
                   label: 'الحمامات *',
                   keyboardType: TextInputType.number,
                   enabled: !_busy,
                 ),
-              ),
-            ],
-          ),
+        ),
         ],
         if (_requiresStructure) ...[
           const SizedBox(height: AppSpacing.s16),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _parkingChoice,
             decoration: const InputDecoration(labelText: 'موقف سيارة *'),
             items: const [
@@ -625,6 +597,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           ),
           const SizedBox(height: AppSpacing.s12),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _facade,
             decoration: const InputDecoration(labelText: 'واجهة البناء *'),
             items: propertyFacadeLabels.entries
@@ -668,27 +641,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
             enabled: !_busy,
           ),
           const SizedBox(height: AppSpacing.s12),
-          Row(
-            children: [
-              Expanded(
-                child: AppTextField(
+          AppFieldPair(
+          first: AppTextField(
                   controller: _rentalTermMonths,
                   label: 'مدة التأجير بالأشهر *',
                   keyboardType: TextInputType.number,
                   enabled: !_busy,
                 ),
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              Expanded(
-                child: AppTextField(
+          second: AppTextField(
                   controller: _advanceMonths,
                   label: 'أشهر المقدم *',
                   keyboardType: TextInputType.number,
                   enabled: !_busy,
                 ),
-              ),
-            ],
-          ),
+        ),
           if (initialAmount != null) ...[
             const SizedBox(height: AppSpacing.s8),
             AppInlineMessage(
@@ -713,17 +679,21 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           Text('طريقة عرض السعر للباحث',
               style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: AppSpacing.s8),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(
-                  value: 'excludes_sai', label: Text('السعر + السعي')),
-              ButtonSegment(
-                  value: 'includes_sai', label: Text('السعر شامل السعي')),
+          Wrap(
+            spacing: AppSpacing.s8,
+            runSpacing: AppSpacing.s8,
+            children: [
+              for (final entry in const {
+                'excludes_sai': 'السعر + السعي',
+                'includes_sai': 'السعر شامل السعي',
+              }.entries)
+                ChoiceChip(
+                  label: Text(entry.value),
+                  selected: _priceDisplayMode == entry.key,
+                  onSelected: _busy ? null : (_) =>
+                      setState(() => _priceDisplayMode = entry.key),
+                ),
             ],
-            selected: {_priceDisplayMode},
-            onSelectionChanged: _busy
-                ? null
-                : (value) => setState(() => _priceDisplayMode = value.first),
           ),
           const SizedBox(height: AppSpacing.s8),
           const Text(
@@ -770,21 +740,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'صور الإعلان ($effectiveImages/12)',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                  AppButton(
-                    label: 'إضافة صور',
-                    icon: Icons.add_photo_alternate_outlined,
-                    style: AppButtonStyle.tonal,
-                    onPressed: _busy ? null : _pickImages,
-                  ),
-                ],
+              Text('صور الإعلان ($effectiveImages/12)',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.s12),
+              AppButton(
+                  label: 'إضافة صور',
+                  icon: Icons.add_photo_alternate_outlined,
+                  style: AppButtonStyle.tonal,
+                  onPressed: _busy ? null : _pickImages,
               ),
               if (_isEditing && existingImages > 0) ...[
                 const SizedBox(height: AppSpacing.s8),
@@ -886,6 +849,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           ),
           const SizedBox(height: AppSpacing.s12),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _ownershipDocumentType,
             decoration: const InputDecoration(labelText: 'نوع مستند العقار'),
             items: _ownershipDocumentTypes.entries
@@ -904,6 +868,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           ),
           const SizedBox(height: AppSpacing.s12),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _relationshipType,
             decoration: const InputDecoration(labelText: 'صفتك بالنسبة للعقار'),
             items: _relationshipTypes.entries
@@ -1022,27 +987,21 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
 
   Widget _actions() {
     if (_step < 4) {
-      return _BottomBar(
-        children: [
-          if (_step > 0)
-            Expanded(
-              child: AppButton(
-                label: 'السابق',
-                style: AppButtonStyle.outlined,
-                onPressed: _busy ? null : () => setState(() => _step--),
-                expand: true,
-              ),
-            ),
-          if (_step > 0) const SizedBox(width: AppSpacing.s8),
-          Expanded(
-            flex: 2,
-            child: AppButton(
-              label: 'التالي',
-              onPressed: _busy ? null : _next,
-              expand: true,
-            ),
+      final next = AppButton(
+        label: 'التالي',
+        onPressed: _busy ? null : _next,
+        expand: true,
+      );
+      return AppActionDock(
+        child: _step == 0 ? next : AppFieldPair(
+          first: AppButton(
+            label: 'السابق',
+            style: AppButtonStyle.outlined,
+            onPressed: _busy ? null : () => setState(() => _step--),
+            expand: true,
           ),
-        ],
+          second: next,
+        ),
       );
     }
 
@@ -1233,6 +1192,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       final confirmed = await AppDialog.show<bool>(
         context,
         title: 'إرسال الإعلان للمراجعة؟',
+        scrollable: true,
         content: const Text(
           'سيتم حفظ آخر تعديلاتك أولاً، ثم إرسال نفس الإعلان إلى فريق الدعم. أثناء المراجعة لن يكون قابلاً للتعديل حتى يعود للتصحيح أو يصدر القرار.',
         ),
@@ -1323,18 +1283,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       context,
       builder: (sheetContext) => Directionality(
         textDirection: TextDirection.rtl,
-        child: Padding(
-          padding: EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s16,
-            AppLayout.compactPageGutter,
-            MediaQuery.viewInsetsOf(sheetContext).bottom + AppSpacing.s24,
-          ),
+        child: AppContentFrame(
           child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + AppSpacing.s24,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const AppSectionHeader(
+                const AppPageHeading(
                   title: 'معاينة قبل الإرسال',
                   subtitle: 'هذه المعاينة لا تحفظ ولا تغيّر حالة الإعلان.',
                 ),
@@ -1344,11 +1301,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     borderRadius: BorderRadius.circular(AppRadii.card),
                     child: Image.file(
                       File(_imagePaths.first),
-                      height: 210,
+                      height: AppSizes.propertyMediaHeight,
                       width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
-                        height: 160,
+                        height: AppSizes.propertyPreviewMedia,
                         child: Center(child: Icon(Icons.broken_image_outlined)),
                       ),
                     ),
@@ -1358,11 +1315,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     borderRadius: BorderRadius.circular(AppRadii.card),
                     child: Image.network(
                       _existing!.mainImage!,
-                      height: 210,
+                      height: AppSizes.propertyMediaHeight,
                       width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
-                        height: 160,
+                        height: AppSizes.propertyPreviewMedia,
                         child: Center(child: Icon(Icons.home_work_outlined)),
                       ),
                     ),
@@ -1480,75 +1437,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     return true;
   }
 
-  Future<(String, String)?> _duplicateSelfVerificationDialog() async {
-    final note = TextEditingController();
-    var type = 'different_address';
-    String? error;
-    final result = await showDialog<(String, String)>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => Directionality(
-          textDirection: TextDirection.rtl,
-          child: AlertDialog(
-            title: const Text('وجدنا عقاراً مشابهاً'),
-            content: SingleChildScrollView(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text(
-                  'إذا كان هذا عقاراً مختلفاً، اختر الفرق واكتب معلومة تساعد النظام على التمييز. الحالات غير المحسومة فقط تذهب للدعم.'),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: type,
-                decoration:
-                    const InputDecoration(labelText: 'ما الفرق الأساسي؟'),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'different_building', child: Text('مبنى مختلف')),
-                  DropdownMenuItem(
-                      value: 'different_unit', child: Text('وحدة مختلفة')),
-                  DropdownMenuItem(
-                      value: 'different_area', child: Text('مساحة مختلفة')),
-                  DropdownMenuItem(
-                      value: 'different_boundary',
-                      child: Text('حدود أرض مختلفة')),
-                  DropdownMenuItem(
-                      value: 'different_address',
-                      child: Text('عنوان/رقم عقار مختلف')),
-                  DropdownMenuItem(value: 'other', child: Text('فرق آخر')),
-                ],
-                onChanged: (value) =>
-                    setDialogState(() => type = value ?? type),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                  controller: note,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                      labelText: 'وضح الفرق *', errorText: error)),
-            ])),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('رجوع')),
-              FilledButton(
-                  onPressed: () {
-                    final text = note.text.trim();
-                    if (text.length < 10) {
-                      setDialogState(
-                          () => error = 'اكتب توضيحاً من 10 أحرف على الأقل.');
-                      return;
-                    }
-                    Navigator.pop(dialogContext, (type, text));
-                  },
-                  child: const Text('أؤكد أنه عقار مختلف')),
-            ],
-          ),
-        ),
-      ),
-    );
-    note.dispose();
-    return result;
-  }
+  Future<(String, String)?> _duplicateSelfVerificationDialog() =>
+      showDialog<(String, String)>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const _PropertyIdentityExplanationDialog(),
+      );
 
   Future<void> _pickLandBoundary() async {
     final latitude = _latitude;
@@ -1792,51 +1686,24 @@ class _ProgressHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        AppLayout.compactPageGutter,
-        AppSpacing.s12,
-        AppLayout.compactPageGutter,
-        AppSpacing.s4,
-      ),
+    return AppSurface(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            spacing: AppSpacing.s12,
+            runSpacing: AppSpacing.s8,
             children: [
-              Text('الخطوة ${step + 1} من 5'),
-              const Spacer(),
-              Text('${(step + 1) * 20}%'),
+              Text('الخطوة ${step + 1} من 5',
+                  style: Theme.of(context).textTheme.titleMedium),
+              AppStatusBadge(label: '${(step + 1) * 20}%',
+                  tone: AppStatusTone.info),
             ],
           ),
-          const SizedBox(height: AppSpacing.s8),
+          const SizedBox(height: AppSpacing.s12),
           LinearProgressIndicator(value: (step + 1) / 5),
         ],
-      ),
-    );
-  }
-}
-
-class _BottomBar extends StatelessWidget {
-  const _BottomBar({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: AppElevation.floating,
-      color: Theme.of(context).colorScheme.surface,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s8,
-            AppLayout.compactPageGutter,
-            AppSpacing.s12,
-          ),
-          child: Row(children: children),
-        ),
       ),
     );
   }
@@ -1859,84 +1726,43 @@ class _FinalActionsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      elevation: AppElevation.floating,
-      color: Theme.of(context).colorScheme.surface,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s8,
-            AppLayout.compactPageGutter,
-            AppSpacing.s12,
+    return AppActionDock(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppButton(
+            label: 'إرسال للمراجعة',
+            icon: Icons.send_outlined,
+            loading: busy,
+            onPressed: busy ? null : onSubmit,
+            expand: true,
           ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 390;
-              final secondary = <Widget>[
-                Expanded(
-                  child: AppButton(
-                    label: 'معاينة',
-                    icon: Icons.visibility_outlined,
-                    style: AppButtonStyle.outlined,
-                    onPressed: busy ? null : onPreview,
-                    expand: true,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s8),
-                Expanded(
-                  child: AppButton(
-                    label: 'حفظ مسودة',
-                    icon: Icons.save_outlined,
-                    style: AppButtonStyle.tonal,
-                    loading: busy,
-                    onPressed: busy ? null : onSaveDraft,
-                    expand: true,
-                  ),
-                ),
-              ];
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AppButton(
-                    label: 'إرسال للمراجعة',
-                    icon: Icons.send_outlined,
-                    loading: busy,
-                    onPressed: busy ? null : onSubmit,
-                    expand: true,
-                  ),
-                  const SizedBox(height: AppSpacing.s8),
-                  if (compact) ...[
-                    AppButton(
-                      label: 'حفظ مسودة',
-                      icon: Icons.save_outlined,
-                      style: AppButtonStyle.tonal,
-                      loading: busy,
-                      onPressed: busy ? null : onSaveDraft,
-                      expand: true,
-                    ),
-                    const SizedBox(height: AppSpacing.s8),
-                    AppButton(
-                      label: 'معاينة',
-                      icon: Icons.visibility_outlined,
-                      style: AppButtonStyle.outlined,
-                      onPressed: busy ? null : onPreview,
-                      expand: true,
-                    ),
-                  ] else
-                    Row(children: secondary),
-                  AppButton(
-                    label: 'السابق',
-                    style: AppButtonStyle.text,
-                    onPressed: busy ? null : onPrevious,
-                    expand: true,
-                  ),
-                ],
-              );
-            },
+          const SizedBox(height: AppSpacing.s8),
+          AppFieldPair(
+            first: AppButton(
+              label: 'حفظ مسودة',
+              icon: Icons.save_outlined,
+              style: AppButtonStyle.tonal,
+              loading: busy,
+              onPressed: busy ? null : onSaveDraft,
+              expand: true,
+            ),
+            second: AppButton(
+              label: 'معاينة',
+              icon: Icons.visibility_outlined,
+              style: AppButtonStyle.outlined,
+              onPressed: busy ? null : onPreview,
+              expand: true,
+            ),
           ),
-        ),
+          AppButton(
+            label: 'السابق',
+            style: AppButtonStyle.text,
+            onPressed: busy ? null : onPrevious,
+            expand: true,
+          ),
+        ],
       ),
     );
   }
@@ -1965,4 +1791,78 @@ class _SummaryRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Owns its controller until the route's exit transition has finished.
+class _PropertyIdentityExplanationDialog extends StatefulWidget {
+  const _PropertyIdentityExplanationDialog();
+
+  @override
+  State<_PropertyIdentityExplanationDialog> createState() =>
+      _PropertyIdentityExplanationDialogState();
+}
+
+class _PropertyIdentityExplanationDialogState
+    extends State<_PropertyIdentityExplanationDialog> {
+  final _note = TextEditingController();
+  String _type = 'different_address';
+  String? _error;
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          scrollable: true,
+          title: const Text('وجدنا عقاراً مشابهاً'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'إذا كان هذا عقاراً مختلفاً، اختر الفرق واكتب معلومة تساعد النظام على التمييز. الحالات غير المحسومة فقط تذهب للدعم.',
+              ),
+              const SizedBox(height: AppSpacing.s12),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                value: _type,
+                decoration: const InputDecoration(labelText: 'ما الفرق الأساسي؟'),
+                items: const [
+                  DropdownMenuItem(value: 'different_building', child: Text('مبنى مختلف')),
+                  DropdownMenuItem(value: 'different_unit', child: Text('وحدة مختلفة')),
+                  DropdownMenuItem(value: 'different_area', child: Text('مساحة مختلفة')),
+                  DropdownMenuItem(value: 'different_boundary', child: Text('حدود أرض مختلفة')),
+                  DropdownMenuItem(value: 'different_address', child: Text('عنوان/رقم عقار مختلف')),
+                  DropdownMenuItem(value: 'other', child: Text('فرق آخر')),
+                ],
+                onChanged: (value) => setState(() => _type = value ?? _type),
+              ),
+              const SizedBox(height: AppSpacing.s12),
+              TextField(
+                controller: _note,
+                maxLines: 3,
+                decoration: InputDecoration(labelText: 'وضح الفرق *', errorText: _error),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('رجوع')),
+            FilledButton(
+              onPressed: () {
+                final text = _note.text.trim();
+                if (text.length < 10) {
+                  setState(() => _error = 'اكتب توضيحاً من 10 أحرف على الأقل.');
+                  return;
+                }
+                Navigator.pop(context, (_type, text));
+              },
+              child: const Text('أؤكد أنه عقار مختلف'),
+            ),
+          ],
+        ),
+      );
 }

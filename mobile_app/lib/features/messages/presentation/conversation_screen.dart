@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/design/app_design.dart';
 import '../../agreements/presentation/conversation_agreement_card.dart';
 import '../../bookings/data/booking_repository.dart';
 import '../../bookings/domain/booking_models.dart';
@@ -190,31 +191,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Future<String?> _bookingReason(String title, String label) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
+    final input = await showDialog<(String?, String)>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          minLines: 2,
-          maxLines: 4,
-          maxLength: 1500,
-          decoration: InputDecoration(labelText: label),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('تأكيد'),
-          ),
-        ],
+      builder: (_) => _ConversationInputDialog(
+        title: title, label: label, submitLabel: 'تأكيد',
+        minLines: 2, maxLines: 4, maxLength: 1500,
       ),
     );
-    controller.dispose();
+    final result = input?.$2;
     if (result == null || result.trim().length < 2) return null;
     return result.trim();
   }
@@ -223,43 +207,39 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final start = booking.startsAt.toLocal();
     final date =
         "${start.year}/${start.month.toString().padLeft(2, '0')}/${start.day.toString().padLeft(2, '0')} - ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}";
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+    return AppSurface(
+      padding: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.s12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              const Icon(Icons.event_available_outlined),
-              const SizedBox(width: 8),
-              const Expanded(
-                  child: Text('طلب معاينة مرتبط بهذه المحادثة',
-                      style: TextStyle(fontWeight: FontWeight.w900))),
-              Chip(label: Text(booking.statusLabel)),
-            ]),
+            const AppSectionHeader(title: 'طلب معاينة مرتبط بهذه المحادثة'),
+            const SizedBox(height: AppSpacing.s8),
+            AppStatusBadge(label: booking.statusLabel, tone: AppStatusTone.info),
+            const SizedBox(height: AppSpacing.s8),
             Text(date),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpacing.s4),
             Text(booking.isRequester
                 ? 'المعلن: ${booking.hostName ?? '-'}'
                 : 'طالب المعاينة: ${booking.requesterName}'),
             if (booking.awaitingRequesterConfirmation && booking.isRequester)
               const Padding(
-                padding: EdgeInsets.only(top: 6),
+                padding: EdgeInsets.only(top: AppSpacing.s8),
                 child: Text(
                     'المعلن اقترح هذا الموعد الجديد. راجعه ثم وافق عليه أو غيّره.'),
               ),
             if (booking.requesterNote?.trim().isNotEmpty == true)
               Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: AppSpacing.s4),
                   child: Text('ملاحظة الطلب: ${booking.requesterNote}')),
             if (booking.hostNote?.trim().isNotEmpty == true)
               Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: AppSpacing.s4),
                   child: Text('ملاحظة المعلن: ${booking.hostNote}')),
             if (booking.isActive) ...[
-              const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 8, children: [
+              const SizedBox(height: AppSpacing.s12),
+              Wrap(spacing: AppSpacing.s8, runSpacing: AppSpacing.s8, children: [
                 if (booking.canConfirm)
                   FilledButton.tonalIcon(
                     onPressed:
@@ -294,7 +274,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               ]),
             ],
             if (booking.canComplete) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.s12),
               FilledButton.tonalIcon(
                   onPressed:
                       _bookingBusy ? null : () => _bookingAction('complete'),
@@ -308,15 +288,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Widget _propertyAvailabilityBanner(MessageThreadSummary thread) {
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+    return AppSurface(
+      padding: EdgeInsets.zero,
       child: const Padding(
-        padding: EdgeInsets.all(12),
+        padding: EdgeInsets.all(AppSpacing.s12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(Icons.info_outline),
-            SizedBox(width: 8),
+            SizedBox(width: AppSpacing.s8),
             Expanded(
               child: Text(
                 'هذا الإعلان لم يعد منشوراً. تبقى المحادثة وسجلها متاحين للتنسيق، لكن لا تعتمد على الإعلان كعرض متاح حالياً.',
@@ -337,48 +317,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       'spam': 'إزعاج',
       'other': 'أخرى'
     };
-    var reason = 'abuse';
-    final details = TextEditingController();
-    final accepted = await showDialog<bool>(
+    final input = await showDialog<(String?, String)>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('بلاغ عن المحادثة'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text(
-                'لن يفتح فريق الدعم محتوى المحادثة إلا ضمن هذا البلاغ وبصلاحية فتح المحادثات الخاصة، وسيتم تسجيل عملية الفتح.'),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-                value: reason,
-                items: reasons.entries
-                    .map((e) =>
-                        DropdownMenuItem(value: e.key, child: Text(e.value)))
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) setDialogState(() => reason = value);
-                }),
-            const SizedBox(height: 12),
-            TextField(
-                controller: details,
-                minLines: 3,
-                maxLines: 6,
-                maxLength: 5000,
-                decoration: const InputDecoration(labelText: 'تفاصيل البلاغ')),
-          ]),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('إلغاء')),
-            FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('إرسال البلاغ')),
-          ],
-        ),
+      builder: (_) => const _ConversationInputDialog(
+        title: 'بلاغ عن المحادثة', label: 'تفاصيل البلاغ',
+        submitLabel: 'إرسال البلاغ',
+        description: 'لن يفتح فريق الدعم محتوى المحادثة إلا ضمن هذا البلاغ وبصلاحية فتح المحادثات الخاصة، وسيتم تسجيل عملية الفتح.',
+        reasons: reasons, initialReason: 'abuse',
+        minLines: 3, maxLines: 6, maxLength: 5000,
       ),
     );
-    final text = details.text.trim();
-    details.dispose();
-    if (accepted != true) return;
+    if (input == null) return;
+    final reason = input.$1!;
+    final text = input.$2;
     if (text.length < 5) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -407,56 +358,72 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(
-            title: Text(thread?.otherUserName ?? 'محادثة'),
-            actions: [
-              IconButton(
-                  onPressed: _loading ? null : _load,
-                  tooltip: 'تحديث',
-                  icon: const Icon(Icons.refresh)),
-              IconButton(
-                  onPressed: _loading ? null : _report,
-                  tooltip: 'بلاغ',
-                  icon: const Icon(Icons.flag_outlined))
-            ]),
-        body: Column(children: [
-          if (!_loading && thread?.isPropertyUnavailable == true)
-            _propertyAvailabilityBanner(thread!),
-          if (!_loading && thread != null)
-            ConversationAgreementCard(thread: thread),
-          if (!_loading && _viewing != null) _viewingCard(_viewing!),
-          Expanded(
+        appBar: AppAppBar(
+          title: thread?.otherUserName ?? 'محادثة',
+          actions: [
+            IconButton(onPressed: _loading ? null : _load,
+              tooltip: 'تحديث', icon: const Icon(Icons.refresh)),
+            IconButton(onPressed: _loading ? null : _report,
+              tooltip: 'بلاغ', icon: const Icon(Icons.flag_outlined)),
+          ],
+        ),
+        body: LayoutBuilder(builder: (context, constraints) => Column(
+          children: [
+            if (!_loading && (thread != null || _viewing != null))
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: constraints.maxHeight *
+                    AppLayout.conversationContextMaxHeightFraction),
+                child: SingleChildScrollView(
+                  child: AppContentFrame(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (thread?.isPropertyUnavailable == true) ...[
+                        _propertyAvailabilityBanner(thread!),
+                        const SizedBox(height: AppSpacing.s8),
+                      ],
+                      if (thread != null) ConversationAgreementCard(thread: thread),
+                      if (_viewing != null) ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        _viewingCard(_viewing!),
+                      ],
+                      const SizedBox(height: AppSpacing.s8),
+                    ],
+                  )),
+                ),
+              ),
+            Expanded(child: AppContentFrame(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const AppLoadingState(label: 'جارٍ تحميل المحادثة…')
                   : _error != null
-                      ? Center(child: Text(_error!))
-                      : _messageList()),
-          SafeArea(
-              top: false,
-              child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                  child: Row(children: [
-                    Expanded(
-                        child: TextField(
-                            controller: _controller,
-                            minLines: 1,
-                            maxLines: 4,
-                            maxLength: 2000,
-                            decoration:
-                                const InputDecoration(hintText: 'اكتب رسالة...'),
-                            onSubmitted: (_) => _send())),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                        onPressed: _sending ? null : _send,
-                        icon: _sending
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.send)),
-                  ]))),
-        ]),
+                      ? AppErrorState(message: _error!, onRetry: _load)
+                      : _messageList(),
+            )),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: constraints.maxHeight *
+                  AppLayout.conversationComposerMaxHeightFraction),
+              child: AppActionDock(child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(child: TextField(
+                    controller: _controller,
+                    minLines: 1, maxLines: 4, maxLength: 2000,
+                    decoration: const InputDecoration(hintText: 'اكتب رسالة...'),
+                    onSubmitted: (_) => _send(),
+                  )),
+                  const SizedBox(width: AppSpacing.s8),
+                  IconButton.filled(
+                    tooltip: 'إرسال الرسالة',
+                    onPressed: _sending ? null : _send,
+                    icon: _sending
+                        ? const SizedBox.square(dimension: AppSpacing.s20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.send),
+                  ),
+                ],
+              )),
+            ),
+          ],
+        )),
       ),
     );
   }
@@ -465,7 +432,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final details = _details;
     final messages = details?.messages ?? const <PrivateMessageItem>[];
     if (messages.isEmpty) {
-      return const Center(child: Text('ابدأ المحادثة برسالة محترمة وواضحة.'));
+      return const AppEmptyState(title: 'المحادثة', message: 'ابدأ المحادثة برسالة محترمة وواضحة.', icon: Icons.chat_bubble_outline);
     }
     final hasOlder = details?.hasMore == true;
     return ListView.builder(
@@ -492,32 +459,116 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         final time = createdAt == null
             ? null
             : '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
-        return Align(
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        final foreground = item.isMine ? scheme.onPrimaryContainer : scheme.onSurface;
+        return LayoutBuilder(builder: (context, constraints) => Align(
           alignment: item.isMine
-              ? AlignmentDirectional.centerStart
-              : AlignmentDirectional.centerEnd,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 320),
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(16)),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(item.senderName,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 12)),
-              const SizedBox(height: 4),
-              Text(item.body),
-              if (time != null) ...[
-                const SizedBox(height: 4),
-                Text(time, style: Theme.of(context).textTheme.labelSmall),
-              ],
-            ]),
+              ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: AppLayout.messageBubbleMaxWidth),
+            child: Container(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth * AppLayout.messageBubbleWidthFraction),
+              margin: const EdgeInsets.only(bottom: AppSpacing.s8),
+              padding: const EdgeInsets.all(AppSpacing.s12),
+              decoration: BoxDecoration(
+                color: item.isMine ? scheme.primaryContainer : scheme.surface,
+                border: Border.all(color: scheme.outlineVariant),
+                borderRadius: BorderRadius.circular(AppRadii.card),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(item.senderName, style: theme.textTheme.labelMedium?.copyWith(
+                  color: foreground, fontWeight: FontWeight.w700,
+                )),
+                const SizedBox(height: AppSpacing.s4),
+                Text(item.body, style: theme.textTheme.bodyMedium?.copyWith(color: foreground)),
+                if (time != null) ...[
+                  const SizedBox(height: AppSpacing.s4),
+                  Directionality(textDirection: TextDirection.ltr,
+                    child: Text(time, style: theme.textTheme.labelSmall?.copyWith(color: foreground))),
+                ],
+              ]),
+            ),
           ),
-        );
+        ));
       },
     );
   }
+}
+
+/// Owns input until the dialog route finishes its reverse transition.
+/// The caller retains post-dismiss validation and every backend mutation.
+class _ConversationInputDialog extends StatefulWidget {
+  const _ConversationInputDialog({
+    required this.title, required this.label, required this.submitLabel,
+    required this.minLines, required this.maxLines, required this.maxLength,
+    this.description, this.reasons, this.initialReason,
+  });
+
+  final String title;
+  final String label;
+  final String submitLabel;
+  final int minLines;
+  final int maxLines;
+  final int maxLength;
+  final String? description;
+  final Map<String, String>? reasons;
+  final String? initialReason;
+
+  @override
+  State<_ConversationInputDialog> createState() => _ConversationInputDialogState();
+}
+
+class _ConversationInputDialogState extends State<_ConversationInputDialog> {
+  final _text = TextEditingController();
+  late String? _reason = widget.initialReason;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: AlertDialog(
+      scrollable: true,
+      title: Text(widget.title),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (widget.description != null) ...[
+          Text(widget.description!),
+          const SizedBox(height: AppSpacing.s12),
+        ],
+        if (widget.reasons != null) ...[
+          DropdownButtonFormField<String>(
+            value: _reason,
+            isExpanded: true,
+            itemHeight: null,
+            decoration: const InputDecoration(labelText: 'سبب البلاغ'),
+            items: widget.reasons!.entries.map((entry) => DropdownMenuItem(
+              value: entry.key, child: Text(entry.value),
+            )).toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _reason = value);
+            },
+          ),
+          const SizedBox(height: AppSpacing.s12),
+        ],
+        TextField(
+          controller: _text,
+          minLines: widget.minLines, maxLines: widget.maxLines,
+          maxLength: widget.maxLength,
+          decoration: InputDecoration(labelText: widget.label),
+        ),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, (_reason, _text.text.trim())),
+          child: Text(widget.submitLabel),
+        ),
+      ],
+    ),
+  );
 }

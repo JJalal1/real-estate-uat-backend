@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_components.dart';
+import '../../../core/design/app_design.dart';
 import '../data/saved_search_repository.dart';
 import '../domain/property_marker.dart';
 import '../domain/saved_property_search.dart';
@@ -39,17 +38,14 @@ class SavedSearchesScreen extends ConsumerWidget {
                 ref.invalidate(savedSearchesProvider);
                 await ref.read(savedSearchesProvider.future);
               },
-              child: ListView.separated(
+              child: AppContentFrame(
+                child: ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  AppLayout.compactPageGutter,
-                  AppSpacing.s16,
-                  AppLayout.compactPageGutter,
-                  AppSpacing.s40,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.s24),
                 itemCount: items.length,
                 separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
                 itemBuilder: (context, index) => _SavedSearchCard(search: items[index]),
+                ),
               ),
             );
           },
@@ -81,15 +77,7 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
         children: [
           Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: scheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AppRadii.control),
-                ),
-                child: Icon(Icons.saved_search_rounded, color: scheme.primary),
-              ),
+              const AppIdentityMark(icon: Icons.saved_search_rounded),
               const SizedBox(width: AppSpacing.s12),
               Expanded(
                 child: Column(
@@ -250,7 +238,7 @@ class SavedSearchResultsScreen extends ConsumerWidget {
           future: ref.read(savedSearchRepositoryProvider).results(search),
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return const _SavedSearchSkeleton();
+              return const _SavedResultsSkeleton();
             }
             if (snapshot.hasError) {
               return AppErrorState(
@@ -267,13 +255,9 @@ class SavedSearchResultsScreen extends ConsumerWidget {
                 icon: Icons.notifications_active_outlined,
               );
             }
-            return ListView.separated(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                AppLayout.compactPageGutter,
-                AppSpacing.s16,
-                AppLayout.compactPageGutter,
-                AppSpacing.s40,
-              ),
+            return AppContentFrame(
+              child: ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s24),
               itemCount: items.length,
               separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
               itemBuilder: (context, index) {
@@ -296,6 +280,7 @@ class SavedSearchResultsScreen extends ConsumerWidget {
                   onTap: () => context.push('/properties/${item.id}'),
                 );
               },
+              ),
             );
           },
         ),
@@ -313,9 +298,34 @@ class _SavedSearchSkeleton extends StatelessWidget {
       padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
       itemCount: 4,
       separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
-      itemBuilder: (_, __) => const AppSkeleton(height: 144),
+      itemBuilder: (_, __) => const AppSurface(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppSkeleton(height: AppSpacing.s24),
+            SizedBox(height: AppSpacing.s12),
+            AppSkeleton(height: AppSpacing.s16),
+            SizedBox(height: AppSpacing.s24),
+            AppSkeleton(height: AppSizes.buttonMinHeight),
+          ],
+        ),
+      ),
     );
   }
+}
+
+class _SavedResultsSkeleton extends StatelessWidget {
+  const _SavedResultsSkeleton();
+
+  @override
+  Widget build(BuildContext context) => AppContentFrame(
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s24),
+          itemCount: 4,
+          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
+          itemBuilder: (_, __) => const AppPropertyCardSkeleton(),
+        ),
+      );
 }
 
 String _typeLabel(String type) => switch (type) {

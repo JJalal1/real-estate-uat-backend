@@ -4,8 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_components.dart';
+import '../../../core/design/app_design.dart';
 import '../../../router/app_deep_links.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
@@ -159,228 +158,227 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         }
         await ref.read(propertyDetailsProvider(widget.propertyId).future);
       },
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsetsDirectional.fromSTEB(
-          AppLayout.compactPageGutter,
-          AppSpacing.s12,
-          AppLayout.compactPageGutter,
-          published && !property.isOwner ? 124.0 : AppSpacing.s40,
-        ),
-        children: [
-          _Gallery(
-            images: property.images,
-            index: _imageIndex,
-            onChanged: (index) => setState(() => _imageIndex = index),
+      child: AppContentFrame(
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            0,
+            AppSpacing.s12,
+            0,
+            AppSpacing.s32,
           ),
-          const SizedBox(height: AppSpacing.s40),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  property.title,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ),
-              if (property.isOwner)
-                PopupMenuButton<String>(
-                  tooltip: 'إدارة الإعلان',
-                  onSelected: (action) => _ownerAction(action, property),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('تعديل الإعلان')),
-                    PopupMenuItem(value: 'mine', child: Text('إعلاناتي')),
-                  ],
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s8),
-          AppPropertyPrice(
-            price: _formatPrice(property.price),
-            currency: property.currency,
-            suffix: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
-          ),
-          PropertySaiPublicLine(propertyId: property.id),
-          const SizedBox(height: AppSpacing.s12),
-          Wrap(
-            spacing: AppSpacing.s8,
-            runSpacing: AppSpacing.s8,
-            children: [
-              AppStatusBadge(
-                label: _purposeLabel(property.purpose),
-                tone: AppStatusTone.info,
-                icon: property.purpose == 'rent'
-                    ? Icons.key_outlined
-                    : Icons.sell_outlined,
-              ),
-              AppStatusBadge(
-                label: _typeLabel(property.type),
-                tone: AppStatusTone.neutral,
-                icon: Icons.home_work_outlined,
-              ),
-              if (!published)
-                AppStatusBadge(
-                  label: _statusLabel(property.status),
-                  tone: property.status == 'rejected'
-                      ? AppStatusTone.error
-                      : AppStatusTone.warning,
-                  icon: Icons.info_outline,
-                ),
-            ],
-          ),
-          if (!published && !property.isOwner) ...[
-            const SizedBox(height: AppSpacing.s40),
-            const AppUnavailableState(),
-          ],
-          if (property.address != null) ...[
-            const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(title: 'الموقع'),
-            const SizedBox(height: AppSpacing.s8),
-            AppSurface(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.location_on_outlined,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: AppSpacing.s8),
-                  Expanded(child: Text(property.address!)),
-                ],
-              ),
+          children: [
+            _Gallery(
+              images: property.images,
+              index: _imageIndex,
+              onChanged: (index) => setState(() => _imageIndex = index),
             ),
-          ],
-          if (facts.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(title: 'مواصفات العقار'),
-            const SizedBox(height: AppSpacing.s8),
-            AppSurface(child: AppPropertyFacts(facts: facts)),
-          ],
-          if (published) ...[
-            const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(
-              title: 'السعر مقارنة بالسوق',
-              subtitle:
-                  'مقارنة استرشادية من عقارات منشورة ومعتمدة داخل المنصة فقط.',
-            ),
-            const SizedBox(height: AppSpacing.s8),
-            PropertyMarketContextCard(
-              propertyId: property.id,
-              currency: property.currency,
-            ),
-          ],
-          const SizedBox(height: AppSpacing.s24),
-          const AppSectionHeader(title: 'وصف العقار'),
-          const SizedBox(height: AppSpacing.s8),
-          AppSurface(
-            child: Text(
-              property.description ??
-                  'لم يضف المعلن وصفاً تفصيلياً لهذا العقار بعد.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ),
-          if (published && property.advertiser != null) ...[
-            const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(title: 'المعلن والثقة'),
-            const SizedBox(height: AppSpacing.s8),
-            _AdvertiserCard(
-              property: property,
-              onCommunity: () => _openCommunity(property),
-            ),
-          ],
-          if (published &&
-              !property.isOwner &&
-              (property.contactPhone != null ||
-                  property.contactWhatsapp != null)) ...[
-            const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(
-              title: 'بيانات التواصل',
-              subtitle:
-                  'المراسلة وطلب المعاينة مثبتان أسفل الشاشة للوصول السريع.',
-            ),
-            const SizedBox(height: AppSpacing.s12),
+            const SizedBox(height: AppSpacing.s16),
             AppSurface(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (property.contactPhone != null)
-                    AppListRow(
-                      title: 'الهاتف',
-                      subtitle: property.contactPhone,
-                      leading: const Icon(Icons.phone_outlined),
-                      trailing: const Icon(Icons.copy_outlined),
-                      onTap: () => _copyContact(property.contactPhone!),
-                    ),
-                  if (property.contactWhatsapp != null)
-                    AppListRow(
-                      title: 'واتساب',
-                      subtitle: property.contactWhatsapp,
-                      leading: const Icon(Icons.chat_outlined),
-                      trailing: const Icon(Icons.copy_outlined),
-                      onTap: () => _copyContact(property.contactWhatsapp!),
-                    ),
+                  Wrap(
+                    spacing: AppSpacing.s8,
+                    runSpacing: AppSpacing.s8,
+                    children: [
+                      AppStatusBadge(
+                        label: _purposeLabel(property.purpose),
+                        tone: AppStatusTone.info,
+                        icon: property.purpose == 'rent'
+                            ? Icons.key_outlined
+                            : Icons.sell_outlined,
+                      ),
+                      AppStatusBadge(
+                        label: _typeLabel(property.type),
+                        tone: AppStatusTone.neutral,
+                        icon: Icons.home_work_outlined,
+                      ),
+                      if (!published)
+                        AppStatusBadge(
+                          label: _statusLabel(property.status),
+                          tone: property.status == 'rejected'
+                              ? AppStatusTone.error
+                              : AppStatusTone.warning,
+                          icon: Icons.info_outline,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.s16),
+                  AppPropertyPrice(
+                    price: _formatPrice(property.price),
+                    currency: property.currency,
+                    suffix: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
+                  ),
+                  const SizedBox(height: AppSpacing.s8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          property.title,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                      ),
+                      if (property.isOwner)
+                        PopupMenuButton<String>(
+                          tooltip: 'إدارة الإعلان',
+                          onSelected: (action) => _ownerAction(action, property),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'edit', child: Text('تعديل الإعلان')),
+                            PopupMenuItem(value: 'mine', child: Text('إعلاناتي')),
+                          ],
+                        ),
+                    ],
+                  ),
+                  PropertySaiPublicLine(propertyId: property.id),
                 ],
               ),
             ),
-          ],
-          if (property.similar.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.s32),
-            const AppSectionHeader(title: 'عقارات مشابهة'),
-            const SizedBox(height: AppSpacing.s12),
-            SizedBox(
-              height: 340,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
+            if (!published && !property.isOwner) ...[
+              const SizedBox(height: AppSpacing.s40),
+              const AppUnavailableState(),
+            ],
+            if (property.address != null) ...[
+              const SizedBox(height: AppSpacing.s24),
+              AppSectionCard(
+                title: 'الموقع',
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.location_on_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: AppSpacing.s8),
+                    Expanded(child: Text(property.address!)),
+                  ],
+                ),
+              ),
+            ],
+            if (facts.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.s24),
+              AppSectionCard(
+                title: 'مواصفات العقار',
+                child: AppPropertyFacts(facts: facts),
+              ),
+            ],
+            if (published) ...[
+              const SizedBox(height: AppSpacing.s24),
+              const AppSectionHeader(
+                title: 'السعر مقارنة بالسوق',
+                subtitle:
+                    'مقارنة استرشادية من عقارات منشورة ومعتمدة داخل المنصة فقط.',
+              ),
+              const SizedBox(height: AppSpacing.s8),
+              PropertyMarketContextCard(
+                propertyId: property.id,
+                currency: property.currency,
+              ),
+            ],
+            const SizedBox(height: AppSpacing.s24),
+            AppSectionCard(
+              title: 'وصف العقار',
+              child: Text(
+                property.description ??
+                    'لم يضف المعلن وصفاً تفصيلياً لهذا العقار بعد.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+            if (published && property.advertiser != null) ...[
+              const SizedBox(height: AppSpacing.s24),
+              const AppSectionHeader(title: 'المعلن والثقة'),
+              const SizedBox(height: AppSpacing.s8),
+              _AdvertiserCard(
+                property: property,
+                onCommunity: () => _openCommunity(property),
+              ),
+            ],
+            if (published &&
+                !property.isOwner &&
+                (property.contactPhone != null ||
+                    property.contactWhatsapp != null)) ...[
+              const SizedBox(height: AppSpacing.s24),
+              const AppSectionHeader(
+                title: 'بيانات التواصل',
+                subtitle:
+                    'المراسلة وطلب المعاينة مثبتان أسفل الشاشة للوصول السريع.',
+              ),
+              const SizedBox(height: AppSpacing.s12),
+              AppSurface(
+                child: Column(
+                  children: [
+                    if (property.contactPhone != null)
+                      AppListRow(
+                        title: 'الهاتف',
+                        subtitle: property.contactPhone,
+                        leading: const Icon(Icons.phone_outlined),
+                        trailing: const Icon(Icons.copy_outlined),
+                        onTap: () => _copyContact(property.contactPhone!),
+                      ),
+                    if (property.contactWhatsapp != null)
+                      AppListRow(
+                        title: 'واتساب',
+                        subtitle: property.contactWhatsapp,
+                        leading: const Icon(Icons.chat_outlined),
+                        trailing: const Icon(Icons.copy_outlined),
+                        onTap: () => _copyContact(property.contactWhatsapp!),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            if (property.similar.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.s32),
+              const AppSectionHeader(title: 'عقارات مشابهة'),
+              const SizedBox(height: AppSpacing.s12),
+              AppPropertyRail(
                 itemCount: property.similar.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(width: AppSpacing.s12),
                 itemBuilder: (context, index) {
                   final item = property.similar[index];
                   final isFavorite = favoriteIds.contains(item.id);
-                  return SizedBox(
-                    width: 260,
-                    child: AppPropertyCard(
-                      title: item.title,
-                      price: _formatPrice(item.price),
-                      currency: item.currency,
-                      imageUrl: item.mainImage,
-                      location: item.address,
-                      purposeLabel: _purposeLabel(item.purpose),
-                      facts: [
-                        if (item.areaM2 != null)
-                          AppPropertyFact(
-                            icon: Icons.square_foot,
-                            label: '${item.areaM2} م²',
-                          ),
-                        if (item.bedrooms != null)
-                          AppPropertyFact(
-                            icon: Icons.bed_outlined,
-                            label: '${item.bedrooms} غرف',
-                          ),
-                      ],
-                      trailing: IconButton.filledTonal(
-                        tooltip:
-                            isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-                        icon: Icon(
-                          isFavorite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
+                  return AppPropertyCard(
+                    title: item.title,
+                    price: _formatPrice(item.price),
+                    currency: item.currency,
+                    imageUrl: item.mainImage,
+                    location: item.address,
+                    purposeLabel: _purposeLabel(item.purpose),
+                    facts: [
+                      if (item.areaM2 != null)
+                        AppPropertyFact(
+                          icon: Icons.square_foot,
+                          label: '${item.areaM2} م²',
                         ),
-                        onPressed: _changingFavorite || _consumingPendingFavorite
-                            ? null
-                            : () => _toggleFavorite(
-                                  item.id,
-                                  currentlyFavorite: isFavorite,
-                                ),
+                      if (item.bedrooms != null)
+                        AppPropertyFact(
+                          icon: Icons.bed_outlined,
+                          label: '${item.bedrooms} غرف',
+                        ),
+                    ],
+                    trailing: IconButton.filledTonal(
+                      tooltip:
+                          isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
+                      icon: Icon(
+                        isFavorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
                       ),
-                      unavailable: item.status != 'published',
-                      onTap: () => context.push('/properties/${item.id}'),
+                      onPressed: _changingFavorite || _consumingPendingFavorite
+                          ? null
+                          : () => _toggleFavorite(
+                                item.id,
+                                currentlyFavorite: isFavorite,
+                              ),
                     ),
+                    unavailable: item.status != 'published',
+                    onTap: () => context.push('/properties/${item.id}'),
                   );
                 },
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -591,95 +589,76 @@ class _Gallery extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadii.card),
-      child: AspectRatio(
-        aspectRatio: 4 / 3,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (images.isEmpty)
-              const AppPropertyMedia(height: double.infinity)
-            else
-              PageView.builder(
-                itemCount: images.length,
-                onPageChanged: onChanged,
-                itemBuilder: (context, imageIndex) => Semantics(
-                  button: true,
-                  label: 'فتح صورة العقار ${imageIndex + 1} من ${images.length}',
-                  child: InkWell(
-                    onTap: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute<void>(
-                        builder: (_) => _FullscreenGallery(
-                          images: images,
-                          initialIndex: imageIndex,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.card),
+          child: _PropertyGalleryFrame(
+            child: images.isEmpty
+                ? const AppPropertyMedia(height: double.infinity)
+                : PageView.builder(
+                    itemCount: images.length,
+                    onPageChanged: onChanged,
+                    itemBuilder: (context, imageIndex) => Semantics(
+                      button: true,
+                      label: 'فتح صورة العقار ${imageIndex + 1} من ${images.length}',
+                      child: InkWell(
+                        onTap: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => _FullscreenGallery(
+                              images: images,
+                              initialIndex: imageIndex,
+                            ),
+                          ),
+                        ),
+                        child: AppPropertyMedia(
+                          imageUrl: images[imageIndex].url,
+                          height: double.infinity,
                         ),
                       ),
                     ),
-                    child: AppPropertyMedia(
-                      imageUrl: images[imageIndex].url,
-                      height: double.infinity,
-                    ),
                   ),
-                ),
-              ),
-            if (images.isNotEmpty)
-              PositionedDirectional(
-                top: AppSpacing.s12,
-                end: AppSpacing.s12,
-                child: IgnorePointer(
-                  child: Container(
-                    padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: AppSpacing.s10,
-                      vertical: AppSpacing.s6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: .58),
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: AppSpacing.s4),
-                        Text(
-                          'تكبير الصور',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            if (images.isNotEmpty)
-              PositionedDirectional(
-                bottom: AppSpacing.s12,
-                end: AppSpacing.s12,
-                child: Container(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: AppSpacing.s12,
-                    vertical: AppSpacing.s4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .inverseSurface
-                        .withValues(alpha: .86),
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Text(
-                    '${index + 1}/${images.length}',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onInverseSurface,
-                        ),
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
-      ),
+        if (images.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.s12),
+          Row(
+            children: [
+              const Icon(Icons.fullscreen_rounded),
+              const SizedBox(width: AppSpacing.s8),
+              Expanded(
+                child: Text('تكبير الصور', style: Theme.of(context).textTheme.labelLarge),
+              ),
+              const SizedBox(width: AppSpacing.s8),
+              AppStatusBadge(label: '${index + 1}/${images.length}'),
+            ],
+          ),
+        ],
+      ],
     );
   }
+}
+
+/// Shared by the real gallery and its loading placeholder.
+class _PropertyGalleryFrame extends StatelessWidget {
+  const _PropertyGalleryFrame({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final maxHeight = (MediaQuery.sizeOf(context).height *
+                  AppLayout.galleryViewportHeightFraction)
+              .clamp(0.0, AppSizes.propertyGalleryMaxHeight);
+          return SizedBox(
+            width: double.infinity,
+            height: (constraints.maxWidth / AppLayout.propertyGalleryAspectRatio)
+                .clamp(0.0, maxHeight),
+            child: child,
+          );
+        },
+      );
 }
 
 class _FullscreenGallery extends StatefulWidget {
@@ -754,16 +733,27 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                 bottom: AppSpacing.s16,
                 start: 0,
                 end: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: .58),
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.sizeOf(context).height *
+                          AppLayout.galleryCaptionMaxHeightFraction,
                     ),
-                    child: Text(
-                      '${_index + 1}/${widget.images.length} • اسحب للتنقل واضغط بإصبعين للتكبير',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    child: SingleChildScrollView(
+                      primary: false,
+                      child: Container(
+                        padding: const EdgeInsets.all(AppSpacing.s12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: AppOpacity.mediaScrim),
+                          borderRadius: BorderRadius.circular(AppRadii.card),
+                        ),
+                        child: Text(
+                          '${_index + 1}/${widget.images.length} • اسحب للتنقل واضغط بإصبعين للتكبير',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -810,10 +800,8 @@ class _AdvertiserCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                child: Icon(
-                  verified ? Icons.verified_user_outlined : Icons.person_outline,
-                ),
+              AppIdentityMark(
+                icon: verified ? Icons.verified_user_outlined : Icons.person_outline,
               ),
               const SizedBox(width: AppSpacing.s12),
               Expanded(
@@ -831,13 +819,14 @@ class _AdvertiserCard extends StatelessWidget {
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
+                    const SizedBox(height: AppSpacing.s8),
+                    AppStatusBadge(
+                      label: verified ? 'موثق' : 'غير موثق',
+                      tone: verified ? AppStatusTone.success : AppStatusTone.warning,
+                      icon: verified ? Icons.verified_outlined : Icons.info_outline,
+                    ),
                   ],
                 ),
-              ),
-              AppStatusBadge(
-                label: verified ? 'موثق' : 'غير موثق',
-                tone: verified ? AppStatusTone.success : AppStatusTone.warning,
-                icon: verified ? Icons.verified_outlined : Icons.info_outline,
               ),
             ],
           ),
@@ -857,24 +846,24 @@ class _AdvertiserCard extends StatelessWidget {
               runSpacing: AppSpacing.s8,
               children: signals
                   .map(
-                    (signal) => Chip(
-                      avatar: Icon(signal.icon, size: 18),
-                      label: Text(signal.label),
-                      visualDensity: VisualDensity.compact,
+                    (signal) => AppStatusBadge(
+                      icon: signal.icon,
+                      label: signal.label,
+                      tone: AppStatusTone.success,
                     ),
                   )
                   .toList(growable: false),
             ),
           ],
           const SizedBox(height: AppSpacing.s12),
-          Row(
+          Wrap(
+            spacing: AppSpacing.s16,
+            runSpacing: AppSpacing.s8,
             children: [
-              Expanded(
-                child: Text(
-                  advertiser.ratingCount == 0
-                      ? 'لا توجد تقييمات للمعلن بعد'
-                      : 'التقييم ${advertiser.ratingAverage.toStringAsFixed(1)} من 5 (${advertiser.ratingCount})',
-                ),
+              Text(
+                advertiser.ratingCount == 0
+                    ? 'لا توجد تقييمات للمعلن بعد'
+                    : 'التقييم ${advertiser.ratingAverage.toStringAsFixed(1)} من 5 (${advertiser.ratingCount})',
               ),
               Text('${property.commentsCount} تعليق ظاهر'),
             ],
@@ -912,43 +901,21 @@ class _PropertyPrimaryActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surface,
-      elevation: 10,
-      shadowColor: Colors.black.withValues(alpha: .12),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s10,
-            AppLayout.compactPageGutter,
-            AppSpacing.s10,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  label: loading ? 'جارٍ الفتح...' : 'مراسلة',
-                  icon: Icons.forum_outlined,
-                  loading: loading,
-                  onPressed: onMessage,
-                  expand: true,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              Expanded(
-                child: AppButton(
-                  label: 'طلب معاينة',
-                  icon: Icons.event_available_outlined,
-                  style: AppButtonStyle.tonal,
-                  onPressed: onViewing,
-                  expand: true,
-                ),
-              ),
-            ],
-          ),
+    return AppActionDock(
+      child: AppFieldPair(
+        first: AppButton(
+          label: loading ? 'جارٍ الفتح...' : 'مراسلة',
+          icon: Icons.forum_outlined,
+          loading: loading,
+          onPressed: onMessage,
+          expand: true,
+        ),
+        second: AppButton(
+          label: 'طلب معاينة',
+          icon: Icons.event_available_outlined,
+          style: AppButtonStyle.tonal,
+          onPressed: onViewing,
+          expand: true,
         ),
       ),
     );
@@ -960,19 +927,21 @@ class _PropertyDetailsSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
-      children: const [
-        AppSkeleton(height: 260, radius: AppRadii.card),
-        SizedBox(height: AppSpacing.s40),
-        AppSkeleton(height: 32),
-        SizedBox(height: AppSpacing.s12),
-        AppSkeleton(height: 24, width: 180),
-        SizedBox(height: AppSpacing.s24),
-        AppSkeleton(height: 120, radius: AppRadii.card),
-        SizedBox(height: AppSpacing.s16),
-        AppSkeleton(height: 160, radius: AppRadii.card),
-      ],
+    return AppContentFrame(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s12),
+        children: const [
+          _PropertyGalleryFrame(child: AppSkeleton(height: double.infinity, radius: AppRadii.card)),
+          SizedBox(height: AppSpacing.s16),
+          AppSkeleton(height: 32),
+          SizedBox(height: AppSpacing.s12),
+          AppSkeleton(height: 24, width: 180),
+          SizedBox(height: AppSpacing.s24),
+          AppSkeleton(height: 120, radius: AppRadii.card),
+          SizedBox(height: AppSpacing.s16),
+          AppSkeleton(height: 160, radius: AppRadii.card),
+        ],
+      ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/design/app_design.dart';
 import '../data/auth_controller.dart';
 import '../domain/auth_user.dart';
 
@@ -37,47 +38,60 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('الملف الشخصي')),
+        appBar: const AppAppBar(title: 'الملف الشخصي'),
         body: user == null
-            ? const Center(child: Text('يجب تسجيل الدخول.'))
-            : ListView(
-                padding: const EdgeInsets.all(20),
+            ? const AppEmptyState(title: 'الملف الشخصي', message: 'يجب تسجيل الدخول.', icon: Icons.person_outline)
+            : AppContentFrame(child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.s24),
                 children: [
+                  const AppPageHeading(
+                    title: 'بياناتك الشخصية',
+                    subtitle: 'راجع بيانات الحساب قبل حفظ أي تغيير.',
+                  ),
+                  AppSectionCard(title: 'الاسم والهوية', child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                   TextField(
                     controller: _name,
                     enabled: !_nameLocked(user),
                     decoration: const InputDecoration(
                       labelText: 'الاسم الرباعي',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   if (_nameLocked(user)) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpacing.s8),
                     const Text(
                       'الاسم مرتبط بمراجعة الهوية ولا يمكن تغييره أثناء قيد المراجعة أو بعد الاعتماد. عند الحاجة إلى تصحيح الاسم تواصل مع الدعم لإعادة فتح التحقق.',
                     ),
                   ],
-                  const SizedBox(height: 12),
+                    ],
+                  )),
+                  const SizedBox(height: AppSpacing.s16),
+                  AppSectionCard(title: 'بيانات التواصل', child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                   TextField(
                     controller: _phone,
                     keyboardType: TextInputType.phone,
+                    textDirection: TextDirection.ltr,
                     decoration: const InputDecoration(
                       labelText: 'رقم الهاتف',
-                      border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.s8),
                   const Text(
                     'تغيير رقم الهاتف يعيد الحساب إلى حالة انتظار التحقق.',
                   ),
-                  const SizedBox(height: 18),
+                    ],
+                  )),
+                  const SizedBox(height: AppSpacing.s24),
                   FilledButton.icon(
                     onPressed: _busy ? null : _save,
                     icon: const Icon(Icons.save_outlined),
                     label: const Text('حفظ'),
                   ),
                 ],
-              ),
+              )),
       ),
     );
   }

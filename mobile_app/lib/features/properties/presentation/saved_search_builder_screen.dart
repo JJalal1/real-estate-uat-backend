@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_components.dart';
+import '../../../core/design/app_design.dart';
 import '../data/saved_search_repository.dart';
 import '../domain/saved_property_search.dart';
 
@@ -85,247 +84,205 @@ class _SavedSearchBuilderScreenState
         appBar: AppAppBar(
           title: _editing ? 'تعديل البحث المحفوظ' : 'حفظ بحث جديد',
         ),
-        body: ListView(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s16,
-            AppLayout.compactPageGutter,
-            AppSpacing.s40,
-          ),
-          children: [
-            AppSurface(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    _editing ? 'عدّل شروط البحث' : 'خلّ التطبيق يتابع لك',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.s4),
-                  Text(
-                    'نحفظ شروط البحث في حسابك ونرسل تنبيهًا عند نشر عقار جديد يطابقها.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
+        body: AppContentFrame(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.s24),
+            children: [
+              AppPageHeading(
+                title: _editing ? 'عدّل شروط البحث' : 'خلّ التطبيق يتابع لك',
+                subtitle: 'نحفظ شروط البحث في حسابك ونرسل تنبيهًا عند نشر عقار جديد يطابقها.',
+              ),
+              TextField(
+                controller: _name,
+                maxLength: 120,
+                decoration: const InputDecoration(
+                  labelText: 'اسم البحث',
+                  hintText: 'مثال: شقة غرفتين في صنعاء',
+                  prefixIcon: Icon(Icons.bookmark_add_outlined),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s12),
+              AppActionGroup(children: [
+                AppFilterChip(
+                  label: 'شراء', icon: Icons.sell_outlined,
+                  selected: _purpose == 'sale',
+                  onSelected: (selected) => setState(() => _purpose = selected ? 'sale' : null),
+                ),
+                AppFilterChip(
+                  label: 'إيجار', icon: Icons.key_outlined,
+                  selected: _purpose == 'rent',
+                  onSelected: (selected) => setState(() => _purpose = selected ? 'rent' : null),
+                ),
+              ]),
+              const SizedBox(height: AppSpacing.s12),
+              DropdownButtonFormField<String>(
+                value: _type,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'نوع العقار'),
+                items: const [
+                  DropdownMenuItem(value: 'apartment', child: Text('شقة')),
+                  DropdownMenuItem(value: 'house', child: Text('منزل')),
+                  DropdownMenuItem(value: 'villa', child: Text('فيلا')),
+                  DropdownMenuItem(value: 'land', child: Text('أرض')),
+                  DropdownMenuItem(value: 'shop', child: Text('محل')),
+                  DropdownMenuItem(value: 'office', child: Text('مكتب')),
+                  DropdownMenuItem(value: 'farm', child: Text('مزرعة')),
                 ],
+                onChanged: (value) => setState(() => _type = value),
               ),
-            ),
-            const SizedBox(height: AppSpacing.s16),
-            TextField(
-              controller: _name,
-              maxLength: 120,
-              decoration: const InputDecoration(
-                labelText: 'اسم البحث',
-                hintText: 'مثال: شقة غرفتين في صنعاء',
-                prefixIcon: Icon(Icons.bookmark_add_outlined),
+              const SizedBox(height: AppSpacing.s12),
+              TextField(
+                controller: _keywords,
+                decoration: const InputDecoration(
+                  labelText: 'كلمات البحث (اختياري)',
+                  hintText: 'حي، شارع، وصف...',
+                  prefixIcon: Icon(Icons.search_rounded),
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.s12),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'sale',
-                  label: Text('شراء'),
-                  icon: Icon(Icons.sell_outlined),
-                ),
-                ButtonSegment(
-                  value: 'rent',
-                  label: Text('إيجار'),
-                  icon: Icon(Icons.key_outlined),
-                ),
-              ],
-              selected: _purpose == null ? const <String>{} : {_purpose!},
-              emptySelectionAllowed: true,
-              onSelectionChanged: (value) =>
-                  setState(() => _purpose = value.isEmpty ? null : value.first),
-            ),
-            const SizedBox(height: AppSpacing.s12),
-            DropdownButtonFormField<String>(
-              value: _type,
-              decoration: const InputDecoration(labelText: 'نوع العقار'),
-              items: const [
-                DropdownMenuItem(value: 'apartment', child: Text('شقة')),
-                DropdownMenuItem(value: 'house', child: Text('منزل')),
-                DropdownMenuItem(value: 'villa', child: Text('فيلا')),
-                DropdownMenuItem(value: 'land', child: Text('أرض')),
-                DropdownMenuItem(value: 'shop', child: Text('محل')),
-                DropdownMenuItem(value: 'office', child: Text('مكتب')),
-                DropdownMenuItem(value: 'farm', child: Text('مزرعة')),
-              ],
-              onChanged: (value) => setState(() => _type = value),
-            ),
-            const SizedBox(height: AppSpacing.s12),
-            TextField(
-              controller: _keywords,
-              decoration: const InputDecoration(
-                labelText: 'كلمات البحث (اختياري)',
-                hintText: 'حي، شارع، وصف...',
-                prefixIcon: Icon(Icons.search_rounded),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.s20),
-            const AppSectionHeader(
-              title: 'السعر',
-              subtitle: 'اترك أي خانة فارغة إذا ما تبغى تحددها.',
-            ),
-            const SizedBox(height: AppSpacing.s8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _minPrice,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'أقل سعر',
-                      suffixText: 'ريال',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s8),
-                Expanded(
-                  child: TextField(
-                    controller: _maxPrice,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'أعلى سعر',
-                      suffixText: 'ريال',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.s20),
-            const AppSectionHeader(title: 'المواصفات'),
-            const SizedBox(height: AppSpacing.s8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _minBedrooms,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        const InputDecoration(labelText: 'أقل عدد غرف'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s8),
-                Expanded(
-                  child: TextField(
-                    controller: _minBathrooms,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        const InputDecoration(labelText: 'أقل عدد حمامات'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.s12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _minArea,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'أقل مساحة',
-                      suffixText: 'م²',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s8),
-                Expanded(
-                  child: TextField(
-                    controller: _maxArea,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'أعلى مساحة',
-                      suffixText: 'م²',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (_hasLocationFilter) ...[
               const SizedBox(height: AppSpacing.s20),
-              const AppSectionHeader(title: 'الموقع المحفوظ'),
-              const SizedBox(height: AppSpacing.s8),
-              AppSurface(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.location_on_outlined,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: AppSpacing.s8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _locationSummary,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: AppSpacing.s8),
-                          TextButton.icon(
-                            onPressed: _removeLocationFilter,
-                            icon: const Icon(Icons.location_off_outlined),
-                            label: const Text('إزالة قيد الموقع'),
-                          ),
-                        ],
+              AppSectionCard(
+                title: 'السعر',
+                subtitle: 'اترك أي خانة فارغة إذا ما تبغى تحددها.',
+                child: AppFieldPair(
+                first: TextField(
+                      controller: _minPrice,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'أقل سعر',
+                        suffixText: 'ريال',
                       ),
                     ),
-                  ],
+                second: TextField(
+                      controller: _maxPrice,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'أعلى سعر',
+                        suffixText: 'ريال',
+                      ),
+                    ),
+              ),
+              ),
+              const SizedBox(height: AppSpacing.s20),
+              AppSectionCard(
+                title: 'المواصفات',
+                child: Column(children: [
+              AppFieldPair(
+                first: TextField(
+                      controller: _minBedrooms,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          const InputDecoration(labelText: 'أقل عدد غرف'),
+                    ),
+                second: TextField(
+                      controller: _minBathrooms,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          const InputDecoration(labelText: 'أقل عدد حمامات'),
+                    ),
+              ),
+              const SizedBox(height: AppSpacing.s12),
+              AppFieldPair(
+                first: TextField(
+                      controller: _minArea,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'أقل مساحة',
+                        suffixText: 'م²',
+                      ),
+                    ),
+                second: TextField(
+                      controller: _maxArea,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'أعلى مساحة',
+                        suffixText: 'م²',
+                      ),
+                    ),
+              ),
+                ]),
+              ),
+              if (_hasLocationFilter) ...[
+                const SizedBox(height: AppSpacing.s20),
+                const AppSectionHeader(title: 'الموقع المحفوظ'),
+                const SizedBox(height: AppSpacing.s8),
+                AppSurface(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: AppSpacing.s8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _locationSummary,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: AppSpacing.s8),
+                            TextButton.icon(
+                              onPressed: _removeLocationFilter,
+                              icon: const Icon(Icons.location_off_outlined),
+                              label: const Text('إزالة قيد الموقع'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ],
+              const SizedBox(height: AppSpacing.s20),
+              const AppSectionHeader(
+                title: 'التنبيه',
+                subtitle:
+                    'التنبيه الفوري يعمل الآن. لن نظهر الملخص اليومي كخيار جديد قبل تشغيل جدولة موثوقة له.',
+              ),
+              const SizedBox(height: AppSpacing.s8),
+              RadioListTile<String>(
+                value: 'instant',
+                groupValue: _frequency,
+                title: const Text('تنبيه فوري'),
+                subtitle: const Text('عند نشر عقار جديد يطابق البحث.'),
+                onChanged: (value) =>
+                    setState(() => _frequency = value ?? 'instant'),
+              ),
+              RadioListTile<String>(
+                value: 'off',
+                groupValue: _frequency,
+                title: const Text('حفظ بدون تنبيهات'),
+                onChanged: (value) =>
+                    setState(() => _frequency = value ?? 'off'),
+              ),
+              if (_frequency == 'daily')
+                const RadioListTile<String>(
+                  value: 'daily',
+                  groupValue: 'daily',
+                  title: Text('ملخص يومي محفوظ سابقًا'),
+                  subtitle: Text(
+                    'هذا الخيار غير متاح لعمليات إنشاء جديدة حاليًا. اختر الفوري أو بدون تنبيهات إذا أردت تغييره.',
+                  ),
+                  onChanged: null,
+                ),
+              const SizedBox(height: AppSpacing.s20),
+              AppButton(
+                label: _saving
+                    ? 'جارٍ الحفظ...'
+                    : _editing
+                        ? 'حفظ التعديلات'
+                        : 'حفظ البحث',
+                icon: _frequency == 'instant'
+                    ? Icons.notifications_active_outlined
+                    : Icons.bookmark_add_outlined,
+                loading: _saving,
+                onPressed: _saving ? null : _save,
+                expand: true,
               ),
             ],
-            const SizedBox(height: AppSpacing.s20),
-            const AppSectionHeader(
-              title: 'التنبيه',
-              subtitle:
-                  'التنبيه الفوري يعمل الآن. لن نظهر الملخص اليومي كخيار جديد قبل تشغيل جدولة موثوقة له.',
-            ),
-            const SizedBox(height: AppSpacing.s8),
-            RadioListTile<String>(
-              value: 'instant',
-              groupValue: _frequency,
-              title: const Text('تنبيه فوري'),
-              subtitle: const Text('عند نشر عقار جديد يطابق البحث.'),
-              onChanged: (value) =>
-                  setState(() => _frequency = value ?? 'instant'),
-            ),
-            RadioListTile<String>(
-              value: 'off',
-              groupValue: _frequency,
-              title: const Text('حفظ بدون تنبيهات'),
-              onChanged: (value) =>
-                  setState(() => _frequency = value ?? 'off'),
-            ),
-            if (_frequency == 'daily')
-              const RadioListTile<String>(
-                value: 'daily',
-                groupValue: 'daily',
-                title: Text('ملخص يومي محفوظ سابقًا'),
-                subtitle: Text(
-                  'هذا الخيار غير متاح لعمليات إنشاء جديدة حاليًا. اختر الفوري أو بدون تنبيهات إذا أردت تغييره.',
-                ),
-                onChanged: null,
-              ),
-            const SizedBox(height: AppSpacing.s20),
-            AppButton(
-              label: _saving
-                  ? 'جارٍ الحفظ...'
-                  : _editing
-                      ? 'حفظ التعديلات'
-                      : 'حفظ البحث',
-              icon: _frequency == 'instant'
-                  ? Icons.notifications_active_outlined
-                  : Icons.bookmark_add_outlined,
-              loading: _saving,
-              onPressed: _saving ? null : _save,
-              expand: true,
-            ),
-          ],
+          ),
         ),
       ),
     );
