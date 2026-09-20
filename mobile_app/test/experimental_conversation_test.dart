@@ -53,9 +53,14 @@ void main() {
     await _enter(tester, 'رسالة أولى');
     await _tap(tester, find.byTooltip('إرسال الرسالة'));
     expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'رسالة أولى');
+    // Wait for the existing error SnackBar to leave the composer hit area.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
     await _enter(tester, 'رسالة ثانية');
     await _tap(tester, find.byTooltip('إرسال الرسالة'));
     expect(repository.keys[0], isNot(repository.keys[1]));
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
     await _tap(tester, find.byTooltip('إرسال الرسالة'));
     expect(repository.keys[1], repository.keys[2]);
     expect(repository.sent, ['رسالة أولى', 'رسالة ثانية', 'رسالة ثانية']);
@@ -100,7 +105,7 @@ void main() {
     await _tap(tester, find.text('إعادة المحاولة'));
     expect(repository.detailCalls, 2);
     expect(find.text('ابدأ المحادثة برسالة محترمة وواضحة.'), findsOneWidget);
-    expect(tester.widget<IconButton>(find.byTooltip('إرسال الرسالة')).onPressed, isNotNull);
+    expect(tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.send)).onPressed, isNotNull);
     expect(tester.takeException(), isNull);
   });
 }
