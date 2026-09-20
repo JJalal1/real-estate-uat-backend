@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `8aab16d97386ed1977e848c81cfef70e3e3915c9` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `327bb9c8e27078b5201e60553107f9955424f1c3` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -41,11 +41,13 @@ PHASE 5 — responsive listing editor. Discovery, saved searches, comparison and
 
 Comparison commit `18677a960ef557542723bd185bb5b39e037012c3` passed Experimental UI `35482673515` and companion `35482675141`: analyze, complete Flutter suites, backend/PostGIS, Frankfurt guards/live checks, isolated APK. Reviewed comparison screenshots from artifact `10596810629`; APK artifact `10597320142`. Stable/main refs reverified unchanged on 2026-09-20.
 
-Read the complete listing editor and its existing contract tests. Implemented shared bounded action dock, scrolling correction/progress, constrained form surface, responsive field pairs and wrapping single-choice controls. Kept all validators, payload, persistence, identity checks, Sai and media methods byte-for-byte unchanged. Added seven widget cases for all five steps across narrow/enlarged/landscape RTL, rental draft payload and busy actions, title/tenure/location gates, unit identity and rental validation order. Editor analyze and six of seven new cases passed at `8aab16d`; companion CI `35483237033` found one test-finder ambiguity: Sai warning text exists both in section subtitle and SnackBar. Scoped the existing exact warning assertion to SnackBar; retained all validation/no-write assertions. Correction awaits full CI/APK.
+Read the complete listing editor and its existing contract tests. Implemented shared bounded action dock, scrolling correction/progress, constrained form surface, responsive field pairs and wrapping single-choice controls. Kept all validators, payload, persistence, identity checks, Sai and media methods byte-for-byte unchanged. Added seven widget cases for all five steps across narrow/enlarged/landscape RTL, rental draft payload and busy actions, title/tenure/location gates, unit identity and rental validation order. Editor analyze and six of seven new cases passed at `8aab16d`; companion CI `35483237033` found one test-finder ambiguity: Sai warning text exists both in section subtitle and SnackBar. Scoped the existing exact warning assertion to SnackBar; retained all validation/no-write assertions. Correction verified: companion `35483354668` SUCCESS (300 tests including guard), Experimental `35483351367` analyze/tests/Frankfurt checks passed and APK building. Reviewed editor artifact `10597111112`; narrow large-text previous button split its Arabic word in the old 1:2 action row. Switched that pair to shared responsive composition, preserving callbacks.
+
+Sai configuration now uses central content/heading/section/paired actions. All management values, fallback formulas, payer/rate validation and save/result behavior retained; `_save` through formatting is byte-for-byte unchanged. Nine new tests exercise owner/professional RTL, exact payer/rate/decision payload, rejection, zero fallback, validation order and retry/cancel. These changes await CI.
 
 # Next Exact Step
 
-Publish the test-finder correction and require complete CI/APK. Diagnose any failure before expanding scope. Inspect editor visual artifacts, then cover remaining listing preview/evidence/Sai/map journeys and continue messaging. Do not repeat completed discovery/comparison work.
+Publish Sai presentation plus editor action-wrap correction and require complete CI/APK. Diagnose any failure before expanding scope. Inspect editor visual artifacts, then cover remaining listing preview/evidence/Sai/map journeys and continue messaging. Do not repeat completed discovery/comparison work.
 
 # Files Changed
 
@@ -90,6 +92,7 @@ Publish the test-finder correction and require complete CI/APK. Diagnose any fai
 - Saved-search builder/list/results presentation files and `experimental_saved_search_test.dart` — responsive editor/list and ten behavior/layout cases.
 - `property_compare_screen.dart` and `experimental_property_compare_test.dart` — aligned comparison table, original values/actions and six regression cases.
 - `listing_editor_screen.dart` and `experimental_listing_editor_test.dart` — responsive five-step presentation and seven regression cases.
+- `property_sai_configuration_sheet.dart` and `experimental_sai_configuration_test.dart` — responsive existing terms and nine regressions.
 - This checkpoint.
 
 # Screens Completed
@@ -101,6 +104,9 @@ Implemented and automated-verified: main navigation/discovery controls and resul
 Listing editor and related modals/pickers, messaging, account/KYC, management, support, financial/agreements, role-specific hubs, remaining secondary screens and router error presentation. See the inventory implementation ledger; native/authenticated acceptance still applies to previously automated-verified screens.
 
 # Tests Last Run
+
+- 2026-09-20, `327bb9c`: companion `35483354668` SUCCESS, analyze and 300 tests including compile-time guard. Experimental `35483351367` tests/Frankfurt checks passed; APK pending at checkpoint. Visual artifact `10597111112` reviewed at normal/enlarged/landscape sizes.
+
 
 - 2026-09-20, `8aab16d`: companion `35483237033` analyze/backend/PostGIS PASS; Flutter 299 passed, one failed due new warning finder matching subtitle and SnackBar. Exact SnackBar-scoped correction in this commit; no app logic change.
 
@@ -209,7 +215,7 @@ Official supplementary source: https://www.marketplace.wrteam.in/products/ebroke
 # Resume Instructions
 
 Draft PR: https://github.com/JJalal1/real-estate-uat-backend/pull/54
-Experimental CI: https://github.com/JJalal1/real-estate-uat-backend/actions/runs/34791688437
+Experimental CI (latest tested checkpoint): https://github.com/JJalal1/real-estate-uat-backend/actions/runs/35483351367
 
 1. Read this file, `AGENTS.md`, then `git status`, `git branch --show-current`, `git log -5 --oneline` and remote experimental HEAD.
 2. Continue only on `experiment/ebroker-inspired-ui-v1`; preserve unrelated user changes.

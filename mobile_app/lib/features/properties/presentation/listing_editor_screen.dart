@@ -987,27 +987,21 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
 
   Widget _actions() {
     if (_step < 4) {
-      return _BottomBar(
-        children: [
-          if (_step > 0)
-            Expanded(
-              child: AppButton(
-                label: 'السابق',
-                style: AppButtonStyle.outlined,
-                onPressed: _busy ? null : () => setState(() => _step--),
-                expand: true,
-              ),
-            ),
-          if (_step > 0) const SizedBox(width: AppSpacing.s8),
-          Expanded(
-            flex: 2,
-            child: AppButton(
-              label: 'التالي',
-              onPressed: _busy ? null : _next,
-              expand: true,
-            ),
+      final next = AppButton(
+        label: 'التالي',
+        onPressed: _busy ? null : _next,
+        expand: true,
+      );
+      return AppActionDock(
+        child: _step == 0 ? next : AppFieldPair(
+          first: AppButton(
+            label: 'السابق',
+            style: AppButtonStyle.outlined,
+            onPressed: _busy ? null : () => setState(() => _step--),
+            expand: true,
           ),
-        ],
+          second: next,
+        ),
       );
     }
 
@@ -1778,17 +1772,6 @@ class _ProgressHeader extends StatelessWidget {
       ),
     );
   }
-}
-
-class _BottomBar extends StatelessWidget {
-  const _BottomBar({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) => AppActionDock(
-        child: Row(children: children),
-      );
 }
 
 class _FinalActionsBar extends StatelessWidget {

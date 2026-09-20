@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_components.dart';
+import '../../../core/design/app_design.dart';
 import '../data/property_repository.dart';
 import '../domain/property_sai.dart';
 
@@ -88,18 +87,15 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
 
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Padding(
-        padding: EdgeInsetsDirectional.fromSTEB(
-          AppLayout.compactPageGutter,
-          AppSpacing.s16,
-          AppLayout.compactPageGutter,
-          MediaQuery.viewInsetsOf(context).bottom + AppSpacing.s24,
-        ),
+      child: AppContentFrame(
         child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.s24,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppSectionHeader(
+              AppPageHeading(
                 title: 'تحديد السعي قبل إرسال الإعلان',
                 subtitle: isOwner
                     ? 'نسبة السعي ثابتة في النظام. حدد فقط الطرف الذي يتحملها.'
@@ -121,6 +117,7 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: 'نسبة السعي %',
+                    helperMaxLines: 3,
                     helperText: isSale
                         ? 'المسموح من 0% إلى 5%.'
                         : 'المسموح من 0% إلى 100% من إيجار الشهر الأول.',
@@ -143,15 +140,18 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
                   ),
               ],
               const SizedBox(height: AppSpacing.s16),
-              Text('من يتحمل السعي؟', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.s8),
-              ...payerOptions.entries.map(
-                (entry) => RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  value: entry.key,
-                  groupValue: _payer,
-                  onChanged: _busy ? null : (value) => setState(() => _payer = value),
-                  title: Text('السعي ${_formatRate(effective)}% يتحملها ${entry.value}'),
+              AppSectionCard(
+                title: 'من يتحمل السعي؟',
+                child: Column(
+                  children: payerOptions.entries.map(
+                    (entry) => RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      value: entry.key,
+                      groupValue: _payer,
+                      onChanged: _busy ? null : (value) => setState(() => _payer = value),
+                      title: Text('السعي ${_formatRate(effective)}% يتحملها ${entry.value}'),
+                    ),
+                  ).toList(growable: false),
                 ),
               ),
               if (_error != null) ...[
@@ -160,27 +160,20 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
               ],
               const SizedBox(height: AppSpacing.s20),
               if (!isOwner && enteredRate > 0 && enteredRate <= maxProfessionalRate)
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppButton(
-                        label: 'رفض',
-                        style: AppButtonStyle.outlined,
-                        loading: _busy,
-                        onPressed: _busy ? null : () => _save('reject'),
-                        expand: true,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.s8),
-                    Expanded(
-                      child: AppButton(
-                        label: 'قبول',
-                        loading: _busy,
-                        onPressed: _busy ? null : () => _save('accept'),
-                        expand: true,
-                      ),
-                    ),
-                  ],
+                AppFieldPair(
+                  first: AppButton(
+                    label: 'رفض',
+                    style: AppButtonStyle.outlined,
+                    loading: _busy,
+                    onPressed: _busy ? null : () => _save('reject'),
+                    expand: true,
+                  ),
+                  second: AppButton(
+                    label: 'قبول',
+                    loading: _busy,
+                    onPressed: _busy ? null : () => _save('accept'),
+                    expand: true,
+                  ),
                 )
               else
                 AppButton(
