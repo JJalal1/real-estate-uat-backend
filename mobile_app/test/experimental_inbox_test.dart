@@ -57,6 +57,11 @@ void main() {
     final initial = Completer<List<MessageThreadSummary>>();
     final repository = _Repository()..pending = initial;
     await _open(tester, repository, size: const Size(600, 280), scale: 2.4, settle: false);
+    // The enlarged heading fills this short viewport. Scroll the lazy sliver
+    // into view without settling the continuously animated loading state.
+    await tester.scrollUntilVisible(find.byType(AppSkeleton).first, 200,
+      scrollable: find.descendant(of: find.byType(CustomScrollView),
+        matching: find.byType(Scrollable)).first);
     expect(find.byType(AppSkeleton), findsWidgets);
     initial.completeError(StateError('fixture unavailable'));
     await tester.pumpAndSettle();
