@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import '../../../core/design/app_design.dart';
+import 'listing_map_dock.dart';
+
 class PropertyLandBoundarySelection {
   const PropertyLandBoundarySelection(this.points);
 
@@ -160,8 +163,8 @@ class _PropertyLandBoundaryPickerScreenState
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('رسم حدود الأرض'),
+        appBar: AppAppBar(
+          title: 'رسم حدود الأرض',
           actions: [
             IconButton(
               tooltip: 'تراجع عن آخر نقطة',
@@ -190,36 +193,15 @@ class _PropertyLandBoundaryPickerScreenState
               ),
             ),
             PositionedDirectional(
-              start: 14,
-              end: 14,
-              top: 14,
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    _points.isEmpty
-                        ? 'اضغط على زوايا الأرض بالترتيب. لا تعتمد على الدبوس وحده.'
-                        : 'تم تحديد ${_points.length} نقطة. أكمل محيط الأرض ثم أكد الحدود.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-            ),
-            PositionedDirectional(
-              start: 14,
-              end: 14,
-              bottom: 18,
-              child: SafeArea(
-                top: false,
-                child: FilledButton.icon(
-                  onPressed: _points.length >= 3 ? _confirm : null,
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 14),
-                    child: Text('اعتماد حدود الأرض'),
-                  ),
-                ),
+              start: 0,
+              end: 0,
+              bottom: 0,
+              child: ListingMapDock(
+                instruction: _points.isEmpty
+                    ? 'اضغط على زوايا الأرض بالترتيب. لا تعتمد على الدبوس وحده.'
+                    : 'تم تحديد ${_points.length} نقطة. أكمل محيط الأرض ثم أكد الحدود.',
+                primaryLabel: 'اعتماد حدود الأرض',
+                onPrimary: _points.length >= 3 ? _confirm : null,
               ),
             ),
           ],

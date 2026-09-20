@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-20 UTC
 Current branch: `experiment/ebroker-inspired-ui-v1`
-Current commit SHA: `327bb9c8e27078b5201e60553107f9955424f1c3` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
+Current commit SHA: `d36f4e6d0b248616f5995a6ae17179fe7aede9c4` (last published implementation/audit commit before this checkpoint; obtain the checkpoint's own SHA with `git log -1 --format=%H -- docs/work-progress/EBROKER_UI_REDESIGN_STATE.md` because a commit cannot contain its own hash).
 Latest stable source SHA: `46b8fed8fd119b223d4a1e67312d38ff9429e569`, verified directly against GitHub on 2026-09-13 at task start.
 Initial main SHA: `5b2c226aca467fc8ec392782d6e2a1a0d7271bb6`.
 
@@ -41,13 +41,15 @@ PHASE 5 — responsive listing editor. Discovery, saved searches, comparison and
 
 Comparison commit `18677a960ef557542723bd185bb5b39e037012c3` passed Experimental UI `35482673515` and companion `35482675141`: analyze, complete Flutter suites, backend/PostGIS, Frankfurt guards/live checks, isolated APK. Reviewed comparison screenshots from artifact `10596810629`; APK artifact `10597320142`. Stable/main refs reverified unchanged on 2026-09-20.
 
-Read the complete listing editor and its existing contract tests. Implemented shared bounded action dock, scrolling correction/progress, constrained form surface, responsive field pairs and wrapping single-choice controls. Kept all validators, payload, persistence, identity checks, Sai and media methods byte-for-byte unchanged. Added seven widget cases for all five steps across narrow/enlarged/landscape RTL, rental draft payload and busy actions, title/tenure/location gates, unit identity and rental validation order. Editor analyze and six of seven new cases passed at `8aab16d`; companion CI `35483237033` found one test-finder ambiguity: Sai warning text exists both in section subtitle and SnackBar. Scoped the existing exact warning assertion to SnackBar; retained all validation/no-write assertions. Correction verified: companion `35483354668` SUCCESS (300 tests including guard), Experimental `35483351367` analyze/tests/Frankfurt checks passed and APK building. Reviewed editor artifact `10597111112`; narrow large-text previous button split its Arabic word in the old 1:2 action row. Switched that pair to shared responsive composition, preserving callbacks.
+Read the complete listing editor and its existing contract tests. Implemented shared bounded action dock, scrolling correction/progress, constrained form surface, responsive field pairs and wrapping single-choice controls. Kept all validators, payload, persistence, identity checks, Sai and media methods byte-for-byte unchanged. Added seven widget cases for all five steps across narrow/enlarged/landscape RTL, rental draft payload and busy actions, title/tenure/location gates, unit identity and rental validation order. Editor analyze and six of seven new cases passed at `8aab16d`; companion CI `35483237033` found one test-finder ambiguity: Sai warning text exists both in section subtitle and SnackBar. Scoped the existing exact warning assertion to SnackBar; retained all validation/no-write assertions. Correction verified: companion `35483354668` SUCCESS (300 tests including guard), Experimental `35483351367` SUCCESS including APK; artifact `10596956759`. Reviewed editor artifact `10597111112`; narrow large-text previous button split its Arabic word in the old 1:2 action row. Switched that pair to shared responsive composition, preserving callbacks.
 
-Sai configuration now uses central content/heading/section/paired actions. All management values, fallback formulas, payer/rate validation and save/result behavior retained; `_save` through formatting is byte-for-byte unchanged. Nine new tests exercise owner/professional RTL, exact payer/rate/decision payload, rejection, zero fallback, validation order and retry/cancel. These changes await CI.
+Sai configuration now uses central content/heading/section/paired actions. All management values, fallback formulas, payer/rate validation and save/result behavior retained; `_save` through formatting is byte-for-byte unchanged. Nine new tests exercise owner/professional RTL, exact payer/rate/decision payload, rejection, zero fallback, validation order and retry/cancel. Sai changes published as `d36f4e6` after the earlier create-commit approval review failed due exhausted workspace credits; retry in the explicitly resumed session succeeded. Experimental `35528739995` analyze and full Flutter tests passed; full APK gate pending at this checkpoint.
+
+Location and land-boundary pickers now share a bounded scrolling `ListingMapDock`. Instructions and confirm/current-location actions remain accessible on narrow/large-text/landscape displays while map viewport stays unchanged. All pre-build state/mutation methods and native MapLibre construction compared byte-for-byte against parent. Added five cases for exposed-map input, all callbacks, height bounds, loading and disabled confirmation. Native map device interaction remains pending.
 
 # Next Exact Step
 
-Publish Sai presentation plus editor action-wrap correction and require complete CI/APK. Diagnose any failure before expanding scope. Inspect editor visual artifacts, then cover remaining listing preview/evidence/Sai/map journeys and continue messaging. Do not repeat completed discovery/comparison work.
+Publish picker controls and require complete CI/APK; inspect Sai/editor and picker artifacts. Then finish listing preview/evidence/identity dialog presentation audit and proceed to messaging. Preserve all native map/device acceptance items as pending until actually exercised.
 
 # Files Changed
 
@@ -93,6 +95,7 @@ Publish Sai presentation plus editor action-wrap correction and require complete
 - `property_compare_screen.dart` and `experimental_property_compare_test.dart` — aligned comparison table, original values/actions and six regression cases.
 - `listing_editor_screen.dart` and `experimental_listing_editor_test.dart` — responsive five-step presentation and seven regression cases.
 - `property_sai_configuration_sheet.dart` and `experimental_sai_configuration_test.dart` — responsive existing terms and nine regressions.
+- `listing_map_dock.dart`, location/boundary picker presentation and `experimental_listing_map_dock_test.dart` — bounded controls and five map-input/action cases.
 - This checkpoint.
 
 # Screens Completed
@@ -104,6 +107,9 @@ Implemented and automated-verified: main navigation/discovery controls and resul
 Listing editor and related modals/pickers, messaging, account/KYC, management, support, financial/agreements, role-specific hubs, remaining secondary screens and router error presentation. See the inventory implementation ledger; native/authenticated acceptance still applies to previously automated-verified screens.
 
 # Tests Last Run
+
+- 2026-09-20, `d36f4e6`: Experimental `35528739995` analyze/full Flutter tests passed; APK gate still running. Five additional map-dock cases await CI. `git diff --check` and 346-file locked-source guard pass.
+
 
 - 2026-09-20, `327bb9c`: companion `35483354668` SUCCESS, analyze and 300 tests including compile-time guard. Experimental `35483351367` tests/Frankfurt checks passed; APK pending at checkpoint. Visual artifact `10597111112` reviewed at normal/enlarged/landscape sizes.
 

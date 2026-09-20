@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
-import '../../../core/theme/app_theme.dart';
+import '../../../core/design/app_design.dart';
+import 'listing_map_dock.dart';
 import '../../map/domain/map_screen_coordinate_space.dart';
 import '../domain/property_location_address.dart';
 
@@ -229,10 +230,7 @@ class _PropertyLocationPickerScreenState
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.title),
-          centerTitle: true,
-        ),
+        appBar: AppAppBar(title: widget.title),
         body: LayoutBuilder(
           builder: (context, constraints) {
             final size = Size(constraints.maxWidth, constraints.maxHeight);
@@ -252,39 +250,6 @@ class _PropertyLocationPickerScreenState
                     minMaxZoomPreference: const MinMaxZoomPreference(3, 19),
                     rotateGesturesEnabled: false,
                     tiltGesturesEnabled: false,
-                  ),
-                ),
-                PositionedDirectional(
-                  start: 14,
-                  end: 14,
-                  top: 14,
-                  child: IgnorePointer(
-                    child: Card(
-                      elevation: 3,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.location_on_rounded,
-                                color: AppTheme.brand),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _styleLoaded
-                                    ? 'اسحب الدبوس إلى العقار، أو حرّك الخريطة ليعود الدبوس إلى المنتصف.'
-                                    : 'جارٍ تحميل الخريطة…',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
                 ),
                 if (_styleLoaded) ...[
@@ -335,68 +300,25 @@ class _PropertyLocationPickerScreenState
                   ),
                 ],
                 PositionedDirectional(
-                  end: 14,
-                  bottom: 150,
-                  child: FloatingActionButton.small(
-                    heroTag: 'property-picker-current-location',
-                    tooltip: 'موقعي الحالي',
-                    onPressed: _styleLoaded ? _moveToCurrentLocation : null,
-                    child: const Icon(Icons.my_location_rounded),
-                  ),
-                ),
-                PositionedDirectional(
-                  start: 14,
-                  end: 14,
-                  bottom: 18,
-                  child: SafeArea(
-                    top: false,
-                    child: Card(
-                      elevation: 5,
-                      margin: EdgeInsets.zero,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (_message != null) ...[
-                              Text(
-                                _message!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                            ] else
-                              const Text(
-                                'بعد التأكيد سنحاول تعبئة المحافظة والحي والشارع تلقائياً، ويمكنك تعديلها.',
-                                textAlign: TextAlign.center,
-                              ),
-                            FilledButton.icon(
-                              onPressed:
-                                  _styleLoaded && !_resolving ? _confirm : null,
-                              icon: _resolving
-                                  ? const SizedBox.square(
-                                      dimension: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.check_circle_outline),
-                              label: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                                child: Text(
-                                  _resolving
-                                      ? 'جارٍ قراءة العنوان…'
-                                      : 'تأكيد هذا الموقع',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  start: 0,
+                  end: 0,
+                  bottom: 0,
+                  child: ListingMapDock(
+                    instruction: _styleLoaded
+                        ? 'اسحب الدبوس إلى العقار، أو حرّك الخريطة ليعود الدبوس إلى المنتصف.'
+                        : 'جارٍ تحميل الخريطة…',
+                    message: _message ??
+                        'بعد التأكيد سنحاول تعبئة المحافظة والحي والشارع تلقائياً، ويمكنك تعديلها.',
+                    primaryLabel: _resolving
+                        ? 'جارٍ قراءة العنوان…' : 'تأكيد هذا الموقع',
+                    loading: _resolving,
+                    onPrimary: _styleLoaded && !_resolving ? _confirm : null,
+                    secondaryAction: AppButton(
+                      label: 'موقعي الحالي',
+                      icon: Icons.my_location_rounded,
+                      style: AppButtonStyle.tonal,
+                      onPressed: _styleLoaded ? _moveToCurrentLocation : null,
+                      expand: true,
                     ),
                   ),
                 ),
