@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/design/app_design.dart';
 import '../data/auth_controller.dart';
 import '../data/auth_return_intent.dart';
 
@@ -29,45 +30,37 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('إكمال الحساب')),
-        body: ListView(
-          padding: const EdgeInsets.all(20),
+        appBar: const AppAppBar(title: 'إكمال الحساب'),
+        body: AppContentFrame(child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s24),
           children: [
-            Text(
-              'أدخل اسمك الرباعي',
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w900),
+            const AppIdentityMark(icon: Icons.person_outline),
+            const AppPageHeading(
+              title: 'أدخل اسمك الرباعي',
+              subtitle: 'اكتب الاسم الرباعي كما هو في وثيقة الهوية. بعد ذلك يصبح حسابك حسابًا أساسيًا للتصفح والبحث والشراء، ويمكنك لاحقًا اختيار نوع حساب موثق من صفحة «حسابي».',
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'اكتب الاسم الرباعي كما هو في وثيقة الهوية. بعد ذلك يصبح حسابك حسابًا أساسيًا للتصفح والبحث والشراء، ويمكنك لاحقًا اختيار نوع حساب موثق من صفحة «حسابي».',
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _name,
-              textInputAction: TextInputAction.done,
-              onSubmitted: _busy ? null : (_) => _submit(),
-              decoration: const InputDecoration(
-                labelText: 'الاسم الرباعي',
-                hintText: 'الاسم الأول الثاني الثالث الرابع',
-                border: OutlineInputBorder(),
+            AppSectionCard(
+              title: 'الاسم في وثيقة الهوية',
+              child: TextField(
+                controller: _name,
+                textInputAction: TextInputAction.done,
+                onSubmitted: _busy ? null : (_) => _submit(),
+                decoration: const InputDecoration(
+                  labelText: 'الاسم الرباعي',
+                  hintText: 'الاسم الأول الثاني الثالث الرابع',
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
+            const SizedBox(height: AppSpacing.s24),
+            AppButton(
+              label: 'حفظ ومتابعة',
+              icon: Icons.check_circle_outline,
+              loading: _busy,
               onPressed: _busy ? null : _submit,
-              icon: _busy
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.check_circle_outline),
-              label: const Text('حفظ ومتابعة'),
+              expand: true,
             ),
           ],
-        ),
+        )),
       ),
     );
   }
