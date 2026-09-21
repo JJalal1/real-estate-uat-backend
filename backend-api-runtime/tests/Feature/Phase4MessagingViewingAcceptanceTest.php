@@ -8,8 +8,10 @@ use App\Models\PrivateMessage;
 use App\Models\Property;
 use App\Models\PropertyAsset;
 use App\Models\Role;
+use App\Models\SupportTask;
 use App\Models\User;
 use App\Models\ViewingBooking;
+use App\Services\SupportTaskService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -107,6 +109,41 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
         ])->assertUnprocessable();
     }
 
+    public function test_external_calls_share_one_support_followup_and_overdue_flow_escalates(): void
+    {
+        [$owner,]=$this->user('p4-follow-owner@example.test','+967760000031');
+        [, $buyerHeaders]=$this->user('p4-follow-buyer@example.test','+967760000032');
+        $property=$this->property($owner,'Phase 4 support follow-up');
+        $property->forceFill(['contact_phone'=>'+967771111111'])->save();
+
+        $threadId=(int)$this->withHeaders($buyerHeaders)
+            ->postJson("/api/properties/{$property->id}/conversation")
+            ->assertCreated()->json('data.id');
+
+        $this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/external-call")->assertOk();
+        $this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/external-call")->assertOk();
+
+        $this->assertSame(1,SupportTask::query()->where('source_type','contact_followup')->where('source_id',$threadId)->count());
+        $task=SupportTask::query()->where('source_type','contact_followup')->where('source_id',$threadId)->firstOrFail();
+        $this->assertSame(2,(int)($task->metadata['external_call_count']??0));
+        $this->assertSame('new',$task->status);
+        $this->assertNotNull($task->sla_due_at);
+
+        $task->forceFill(['sla_due_at'=>now()->subMinute()])->save();
+        $first=app(SupportTaskService::class)->processContactFollowupDeadlines();
+        $this->assertSame(1,$first['overdue_notified']);
+        $task->refresh();
+        $this->assertSame('needs_followup',$task->status);
+        $this->assertNotEmpty($task->metadata['overdue_notified_at']??null);
+
+        $task->forceFill(['sla_due_at'=>now()->subHours(25)])->save();
+        $second=app(SupportTaskService::class)->processContactFollowupDeadlines();
+        $this->assertSame(1,$second['escalated']);
+        $task->refresh();
+        $this->assertSame('escalated',$task->status);
+        $this->assertSame('urgent',$task->priority);
+        $this->assertNotNull($task->escalated_at);
+    }
     public function test_conversation_returns_latest_page_and_can_load_older_messages_without_overlap(): void
     {
         [$owner,]=$this->user('p4-page-owner@example.test','+967760000010');
