@@ -52,6 +52,14 @@ class MessageRepository {
     return PrivateMessageItem.fromJson(_dataMap(response.data));
   }
 
+
+  Future<ExternalCallStart> startExternalCall(int threadId) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+        '/messages/threads/$threadId/external-call',
+        options: await _auth.requiredAuthOptions());
+    return ExternalCallStart.fromJson(_dataMap(response.data));
+  }
+
   Future<void> markRead(int threadId) async {
     await _dio.post<void>('/messages/threads/$threadId/read',
         options: await _auth.requiredAuthOptions());

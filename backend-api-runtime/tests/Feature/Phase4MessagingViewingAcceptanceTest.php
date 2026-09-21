@@ -50,6 +50,63 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
         $this->withHeaders($ownerHeaders)->getJson('/api/messages/threads')->assertOk()->assertJsonPath('data.0.unread_count',0);
     }
 
+    public function test_external_call_is_recorded_and_public_property_contact_stays_hidden(): void
+    {
+        [$owner,$ownerHeaders]=$this->user('p4-call-owner@example.test','+967760000021');
+        [, $buyerHeaders]=$this->user('p4-call-buyer@example.test','+967760000022');
+        [, $outsiderHeaders]=$this->user('p4-call-outsider@example.test','+967760000023');
+        $property=$this->property($owner,'Phase 4 tracked call');
+        $property->forceFill([
+            'contact_phone'=>'+967771234567',
+            'contact_whatsapp'=>'+967779999999',
+        ])->save();
+
+        $public=$this->getJson("/api/properties/{$property->id}")->assertOk();
+        $this->assertArrayNotHasKey('contact_phone',(array)$public->json('data'));
+        $this->assertArrayNotHasKey('contact_whatsapp',(array)$public->json('data'));
+
+        $ownerView=$this->withHeaders($ownerHeaders)->getJson("/api/properties/{$property->id}")->assertOk();
+        $ownerView->assertJsonPath('data.contact_phone','+967771234567');
+
+        $threadId=(int)$this->withHeaders($buyerHeaders)
+            ->postJson("/api/properties/{$property->id}/conversation")
+            ->assertCreated()
+            ->assertJsonPath('data.can_call_advertiser',true)
+            ->json('data.id');
+
+        $this->withHeaders($ownerHeaders)
+            ->postJson("/api/messages/threads/$threadId/external-call")
+            ->assertForbidden();
+        $this->withHeaders($outsiderHeaders)
+            ->postJson("/api/messages/threads/$threadId/external-call")
+            ->assertNotFound();
+
+        $call=$this->withHeaders($buyerHeaders)
+            ->postJson("/api/messages/threads/$threadId/external-call")
+            ->assertOk()
+            ->assertJsonPath('data.phone','+967771234567')
+            ->assertJsonPath('data.message.message_type','call_started');
+        $messageId=(int)$call->json('data.message.id');
+        $message=PrivateMessage::query()->findOrFail($messageId);
+        $this->assertStringStartsWith('sys-call:',(string)$message->client_message_id);
+        $this->assertDatabaseHas('private_messages',[
+            'id'=>$messageId,
+            'thread_id'=>$threadId,
+            'body'=>'بدأ اتصالاً هاتفياً بالمعلن.',
+        ]);
+        $this->assertDatabaseHas('user_notifications',[
+            'user_id'=>$owner->id,
+            'type'=>'external_call_started',
+            'entity_type'=>'message_thread',
+            'entity_id'=>$threadId,
+        ]);
+
+        $this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/messages",[
+            'body'=>'محاولة تزوير حدث اتصال',
+            'client_message_id'=>'sys-call:fake-client-event',
+        ])->assertUnprocessable();
+    }
+
     public function test_conversation_returns_latest_page_and_can_load_older_messages_without_overlap(): void
     {
         [$owner,]=$this->user('p4-page-owner@example.test','+967760000010');

@@ -11,6 +11,7 @@ void main() {
         'property_title': 'Apartment',
         'property_status': 'draft',
         'other_user': {'id': 2, 'name': 'Owner'},
+        'can_call_advertiser': true,
         'unread_count': 0,
       },
       'messages': [
@@ -18,8 +19,9 @@ void main() {
           'id': 101,
           'sender_user_id': 3,
           'sender_name': 'Buyer',
-          'client_message_id': 'm-8-10100000',
-          'body': 'مرحبا',
+          'client_message_id': 'sys-call:test-event',
+          'message_type': 'call_started',
+          'body': 'بدأ اتصالاً هاتفياً بالمعلن.',
           'is_mine': true,
           'created_at': '2026-09-08T12:00:00Z',
         }
@@ -28,7 +30,9 @@ void main() {
     });
 
     expect(details.thread.isPropertyUnavailable, isTrue);
-    expect(details.messages.single.clientMessageId, 'm-8-10100000');
+    expect(details.thread.canCallAdvertiser, isTrue);
+    expect(details.messages.single.clientMessageId, 'sys-call:test-event');
+    expect(details.messages.single.isCallStarted, isTrue);
     expect(details.hasMore, isTrue);
     expect(details.nextBeforeId, 101);
   });
