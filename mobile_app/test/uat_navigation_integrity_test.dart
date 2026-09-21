@@ -51,4 +51,24 @@ void main() {
     expect(support, contains('final int? initialCaseId;'));
     expect(support, contains('await _showDetails(initialCaseId);'));
   });
+  test('property contact starts in conversation and external call is tracked', () {
+    final details = File(
+      'lib/features/properties/presentation/property_details_screen.dart',
+    ).readAsStringSync();
+    final conversation = File(
+      'lib/features/messages/presentation/conversation_screen.dart',
+    ).readAsStringSync();
+    final repository = File(
+      'lib/features/messages/data/message_repository.dart',
+    ).readAsStringSync();
+
+    expect(details, contains("'تواصل مع المعلن'"));
+    expect(details, isNot(contains("title: 'الهاتف'")));
+    expect(details, isNot(contains("title: 'واتساب'")));
+    expect(details, isNot(contains("label: 'طلب معاينة'")));
+    expect(conversation, contains("tooltip: 'اتصال بالمعلن'"));
+    expect(conversation, contains('item.isCallStarted'));
+    expect(repository, contains('startExternalCall'));
+  });
+
 }
