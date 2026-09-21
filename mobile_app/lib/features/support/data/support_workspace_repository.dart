@@ -178,6 +178,26 @@ class SupportWorkspaceRepository {
     return _task(response.data);
   }
 
+  Future<SupportTaskItem> recordContactOutcome(
+    int taskId, {
+    required String outcome,
+    String? note,
+    DateTime? nextFollowUpAt,
+    bool actingAsAgent = false,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/admin/workspace/tasks/$taskId/contact-outcome',
+      data: {
+        'outcome': outcome,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        if (nextFollowUpAt != null)
+          'next_follow_up_at': nextFollowUpAt.toUtc().toIso8601String(),
+        if (actingAsAgent) 'acting_as_agent': true,
+      },
+      options: await _auth.requiredAuthOptions(),
+    );
+    return _task(response.data);
+  }
   Future<List<SupportTaskEventItem>> taskEvents(int taskId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/workspace/tasks/$taskId/events',
