@@ -9,7 +9,6 @@ import '../../../core/widgets/app_components.dart';
 import '../../../router/app_deep_links.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
-import '../../bookings/presentation/booking_request_sheet.dart';
 import '../../community/presentation/listing_community_screen.dart';
 import '../../messages/data/message_repository.dart';
 import '../data/favorites_repository.dart';
@@ -110,7 +109,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                 onMessage: _startingConversation
                     ? null
                     : () => _startConversation(loaded),
-                onViewing: () => _requestViewing(loaded),
               )
             : null,
       ),
@@ -288,40 +286,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               onCommunity: () => _openCommunity(property),
             ),
           ],
-          if (published &&
-              !property.isOwner &&
-              (property.contactPhone != null ||
-                  property.contactWhatsapp != null)) ...[
-            const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(
-              title: 'بيانات التواصل',
-              subtitle:
-                  'المراسلة وطلب المعاينة مثبتان أسفل الشاشة للوصول السريع.',
-            ),
-            const SizedBox(height: AppSpacing.s12),
-            AppSurface(
-              child: Column(
-                children: [
-                  if (property.contactPhone != null)
-                    AppListRow(
-                      title: 'الهاتف',
-                      subtitle: property.contactPhone,
-                      leading: const Icon(Icons.phone_outlined),
-                      trailing: const Icon(Icons.copy_outlined),
-                      onTap: () => _copyContact(property.contactPhone!),
-                    ),
-                  if (property.contactWhatsapp != null)
-                    AppListRow(
-                      title: 'واتساب',
-                      subtitle: property.contactWhatsapp,
-                      leading: const Icon(Icons.chat_outlined),
-                      trailing: const Icon(Icons.copy_outlined),
-                      onTap: () => _copyContact(property.contactWhatsapp!),
-                    ),
-                ],
-              ),
-            ),
-          ],
           if (property.similar.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s32),
             const AppSectionHeader(title: 'عقارات مشابهة'),
@@ -490,37 +454,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     if (mounted) ref.invalidate(propertyDetailsProvider(widget.propertyId));
   }
 
-  Future<void> _requestViewing(PropertyDetails property) async {
-    final user = ref.read(authControllerProvider).asData?.value;
-    if (user == null) {
-      await context.push('/auth');
-      return;
-    }
-    if (!user.isActive) {
-      await context.push('/verify-phone');
-      return;
-    }
-    final booking = await BookingRequestSheet.showForProperty(
-      context,
-      propertyId: property.id,
-      title: property.title,
-    );
-    if (!mounted || booking == null) return;
-    final threadId = booking.messageThreadId;
-    if (threadId != null) {
-      ref.read(messageDataRevisionProvider.notifier).state++;
-      await context.push('/messages/$threadId');
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'تم إرسال طلب المعاينة ويمكن متابعته من صفحة المعاينات.',
-        ),
-      ),
-    );
-  }
-
   Future<void> _startConversation(PropertyDetails property) async {
     final user = ref.read(authControllerProvider).asData?.value;
     if (user == null) {
@@ -569,13 +502,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     }
   }
 
-  Future<void> _copyContact(String value) async {
-    await Clipboard.setData(ClipboardData(text: value));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم نسخ الرقم.')),
-    );
-  }
 }
 
 class _Gallery extends StatelessWidget {
@@ -903,12 +829,10 @@ class _PropertyPrimaryActions extends StatelessWidget {
   const _PropertyPrimaryActions({
     required this.loading,
     required this.onMessage,
-    required this.onViewing,
   });
 
   final bool loading;
   final VoidCallback? onMessage;
-  final VoidCallback onViewing;
 
   @override
   Widget build(BuildContext context) {
@@ -926,28 +850,12 @@ class _PropertyPrimaryActions extends StatelessWidget {
             AppLayout.compactPageGutter,
             AppSpacing.s10,
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  label: loading ? 'جارٍ الفتح...' : 'مراسلة',
-                  icon: Icons.forum_outlined,
-                  loading: loading,
-                  onPressed: onMessage,
-                  expand: true,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              Expanded(
-                child: AppButton(
-                  label: 'طلب معاينة',
-                  icon: Icons.event_available_outlined,
-                  style: AppButtonStyle.tonal,
-                  onPressed: onViewing,
-                  expand: true,
-                ),
-              ),
-            ],
+          child: AppButton(
+            label: loading ? 'جارٍ الفتح...' : 'تواصل مع المعلن',
+            icon: Icons.forum_outlined,
+            loading: loading,
+            onPressed: onMessage,
+            expand: true,
           ),
         ),
       ),
