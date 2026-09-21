@@ -6,6 +6,7 @@ use App\Models\SupportTask;
 use App\Models\SupportTaskEvent;
 use App\Models\User;
 use App\Services\SupportTaskService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -19,7 +20,7 @@ class SupportWorkspaceController extends Controller
     {
         $actor=$request->user();$v=$request->validate([
             'scope'=>['nullable',Rule::in(['inbox','mine','completed','all'])],
-            'type'=>['nullable',Rule::in(['account_verification','listing_review','support_ticket','report','payment_review'])],
+            'type'=>['nullable',Rule::in(['account_verification','listing_review','support_ticket','report','payment_review','contact_followup'])],
             'status'=>['nullable',Rule::in(['new','in_progress','waiting_user','waiting_internal','needs_followup','escalated','completed','rejected'])],
             'priority'=>['nullable',Rule::in(['urgent','normal','low'])],'severity'=>['nullable',Rule::in(['low','medium','high','critical'])],
             'assignee_id'=>['nullable','integer','exists:users,id'],'created_from'=>['nullable','date'],'created_to'=>['nullable','date','after_or_equal:created_from'],
@@ -39,6 +40,27 @@ class SupportWorkspaceController extends Controller
     public function reopen(Request $request, SupportTask $task): JsonResponse { $task=$this->tasks->reopen($request->user(),$task,$request);return response()->json(['data'=>$this->tasks->taskData($task,$request->user())]); }
     public function requestDocuments(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['note'=>['required','string','min:3','max:1000'],'acting_as_agent'=>['nullable','boolean']]);$task=$this->tasks->requestVerificationDocuments($request->user(),$task,trim($v['note']),$request,(bool)($v['acting_as_agent']??false));return response()->json(['data'=>$this->tasks->taskData($task,$request->user())]); }
     public function rejectVerification(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['reason'=>['required','string','min:3','max:1000'],'acting_as_agent'=>['nullable','boolean']]);$task=$this->tasks->rejectVerification($request->user(),$task,trim($v['reason']),$request,(bool)($v['acting_as_agent']??false));return response()->json(['data'=>$this->tasks->taskData($task,$request->user())]); }
+
+    public function contactOutcome(Request $request, SupportTask $task): JsonResponse
+    {
+        $v=$request->validate([
+            'outcome'=>['required',Rule::in(['no_answer','contacted','viewing_scheduled','viewed','negotiating','not_interested','deal_not_completed','deal_reported','needs_followup'])],
+            'note'=>['nullable','string','max:2000'],
+            'next_follow_up_at'=>['nullable','date','after:now'],
+            'acting_as_agent'=>['nullable','boolean'],
+        ]);
+        $next=isset($v['next_follow_up_at'])?Carbon::parse((string)$v['next_follow_up_at']):null;
+        $task=$this->tasks->recordContactFollowupOutcome(
+            $request->user(),
+            $task,
+            (string)$v['outcome'],
+            isset($v['note'])?trim((string)$v['note']):null,
+            $next,
+            $request,
+            (bool)($v['acting_as_agent']??false),
+        );
+        return response()->json(['message'=>'تم تسجيل نتيجة المتابعة.','data'=>$this->tasks->taskData($task,$request->user())]);
+    }
 
     public function events(Request $request, SupportTask $task): JsonResponse
     {
