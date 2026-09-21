@@ -835,8 +835,6 @@ class PropertyController extends Controller
 
         $data = array_merge($this->summaryData($property, $request), [
             'description' => $property->description,
-            'contact_phone' => $property->contact_phone,
-            'contact_whatsapp' => $property->contact_whatsapp,
             'advertiser' => array_merge([
                 'id'=>(int)$property->user_id,
                 'name'=>$this->advertiserDisplayName($property->user),
@@ -856,6 +854,8 @@ class PropertyController extends Controller
 
         $viewer = $this->tokens->authenticate($request, false);
         if ($viewer !== null && (int) $viewer->id === (int) $property->user_id) {
+            $data['contact_phone'] = $property->contact_phone;
+            $data['contact_whatsapp'] = $property->contact_whatsapp;
             $data['review_status'] = $property->review_status;
             $data['geo_cell_id'] = $property->geo_cell_id;
             $data['property_asset_id'] = $property->property_asset_id;
