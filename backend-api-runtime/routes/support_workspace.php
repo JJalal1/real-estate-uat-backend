@@ -20,6 +20,7 @@ Route::post('/tasks/{task}/resolve-escalation', [SupportWorkspaceController::cla
 Route::post('/tasks/{task}/reopen', [SupportWorkspaceController::class, 'reopen']);
 Route::post('/tasks/{task}/request-documents', [SupportWorkspaceController::class, 'requestDocuments']);
 Route::post('/tasks/{task}/reject-verification', [SupportWorkspaceController::class, 'rejectVerification']);
+Route::post('/tasks/{task}/contact-outcome', [SupportWorkspaceController::class, 'contactOutcome']);
 Route::get('/tasks/{task}/events', [SupportWorkspaceController::class, 'events']);
 Route::get('/team', [SupportWorkspaceController::class, 'team']);
 Route::get('/teams', [SupportWorkspaceController::class, 'teams']);
