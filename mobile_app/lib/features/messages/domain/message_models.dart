@@ -4,6 +4,7 @@ class MessageThreadSummary {
     required this.otherUserId,
     required this.otherUserName,
     required this.unreadCount,
+    this.canCallAdvertiser = false,
     this.propertyId,
     this.propertyTitle,
     this.propertyStatus,
@@ -15,6 +16,7 @@ class MessageThreadSummary {
   final int otherUserId;
   final String otherUserName;
   final int unreadCount;
+  final bool canCallAdvertiser;
   final int? propertyId;
   final String? propertyTitle;
   final String? propertyStatus;
@@ -33,6 +35,7 @@ class MessageThreadSummary {
       otherUserId: _asInt(otherMap['id']) ?? 0,
       otherUserName: otherMap['name']?.toString() ?? 'مستخدم',
       unreadCount: _asInt(json['unread_count']) ?? 0,
+      canCallAdvertiser: json['can_call_advertiser'] == true || json['can_call_advertiser'] == 1,
       propertyId: _asInt(json['property_id']),
       propertyTitle: _nullable(json['property_title']),
       propertyStatus: _nullable(json['property_status']),
@@ -49,6 +52,7 @@ class PrivateMessageItem {
     required this.senderName,
     required this.body,
     required this.isMine,
+    this.messageType = 'text',
     this.clientMessageId,
     this.createdAt,
   });
@@ -58,7 +62,10 @@ class PrivateMessageItem {
   final String senderName;
   final String body;
   final bool isMine;
+  final String messageType;
   final String? clientMessageId;
+
+  bool get isCallStarted => messageType == 'call_started';
   final DateTime? createdAt;
 
   factory PrivateMessageItem.fromJson(Map<String, dynamic> json) {
@@ -68,8 +75,28 @@ class PrivateMessageItem {
       senderName: json['sender_name']?.toString() ?? 'مستخدم',
       body: json['body']?.toString() ?? '',
       isMine: json['is_mine'] == true || json['is_mine'] == 1,
+      messageType: json['message_type']?.toString() ?? 'text',
       clientMessageId: _nullable(json['client_message_id']),
       createdAt: _date(json['created_at']),
+    );
+  }
+}
+
+
+class ExternalCallStart {
+  const ExternalCallStart({required this.phone, required this.message});
+
+  final String phone;
+  final PrivateMessageItem message;
+
+  factory ExternalCallStart.fromJson(Map<String, dynamic> json) {
+    final message = json['message'];
+    if (message is! Map<String, dynamic>) {
+      throw StateError('Invalid external call response.');
+    }
+    return ExternalCallStart(
+      phone: json['phone']?.toString() ?? '',
+      message: PrivateMessageItem.fromJson(message),
     );
   }
 }
