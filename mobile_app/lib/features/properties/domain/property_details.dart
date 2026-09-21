@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class PropertyImageItem {
   const PropertyImageItem({
     required this.id,
@@ -32,6 +34,12 @@ class PropertySummary {
     required this.currency,
     required this.latitude,
     required this.longitude,
+    this.basePrice,
+    this.priceDisplayMode,
+    this.priceDisplayNote,
+    this.monthlyRent,
+    this.rentalTermMonths,
+    this.advanceMonths,
     this.areaM2,
     this.areaValue,
     this.areaUnit,
@@ -49,7 +57,15 @@ class PropertySummary {
   final String purpose;
   final String type;
   final String? tenureType;
+
+  /// User-facing amount; Financial V1 uses display_price when returned.
   final double price;
+  final double? basePrice;
+  final String? priceDisplayMode;
+  final String? priceDisplayNote;
+  final double? monthlyRent;
+  final int? rentalTermMonths;
+  final int? advanceMonths;
   final String currency;
   final double latitude;
   final double longitude;
@@ -65,13 +81,20 @@ class PropertySummary {
   final String? mainImage;
 
   factory PropertySummary.fromJson(Map<String, dynamic> json) {
+    final rawPrice = _asDouble(json['price']) ?? 0;
     return PropertySummary(
       id: _asInt(json['id']) ?? 0,
       title: json['title']?.toString() ?? '',
       purpose: json['purpose']?.toString() ?? '',
       type: json['type']?.toString() ?? '',
       tenureType: _nullableString(json['tenure_type']),
-      price: _asDouble(json['price']) ?? 0,
+      price: _asDouble(json['display_price']) ?? rawPrice,
+      basePrice: _asDouble(json['base_price']) ?? rawPrice,
+      priceDisplayMode: _nullableString(json['price_display_mode']),
+      priceDisplayNote: _nullableString(json['price_display_note']),
+      monthlyRent: _asDouble(json['monthly_rent']),
+      rentalTermMonths: _asInt(json['rental_term_months']),
+      advanceMonths: _asInt(json['advance_months']),
       currency: json['currency']?.toString() ?? 'YER',
       latitude: _asDouble(json['latitude']) ?? 0,
       longitude: _asDouble(json['longitude']) ?? 0,
@@ -147,6 +170,14 @@ class PropertyDetails {
     required this.latitude,
     required this.longitude,
     required this.images,
+    this.basePrice,
+    this.priceDisplayMode,
+    this.priceDisplayNote,
+    this.monthlyRent,
+    this.rentalTermMonths,
+    this.advanceMonths,
+    this.financialHold = false,
+    this.saiAttestationRequired = false,
     this.description,
     this.areaM2,
     this.areaValue,
@@ -156,6 +187,12 @@ class PropertyDetails {
     this.hasParking,
     this.buildingFacade,
     this.address,
+    this.buildingReference,
+    this.unitNumber,
+    this.floorNumber,
+    this.landBoundaryGeoJson,
+    this.duplicateCheckStatus,
+    this.duplicateCheckScore = 0,
     this.status = 'published',
     this.reviewStatus = 'approved',
     this.lastReviewReason,
@@ -182,7 +219,17 @@ class PropertyDetails {
   final String purpose;
   final String type;
   final String? tenureType;
+
+  /// User-facing amount. Use [basePrice] when editing the listing itself.
   final double price;
+  final double? basePrice;
+  final String? priceDisplayMode;
+  final String? priceDisplayNote;
+  final double? monthlyRent;
+  final int? rentalTermMonths;
+  final int? advanceMonths;
+  final bool financialHold;
+  final bool saiAttestationRequired;
   final String currency;
   final int? areaM2;
   final double? areaValue;
@@ -192,6 +239,12 @@ class PropertyDetails {
   final bool? hasParking;
   final String? buildingFacade;
   final String? address;
+  final String? buildingReference;
+  final String? unitNumber;
+  final String? floorNumber;
+  final Map<String, dynamic>? landBoundaryGeoJson;
+  final String? duplicateCheckStatus;
+  final int duplicateCheckScore;
   final double latitude;
   final double longitude;
   final String status;
@@ -215,10 +268,12 @@ class PropertyDetails {
   final List<PropertySummary> similar;
 
   String? get mainImage => images.isEmpty ? null : images.first.url;
+  double get editablePrice => basePrice ?? price;
 
   factory PropertyDetails.fromJson(Map<String, dynamic> json) {
     final imageRows = json['images'] as List<dynamic>? ?? const <dynamic>[];
     final similarRows = json['similar'] as List<dynamic>? ?? const <dynamic>[];
+    final rawPrice = _asDouble(json['price']) ?? 0;
 
     final images = imageRows
         .whereType<Map<String, dynamic>>()
@@ -239,7 +294,16 @@ class PropertyDetails {
       purpose: json['purpose']?.toString() ?? '',
       type: json['type']?.toString() ?? '',
       tenureType: _nullableString(json['tenure_type']),
-      price: _asDouble(json['price']) ?? 0,
+      price: _asDouble(json['display_price']) ?? rawPrice,
+      basePrice: _asDouble(json['base_price']) ?? rawPrice,
+      priceDisplayMode: _nullableString(json['price_display_mode']),
+      priceDisplayNote: _nullableString(json['price_display_note']),
+      monthlyRent: _asDouble(json['monthly_rent']),
+      rentalTermMonths: _asInt(json['rental_term_months']),
+      advanceMonths: _asInt(json['advance_months']),
+      financialHold: _asBool(json['financial_hold']) ?? false,
+      saiAttestationRequired:
+          _asBool(json['sai_attestation_required']) ?? false,
       currency: json['currency']?.toString() ?? 'YER',
       areaM2: _asInt(json['area_m2']),
       areaValue: _asDouble(json['area_value']) ?? _asDouble(json['area_m2']),
@@ -250,6 +314,15 @@ class PropertyDetails {
       hasParking: _asBool(json['has_parking']),
       buildingFacade: _nullableString(json['building_facade']),
       address: _nullableString(json['address']),
+      buildingReference: _nullableString(json['building_reference']),
+      unitNumber: _nullableString(json['unit_number']),
+      floorNumber: _nullableString(json['floor_number']),
+      landBoundaryGeoJson: json['land_boundary_geojson'] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(
+              json['land_boundary_geojson'] as Map<String, dynamic>)
+          : null,
+      duplicateCheckStatus: _nullableString(json['duplicate_check_status']),
+      duplicateCheckScore: _asInt(json['duplicate_check_score']) ?? 0,
       latitude: _asDouble(json['latitude']) ?? 0,
       longitude: _asDouble(json['longitude']) ?? 0,
       status: json['status']?.toString() ?? 'published',
@@ -297,6 +370,12 @@ class PropertyDetails {
       type: type,
       tenureType: tenureType,
       price: price,
+      basePrice: basePrice,
+      priceDisplayMode: priceDisplayMode,
+      priceDisplayNote: priceDisplayNote,
+      monthlyRent: monthlyRent,
+      rentalTermMonths: rentalTermMonths,
+      advanceMonths: advanceMonths,
       currency: currency,
       latitude: latitude,
       longitude: longitude,
@@ -325,6 +404,10 @@ class PropertyListingInput {
     this.tenureType,
     this.description,
     this.currency = 'YER',
+    this.priceDisplayMode,
+    this.monthlyRent,
+    this.rentalTermMonths,
+    this.advanceMonths,
     this.areaM2,
     this.areaValue,
     this.areaUnit,
@@ -333,6 +416,10 @@ class PropertyListingInput {
     this.hasParking,
     this.buildingFacade,
     this.address,
+    this.buildingReference,
+    this.unitNumber,
+    this.floorNumber,
+    this.landBoundaryGeoJson,
     this.contactPhone,
     this.contactWhatsapp,
     this.ownershipDocumentType,
@@ -348,6 +435,10 @@ class PropertyListingInput {
   final String? tenureType;
   final double price;
   final String currency;
+  final String? priceDisplayMode;
+  final double? monthlyRent;
+  final int? rentalTermMonths;
+  final int? advanceMonths;
   final int? areaM2;
   final double? areaValue;
   final String? areaUnit;
@@ -356,6 +447,10 @@ class PropertyListingInput {
   final bool? hasParking;
   final String? buildingFacade;
   final String? address;
+  final String? buildingReference;
+  final String? unitNumber;
+  final String? floorNumber;
+  final Map<String, dynamic>? landBoundaryGeoJson;
   final double latitude;
   final double longitude;
   final String? contactPhone;
@@ -376,7 +471,14 @@ class PropertyListingInput {
         'tenure_type': tenureType,
       'price': price,
       'currency': currency.toUpperCase(),
-      'listing_input_version': 2,
+      if (priceDisplayMode != null && priceDisplayMode!.isNotEmpty)
+        'price_display_mode': priceDisplayMode,
+      if (purpose == 'rent' && monthlyRent != null) 'monthly_rent': monthlyRent,
+      if (purpose == 'rent' && rentalTermMonths != null)
+        'rental_term_months': rentalTermMonths,
+      if (purpose == 'rent' && advanceMonths != null)
+        'advance_months': advanceMonths,
+      'listing_input_version': 3,
       if (areaValue != null) 'area_value': areaValue,
       if (areaUnit != null && areaUnit!.trim().isNotEmpty)
         'area_unit': areaUnit,
@@ -390,6 +492,14 @@ class PropertyListingInput {
         'building_facade': buildingFacade,
       if (address != null && address!.trim().isNotEmpty)
         'address': address!.trim(),
+      if (buildingReference != null && buildingReference!.trim().isNotEmpty)
+        'building_reference': buildingReference!.trim(),
+      if (unitNumber != null && unitNumber!.trim().isNotEmpty)
+        'unit_number': unitNumber!.trim(),
+      if (floorNumber != null && floorNumber!.trim().isNotEmpty)
+        'floor_number': floorNumber!.trim(),
+      if (landBoundaryGeoJson != null)
+        'land_boundary_geojson': jsonEncode(landBoundaryGeoJson),
       'latitude': latitude,
       'longitude': longitude,
       'contact_phone': contactPhone?.trim() ?? '',
@@ -408,19 +518,13 @@ class PropertyListingInput {
 }
 
 int? _asInt(dynamic value) {
-  if (value is int) {
-    return value;
-  }
-  if (value is num) {
-    return value.toInt();
-  }
+  if (value is int) return value;
+  if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '');
 }
 
 double? _asDouble(dynamic value) {
-  if (value is num) {
-    return value.toDouble();
-  }
+  if (value is num) return value.toDouble();
   return double.tryParse(value?.toString() ?? '');
 }
 
@@ -436,8 +540,6 @@ bool? _asBool(dynamic value) {
 
 String? _nullableString(dynamic value) {
   final text = value?.toString().trim();
-  if (text == null || text.isEmpty) {
-    return null;
-  }
+  if (text == null || text.isEmpty) return null;
   return text;
 }

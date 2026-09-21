@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../data/auth_controller.dart';
+import '../data/auth_return_intent.dart';
 
 class PhoneVerificationScreen extends ConsumerStatefulWidget {
   const PhoneVerificationScreen({super.key});
@@ -150,7 +151,11 @@ class _PhoneVerificationScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم التحقق من رقم واتساب بنجاح.')),
         );
-        context.go(result.user.needsProfileCompletion ? '/complete-profile' : '/');
+        if (result.user.needsProfileCompletion) {
+          context.go('/complete-profile');
+        } else {
+          context.go(takeAuthReturnLocation(ref));
+        }
         return;
       }
 
@@ -160,7 +165,11 @@ class _PhoneVerificationScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم التحقق من رقم واتساب بنجاح.')),
       );
-      context.go(user?.needsProfileCompletion == true ? '/complete-profile' : '/');
+      if (user?.needsProfileCompletion == true) {
+        context.go('/complete-profile');
+      } else {
+        context.go(takeAuthReturnLocation(ref));
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)

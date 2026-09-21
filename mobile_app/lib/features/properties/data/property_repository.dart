@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
 import '../domain/property_details.dart';
+import '../domain/property_identity.dart';
 import '../domain/property_marker.dart';
 import '../domain/property_location_address.dart';
+import '../domain/property_sai.dart';
 
 final propertyRepositoryProvider = Provider<PropertyRepository>((ref) {
   return PropertyRepository(
@@ -246,6 +248,34 @@ class PropertyRepository {
     return _detailsFromResponse(response);
   }
 
+  Future<PropertySaiEnvelope> sai(int propertyId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/properties/$propertyId/sai',
+      options: await _auth.optionalAuthOptions(),
+    );
+    return PropertySaiEnvelope.fromResponse(response.data);
+  }
+
+  Future<PropertySaiEnvelope> configureSai(
+    int propertyId, {
+    required String payer,
+    double? brokerRatePercent,
+    String? platformTermsDecision,
+  }) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '/properties/$propertyId/sai',
+      data: <String, dynamic>{
+        'sai_payer': payer,
+        if (brokerRatePercent != null)
+          'broker_sai_rate_percent': brokerRatePercent,
+        if (platformTermsDecision != null)
+          'platform_terms_decision': platformTermsDecision,
+      },
+      options: await _auth.requiredAuthOptions(),
+    );
+    return PropertySaiEnvelope.fromResponse(response.data);
+  }
+
   Future<List<PropertyDetails>> myListings() async {
     final options = await _auth.requiredAuthOptions();
     final listings = <PropertyDetails>[];
@@ -255,7 +285,7 @@ class PropertyRepository {
     do {
       final response = await _dio.get<Map<String, dynamic>>(
         '/properties/mine/list',
-        queryParameters: {'page': page, 'per_page': 50},
+        queryParameters: {'page': page, 'per_page': 50, 'view': 'workspace'},
         options: options,
       );
       final rows =
@@ -338,6 +368,39 @@ class PropertyRepository {
       '/properties/$propertyId',
       options: await _auth.requiredAuthOptions(),
     );
+  }
+
+  Future<PropertyIdentityResult> checkPropertyIdentity(int propertyId) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/properties/$propertyId/identity/check',
+      options: await _auth.requiredAuthOptions(),
+    );
+    final data = response.data?['data'];
+    if (data is! Map<String, dynamic>) {
+      throw StateError('Invalid property identity response.');
+    }
+    return PropertyIdentityResult.fromJson(data);
+  }
+
+  Future<PropertyIdentityResult> selfVerifyPropertyIdentity(
+    int propertyId, {
+    required String differenceType,
+    required String differenceNote,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/properties/$propertyId/identity/self-verify',
+      data: <String, dynamic>{
+        'assert_different': true,
+        'difference_type': differenceType,
+        'difference_note': differenceNote.trim(),
+      },
+      options: await _auth.requiredAuthOptions(),
+    );
+    final data = response.data?['data'];
+    if (data is! Map<String, dynamic>) {
+      throw StateError('Invalid property identity response.');
+    }
+    return PropertyIdentityResult.fromJson(data);
   }
 
   Future<PropertyDetails> submitListing(int propertyId) async {

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../account/data/auth_controller.dart';
+import '../../financial/data/financial_repository.dart';
+import '../../financial/domain/financial_models.dart';
 import '../data/support_repository.dart';
 import '../data/support_workspace_repository.dart';
 import '../domain/support_models.dart';
@@ -19,6 +23,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
     this.initialStatus,
     this.initialSeverity,
     this.overdueOnly = false,
+    this.actingAsAgent = false,
     this.title,
   });
 
@@ -27,6 +32,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
   final String? initialStatus;
   final String? initialSeverity;
   final bool overdueOnly;
+  final bool actingAsAgent;
   final String? title;
 
   @override
@@ -76,6 +82,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             createdFrom: _createdFrom,
             createdTo: _createdTo,
             overdue: _overdue,
+            actingAsAgent: widget.actingAsAgent,
           );
       if (!mounted) return;
       setState(() {
@@ -98,6 +105,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         user?.roles.contains('super_admin') == true ||
         user?.roles.contains('support_manager') == true ||
         user?.hasPermission('support.manage') == true;
+    final managerMode = manager && !widget.actingAsAgent;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -114,8 +122,19 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         ),
         body: Column(
           children: [
-            _filters(manager),
-            Expanded(child: _body(manager)),
+            if (widget.actingAsAgent)
+              Material(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                child: const ListTile(
+                  leading: Icon(Icons.support_agent_outlined),
+                  title: Text('أنت الآن تعمل كموظف دعم',
+                      style: TextStyle(fontWeight: FontWeight.w900)),
+                  subtitle: Text(
+                      'استلم الطلب أولاً ثم عالجه بنفس قواعد موظفي الدعم. الرجوع يغلق هذا الوضع.'),
+                ),
+              ),
+            _filters(managerMode),
+            Expanded(child: _body(managerMode)),
           ],
         ),
       ),
@@ -124,6 +143,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
 
   String _defaultTitle() {
     if (_scope == 'mine') return 'مهامي';
+    if (_scope == 'completed') return 'المهام المنجزة';
     if (_scope == 'all') return 'كل الأعمال';
     return 'الوارد الجديد';
   }
@@ -135,16 +155,27 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
         child: Column(
           children: [
-            if (manager)
+            if (manager || widget.actingAsAgent)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SegmentedButton<String>(
                   showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(value: 'inbox', label: Text('غير مسند')),
-                    ButtonSegment(value: 'mine', label: Text('مسند لي')),
-                    ButtonSegment(value: 'all', label: Text('كل الأعمال')),
-                  ],
+                  segments: widget.actingAsAgent
+                      ? const [
+                          ButtonSegment(value: 'inbox', label: Text('الوارد')),
+                          ButtonSegment(value: 'mine', label: Text('مهامي')),
+                          ButtonSegment(
+                              value: 'completed', label: Text('المنجزة')),
+                        ]
+                      : const [
+                          ButtonSegment(
+                              value: 'inbox', label: Text('غير مسند')),
+                          ButtonSegment(value: 'mine', label: Text('مسند لي')),
+                          ButtonSegment(
+                              value: 'completed', label: Text('المنجزة')),
+                          ButtonSegment(
+                              value: 'all', label: Text('كل الأعمال')),
+                        ],
                   selected: {_scope},
                   onSelectionChanged: (value) {
                     setState(() => _scope = value.first);
@@ -152,7 +183,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   },
                 ),
               ),
-            if (manager) const SizedBox(height: 8),
+            if (manager || widget.actingAsAgent) const SizedBox(height: 8),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -164,8 +195,10 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       () => _setType('listing_review')),
                   _choice('تذاكر', _type == 'support_ticket',
                       () => _setType('support_ticket')),
-                  _choice('بلاغات', _type == 'report',
-                      () => _setType('report')),
+                  _choice(
+                      'بلاغات', _type == 'report', () => _setType('report')),
+                  _choice('متابعة التواصل', _type == 'contact_followup',
+                      () => _setType('contact_followup')),
                 ],
               ),
             ),
@@ -188,7 +221,8 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   if (manager) ...[
                     const SizedBox(width: 6),
                     ActionChip(
-                      avatar: const Icon(Icons.support_agent_outlined, size: 18),
+                      avatar:
+                          const Icon(Icons.support_agent_outlined, size: 18),
                       label: Text(_assigneeName ?? 'الموظف'),
                       onPressed: _pickAssignee,
                     ),
@@ -263,16 +297,14 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         itemBuilder: (_) => const [
           PopupMenuItem(value: 'status:all', child: Text('كل الحالات')),
           PopupMenuItem(value: 'status:new', child: Text('جديد')),
-          PopupMenuItem(
-              value: 'status:in_progress', child: Text('قيد العمل')),
+          PopupMenuItem(value: 'status:in_progress', child: Text('قيد العمل')),
           PopupMenuItem(
               value: 'status:waiting_user', child: Text('انتظار المستخدم')),
           PopupMenuItem(
               value: 'status:waiting_internal', child: Text('انتظار داخلي')),
           PopupMenuItem(
               value: 'status:needs_followup', child: Text('يحتاج متابعة')),
-          PopupMenuItem(
-              value: 'status:escalated', child: Text('مصعّد')),
+          PopupMenuItem(value: 'status:escalated', child: Text('مصعّد')),
           PopupMenuItem(value: 'status:completed', child: Text('مكتمل')),
           PopupMenuItem(value: 'status:rejected', child: Text('مرفوض')),
           PopupMenuDivider(),
@@ -322,7 +354,9 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 (member) => ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.support_agent)),
                   title: Text(member.name),
-                  subtitle: Text(member.role == 'support_manager' ? 'مدير دعم' : 'موظف دعم'),
+                  subtitle: Text(member.role == 'support_manager'
+                      ? 'مدير دعم'
+                      : 'موظف دعم'),
                   onTap: () => Navigator.pop(dialogContext, member),
                 ),
               ),
@@ -430,9 +464,13 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
 
   Future<void> _claim(SupportTaskItem task) async {
     try {
-      await ref.read(supportWorkspaceRepositoryProvider).claim(task.id);
-      _message('تم استلام المهمة ونقلها إلى مهامك.');
+      final claimed = await ref.read(supportWorkspaceRepositoryProvider).claim(
+            task.id,
+            actingAsAgent: widget.actingAsAgent,
+          );
+      _message('تم استلام المهمة وإضافتها إلى مهامك.');
       await _load();
+      if (mounted) await _open(claimed, false);
     } catch (error) {
       _message(friendlyApiError(error));
       await _load();
@@ -440,7 +478,12 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   Future<void> _open(SupportTaskItem task, bool manager) async {
-    if (!manager && !task.isMine) {
+    if (manager && !widget.actingAsAgent && task.status != 'escalated') {
+      _message(
+          'هذه شاشة إدارة العمل. لمعالجة الطلب بنفسك استخدم «العمل كموظف دعم» واستلمه أولاً.');
+      return;
+    }
+    if ((!manager || widget.actingAsAgent) && !task.isMine) {
       _message('استلم المهمة أولاً قبل فتح بياناتها الخاصة.');
       return;
     }
@@ -461,14 +504,307 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       case 'report':
         await _supportCaseDialog(task);
         break;
+      case 'payment_review':
+        await _paymentReviewDialog(task);
+        break;
+      case 'contact_followup':
+        await _contactFollowupDialog(task);
+        break;
     }
     if (mounted) await _load();
+  }
+
+  Future<void> _contactFollowupDialog(SupportTaskItem task) async {
+    final meta = task.metadata;
+    String outcome = meta['last_outcome']?.toString() ?? 'contacted';
+    final note = TextEditingController(
+      text: meta['last_followup_note']?.toString() ?? '',
+    );
+    DateTime? nextFollowUpAt;
+    final savedNext = meta['next_follow_up_at']?.toString();
+    if (savedNext != null) {
+      nextFollowUpAt = DateTime.tryParse(savedNext)?.toLocal();
+    }
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('متابعة التواصل العقاري'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(meta['property_title']?.toString() ?? 'العقار',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 6),
+                  Text('العميل: ' + (meta['buyer_name']?.toString() ?? task.requesterName ?? '—')),
+                  Text('المعلن: ' + (meta['advertiser_name']?.toString() ?? '—')),
+                  Text('مرات بدء الاتصال: ' + (meta['external_call_count']?.toString() ?? '1')),
+                  if (meta['last_external_call_at'] != null)
+                    Text('آخر اتصال مسجل: ' + meta['last_external_call_at'].toString()),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    value: outcome,
+                    decoration: const InputDecoration(labelText: 'نتيجة المتابعة'),
+                    items: const [
+                      DropdownMenuItem(value: 'no_answer', child: Text('لم يرد أحد الأطراف')),
+                      DropdownMenuItem(value: 'contacted', child: Text('تم التواصل')),
+                      DropdownMenuItem(value: 'viewing_scheduled', child: Text('تم تحديد معاينة')),
+                      DropdownMenuItem(value: 'viewed', child: Text('تمت المعاينة')),
+                      DropdownMenuItem(value: 'negotiating', child: Text('يوجد تفاوض')),
+                      DropdownMenuItem(value: 'not_interested', child: Text('العقار لم يناسبه')),
+                      DropdownMenuItem(value: 'deal_not_completed', child: Text('لم تتم الصفقة')),
+                      DropdownMenuItem(value: 'deal_reported', child: Text('أفاد أحد الأطراف بتمام الصفقة')),
+                      DropdownMenuItem(value: 'needs_followup', child: Text('يحتاج متابعة لاحقة')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setLocal(() => outcome = value);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: note,
+                    minLines: 2,
+                    maxLines: 5,
+                    maxLength: 2000,
+                    decoration: const InputDecoration(
+                      labelText: 'ملاحظة المتابعة',
+                      hintText: 'ما الذي قاله الدلال أو المستخدم؟',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          nextFollowUpAt == null
+                              ? 'موعد المتابعة القادمة: تلقائي حسب النتيجة'
+                              : 'تم تحديد موعد متابعة قادم',
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final date = await showDatePicker(
+                            context: dialogContext,
+                            firstDate: now,
+                            lastDate: now.add(const Duration(days: 90)),
+                            initialDate: nextFollowUpAt ?? now.add(const Duration(days: 1)),
+                          );
+                          if (date == null || !dialogContext.mounted) return;
+                          final time = await showTimePicker(
+                            context: dialogContext,
+                            initialTime: TimeOfDay.fromDateTime(
+                              nextFollowUpAt ?? now.add(const Duration(days: 1)),
+                            ),
+                          );
+                          if (time == null) return;
+                          setLocal(() {
+                            nextFollowUpAt = DateTime(
+                              date.year,
+                              date.month,
+                              date.day,
+                              time.hour,
+                              time.minute,
+                            );
+                          });
+                        },
+                        icon: const Icon(Icons.schedule_outlined),
+                        label: const Text('تحديد'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'لا يتم فتح نص المحادثة من هذه الشاشة. تعتمد المتابعة على مؤشرات الرحلة والاتصال، وأي وصول لمحتوى خاص يبقى ضمن مسار صلاحيات منفصل ومسجل.',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('حفظ النتيجة'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final noteText = note.text.trim();
+    note.dispose();
+    if (accepted != true) return;
+
+    try {
+      await ref.read(supportWorkspaceRepositoryProvider).recordContactOutcome(
+            task.id,
+            outcome: outcome,
+            note: noteText.isEmpty ? null : noteText,
+            nextFollowUpAt: nextFollowUpAt,
+            actingAsAgent: widget.actingAsAgent,
+          );
+      _message(outcome == 'deal_reported'
+          ? 'تم تسجيل صفقة محتملة ورفع أولوية التحقق.'
+          : 'تم تسجيل نتيجة المتابعة.');
+    } catch (error) {
+      _message(friendlyApiError(error));
+    }
+  }
+  Future<void> _paymentReviewDialog(SupportTaskItem task) async {
+    FinancialPayment payment;
+    try {
+      payment = await ref.read(financialRepositoryProvider).adminPayment(
+            task.sourceId,
+            actingAsAgent: widget.actingAsAgent,
+          );
+    } catch (error) {
+      _message(friendlyApiError(error));
+      return;
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('التحقق من إثبات الدفع'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(payment.propertyTitle ?? 'العقار',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                    'المبلغ: ${payment.amount.toStringAsFixed(0)} ${payment.currency}'),
+                Text('الطريقة: ${payment.paymentMethod ?? '—'}'),
+                if (payment.senderName != null)
+                  Text('اسم المرسل: ${payment.senderName}'),
+                if (payment.senderPhone != null)
+                  Text('رقم المرسل: ${payment.senderPhone}'),
+                if (payment.providerReference != null)
+                  Text('رقم العملية: ${payment.providerReference}'),
+                const SizedBox(height: 12),
+                if (payment.hasProof)
+                  FutureBuilder<List<int>?>(
+                    future: ref
+                        .read(financialRepositoryProvider)
+                        .paymentProof(
+                          payment.id,
+                          actingAsAgent: widget.actingAsAgent,
+                        )
+                        .then((response) => response.data),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final bytes = snapshot.data;
+                      if (bytes == null || bytes.isEmpty) {
+                        return const Text('تعذر عرض صورة الإثبات.');
+                      }
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(Uint8List.fromList(bytes),
+                            fit: BoxFit.contain),
+                      );
+                    },
+                  )
+                else
+                  const Text('لا يوجد إثبات مرفوع.'),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إغلاق')),
+          TextButton(
+              onPressed: () async {
+                final note = await _paymentReviewReason('طلب تصحيح الإثبات');
+                if (note == null || !mounted) return;
+                await _reviewPayment(task.sourceId, 'correction', note);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('طلب تصحيح')),
+          TextButton(
+              onPressed: () async {
+                final note = await _paymentReviewReason('رفض الإثبات');
+                if (note == null || !mounted) return;
+                await _reviewPayment(task.sourceId, 'reject', note);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('رفض')),
+          FilledButton(
+              onPressed: () async {
+                await _reviewPayment(task.sourceId, 'confirm', null);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('تأكيد الدفع')),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _paymentReviewReason(String title) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'السبب *')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء')),
+          FilledButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.length >= 3) Navigator.pop(dialogContext, value);
+              },
+              child: const Text('حفظ')),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  Future<void> _reviewPayment(
+      int paymentId, String decision, String? note) async {
+    try {
+      await ref.read(financialRepositoryProvider).reviewPayment(
+            paymentId,
+            decision,
+            note: note,
+            actingAsAgent: widget.actingAsAgent,
+          );
+      _message(decision == 'confirm'
+          ? 'تم تأكيد عملية الدفع.'
+          : decision == 'correction'
+              ? 'تم طلب تصحيح الإثبات.'
+              : 'تم رفض الإثبات.');
+    } catch (error) {
+      _message(friendlyApiError(error));
+    }
   }
 
   Future<void> _supportCaseDialog(SupportTaskItem task) async {
     SupportCaseDetails details;
     try {
-      details = await ref.read(supportRepositoryProvider).adminDetails(task.sourceId);
+      details =
+          await ref.read(supportRepositoryProvider).adminDetails(task.sourceId);
     } catch (error) {
       _message(friendlyApiError(error));
       return;
@@ -479,13 +815,19 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       builder: (dialogContext) => _SupportCaseDialog(
         details: details,
         onReply: (text) async {
-          await ref.read(supportRepositoryProvider).adminReply(task.sourceId, text);
+          await ref
+              .read(supportRepositoryProvider)
+              .adminReply(task.sourceId, text);
         },
         onInternalNote: (text) async {
-          await ref.read(supportRepositoryProvider).internalNote(task.sourceId, text);
+          await ref
+              .read(supportRepositoryProvider)
+              .internalNote(task.sourceId, text);
         },
         onStatus: (status) async {
-          await ref.read(supportRepositoryProvider).setStatus(task.sourceId, status);
+          await ref
+              .read(supportRepositoryProvider)
+              .setStatus(task.sourceId, status);
         },
       ),
     );
@@ -519,13 +861,32 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   title: const Text('الأولوية والخطورة'),
                   onTap: () => Navigator.pop(sheetContext, 'classify'),
                 ),
-              if (manager && !task.isClosed)
+              if (!manager &&
+                  task.isMine &&
+                  !task.isClosed &&
+                  task.status != 'escalated')
                 ListTile(
                   leading: const Icon(Icons.trending_up),
-                  title: const Text('تصعيد المهمة'),
+                  title: const Text('تصعيد لمدير الدعم'),
+                  subtitle: const Text(
+                      'للحالات غير الاعتيادية فقط، وليس للموافقة اليومية.'),
                   onTap: () => Navigator.pop(sheetContext, 'escalate'),
                 ),
-              if (manager && task.isClosed &&
+              if (manager && task.status == 'escalated')
+                ListTile(
+                  leading: const Icon(Icons.check_circle_outline),
+                  title: const Text('معالجة التصعيد وإعادته للموظف'),
+                  onTap: () =>
+                      Navigator.pop(sheetContext, 'resolve_escalation'),
+                ),
+              if (manager && task.assignedToUserId != null && !task.isClosed)
+                ListTile(
+                  leading: const Icon(Icons.move_to_inbox_outlined),
+                  title: const Text('إعادة إلى الوارد'),
+                  onTap: () => Navigator.pop(sheetContext, 'release'),
+                ),
+              if (manager &&
+                  task.isClosed &&
                   (task.sourceType == 'support_ticket' ||
                       task.sourceType == 'report'))
                 ListTile(
@@ -534,8 +895,9 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   onTap: () => Navigator.pop(sheetContext, 'reopen'),
                 ),
               if (!task.isClosed &&
-                  (task.sourceType == 'support_ticket' || task.sourceType == 'report') &&
-                  (manager || task.isMine))
+                  (task.sourceType == 'support_ticket' ||
+                      task.sourceType == 'report') &&
+                  task.isMine)
                 ListTile(
                   leading: Icon(task.status == 'waiting_internal'
                       ? Icons.play_arrow_outlined
@@ -545,18 +907,22 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       : 'تحويل إلى انتظار داخلي'),
                   onTap: () => Navigator.pop(
                     sheetContext,
-                    task.status == 'waiting_internal' ? 'resume' : 'waiting_internal',
+                    task.status == 'waiting_internal'
+                        ? 'resume'
+                        : 'waiting_internal',
                   ),
                 ),
-              if (task.sourceType == 'account_verification' && !task.isClosed &&
-                  (manager || task.isMine))
+              if (task.sourceType == 'account_verification' &&
+                  !task.isClosed &&
+                  task.isMine)
                 ListTile(
                   leading: const Icon(Icons.upload_file_outlined),
                   title: const Text('طلب مستند إضافي'),
                   onTap: () => Navigator.pop(sheetContext, 'documents'),
                 ),
-              if (task.sourceType == 'account_verification' && !task.isClosed &&
-                  (manager || task.isMine))
+              if (task.sourceType == 'account_verification' &&
+                  !task.isClosed &&
+                  task.isMine)
                 ListTile(
                   leading: const Icon(Icons.block_outlined),
                   title: const Text('رفض طلب التحقق'),
@@ -580,8 +946,30 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           await _classify(task);
           break;
         case 'escalate':
-          await ref.read(supportWorkspaceRepositoryProvider).escalate(task.id);
-          _message('تم تصعيد المهمة ورفع أولويتها.');
+          final reason = await _textDialog(
+              'سبب التصعيد', 'وضح لماذا تحتاج هذه الحالة تدخل مدير الدعم.');
+          if (reason != null) {
+            await ref.read(supportWorkspaceRepositoryProvider).escalate(
+                  task.id,
+                  reason,
+                  actingAsAgent: widget.actingAsAgent,
+                );
+            _message('تم تصعيد المهمة إلى مدير الدعم.');
+          }
+          break;
+        case 'resolve_escalation':
+          final note = await _textDialog(
+              'قرار التصعيد', 'اكتب القرار أو التوجيه الذي سيعود للموظف.');
+          if (note != null) {
+            await ref
+                .read(supportWorkspaceRepositoryProvider)
+                .resolveEscalation(task.id, note);
+            _message('تمت معالجة التصعيد وإعادة المهمة لمسار التنفيذ.');
+          }
+          break;
+        case 'release':
+          await ref.read(supportWorkspaceRepositoryProvider).release(task.id);
+          _message('تمت إعادة المهمة إلى الوارد المشترك.');
           break;
         case 'reopen':
           await ref.read(supportWorkspaceRepositoryProvider).reopen(task.id);
@@ -590,26 +978,35 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         case 'waiting_internal':
           await ref
               .read(supportWorkspaceRepositoryProvider)
-              .setOperationalStatus(task.id, 'waiting_internal');
+              .setOperationalStatus(task.id, 'waiting_internal',
+                  actingAsAgent: widget.actingAsAgent);
           _message('تم تحويل المهمة إلى انتظار داخلي.');
           break;
         case 'resume':
           await ref
               .read(supportWorkspaceRepositoryProvider)
-              .setOperationalStatus(task.id, 'in_progress');
+              .setOperationalStatus(task.id, 'in_progress',
+                  actingAsAgent: widget.actingAsAgent);
           _message('تم استئناف العمل على المهمة.');
           break;
         case 'documents':
-          final note = await _textDialog('المستند المطلوب', 'اكتب بوضوح ما المستند الإضافي المطلوب.');
+          final note = await _textDialog(
+              'المستند المطلوب', 'اكتب بوضوح ما المستند الإضافي المطلوب.');
           if (note != null) {
-            await ref.read(supportWorkspaceRepositoryProvider).requestDocuments(task.id, note);
+            await ref.read(supportWorkspaceRepositoryProvider).requestDocuments(
+                task.id, note,
+                actingAsAgent: widget.actingAsAgent);
             _message('تم طلب المستند وتحويل الحالة إلى انتظار المستخدم.');
           }
           break;
         case 'reject':
-          final reason = await _textDialog('سبب الرفض', 'اكتب سبب رفض طلب التحقق.');
+          final reason =
+              await _textDialog('سبب الرفض', 'اكتب سبب رفض طلب التحقق.');
           if (reason != null) {
-            await ref.read(supportWorkspaceRepositoryProvider).rejectVerification(task.id, reason);
+            await ref
+                .read(supportWorkspaceRepositoryProvider)
+                .rejectVerification(task.id, reason,
+                    actingAsAgent: widget.actingAsAgent);
             _message('تم رفض طلب التحقق مع تسجيل السبب.');
           }
           break;
@@ -623,7 +1020,9 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   Future<void> _showTaskHistory(SupportTaskItem task) async {
     List<SupportTaskEventItem> events;
     try {
-      events = await ref.read(supportWorkspaceRepositoryProvider).taskEvents(task.id);
+      events = await ref
+          .read(supportWorkspaceRepositoryProvider)
+          .taskEvents(task.id);
     } catch (error) {
       _message(friendlyApiError(error));
       return;
@@ -648,7 +1047,8 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                         : ' • ${_statusLabel(event.toStatus)}';
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const CircleAvatar(child: Icon(Icons.history, size: 18)),
+                      leading: const CircleAvatar(
+                          child: Icon(Icons.history, size: 18)),
                       title: Text(_eventLabel(event.event)),
                       subtitle: Text(
                         '${event.actorName ?? 'النظام'}$status${event.createdAt == null ? '' : ' • ${_timeAgo(event.createdAt!)}'}',
@@ -673,7 +1073,8 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     final userId = await showDialog<int>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(task.assignedToUserId == null ? 'إسناد المهمة' : 'إعادة الإسناد'),
+        title: Text(
+            task.assignedToUserId == null ? 'إسناد المهمة' : 'إعادة الإسناد'),
         content: SizedBox(
           width: 420,
           child: ListView(
@@ -681,7 +1082,8 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             children: team
                 .map(
                   (member) => ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.support_agent)),
+                    leading:
+                        const CircleAvatar(child: Icon(Icons.support_agent)),
                     title: Text(member.name),
                     subtitle: Text(
                       '${member.openTasks} مفتوحة • ${member.overdueTasks} متأخرة',
@@ -832,7 +1234,8 @@ class _TaskCard extends StatelessWidget {
                     color: _typeColor(task.sourceType).withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Icon(_typeIcon(task.sourceType), color: _typeColor(task.sourceType)),
+                  child: Icon(_typeIcon(task.sourceType),
+                      color: _typeColor(task.sourceType)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -846,8 +1249,9 @@ class _TaskCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                       Text(
-                        '${_typeLabel(task.sourceType)} • ${task.requesterName ?? 'مستخدم #${task.requesterUserId ?? task.sourceId}'}',
-                        style: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
+                        '${_taskTypeLabel(task)} • ${task.requesterName ?? 'مستخدم #${task.requesterUserId ?? task.sourceId}'}${task.supportTeamName == null ? '' : ' • ${task.supportTeamName}'}${task.governorateName == null ? '' : ' • ${task.governorateName}'}',
+                        style: const TextStyle(
+                            color: AppTheme.textMuted, fontSize: 12.5),
                       ),
                     ],
                   ),
@@ -865,12 +1269,21 @@ class _TaskCard extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
-                _StatusPill(label: _statusLabel(task.status), kind: _statusKind(task.status)),
-                _StatusPill(label: _priorityLabel(task.priority), kind: task.priority == 'urgent' ? 2 : 0),
+                _StatusPill(
+                    label: _statusLabel(task.status),
+                    kind: _statusKind(task.status)),
+                if (task.isClosed)
+                  _StatusPill(
+                      label: _taskResultLabel(task),
+                      kind: task.status == 'rejected' ? 2 : 1),
+                _StatusPill(
+                    label: _priorityLabel(task.priority),
+                    kind: task.priority == 'urgent' ? 2 : 0),
                 if (task.severity != null)
-                  _StatusPill(label: 'خطورة ${_severityLabel(task.severity!)}', kind: task.severity == 'critical' ? 2 : 0),
-                if (task.isOverdue)
-                  const _StatusPill(label: 'متأخر', kind: 2),
+                  _StatusPill(
+                      label: 'خطورة ${_severityLabel(task.severity!)}',
+                      kind: task.severity == 'critical' ? 2 : 0),
+                if (task.isOverdue) const _StatusPill(label: 'متأخر', kind: 2),
               ],
             ),
             const SizedBox(height: 9),
@@ -879,17 +1292,28 @@ class _TaskCard extends StatelessWidget {
               runSpacing: 4,
               children: [
                 if (task.createdAt != null)
-                  Text('وصلت ${_timeAgo(task.createdAt!)}', style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted)),
+                  Text('وصلت ${_timeAgo(task.createdAt!)}',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppTheme.textMuted)),
                 if (task.claimedAt != null)
-                  Text('استلمت ${_timeAgo(task.claimedAt!)}', style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted)),
-                if (task.lastActivityAt != null)
-                  Text('آخر تحديث ${_timeAgo(task.lastActivityAt!)}', style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted)),
+                  Text('استلمت ${_timeAgo(task.claimedAt!)}',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppTheme.textMuted)),
+                if (task.completedAt != null)
+                  Text('أُنجزت ${_timeAgo(task.completedAt!)}',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppTheme.textMuted)),
+                if (task.lastActivityAt != null && !task.isClosed)
+                  Text('آخر تحديث ${_timeAgo(task.lastActivityAt!)}',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppTheme.textMuted)),
               ],
             ),
             const SizedBox(height: 7),
             Row(
               children: [
-                const Icon(Icons.person_outline, size: 18, color: AppTheme.textMuted),
+                const Icon(Icons.person_outline,
+                    size: 18, color: AppTheme.textMuted),
                 const SizedBox(width: 5),
                 Expanded(
                   child: Text(
@@ -898,7 +1322,8 @@ class _TaskCard extends StatelessWidget {
                         : task.isMine
                             ? 'مستلم مني – ${task.assignedToName}'
                             : 'المسؤول: ${task.assignedToName}',
-                    style: const TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
+                    style: const TextStyle(
+                        fontSize: 12.5, color: AppTheme.textMuted),
                   ),
                 ),
                 Text(
@@ -906,7 +1331,9 @@ class _TaskCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: task.isOverdue ? Colors.red.shade700 : AppTheme.textMuted,
+                    color: task.isOverdue
+                        ? Colors.red.shade700
+                        : AppTheme.textMuted,
                   ),
                 ),
               ],
@@ -926,9 +1353,13 @@ class _TaskCard extends StatelessWidget {
                 ],
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: onOpen,
-                    icon: const Icon(Icons.open_in_new),
-                    label: Text(task.canClaim && !manager ? 'بعد الاستلام' : 'فتح'),
+                    onPressed: task.isClosed ? onManage : onOpen,
+                    icon: Icon(task.isClosed
+                        ? Icons.receipt_long_outlined
+                        : Icons.open_in_new),
+                    label: Text(task.isClosed
+                        ? 'تفاصيل القرار'
+                        : (task.canClaim && !manager ? 'بعد الاستلام' : 'فتح')),
                   ),
                 ),
               ],
@@ -965,7 +1396,9 @@ class _StatusPill extends StatelessWidget {
         color: background,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(label, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: foreground)),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 11.5, fontWeight: FontWeight.w800, color: foreground)),
     );
   }
 }
@@ -1002,9 +1435,13 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
           child: Column(
             children: [
               ListTile(
-                title: Text(d.summary.subject, style: const TextStyle(fontWeight: FontWeight.w900)),
-                subtitle: Text('${d.summary.reference} • ${d.requesterName ?? 'مستخدم'}'),
-                trailing: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                title: Text(d.summary.subject,
+                    style: const TextStyle(fontWeight: FontWeight.w900)),
+                subtitle: Text(
+                    '${d.summary.reference} • ${d.requesterName ?? 'مستخدم'}'),
+                trailing: IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
               ),
               const Divider(),
               Expanded(
@@ -1021,10 +1458,16 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(m.actorName ?? m.actorRole, style: const TextStyle(fontWeight: FontWeight.w800)),
+                              Text(m.actorName ?? m.actorRole,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800)),
                               const SizedBox(height: 4),
                               Text(m.body),
-                              if (m.isInternal) const Text('ملاحظة داخلية', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                              if (m.isInternal)
+                                const Text('ملاحظة داخلية',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppTheme.textMuted)),
                             ],
                           ),
                         ),
@@ -1054,12 +1497,19 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                       enabled: !_busy,
                       onSelected: _setStatus,
                       itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'in_progress', child: Text('قيد المعالجة')),
-                        PopupMenuItem(value: 'waiting_requester', child: Text('انتظار المستخدم')),
-                        PopupMenuItem(value: 'resolved', child: Text('إغلاق كمحلولة')),
-                        PopupMenuItem(value: 'dismissed', child: Text('رفض / إغلاق')),
+                        PopupMenuItem(
+                            value: 'in_progress', child: Text('قيد المعالجة')),
+                        PopupMenuItem(
+                            value: 'waiting_requester',
+                            child: Text('انتظار المستخدم')),
+                        PopupMenuItem(
+                            value: 'resolved', child: Text('إغلاق كمحلولة')),
+                        PopupMenuItem(
+                            value: 'dismissed', child: Text('رفض / إغلاق')),
                       ],
-                      child: const Chip(label: Text('تغيير الحالة'), avatar: Icon(Icons.sync_alt, size: 18)),
+                      child: const Chip(
+                          label: Text('تغيير الحالة'),
+                          avatar: Icon(Icons.sync_alt, size: 18)),
                     ),
                   ],
                 ),
@@ -1079,7 +1529,9 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
         title: Text(internal ? 'ملاحظة داخلية' : 'رد على المستخدم'),
         content: TextField(controller: c, minLines: 3, maxLines: 6),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء')),
           FilledButton(
             onPressed: () {
               final value = c.text.trim();
@@ -1116,11 +1568,40 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
   }
 }
 
+String _taskTypeLabel(SupportTaskItem task) {
+  if (task.sourceType == 'account_verification') {
+    final kind = task.metadata['verification_type']?.toString();
+    return switch (kind) {
+      'owner' => 'تحقق حساب مالك',
+      'broker' => 'تحقق حساب دلال',
+      'office' => 'تحقق حساب مكتب عقارات',
+      _ => 'تحقق حساب',
+    };
+  }
+  if (task.sourceType == 'listing_review') return 'تحقق نشر إعلان';
+  return _typeLabel(task.sourceType);
+}
+
+String _taskResultLabel(SupportTaskItem task) {
+  final resolution = task.metadata['resolution']?.toString();
+  return switch (resolution) {
+    'approved' =>
+      task.sourceType == 'listing_review' ? 'تم القبول والنشر' : 'تم القبول',
+    'returned_for_correction' => 'أُعيد للمراجعة والتصحيح',
+    'rejected' => 'تم الرفض',
+    'resolved' => 'تم الحل والإغلاق',
+    'dismissed' => 'تم الرفض والإغلاق',
+    'documents_requested' => 'طُلبت مستندات إضافية',
+    _ => task.status == 'rejected' ? 'مرفوض' : 'منجز',
+  };
+}
+
 String _typeLabel(String value) => switch (value) {
       'account_verification' => 'تحقق حساب',
       'listing_review' => 'تحقيق إعلان',
       'support_ticket' => 'تذكرة',
       'report' => 'بلاغ',
+      'contact_followup' => 'متابعة تواصل',
       _ => value,
     };
 
@@ -1129,6 +1610,7 @@ IconData _typeIcon(String value) => switch (value) {
       'listing_review' => Icons.fact_check_outlined,
       'support_ticket' => Icons.support_agent_outlined,
       'report' => Icons.report_gmailerrorred_outlined,
+      'contact_followup' => Icons.phone_callback_outlined,
       _ => Icons.task_alt,
     };
 
@@ -1137,6 +1619,7 @@ Color _typeColor(String value) => switch (value) {
       'listing_review' => AppTheme.accent,
       'support_ticket' => Colors.deepPurple,
       'report' => Colors.deepOrange,
+      'contact_followup' => Colors.teal,
       _ => AppTheme.textMuted,
     };
 
@@ -1186,6 +1669,12 @@ String _eventLabel(String value) => switch (value) {
       'verification_rejected' => 'رفض طلب التحقق',
       'escalated' => 'تصعيد المهمة',
       'reopened' => 'إعادة فتح المهمة',
+      'created_from_external_call' => 'إنشاء متابعة من اتصال خارجي',
+      'external_call_recorded' => 'تسجيل اتصال خارجي جديد',
+      'reopened_by_external_call' => 'إعادة فتح المتابعة باتصال جديد',
+      'contact_followup_outcome' => 'تسجيل نتيجة المتابعة',
+      'contact_followup_overdue' => 'تجاوز موعد المتابعة',
+      'contact_followup_auto_escalated' => 'تصعيد تلقائي لتأخر المتابعة',
       'source_status_synced' => 'تحديث من المصدر',
       _ => value,
     };

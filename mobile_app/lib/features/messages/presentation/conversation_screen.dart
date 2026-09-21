@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../agreements/presentation/conversation_agreement_card.dart';
 import '../../bookings/data/booking_repository.dart';
 import '../../bookings/domain/booking_models.dart';
 import '../../bookings/presentation/booking_request_sheet.dart';
@@ -20,9 +24,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   MessageThreadDetails? _details;
   ViewingBooking? _viewing;
   bool _loading = true;
+  bool _loadingViewing = false;
+  bool _loadingOlder = false;
   bool _sending = false;
+  bool _calling = false;
   bool _bookingBusy = false;
   String? _error;
+  String? _pendingMessageKey;
+  String? _pendingMessageText;
 
   @override
   void initState() {
@@ -36,35 +45,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refreshViewing = true}) async {
     try {
       final details =
           await ref.read(messageRepositoryProvider).details(widget.threadId);
-      ViewingBooking? viewing;
-      try {
-        final bookings = await ref.read(bookingRepositoryProvider).mine();
-        for (final booking in bookings) {
-          if (booking.messageThreadId == widget.threadId) {
-            viewing = booking;
-            break;
-          }
-        }
-      } catch (_) {
-        // The conversation itself must remain usable even if booking refresh fails.
-      }
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _details = details;
-        _viewing = viewing;
         _loading = false;
         _error = null;
       });
+      if (refreshViewing) unawaited(_loadViewing());
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
@@ -72,33 +65,123 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
   }
 
-  Future<void> _send() async {
-    final text = _controller.text.trim();
-    if (text.isEmpty || _sending) {
+  Future<void> _loadViewing() async {
+    if (_loadingViewing) return;
+    _loadingViewing = true;
+    try {
+      final bookings = await ref.read(bookingRepositoryProvider).mine();
+      ViewingBooking? viewing;
+      for (final booking in bookings) {
+        if (booking.messageThreadId == widget.threadId) {
+          viewing = booking;
+          if (booking.isActive) break;
+        }
+      }
+      if (!mounted) return;
+      setState(() => _viewing = viewing);
+    } catch (_) {
+      // Conversation content remains fully usable while viewing data catches up.
+    } finally {
+      _loadingViewing = false;
+    }
+  }
+
+  Future<void> _loadOlder() async {
+    final current = _details;
+    final beforeId = current?.nextBeforeId;
+    if (current == null || !current.hasMore || beforeId == null || _loadingOlder) {
       return;
     }
-    setState(() => _sending = true);
+    setState(() => _loadingOlder = true);
     try {
-      await ref.read(messageRepositoryProvider).send(widget.threadId, text);
-      ref.read(messageDataRevisionProvider.notifier).state++;
-      _controller.clear();
-      await _load();
+      final older = await ref
+          .read(messageRepositoryProvider)
+          .details(widget.threadId, beforeId: beforeId);
+      if (!mounted) return;
+      final byId = <int, PrivateMessageItem>{
+        for (final item in older.messages) item.id: item,
+        for (final item in current.messages) item.id: item,
+      };
+      final merged = byId.values.toList()
+        ..sort((a, b) => a.id.compareTo(b.id));
+      setState(() {
+        _details = MessageThreadDetails(
+          thread: current.thread,
+          messages: merged,
+          hasMore: older.hasMore,
+          nextBeforeId: older.nextBeforeId,
+        );
+      });
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
       }
     } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
+  }
+
+  Future<void> _send() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _sending) return;
+    if (_pendingMessageText != null && _pendingMessageText != text) {
+      _pendingMessageKey = null;
+    }
+    final key = _pendingMessageKey ??
+        'm-${widget.threadId}-${DateTime.now().microsecondsSinceEpoch}';
+    _pendingMessageKey = key;
+    _pendingMessageText = text;
+    setState(() => _sending = true);
+    try {
+      await ref.read(messageRepositoryProvider).send(widget.threadId, text,
+          clientMessageId: key);
+      ref.read(messageDataRevisionProvider.notifier).state++;
+      _controller.clear();
+      _pendingMessageKey = null;
+      _pendingMessageText = null;
+      await _load(refreshViewing: false);
+    } catch (error) {
       if (mounted) {
-        setState(() => _sending = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                '${friendlyApiError(error)} يمكنك إعادة الإرسال بأمان ما دام النص لم يتغير.')));
       }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+
+  Future<void> _callAdvertiser() async {
+    if (_calling) return;
+    setState(() => _calling = true);
+    try {
+      final call =
+          await ref.read(messageRepositoryProvider).startExternalCall(widget.threadId);
+      ref.read(messageDataRevisionProvider.notifier).state++;
+      final uri = Uri(scheme: 'tel', path: call.phone);
+      final launched =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر فتح تطبيق الهاتف على هذا الجهاز.')),
+        );
+      }
+      if (mounted) await _load(refreshViewing: false);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _calling = false);
     }
   }
 
   Future<void> _bookingAction(String action) async {
     final booking = _viewing;
     if (booking == null || _bookingBusy) return;
-
     setState(() => _bookingBusy = true);
     try {
       final repo = ref.read(bookingRepositoryProvider);
@@ -117,6 +200,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         if (!mounted) return;
         updated = await BookingRequestSheet.showForReschedule(context, booking);
         if (updated == null) return;
+      } else if (action == 'complete') {
+        updated = await repo.complete(booking.id);
       }
       if (!mounted || updated == null) return;
       setState(() => _viewing = updated);
@@ -174,70 +259,98 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.event_available_outlined),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'طلب معاينة مرتبط بهذه المحادثة',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                ),
-                Chip(label: Text(booking.statusLabel)),
-              ],
-            ),
+            Row(children: [
+              const Icon(Icons.event_available_outlined),
+              const SizedBox(width: 8),
+              const Expanded(
+                  child: Text('طلب معاينة مرتبط بهذه المحادثة',
+                      style: TextStyle(fontWeight: FontWeight.w900))),
+              Chip(label: Text(booking.statusLabel)),
+            ]),
             Text(date),
             const SizedBox(height: 4),
             Text(booking.isRequester
                 ? 'المعلن: ${booking.hostName ?? '-'}'
                 : 'طالب المعاينة: ${booking.requesterName}'),
+            if (booking.awaitingRequesterConfirmation && booking.isRequester)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text(
+                    'المعلن اقترح هذا الموعد الجديد. راجعه ثم وافق عليه أو غيّره.'),
+              ),
             if (booking.requesterNote?.trim().isNotEmpty == true)
               Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('ملاحظة الطلب: ${booking.requesterNote}'),
-              ),
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('ملاحظة الطلب: ${booking.requesterNote}')),
+            if (booking.hostNote?.trim().isNotEmpty == true)
+              Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('ملاحظة المعلن: ${booking.hostNote}')),
             if (booking.isActive) ...[
               const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (booking.canManage && booking.status == 'requested')
-                    FilledButton.tonalIcon(
-                      onPressed: _bookingBusy
-                          ? null
-                          : () => _bookingAction('confirm'),
-                      icon: const Icon(Icons.check_circle_outline),
-                      label: const Text('تأكيد الموعد'),
-                    ),
-                  if (booking.canManage && booking.status == 'requested')
-                    OutlinedButton.icon(
-                      onPressed: _bookingBusy
-                          ? null
-                          : () => _bookingAction('decline'),
-                      icon: const Icon(Icons.cancel_outlined),
-                      label: const Text('رفض'),
-                    ),
-                  if (booking.canReschedule)
-                    OutlinedButton.icon(
-                      onPressed: _bookingBusy
-                          ? null
-                          : () => _bookingAction('reschedule'),
-                      icon: const Icon(Icons.schedule_outlined),
-                      label: const Text('تغيير الموعد'),
-                    ),
-                  if (booking.canCancel)
-                    OutlinedButton.icon(
-                      onPressed: _bookingBusy
-                          ? null
-                          : () => _bookingAction('cancel'),
-                      icon: const Icon(Icons.event_busy_outlined),
-                      label: const Text('إلغاء'),
-                    ),
-                ],
-              ),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                if (booking.canConfirm)
+                  FilledButton.tonalIcon(
+                    onPressed:
+                        _bookingBusy ? null : () => _bookingAction('confirm'),
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: Text(booking.canAcceptReschedule
+                        ? 'قبول الموعد الجديد'
+                        : 'تأكيد الموعد'),
+                  ),
+                if (booking.canDecline)
+                  OutlinedButton.icon(
+                    onPressed:
+                        _bookingBusy ? null : () => _bookingAction('decline'),
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: const Text('رفض'),
+                  ),
+                if (booking.canReschedule)
+                  OutlinedButton.icon(
+                    onPressed: _bookingBusy
+                        ? null
+                        : () => _bookingAction('reschedule'),
+                    icon: const Icon(Icons.schedule_outlined),
+                    label: const Text('تغيير الموعد'),
+                  ),
+                if (booking.canCancel)
+                  OutlinedButton.icon(
+                    onPressed:
+                        _bookingBusy ? null : () => _bookingAction('cancel'),
+                    icon: const Icon(Icons.event_busy_outlined),
+                    label: const Text('إلغاء'),
+                  ),
+              ]),
             ],
+            if (booking.canComplete) ...[
+              const SizedBox(height: 10),
+              FilledButton.tonalIcon(
+                  onPressed:
+                      _bookingBusy ? null : () => _bookingAction('complete'),
+                  icon: const Icon(Icons.task_alt),
+                  label: const Text('تسجيل المعاينة كمكتملة')),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _propertyAvailabilityBanner(MessageThreadSummary thread) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: const Padding(
+        padding: EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'هذا الإعلان لم يعد منشوراً. تبقى المحادثة وسجلها متاحين للتنسيق، لكن لا تعتمد على الإعلان كعرض متاح حالياً.',
+              ),
+            ),
           ],
         ),
       ),
@@ -271,9 +384,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                         DropdownMenuItem(value: e.key, child: Text(e.value)))
                     .toList(),
                 onChanged: (value) {
-                  if (value != null) {
-                    setDialogState(() => reason = value);
-                  }
+                  if (value != null) setDialogState(() => reason = value);
                 }),
             const SizedBox(height: 12),
             TextField(
@@ -296,16 +407,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
     final text = details.text.trim();
     details.dispose();
-    if (accepted != true) {
-      return;
-    }
+    if (accepted != true) return;
     if (text.length < 5) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('اكتب تفاصيل واضحة للبلاغ لا تقل عن 5 أحرف.'),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('اكتب تفاصيل واضحة للبلاغ لا تقل عن 5 أحرف.')));
       }
       return;
     }
@@ -313,9 +419,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       await ref
           .read(messageRepositoryProvider)
           .report(widget.threadId, reason: reason, details: text);
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم إرسال البلاغ إلى الدعم.')));
     } catch (error) {
@@ -328,22 +432,37 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final thread = _details?.thread;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-            title: Text(_details?.thread.otherUserName ?? 'محادثة'),
+            title: Text(thread?.otherUserName ?? 'محادثة'),
             actions: [
+              if (thread?.canCallAdvertiser == true)
+                IconButton(
+                    onPressed: _calling ? null : _callAdvertiser,
+                    tooltip: 'اتصال بالمعلن',
+                    icon: _calling
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.phone_outlined)),
               IconButton(
                   onPressed: _loading ? null : _load,
                   tooltip: 'تحديث',
                   icon: const Icon(Icons.refresh)),
               IconButton(
-                  onPressed: _report,
+                  onPressed: _loading ? null : _report,
                   tooltip: 'بلاغ',
                   icon: const Icon(Icons.flag_outlined))
             ]),
         body: Column(children: [
+          if (!_loading && thread?.isPropertyUnavailable == true)
+            _propertyAvailabilityBanner(thread!),
+          if (!_loading && thread != null)
+            ConversationAgreementCard(thread: thread),
           if (!_loading && _viewing != null) _viewingCard(_viewing!),
           Expanded(
               child: _loading
@@ -362,8 +481,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             minLines: 1,
                             maxLines: 4,
                             maxLength: 2000,
-                            decoration: const InputDecoration(
-                                hintText: 'اكتب رسالة...'),
+                            decoration:
+                                const InputDecoration(hintText: 'اكتب رسالة...'),
                             onSubmitted: (_) => _send())),
                     const SizedBox(width: 8),
                     IconButton.filled(
@@ -382,18 +501,69 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Widget _messageList() {
-    final messages = _details?.messages ?? const <PrivateMessageItem>[];
+    final details = _details;
+    final messages = details?.messages ?? const <PrivateMessageItem>[];
     if (messages.isEmpty) {
-      return const Center(
-        child: Text('ابدأ المحادثة برسالة محترمة وواضحة.'),
-      );
+      return const Center(child: Text('ابدأ المحادثة برسالة محترمة وواضحة.'));
     }
+    final hasOlder = details?.hasMore == true;
     return ListView.builder(
       reverse: true,
       padding: const EdgeInsets.all(14),
-      itemCount: messages.length,
+      itemCount: messages.length + (hasOlder ? 1 : 0),
       itemBuilder: (context, index) {
+        if (hasOlder && index == messages.length) {
+          return Center(
+            child: TextButton.icon(
+              onPressed: _loadingOlder ? null : _loadOlder,
+              icon: _loadingOlder
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.history),
+              label: const Text('تحميل رسائل أقدم'),
+            ),
+          );
+        }
         final item = messages[messages.length - 1 - index];
+        final createdAt = item.createdAt?.toLocal();
+        final time = createdAt == null
+            ? null
+            : '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
+        if (item.isCallStarted) {
+          return Align(
+            alignment: AlignmentDirectional.center,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 330),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.phone_in_talk_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      item.isMine
+                          ? 'بدأت اتصالاً بالمعلن'
+                          : '${item.senderName} بدأ اتصالاً هاتفياً',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (time != null) ...[
+                    const SizedBox(width: 8),
+                    Text(time, style: Theme.of(context).textTheme.labelSmall),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }
         return Align(
           alignment: item.isMine
               ? AlignmentDirectional.centerStart
@@ -412,6 +582,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                       fontWeight: FontWeight.w800, fontSize: 12)),
               const SizedBox(height: 4),
               Text(item.body),
+              if (time != null) ...[
+                const SizedBox(height: 4),
+                Text(time, style: Theme.of(context).textTheme.labelSmall),
+              ],
             ]),
           ),
         );

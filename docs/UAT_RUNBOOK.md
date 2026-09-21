@@ -87,6 +87,8 @@ Validate:
 
 ## 6. Property Requests acceptance — when Phase 2 lands
 
+Phase 2 is currently frozen. Do not execute this section until Phase 0 is closed and Phase 2 is explicitly resumed.
+
 Use requester + verified broker/office:
 
 - requester creates persistent property request
@@ -126,7 +128,7 @@ Use requester + verified broker/office:
 - no claim of government notarization
 - unauthorized users cannot read/update the contract
 
-## 10. Performance acceptance
+## 10. Performance and connection acceptance
 
 Separate cold-start from warm behavior.
 
@@ -137,6 +139,25 @@ Record:
 - representative list endpoint
 - admin/support dashboard load
 - approve/reject/save actions
+
+Current UAT capacity baseline:
+
+- Render UAT uses Apache prefork with `MaxRequestWorkers 12`.
+- The ceiling intentionally stays below the Supabase session-mode pool limit, leaving headroom for health checks, migrations, and maintenance.
+- PostgreSQL application connections must remain non-persistent; `DB_PERSISTENT` should be false or unset for the accepted UAT baseline.
+- CI performs a read-only burst of 40 nearby-property requests with concurrency 20, requires all responses to succeed and contain the expected payload shape, then requires `/api/health` to remain healthy.
+- The burst is a stability regression gate, not a production load target or production SLO.
+- High latency must be investigated with Render metrics, database query plans, and network/region placement before changing database indexes or increasing worker/session limits.
+
+The audited spatial nearby query has a GiST location index and uses it in PostgreSQL. Do not remove existing indexes solely because Supabase reports them as unused without workload evidence.
+
+If the load probe fails:
+
+1. inspect Render request/app logs for 5xx, `MaxRequestWorkers`, or connection-pool errors;
+2. inspect PostgreSQL session counts by user/application/state;
+3. verify `/api/health` independently;
+4. avoid increasing worker/session limits beyond the documented headroom without evidence and approval;
+5. rerun the same deterministic probe after the smallest safe fix.
 
 If warm requests remain slow, inspect backend/DB/network rather than blaming Flutter navigation.
 
@@ -152,6 +173,10 @@ When a UAT case fails:
 6. Re-run CI.
 7. Repeat only the affected UAT path plus required regression checks.
 
-## 12. Release boundary
+## 12. Visual acceptance requirement
+
+Automated CI/server checks do not replace a real rendered-device pass. Before Phase 0 is closed, use Computer Use with the actual UAT APK/emulator to traverse the reachable flows for regular users, brokers, support agents/managers, and platform administration, including loading/empty/error/auth states and Arabic/RTL layout.
+
+## 13. Release boundary
 
 Passing UAT does not mean Production release is approved. Production database, Play Store, real payments, real customer identity documents, and final production infrastructure require a separate explicit phase and approval.

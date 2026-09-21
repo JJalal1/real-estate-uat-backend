@@ -32,19 +32,32 @@ class MessageRepository {
     return MessageThreadSummary.fromJson(_dataMap(response.data));
   }
 
-  Future<MessageThreadDetails> details(int threadId) async {
+  Future<MessageThreadDetails> details(int threadId, {int? beforeId}) async {
     final response = await _dio.get<Map<String, dynamic>>(
         '/messages/threads/$threadId',
+        queryParameters: {if (beforeId != null) 'before_id': beforeId},
         options: await _auth.requiredAuthOptions());
     return MessageThreadDetails.fromJson(_dataMap(response.data));
   }
 
-  Future<PrivateMessageItem> send(int threadId, String body) async {
+  Future<PrivateMessageItem> send(int threadId, String body,
+      {String? clientMessageId}) async {
     final response = await _dio.post<Map<String, dynamic>>(
         '/messages/threads/$threadId/messages',
-        data: {'body': body.trim()},
+        data: {
+          'body': body.trim(),
+          if (clientMessageId != null) 'client_message_id': clientMessageId,
+        },
         options: await _auth.requiredAuthOptions());
     return PrivateMessageItem.fromJson(_dataMap(response.data));
+  }
+
+
+  Future<ExternalCallStart> startExternalCall(int threadId) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+        '/messages/threads/$threadId/external-call',
+        options: await _auth.requiredAuthOptions());
+    return ExternalCallStart.fromJson(_dataMap(response.data));
   }
 
   Future<void> markRead(int threadId) async {

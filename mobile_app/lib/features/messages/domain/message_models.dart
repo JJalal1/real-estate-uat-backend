@@ -4,8 +4,10 @@ class MessageThreadSummary {
     required this.otherUserId,
     required this.otherUserName,
     required this.unreadCount,
+    this.canCallAdvertiser = false,
     this.propertyId,
     this.propertyTitle,
+    this.propertyStatus,
     this.lastMessagePreview,
     this.lastMessageAt,
   });
@@ -14,10 +16,15 @@ class MessageThreadSummary {
   final int otherUserId;
   final String otherUserName;
   final int unreadCount;
+  final bool canCallAdvertiser;
   final int? propertyId;
   final String? propertyTitle;
+  final String? propertyStatus;
   final String? lastMessagePreview;
   final DateTime? lastMessageAt;
+
+  bool get isPropertyUnavailable =>
+      propertyId != null && propertyStatus != null && propertyStatus != 'published';
 
   factory MessageThreadSummary.fromJson(Map<String, dynamic> json) {
     final other = json['other_user'];
@@ -28,8 +35,10 @@ class MessageThreadSummary {
       otherUserId: _asInt(otherMap['id']) ?? 0,
       otherUserName: otherMap['name']?.toString() ?? 'مستخدم',
       unreadCount: _asInt(json['unread_count']) ?? 0,
+      canCallAdvertiser: json['can_call_advertiser'] == true || json['can_call_advertiser'] == 1,
       propertyId: _asInt(json['property_id']),
       propertyTitle: _nullable(json['property_title']),
+      propertyStatus: _nullable(json['property_status']),
       lastMessagePreview: _nullable(json['last_message_preview']),
       lastMessageAt: _date(json['last_message_at']),
     );
@@ -43,6 +52,8 @@ class PrivateMessageItem {
     required this.senderName,
     required this.body,
     required this.isMine,
+    this.messageType = 'text',
+    this.clientMessageId,
     this.createdAt,
   });
 
@@ -51,6 +62,10 @@ class PrivateMessageItem {
   final String senderName;
   final String body;
   final bool isMine;
+  final String messageType;
+  final String? clientMessageId;
+
+  bool get isCallStarted => messageType == 'call_started';
   final DateTime? createdAt;
 
   factory PrivateMessageItem.fromJson(Map<String, dynamic> json) {
@@ -60,19 +75,52 @@ class PrivateMessageItem {
       senderName: json['sender_name']?.toString() ?? 'مستخدم',
       body: json['body']?.toString() ?? '',
       isMine: json['is_mine'] == true || json['is_mine'] == 1,
+      messageType: json['message_type']?.toString() ?? 'text',
+      clientMessageId: _nullable(json['client_message_id']),
       createdAt: _date(json['created_at']),
     );
   }
 }
 
+
+class ExternalCallStart {
+  const ExternalCallStart({required this.phone, required this.message});
+
+  final String phone;
+  final PrivateMessageItem message;
+
+  factory ExternalCallStart.fromJson(Map<String, dynamic> json) {
+    final message = json['message'];
+    if (message is! Map<String, dynamic>) {
+      throw StateError('Invalid external call response.');
+    }
+    return ExternalCallStart(
+      phone: json['phone']?.toString() ?? '',
+      message: PrivateMessageItem.fromJson(message),
+    );
+  }
+}
+
 class MessageThreadDetails {
-  const MessageThreadDetails({required this.thread, required this.messages});
+  const MessageThreadDetails({
+    required this.thread,
+    required this.messages,
+    this.hasMore = false,
+    this.nextBeforeId,
+  });
+
   final MessageThreadSummary thread;
   final List<PrivateMessageItem> messages;
+  final bool hasMore;
+  final int? nextBeforeId;
 
   factory MessageThreadDetails.fromJson(Map<String, dynamic> json) {
     final threadJson = json['thread'];
     final rows = json['messages'] as List<dynamic>? ?? const <dynamic>[];
+    final pagination = json['pagination'];
+    final paginationMap = pagination is Map<String, dynamic>
+        ? pagination
+        : const <String, dynamic>{};
     if (threadJson is! Map<String, dynamic>) {
       throw StateError('Invalid message thread response.');
     }
@@ -82,6 +130,8 @@ class MessageThreadDetails {
           .whereType<Map<String, dynamic>>()
           .map(PrivateMessageItem.fromJson)
           .toList(growable: false),
+      hasMore: paginationMap['has_more'] == true,
+      nextBeforeId: _asInt(paginationMap['next_before_id']),
     );
   }
 }
@@ -95,6 +145,7 @@ class AppNotificationItem {
     this.body,
     this.entityType,
     this.entityId,
+    this.data = const <String, dynamic>{},
     this.createdAt,
   });
 
@@ -104,10 +155,22 @@ class AppNotificationItem {
   final String? body;
   final String? entityType;
   final int? entityId;
+  final Map<String, dynamic> data;
   final bool isRead;
   final DateTime? createdAt;
 
+  int? get bookingId => _asInt(data['booking_id']);
+  int? get messageThreadId => _asInt(data['message_thread_id']);
+  int? get agreementId => _asInt(data['agreement_id']);
+  int? get rentalContractId => _asInt(data['rental_contract_id']);
+
   factory AppNotificationItem.fromJson(Map<String, dynamic> json) {
+    final rawData = json['data'];
+    final data = rawData is Map<String, dynamic>
+        ? rawData
+        : rawData is Map
+            ? Map<String, dynamic>.from(rawData)
+            : const <String, dynamic>{};
     return AppNotificationItem(
       id: _asInt(json['id']) ?? 0,
       type: json['type']?.toString() ?? '',
@@ -115,6 +178,7 @@ class AppNotificationItem {
       body: _nullable(json['body']),
       entityType: _nullable(json['entity_type']),
       entityId: _asInt(json['entity_id']),
+      data: data,
       isRead: json['read_at'] != null,
       createdAt: _date(json['created_at']),
     );

@@ -3,30 +3,31 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('account page separates own-property management from activity', () {
+  test('account keeps launch-critical marketplace actions', () {
     final source = File(
       'lib/features/account/presentation/account_screen.dart',
     ).readAsStringSync();
 
     for (final label in <String>[
+      'الخدمات والأدوات',
+      'المساعدة والدعم',
       'إدارة عقاراتي',
-      'إضافة إعلان جديد',
       'إعلاناتي',
-      'طلبات المعاينة على عقاراتي',
-      'عقود الإيجار',
+      'إضافة عقار',
       'نشاطي',
+      'المعاينات',
       'المفضلة',
-      'طلبات العقار',
-      'حجوزاتي',
-      'طلبات الباحثين',
     ]) {
       expect(source, contains(label), reason: 'Missing account label: $label');
     }
 
+    expect(source, contains("context.push('/services')"));
+    expect(source, contains("context.push('/bookings')"));
+    expect(source, contains('user.hasVerifiedPublishingProfile'));
+    expect(source, isNot(contains("'طلبات العقار'")));
+    expect(source, isNot(contains("'طلبات الباحثين'")));
     expect(source, isNot(contains('المشاريع والتطويرات العقارية')));
     expect(source, isNot(contains('الخدمات والترقيات والمدفوعات')));
-    expect(source, contains("servicesHub?.can('view_researcher_requests')"));
-    expect(source, contains("context.push('/bookings')"));
   });
 
   test('backend hub explicitly disables paid feature mode', () {
@@ -37,7 +38,6 @@ void main() {
 
     expect(controller, contains("'pricing_model' => 'free'"));
     expect(controller, contains("'paid_features_enabled' => false"));
-    expect(controller, contains("'view_researcher_requests' => \$verifiedBrokerOrOffice"));
     expect(routes, contains("Route::get('/services/hub'"));
   });
 }

@@ -15,6 +15,7 @@ use App\Services\CloudAssetStorageService;
 use App\Services\RegionService;
 use App\Services\ListingWorkflowService;
 use App\Services\PropertyAssetService;
+use App\Services\PropertyIdentityService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,6 +49,7 @@ class PropertyController extends Controller
         private readonly CloudAssetStorageService $storage,
         private readonly RegionService $regions,
         private readonly PropertyAssetService $assets,
+        private readonly PropertyIdentityService $identity,
         private readonly ListingWorkflowService $workflow,
     ) {}
 
@@ -182,15 +184,18 @@ class PropertyController extends Controller
         $user = $request->user();
         $perPage = max(1, min((int) $request->input('per_page', 20), 50));
 
+        $workspaceView = $request->input('view') === 'workspace';
         $page = Property::query()
-            ->with('images')
+            ->with($workspaceView ? ['images', 'documents'] : ['images'])
             ->where('user_id', $user->id)
             ->latest('id')
             ->paginate($perPage);
 
         return response()->json([
             'data' => collect($page->items())
-                ->map(fn (Property $property) => $this->detailData($property, $request))
+                ->map(fn (Property $property) => $workspaceView
+                    ? $this->mineWorkspaceData($property, $request)
+                    : $this->detailData($property, $request))
                 ->values(),
             'meta' => [
                 'current_page' => $page->currentPage(),
@@ -208,7 +213,8 @@ class PropertyController extends Controller
         $validated=$this->normalizeListingFields($validated,null,false);
         $this->assertV2ListingCompleteness($validated);
         $cell=$this->regions->assertListingAllowed($user,(float)$validated['latitude'],(float)$validated['longitude']);
-        $asset=$this->assets->resolveOrCreate($user,$validated,null);
+        $asset=$this->identity->resolveOrCreateAsset($user,$validated);
+        $this->assets->assertPurposeNotBlocked($asset,(string)$validated['purpose']);
         $storedPublic=[];$storedPrivate=[];
         try{
             $property=DB::transaction(function()use($request,$validated,$user,$cell,$asset,&$storedPublic,&$storedPrivate){
@@ -237,7 +243,7 @@ class PropertyController extends Controller
             $wasPublished=$property->status==='published';$property->fill($this->listingPayload($validated,true));
             $cell=$this->regions->assertListingAllowed($user,(float)$property->latitude,(float)$property->longitude);$property->geo_cell_id=$cell?->id;
             $identity=array_merge(['purpose'=>$property->purpose,'type'=>$property->type,'latitude'=>$property->latitude,'longitude'=>$property->longitude,'area_m2'=>$property->area_m2,'bedrooms'=>$property->bedrooms,'bathrooms'=>$property->bathrooms,'address'=>$property->address],$validated);
-            $asset=$this->assets->resolveOrCreate($user,$identity,null);$property->property_asset_id=$asset->id;
+            $asset=$this->identity->resolveOrCreateAsset($user,$identity);$property->property_asset_id=$asset->id;
             $property->status='draft';$property->review_status='draft';$property->submitted_at=null;$property->reviewed_at=null;$property->last_review_reason=null;if($wasPublished)$property->published_at=null;$property->save();$this->syncLocation($property);
             if($replaceImages)$property->images()->delete();if($request->hasFile('images'))$this->storeImages($request,$property,$property->images()->count(),$storedPublic);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
             $this->audit->record($user,$wasPublished?'listing.published_edit_moved_to_draft':'listing.updated',$property,['changed_fields'=>array_values(array_keys($validated)),'replace_images'=>$replaceImages,'property_asset_id'=>$asset->id],$request,$user->id);
@@ -256,7 +262,7 @@ class PropertyController extends Controller
         /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);
         if(in_array($property->review_status,['submitted','under_review','rejected_blocked'],true)) abort(409,'This listing cannot be deleted in its current review state.');
         $images=$property->images()->get();$docs=$property->documents()->get();
-        DB::transaction(function()use($property,$user,$request):void{$property->delete();$this->audit->record($user,'listing.deleted',$property,['property_asset_id'=>$property->property_asset_id],$request,$user->id);});
+        DB::transaction(function()use($property,$user,$request):void{$this->identity->releaseRepresentationForListing($property);$property->delete();$this->audit->record($user,'listing.deleted',$property,['property_asset_id'=>$property->property_asset_id],$request,$user->id);});
         $this->deleteImageFiles($images);$this->deleteProofFiles($docs);return response()->json(['message'=>'Listing deleted.']);
     }
 
@@ -324,7 +330,7 @@ class PropertyController extends Controller
             'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
             'currency' => ['sometimes', 'string', 'size:3'],
-            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2])],
+            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3])],
             'area_m2' => ['nullable', 'integer', 'min:1', 'max:10000000'],
             'area_value' => ['nullable', 'numeric', 'gt:0', 'max:10000000'],
             'area_unit' => ['nullable', 'string', Rule::in(array_keys(self::AREA_UNITS))],
@@ -333,6 +339,10 @@ class PropertyController extends Controller
             'has_parking' => ['nullable', 'boolean'],
             'building_facade' => ['nullable', 'string', Rule::in(self::FACADES)],
             'address' => ['nullable', 'string', 'max:255'],
+            'building_reference' => ['nullable', 'string', 'max:160'],
+            'unit_number' => ['nullable', 'string', 'max:64'],
+            'floor_number' => ['nullable', 'string', 'max:32'],
+            'land_boundary_geojson' => ['nullable'],
             'latitude' => array_merge($required, ['numeric', 'between:-90,90']),
             'longitude' => array_merge($required, ['numeric', 'between:-180,180']),
             'contact_phone' => ['nullable', 'string', 'max:32'],
@@ -359,6 +369,7 @@ class PropertyController extends Controller
         $allowed = [
             'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
             'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude',
+            'building_reference', 'unit_number', 'floor_number', 'land_boundary_geojson',
             'contact_phone', 'contact_whatsapp',
             'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note',
         ];
@@ -378,6 +389,16 @@ class PropertyController extends Controller
         if (($payload['type'] ?? null) === 'land') {
             $payload['bedrooms'] = null;
             $payload['bathrooms'] = null;
+            $payload['building_reference'] = null;
+            $payload['unit_number'] = null;
+            $payload['floor_number'] = null;
+        } elseif (! in_array(($payload['type'] ?? null), ['apartment','office','shop'], true)) {
+            $payload['building_reference'] = null;
+            $payload['unit_number'] = null;
+            $payload['floor_number'] = null;
+            $payload['land_boundary_geojson'] = null;
+        } else {
+            $payload['land_boundary_geojson'] = null;
         }
 
         return $payload;
@@ -425,6 +446,16 @@ class PropertyController extends Controller
             $validated['bathrooms'] = null;
             $validated['has_parking'] = null;
             $validated['building_facade'] = null;
+            $validated['building_reference'] = null;
+            $validated['unit_number'] = null;
+            $validated['floor_number'] = null;
+        } elseif (! in_array($effectiveType, ['apartment','office','shop'], true)) {
+            $validated['building_reference'] = null;
+            $validated['unit_number'] = null;
+            $validated['floor_number'] = null;
+            $validated['land_boundary_geojson'] = null;
+        } else {
+            $validated['land_boundary_geojson'] = null;
         }
 
         return $validated;
@@ -504,6 +535,10 @@ class PropertyController extends Controller
             'document_owner_name' => $property->document_owner_name,
             'owner_relationship_type' => $property->owner_relationship_type,
             'owner_relationship_note' => $property->owner_relationship_note,
+            'building_reference' => $property->building_reference,
+            'unit_number' => $property->unit_number,
+            'floor_number' => $property->floor_number,
+            'land_boundary_geojson' => $property->land_boundary_geojson,
         ];
     }
 
@@ -746,11 +781,48 @@ class PropertyController extends Controller
             'latitude' => (float) $property->latitude,
             'longitude' => (float) $property->longitude,
             'status' => $property->status,
-            'geo_cell_id' => $property->geo_cell_id,
-            'property_asset_id' => $property->property_asset_id,
-            'review_status' => $property->review_status,
             'main_image' => $mainImage ? $this->imageUrl($mainImage, $request) : null,
         ];
+    }
+
+    private function mineWorkspaceData(Property $property, Request $request): array
+    {
+        $property->loadMissing(['images', 'documents']);
+        return array_merge($this->summaryData($property, $request), [
+            'description' => $property->description,
+            'contact_phone' => $property->contact_phone,
+            'contact_whatsapp' => $property->contact_whatsapp,
+            'review_status' => $property->review_status,
+            'geo_cell_id' => $property->geo_cell_id,
+            'property_asset_id' => $property->property_asset_id,
+            'last_review_reason' => $property->last_review_reason,
+            'proof_document_count' => $property->documents->count(),
+            'can_submit' => in_array($property->review_status, ['draft', 'returned_for_correction'], true),
+            'can_edit' => ! in_array($property->review_status, ['submitted', 'under_review', 'rejected_blocked'], true),
+            'is_owner' => true,
+            'ownership_document_type' => $property->ownership_document_type,
+            'document_owner_name' => $property->document_owner_name,
+            'owner_relationship_type' => $property->owner_relationship_type,
+            'owner_relationship_note' => $property->owner_relationship_note,
+            'building_reference' => $property->building_reference,
+            'unit_number' => $property->unit_number,
+            'floor_number' => $property->floor_number,
+            'land_boundary_geojson' => $property->land_boundary_geojson,
+            'duplicate_check_status' => $property->duplicate_check_status,
+            'duplicate_check_score' => (int) $property->duplicate_check_score,
+            'duplicate_check_metadata' => $property->duplicate_check_metadata,
+            'ownership_proof_present' => $property->documents->contains(
+                fn (ListingDocument $document) => $document->kind === 'ownership_proof'
+            ),
+            'images' => $property->images
+                ->map(fn (PropertyImage $image) => [
+                    'id' => $image->id,
+                    'url' => $this->imageUrl($image, $request),
+                    'is_primary' => (bool) $image->is_primary,
+                    'sort_order' => (int) $image->sort_order,
+                ])
+                ->values(),
+        ]);
     }
 
     private function detailData(Property $property, Request $request): array
@@ -763,12 +835,6 @@ class PropertyController extends Controller
 
         $data = array_merge($this->summaryData($property, $request), [
             'description' => $property->description,
-            'contact_phone' => $property->contact_phone,
-            'contact_whatsapp' => $property->contact_whatsapp,
-            'last_review_reason' => $property->last_review_reason,
-            'proof_document_count' => $property->documents()->count(),
-            'can_submit' => in_array($property->review_status, ['draft','returned_for_correction'], true),
-            'can_edit' => ! in_array($property->review_status, ['submitted','under_review','rejected_blocked'], true),
             'advertiser' => array_merge([
                 'id'=>(int)$property->user_id,
                 'name'=>$this->advertiserDisplayName($property->user),
@@ -788,10 +854,26 @@ class PropertyController extends Controller
 
         $viewer = $this->tokens->authenticate($request, false);
         if ($viewer !== null && (int) $viewer->id === (int) $property->user_id) {
+            $data['contact_phone'] = $property->contact_phone;
+            $data['contact_whatsapp'] = $property->contact_whatsapp;
+            $data['review_status'] = $property->review_status;
+            $data['geo_cell_id'] = $property->geo_cell_id;
+            $data['property_asset_id'] = $property->property_asset_id;
+            $data['last_review_reason'] = $property->last_review_reason;
+            $data['proof_document_count'] = $property->documents()->count();
+            $data['can_submit'] = in_array($property->review_status, ['draft','returned_for_correction'], true);
+            $data['can_edit'] = ! in_array($property->review_status, ['submitted','under_review','rejected_blocked'], true);
             $data['ownership_document_type'] = $property->ownership_document_type;
             $data['document_owner_name'] = $property->document_owner_name;
             $data['owner_relationship_type'] = $property->owner_relationship_type;
             $data['owner_relationship_note'] = $property->owner_relationship_note;
+            $data['building_reference'] = $property->building_reference;
+            $data['unit_number'] = $property->unit_number;
+            $data['floor_number'] = $property->floor_number;
+            $data['land_boundary_geojson'] = $property->land_boundary_geojson;
+            $data['duplicate_check_status'] = $property->duplicate_check_status;
+            $data['duplicate_check_score'] = (int) $property->duplicate_check_score;
+            $data['duplicate_check_metadata'] = $property->duplicate_check_metadata;
             $data['ownership_proof_present'] = $property->documents()->where('kind', 'ownership_proof')->exists();
         }
         return $data;

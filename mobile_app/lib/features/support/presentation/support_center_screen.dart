@@ -6,7 +6,9 @@ import '../data/support_repository.dart';
 import '../domain/support_models.dart';
 
 class SupportCenterScreen extends ConsumerStatefulWidget {
-  const SupportCenterScreen({super.key});
+  const SupportCenterScreen({super.key, this.initialCaseId});
+
+  final int? initialCaseId;
 
   @override
   ConsumerState<SupportCenterScreen> createState() =>
@@ -17,10 +19,12 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
   bool _loading = true;
   String? _error;
   List<SupportCaseSummary> _cases = const [];
+  int? _pendingInitialCaseId;
 
   @override
   void initState() {
     super.initState();
+    _pendingInitialCaseId = widget.initialCaseId;
     Future<void>.microtask(_load);
   }
 
@@ -40,6 +44,11 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
         _cases = rows;
         _loading = false;
       });
+      final initialCaseId = _pendingInitialCaseId;
+      _pendingInitialCaseId = null;
+      if (initialCaseId != null && initialCaseId > 0 && mounted) {
+        await _showDetails(initialCaseId);
+      }
     } catch (error) {
       if (!mounted) {
         return;

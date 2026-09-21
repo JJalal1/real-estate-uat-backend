@@ -104,6 +104,7 @@ class Stage10CommunitySupportApiTest extends TestCase
         $this->assertArrayNotHasKey('description',$ticketRow);
         $this->assertSame('Support ticket',$ticketRow['subject']);
         $this->assertNotSame('Private account recovery subject',$ticketRow['subject']);
+        $this->claimSupportTask($agentHeaders, 'report', $caseId);
         $this->withHeaders($agentHeaders)->getJson("/api/admin/support/cases/$caseId")->assertOk()->assertJsonPath('data.description','The public details appear inconsistent with the photos.');
         $this->assertDatabaseHas('audit_logs',['action'=>'support.private_case_opened','subject_id'=>$caseId]);
         $this->withHeaders($agentHeaders)->postJson("/api/admin/support/cases/$caseId/note",['body'=>'Internal triage note.'])->assertOk();
@@ -132,6 +133,7 @@ class Stage10CommunitySupportApiTest extends TestCase
         $waitingId=(int)$this->withHeaders($requesterHeaders)->postJson('/api/support/cases',[
             'subject'=>'Waiting case','description'=>'Support will ask the requester for more information.','category'=>'other',
         ])->assertCreated()->json('data.id');
+        $this->claimSupportTask($agentHeaders, 'support_ticket', $waitingId);
         $this->withHeaders($agentHeaders)->patchJson("/api/admin/support/cases/$waitingId/status",['status'=>'waiting_requester'])->assertOk();
         SupportCase::query()->whereKey($waitingId)->update(['sla_due_at'=>now()->subMinute()]);
         $this->withHeaders($managerHeaders)->postJson('/api/admin/support/escalate-overdue')->assertOk()->assertJsonPath('data.escalated_count',0);
@@ -145,6 +147,7 @@ class Stage10CommunitySupportApiTest extends TestCase
         $caseId=(int)$this->withHeaders($requesterHeaders)->postJson('/api/support/cases',[
             'subject'=>'History case','description'=>'Immutable support history test case.','category'=>'other',
         ])->assertCreated()->json('data.id');
+        $this->claimSupportTask($agentHeaders, 'support_ticket', $caseId);
         $this->withHeaders($agentHeaders)->postJson("/api/admin/support/cases/$caseId/reply",['body'=>'Snapshot reply from support.'])->assertOk();
         $message=DB::table('support_case_messages')->where('support_case_id',$caseId)->where('actor_user_id',$agent->id)->first();
         $event=DB::table('support_case_events')->where('support_case_id',$caseId)->where('event','staff_replied')->first();
@@ -192,5 +195,13 @@ class Stage10CommunitySupportApiTest extends TestCase
             'address'=>'Stage 10 Address','latitude'=>15.3694,'longitude'=>44.1910,'status'=>'published','review_status'=>'approved','published_at'=>now(),
             'contact_phone'=>'+967700000000','contact_whatsapp'=>'+967700000000',
         ]);
+    }
+
+    private function claimSupportTask(array $headers, string $type, int $sourceId): void
+    {
+        $queue=$this->withHeaders($headers)->getJson("/api/admin/workspace/tasks?scope=inbox&type=$type")->assertOk();
+        $task=collect($queue->json('data'))->first(fn(array $item):bool=>(int)$item['source_id']===$sourceId);
+        $this->assertNotNull($task);
+        $this->withHeaders($headers)->postJson('/api/admin/workspace/tasks/'.(int)$task['id'].'/claim')->assertOk();
     }
 }

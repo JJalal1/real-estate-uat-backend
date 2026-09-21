@@ -43,6 +43,17 @@ class UatChangePhase3BrokerVerificationApiTest extends TestCase
         )->assertNotFound();
         $this->withHeaders($supportHeaders)->getJson('/api/broker/listing-verifications')->assertNotFound();
 
+        $queue = $this->withHeaders($supportHeaders)
+            ->getJson('/api/admin/workspace/tasks?scope=inbox&type=listing_review')
+            ->assertOk();
+        $task = collect($queue->json('data'))->first(
+            fn (array $item): bool => (int) $item['source_id'] === $listingId,
+        );
+        $this->assertNotNull($task);
+        $this->withHeaders($supportHeaders)
+            ->postJson('/api/admin/workspace/tasks/'.(int) $task['id'].'/claim')
+            ->assertOk();
+
         $this->withHeaders($supportHeaders)
             ->postJson("/api/admin/listing-review/listings/$listingId/approve")
             ->assertOk()

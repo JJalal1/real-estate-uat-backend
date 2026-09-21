@@ -2,6 +2,7 @@
 
 use App\Services\CloudAssetStorageService;
 use App\Services\SupportCaseService;
+use App\Services\SupportTaskService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,12 @@ Artisan::command('support:escalate-overdue', function (SupportCaseService $suppo
     $count=$support->escalateOverdue();
     $this->info("Escalated {$count} overdue support case(s).");
 })->purpose('Escalate Stage 10 support cases that exceeded the 48-hour SLA.');
+
+
+Artisan::command('support:process-contact-followups', function (SupportTaskService $tasks) {
+    $result=$tasks->processContactFollowupDeadlines();
+    $this->info("Contact follow-ups: {$result['overdue_notified']} overdue notification(s), {$result['escalated']} escalation(s).");
+})->purpose('Notify overdue contact follow-ups and auto-escalate them after an additional 24 hours.');
 
 Artisan::command('uat:cloud-check', function (CloudAssetStorageService $storage) {
     $errors = [];
@@ -103,3 +110,4 @@ Artisan::command('uat:cloud-check', function (CloudAssetStorageService $storage)
 })->purpose('Verify Cloud UAT environment without printing secrets.');
 
 Schedule::command('support:escalate-overdue')->hourly();
+Schedule::command('support:process-contact-followups')->hourly();

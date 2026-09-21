@@ -6,11 +6,11 @@ void main() {
     expect(ApiEnvironmentConfig.environment, 'uat');
     expect(
       ApiEnvironmentConfig.configuredBaseUrl,
-      'https://real-estate-uat-api.onrender.com/api',
+      'https://real-estate-uat-api-frankfurt.onrender.com/api',
     );
     expect(
       ApiEnvironmentConfig.resolveBaseUrl(),
-      'https://real-estate-uat-api.onrender.com/api',
+      'https://real-estate-uat-api-frankfurt.onrender.com/api',
     );
     expect(ApiEnvironmentConfig.isUat, isTrue);
     expect(

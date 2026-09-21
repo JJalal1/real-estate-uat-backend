@@ -27,6 +27,7 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 
 COPY docker/uat-apache.conf /etc/apache2/sites-available/000-default.conf
+COPY docker/uat-mpm-prefork.conf /etc/apache2/mods-available/mpm_prefork.conf
 COPY docker/uat-php.ini /usr/local/etc/php/conf.d/uat.ini
 COPY . /var/www/html
 
