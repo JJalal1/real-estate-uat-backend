@@ -17,6 +17,7 @@ use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -36,7 +37,7 @@ class MessagingController extends Controller
         /** @var User $user */ $user=$request->user();
         $rows=MessageThread::query()
             ->whereHas('participants',fn($q)=>$q->where('user_id',$user->id))
-            ->with(['property:id,title,status','participants'])
+            ->with(['property:id,user_id,title,status','participants'])
             ->orderByDesc('last_message_at')->orderByDesc('id')->limit(250)->get();
         $threadIds=$rows->pluck('id');
         $latestByThread=collect();
@@ -85,7 +86,7 @@ class MessagingController extends Controller
             foreach([[$user->id,$user->name],[$owner->id,$owner->name]] as [$id,$name]){
                 MessageThreadParticipant::query()->firstOrCreate(['thread_id'=>$thread->id,'user_id'=>$id],['user_name_snapshot'=>$name]);
             }
-            return [$thread->fresh(['property:id,title,status','participants']),$created];
+            return [$thread->fresh(['property:id,user_id,title,status','participants']),$created];
         });
         $this->audit->record($user,'messages.thread_opened',$thread,['property_id'=>$property->id],$request,$owner->id);
         return response()->json(['message'=>'Conversation ready.','data'=>$this->threadSummary($thread,$user)],$created?201:200);
@@ -97,7 +98,7 @@ class MessagingController extends Controller
         $participant=$this->participant($thread,$user);
         $validated=$request->validate(['before_id'=>['nullable','integer','min:1']]);
         $beforeId=isset($validated['before_id'])?(int)$validated['before_id']:null;
-        $thread->load(['property:id,title,status','participants']);
+        $thread->load(['property:id,user_id,title,status','participants']);
 
         $rows=PrivateMessage::query()
             ->where('thread_id',$thread->id)
@@ -137,6 +138,9 @@ class MessagingController extends Controller
         $body=trim((string)$validated['body']);
         if($body==='')throw ValidationException::withMessages(['body'=>['Message body cannot be blank.']]);
         $clientId=isset($validated['client_message_id'])?trim((string)$validated['client_message_id']):null;
+        if($clientId!==null && str_starts_with($clientId,'sys-')){
+            throw ValidationException::withMessages(['client_message_id'=>['هذا المعرّف محجوز لأحداث النظام.']]);
+        }
         [$message,$created]=DB::transaction(function()use($thread,$user,$body,$clientId): array {
             if($clientId){
                 $this->advisoryLock('message-send:'.$thread->id.':'.$user->id.':'.$clientId);
@@ -161,6 +165,65 @@ class MessagingController extends Controller
             $this->audit->record($user,'messages.message_sent',$thread,['message_id'=>$message->id,'recipient_count'=>$recipients->count(),'client_message_id'=>$clientId],$request);
         }
         return response()->json(['message'=>$created?'Message sent.':'Message already delivered.','data'=>$this->messageData($message,$user)],$created?201:200);
+    }
+
+
+    public function startExternalCall(Request $request, MessageThread $thread): JsonResponse
+    {
+        /** @var User $user */ $user=$request->user();
+        $this->participant($thread,$user);
+        $property=Property::query()->withoutGlobalScopes()->findOrFail((int)$thread->property_id);
+        abort_unless($property->status==='published',409,'لا يمكن بدء اتصال جديد لأن الإعلان لم يعد منشوراً.');
+        abort_if((int)$property->user_id===(int)$user->id,403,'المعلن لا يستخدم هذا الإجراء للاتصال بنفسه.');
+
+        $advertiser=User::query()->findOrFail((int)$property->user_id);
+        abort_unless($advertiser->isActive(),409,'المعلن غير متاح حالياً.');
+
+        $phone=trim((string)$property->contact_phone);
+        $source='listing_phone';
+        if($phone===''){
+            $phone=trim((string)$property->contact_whatsapp);
+            $source='listing_whatsapp';
+        }
+        if($phone===''){
+            $phone=trim((string)$advertiser->phone);
+            $source='account_phone';
+        }
+        abort_if($phone==='',409,'لا يوجد رقم اتصال متاح لهذا المعلن.');
+
+        $message=DB::transaction(function()use($thread,$user): PrivateMessage {
+            $message=PrivateMessage::query()->create([
+                'thread_id'=>$thread->id,
+                'sender_user_id'=>$user->id,
+                'sender_name_snapshot'=>$user->name,
+                'client_message_id'=>'sys-call:'.Str::uuid()->toString(),
+                'body'=>'بدأ اتصالاً هاتفياً بالمعلن.',
+                'created_at'=>now(),
+            ]);
+            $thread->forceFill(['last_message_at'=>now()])->save();
+            return $message;
+        });
+
+        $this->notifications->create(
+            (int)$property->user_id,
+            'external_call_started',
+            'محاولة اتصال جديدة',
+            'بدأ '.$user->name.' اتصالاً هاتفياً بخصوص '.$property->title.'.',
+            'message_thread',
+            $thread->id,
+            ['thread_id'=>$thread->id,'property_id'=>$property->id],
+        );
+        $this->audit->record($user,'messages.external_call_started',$thread,[
+            'message_id'=>$message->id,
+            'property_id'=>$property->id,
+            'advertiser_user_id'=>$property->user_id,
+            'contact_source'=>$source,
+        ],$request,$property->user_id);
+
+        return response()->json(['data'=>[
+            'phone'=>$phone,
+            'message'=>$this->messageData($message,$user),
+        ]]);
     }
 
     public function markRead(Request $request, MessageThread $thread): JsonResponse
@@ -201,7 +264,7 @@ class MessagingController extends Controller
     public function adminReports(Request $request): JsonResponse
     {
         $validated=$request->validate(['status'=>['nullable',Rule::in(['open','under_review','resolved','dismissed'])]]);
-        $rows=ConversationReport::query()->with('thread.property:id,title,status')->when($validated['status']??null,fn($q,$v)=>$q->where('status',$v))->latest('id')->limit(200)->get();
+        $rows=ConversationReport::query()->with('thread.property:id,user_id,title,status')->when($validated['status']??null,fn($q,$v)=>$q->where('status',$v))->latest('id')->limit(200)->get();
         return response()->json(['data'=>$rows->map(fn(ConversationReport $r)=>$this->reportSummary($r))->values()]);
     }
 
@@ -209,7 +272,7 @@ class MessagingController extends Controller
     {
         /** @var User $actor */ $actor=$request->user();
         abort_unless(in_array($report->status,['open','under_review'],true),409,'Only active complaints can authorize private conversation access.');
-        $thread=MessageThread::query()->with(['property:id,title,status','participants'])->findOrFail($report->thread_id);
+        $thread=MessageThread::query()->with(['property:id,user_id,title,status','participants'])->findOrFail($report->thread_id);
         if($report->status==='open')$report->forceFill(['status'=>'under_review'])->save();
         PrivateMessageAccessEvent::query()->create(['conversation_report_id'=>$report->id,'thread_id'=>$thread->id,'actor_user_id'=>$actor->id,'actor_name_snapshot'=>$actor->name,'action'=>'opened_reported_private_content','created_at'=>now()]);
         $this->audit->record($actor,'conversations.private_content_opened',$report,['thread_id'=>$thread->id,'support_case_id'=>$report->support_case_id,'workflow'=>'conversation_complaint'],$request,$report->reporter_user_id);
@@ -258,6 +321,7 @@ class MessagingController extends Controller
         return [
             'id'=>$thread->id,'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,'property_status'=>$thread->property?->status,
             'other_user'=>['id'=>$other?->user_id,'name'=>$other?->user_name_snapshot??'مستخدم'],
+            'can_call_advertiser'=>$thread->property?->status==='published' && (int)($thread->property?->user_id??0)!==(int)$user->id,
             'unread_count'=>(int)($unread??0),'last_message_preview'=>$latest?->body?mb_substr($latest->body,0,120):null,
             'last_message_at'=>$thread->last_message_at?->toIso8601String(),'created_at'=>$thread->created_at?->toIso8601String(),
         ];
@@ -265,12 +329,13 @@ class MessagingController extends Controller
 
     private function messageData(PrivateMessage $message, User $viewer): array
     {
-        return ['id'=>$message->id,'sender_user_id'=>$message->sender_user_id,'sender_name'=>$message->sender_name_snapshot,'client_message_id'=>$message->client_message_id,'body'=>$message->body,'is_mine'=>(int)$message->sender_user_id===(int)$viewer->id,'created_at'=>$message->created_at?->toIso8601String()];
+        $messageType=str_starts_with((string)$message->client_message_id,'sys-call:')?'call_started':'text';
+        return ['id'=>$message->id,'sender_user_id'=>$message->sender_user_id,'sender_name'=>$message->sender_name_snapshot,'client_message_id'=>$message->client_message_id,'message_type'=>$messageType,'body'=>$message->body,'is_mine'=>(int)$message->sender_user_id===(int)$viewer->id,'created_at'=>$message->created_at?->toIso8601String()];
     }
 
     private function reportSummary(ConversationReport $report): array
     {
-        if(!$report->relationLoaded('thread'))$report->load('thread.property:id,title,status');
+        if(!$report->relationLoaded('thread'))$report->load('thread.property:id,user_id,title,status');
         return ['id'=>$report->id,'thread_id'=>$report->thread_id,'support_case_id'=>$report->support_case_id,'property_id'=>$report->thread?->property_id,'property_title'=>$report->thread?->property?->title,'reporter_user_id'=>$report->reporter_user_id,'reporter_name'=>$report->reporter_name_snapshot,'reason_code'=>$report->reason_code,'status'=>$report->status,'resolved_by_name'=>$report->resolved_by_name_snapshot,'resolved_at'=>$report->resolved_at?->toIso8601String(),'created_at'=>$report->created_at?->toIso8601String()];
     }
 
