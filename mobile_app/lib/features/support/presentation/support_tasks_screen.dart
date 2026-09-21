@@ -197,6 +197,8 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       () => _setType('support_ticket')),
                   _choice(
                       'بلاغات', _type == 'report', () => _setType('report')),
+                  _choice('متابعة التواصل', _type == 'contact_followup',
+                      () => _setType('contact_followup')),
                 ],
               ),
             ),
@@ -505,10 +507,157 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       case 'payment_review':
         await _paymentReviewDialog(task);
         break;
+      case 'contact_followup':
+        await _contactFollowupDialog(task);
+        break;
     }
     if (mounted) await _load();
   }
 
+  Future<void> _contactFollowupDialog(SupportTaskItem task) async {
+    final meta = task.metadata;
+    String outcome = meta['last_outcome']?.toString() ?? 'contacted';
+    final note = TextEditingController(
+      text: meta['last_followup_note']?.toString() ?? '',
+    );
+    DateTime? nextFollowUpAt;
+    final savedNext = meta['next_follow_up_at']?.toString();
+    if (savedNext != null) {
+      nextFollowUpAt = DateTime.tryParse(savedNext)?.toLocal();
+    }
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('متابعة التواصل العقاري'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(meta['property_title']?.toString() ?? 'العقار',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 6),
+                  Text('العميل: ' + (meta['buyer_name']?.toString() ?? task.requesterName ?? '—')),
+                  Text('المعلن: ' + (meta['advertiser_name']?.toString() ?? '—')),
+                  Text('مرات بدء الاتصال: ' + (meta['external_call_count']?.toString() ?? '1')),
+                  if (meta['last_external_call_at'] != null)
+                    Text('آخر اتصال مسجل: ' + meta['last_external_call_at'].toString()),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    value: outcome,
+                    decoration: const InputDecoration(labelText: 'نتيجة المتابعة'),
+                    items: const [
+                      DropdownMenuItem(value: 'no_answer', child: Text('لم يرد أحد الأطراف')),
+                      DropdownMenuItem(value: 'contacted', child: Text('تم التواصل')),
+                      DropdownMenuItem(value: 'viewing_scheduled', child: Text('تم تحديد معاينة')),
+                      DropdownMenuItem(value: 'viewed', child: Text('تمت المعاينة')),
+                      DropdownMenuItem(value: 'negotiating', child: Text('يوجد تفاوض')),
+                      DropdownMenuItem(value: 'not_interested', child: Text('العقار لم يناسبه')),
+                      DropdownMenuItem(value: 'deal_not_completed', child: Text('لم تتم الصفقة')),
+                      DropdownMenuItem(value: 'deal_reported', child: Text('أفاد أحد الأطراف بتمام الصفقة')),
+                      DropdownMenuItem(value: 'needs_followup', child: Text('يحتاج متابعة لاحقة')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setLocal(() => outcome = value);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: note,
+                    minLines: 2,
+                    maxLines: 5,
+                    maxLength: 2000,
+                    decoration: const InputDecoration(
+                      labelText: 'ملاحظة المتابعة',
+                      hintText: 'ما الذي قاله الدلال أو المستخدم؟',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          nextFollowUpAt == null
+                              ? 'موعد المتابعة القادمة: تلقائي حسب النتيجة'
+                              : 'تم تحديد موعد متابعة قادم',
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final date = await showDatePicker(
+                            context: dialogContext,
+                            firstDate: now,
+                            lastDate: now.add(const Duration(days: 90)),
+                            initialDate: nextFollowUpAt ?? now.add(const Duration(days: 1)),
+                          );
+                          if (date == null || !dialogContext.mounted) return;
+                          final time = await showTimePicker(
+                            context: dialogContext,
+                            initialTime: TimeOfDay.fromDateTime(
+                              nextFollowUpAt ?? now.add(const Duration(days: 1)),
+                            ),
+                          );
+                          if (time == null) return;
+                          setLocal(() {
+                            nextFollowUpAt = DateTime(
+                              date.year,
+                              date.month,
+                              date.day,
+                              time.hour,
+                              time.minute,
+                            );
+                          });
+                        },
+                        icon: const Icon(Icons.schedule_outlined),
+                        label: const Text('تحديد'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'لا يتم فتح نص المحادثة من هذه الشاشة. تعتمد المتابعة على مؤشرات الرحلة والاتصال، وأي وصول لمحتوى خاص يبقى ضمن مسار صلاحيات منفصل ومسجل.',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('حفظ النتيجة'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final noteText = note.text.trim();
+    note.dispose();
+    if (accepted != true) return;
+
+    try {
+      await ref.read(supportWorkspaceRepositoryProvider).recordContactOutcome(
+            task.id,
+            outcome: outcome,
+            note: noteText.isEmpty ? null : noteText,
+            nextFollowUpAt: nextFollowUpAt,
+            actingAsAgent: widget.actingAsAgent,
+          );
+      _message(outcome == 'deal_reported'
+          ? 'تم تسجيل صفقة محتملة ورفع أولوية التحقق.'
+          : 'تم تسجيل نتيجة المتابعة.');
+    } catch (error) {
+      _message(friendlyApiError(error));
+    }
+  }
   Future<void> _paymentReviewDialog(SupportTaskItem task) async {
     FinancialPayment payment;
     try {
@@ -1452,6 +1601,7 @@ String _typeLabel(String value) => switch (value) {
       'listing_review' => 'تحقيق إعلان',
       'support_ticket' => 'تذكرة',
       'report' => 'بلاغ',
+      'contact_followup' => 'متابعة تواصل',
       _ => value,
     };
 
@@ -1460,6 +1610,7 @@ IconData _typeIcon(String value) => switch (value) {
       'listing_review' => Icons.fact_check_outlined,
       'support_ticket' => Icons.support_agent_outlined,
       'report' => Icons.report_gmailerrorred_outlined,
+      'contact_followup' => Icons.phone_callback_outlined,
       _ => Icons.task_alt,
     };
 
@@ -1468,6 +1619,7 @@ Color _typeColor(String value) => switch (value) {
       'listing_review' => AppTheme.accent,
       'support_ticket' => Colors.deepPurple,
       'report' => Colors.deepOrange,
+      'contact_followup' => Colors.teal,
       _ => AppTheme.textMuted,
     };
 
@@ -1517,6 +1669,12 @@ String _eventLabel(String value) => switch (value) {
       'verification_rejected' => 'رفض طلب التحقق',
       'escalated' => 'تصعيد المهمة',
       'reopened' => 'إعادة فتح المهمة',
+      'created_from_external_call' => 'إنشاء متابعة من اتصال خارجي',
+      'external_call_recorded' => 'تسجيل اتصال خارجي جديد',
+      'reopened_by_external_call' => 'إعادة فتح المتابعة باتصال جديد',
+      'contact_followup_outcome' => 'تسجيل نتيجة المتابعة',
+      'contact_followup_overdue' => 'تجاوز موعد المتابعة',
+      'contact_followup_auto_escalated' => 'تصعيد تلقائي لتأخر المتابعة',
       'source_status_synced' => 'تحديث من المصدر',
       _ => value,
     };
