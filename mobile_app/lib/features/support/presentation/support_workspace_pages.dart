@@ -26,6 +26,7 @@ class SupportAgentHomeScreen extends ConsumerWidget {
         _DashboardCardSpec('listing_reviews', 'تحقيق الإعلانات', Icons.fact_check_outlined, _DashboardAction.listings),
         _DashboardCardSpec('tickets', 'التذاكر', Icons.support_agent_outlined, _DashboardAction.tickets),
         _DashboardCardSpec('reports', 'البلاغات', Icons.report_outlined, _DashboardAction.reports),
+        _DashboardCardSpec('contact_followups', 'متابعة التواصل', Icons.phone_callback_outlined, _DashboardAction.contactFollowups),
         _DashboardCardSpec('waiting_user', 'انتظار المستخدم', Icons.hourglass_bottom, _DashboardAction.waitingUser),
         _DashboardCardSpec('overdue', 'المتأخر', Icons.timer_off_outlined, _DashboardAction.overdue),
       ],
@@ -62,6 +63,7 @@ class SupportManagerHomeScreen extends ConsumerWidget {
         _DashboardCardSpec('waiting_user', 'انتظار المستخدم', Icons.hourglass_bottom, _DashboardAction.waitingUserAll),
         _DashboardCardSpec('escalated', 'المصعدة', Icons.trending_up, _DashboardAction.escalated),
         _DashboardCardSpec('critical_reports', 'بلاغات حرجة', Icons.crisis_alert_outlined, _DashboardAction.criticalReports),
+        _DashboardCardSpec('contact_followups', 'متابعات التواصل', Icons.phone_callback_outlined, _DashboardAction.contactFollowupsAll),
         _DashboardCardSpec('active_agents', 'موظفو الدعم', Icons.groups_2_outlined, _DashboardAction.team),
         _DashboardCardSpec('available_agents', 'المتاحون الآن', Icons.how_to_reg_outlined, _DashboardAction.team),
         _DashboardCardSpec('team_open', 'عبء الفريق', Icons.work_outline, _DashboardAction.all),
@@ -86,6 +88,7 @@ class PlatformAdminHomeScreen extends ConsumerWidget {
         _DashboardCardSpec('pending_listing_reviews', 'إعلانات قيد المراجعة', Icons.fact_check_outlined, _DashboardAction.listingsAll),
         _DashboardCardSpec('pending_verifications', 'طلبات التحقق', Icons.verified_user_outlined, _DashboardAction.verificationsAll),
         _DashboardCardSpec('open_support_tasks', 'أعمال الدعم', Icons.support_agent_outlined, _DashboardAction.all),
+        _DashboardCardSpec('contact_followups', 'متابعات التواصل', Icons.phone_callback_outlined, _DashboardAction.contactFollowupsAll),
         _DashboardCardSpec('support_agents', 'موظفو الدعم', Icons.groups_2_outlined, _DashboardAction.team),
         _DashboardCardSpec('support_managers', 'مديرو الدعم', Icons.supervisor_account_outlined, _DashboardAction.team),
         _DashboardCardSpec('average_claim_minutes', 'متوسط الاستلام/د', Icons.schedule_outlined, _DashboardAction.all),
@@ -564,6 +567,12 @@ void _openAction(BuildContext context, _DashboardAction action) {
     case _DashboardAction.reports:
       page = const SupportTasksScreen(initialScope: 'inbox', initialType: 'report', title: 'البلاغات');
       break;
+    case _DashboardAction.contactFollowups:
+      page = const SupportTasksScreen(initialScope: 'inbox', initialType: 'contact_followup', title: 'متابعة التواصل');
+      break;
+    case _DashboardAction.contactFollowupsAll:
+      page = const SupportTasksScreen(initialScope: 'all', initialType: 'contact_followup', title: 'متابعات التواصل');
+      break;
     case _DashboardAction.waitingUser:
       page = const SupportTasksScreen(initialScope: 'mine', initialStatus: 'waiting_user', title: 'انتظار المستخدم');
       break;
@@ -800,6 +809,8 @@ enum _DashboardAction {
   listings,
   tickets,
   reports,
+  contactFollowups,
+  contactFollowupsAll,
   waitingUser,
   overdue,
   overdueAll,
@@ -820,6 +831,7 @@ String _attentionType(String type) => switch (type) {
       'listing_review' => 'تحقيق إعلان',
       'support_ticket' => 'تذكرة',
       'report' => 'بلاغ',
+      'contact_followup' => 'متابعة تواصل',
       _ => type,
     };
 
@@ -837,5 +849,6 @@ IconData _attentionIcon(String type) => switch (type) {
       'listing_review' => Icons.fact_check_outlined,
       'support_ticket' => Icons.support_agent_outlined,
       'report' => Icons.report_outlined,
+      'contact_followup' => Icons.phone_callback_outlined,
       _ => Icons.task_alt,
     };
