@@ -154,6 +154,7 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/properties/{property}/conversation', [MessagingController::class, 'startForProperty']);
     Route::get('/messages/threads/{thread}', [MessagingController::class, 'show']);
     Route::post('/messages/threads/{thread}/messages', [MessagingController::class, 'send']);
+    Route::post('/messages/threads/{thread}/external-call', [MessagingController::class, 'startExternalCall'])->middleware('throttle:12,1');
     Route::post('/messages/threads/{thread}/read', [MessagingController::class, 'markRead']);
     Route::post('/messages/threads/{thread}/report', [MessagingController::class, 'report']);
     Route::get('/notifications', [NotificationController::class, 'index']);
