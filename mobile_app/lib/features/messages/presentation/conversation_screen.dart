@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../agreements/presentation/conversation_agreement_card.dart';
@@ -26,6 +27,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   bool _loadingViewing = false;
   bool _loadingOlder = false;
   bool _sending = false;
+  bool _calling = false;
   bool _bookingBusy = false;
   String? _error;
   String? _pendingMessageKey;
@@ -147,6 +149,33 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       }
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+
+  Future<void> _callAdvertiser() async {
+    if (_calling) return;
+    setState(() => _calling = true);
+    try {
+      final call =
+          await ref.read(messageRepositoryProvider).startExternalCall(widget.threadId);
+      ref.read(messageDataRevisionProvider.notifier).state++;
+      final uri = Uri(scheme: 'tel', path: call.phone);
+      final launched =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر فتح تطبيق الهاتف على هذا الجهاز.')),
+        );
+      }
+      if (mounted) await _load(refreshViewing: false);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _calling = false);
     }
   }
 
@@ -410,6 +439,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         appBar: AppBar(
             title: Text(thread?.otherUserName ?? 'محادثة'),
             actions: [
+              if (thread?.canCallAdvertiser == true)
+                IconButton(
+                    onPressed: _calling ? null : _callAdvertiser,
+                    tooltip: 'اتصال بالمعلن',
+                    icon: _calling
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.phone_outlined)),
               IconButton(
                   onPressed: _loading ? null : _load,
                   tooltip: 'تحديث',
@@ -492,6 +531,39 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         final time = createdAt == null
             ? null
             : '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
+        if (item.isCallStarted) {
+          return Align(
+            alignment: AlignmentDirectional.center,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 330),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.phone_in_talk_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      item.isMine
+                          ? 'بدأت اتصالاً بالمعلن'
+                          : '${item.senderName} بدأ اتصالاً هاتفياً',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (time != null) ...[
+                    const SizedBox(width: 8),
+                    Text(time, style: Theme.of(context).textTheme.labelSmall),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }
         return Align(
           alignment: item.isMine
               ? AlignmentDirectional.centerStart
