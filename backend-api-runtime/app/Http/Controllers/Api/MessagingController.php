@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\UserNotification;
 use App\Services\AuditLogService;
 use App\Services\SupportCaseService;
+use App\Services\SupportTaskService;
 use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ class MessagingController extends Controller
         private readonly AuditLogService $audit,
         private readonly SupportCaseService $support,
         private readonly UserNotificationService $notifications,
+        private readonly SupportTaskService $tasks,
     ) {}
 
     public function threads(Request $request): JsonResponse
@@ -219,6 +221,7 @@ class MessagingController extends Controller
             'advertiser_user_id'=>$property->user_id,
             'contact_source'=>$source,
         ],$request,$property->user_id);
+        $this->tasks->projectContactFollowup($thread,$user,(int)$message->id);
 
         return response()->json(['data'=>[
             'phone'=>$phone,
