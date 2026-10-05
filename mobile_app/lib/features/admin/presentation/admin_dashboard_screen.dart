@@ -128,12 +128,6 @@ class _SummaryGrid extends StatelessWidget {
         icon: Icons.verified_user_outlined,
         visible: _can('accounts.verify_profiles')
       ),
-      (
-        label: 'مدفوعات معلقة',
-        value: summary.paymentsPending,
-        icon: Icons.payments_outlined,
-        visible: _can('payments.manage')
-      ),
     ].where((row) => row.visible).toList(growable: false);
     return GridView.builder(
       shrinkWrap: true,
@@ -225,13 +219,6 @@ class _AdminMenu extends StatelessWidget {
         icon: Icons.event_available_outlined,
         route: '/bookings',
         visible: _can('bookings.manage')
-      ),
-      (
-        title: 'الخدمات والمدفوعات',
-        subtitle: 'الخدمات والطلبات والتسويات والاسترجاعات حسب الصلاحية.',
-        icon: Icons.payments_outlined,
-        route: '/services',
-        visible: _can('services.manage') || _can('payments.manage')
       ),
       (
         title: 'سجل العمليات',
