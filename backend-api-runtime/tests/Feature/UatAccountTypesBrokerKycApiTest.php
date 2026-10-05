@@ -128,13 +128,12 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
 
         $this->withHeaders($ownerHeaders)->putJson("/api/properties/$listingId/sai", [
             'sai_payer' => 'seller',
-        ])->assertOk()
-            ->assertJsonPath('data.sai.rate_percent', 1)
-            ->assertJsonPath('data.sai.payer', 'seller');
+        ])->assertNotFound();
 
         $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
             ->assertOk()->assertJsonPath('data.review_status', 'submitted');
 
+        $this->assertDatabaseCount('property_sai_terms', 0);
         $this->assertDatabaseHas('account_verification_profiles', [
             'user_id' => $owner->id,
             'type' => 'owner',
@@ -176,20 +175,19 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->assertJsonPath('data.status', 'draft')
             ->json('data.id');
 
-        // 0% professional sai deliberately activates the fixed platform sai;
-        // it is not a no-sai listing and does not require the broker 20% split consent.
+        // Sai is outside the current free-core product. The historical
+        // capability stays preserved, but the active API is unavailable.
         $this->withHeaders($headers)->putJson("/api/properties/$listingId/sai", [
             'sai_payer' => 'buyer',
             'broker_sai_rate_percent' => 0,
-        ])->assertOk()
-            ->assertJsonPath('data.sai.rate_percent', 1)
-            ->assertJsonPath('data.sai_management.source_mode', 'platform_fallback');
+        ])->assertNotFound();
 
         $this->withHeaders($headers)->postJson("/api/properties/$listingId/submit")
             ->assertOk()
             ->assertJsonPath('data.review_status', 'submitted')
             ->assertJsonPath('data.status', 'pending');
 
+        $this->assertDatabaseCount('property_sai_terms', 0);
         $this->assertDatabaseMissing('listing_documents', [
             'property_id' => $listingId,
             'kind' => 'ownership_proof',
@@ -239,14 +237,14 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         $this->withHeaders($headers)->putJson("/api/properties/$listingId/sai", [
             'sai_payer' => 'seller',
             'broker_sai_rate_percent' => 0,
-        ])->assertOk()
-            ->assertJsonPath('data.sai.rate_percent', 1)
-            ->assertJsonPath('data.sai_management.source_mode', 'platform_fallback');
+        ])->assertNotFound();
 
         $this->withHeaders($headers)->postJson("/api/properties/$listingId/submit")
             ->assertOk()
             ->assertJsonPath('data.review_status', 'submitted')
             ->assertJsonPath('data.status', 'pending');
+
+        $this->assertDatabaseCount('property_sai_terms', 0);
     }
 
     private function unifiedUser(string $phone, string $name): array
