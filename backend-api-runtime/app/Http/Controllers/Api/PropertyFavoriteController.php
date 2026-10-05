@@ -19,20 +19,24 @@ class PropertyFavoriteController extends Controller
         $perPage = max(1, min((int) $request->input('per_page', 20), 50));
 
         $page = PropertyFavorite::query()
-            ->with(['property.images'])
             ->where('user_id', $user->id)
-            ->whereHas('property', fn ($query) => $query->where('status', 'published'))
             ->latest('id')
             ->paginate($perPage);
 
+        // Load listing fields/media in one batch, restricted to public rows.
+        // Unavailable favorites never fetch or serialize unpublished details.
+        $publicProperties = Property::query()
+            ->whereIn('id', collect($page->items())->pluck('property_id'))
+            ->where('status', 'published')
+            ->with('images')
+            ->get()
+            ->keyBy('id');
+
         return response()->json([
             'data' => collect($page->items())
-                ->map(function (PropertyFavorite $favorite) use ($request): array {
-                    return [
-                        'favorited_at' => $favorite->created_at?->toIso8601String(),
-                        'property' => $this->summary($favorite->property, $request),
-                    ];
-                })
+                ->map(fn (PropertyFavorite $favorite): array => $this->favoriteData(
+                    $favorite, $publicProperties->get($favorite->property_id), $request,
+                ))
                 ->values(),
             'meta' => [
                 'current_page' => $page->currentPage(),
@@ -50,75 +54,108 @@ class PropertyFavoriteController extends Controller
 
         $ids = PropertyFavorite::query()
             ->where('user_id', $user->id)
-            ->whereHas('property', fn ($query) => $query->where('status', 'published'))
             ->latest('id')
-            ->limit(5000)
             ->pluck('property_id')
             ->map(fn ($id) => (int) $id)
             ->values();
 
-        return response()->json([
-            'data' => [
-                'property_ids' => $ids,
-            ],
-        ]);
+        return response()->json(['data' => ['property_ids' => $ids]]);
     }
 
-    public function store(Request $request, Property $property): JsonResponse
+    public function store(Request $request, string $property): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
-        abort_unless($property->status === 'published', 404);
+        // Filter before lookup: unknown and unpublished IDs have the same 404.
+        $published = Property::query()
+            ->whereKey($property)
+            ->where('status', 'published')
+            ->first(['id']);
+        abort_unless($published, 404);
 
         $favorite = PropertyFavorite::query()->firstOrCreate([
             'user_id' => $user->id,
-            'property_id' => $property->id,
+            'property_id' => $published->id,
         ]);
 
         return response()->json([
             'message' => 'Property saved to favorites.',
             'data' => [
-                'property_id' => (int) $property->id,
+                'property_id' => (int) $published->id,
                 'is_favorited' => true,
                 'favorited_at' => $favorite->created_at?->toIso8601String(),
+                'availability' => 'available',
             ],
         ]);
     }
 
-    public function destroy(Request $request, Property $property): JsonResponse
+    public function destroy(Request $request, string $property): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
 
+        // Ownership of the favorite authorizes removal, independently of the
+        // listing. No Property binding/lookup: absent and private IDs are alike.
         PropertyFavorite::query()
             ->where('user_id', $user->id)
-            ->where('property_id', $property->id)
+            ->where('property_id', $property)
             ->delete();
 
         return response()->json([
             'message' => 'Property removed from favorites.',
             'data' => [
-                'property_id' => (int) $property->id,
+                'property_id' => (int) $property,
                 'is_favorited' => false,
             ],
         ]);
     }
 
-    public function status(Request $request, Property $property): JsonResponse
+    public function status(Request $request, string $property): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
-        abort_unless($property->status === 'published', 404);
+        $favorite = PropertyFavorite::query()
+            ->with('property:id,status')
+            ->where('user_id', $user->id)
+            ->where('property_id', $property)
+            ->first();
+
+        // Only an owned favorite permits an unavailable-status response.
+        // Without one, lookup sees public listings only, including for advertisers.
+        $visible = $favorite?->property ?? Property::query()
+            ->whereKey($property)
+            ->where('status', 'published')
+            ->first(['id', 'status']);
+        abort_unless($visible, 404);
 
         return response()->json([
             'data' => [
-                'property_id' => (int) $property->id,
-                'is_favorited' => PropertyFavorite::query()
-                    ->where('user_id', $user->id)
-                    ->where('property_id', $property->id)
-                    ->exists(),
+                'property_id' => (int) $visible->id,
+                'is_favorited' => $favorite !== null,
+                'availability' => $visible->status === 'published' ? 'available' : 'unavailable',
             ],
         ]);
+    }
+
+    private function favoriteData(PropertyFavorite $favorite, ?Property $publicProperty, Request $request): array
+    {
+        $available = $publicProperty !== null;
+        $data = [
+            'property_id' => (int) $favorite->property_id,
+            'is_favorited' => true,
+            'favorited_at' => $favorite->created_at?->toIso8601String(),
+            'availability' => $available ? 'available' : 'unavailable',
+        ];
+
+        if ($available) {
+            $data['property'] = $this->summary($publicProperty, $request);
+        } else {
+            // No snapshot exists. Never serialize current unpublished fields,
+            // including title, or load private/current images for this branch.
+            $data['message'] = 'هذا العقار محفوظ في المفضلة لكنه غير متاح حالياً.';
+        }
+
+        return $data;
     }
 
     private function summary(Property $property, Request $request): array
