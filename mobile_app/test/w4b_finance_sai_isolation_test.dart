@@ -39,6 +39,11 @@ AuthUser _verifiedOwner() => AuthUser.fromJson({
 void main() {
   testWidgets('verified owner account has free-core actions without finance entries',
       (tester) async {
+    tester.view.physicalSize = const Size(400, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final user = _verifiedOwner();
 
     await tester.pumpWidget(
