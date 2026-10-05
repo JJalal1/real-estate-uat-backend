@@ -185,6 +185,113 @@ class PropertyIdentityV2Test extends TestCase
         ]);
     }
 
+    public function test_authorized_transfer_unpublishes_previous_representative_and_preserves_history(): void
+    {
+        [$firstUser, $firstHeaders] = $this->user('identity-transfer-1@example.test', '+967733000020');
+        [$secondUser, $secondHeaders] = $this->user('identity-transfer-2@example.test', '+967733000021');
+        [$admin, ] = $this->user('identity-transfer-admin@example.test', '+967733000022');
+
+        $firstId = $this->createReady($firstHeaders, [
+            'title' => 'العقار قبل نقل التمثيل',
+            'address' => 'صنعاء حدة شارع 60 منزل 2',
+            'latitude' => 15.372000,
+            'longitude' => 44.193000,
+        ]);
+        $first = Property::query()->findOrFail($firstId);
+        $first->forceFill([
+            'status' => 'published',
+            'review_status' => 'approved',
+            'published_at' => now(),
+        ])->saveQuietly();
+
+        $secondId = $this->createReady($secondHeaders, [
+            'title' => 'العقار بعد نقل التمثيل',
+            'address' => 'صنعاء حدة شارع 60 منزل 2',
+            'latitude' => 15.372000,
+            'longitude' => 44.193000,
+        ]);
+        $second = Property::query()->findOrFail($secondId);
+        $second->forceFill(['property_asset_id' => $first->property_asset_id])->saveQuietly();
+
+        $identity = app(PropertyIdentityService::class);
+        $identity->ensureRepresentation($first);
+
+        $transfer = $identity->transferRepresentation(
+            $admin,
+            $second,
+            'تم التحقق من التفويض الجديد ونقل التمثيل إلى المعلن الحالي.',
+        );
+
+        $this->assertSame($firstUser->id, $transfer['from_user_id']);
+        $this->assertSame($secondUser->id, $transfer['to_user_id']);
+        $this->assertSame([$first->id], $transfer['unpublished_listing_ids']);
+
+        $first->refresh();
+        $this->assertSame('draft', $first->status);
+        $this->assertSame('returned_for_correction', $first->review_status);
+        $this->assertNull($first->published_at);
+
+        $this->assertDatabaseHas('property_representation_claims', [
+            'property_asset_id' => $first->property_asset_id,
+            'advertiser_user_id' => $firstUser->id,
+            'status' => 'ended',
+        ]);
+        $this->assertDatabaseHas('property_representation_claims', [
+            'property_asset_id' => $first->property_asset_id,
+            'property_id' => $second->id,
+            'advertiser_user_id' => $secondUser->id,
+            'status' => 'active',
+        ]);
+        $this->assertSame(
+            1,
+            DB::table('property_representation_claims')
+                ->where('property_asset_id', $first->property_asset_id)
+                ->where('status', 'active')
+                ->count(),
+        );
+
+        $journal = DB::table('property_identity_checks')
+            ->where('property_id', $second->id)
+            ->where('result', 'representation_transferred')
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($journal);
+        $metadata = json_decode((string) $journal->metadata, true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($firstUser->id, $metadata['from_user_id']);
+        $this->assertSame($secondUser->id, $metadata['to_user_id']);
+        $this->assertSame([$first->id], $metadata['unpublished_listing_ids']);
+
+        // Repeating the same transfer is idempotent and does not create a second
+        // history row or a second active representative.
+        $beforeJournalCount = DB::table('property_identity_checks')
+            ->where('property_id', $second->id)
+            ->where('result', 'representation_transferred')
+            ->count();
+
+        $again = $identity->transferRepresentation(
+            $admin,
+            $second->fresh(),
+            'تأكيد إضافي لنفس التمثيل القائم دون تغيير الممثل.',
+        );
+
+        $this->assertSame($secondUser->id, $again['to_user_id']);
+        $this->assertSame([], $again['unpublished_listing_ids']);
+        $this->assertSame(
+            $beforeJournalCount,
+            DB::table('property_identity_checks')
+                ->where('property_id', $second->id)
+                ->where('result', 'representation_transferred')
+                ->count(),
+        );
+        $this->assertSame(
+            1,
+            DB::table('property_representation_claims')
+                ->where('property_asset_id', $first->property_asset_id)
+                ->where('status', 'active')
+                ->count(),
+        );
+    }
+
     public function test_identity_audit_journal_rejects_mutation(): void
     {
         [, $headers] = $this->user('identity-audit@example.test', '+967733000013');
