@@ -6,7 +6,6 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
 import 'general_manager_accounts_screen.dart';
-import '../../financial/data/financial_repository.dart';
 import '../../regions/data/region_repository.dart';
 import '../../regions/domain/region_models.dart';
 import '../data/general_manager_repository.dart';
@@ -381,53 +380,6 @@ class _GeneralManagerReportsScreenState
                   'لا توجد جداول رحلة متاحة للتقرير في هذه البيئة.')
             else
               _DataList(rows: journeyRows),
-            const SizedBox(height: 22),
-            const _SectionTitle('المالية'),
-            const SizedBox(height: 8),
-            FutureBuilder<Map<String, dynamic>>(
-              future: ref.read(financialRepositoryProvider).adminSummary(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const _LoadingList(
-                      message: 'جاري تحميل الملخص المالي…');
-                }
-                if (snapshot.hasError) {
-                  return _InfoPanel(
-                      icon: Icons.info_outline,
-                      title: 'تعذر تحميل الملخص المالي',
-                      subtitle: friendlyApiError(snapshot.error!));
-                }
-                final finance = snapshot.data ?? const <String, dynamic>{};
-                int count(String key) => _asInt(finance[key]);
-                String amount(String key) =>
-                    _formatMoney(_asDouble(finance[key]));
-                return Column(
-                  children: [
-                    _MetricGrid(items: [
-                      _Metric(
-                          'بانتظار التحقق',
-                          count('payments_waiting_review'),
-                          Icons.receipt_long_outlined),
-                      _Metric('حسابات متأخرة', count('overdue_accounts'),
-                          Icons.warning_amber_outlined),
-                      _Metric('نزاعات مفتوحة', count('open_disputes'),
-                          Icons.gavel_outlined),
-                    ]),
-                    const SizedBox(height: 8),
-                    _DataList(rows: [
-                      _DataRow(
-                          'مدفوعات مؤكدة', amount('confirmed_payments_amount')),
-                      _DataRow(
-                          'مستحقات مفتوحة', amount('open_receivables_amount')),
-                      _DataRow('مستحقات متأخرة',
-                          amount('overdue_receivables_amount')),
-                      _DataRow('تحويلات معلقة للمعلنين',
-                          amount('pending_payouts_amount')),
-                    ]),
-                  ],
-                );
-              },
-            ),
           ],
         );
       },
