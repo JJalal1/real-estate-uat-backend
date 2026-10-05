@@ -45,8 +45,12 @@ void main() {
       final fixture = await _pumpDetails(tester, active: active);
       await tester.tap(find.text('طلب موعد معاينة'));
       await tester.pumpAndSettle();
+      final page = find.text(
+        active == null ? 'authentication' : 'phone-verification',
+      );
+      expect(page, findsOneWidget);
       expect(
-        fixture.router.routeInformationProvider.value.uri.path,
+        GoRouterState.of(tester.element(page)).uri.path,
         active == null ? '/auth' : '/verify-phone',
       );
       expect(find.byType(BookingRequestSheet), findsNothing);
@@ -62,6 +66,8 @@ void main() {
     expect(find.byType(BookingRequestSheet), findsOneWidget);
     await tester.tap(find.text('إرسال الطلب'));
     await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(fixture.bookings.requests, 1);
     expect(fixture.bookings.propertyId, 42);
@@ -70,8 +76,9 @@ void main() {
     final end = DateTime.parse(fixture.bookings.payload!['ends_at'] as String);
     expect(end.difference(start), const Duration(minutes: 60));
     expect(fixture.container.read(messageDataRevisionProvider), 1);
-    expect(fixture.router.routeInformationProvider.value.uri.path, '/messages/91');
-    expect(find.text('linked-conversation 91'), findsOneWidget);
+    final page = find.text('linked-conversation 91');
+    expect(page, findsOneWidget);
+    expect(GoRouterState.of(tester.element(page)).uri.path, '/messages/91');
     expect(find.byType(BookingRequestSheet), findsNothing);
   });
 
@@ -82,10 +89,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('إرسال الطلب'));
     await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(fixture.bookings.requests, 1);
     expect(fixture.router.routeInformationProvider.value.uri.path, '/');
     expect(fixture.container.read(messageDataRevisionProvider), 0);
+    // The existing sheet's success snackbar is queued before the details
+    // fallback. Advance its duration before asserting the next message.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
     expect(
       find.text('تم إرسال طلب المعاينة ويمكن متابعته من صفحة المعاينات.'),
       findsOneWidget,
