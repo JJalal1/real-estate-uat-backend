@@ -28,6 +28,9 @@ void main() {
     expect(source, isNot(contains("'طلبات الباحثين'")));
     expect(source, isNot(contains('المشاريع والتطويرات العقارية')));
     expect(source, isNot(contains('الخدمات والترقيات والمدفوعات')));
+    expect(source, isNot(contains('مدفوعاتي')));
+    expect(source, isNot(contains('الحساب المالي')));
+    expect(source, isNot(contains('FinancialAccountScreen')));
   });
 
   test('backend hub explicitly disables paid feature mode', () {
