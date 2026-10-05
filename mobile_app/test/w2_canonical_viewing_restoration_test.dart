@@ -224,6 +224,7 @@ class _FixtureBookings implements BookingRepository {
     this.payload = Map<String, dynamic>.from(payload);
     return ViewingBooking.fromJson({
       'id': 63,
+      'requester_user_id': 7,
       'message_thread_id': threadId,
       'target_id': propertyId,
       'starts_at': payload['starts_at'],
