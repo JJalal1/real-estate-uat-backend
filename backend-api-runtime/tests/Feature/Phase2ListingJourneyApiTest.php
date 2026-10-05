@@ -221,6 +221,10 @@ class Phase2ListingJourneyApiTest extends TestCase
 
         $id = $this->createReady($headers, [
             'title' => 'إعلان مجاني لا يعتمد على المالية',
+            'ownership_document_type' => 'purchase_deed',
+            'document_owner_name' => 'Phase 2 User',
+            'owner_relationship_type' => 'owner',
+            'ownership_proof' => UploadedFile::fake()->image('ownership-proof.jpg'),
         ]);
 
         $this->withHeaders($headers)
