@@ -77,8 +77,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   final _description = TextEditingController();
   final _price = TextEditingController();
   final _monthlyRent = TextEditingController();
-  final _rentalTermMonths = TextEditingController();
-  final _advanceMonths = TextEditingController();
   final _area = TextEditingController();
   final _bedrooms = TextEditingController();
   final _bathrooms = TextEditingController();
@@ -140,7 +138,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     super.initState();
     _price.addListener(_onPriceChanged);
     _monthlyRent.addListener(_onPriceChanged);
-    _advanceMonths.addListener(_onPriceChanged);
     final property = _existing;
     if (property == null) return;
 
@@ -151,8 +148,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     _description.text = property.description ?? '';
     _price.text = property.editablePrice.toStringAsFixed(0);
     _monthlyRent.text = property.monthlyRent?.toStringAsFixed(0) ?? '';
-    _rentalTermMonths.text = property.rentalTermMonths?.toString() ?? '';
-    _advanceMonths.text = property.advanceMonths?.toString() ?? '';
     _area.text = property.areaValue != null
         ? formatPropertyAreaValue(property.areaValue!)
         : property.areaM2?.toString() ?? '';
@@ -187,7 +182,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   void dispose() {
     _price.removeListener(_onPriceChanged);
     _monthlyRent.removeListener(_onPriceChanged);
-    _advanceMonths.removeListener(_onPriceChanged);
     unawaited(
       _mediaPicker.clearTemporaryFiles(<String>[
         ..._imagePaths,
@@ -199,8 +193,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       _description,
       _price,
       _monthlyRent,
-      _rentalTermMonths,
-      _advanceMonths,
       _area,
       _bedrooms,
       _bathrooms,
