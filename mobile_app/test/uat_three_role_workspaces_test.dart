@@ -28,6 +28,9 @@ void main() {
     expect(shell, contains("label: 'الإدارة'"));
     expect(shell, contains("label: 'التقارير'"));
     expect(shell, contains("roles.contains('super_admin')"));
+    expect(shell, isNot(contains('GeneralManagerHomeFinancialOverlay()')));
+    expect(shell, isNot(contains('GeneralManagerAdministrationFinancialHubScreen()')));
+    expect(shell, isNot(contains('GeneralManagerReportsFinancialHubScreen()')));
     expect(shell, isNot(contains('PlatformReviewsScreen()')));
     expect(shell, isNot(contains('PlatformOperationsScreen()')));
     expect(shell, isNot(contains("label: 'المراجعات'")));
@@ -53,9 +56,6 @@ void main() {
     expect(pages, contains('GeneralManagerAccountsScreen'));
     expect(pages, contains('رحلة العقار داخل المنصة'));
     expect(pages, isNot(contains("const _SectionTitle('المالية')")));
-    expect(shell, isNot(contains('GeneralManagerHomeFinancialOverlay()')));
-    expect(shell, isNot(contains('GeneralManagerAdministrationFinancialHubScreen()')));
-    expect(shell, isNot(contains('GeneralManagerReportsFinancialHubScreen()')));
     expect(pages, contains("ButtonSegment(value: '7d'"));
     expect(pages, contains("ButtonSegment(value: '30d'"));
     expect(pages, isNot(contains('SupportTasksScreen(')));
