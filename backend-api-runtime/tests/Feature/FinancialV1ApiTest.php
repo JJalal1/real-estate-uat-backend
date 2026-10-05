@@ -76,7 +76,7 @@ class FinancialV1ApiTest extends TestCase
             'held-advertiser@example.test',
             '+967772100002',
         );
-        [, $buyerHeaders] = $this->user(
+        [$buyer, $buyerHeaders] = $this->user(
             'historical-buyer@example.test',
             '+967772100003',
         );
@@ -106,7 +106,7 @@ class FinancialV1ApiTest extends TestCase
             'property_agreement_revision_id' => $revisionId,
             'property_sai_settlement_id' => null,
             'property_id' => $property->id,
-            'buyer_user_id' => (int) $agreement->json('data.buyer_user_id'),
+            'buyer_user_id' => $buyer->id,
             'advertiser_user_id' => $advertiser->id,
             'transaction_type' => 'sale',
             'advertiser_type' => 'owner',
