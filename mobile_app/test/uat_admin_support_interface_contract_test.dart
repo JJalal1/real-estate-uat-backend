@@ -14,12 +14,14 @@ void main() {
       'الخريطة والمناطق',
       'الدعم والبلاغات',
       'الحجوزات والمعاينات',
-      'الخدمات والمدفوعات',
       'سجل العمليات',
       'الإعدادات',
     ]) {
       expect(source.contains(label), isTrue, reason: 'missing: $label');
     }
+
+    expect(source.contains('الخدمات والمدفوعات'), isFalse);
+    expect(source.contains('مدفوعات معلقة'), isFalse);
   });
 
   test('support workspace exposes staff and manager workflows', () async {
