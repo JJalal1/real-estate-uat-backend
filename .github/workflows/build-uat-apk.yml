@@ -186,9 +186,6 @@ jobs:
     - backend-tests
     - postgres-audit
     - flutter-validation
-    env:
-      ANDROID_HOME: ${{ runner.temp }}/w2-android-sdk
-      ANDROID_SDK_ROOT: ${{ runner.temp }}/w2-android-sdk
     steps:
     - name: Checkout exact candidate SHA
       uses: actions/checkout@v4
@@ -203,8 +200,10 @@ jobs:
         java-version: '17'
     - name: Prepare empty isolated Android SDK root
       run: |-
-        test ! -e "$ANDROID_HOME"
-        mkdir -p "$ANDROID_HOME"
+        w2_sdk="$RUNNER_TEMP/w2-android-sdk"
+        test ! -e "$w2_sdk"
+        mkdir -p "$w2_sdk"
+        printf 'ANDROID_HOME=%s\nANDROID_SDK_ROOT=%s\n' "$w2_sdk" "$w2_sdk" >> "$GITHUB_ENV"
     - name: Set up exact Android SDK packages without legacy tools
       uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
       with:
