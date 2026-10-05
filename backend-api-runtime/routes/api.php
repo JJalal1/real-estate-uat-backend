@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\PropertySaiController;
 use App\Http\Controllers\Api\RegionsController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\ServicePaymentController;
+use App\Support\CurrentProductPolicy;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -66,7 +67,9 @@ Route::prefix('auth')->group(function () {
 Route::get('/properties', [PropertyController::class, 'index']);
 Route::get('/properties/nearby', [PropertyController::class, 'nearby']);
 Route::get('/properties/{property}/comments', [CommunityController::class, 'comments']);
-Route::get('/properties/{property}/sai', [PropertySaiController::class, 'show']);
+if (CurrentProductPolicy::saiEnabled()) {
+    Route::get('/properties/{property}/sai', [PropertySaiController::class, 'show']);
+}
 Route::get('/properties/{property}', [PropertyController::class, 'show']);
 Route::get('/property-media/{image}', [PropertyController::class, 'media']);
 Route::get('/advertisers/{advertiser}/ratings/summary', [CommunityController::class, 'ratingSummary']);
@@ -77,8 +80,10 @@ Route::get('/developers', [DevelopmentController::class, 'developers']);
 Route::get('/developers/{developer}', [DevelopmentController::class, 'developerShow']);
 Route::get('/developments', [DevelopmentController::class, 'index']);
 Route::get('/developments/{development}', [DevelopmentController::class, 'show']);
-Route::get('/services/catalog', [ServicePaymentController::class, 'catalog']);
-Route::get('/properties/{property}/services', [ServicePaymentController::class, 'propertyServices']);
+if (CurrentProductPolicy::financeEnabled()) {
+    Route::get('/services/catalog', [ServicePaymentController::class, 'catalog']);
+    Route::get('/properties/{property}/services', [ServicePaymentController::class, 'propertyServices']);
+}
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::get('/services/hub', [FreeServicesHubController::class, 'show']);
@@ -89,7 +94,9 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/properties/{property}/submit', [PropertyController::class, 'submit']);
     Route::post('/properties/{property}/identity/check', [PropertyIdentityController::class, 'check']);
     Route::post('/properties/{property}/identity/self-verify', [PropertyIdentityController::class, 'selfVerify']);
-    Route::put('/properties/{property}/sai', [PropertySaiController::class, 'update']);
+    if (CurrentProductPolicy::saiEnabled()) {
+        Route::put('/properties/{property}/sai', [PropertySaiController::class, 'update']);
+    }
     Route::post('/properties/{property}/proof-documents', [PropertyController::class, 'uploadProofDocuments']);
     Route::delete('/properties/{property}/proof-documents/{document}', [PropertyController::class, 'deleteProofDocument']);
     Route::get('/listing-documents/{document}', [ListingReviewController::class, 'document']);
@@ -120,24 +127,26 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::get('/support/cases/{case}', [SupportController::class, 'showMine']);
     Route::post('/support/cases/{case}/messages', [SupportController::class, 'replyMine']);
 
-    Route::get('/services/orders/mine', [ServicePaymentController::class, 'mineOrders']);
-    Route::get('/services/entitlements/mine', [ServicePaymentController::class, 'mineEntitlements']);
-    Route::post('/services/orders', [ServicePaymentController::class, 'createOrder']);
-    Route::get('/services/orders/{order}', [ServicePaymentController::class, 'showOrder']);
-    Route::post('/services/orders/{order}/cancel', [ServicePaymentController::class, 'cancelOrder']);
+    if (CurrentProductPolicy::financeEnabled()) {
+        Route::get('/services/orders/mine', [ServicePaymentController::class, 'mineOrders']);
+        Route::get('/services/entitlements/mine', [ServicePaymentController::class, 'mineEntitlements']);
+        Route::post('/services/orders', [ServicePaymentController::class, 'createOrder']);
+        Route::get('/services/orders/{order}', [ServicePaymentController::class, 'showOrder']);
+        Route::post('/services/orders/{order}/cancel', [ServicePaymentController::class, 'cancelOrder']);
 
-    Route::prefix('admin/services')->group(function () {
-        Route::get('/offers', [ServicePaymentController::class, 'adminOffers'])->middleware('permission:services.manage');
-        Route::post('/offers', [ServicePaymentController::class, 'storeOffering'])->middleware('permission:services.manage');
-        Route::patch('/offers/{offering}', [ServicePaymentController::class, 'updateOffering'])->middleware('permission:services.manage');
-    });
+        Route::prefix('admin/services')->group(function () {
+            Route::get('/offers', [ServicePaymentController::class, 'adminOffers'])->middleware('permission:services.manage');
+            Route::post('/offers', [ServicePaymentController::class, 'storeOffering'])->middleware('permission:services.manage');
+            Route::patch('/offers/{offering}', [ServicePaymentController::class, 'updateOffering'])->middleware('permission:services.manage');
+        });
 
-    Route::prefix('admin/payments')->group(function () {
-        Route::get('/orders', [ServicePaymentController::class, 'adminOrders'])->middleware('permission:payments.manage');
-        Route::get('/orders/{order}', [ServicePaymentController::class, 'showOrder'])->middleware('permission:payments.manage');
-        Route::post('/orders/{order}/settle', [ServicePaymentController::class, 'settle'])->middleware('permission:payments.manage');
-        Route::post('/orders/{order}/refund', [ServicePaymentController::class, 'refund'])->middleware('permission:payments.manage');
-    });
+        Route::prefix('admin/payments')->group(function () {
+            Route::get('/orders', [ServicePaymentController::class, 'adminOrders'])->middleware('permission:payments.manage');
+            Route::get('/orders/{order}', [ServicePaymentController::class, 'showOrder'])->middleware('permission:payments.manage');
+            Route::post('/orders/{order}/settle', [ServicePaymentController::class, 'settle'])->middleware('permission:payments.manage');
+            Route::post('/orders/{order}/refund', [ServicePaymentController::class, 'refund'])->middleware('permission:payments.manage');
+        });
+    }
 
     Route::get('/bookings/mine', [BookingController::class, 'mine']);
     Route::get('/bookings/managed', [BookingController::class, 'managed']);
