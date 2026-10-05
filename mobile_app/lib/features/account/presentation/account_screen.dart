@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../financial/presentation/financial_account_screen.dart';
 import '../../properties/presentation/favorites_screen.dart';
 import '../data/auth_controller.dart';
 
@@ -80,17 +79,6 @@ class AccountScreen extends ConsumerWidget {
                         Icons.notifications_outlined,
                         () => context.push('/notifications'),
                       ),
-                      _AccountRow(
-                        'مدفوعاتي',
-                        Icons.payments_outlined,
-                        () => Navigator.of(context).push<void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const FinancialAccountScreen(
-                              showAccountSummary: false,
-                            ),
-                          ),
-                        ),
-                      ),
                       if (!administrativeRole)
                         _AccountRow(
                           'الخدمات والأدوات',
@@ -152,15 +140,6 @@ class AccountScreen extends ConsumerWidget {
                             'إضافة عقار',
                             Icons.add_home_work_outlined,
                             () => context.push('/add-property'),
-                          ),
-                          _AccountRow(
-                            'الحساب المالي',
-                            Icons.account_balance_wallet_outlined,
-                            () => Navigator.of(context).push<void>(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const FinancialAccountScreen(),
-                              ),
-                            ),
                           ),
                         ],
                       ),
