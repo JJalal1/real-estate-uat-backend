@@ -2,12 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\PropertyPaymentMethod;
-use App\Models\Role;
 use App\Models\User;
-use App\Services\PropertyFinancialService;
+use App\Support\CurrentProductPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -15,94 +12,50 @@ class FinancialV1CompletionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_general_manager_finance_workspace_and_method_configuration_are_authoritative(): void
+    public function test_current_product_policy_keeps_finance_and_sai_disabled(): void
     {
-        [$owner, $headers] = $this->adminUser();
+        $this->assertFalse(CurrentProductPolicy::financeEnabled());
+        $this->assertFalse(CurrentProductPolicy::saiEnabled());
+    }
+
+    public function test_free_services_hub_remains_free_while_admin_finance_routes_are_absent(): void
+    {
+        [, $headers] = $this->user();
 
         $this->withHeaders($headers)
-            ->getJson('/api/admin/finance/workspace?period=30d&transaction_type=sale&advertiser_type=owner')
+            ->getJson('/api/services/hub')
             ->assertOk()
-            ->assertJsonStructure(['data'=>[
-                'filters','summary','deals','payments','payouts','receivables','overdue','holds','refunds','disputes','audit_log',
-            ]])
-            ->assertJsonPath('data.filters.period', '30d')
-            ->assertJsonPath('data.filters.transaction_type', 'sale')
-            ->assertJsonPath('data.filters.advertiser_type', 'owner');
+            ->assertJsonPath('data.pricing_model', 'free')
+            ->assertJsonPath('data.paid_features_enabled', false);
 
-        $method = PropertyPaymentMethod::query()->where('key', 'jeeb')->firstOrFail();
-        $this->withHeaders($headers)
-            ->patchJson('/api/admin/finance/payment-methods/'.$method->id, [
-                'is_enabled'=>true,
-                'allows_full_payment'=>false,
-                'allows_sai_only'=>true,
-                'min_amount'=>100,
-                'max_amount'=>500000,
-            ])
-            ->assertOk()
-            ->assertJsonPath('data.allows_full_payment', false)
-            ->assertJsonPath('data.allows_sai_only', true)
-            ->assertJsonPath('data.min_amount', 100)
-            ->assertJsonPath('data.max_amount', 500000);
-
-        $this->assertDatabaseHas('audit_logs', [
-            'actor_user_id'=>$owner->id,
-            'action'=>'finance.payment_method_updated',
-        ]);
-
-        $methods = app(PropertyFinancialService::class)->paymentMethods(1000, 'YER', 'platform_full');
-        $jeeb = collect($methods)->firstWhere('key', 'jeeb');
-        $this->assertNotNull($jeeb);
-        $this->assertFalse((bool) $jeeb['available']);
-        $this->assertSame('هذه الوسيلة غير مفعلة للدفع الكامل للصفقة.', $jeeb['unavailable_reason']);
-
-        $saiMethods = app(PropertyFinancialService::class)->paymentMethods(1000, 'YER', 'platform_sai_only');
-        $jeebSai = collect($saiMethods)->firstWhere('key', 'jeeb');
-        $this->assertTrue((bool) $jeebSai['available']);
+        $this->withHeaders($headers)->getJson('/api/admin/finance/summary')->assertNotFound();
+        $this->withHeaders($headers)->getJson('/api/admin/finance/workspace')->assertNotFound();
+        $this->withHeaders($headers)->getJson('/api/admin/finance/payment-methods')->assertNotFound();
     }
 
-    public function test_non_finance_user_cannot_access_general_manager_financial_configuration(): void
-    {
-        [, $headers] = $this->regularUser();
-
-        $this->withHeaders($headers)->getJson('/api/admin/finance/workspace')->assertForbidden();
-        $this->withHeaders($headers)->getJson('/api/admin/finance/payment-methods')->assertForbidden();
-    }
-
-    private function adminUser(): array
-    {
-        return $this->user('financial-completion-admin@example.test', '+967772000091', ['super_admin']);
-    }
-
-    private function regularUser(): array
-    {
-        return $this->user('financial-completion-user@example.test', '+967772000092', []);
-    }
-
-    private function user(string $email, string $phone, array $roles): array
+    private function user(): array
     {
         $user = User::query()->create([
-            'name'=>'Financial V1 Completion User',
-            'email'=>$email,
-            'phone'=>$phone,
-            'phone_verified_at'=>now(),
-            'profile_completed_at'=>now(),
-            'account_status'=>User::STATUS_ACTIVE,
-            'password'=>Hash::make('financial-v1-completion-password'),
+            'name' => 'W4b Hub User',
+            'email' => 'w4b-hub@example.test',
+            'phone' => '+967772100011',
+            'phone_verified_at' => now(),
+            'profile_completed_at' => now(),
+            'account_status' => User::STATUS_ACTIVE,
+            'password' => Hash::make('w4b-hub-password'),
         ]);
 
-        $roleIds=[];
-        foreach(array_unique(array_merge(['registered_user'],$roles)) as $key){
-            $role=Role::query()->where('key',$key)->firstOrFail();
-            $roleIds[$role->id]=['assigned_by_user_id'=>null,'created_at'=>now()];
-        }
-        $user->roles()->sync($roleIds);
-        $plain='finv1complete_'.substr(hash('sha512',$email),0,64);
+        $plain = 'w4bhub_'.substr(hash('sha512', $user->email), 0, 72);
         $user->apiTokens()->create([
-            'name'=>'financial-v1-completion',
-            'token_hash'=>hash('sha256',$plain),
-            'token_prefix'=>substr($plain,0,12),
-            'expires_at'=>now()->addHour(),
+            'name' => 'w4b-hub',
+            'token_hash' => hash('sha256', $plain),
+            'token_prefix' => substr($plain, 0, 12),
+            'expires_at' => now()->addHour(),
         ]);
-        return [$user,['Authorization'=>'Bearer '.$plain,'Accept'=>'application/json']];
+
+        return [$user, [
+            'Authorization' => 'Bearer '.$plain,
+            'Accept' => 'application/json',
+        ]];
     }
 }

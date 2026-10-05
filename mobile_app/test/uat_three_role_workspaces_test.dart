@@ -19,15 +19,18 @@ void main() {
 
   test('general manager has executive-only primary navigation', () {
     final shell = read('lib/features/app_shell/presentation/app_shell_screen.dart');
-    expect(shell, contains('GeneralManagerHomeFinancialOverlay()'));
+    expect(shell, contains('GeneralManagerHomeScreen()'));
     expect(shell, contains('GeneralManagerMarketScreen()'));
-    expect(shell, contains('GeneralManagerAdministrationFinancialHubScreen()'));
-    expect(shell, contains('GeneralManagerReportsFinancialHubScreen()'));
+    expect(shell, contains('GeneralManagerAdministrationScreen()'));
+    expect(shell, contains('GeneralManagerReportsScreen()'));
     expect(shell, contains("label: 'الرئيسية'"));
     expect(shell, contains("label: 'السوق'"));
     expect(shell, contains("label: 'الإدارة'"));
     expect(shell, contains("label: 'التقارير'"));
     expect(shell, contains("roles.contains('super_admin')"));
+    expect(shell, isNot(contains('GeneralManagerHomeFinancialOverlay()')));
+    expect(shell, isNot(contains('GeneralManagerAdministrationFinancialHubScreen()')));
+    expect(shell, isNot(contains('GeneralManagerReportsFinancialHubScreen()')));
     expect(shell, isNot(contains('PlatformReviewsScreen()')));
     expect(shell, isNot(contains('PlatformOperationsScreen()')));
     expect(shell, isNot(contains("label: 'المراجعات'")));
@@ -52,7 +55,7 @@ void main() {
     expect(pages, contains('الحسابات والأدوار والصلاحيات'));
     expect(pages, contains('GeneralManagerAccountsScreen'));
     expect(pages, contains('رحلة العقار داخل المنصة'));
-    expect(pages, contains("const _SectionTitle('المالية')"));
+    expect(pages, isNot(contains("const _SectionTitle('المالية')")));
     expect(pages, contains("ButtonSegment(value: '7d'"));
     expect(pages, contains("ButtonSegment(value: '30d'"));
     expect(pages, isNot(contains('SupportTasksScreen(')));

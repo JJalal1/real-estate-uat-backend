@@ -9,7 +9,6 @@ import '../data/property_market_repository.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
-import '../domain/property_sai.dart';
 
 class PropertyCompareScreen extends ConsumerWidget {
   const PropertyCompareScreen({required this.propertyIds, super.key});
@@ -61,14 +60,10 @@ class PropertyCompareScreen extends ConsumerWidget {
       // Availability may change after Favorites loaded. An advertiser's own
       // draft preview is still not eligible for public comparison.
       if (property.status != 'published') continue;
-      final values = await Future.wait<dynamic>([
-        repository.sai(id),
-        _loadMarket(marketRepository, id),
-      ]);
+      final market = await _loadMarket(marketRepository, id);
       items.add(_CompareItem(
         property: property,
-        sai: values[0] as PropertySaiEnvelope,
-        market: values[1] as PropertyMarketContext?,
+        market: market,
       ));
     }
     return items;
@@ -170,7 +165,6 @@ class _PropertyCompareColumn extends StatelessWidget {
                   suffix: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
                 ),
                 const SizedBox(height: AppSpacing.s8),
-                _valueRow(context, 'السعي', item.sai.sai?.displayText ?? 'غير متاح'),
                 _marketRows(context, item.market, property.currency),
                 _valueRow(context, 'المساحة', _area(property)),
                 _valueRow(context, 'الغرف', property.bedrooms?.toString() ?? '—'),
@@ -263,11 +257,9 @@ class _PropertyCompareColumn extends StatelessWidget {
 class _CompareItem {
   const _CompareItem({
     required this.property,
-    required this.sai,
     required this.market,
   });
   final PropertyDetails property;
-  final PropertySaiEnvelope sai;
   final PropertyMarketContext? market;
 }
 

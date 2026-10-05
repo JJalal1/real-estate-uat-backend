@@ -8,6 +8,7 @@ use App\Models\PropertyPayment;
 use App\Models\PropertyPaymentMethod;
 use App\Models\PropertyPlatformReceivable;
 use App\Models\User;
+use App\Support\CurrentProductPolicy;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
@@ -55,13 +56,19 @@ class CompletePropertyFinancialService extends PropertyFinancialService
 
     public function hasOverdueReceivable(int $advertiserUserId): bool
     {
-        $this->activateOverdueHold($advertiserUserId);
+        if (CurrentProductPolicy::financeEnabled()) {
+            $this->activateOverdueHold($advertiserUserId);
+        }
+
         return parent::hasOverdueReceivable($advertiserUserId);
     }
 
     public function financialSummaryFor(User $user): array
     {
-        $this->activateOverdueHold((int) $user->id);
+        if (CurrentProductPolicy::financeEnabled()) {
+            $this->activateOverdueHold((int) $user->id);
+        }
+
         return parent::financialSummaryFor($user);
     }
 

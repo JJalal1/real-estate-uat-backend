@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\PropertySaiService;
+use App\Support\CurrentProductPolicy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -32,6 +33,7 @@ class Property extends Model
     protected static function booted(): void
     {
         static::addGlobalScope('financial_public_visibility', function (Builder $builder): void {
+            if (! CurrentProductPolicy::financeEnabled()) return;
             if (app()->runningInConsole()) return;
             $request=request();
             if (!$request->isMethod('GET')) return;
@@ -47,6 +49,7 @@ class Property extends Model
         });
 
         static::saving(function (Property $property): void {
+            if (! CurrentProductPolicy::saiEnabled()) return;
             if (! $property->exists) return;
             $stateChanged = $property->isDirty('status') || $property->isDirty('review_status');
             if (! $stateChanged) return;

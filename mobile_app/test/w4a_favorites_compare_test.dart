@@ -130,7 +130,7 @@ void main() {
       tester, const PropertyCompareScreen(propertyIds: [42, 43]), properties, market,
     );
     expect(properties.loaded, [42, 43]);
-    expect(properties.secondaryRequests, [43]);
+    expect(properties.secondaryRequests, isEmpty);
     expect(market.loaded, [43]);
     expect(find.text('اختر عقارين على الأقل'), findsOneWidget);
     expect(find.text('PRIVATE DRAFT TITLE'), findsNothing);

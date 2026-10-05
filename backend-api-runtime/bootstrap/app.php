@@ -4,6 +4,7 @@ use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\FastRenderHealthProbe;
 use App\Http\Middleware\RequestObservability;
+use App\Support\CurrentProductPolicy;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,7 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         then: function (): void {
             Route::middleware('api')->prefix('api')->group(base_path('routes/phase5.php'));
-            Route::middleware('api')->prefix('api')->group(base_path('routes/financial_v1.php'));
+
+            if (CurrentProductPolicy::financeEnabled()) {
+                Route::middleware('api')->prefix('api')->group(base_path('routes/financial_v1.php'));
+            }
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

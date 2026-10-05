@@ -17,10 +17,8 @@ import '../domain/arabic_price_words.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import '../domain/property_location_address.dart';
-import '../domain/property_sai.dart';
 import 'property_land_boundary_picker_screen.dart';
 import 'property_location_picker_screen.dart';
-import 'property_sai_configuration_sheet.dart';
 
 class ListingEditorScreen extends ConsumerStatefulWidget {
   const ListingEditorScreen({super.key, this.existingProperty});
@@ -79,8 +77,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   final _description = TextEditingController();
   final _price = TextEditingController();
   final _monthlyRent = TextEditingController();
-  final _rentalTermMonths = TextEditingController();
-  final _advanceMonths = TextEditingController();
   final _area = TextEditingController();
   final _bedrooms = TextEditingController();
   final _bathrooms = TextEditingController();
@@ -113,25 +109,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   List<String> _imagePaths = <String>[];
   String? _ownershipProofPath;
   PropertyDetails? _workingDraft;
-  PropertySaiEnvelope? _saiEnvelope;
-  bool _saiBusy = false;
-  String _priceDisplayMode = 'excludes_sai';
 
   PropertyDetails? get _existing => _workingDraft ?? widget.existingProperty;
   bool get _startedAsEditing => widget.existingProperty != null;
   bool get _isEditing => _existing != null;
-  bool get _isSaiReady {
-    final management = _saiEnvelope?.management;
-    if (management == null || !management.configured) return false;
-    if (!management.isProfessional) return true;
-    final requested = management.requestedBrokerRatePercent ?? 0;
-    return requested <= 0 || management.platformTermsStatus == 'accepted';
-  }
-
-  String get _saiDisplayText =>
-      _saiEnvelope?.sai?.displayText ??
-      _saiEnvelope?.management?.publicDisplayText ??
-      (_isSaiReady ? 'تم تحديد السعي' : 'لم يتم تحديد السعي بعد');
   bool get _requiresSaleTenure =>
       _purpose == 'sale' && _saleTenureTypes.contains(_type);
   bool get _requiresResidential => _residentialTypes.contains(_type);
@@ -140,28 +121,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   bool get _unitNeedsFloor => const {'apartment', 'office'}.contains(_type);
   bool? get _parkingValue =>
       _parkingChoice == null ? null : _parkingChoice == 'yes';
-  bool get _visitorPaysSai => const {'buyer', 'tenant'}.contains(
-        _saiEnvelope?.sai?.payer ?? _saiEnvelope?.management?.payer,
-      );
-  double? get _effectivePrice {
-    if (_purpose == 'rent') {
-      final monthly = double.tryParse(_monthlyRent.text.trim());
-      final advance = int.tryParse(_advanceMonths.text.trim());
-      if (monthly == null || monthly <= 0 || advance == null || advance <= 0) {
-        return null;
-      }
-      return monthly * advance;
-    }
-    return double.tryParse(_price.text.trim());
-  }
+  double? get _effectivePrice => _purpose == 'rent'
+      ? double.tryParse(_monthlyRent.text.trim())
+      : double.tryParse(_price.text.trim());
 
   String get _priceSummaryText {
     if (_purpose == 'rent') {
       final monthly = _monthlyRent.text.trim();
-      final advance = _advanceMonths.text.trim();
-      return monthly.isEmpty
-          ? '—'
-          : '$monthly YER شهرياً${advance.isEmpty ? '' : ' · مقدم $advance شهر'}';
+      return monthly.isEmpty ? '—' : '$monthly YER شهرياً';
     }
     return '${_price.text.trim()} YER';
   }
@@ -171,7 +138,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     super.initState();
     _price.addListener(_onPriceChanged);
     _monthlyRent.addListener(_onPriceChanged);
-    _advanceMonths.addListener(_onPriceChanged);
     final property = _existing;
     if (property == null) return;
 
@@ -182,9 +148,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     _description.text = property.description ?? '';
     _price.text = property.editablePrice.toStringAsFixed(0);
     _monthlyRent.text = property.monthlyRent?.toStringAsFixed(0) ?? '';
-    _rentalTermMonths.text = property.rentalTermMonths?.toString() ?? '';
-    _advanceMonths.text = property.advanceMonths?.toString() ?? '';
-    _priceDisplayMode = property.priceDisplayMode ?? 'excludes_sai';
     _area.text = property.areaValue != null
         ? formatPropertyAreaValue(property.areaValue!)
         : property.areaM2?.toString() ?? '';
@@ -213,14 +176,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     _documentOwnerName.text = property.documentOwnerName ?? '';
     _relationshipType = property.ownerRelationshipType;
     _relationshipNote.text = property.ownerRelationshipNote ?? '';
-    unawaited(_refreshSai(property.id));
   }
 
   @override
   void dispose() {
     _price.removeListener(_onPriceChanged);
     _monthlyRent.removeListener(_onPriceChanged);
-    _advanceMonths.removeListener(_onPriceChanged);
     unawaited(
       _mediaPicker.clearTemporaryFiles(<String>[
         ..._imagePaths,
@@ -232,8 +193,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       _description,
       _price,
       _monthlyRent,
-      _rentalTermMonths,
-      _advanceMonths,
       _area,
       _bedrooms,
       _bathrooms,
@@ -642,14 +601,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   Widget _priceStep() {
     final wordsSource = _purpose == 'rent' ? _monthlyRent.text : _price.text;
     final amountWords = arabicRiyalAmountInWords(wordsSource) ?? '';
-    final initialAmount = _effectivePrice;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSectionHeader(
           title: _purpose == 'rent' ? 'الإيجار والتواصل' : 'السعر والتواصل',
           subtitle: _purpose == 'rent'
-              ? 'أدخل الإيجار الشهري ومدة التأجير وعدد أشهر المقدم.'
+              ? 'أدخل الإيجار الشهري ووسائل التواصل التي تريد إظهارها للمهتمين.'
               : 'حدد السعر ووسائل التواصل التي تريد إظهارها للمهتمين.',
         ),
         const SizedBox(height: AppSpacing.s16),
@@ -667,36 +625,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             enabled: !_busy,
           ),
-          const SizedBox(height: AppSpacing.s12),
-          Row(
-            children: [
-              Expanded(
-                child: AppTextField(
-                  controller: _rentalTermMonths,
-                  label: 'مدة التأجير بالأشهر *',
-                  keyboardType: TextInputType.number,
-                  enabled: !_busy,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              Expanded(
-                child: AppTextField(
-                  controller: _advanceMonths,
-                  label: 'أشهر المقدم *',
-                  keyboardType: TextInputType.number,
-                  enabled: !_busy,
-                ),
-              ),
-            ],
-          ),
-          if (initialAmount != null) ...[
-            const SizedBox(height: AppSpacing.s8),
-            AppInlineMessage(
-              title: 'المبلغ الأساسي عند البداية',
-              message: '${initialAmount.toStringAsFixed(0)} YER قبل السعي',
-              tone: AppStatusTone.info,
-            ),
-          ],
         ],
         if (amountWords.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.s8),
@@ -707,27 +635,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
             message: amountWords,
             tone: AppStatusTone.info,
           ),
-        ],
-        if (_isSaiReady && _visitorPaysSai) ...[
-          const SizedBox(height: AppSpacing.s16),
-          Text('طريقة عرض السعر للباحث',
-              style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: AppSpacing.s8),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(
-                  value: 'excludes_sai', label: Text('السعر + السعي')),
-              ButtonSegment(
-                  value: 'includes_sai', label: Text('السعر شامل السعي')),
-            ],
-            selected: {_priceDisplayMode},
-            onSelectionChanged: _busy
-                ? null
-                : (value) => setState(() => _priceDisplayMode = value.first),
-          ),
-          const SizedBox(height: AppSpacing.s8),
-          const Text(
-              'سيظهر للباحث إجمالي السعي والطرف الذي يتحمله فقط، بدون إظهار أي تقسيم داخلي.'),
         ],
         const SizedBox(height: AppSpacing.s12),
         AppTextField(
@@ -944,13 +851,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           ),
         ],
         const SizedBox(height: AppSpacing.s20),
-        const AppSectionHeader(
-          title: 'السعي',
-          subtitle: 'حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.',
-        ),
-        const SizedBox(height: AppSpacing.s8),
-        _saiConfigurationCard(),
-        const SizedBox(height: AppSpacing.s20),
         const AppSectionHeader(title: 'ملخص الإعلان'),
         const SizedBox(height: AppSpacing.s8),
         AppSurface(
@@ -967,56 +867,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                   label: 'عدد اللبن',
                   value:
                       '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
-              _SummaryRow(label: 'السعي', value: _saiDisplayText),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _saiConfigurationCard() {
-    final scheme = Theme.of(context).colorScheme;
-    return AppSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                _isSaiReady
-                    ? Icons.check_circle_rounded
-                    : Icons.payments_outlined,
-                color: _isSaiReady ? scheme.primary : scheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              Expanded(
-                child: Text(
-                  _saiDisplayText,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s8),
-          Text(
-            _isSaiReady
-                ? 'يمكنك تعديل اختيار السعي قبل الإرسال إذا احتجت.'
-                : 'لن يتم إرسال الإعلان للمراجعة حتى يتم تحديد السعي المطلوب.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: AppSpacing.s12),
-          AppButton(
-            label: _isSaiReady ? 'تعديل السعي' : 'تحديد السعي',
-            icon: Icons.payments_outlined,
-            loading: _saiBusy,
-            onPressed: _busy || _saiBusy ? null : _configureSai,
-            expand: true,
-          ),
-        ],
-      ),
     );
   }
 
@@ -1114,16 +968,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         }
       } else {
         final monthly = double.tryParse(_monthlyRent.text.trim());
-        final term = int.tryParse(_rentalTermMonths.text.trim());
-        final advance = int.tryParse(_advanceMonths.text.trim());
         if (monthly == null || monthly <= 0) {
           return 'أدخل الإيجار الشهري بشكل صحيح.';
-        }
-        if (term == null || term < 1 || term > 24) {
-          return 'مدة التأجير يجب أن تكون من شهر إلى 24 شهراً.';
-        }
-        if (advance == null || advance < 1 || advance > term) {
-          return 'أشهر المقدم يجب أن تكون من شهر وحتى مدة التأجير.';
         }
       }
     }
@@ -1141,10 +987,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   String? _validateForSubmit() {
     final core = _validateCore();
     if (core != null) return core;
-    if (!_isSaiReady) {
-      return 'حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.';
-    }
-
     final existingImages = _existing?.images.length ?? 0;
     final effectiveImageCount = _replaceImages
         ? _imagePaths.length
@@ -1188,13 +1030,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       type: _type,
       tenureType: _requiresSaleTenure ? _tenureType : null,
       price: _effectivePrice!,
-      priceDisplayMode: _visitorPaysSai ? _priceDisplayMode : 'excludes_sai',
-      monthlyRent:
-          _purpose == 'rent' ? double.parse(_monthlyRent.text.trim()) : null,
-      rentalTermMonths:
-          _purpose == 'rent' ? int.parse(_rentalTermMonths.text.trim()) : null,
-      advanceMonths:
-          _purpose == 'rent' ? int.parse(_advanceMonths.text.trim()) : null,
+      priceDisplayMode: null,
+      monthlyRent: null,
+      rentalTermMonths: null,
+      advanceMonths: null,
       areaValue: double.parse(_area.text.trim()),
       areaUnit: _areaUnit,
       bedrooms: _requiresResidential ? _optionalInt(_bedrooms) : null,
@@ -1283,9 +1122,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
             final message = friendlyApiError(error);
             _message(
                 'تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: $message');
-            if (message.contains('السعي')) {
-              await _refreshSai(draft.id);
-            }
           }
           return;
         }
@@ -1386,7 +1222,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     label: 'عدد اللبن',
                     value:
                         '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
-                _SummaryRow(label: 'السعي', value: _saiDisplayText),
                 _SummaryRow(label: 'الموقع', value: _composedAddress),
                 if (_description.text.trim().isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.s12),
@@ -1409,45 +1244,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
 
   void _onPriceChanged() {
     if (mounted) setState(() {});
-  }
-
-  Future<void> _refreshSai(int propertyId) async {
-    try {
-      final envelope =
-          await ref.read(propertyRepositoryProvider).sai(propertyId);
-      if (mounted) setState(() => _saiEnvelope = envelope);
-    } catch (_) {
-      // Sai configuration remains explicitly available in the final step.
-    }
-  }
-
-  Future<PropertyDetails?> _ensureDraftForSai() async {
-    final validation = _validateCore();
-    if (validation != null) {
-      _message(validation);
-      return null;
-    }
-    final repository = ref.read(propertyRepositoryProvider);
-    final current = _existing;
-    final draft = current == null
-        ? await repository.createListing(
-            _input(),
-            imagePaths: _imagePaths,
-            submitForReview: false,
-            ownershipProofPath: _ownershipProofPath,
-          )
-        : await repository.updateListing(
-            current.id,
-            _input(),
-            imagePaths: _imagePaths,
-            replaceImages: _replaceImages,
-            submitForReview: false,
-            ownershipProofPath: _ownershipProofPath,
-          );
-    if (mounted) setState(() => _workingDraft = draft);
-    ref.read(propertyDataRevisionProvider.notifier).state++;
-    await _clearUploadedTemporaryFiles();
-    return draft;
   }
 
   Future<bool> _checkIdentityBeforeSubmit(int propertyId) async {
@@ -1568,31 +1364,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     );
     if (selection != null && mounted) {
       setState(() => _landBoundaryGeoJson = selection.geoJson);
-    }
-  }
-
-  Future<void> _configureSai() async {
-    setState(() => _saiBusy = true);
-    try {
-      final draft = await _ensureDraftForSai();
-      if (draft == null || !mounted) return;
-      final repository = ref.read(propertyRepositoryProvider);
-      final ready = await showPropertySaiConfigurationSheet(
-        context,
-        repository: repository,
-        propertyId: draft.id,
-        purpose: _purpose,
-      );
-      if (!mounted) return;
-      await _refreshSai(draft.id);
-      if (!ready && mounted) {
-        _message(
-            'لم يتم تأكيد السعي. أكمل بيانات السعي قبل إرسال الإعلان للمراجعة.');
-      }
-    } catch (error) {
-      if (mounted) _message(friendlyApiError(error));
-    } finally {
-      if (mounted) setState(() => _saiBusy = false);
     }
   }
 

@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\AccountVerificationProfile;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\PropertyFinancialService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -197,6 +199,47 @@ class Phase2ListingJourneyApiTest extends TestCase
             'entity_id' => $id,
         ]);
         $this->getJson('/api/properties')->assertOk()->assertJsonPath('meta.total', 0);
+    }
+
+    public function test_free_core_listing_create_and_submit_never_resolve_financial_service(): void
+    {
+        $this->app->bind(PropertyFinancialService::class, function (): never {
+            throw new \RuntimeException('Financial service must not be resolved by free-core listing routes.');
+        });
+
+        [$owner, $headers] = $this->user(
+            'p2-free-core-finance@example.test',
+            '+967711100099',
+        );
+        AccountVerificationProfile::query()->create([
+            'user_id' => $owner->id,
+            'type' => AccountVerificationProfile::TYPE_OWNER,
+            'status' => AccountVerificationProfile::STATUS_APPROVED,
+            'submitted_at' => now()->subHour(),
+            'reviewed_at' => now(),
+        ]);
+
+        $id = $this->createReady($headers, [
+            'title' => 'إعلان مجاني لا يعتمد على المالية',
+            'ownership_document_type' => 'purchase_deed',
+            'document_owner_name' => 'Phase 2 User',
+            'owner_relationship_type' => 'owner',
+            'ownership_proof' => UploadedFile::fake()->image('ownership-proof.jpg'),
+        ]);
+
+        $this->withHeaders($headers)
+            ->postJson("/api/properties/$id/submit")
+            ->assertOk()
+            ->assertJsonPath('data.review_status', 'submitted');
+
+        $this->assertDatabaseHas('properties', [
+            'id' => $id,
+            'review_status' => 'submitted',
+        ]);
+        $this->assertDatabaseCount('property_deal_financial_terms', 0);
+        $this->assertDatabaseCount('property_platform_receivables', 0);
+        $this->assertDatabaseCount('property_financial_holds', 0);
+        $this->assertDatabaseCount('property_sai_settlements', 0);
     }
 
     private function createReady(array $headers, array $overrides = []): int
