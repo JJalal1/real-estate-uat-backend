@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../financial/presentation/deal_financial_screen.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
 import 'agreement_forms.dart';
@@ -229,18 +228,6 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
             onPressed: _busy ? null : _cancel,
             icon: const Icon(Icons.cancel_outlined),
             label: const Text('إلغاء مسودة الاتفاق'),
-          ),
-        ],
-        if (agreement.isAccepted) ...[
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute<void>(
-                builder: (_) => DealFinancialScreen(agreementId: agreement.id),
-              ),
-            ),
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-            label: const Text('فتح تسوية الصفقة'),
           ),
         ],
         if (agreement.isAccepted && agreement.isRental) ...[
