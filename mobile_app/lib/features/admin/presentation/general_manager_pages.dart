@@ -1272,17 +1272,6 @@ double? _asDouble(dynamic value) {
   return double.tryParse(value?.toString() ?? '');
 }
 
-String _formatMoney(double? value) {
-  final amount = (value ?? 0).round().toString();
-  final out = StringBuffer();
-  for (var i = 0; i < amount.length; i++) {
-    final remaining = amount.length - i;
-    out.write(amount[i]);
-    if (remaining > 1 && remaining % 3 == 1) out.write(',');
-  }
-  return '$out YER';
-}
-
 String _propertyTypeLabel(String type) => switch (type) {
       'apartment' => 'شقة',
       'house' => 'منزل',
