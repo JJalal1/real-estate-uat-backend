@@ -33,6 +33,8 @@ The unavailable card displays “هذا العقار محفوظ في المفض�
 
 Only available favorite IDs count toward the 2–4 compare selection. Each fresh list response prunes missing/unavailable selected IDs before rendering the count. Republishing does not silently re-select an item.
 
+Comparison also re-checks the loaded property status before rendering or requesting its supplementary information. A listing unpublished after selection, including an advertiser's authorized draft preview, cannot appear in the public comparison.
+
 Available cards retain normal details navigation, public summary and comparison. For compatibility with the older API, a missing availability field is accepted only with an explicitly published, identity-matching summary. Explicit unavailable or unknown availability always fails closed.
 
 ## Persistence and limits

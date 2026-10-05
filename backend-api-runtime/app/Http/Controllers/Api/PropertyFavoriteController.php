@@ -9,6 +9,7 @@ use App\Models\PropertyImage;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PropertyFavoriteController extends Controller
 {
@@ -66,22 +67,26 @@ class PropertyFavoriteController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        // Filter before lookup: unknown and unpublished IDs have the same 404.
-        $published = Property::query()
-            ->whereKey($property)
-            ->where('status', 'published')
-            ->first(['id']);
-        abort_unless($published, 404);
+        $favorite = DB::transaction(function () use ($user, $property): PropertyFavorite {
+            // Unknown and unpublished IDs have the same 404. Hold publication
+            // stable until the favorite write completes, including on PostgreSQL.
+            $published = Property::query()
+                ->whereKey($property)
+                ->where('status', 'published')
+                ->sharedLock()
+                ->first(['id']);
+            abort_unless($published, 404);
 
-        $favorite = PropertyFavorite::query()->firstOrCreate([
-            'user_id' => $user->id,
-            'property_id' => $published->id,
-        ]);
+            return PropertyFavorite::query()->firstOrCreate([
+                'user_id' => $user->id,
+                'property_id' => $published->id,
+            ]);
+        });
 
         return response()->json([
             'message' => 'Property saved to favorites.',
             'data' => [
-                'property_id' => (int) $published->id,
+                'property_id' => (int) $favorite->property_id,
                 'is_favorited' => true,
                 'favorited_at' => $favorite->created_at?->toIso8601String(),
                 'availability' => 'available',
