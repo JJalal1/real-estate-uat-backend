@@ -60,13 +60,19 @@ class PropertyIdentityController extends Controller
         /** @var User $actor */
         $actor = $request->user();
         $validated = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:500']]);
-        $this->identity->transferRepresentation($actor, $property, (string) $validated['reason']);
+        $transfer = $this->identity->transferRepresentation($actor, $property, (string) $validated['reason']);
         $this->audit->record($actor, 'property.representation_transferred', $property, [
             'property_asset_id' => $property->property_asset_id,
+            'from_user_id' => $transfer['from_user_id'],
             'to_user_id' => $property->user_id,
+            'active_claim_id' => $transfer['active_claim_id'],
+            'unpublished_listing_ids' => $transfer['unpublished_listing_ids'],
             'reason' => $validated['reason'],
         ], $request, $property->user_id);
-        return response()->json(['message' => 'تم نقل تمثيل العقار إلى المعلن الحالي.']);
+        return response()->json([
+            'message' => 'تم نقل تمثيل العقار إلى المعلن الحالي.',
+            'data' => $transfer,
+        ]);
     }
 
     private function assertOwner(Property $property, User $user): void
