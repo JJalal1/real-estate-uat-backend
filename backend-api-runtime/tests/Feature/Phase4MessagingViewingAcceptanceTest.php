@@ -183,6 +183,67 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
         ));
     }
 
+    public function test_representation_transfer_preserves_old_conversation_but_disables_old_call_handoff(): void
+    {
+        [$oldAdvertiser, $oldHeaders] = $this->user('p4-transfer-old@example.test', '+967760000041');
+        [$newAdvertiser, ] = $this->user('p4-transfer-new@example.test', '+967760000042');
+        [, $buyerHeaders] = $this->user('p4-transfer-buyer@example.test', '+967760000043');
+
+        $oldProperty = $this->property($oldAdvertiser, 'P4 transfer old listing');
+        $threadId = (int) $this->withHeaders($buyerHeaders)
+            ->postJson("/api/properties/{$oldProperty->id}/conversation")
+            ->assertCreated()
+            ->assertJsonPath('data.can_call_advertiser', true)
+            ->json('data.id');
+
+        $this->withHeaders($buyerHeaders)
+            ->postJson("/api/messages/threads/$threadId/messages", [
+                'body' => 'رسالة قبل نقل التمثيل',
+                'client_message_id' => 'p4-transfer-before',
+            ])->assertCreated();
+
+        $replacement = Property::query()->create([
+            'user_id' => $newAdvertiser->id,
+            'property_asset_id' => $oldProperty->property_asset_id,
+            'title' => 'P4 transfer replacement listing',
+            'description' => 'replacement',
+            'purpose' => 'sale',
+            'type' => 'apartment',
+            'price' => 10000000,
+            'currency' => 'YER',
+            'area_m2' => 120,
+            'bedrooms' => 3,
+            'bathrooms' => 2,
+            'address' => 'Phase 4 address',
+            'latitude' => 15.3694,
+            'longitude' => 44.1910,
+            'status' => 'draft',
+            'review_status' => 'draft',
+        ]);
+
+        $identity = app(AppServicesPropertyIdentityService::class);
+        $identity->ensureRepresentation($oldProperty);
+        $identity->transferRepresentation(
+            $newAdvertiser,
+            $replacement,
+            'تم اعتماد نقل التمثيل إلى المعلن الجديد بعد التحقق من التفويض.',
+        );
+
+        $oldProperty->refresh();
+        $this->assertSame('draft', $oldProperty->status);
+
+        $this->withHeaders($buyerHeaders)
+            ->getJson("/api/messages/threads/$threadId")
+            ->assertOk()
+            ->assertJsonPath('data.thread.property_status', 'draft')
+            ->assertJsonPath('data.thread.can_call_advertiser', false)
+            ->assertJsonFragment(['body' => 'رسالة قبل نقل التمثيل']);
+
+        $this->withHeaders($buyerHeaders)
+            ->postJson("/api/messages/threads/$threadId/external-call")
+            ->assertStatus(409);
+    }
+
     public function test_unpublished_property_blocks_new_contact_and_viewing_but_preserves_existing_conversation_history(): void
     {
         [$owner,]=$this->user('p4-owner2@example.test','+967760000004');
