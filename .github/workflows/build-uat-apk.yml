@@ -129,6 +129,9 @@ jobs:
         PGPASSWORD: ci-disposable-only
       run: psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE
         authenticated NOLOGIN;' -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+    - name: Prove W3 fresh, upgrade and forward-repair database parity
+      working-directory: .
+      run: bash .github/ci/db-forward-parity.sh
     - name: Apply complete current migration chain to disposable PostgreSQL
       run: php artisan migrate --force
     - name: Log disposable PostgreSQL and PostGIS versions
