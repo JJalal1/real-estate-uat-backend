@@ -20,21 +20,48 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // TODO: Replace before any production/mobile-store release.
         applicationId = "com.example.real_estate_mobile"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    def uatSigningRequired = System.getenv("UAT_ANDROID_SIGNING_REQUIRED") == "true"
+    def uatKeystorePath = System.getenv("UAT_ANDROID_KEYSTORE_PATH")
+    def uatKeystorePassword = System.getenv("UAT_ANDROID_KEYSTORE_PASSWORD")
+    def uatKeyAlias = System.getenv("UAT_ANDROID_KEY_ALIAS")
+    def uatKeyPassword = System.getenv("UAT_ANDROID_KEY_PASSWORD")
+    def hasUatSigningConfig = [
+        uatKeystorePath,
+        uatKeystorePassword,
+        uatKeyAlias,
+        uatKeyPassword,
+    ].every { value -> value != null && !value.trim().isEmpty() }
+
+    if (uatSigningRequired && !hasUatSigningConfig) {
+        throw new GradleException(
+            "UAT Android signing is required but one or more UAT_ANDROID_* signing values are missing."
+        )
+    }
+
+    signingConfigs {
+        if (hasUatSigningConfig) {
+            uat {
+                storeFile = file(uatKeystorePath)
+                storePassword = uatKeystorePassword
+                keyAlias = uatKeyAlias
+                keyPassword = uatKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            // CI must provide the dedicated UAT signing identity. Local release builds may
+            // continue to use the debug identity unless UAT_ANDROID_SIGNING_REQUIRED=true.
+            signingConfig = hasUatSigningConfig ? signingConfigs.uat : signingConfigs.debug
         }
     }
 }
