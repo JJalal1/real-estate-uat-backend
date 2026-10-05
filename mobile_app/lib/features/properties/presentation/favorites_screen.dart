@@ -6,6 +6,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/favorites_repository.dart';
+import '../domain/favorite_list_item.dart';
 import '../domain/property_marker.dart';
 import 'property_compare_screen.dart';
 
@@ -31,6 +32,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     final favorites = ref.watch(favoritePropertiesProvider);
+    // Prune on every fresh response (pull-to-refresh, retry or mutation).
+    // This happens before the count/buttons render, without a stale frame.
+    final currentItems = favorites.asData?.value;
+    if (currentItems != null) {
+      _selected.retainAll(_availableIds(currentItems));
+    }
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -128,7 +135,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 itemCount: items.length,
                 separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
                 itemBuilder: (context, index) {
-                  final property = items[index];
+                  final favorite = items[index];
+                  if (!favorite.isAvailable) {
+                    return _unavailableCard(favorite);
+                  }
+                  final property = favorite.property!;
                   final selected = _selected.contains(property.id);
                   return Stack(
                     children: [
@@ -181,7 +192,37 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     );
   }
 
+  Set<int> _availableIds(List<FavoriteListItem> items) => items
+      .where((item) => item.isAvailable)
+      .map((item) => item.propertyId)
+      .toSet();
+
+  Widget _unavailableCard(FavoriteListItem favorite) {
+    return AppSurface(
+      key: ValueKey('unavailable-favorite-${favorite.propertyId}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const AppStatusBadge(
+            label: 'غير متاح حالياً',
+            tone: AppStatusTone.neutral,
+          ),
+          const SizedBox(height: AppSpacing.s12),
+          const Text('هذا العقار محفوظ في المفضلة لكنه غير متاح حالياً.'),
+          const SizedBox(height: AppSpacing.s12),
+          TextButton.icon(
+            onPressed: () => _remove(context, favorite.propertyId),
+            icon: const Icon(Icons.favorite_rounded),
+            label: const Text('إزالة من المفضلة'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _toggleSelection(int propertyId) {
+    final items = ref.read(favoritePropertiesProvider).asData?.value;
+    if (items == null || !_availableIds(items).contains(propertyId)) return;
     setState(() {
       if (_selected.contains(propertyId)) {
         _selected.remove(propertyId);
@@ -207,6 +248,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   }
 
   Future<void> _openComparison() async {
+    final items = ref.read(favoritePropertiesProvider).asData?.value;
+    if (items == null) return;
+    _selected.retainAll(_availableIds(items));
+    if (_selected.length < 2 || _selected.length > 4) return;
     final ids = _selected.toList(growable: false);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -220,6 +265,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       await ref.read(favoritesRepositoryProvider).remove(propertyId);
       ref.read(favoriteDataRevisionProvider.notifier).state++;
       if (!context.mounted) return;
+      setState(() => _selected.remove(propertyId));
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تمت إزالة العقار من المفضلة.')),
       );

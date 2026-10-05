@@ -2,6 +2,12 @@
 
 Last updated: 2026-09-09
 
+## Reconciliation candidate — W4a / RF01 only (2026-10-05)
+
+W4a corrects Favorites persistence when a saved listing becomes unpublished. Account rows remain visible with explicit unavailable metadata and no private listing payload; removal remains available and republishing restores the same saved row. Flutter unavailable cards block details, contact, viewing and comparison. See `docs/W4A_FAVORITES_UNAVAILABLE.md` for the API/privacy contract and tests.
+
+This is an unmerged reconciliation candidate, not live deployment or real-device acceptance. No database migration or Financial/Sai/representation change belongs to W4a. W4b and W4c have not started.
+
 ## Current gate — Phase 4 CLOSED; next work is product-owner priority intake
 
 Phase 3 — Buyer Discovery Completion + Server-side Favorites is CLOSED by explicit product-owner acceptance after successful automated gates and real-device Android acceptance.

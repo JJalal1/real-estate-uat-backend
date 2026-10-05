@@ -96,9 +96,9 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
 
     Route::get('/favorites', [PropertyFavoriteController::class, 'index']);
     Route::get('/favorites/ids', [PropertyFavoriteController::class, 'ids']);
-    Route::get('/properties/{property}/favorite', [PropertyFavoriteController::class, 'status']);
-    Route::put('/properties/{property}/favorite', [PropertyFavoriteController::class, 'store']);
-    Route::delete('/properties/{property}/favorite', [PropertyFavoriteController::class, 'destroy']);
+    Route::get('/properties/{property}/favorite', [PropertyFavoriteController::class, 'status'])->whereNumber('property');
+    Route::put('/properties/{property}/favorite', [PropertyFavoriteController::class, 'store'])->whereNumber('property');
+    Route::delete('/properties/{property}/favorite', [PropertyFavoriteController::class, 'destroy'])->whereNumber('property');
 
     Route::get('/account-verification', [AccountVerificationController::class, 'status']);
     Route::post('/account-verification', [AccountVerificationController::class, 'submit'])->middleware('throttle:4,1');

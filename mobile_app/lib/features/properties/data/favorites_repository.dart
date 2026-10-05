@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
-import '../domain/property_marker.dart';
+import '../domain/favorite_list_item.dart';
 
 final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
   return FavoritesRepository(
@@ -22,7 +22,7 @@ final favoriteDataRevisionProvider = StateProvider<int>((ref) => 0);
 final pendingFavoriteAfterAuthProvider = StateProvider<int?>((ref) => null);
 
 final favoritePropertiesProvider =
-    FutureProvider.autoDispose<List<PropertyMarker>>((ref) {
+    FutureProvider.autoDispose<List<FavoriteListItem>>((ref) {
   ref.watch(favoriteDataRevisionProvider);
   return ref.watch(favoritesRepositoryProvider).favorites();
 });
@@ -39,9 +39,9 @@ class FavoritesRepository {
   final Dio _dio;
   final AuthRepository _auth;
 
-  Future<List<PropertyMarker>> favorites() async {
+  Future<List<FavoriteListItem>> favorites() async {
     final options = await _auth.requiredAuthOptions();
-    final items = <PropertyMarker>[];
+    final items = <FavoriteListItem>[];
     var page = 1;
     var lastPage = 1;
 
@@ -54,10 +54,7 @@ class FavoritesRepository {
       final rows = response.data?['data'];
       if (rows is List) {
         for (final row in rows.whereType<Map<String, dynamic>>()) {
-          final property = row['property'];
-          if (property is Map<String, dynamic>) {
-            items.add(PropertyMarker.fromJson(property));
-          }
+          items.add(FavoriteListItem.fromJson(row));
         }
       }
 
@@ -66,9 +63,9 @@ class FavoritesRepository {
           ? _positiveInt(meta['last_page'], fallback: page)
           : page;
       page++;
-    } while (page <= lastPage && page <= 100);
+    } while (page <= lastPage);
 
-    return List<PropertyMarker>.unmodifiable(items);
+    return List<FavoriteListItem>.unmodifiable(items);
   }
 
   Future<Set<int>> favoriteIds() async {

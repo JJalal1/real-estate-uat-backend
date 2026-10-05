@@ -57,15 +57,18 @@ class PropertyCompareScreen extends ConsumerWidget {
     final marketRepository = ref.read(propertyMarketRepositoryProvider);
     final items = <_CompareItem>[];
     for (final id in ids) {
+      final property = await repository.details(id);
+      // Availability may change after Favorites loaded. An advertiser's own
+      // draft preview is still not eligible for public comparison.
+      if (property.status != 'published') continue;
       final values = await Future.wait<dynamic>([
-        repository.details(id),
         repository.sai(id),
         _loadMarket(marketRepository, id),
       ]);
       items.add(_CompareItem(
-        property: values[0] as PropertyDetails,
-        sai: values[1] as PropertySaiEnvelope,
-        market: values[2] as PropertyMarketContext?,
+        property: property,
+        sai: values[0] as PropertySaiEnvelope,
+        market: values[1] as PropertyMarketContext?,
       ));
     }
     return items;
