@@ -29,6 +29,5 @@ runs:
         sdkmanager --list_installed
         adb version
         cat mobile_app/android/gradle/wrapper/gradle-wrapper.properties
-        ./mobile_app/android/gradlew --version
         cat "$ANDROID_HOME/build-tools/34.0.0/source.properties"
         cat "$ANDROID_HOME/ndk/28.1.13356709/source.properties"
