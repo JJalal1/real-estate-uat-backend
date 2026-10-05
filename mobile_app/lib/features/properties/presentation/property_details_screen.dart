@@ -9,6 +9,7 @@ import '../../../core/widgets/app_components.dart';
 import '../../../router/app_deep_links.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
+import '../../bookings/presentation/booking_request_sheet.dart';
 import '../../community/presentation/listing_community_screen.dart';
 import '../../messages/data/message_repository.dart';
 import '../data/favorites_repository.dart';
@@ -277,6 +278,14 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
+          if (published && !property.isOwner) ...[
+            const SizedBox(height: AppSpacing.s24),
+            FilledButton.icon(
+              onPressed: () => _requestViewing(property),
+              icon: const Icon(Icons.event_available_outlined),
+              label: const Text('طلب موعد معاينة'),
+            ),
+          ],
           if (published && property.advertiser != null) ...[
             const SizedBox(height: AppSpacing.s24),
             const AppSectionHeader(title: 'المعلن والثقة'),
@@ -452,6 +461,38 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       ),
     );
     if (mounted) ref.invalidate(propertyDetailsProvider(widget.propertyId));
+  }
+
+  Future<void> _requestViewing(PropertyDetails property) async {
+    final user = ref.read(authControllerProvider).asData?.value;
+    if (user == null) {
+      await context.push('/auth');
+      return;
+    }
+    if (!user.isActive) {
+      await context.push('/verify-phone');
+      return;
+    }
+
+    final booking = await BookingRequestSheet.showForProperty(
+      context,
+      propertyId: property.id,
+      title: property.title,
+    );
+    if (!mounted || booking == null) return;
+
+    final threadId = booking.messageThreadId;
+    if (threadId != null) {
+      ref.read(messageDataRevisionProvider.notifier).state++;
+      await context.push('/messages/$threadId');
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('تم إرسال طلب المعاينة ويمكن متابعته من صفحة المعاينات.'),
+      ),
+    );
   }
 
   Future<void> _startConversation(PropertyDetails property) async {
