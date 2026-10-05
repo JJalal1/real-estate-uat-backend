@@ -127,9 +127,6 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
                             onDelete: item.canEdit
                                 ? () => _delete(context, ref, item)
                                 : null,
-                            onAttest: item.saiAttestationRequired
-                                ? () => _attestSai(context, ref, item)
-                                : null,
                           );
                         },
                       ),
@@ -186,8 +183,8 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
               : 'إرسال الإعلان للمراجعة؟',
           content: Text(
             item.reviewStatus == 'returned_for_correction'
-                ? 'تأكد أنك عالجت ملاحظة فريق الدعم. قبل إعادة الإرسال ستؤكد شروط السعي الإلزامية.'
-                : 'قبل الإرسال ستؤكد شروط السعي والطرف الذي يتحمله. بعد الإرسال لن تستطيع تعديل الإعلان أثناء المراجعة.',
+                ? 'تأكد أنك عالجت ملاحظة فريق الدعم قبل إعادة إرسال الإعلان للمراجعة.'
+                : 'بعد الإرسال لن تستطيع تعديل الإعلان أثناء المراجعة.',
           ),
           actions: [
             TextButton(
