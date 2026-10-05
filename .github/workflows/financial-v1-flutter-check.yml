@@ -1,3 +1,4 @@
+# Specialist test workflow. Only Unified UAT Gate qualifies a release APK.
 name: Financial V1 Flutter Check
 
 on:
@@ -36,6 +37,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          mapfile -t tests < <(find test -type f -name '*_test.dart' ! -path 'test/uat_compiled_environment_test.dart' | sort)
           test "${#tests[@]}" -gt 0
           flutter test "${tests[@]}"

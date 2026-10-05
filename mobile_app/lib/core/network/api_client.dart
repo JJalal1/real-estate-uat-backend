@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class ApiEnvironmentConfig {
   const ApiEnvironmentConfig._();
 
+  static const uatBaseUrl =
+      'https://real-estate-uat-api-frankfurt.onrender.com/api';
+
   static const environment = String.fromEnvironment(
     'APP_ENVIRONMENT',
     defaultValue: 'local',
@@ -25,6 +28,8 @@ class ApiEnvironmentConfig {
     final env = (environmentOverride ?? environment).trim().toLowerCase();
     final raw = (baseUrlOverride ?? configuredBaseUrl).trim();
     final uri = Uri.tryParse(raw);
+    final normalized =
+        raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
 
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
       throw StateError('API_BASE_URL is not a valid absolute URL.');
@@ -41,9 +46,12 @@ class ApiEnvironmentConfig {
           'UAT API_BASE_URL must be a non-loopback HTTPS URL.',
         );
       }
+      if (normalized != uatBaseUrl) {
+        throw StateError('UAT API_BASE_URL must match the approved Frankfurt API.');
+      }
     }
 
-    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
+    return normalized;
   }
 
   static Duration connectTimeoutFor([String? environmentOverride]) {

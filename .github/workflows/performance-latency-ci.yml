@@ -1,3 +1,4 @@
+# Specialist test workflow. Only Unified UAT Gate qualifies a release APK.
 name: UAT Loading Latency CI
 
 on:
@@ -19,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
 
 permissions:
   contents: read
@@ -116,7 +117,7 @@ jobs:
         run: php artisan test tests/Postgres tests/Feature/RenderHealthProbePerformanceTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   flutter:
-    name: Flutter loading UX tests and UAT APK
+    name: Flutter loading UX tests
     runs-on: ubuntu-latest
     timeout-minutes: 40
     needs: [laravel, postgres]
@@ -144,7 +145,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          mapfile -t tests < <(find test -type f -name '*_test.dart' ! -path 'test/uat_compiled_environment_test.dart' | sort)
           test "${#tests[@]}" -gt 0
           flutter test "${tests[@]}"
       - name: Verify compile-time UAT endpoint
@@ -154,16 +155,3 @@ jobs:
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
           test/uat_compiled_environment_test.dart
-      - name: Build UAT APK
-        working-directory: mobile_app
-        run: >-
-          flutter build apk --release
-          --dart-define=APP_ENVIRONMENT=uat
-          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
-      - name: Upload performance UAT APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: real-estate-performance-uat-apk-${{ github.run_number }}
-          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
-          retention-days: 14

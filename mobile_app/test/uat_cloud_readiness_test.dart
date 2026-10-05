@@ -19,13 +19,14 @@ void main() {
     );
   });
 
-  test('UAT requires HTTPS non-loopback API and allows cold-start timeout', () {
+  test('UAT uses only the approved Frankfurt API and cold-start timeout', () {
     expect(
       ApiEnvironmentConfig.resolveBaseUrl(
         environmentOverride: 'uat',
-        baseUrlOverride: 'https://uat.example.test/api/',
+        baseUrlOverride:
+            'https://real-estate-uat-api-frankfurt.onrender.com/api/',
       ),
-      'https://uat.example.test/api',
+      'https://real-estate-uat-api-frankfurt.onrender.com/api',
     );
     expect(
       ApiEnvironmentConfig.connectTimeoutFor('uat'),
@@ -50,6 +51,35 @@ void main() {
       throwsStateError,
     );
   });
+
+  for (final rejected in [
+    'https://localhost/api',
+    'https://127.0.0.1/api',
+    'https://10.0.2.2/api',
+    'https://[::1]/api',
+    'http://real-estate-uat-api-frankfurt.onrender.com/api',
+    'ftp://real-estate-uat-api-frankfurt.onrender.com/api',
+    'https://real-estate-uat-api.onrender.com/api',
+    'https://uat.example.test/api',
+    'https://real-estate-uat-api-frankfurt.onrender.com.evil.test/api',
+    'https://user@real-estate-uat-api-frankfurt.onrender.com/api',
+    'https://real-estate-uat-api-frankfurt.onrender.com:443/api',
+    'https://real-estate-uat-api-frankfurt.onrender.com/other',
+    'https://real-estate-uat-api-frankfurt.onrender.com/api?target=oregon',
+    'https://real-estate-uat-api-frankfurt.onrender.com/api#other',
+    'https://real-estate-uat-api-frankfurt.onrender.com/api//',
+    'not-an-absolute-url',
+  ]) {
+    test('UAT rejects $rejected', () {
+      expect(
+        () => ApiEnvironmentConfig.resolveBaseUrl(
+          environmentOverride: 'uat',
+          baseUrlOverride: rejected,
+        ),
+        throwsStateError,
+      );
+    });
+  }
 
   test('UAT deployment source never embeds cloud secrets', () {
     final filesystems = File('../backend-api-runtime/config/filesystems.php')

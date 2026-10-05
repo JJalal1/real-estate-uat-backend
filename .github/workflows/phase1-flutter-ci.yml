@@ -1,3 +1,4 @@
+# Specialist test workflow. Only Unified UAT Gate qualifies a release APK.
 name: Phase 1 Closure CI
 
 on:
@@ -17,11 +18,11 @@ on:
       - '.github/workflows/phase1-flutter-ci.yml'
 
 env:
-  UAT_API_BASE_URL: https://real-estate-uat-api.onrender.com/api
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
   NOTO_FONT_REF: ffebf8c1ee449e544955a7e813c54f9b73848eac
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   backend-validation:
@@ -54,7 +55,7 @@ jobs:
 
   flutter-validation:
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'phase1/')
-    name: Analyze, test and build Phase 1 Flutter
+    name: Analyze, test Phase 1 Flutter
     runs-on: ubuntu-latest
     timeout-minutes: 35
     needs: [backend-validation]
@@ -113,7 +114,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
+          mapfile -t tests < <(find test -type f -name '*_test.dart' ! -path 'test/uat_compiled_environment_test.dart' | sort)
           test "${#tests[@]}" -gt 0
           flutter test "${tests[@]}"
       - name: Verify compile-time UAT endpoint
@@ -123,28 +124,3 @@ jobs:
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
           test/uat_compiled_environment_test.dart
-      - name: Build UAT APK
-        working-directory: mobile_app
-        run: >-
-          flutter build apk --release
-          --dart-define=APP_ENVIRONMENT=uat
-          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
-      - name: Upload UAT APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: real-estate-phase1-uat-apk-${{ github.run_number }}
-          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
-          retention-days: 14
-      - name: Persist pinned font assets on Phase 1 branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/phase1/ux-product-foundation'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -n "$(git status --porcelain -- mobile_app/assets/fonts)" ]; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add mobile_app/assets/fonts
-            git commit -m 'chore: bundle pinned Noto Sans Arabic assets'
-            git push origin HEAD:phase1/ux-product-foundation
-          fi

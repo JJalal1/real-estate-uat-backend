@@ -1,0 +1,33 @@
+name: W2 Android toolchain
+description: Install the repository Android requirements into an empty runner SDK root.
+runs:
+  using: composite
+  steps:
+    - name: Set up Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Prepare empty isolated Android SDK root
+      shell: bash
+      run: |
+        w2_sdk="$RUNNER_TEMP/w2-android-sdk"
+        test ! -e "$w2_sdk"
+        mkdir -p "$w2_sdk"
+        printf 'ANDROID_HOME=%s\nANDROID_SDK_ROOT=%s\n' "$w2_sdk" "$w2_sdk" >> "$GITHUB_ENV"
+    - name: Set up exact Android SDK packages without legacy tools
+      uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+      with:
+        cmdline-tools-version: '12266719'
+        log-accepted-android-sdk-licenses: false
+        packages: platform-tools platforms;android-35 build-tools;34.0.0 ndk;28.1.13356709
+    - name: Log non-secret Android and Java versions
+      shell: bash
+      run: |
+        java -version
+        sdkmanager --version
+        sdkmanager --list_installed
+        adb version
+        cat mobile_app/android/gradle/wrapper/gradle-wrapper.properties
+        cat "$ANDROID_HOME/build-tools/34.0.0/source.properties"
+        cat "$ANDROID_HOME/ndk/28.1.13356709/source.properties"

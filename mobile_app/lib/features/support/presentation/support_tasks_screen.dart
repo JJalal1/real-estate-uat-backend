@@ -540,11 +540,11 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   Text(meta['property_title']?.toString() ?? 'العقار',
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 6),
-                  Text('العميل: ' + (meta['buyer_name']?.toString() ?? task.requesterName ?? '—')),
-                  Text('المعلن: ' + (meta['advertiser_name']?.toString() ?? '—')),
-                  Text('مرات بدء الاتصال: ' + (meta['external_call_count']?.toString() ?? '1')),
+                  Text('العميل: ${meta['buyer_name']?.toString() ?? task.requesterName ?? '—'}'),
+                  Text('المعلن: ${meta['advertiser_name']?.toString() ?? '—'}'),
+                  Text('مرات بدء الاتصال: ${meta['external_call_count']?.toString() ?? '1'}'),
                   if (meta['last_external_call_at'] != null)
-                    Text('آخر اتصال مسجل: ' + meta['last_external_call_at'].toString()),
+                    Text('آخر اتصال مسجل: ${meta['last_external_call_at'].toString()}'),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     value: outcome,
