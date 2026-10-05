@@ -2,15 +2,7 @@
 
 namespace App\Providers;
 
-use App\Http\Controllers\Api\AgreementContractController;
-use App\Http\Controllers\Api\FinancialAgreementContractController;
-use App\Http\Controllers\Api\FinancialPropertyController;
-use App\Http\Controllers\Api\PropertyController;
 use App\Http\Middleware\EnsureSupportTaskOwnership;
-use App\Services\CompletePropertyFinancialService;
-use App\Services\FinancialAwareSupportTaskService;
-use App\Services\PropertyFinancialService;
-use App\Services\SupportTaskService;
 use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -20,10 +12,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(SupportTaskService::class, FinancialAwareSupportTaskService::class);
-        $this->app->bind(PropertyFinancialService::class, CompletePropertyFinancialService::class);
-        $this->app->bind(PropertyController::class, FinancialPropertyController::class);
-        $this->app->bind(AgreementContractController::class, FinancialAgreementContractController::class);
+        // Current product is the free core. Financial/Sai implementations
+        // remain preserved in source/history but do not replace core services.
     }
 
     public function boot(): void
@@ -32,9 +22,6 @@ class AppServiceProvider extends ServiceProvider
             Route::middleware(['api', 'auth.api', 'account.active'])
                 ->prefix('api/admin/workspace')
                 ->group(base_path('routes/support_workspace.php'));
-            Route::middleware(['api', 'auth.api', 'account.active'])
-                ->prefix('api')
-                ->group(base_path('routes/financial_v1.php'));
         }
 
         Event::listen(RouteMatched::class, function (RouteMatched $event): void {
