@@ -21,6 +21,8 @@ Every Favorites index item has `property_id`, `is_favorited: true`, `favorited_a
 
 `PUT /api/properties/{property}/favorite` requires a currently published property and remains idempotent. Unpublished and unknown IDs produce the same 404.
 
+Publication is held stable with a PostgreSQL shared row lock through the favorite write. The index also holds published rows stable through image loading and JSON construction, so a concurrent unpublication/edit cannot substitute current private media into the public summary.
+
 `DELETE /api/properties/{property}/favorite` deletes only the caller's row without binding/looking up the Property. It returns the same success shape for saved, already removed, unrelated/private or unknown IDs, echoing only the supplied ID and `is_favorited: false`. This makes removal idempotent and avoids a property-existence oracle.
 
 Favorite routes accept numeric IDs. Existing auth/account-active middleware remains authoritative.
@@ -48,6 +50,8 @@ No migration is added or changed: source stays at 48 (47 historical + W3 forward
 ## Verification
 
 Backend behavioral tests cover account isolation, unchanged favorite ID/timestamp, stable pagination/IDs, explicit unavailable allowlist, absence of sensitive keys/values, draft/returned/pending/rejected states, unpublished-add rejection, equivalent private/unknown status/add responses, caller-only idempotent removal, hard-delete cascade and blocked details/media/contact/viewing.
+
+The same API lifecycle is additionally exercised on the existing disposable PostgreSQL target, including shared-lock queries, privacy, A/B isolation, same-row republish, idempotent removal and real FK cascade. This fixture rolls back and refuses any other database/environment.
 
 Flutter widget tests cover available card/navigation, unavailable visibility/wording/privacy, blocked navigation/compare, removal in both modes, republish and refresh selection cleanup. Repository/model tests exercise authenticated pagination, account changes, unavailable status/removal, republish without PUT and fail-closed decoding.
 

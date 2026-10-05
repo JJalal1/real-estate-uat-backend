@@ -19,33 +19,37 @@ class PropertyFavoriteController extends Controller
         $user = $request->user();
         $perPage = max(1, min((int) $request->input('per_page', 20), 50));
 
-        $page = PropertyFavorite::query()
-            ->where('user_id', $user->id)
-            ->latest('id')
-            ->paginate($perPage);
+        return DB::transaction(function () use ($request, $user, $perPage): JsonResponse {
+            $page = PropertyFavorite::query()
+                ->where('user_id', $user->id)
+                ->latest('id')
+                ->paginate($perPage);
 
-        // Load listing fields/media in one batch, restricted to public rows.
-        // Unavailable favorites never fetch or serialize unpublished details.
-        $publicProperties = Property::query()
-            ->whereIn('id', collect($page->items())->pluck('property_id'))
-            ->where('status', 'published')
-            ->with('images')
-            ->get()
-            ->keyBy('id');
+            // Load listing fields/media in one batch, restricted to public rows.
+            // Hold public rows stable through media loading and JSON construction.
+            // Unavailable favorites never fetch or serialize unpublished details.
+            $publicProperties = Property::query()
+                ->whereIn('id', collect($page->items())->pluck('property_id'))
+                ->where('status', 'published')
+                ->sharedLock()
+                ->with('images')
+                ->get()
+                ->keyBy('id');
 
-        return response()->json([
-            'data' => collect($page->items())
-                ->map(fn (PropertyFavorite $favorite): array => $this->favoriteData(
-                    $favorite, $publicProperties->get($favorite->property_id), $request,
-                ))
-                ->values(),
-            'meta' => [
-                'current_page' => $page->currentPage(),
-                'last_page' => $page->lastPage(),
-                'per_page' => $page->perPage(),
-                'total' => $page->total(),
-            ],
-        ]);
+            return response()->json([
+                'data' => collect($page->items())
+                    ->map(fn (PropertyFavorite $favorite): array => $this->favoriteData(
+                        $favorite, $publicProperties->get($favorite->property_id), $request,
+                    ))
+                    ->values(),
+                'meta' => [
+                    'current_page' => $page->currentPage(),
+                    'last_page' => $page->lastPage(),
+                    'per_page' => $page->perPage(),
+                    'total' => $page->total(),
+                ],
+            ]);
+        });
     }
 
     public function ids(Request $request): JsonResponse
