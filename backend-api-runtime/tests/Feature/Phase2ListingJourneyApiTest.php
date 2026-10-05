@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AccountVerificationProfile;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\PropertyFinancialService;
@@ -206,10 +207,17 @@ class Phase2ListingJourneyApiTest extends TestCase
             throw new \RuntimeException('Financial service must not be resolved by free-core listing routes.');
         });
 
-        [, $headers] = $this->user(
+        [$owner, $headers] = $this->user(
             'p2-free-core-finance@example.test',
             '+967711100099',
         );
+        AccountVerificationProfile::query()->create([
+            'user_id' => $owner->id,
+            'type' => AccountVerificationProfile::TYPE_OWNER,
+            'status' => AccountVerificationProfile::STATUS_APPROVED,
+            'submitted_at' => now()->subHour(),
+            'reviewed_at' => now(),
+        ]);
 
         $id = $this->createReady($headers, [
             'title' => 'إعلان مجاني لا يعتمد على المالية',
