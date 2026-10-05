@@ -193,6 +193,14 @@ class PropertyIdentityService
     public function ensureRepresentation(Property $listing): void
     {
         DB::transaction(function () use ($listing): void {
+            // Serialize every representation mutation through the physical asset.
+            // Approval already locks the asset, but this keeps direct/service calls
+            // race-safe too and gives transfers the same lock ordering.
+            PropertyAsset::query()
+                ->whereKey($listing->property_asset_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $existing = DB::table('property_representation_claims')
                 ->where('property_asset_id', $listing->property_asset_id)
                 ->where('status', 'active')
@@ -246,44 +254,114 @@ class PropertyIdentityService
         });
     }
 
-    public function transferRepresentation(User $actor, Property $listing, string $reason): void
+    public function transferRepresentation(User $actor, Property $listing, string $reason): array
     {
-        DB::transaction(function () use ($actor, $listing, $reason): void {
+        return DB::transaction(function () use ($actor, $listing, $reason): array {
+            $reason = trim($reason);
+
+            PropertyAsset::query()
+                ->whereKey($listing->property_asset_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $current = DB::table('property_representation_claims')
                 ->where('property_asset_id', $listing->property_asset_id)
                 ->where('status', 'active')
                 ->lockForUpdate()
                 ->first();
-            if ($current && (int) $current->advertiser_user_id === (int) $listing->user_id) return;
-            if ($current) {
+
+            // A transfer changes who may actively represent the physical property.
+            // Historical listings and conversations stay intact, but any public
+            // listing owned by the previous representative must stop advertising
+            // immediately so the product never exposes two active representatives.
+            $conflictingPublished = Property::query()
+                ->where('property_asset_id', $listing->property_asset_id)
+                ->where('user_id', '<>', $listing->user_id)
+                ->where('status', 'published')
+                ->lockForUpdate()
+                ->get();
+
+            $unpublishedListingIds = [];
+            foreach ($conflictingPublished as $previousListing) {
+                $unpublishedListingIds[] = (int) $previousListing->id;
+                $previousListing->forceFill([
+                    'status' => 'draft',
+                    'review_status' => 'returned_for_correction',
+                    'published_at' => null,
+                    'reviewed_at' => now(),
+                    'last_review_reason' => 'تم نقل التمثيل النشط لهذا العقار إلى معلن آخر. '.$reason,
+                    'review_assigned_to_user_id' => null,
+                    'review_assigned_at' => null,
+                ])->save();
+            }
+
+            $fromUserId = $current?->advertiser_user_id;
+            $fromPropertyId = $current?->property_id;
+
+            if ($current && (int) $current->advertiser_user_id !== (int) $listing->user_id) {
                 DB::table('property_representation_claims')->where('id', $current->id)->update([
                     'status' => 'ended',
                     'ended_at' => now(),
-                    'end_reason' => trim($reason),
+                    'end_reason' => $reason,
                     'updated_at' => now(),
                 ]);
+                $current = null;
             }
-            DB::table('property_representation_claims')->insert([
-                'property_asset_id' => $listing->property_asset_id,
-                'property_id' => $listing->id,
-                'advertiser_user_id' => $listing->user_id,
-                'purpose' => $listing->purpose,
-                'status' => 'active',
-                'started_at' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            DB::table('property_identity_checks')->insert([
-                'property_id' => $listing->id,
-                'candidate_property_id' => $current?->property_id,
-                'candidate_property_asset_id' => $listing->property_asset_id,
-                'actor_user_id' => $actor->id,
-                'result' => 'representation_transferred',
-                'score' => 100,
-                'signals' => json_encode(['manual_authorized_transfer'], JSON_UNESCAPED_UNICODE),
-                'metadata' => json_encode(['reason' => trim($reason), 'from_user_id' => $current?->advertiser_user_id, 'to_user_id' => $listing->user_id], JSON_UNESCAPED_UNICODE),
-                'created_at' => now(),
-            ]);
+
+            if ($current && (int) $current->advertiser_user_id === (int) $listing->user_id) {
+                DB::table('property_representation_claims')->where('id', $current->id)->update([
+                    'property_id' => $listing->id,
+                    'purpose' => $listing->purpose,
+                    'updated_at' => now(),
+                ]);
+                $activeClaimId = (int) $current->id;
+            } else {
+                DB::table('property_representation_claims')->insert([
+                    'property_asset_id' => $listing->property_asset_id,
+                    'property_id' => $listing->id,
+                    'advertiser_user_id' => $listing->user_id,
+                    'purpose' => $listing->purpose,
+                    'status' => 'active',
+                    'started_at' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $activeClaimId = (int) DB::table('property_representation_claims')
+                    ->where('property_asset_id', $listing->property_asset_id)
+                    ->where('status', 'active')
+                    ->value('id');
+            }
+
+            // Repeating the exact same transfer is intentionally idempotent.
+            // Record a new immutable journal row only when ownership of the active
+            // claim changed or stale public listings had to be withdrawn.
+            if ((int) ($fromUserId ?? 0) !== (int) $listing->user_id || $unpublishedListingIds !== []) {
+                DB::table('property_identity_checks')->insert([
+                    'property_id' => $listing->id,
+                    'candidate_property_id' => $fromPropertyId,
+                    'candidate_property_asset_id' => $listing->property_asset_id,
+                    'actor_user_id' => $actor->id,
+                    'result' => 'representation_transferred',
+                    'score' => 100,
+                    'signals' => json_encode(['manual_authorized_transfer'], JSON_UNESCAPED_UNICODE),
+                    'metadata' => json_encode([
+                        'reason' => $reason,
+                        'from_user_id' => $fromUserId,
+                        'to_user_id' => $listing->user_id,
+                        'unpublished_listing_ids' => $unpublishedListingIds,
+                        'active_claim_id' => $activeClaimId,
+                    ], JSON_UNESCAPED_UNICODE),
+                    'created_at' => now(),
+                ]);
+            }
+
+            return [
+                'property_asset_id' => (int) $listing->property_asset_id,
+                'from_user_id' => $fromUserId === null ? null : (int) $fromUserId,
+                'to_user_id' => (int) $listing->user_id,
+                'active_claim_id' => $activeClaimId,
+                'unpublished_listing_ids' => $unpublishedListingIds,
+            ];
         });
     }
 
