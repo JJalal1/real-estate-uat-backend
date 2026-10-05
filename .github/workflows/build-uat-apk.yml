@@ -1,61 +1,85 @@
-name: Build UAT Android APK
-
-on:
-  push:
+# Authoritative Gate 1: exact candidate source, validation and UAT APK identity.
+# No deployment or current live runtime checks participate in qualification.
+name: Unified UAT Gate
+'on':
+  pull_request:
     branches:
-      - main
-      - audit/system-stabilization
-    paths:
-      - 'mobile_app/**'
-      - 'backend-api-runtime/**'
-      - '.github/workflows/build-uat-apk.yml'
-  workflow_dispatch:
-
-env:
-  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
-
+    - reconciliation/unified-uat
+  workflow_dispatch: null
 permissions:
   contents: read
-
+concurrency:
+  group: unified-uat-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+env:
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_REF: ${{ github.head_ref || github.ref_name }}
+  UAT_APP_ENVIRONMENT: uat
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+defaults:
+  run:
+    shell: bash
 jobs:
+  source-provenance:
+    name: Source provenance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+    - name: Checkout exact candidate SHA
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ env.CANDIDATE_SHA }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Verify source, accepted guards and preserved migration history
+      run: bash .github/ci/verify-source.sh
+    - name: Test fail-closed skip accounting and aggregate behavior
+      run: python3 .github/ci/test_release_gate.py
   backend-tests:
-    name: Validate and test Laravel API
-    runs-on: ubuntu-latest
+    name: Backend validation
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
-    env:
-      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-
+    needs:
+    - source-provenance
     defaults:
       run:
         working-directory: backend-api-runtime
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up PHP 8.4
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
-          coverage: none
-
-      - name: Validate Composer metadata
-        run: composer validate --no-check-publish
-
-      - name: Prepare isolated test environment
-        run: install -m 600 /dev/null .env
-
-      - name: Install backend dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Run Laravel test suite
-        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
-
+    - name: Checkout exact candidate SHA
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ env.CANDIDATE_SHA }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Set up PHP 8.4
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.4'
+        extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+        coverage: none
+    - name: PHP and Composer versions
+      run: |-
+        php --version
+        composer --version
+    - name: Validate Composer metadata
+      run: composer validate --strict --no-check-publish
+    - name: Prepare isolated test environment
+      run: |-
+        install -m 600 /dev/null .env
+        php -r 'file_put_contents(".env", "APP_KEY=base64:".base64_encode(random_bytes(32)).PHP_EOL);'
+    - name: Install locked backend dependencies
+      run: composer install --no-interaction --prefer-dist --no-progress
+    - name: Run full Laravel suite and record exact skips
+      run: php artisan test --display-warnings --display-skipped --fail-on-warning --fail-on-risky --fail-on-incomplete --log-junit=backend-results.xml
+        --log-events-text=backend-events.txt
+    - name: Reject new skips; account only for the PostgreSQL-only regression
+      run: python3 ../.github/ci/verify-test-results.py backend backend-results.xml backend-events.txt
   postgres-audit:
-    name: Audit PostgreSQL migrations and security
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    name: PostgreSQL and PostGIS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs:
+    - source-provenance
     services:
       postgres:
         image: postgis/postgis:17-3.5
@@ -63,18 +87,14 @@ jobs:
           POSTGRES_DB: real_estate_audit
           POSTGRES_PASSWORD: ci-disposable-only
         ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d real_estate_audit"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+        - 5432:5432
+        options: --health-cmd "pg_isready -U postgres -d real_estate_audit" --health-interval 10s --health-timeout 5s --health-retries
+          5
     env:
       APP_ENV: testing
-      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
-      DB_PORT: 5432
+      DB_PORT: '5432'
       DB_DATABASE: real_estate_audit
       DB_USERNAME: postgres
       DB_PASSWORD: ci-disposable-only
@@ -84,222 +104,170 @@ jobs:
       run:
         working-directory: backend-api-runtime
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set up PHP 8.4
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
-          coverage: none
-      - name: Prepare isolated test environment
-        run: install -m 600 /dev/null .env
-      - name: Install backend dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Prepare API roles in disposable PostgreSQL
-        env:
-          PGPASSWORD: ci-disposable-only
-        run: >-
-          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
-          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
-          -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
-      - name: Apply complete migration chain to disposable PostgreSQL
-        run: php artisan migrate --force
-      - name: Test PostgreSQL schema and access boundaries
-        run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
-      - name: Test PostGIS overlap regression
-        run: >-
-          php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php
-          --filter=test_postgis_rejects_interior_overlap_but_allows_touching_borders
-          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
-
-  build-uat-apk:
-    name: Analyze, test and build UAT APK
-    runs-on: ubuntu-latest
+    - name: Checkout exact candidate SHA
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ env.CANDIDATE_SHA }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Set up PHP 8.4
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.4'
+        extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+        coverage: none
+    - name: Validate Composer metadata
+      run: composer validate --strict --no-check-publish
+    - name: Prepare isolated test environment
+      run: |-
+        install -m 600 /dev/null .env
+        php -r 'file_put_contents(".env", "APP_KEY=base64:".base64_encode(random_bytes(32)).PHP_EOL);'
+    - name: Install locked backend dependencies
+      run: composer install --no-interaction --prefer-dist --no-progress
+    - name: Prepare API roles in disposable PostgreSQL
+      env:
+        PGPASSWORD: ci-disposable-only
+      run: psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE
+        authenticated NOLOGIN;' -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+    - name: Apply complete current migration chain to disposable PostgreSQL
+      run: php artisan migrate --force
+    - name: Log disposable PostgreSQL and PostGIS versions
+      env:
+        PGPASSWORD: ci-disposable-only
+      run: psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1 -c 'SELECT version(); SELECT postgis_full_version();
+        SELECT count(*) AS migrations FROM migrations;'
+    - name: Run all tests/Postgres without required skips
+      run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-incomplete --fail-on-skipped
+    - name: Run the required PostGIS overlap regression without skips
+      run: php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php --filter=test_postgis_rejects_interior_overlap_but_allows_touching_borders
+        --display-warnings --fail-on-warning --fail-on-risky --fail-on-incomplete --fail-on-skipped
+    - name: Run PostGIS property identity regression without skips
+      run: php artisan test tests/Feature/PropertyIdentityV2Test.php --display-warnings --fail-on-warning --fail-on-risky
+        --fail-on-incomplete --fail-on-skipped
+  flutter-validation:
+    name: Flutter analyze and full tests
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: [backend-tests, postgres-audit]
-
+    needs:
+    - source-provenance
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Set up Flutter 3.27.3
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.27.3'
-          channel: stable
-          cache: true
-
-      - name: Verify accepted mobile baseline
-        shell: bash
-        run: |
-          set -euo pipefail
-          check_hash() {
-            file="$1"
-            expected="$2"
-            actual="$(git hash-object "$file")"
-            if [ "$actual" != "$expected" ]; then
-              echo "$file: FAILED"
-              echo "Expected: $expected"
-              echo "Actual:   $actual"
-              exit 1
-            fi
-            echo "$file: OK"
-          }
-
-          check_hash "mobile_app/lib/core/network/api_client.dart" \
-            "ab1db55e0ba0058a1e992e2df677b03871bbe95c"
-          check_hash "mobile_app/lib/router/app_router.dart" \
-            "89ae86ee056585f1ea50423005282e695ce12a06"
-          check_hash "mobile_app/lib/features/services/presentation/services_screen.dart" \
-            "7b6c3f3ae5947ad30b898606e93b1ae31ac6d04f"
-
-      - name: Flutter version
-        working-directory: mobile_app
-        run: flutter --version
-
-      - name: Resolve packages
-        working-directory: mobile_app
-        run: flutter pub get
-
-      - name: Static analysis
-        working-directory: mobile_app
-        run: flutter analyze
-
-      - name: Cloud-readiness tests
-        working-directory: mobile_app
-        run: flutter test test/uat_cloud_readiness_test.dart
-
-      - name: Full Flutter test suite excluding compile-time UAT guard
-        working-directory: mobile_app
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t tests < <(find test -maxdepth 1 -type f -name '*_test.dart' ! -name 'uat_compiled_environment_test.dart' | sort)
-          test "${#tests[@]}" -gt 0
-          flutter test "${tests[@]}"
-
-      - name: Verify compile-time UAT endpoint
-        working-directory: mobile_app
-        run: >-
-          flutter test
-          --dart-define=APP_ENVIRONMENT=uat
-          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
-          test/uat_compiled_environment_test.dart
-
-      - name: Verify live Render health before APK build
-        shell: bash
-        run: |
-          set -euo pipefail
-          health_url="${UAT_API_BASE_URL%/api}/api/health"
-          echo "Checking $health_url"
-          response="$(curl --fail --silent --show-error --retry 5 --retry-delay 10 --max-time 90 "$health_url")"
-          printf '%s' "$response" > /tmp/uat-health.json
-          python3 - <<'PY'
-          import json
-          with open('/tmp/uat-health.json', encoding='utf-8') as f:
-              data = json.load(f)
-          assert data.get('status') == 'ok', data
-          assert data.get('database') is True, data
-          assert data.get('postgis') is True, data
-          print('Render UAT health: OK')
-          PY
-
-      - name: Probe concurrent nearby-property load
-        shell: bash
-        run: |
-          set -euo pipefail
-          endpoint="${UAT_API_BASE_URL}/properties/nearby?latitude=15.3694&longitude=44.1910&radius_km=30"
-          health_url="${UAT_API_BASE_URL%/api}/api/health"
-          rm -rf /tmp/uat-load
-          mkdir -p /tmp/uat-load
-          export endpoint
-
-          echo "Running 40 read-only nearby-property requests with concurrency 20"
-          seq 1 40 | xargs -P 20 -I{} bash -c '
-            i="$1"
-            curl --fail --silent --show-error --max-time 30 \
-              -o "/tmp/uat-load/body-${i}.json" \
-              -w "%{http_code} %{time_total}\n" \
-              "$endpoint" > "/tmp/uat-load/result-${i}.txt"
-          ' _ {}
-
-          python3 - <<'PY'
-          import glob
-          import json
-          from pathlib import Path
-
-          results = []
-          for result_path in sorted(glob.glob('/tmp/uat-load/result-*.txt')):
-              code_text, time_text = Path(result_path).read_text(encoding='utf-8').strip().split()
-              results.append((int(code_text), float(time_text)))
-          assert len(results) == 40, len(results)
-          assert all(code == 200 for code, _ in results), results
-
-          bodies = sorted(glob.glob('/tmp/uat-load/body-*.json'))
-          assert len(bodies) == 40, len(bodies)
-          for body_path in bodies:
-              payload = json.loads(Path(body_path).read_text(encoding='utf-8'))
-              assert isinstance(payload.get('data'), list), payload
-
-          times = sorted(t for _, t in results)
-          p50 = times[len(times) // 2]
-          p95 = times[max(0, int(len(times) * 0.95) - 1)]
-          print(f'UAT nearby load probe: 40/40 HTTP 200; p50={p50:.3f}s; p95={p95:.3f}s; max={max(times):.3f}s')
-          PY
-
-          response="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 --max-time 30 "$health_url")"
-          printf '%s' "$response" > /tmp/uat-health-after-load.json
-          python3 - <<'PY'
-          import json
-          with open('/tmp/uat-health-after-load.json', encoding='utf-8') as f:
-              data = json.load(f)
-          assert data.get('status') == 'ok', data
-          assert data.get('database') is True, data
-          assert data.get('postgis') is True, data
-          print('Render UAT health after load: OK')
-          PY
-
-      - name: Build release UAT APK
-        working-directory: mobile_app
-        run: >-
-          flutter build apk --release
-          --build-number=${{ github.run_number }}
-          --dart-define=APP_ENVIRONMENT=uat
-          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
-
-      - name: Prepare verified APK artifact
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          apk="mobile_app/build/app/outputs/flutter-apk/app-release.apk"
-          test -f "$apk"
-          out="dist/real-estate-uat-${GITHUB_RUN_NUMBER}.apk"
-          cp "$apk" "$out"
-          sha256sum "$out" > dist/SHA256.txt
-          cat > dist/BUILD_INFO.txt <<EOF
-          environment=uat
-          api_base_url=${UAT_API_BASE_URL}
-          github_run_number=${GITHUB_RUN_NUMBER}
-          github_sha=${GITHUB_SHA}
-          android_application_id=com.example.real_estate_mobile
-          flutter_version=3.27.3
-          EOF
-
-      - name: Upload UAT APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: real-estate-uat-apk-${{ github.run_number }}
-          path: dist/
-          if-no-files-found: error
-          retention-days: 14
+    - name: Checkout exact candidate SHA
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ env.CANDIDATE_SHA }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Set up Flutter 3.27.3
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 3.27.3
+        channel: stable
+        cache: true
+    - name: Flutter version
+      run: flutter --version
+    - name: Resolve locked Flutter dependencies
+      working-directory: mobile_app
+      run: |-
+        flutter pub get
+        git diff --exit-code -- pubspec.lock
+    - name: Flutter analyze
+      working-directory: mobile_app
+      run: flutter analyze
+    - name: Run full recursive Flutter behavioral suite with zero skips
+      run: bash .github/ci/flutter-tests.sh
+    - name: Verify compiled Frankfurt endpoint and reject unintended UAT endpoints
+      run: bash .github/ci/verify-uat-endpoints.sh
+  build-uat-apk:
+    name: Build and identify UAT APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    needs:
+    - source-provenance
+    - backend-tests
+    - postgres-audit
+    - flutter-validation
+    env:
+      ANDROID_HOME: ${{ runner.temp }}/w2-android-sdk
+      ANDROID_SDK_ROOT: ${{ runner.temp }}/w2-android-sdk
+    steps:
+    - name: Checkout exact candidate SHA
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ env.CANDIDATE_SHA }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Set up Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Prepare empty isolated Android SDK root
+      run: |-
+        test ! -e "$ANDROID_HOME"
+        mkdir -p "$ANDROID_HOME"
+    - name: Set up exact Android SDK packages without legacy tools
+      uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+      with:
+        cmdline-tools-version: '12266719'
+        log-accepted-android-sdk-licenses: false
+        packages: platform-tools platforms;android-35 build-tools;34.0.0 ndk;28.1.13356709
+    - name: Set up Flutter 3.27.3
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 3.27.3
+        channel: stable
+        cache: true
+    - name: Log non-secret toolchain versions
+      run: |-
+        java -version
+        flutter --version
+        sdkmanager --version
+        sdkmanager --list_installed
+        adb version
+        cat mobile_app/android/gradle/wrapper/gradle-wrapper.properties
+        cat "$ANDROID_HOME/build-tools/34.0.0/source.properties"
+        cat "$ANDROID_HOME/ndk/28.1.13356709/source.properties"
+    - name: Resolve locked Flutter dependencies
+      working-directory: mobile_app
+      run: |-
+        flutter pub get
+        git diff --exit-code -- pubspec.lock
+    - name: Build actual release UAT APK from this exact candidate
+      working-directory: mobile_app
+      run: flutter build apk --release --no-pub --build-number="$GITHUB_RUN_NUMBER" --dart-define=APP_ENVIRONMENT="$UAT_APP_ENVIRONMENT"
+        --dart-define=API_BASE_URL="$UAT_API_BASE_URL"
+    - name: Log actual Gradle version
+      working-directory: mobile_app/android
+      run: ./gradlew --version | tee ../../gradle-version.txt
+    - name: Verify APK package and candidate identity; generate SHA256 and BUILD_INFO
+      run: python3 .github/ci/package-apk.py
+    - name: Upload actual APK bytes and identity files
+      id: apk-artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: real-estate-unified-uat-${{ github.run_number }}-${{ github.run_attempt }}-${{ env.CANDIDATE_SHA }}
+        path: dist/
+        if-no-files-found: error
+        retention-days: 30
+  unified-uat-gate:
+    name: Unified UAT Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: ${{ always() }}
+    needs:
+    - source-provenance
+    - backend-tests
+    - postgres-audit
+    - flutter-validation
+    - build-uat-apk
+    steps:
+    - name: Checkout exact candidate SHA
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ env.CANDIDATE_SHA }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Require every candidate job to finish successfully
+      env:
+        REQUIRED_JOB_RESULTS: ${{ toJSON(needs) }}
+      run: python3 .github/ci/verify-test-results.py aggregate

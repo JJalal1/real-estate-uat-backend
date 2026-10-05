@@ -190,7 +190,7 @@ class Stage8RegionsBrokerApiTest extends TestCase
     public function test_postgis_rejects_interior_overlap_but_allows_touching_borders(): void
     {
         if (DB::connection()->getDriverName() !== 'pgsql') {
-            $this->markTestSkipped('PostGIS overlap trigger is verified by the live Stage 8 smoke on PostgreSQL.');
+            $this->markTestSkipped('PostGIS overlap trigger requires PostgreSQL; required in the disposable CI PostGIS job.');
         }
         [$owner, $headers] = $this->verifiedUser('stage8-owner5@example.test', '+967700000311');
         app(AccessControlService::class)->bootstrapPlatformOwner($owner);
@@ -283,4 +283,3 @@ class Stage8RegionsBrokerApiTest extends TestCase
         ];
     }
 }
-

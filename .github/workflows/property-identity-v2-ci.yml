@@ -1,6 +1,7 @@
+# Specialist test workflow. Only Unified UAT Gate qualifies a release APK.
 name: Property Identity V2 CI
 
-# Permanent merge gate for Property Identity V2 across Laravel, PostgreSQL/PostGIS, and Flutter.
+# Supporting Property Identity V2 tests across Laravel, PostgreSQL/PostGIS, and Flutter.
 # Backend regression coverage includes representation-claim conflict handling.
 on:
   push:
