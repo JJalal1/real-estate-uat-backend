@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+backend="$repo_root/backend-api-runtime"
+repair_name=2026_10_05_200000_repair_automatic_public_rls_event_trigger.php
+repair_path="database/migrations/$repair_name"
+fingerprint_sql="$repo_root/.github/ci/schema-fingerprint.sql"
+export PGPASSWORD="${DB_PASSWORD:-ci-disposable-only}"
+pg_host="${DB_HOST:-127.0.0.1}"
+pg_port="${DB_PORT:-5432}"
+pg_user="${DB_USERNAME:-postgres}"
+cd "$backend"
+mapfile -t migrations < <(find database/migrations -maxdepth 1 -type f -name '*.php' -printf '%f\n' | sort)
+test "${#migrations[@]}" -eq 48
+test "${migrations[47]}" = "$repair_name"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/baseline47" "$work/first33" "$work/later14"
+for i in $(seq 0 46); do cp "database/migrations/${migrations[$i]}" "$work/baseline47/"; done
+for i in $(seq 0 32); do cp "database/migrations/${migrations[$i]}" "$work/first33/"; done
+for i in $(seq 33 46); do cp "database/migrations/${migrations[$i]}" "$work/later14/"; done
+psql_base=(psql -X -h "$pg_host" -p "$pg_port" -U "$pg_user" -v ON_ERROR_STOP=1)
+createdb_base=(createdb -h "$pg_host" -p "$pg_port" -U "$pg_user")
+dropdb_base=(dropdb -h "$pg_host" -p "$pg_port" -U "$pg_user" --if-exists)
+"${psql_base[@]}" -d postgres -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF; END \$\$;"
+create_db() { local db="$1"; "${dropdb_base[@]}" "$db" >/dev/null 2>&1 || true; "${createdb_base[@]}" "$db"; "${psql_base[@]}" -d "$db" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;" >/dev/null; }
+migrate_dir() { local db="$1" dir="$2"; DB_DATABASE="$db" php artisan migrate --realpath --path="$dir" --force --no-interaction; }
+migrate_repair() { local db="$1"; DB_DATABASE="$db" php artisan migrate --path="$repair_path" --force --no-interaction; }
+fingerprint() { local db="$1" out="$2"; "${psql_base[@]}" -d "$db" -f "$fingerprint_sql" | sed '/^[[:space:]]*$/d' > "$out"; printf '%s  %s\n' "$(sha256sum "$out" | awk '{print $1}')" "$(basename "$out")"; }
+assert_migration_count() { local db="$1" expected="$2"; test "$("${psql_base[@]}" -At -d "$db" -c 'SELECT count(*) FROM public.migrations')" = "$expected"; }
+create_db real_estate_w3_fresh47
+migrate_dir real_estate_w3_fresh47 "$work/baseline47"
+assert_migration_count real_estate_w3_fresh47 47
+fingerprint real_estate_w3_fresh47 "$work/fresh47.txt"
+create_db real_estate_w3_upgrade47
+migrate_dir real_estate_w3_upgrade47 "$work/first33"
+assert_migration_count real_estate_w3_upgrade47 33
+migrate_dir real_estate_w3_upgrade47 "$work/later14"
+assert_migration_count real_estate_w3_upgrade47 47
+fingerprint real_estate_w3_upgrade47 "$work/upgrade47.txt"
+diff -u "$work/fresh47.txt" "$work/upgrade47.txt"
+echo 'W3 pre-repair fresh == 33->47 normalized schema: PASS'
+create_db real_estate_w3_fresh_repaired
+migrate_dir real_estate_w3_fresh_repaired "$work/baseline47"
+migrate_repair real_estate_w3_fresh_repaired
+assert_migration_count real_estate_w3_fresh_repaired 48
+fingerprint real_estate_w3_fresh_repaired "$work/fresh_repaired.txt"
+create_db real_estate_w3_upgrade_repaired
+migrate_dir real_estate_w3_upgrade_repaired "$work/first33"
+migrate_dir real_estate_w3_upgrade_repaired "$work/later14"
+"${psql_base[@]}" -d real_estate_w3_upgrade_repaired -c 'DROP EVENT TRIGGER IF EXISTS enable_rls_on_public_table_create;' >/dev/null
+migrate_repair real_estate_w3_upgrade_repaired
+assert_migration_count real_estate_w3_upgrade_repaired 48
+fingerprint real_estate_w3_upgrade_repaired "$work/upgrade_repaired.txt"
+diff -u "$work/fresh_repaired.txt" "$work/upgrade_repaired.txt"
+echo 'W3 repaired fresh == repaired 33->47 normalized schema: PASS'
+"${psql_base[@]}" -d real_estate_w3_upgrade_repaired <<'SQL'
+DO $$
+DECLARE helper record; evt record;
+BEGIN
+ SELECT p.prosecdef,p.proconfig INTO helper FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='enable_rls_for_new_public_tables';
+ IF helper.prosecdef OR NOT ('search_path=pg_catalog'=ANY(helper.proconfig)) THEN RAISE EXCEPTION 'unsafe helper'; END IF;
+ IF EXISTS (SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f',p.proowner))) x WHERE p.oid='public.enable_rls_for_new_public_tables()'::regprocedure AND x.grantee=0 AND x.privilege_type='EXECUTE') OR has_function_privilege('anon','public.enable_rls_for_new_public_tables()','EXECUTE') OR has_function_privilege('authenticated','public.enable_rls_for_new_public_tables()','EXECUTE') THEN RAISE EXCEPTION 'helper EXECUTE widened'; END IF;
+ SELECT evtenabled INTO evt FROM pg_event_trigger WHERE evtname='enable_rls_on_public_table_create';
+ IF NOT FOUND OR evt.evtenabled <> 'O' THEN RAISE EXCEPTION 'event trigger missing/disabled'; END IF;
+END $$;
+CREATE TABLE public.w3_future_rls_probe (id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, note text);
+DO $$
+BEGIN
+ IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid='public.w3_future_rls_probe'::regclass) THEN RAISE EXCEPTION 'future RLS absent'; END IF;
+ IF has_table_privilege('anon','public.w3_future_rls_probe','SELECT') OR has_table_privilege('authenticated','public.w3_future_rls_probe','SELECT') OR EXISTS (SELECT 1 FROM pg_class c CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r',c.relowner))) x WHERE c.oid='public.w3_future_rls_probe'::regclass AND x.grantee=0 AND x.privilege_type='SELECT') THEN RAISE EXCEPTION 'future privilege widened'; END IF;
+ IF (SELECT relrowsecurity FROM pg_class WHERE oid='public.spatial_ref_sys'::regclass) THEN RAISE EXCEPTION 'extension table altered'; END IF;
+END $$;
+DROP TABLE public.w3_future_rls_probe;
+SQL
+echo 'W3 future-table RLS behavior: PASS'
+create_db real_estate_w3_privilege_probe
+"${psql_base[@]}" -d real_estate_w3_privilege_probe <<'SQL'
+CREATE ROLE w3_event_trigger_limited NOLOGIN;
+GRANT CREATE ON SCHEMA public TO w3_event_trigger_limited;
+SET ROLE w3_event_trigger_limited;
+CREATE FUNCTION public.w3_event_trigger_probe_fn() RETURNS event_trigger LANGUAGE plpgsql AS $$ BEGIN END $$;
+RESET ROLE;
+SQL
+set +e
+"${psql_base[@]}" -d real_estate_w3_privilege_probe -c "SET ROLE w3_event_trigger_limited; CREATE EVENT TRIGGER w3_event_trigger_probe ON ddl_command_end EXECUTE FUNCTION public.w3_event_trigger_probe_fn();" >"$work/privilege.out" 2>"$work/privilege.err"
+priv_rc=$?
+set -e
+test "$priv_rc" -ne 0
+grep -Eqi 'superuser|permission denied.*event trigger' "$work/privilege.err"
+"${psql_base[@]}" -d real_estate_w3_privilege_probe -c 'REVOKE CREATE ON SCHEMA public FROM w3_event_trigger_limited; DROP FUNCTION public.w3_event_trigger_probe_fn();' >/dev/null
+"${psql_base[@]}" -d postgres -c 'DROP ROLE w3_event_trigger_limited;' >/dev/null
+echo 'Standard PostgreSQL non-superuser CREATE EVENT TRIGGER restriction: PASS'
+for db in real_estate_w3_fresh47 real_estate_w3_upgrade47 real_estate_w3_fresh_repaired real_estate_w3_upgrade_repaired real_estate_w3_privilege_probe; do "${dropdb_base[@]}" "$db" >/dev/null; done
+echo 'W3 disposable database teardown: PASS'

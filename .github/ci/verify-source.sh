@@ -48,4 +48,9 @@ test "${#migrations[@]}" -eq 47
 for file in "${migrations[@]}"; do
   check_hash "$file" "$(git rev-parse "$seed:$file")"
 done
+
+# W3 preserves the accepted historical 47 blobs byte-for-byte; exactly one forward migration may follow them.
+mapfile -t current_migrations < <(git ls-files 'backend-api-runtime/database/migrations/*.php' | sort)
+test "${#current_migrations[@]}" -eq 48
+test "${current_migrations[47]}" = 'backend-api-runtime/database/migrations/2026_10_05_200000_repair_automatic_public_rls_event_trigger.php'
 git diff --check
