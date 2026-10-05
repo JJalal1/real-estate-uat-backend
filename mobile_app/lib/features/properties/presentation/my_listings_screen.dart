@@ -5,11 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../financial/data/financial_repository.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import 'add_property_wizard_screen.dart';
-import 'property_sai_configuration_sheet.dart';
 
 final myListingsProvider =
     FutureProvider.autoDispose<List<PropertyDetails>>((ref) async {
@@ -207,31 +205,13 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
 
     final repository = ref.read(propertyRepositoryProvider);
     try {
-      final saiReady = await showPropertySaiConfigurationSheet(
-        context,
-        repository: repository,
-        propertyId: item.id,
-        purpose: item.purpose,
-      );
-      if (!context.mounted) return;
-      if (!saiReady) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'لم يتم إرسال الإعلان. يجب تأكيد شروط السعي المطلوبة أولاً.',
-            ),
-          ),
-        );
-        return;
-      }
-
       await repository.submitListing(item.id);
       ref.read(propertyDataRevisionProvider.notifier).state++;
       ref.invalidate(myListingsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('تم تأكيد السعي وإرسال الإعلان لفريق المراجعة.'),
+            content: Text('تم إرسال الإعلان لفريق المراجعة.'),
           ),
         );
       }
@@ -240,44 +220,6 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
-      }
-    }
-  }
-
-  Future<void> _attestSai(
-    BuildContext context,
-    WidgetRef ref,
-    PropertyDetails item,
-  ) async {
-    const oath =
-        'أقسم بالله أنني إذا تمت الصفقة عن طريق المنصة فسأقوم بسداد مستحقات المنصة من السعي حسب الشروط التي وافقت عليها عند نشر الإعلان.';
-    final confirmed = await AppDialog.show<bool>(
-          context,
-          title: 'إقرار السعي للإعلان المنشور',
-          content: const Text(oath),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('ليس الآن')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('أقسم بذلك')),
-          ],
-        ) ??
-        false;
-    if (!confirmed || !context.mounted) return;
-    try {
-      await ref.read(financialRepositoryProvider).attestSai(item.id);
-      ref.read(propertyDataRevisionProvider.notifier).state++;
-      ref.invalidate(myListingsProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('تم تسجيل إقرار السعي لهذا الإعلان.')));
-      }
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
       }
     }
   }
@@ -469,7 +411,6 @@ class _ListingCard extends StatelessWidget {
     required this.onEdit,
     required this.onSubmit,
     required this.onDelete,
-    required this.onAttest,
   });
 
   final PropertyDetails property;
@@ -477,7 +418,6 @@ class _ListingCard extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onSubmit;
   final VoidCallback? onDelete;
-  final VoidCallback? onAttest;
 
   @override
   Widget build(BuildContext context) {
@@ -624,12 +564,6 @@ class _ListingCard extends StatelessWidget {
                           : 'إرسال للمراجعة',
                     ),
                   ),
-                if (onAttest != null)
-                  FilledButton.tonalIcon(
-                    onPressed: onAttest,
-                    icon: const Icon(Icons.verified_user_outlined),
-                    label: const Text('إقرار السعي'),
-                  ),
                 if (onDelete != null)
                   TextButton.icon(
                     onPressed: onDelete,
@@ -666,7 +600,6 @@ class _MyListingsSkeleton extends StatelessWidget {
 }
 
 bool _needsAction(PropertyDetails item) =>
-    item.saiAttestationRequired ||
     item.reviewStatus == 'draft' ||
     item.reviewStatus == 'returned_for_correction';
 
@@ -674,13 +607,6 @@ bool _inReview(PropertyDetails item) =>
     item.reviewStatus == 'submitted' || item.reviewStatus == 'under_review';
 
 (String, String, AppStatusTone)? _nextAction(PropertyDetails property) {
-  if (property.saiAttestationRequired) {
-    return (
-      'مطلوب إقرار السعي',
-      'الإعلان منشور. أكمل إقرار السعي المسجل على نفس نسخة الشروط.',
-      AppStatusTone.warning
-    );
-  }
   return switch (property.reviewStatus) {
     'draft' => (
         'الخطوة التالية',
