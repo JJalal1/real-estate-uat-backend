@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,8 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../account/data/auth_controller.dart';
-import '../../financial/data/financial_repository.dart';
-import '../../financial/domain/financial_models.dart';
 import '../data/support_repository.dart';
 import '../data/support_workspace_repository.dart';
 import '../domain/support_models.dart';
@@ -504,9 +500,6 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       case 'report':
         await _supportCaseDialog(task);
         break;
-      case 'payment_review':
-        await _paymentReviewDialog(task);
-        break;
       case 'contact_followup':
         await _contactFollowupDialog(task);
         break;
@@ -658,148 +651,6 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       _message(friendlyApiError(error));
     }
   }
-  Future<void> _paymentReviewDialog(SupportTaskItem task) async {
-    FinancialPayment payment;
-    try {
-      payment = await ref.read(financialRepositoryProvider).adminPayment(
-            task.sourceId,
-            actingAsAgent: widget.actingAsAgent,
-          );
-    } catch (error) {
-      _message(friendlyApiError(error));
-      return;
-    }
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('التحقق من إثبات الدفع'),
-        content: SizedBox(
-          width: 520,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(payment.propertyTitle ?? 'العقار',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text(
-                    'المبلغ: ${payment.amount.toStringAsFixed(0)} ${payment.currency}'),
-                Text('الطريقة: ${payment.paymentMethod ?? '—'}'),
-                if (payment.senderName != null)
-                  Text('اسم المرسل: ${payment.senderName}'),
-                if (payment.senderPhone != null)
-                  Text('رقم المرسل: ${payment.senderPhone}'),
-                if (payment.providerReference != null)
-                  Text('رقم العملية: ${payment.providerReference}'),
-                const SizedBox(height: 12),
-                if (payment.hasProof)
-                  FutureBuilder<List<int>?>(
-                    future: ref
-                        .read(financialRepositoryProvider)
-                        .paymentProof(
-                          payment.id,
-                          actingAsAgent: widget.actingAsAgent,
-                        )
-                        .then((response) => response.data),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final bytes = snapshot.data;
-                      if (bytes == null || bytes.isEmpty) {
-                        return const Text('تعذر عرض صورة الإثبات.');
-                      }
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.memory(Uint8List.fromList(bytes),
-                            fit: BoxFit.contain),
-                      );
-                    },
-                  )
-                else
-                  const Text('لا يوجد إثبات مرفوع.'),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('إغلاق')),
-          TextButton(
-              onPressed: () async {
-                final note = await _paymentReviewReason('طلب تصحيح الإثبات');
-                if (note == null || !mounted) return;
-                await _reviewPayment(task.sourceId, 'correction', note);
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              },
-              child: const Text('طلب تصحيح')),
-          TextButton(
-              onPressed: () async {
-                final note = await _paymentReviewReason('رفض الإثبات');
-                if (note == null || !mounted) return;
-                await _reviewPayment(task.sourceId, 'reject', note);
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              },
-              child: const Text('رفض')),
-          FilledButton(
-              onPressed: () async {
-                await _reviewPayment(task.sourceId, 'confirm', null);
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              },
-              child: const Text('تأكيد الدفع')),
-        ],
-      ),
-    );
-  }
-
-  Future<String?> _paymentReviewReason(String title) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-            controller: controller,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'السبب *')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('إلغاء')),
-          FilledButton(
-              onPressed: () {
-                final value = controller.text.trim();
-                if (value.length >= 3) Navigator.pop(dialogContext, value);
-              },
-              child: const Text('حفظ')),
-        ],
-      ),
-    );
-    controller.dispose();
-    return result;
-  }
-
-  Future<void> _reviewPayment(
-      int paymentId, String decision, String? note) async {
-    try {
-      await ref.read(financialRepositoryProvider).reviewPayment(
-            paymentId,
-            decision,
-            note: note,
-            actingAsAgent: widget.actingAsAgent,
-          );
-      _message(decision == 'confirm'
-          ? 'تم تأكيد عملية الدفع.'
-          : decision == 'correction'
-              ? 'تم طلب تصحيح الإثبات.'
-              : 'تم رفض الإثبات.');
-    } catch (error) {
-      _message(friendlyApiError(error));
-    }
-  }
-
   Future<void> _supportCaseDialog(SupportTaskItem task) async {
     SupportCaseDetails details;
     try {
