@@ -51,6 +51,25 @@ def verify_flutter(machine_path):
     completed = 0
     done = []
     for event in events:
+        # Flutter 3.27.3 also emits a daemon-protocol start notification.
+        # It is separate from package:test results; reject every other batch.
+        if isinstance(event, list):
+            if not event:
+                raise ValueError("Empty Flutter daemon event batch")
+            for notification in event:
+                if (
+                    not isinstance(notification, dict)
+                    or set(notification) != {"event", "params"}
+                    or notification["event"] != "test.startedProcess"
+                    or not isinstance(notification["params"], dict)
+                    or set(notification["params"]) != {"vmServiceUri", "observatoryUri"}
+                    or any(value is not None and not isinstance(value, str)
+                           for value in notification["params"].values())
+                ):
+                    raise ValueError("Unexpected Flutter daemon event batch")
+            continue
+        if not isinstance(event, dict):
+            raise ValueError("Unexpected Flutter machine result type")
         kind = event.get("type")
         if kind == "error":
             raise ValueError("Flutter emitted an error event")

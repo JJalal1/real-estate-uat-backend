@@ -72,6 +72,26 @@ class GateResultsTest(unittest.TestCase):
             with self.subTest(events=events), self.assertRaises(ValueError):
                 self.flutter(events)
 
+    def test_flutter_accepts_its_real_process_start_notification(self):
+        self.flutter([
+            [{"event": "test.startedProcess", "params": {"vmServiceUri": None, "observatoryUri": None}}],
+            {"type": "testDone", "result": "success", "skipped": False},
+            {"type": "done", "success": True},
+        ])
+
+    def test_flutter_never_hides_results_in_unknown_or_malformed_batches(self):
+        invalid = [
+            [], [{"type": "error"}],
+            [{"event": "test.failed", "params": {}}],
+            [{"event": "test.startedProcess", "params": {"error": "failed"}}],
+            [{"event": "test.startedProcess", "params": None}],
+            [{"event": "test.startedProcess", "params": {"vmServiceUri": 1, "observatoryUri": None}}],
+            "unexpected text",
+        ]
+        for event in invalid:
+            with self.subTest(event=event), self.assertRaises(ValueError):
+                self.flutter([event, {"type": "testDone", "result": "success", "skipped": False}, {"type": "done", "success": True}])
+
     def test_aggregate_accepts_only_all_required_successes(self):
         gate.verify_aggregate({name: {"result": "success"} for name in gate.REQUIRED_JOBS})
         for name in gate.REQUIRED_JOBS:
