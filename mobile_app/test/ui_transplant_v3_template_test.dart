@@ -288,6 +288,9 @@ void main() {
   }
 
   testWidgets('exports actual template screens using clearly synthetic fixtures', (tester) async {
+    final previousShadows = debugDisableShadows;
+    debugDisableShadows = false;
+    addTearDown(() => debugDisableShadows = previousShadows);
     _viewport(tester, const Size(412, 915));
     final key = GlobalKey();
     final router = await _pump(tester, boundary: key, user: _user(verified: true));

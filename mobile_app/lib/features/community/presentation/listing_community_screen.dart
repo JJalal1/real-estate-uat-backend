@@ -80,10 +80,10 @@ class _ListingCommunityScreenState
         appBar: AppBar(title: const Text('التعليقات وتقييم المعلن')),
         floatingActionButton: user == null
             ? null
-            : FloatingActionButton.extended(
+            : EbrokerButton(
                 onPressed: _addComment,
                 icon: const EbrokerIcon(Icons.add_comment_outlined),
-                label: const Text('تعليق'),
+                child: const Text('تعليق'),
               ),
         body: RefreshIndicator(
           onRefresh: _load,

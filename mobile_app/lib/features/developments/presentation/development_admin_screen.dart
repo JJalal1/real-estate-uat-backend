@@ -73,10 +73,10 @@ class _DevelopmentAdminScreenState
           ],
         ),
         floatingActionButton: canManage
-            ? FloatingActionButton.extended(
+            ? EbrokerButton(
                 onPressed: _createMenu,
                 icon: const EbrokerIcon(Icons.add),
-                label: const Text('إضافة'),
+                child: const Text('إضافة'),
               )
             : null,
         body: _body(canManage: canManage, canPublish: canPublish),

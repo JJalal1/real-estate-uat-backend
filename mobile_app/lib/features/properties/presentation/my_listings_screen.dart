@@ -36,10 +36,10 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: const AppAppBar(title: 'إعلاناتي'),
-        floatingActionButton: FloatingActionButton.extended(
+        floatingActionButton: EbrokerButton(
           onPressed: () => _create(context, ref),
           icon: const EbrokerIcon(Icons.add_home_work_outlined),
-          label: const Text('إضافة عقار'),
+          child: const Text('إضافة عقار'),
         ),
         body: listings.when(
           loading: () => const _MyListingsSkeleton(),

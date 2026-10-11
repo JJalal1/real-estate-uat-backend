@@ -26,6 +26,7 @@ class EbrokerIcon extends StatelessWidget {
     if ([Icons.inventory_2_outlined, Icons.apartment_outlined].contains(icon)) return 'properties';
     if ([Icons.edit_outlined, Icons.edit].contains(icon)) return 'edit';
     if ([Icons.phone_outlined, Icons.phone, Icons.call_outlined].contains(icon)) return 'call';
+    if ([Icons.close, Icons.close_rounded].contains(icon)) return 'close_circle';
     if (icon == Icons.send) return 'send';
     if (icon == Icons.logout) return 'logout';
     if ([Icons.ios_share_outlined, Icons.share_outlined].contains(icon)) return 'share_icon';
@@ -197,10 +198,12 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
     }
     return LayoutBuilder(builder: (context, constraints) {
       final stacked = constraints.maxWidth < 400 && MediaQuery.textScalerOf(context).scale(14) > 20;
-      if (stacked) return Column(crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [for (var i = 0; i < segments.length; i++) ...[
-          if (i > 0) SizedBox(height: 12.rh(context)), option(segments[i]),
-        ]]);
+      if (stacked) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [for (var i = 0; i < segments.length; i++) ...[
+            if (i > 0) SizedBox(height: 12.rh(context)), option(segments[i]),
+          ]]);
+      }
       return Row(children: [for (var i = 0; i < segments.length; i++) ...[
         if (i > 0) SizedBox(width: 12.rh(context)), Expanded(child: option(segments[i])),
       ]]);

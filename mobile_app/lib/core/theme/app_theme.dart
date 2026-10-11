@@ -192,7 +192,7 @@ abstract final class AppTheme {
         side: BorderSide(color: scheme.outlineVariant),
         checkmarkColor: scheme.onPrimaryContainer,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.pill),
+          borderRadius: BorderRadius.circular(EbrokerDesign.controlRadius),
         ),
         padding: const EdgeInsetsDirectional.symmetric(horizontal: AppSpacing.s4),
         labelStyle: readableTextTheme.labelMedium,

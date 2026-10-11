@@ -67,10 +67,10 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(title: const Text('الدعم وبلاغاتي')),
-        floatingActionButton: FloatingActionButton.extended(
+        floatingActionButton: EbrokerButton(
           onPressed: _openTicket,
           icon: const EbrokerIcon(Icons.support_agent_outlined),
-          label: const Text('تذكرة دعم'),
+          child: const Text('تذكرة دعم'),
         ),
         body: RefreshIndicator(
           onRefresh: _load,
