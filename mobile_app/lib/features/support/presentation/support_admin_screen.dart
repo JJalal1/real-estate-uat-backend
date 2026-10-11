@@ -229,14 +229,14 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
             ]),
             const SizedBox(height: 8),
             Wrap(spacing: 8, children: [
-              FilterChip(
+              EbrokerFilterChip(
                   selected: _assignedToMe,
                   label: const Text('المسندة لي'),
                   onSelected: (v) {
                     setState(() => _assignedToMe = v);
                     _load();
                   }),
-              FilterChip(
+              EbrokerFilterChip(
                   selected: _escalatedOnly,
                   label: const Text('المصعّدة فقط'),
                   onSelected: (v) {

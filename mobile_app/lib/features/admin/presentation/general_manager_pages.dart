@@ -350,7 +350,7 @@ class _GeneralManagerReportsScreenState
                   'لا تظهر أرباحًا أو تقييمات أو نسب نجاح غير قابلة للحساب من النظام الحالي.',
             ),
             const SizedBox(height: 16),
-            SegmentedButton<String>(
+            EbrokerSegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'day', label: Text('اليوم')),
                 ButtonSegment(value: '7d', label: Text('7 أيام')),

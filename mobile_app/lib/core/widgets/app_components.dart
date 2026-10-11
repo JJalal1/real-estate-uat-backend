@@ -142,7 +142,7 @@ class AppFilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
-      child: FilterChip(
+      child: EbrokerFilterChip(
         selected: selected,
         onSelected: onSelected,
         avatar: icon == null ? null : EbrokerIcon(icon, size: 18),
@@ -682,7 +682,6 @@ class AppPropertyMedia extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: height,
       width: double.infinity,
@@ -690,20 +689,12 @@ class AppPropertyMedia extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (imageUrl == null || imageUrl!.isEmpty)
-            ColoredBox(
-              color: EbrokerDesign.page,
-              child: Center(child: EbrokerImage('Fallback/placeholder',
-                size: 56, color: scheme.primary)),
-            )
+            const EbrokerPropertyPlaceholder()
           else
             Image.network(
               imageUrl!,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => ColoredBox(
-                color: EbrokerDesign.page,
-                child: Center(child: EbrokerImage('Fallback/placeholder',
-                  size: 56, color: scheme.primary)),
-              ),
+              errorBuilder: (_, __, ___) => const EbrokerPropertyPlaceholder(),
               loadingBuilder: (context, child, progress) {
                 if (progress == null) return child;
                 return const AppSkeleton(height: 190, radius: 0);

@@ -221,7 +221,7 @@ class _InboxHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.s12),
-          FilterChip(
+          EbrokerFilterChip(
             selected: unreadOnly,
             avatar: const EbrokerIcon(Icons.mark_email_unread_outlined, size: 18),
             label: Text(

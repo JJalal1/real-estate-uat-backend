@@ -160,7 +160,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             if (manager || widget.actingAsAgent)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                child: SegmentedButton<String>(
+                child: EbrokerSegmentedButton<String>(
                   showSelectedIcon: false,
                   segments: widget.actingAsAgent
                       ? const [
@@ -211,7 +211,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 children: [
                   _filterMenu(),
                   const SizedBox(width: 6),
-                  FilterChip(
+                  EbrokerFilterChip(
                     label: const Text('متأخر فقط'),
                     avatar: const EbrokerIcon(Icons.timer_off_outlined, size: 18),
                     selected: _overdue,
@@ -222,14 +222,14 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   ),
                   if (manager) ...[
                     const SizedBox(width: 6),
-                    ActionChip(
+                    EbrokerActionChip(
                       avatar:
                           const EbrokerIcon(Icons.support_agent_outlined, size: 18),
                       label: Text(_assigneeName ?? 'الموظف'),
                       onPressed: _pickAssignee,
                     ),
                     const SizedBox(width: 6),
-                    ActionChip(
+                    EbrokerActionChip(
                       avatar: const EbrokerIcon(Icons.date_range_outlined, size: 18),
                       label: Text(_dateFilterLabel()),
                       onPressed: _pickDateRange,
@@ -272,7 +272,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
 
   Widget _choice(String label, bool selected, VoidCallback onTap) => Padding(
         padding: const EdgeInsetsDirectional.only(end: 6),
-        child: ChoiceChip(
+        child: EbrokerChoiceChip(
           label: Text(label),
           selected: selected,
           onSelected: (_) => onTap(),

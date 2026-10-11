@@ -193,7 +193,7 @@ class _ProjectFilterBarState extends State<_ProjectFilterBar> {
           Row(
             children: [
               Expanded(
-                child: SegmentedButton<int>(
+                child: EbrokerSegmentedButton<int>(
                   showSelectedIcon: false,
                   segments: List.generate(
                     purposes.length,
@@ -223,7 +223,7 @@ class _ProjectFilterBarState extends State<_ProjectFilterBar> {
               scrollDirection: Axis.horizontal,
               itemCount: types.length,
               separatorBuilder: (_, __) => const SizedBox(width: 7),
-              itemBuilder: (context, index) => ChoiceChip(
+              itemBuilder: (context, index) => EbrokerChoiceChip(
                 label: Text(types[index]),
                 selected: _type == index,
                 onSelected: (_) => setState(() => _type = index),

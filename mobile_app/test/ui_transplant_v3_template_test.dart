@@ -194,6 +194,15 @@ void main() {
   testWidgets('wizard uses its template counter and keeps original field validation', (tester) async {
     await _pump(tester, user: _user(verified: true), initial: '/listing-preview');
     expect(find.text('1/5'), findsOneWidget);
+    expect(find.byType(EbrokerWizardCategoryCard), findsNWidgets(7));
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    expect((grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount).crossAxisCount, 3);
+    expect(find.text('نوع الملكية *'), findsOneWidget);
+    await tester.tap(find.text('للإيجار'));
+    await tester.pumpAndSettle();
+    expect(find.text('نوع الملكية *'), findsNothing);
+    final purpose = tester.widget<EbrokerSegmentedButton<String>>(find.byType(EbrokerSegmentedButton<String>));
+    expect(purpose.selected, {'rent'});
     final next = find.widgetWithText(EbrokerStepButton, 'التالي');
     expect(next, findsOneWidget);
     final button = tester.widget<ElevatedButton>(find.descendant(of: next, matching: find.byType(ElevatedButton)));
@@ -202,6 +211,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('1/5'), findsOneWidget);
     expect(find.byType(SnackBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('template optional filter preserves clear selection and disabled chips', (tester) async {
+    _viewport(tester, const Size(412, 915));
+    final values = <Set<String>>[];
+    var disabledTaps = 0;
+    await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
+      body: Column(children: [
+        EbrokerSegmentedButton<String>(
+          segments: const [ButtonSegment(value: 'sale', label: Text('شراء'))],
+          selected: const {'sale'}, emptySelectionAllowed: true,
+          onSelectionChanged: values.add),
+        const EbrokerFilterChip(label: Text('معطل'), selected: true, onSelected: null),
+        EbrokerFilterChip(label: const Text('نشط'), selected: false,
+          onSelected: (value) { if (value) disabledTaps++; }),
+      ]))));
+    await tester.tap(find.text('شراء'));
+    expect(values, [<String>{}]);
+    await tester.tap(find.text('معطل'));
+    expect(disabledTaps, 0);
+    await tester.tap(find.text('نشط'));
+    expect(disabledTaps, 1);
     expect(tester.takeException(), isNull);
   });
 
@@ -242,7 +274,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final page in ['/', '/auth', '/messages/19']) {
+  for (final page in ['/', '/auth', '/messages/19', '/listing-preview']) {
     testWidgets('template screen $page supports 320 width and enlarged Arabic', (tester) async {
       _viewport(tester, const Size(320, 640));
       await _pump(tester, initial: page, scale: 2.4);

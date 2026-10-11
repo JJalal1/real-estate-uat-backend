@@ -1439,7 +1439,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: SegmentedButton<int>(
+                    child: EbrokerSegmentedButton<int>(
                       showSelectedIcon: false,
                       segments: const [
                         ButtonSegment(value: 0, label: Text('الأحدث')),
@@ -1761,21 +1761,9 @@ class _TypeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 6),
-      child: ChoiceChip(
+      child: EbrokerChoiceChip(
         label: Text(label),
         selected: selected,
-        showCheckmark: selected,
-        checkmarkColor: AppTheme.brandStrong,
-        backgroundColor: Colors.white,
-        selectedColor: AppTheme.brandSoft,
-        side: BorderSide(
-          color: selected ? AppTheme.brand : EbrokerDesign.border,
-          width: selected ? 1.5 : 1.1,
-        ),
-        labelStyle: TextStyle(
-          color: selected ? AppTheme.brandStrong : EbrokerDesign.text,
-          fontWeight: FontWeight.w600,
-        ),
         onSelected: (_) => onTap(),
       ),
     );
@@ -2052,7 +2040,7 @@ class _SearchSheetState extends State<_SearchSheet> {
               runSpacing: 7,
               children: widget.recentSearches
                   .map(
-                    (value) => ActionChip(
+                    (value) => EbrokerActionChip(
                       avatar: const EbrokerIcon(Icons.history_rounded, size: 18),
                       label: Text(value),
                       onPressed: () => Navigator.of(context).pop(value),
@@ -2318,9 +2306,7 @@ class _MapSelectionCard extends StatelessWidget {
 class _PropertyImageFallback extends StatelessWidget {
   const _PropertyImageFallback();
   @override
-  Widget build(BuildContext context) => ColoredBox(color: EbrokerDesign.page,
-    child: Center(child: EbrokerImage('Fallback/placeholder', size: 38,
-      color: Theme.of(context).colorScheme.primary)));
+  Widget build(BuildContext context) => const EbrokerPropertyPlaceholder(size: 38);
 }
 
 class _LoadingPropertyCard extends StatelessWidget {
@@ -2881,7 +2867,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
   }
 
   Widget _choice(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
+    return EbrokerChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: _submitting ? null : (_) => onTap(),
@@ -2894,7 +2880,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
     required int number,
     required ValueChanged<int?> onChanged,
   }) {
-    return ChoiceChip(
+    return EbrokerChoiceChip(
       label: Text(label),
       selected: value == number,
       onSelected: _submitting

@@ -123,7 +123,7 @@ class _SavedSearchBuilderScreenState
               ),
             ),
             const SizedBox(height: AppSpacing.s12),
-            SegmentedButton<String>(
+            EbrokerSegmentedButton<String>(
               segments: const [
                 ButtonSegment(
                   value: 'sale',

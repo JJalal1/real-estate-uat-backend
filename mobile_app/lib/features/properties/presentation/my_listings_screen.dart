@@ -452,7 +452,7 @@ class _LifecycleFilterBar extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.s8),
         itemBuilder: (context, index) {
           final key = labels.keys.elementAt(index);
-          return ChoiceChip(
+          return EbrokerChoiceChip(
             selected: selected == key,
             label: Text('${labels[key]} (${counts[key]})'),
             onSelected: (_) => onChanged(key),

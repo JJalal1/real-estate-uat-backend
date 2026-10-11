@@ -168,7 +168,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                     ),
                               ),
                               const SizedBox(height: AppSpacing.s10),
-                              FilterChip(
+                              EbrokerFilterChip(
                                 selected: _unreadOnly,
                                 avatar: const EbrokerIcon(
                                   Icons.notifications_active_outlined,

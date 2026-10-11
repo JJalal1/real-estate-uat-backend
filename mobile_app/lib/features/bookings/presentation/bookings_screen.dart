@@ -76,7 +76,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
               if (canManaged)
                 Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                    child: SegmentedButton<bool>(
+                    child: EbrokerSegmentedButton<bool>(
                         showSelectedIcon: false,
                         segments: const [
                           ButtonSegment(value: false, label: Text('مواعيدي')),

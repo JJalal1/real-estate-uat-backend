@@ -161,7 +161,7 @@ class _AccountVerificationScreenState
                         'الحساب الأساسي يبقى للبحث والتصفح والشراء. اختر صفة موثقة فقط إذا أردت النشر بهذه الصفة.',
                       ),
                       const SizedBox(height: 12),
-                      SegmentedButton<String>(
+                      EbrokerSegmentedButton<String>(
                         segments: const [
                           ButtonSegment(
                             value: 'owner',

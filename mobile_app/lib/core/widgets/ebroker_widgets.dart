@@ -147,6 +147,161 @@ class EbrokerOutlinedButton extends EbrokerButton {
     required super.icon, super.style, super.key}) : super(child: label, outlined: true);
 }
 
+// add_property/steps/step2_property_details_screen.dart::_buildPropertyTypeOption.
+// The original radio option replaces Material 3 segmented controls, while the
+// values, disabled states and callbacks remain those of the calling workflow.
+class EbrokerSegmentedButton<T> extends StatelessWidget {
+  const EbrokerSegmentedButton({required this.segments, required this.selected,
+    required this.onSelectionChanged, this.showSelectedIcon = true,
+    this.emptySelectionAllowed = false, super.key});
+  final List<ButtonSegment<T>> segments;
+  final Set<T> selected;
+  final ValueChanged<Set<T>>? onSelectionChanged;
+  final bool showSelectedIcon;
+  final bool emptySelectionAllowed;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    Widget option(ButtonSegment<T> segment) {
+      final active = selected.contains(segment.value);
+      final enabled = onSelectionChanged != null && segment.enabled;
+      return Semantics(button: true, selected: active, enabled: enabled,
+        child: GestureDetector(
+          onTap: enabled ? () => onSelectionChanged!(
+            active && emptySelectionAllowed ? <T>{} : {segment.value}) : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: EbrokerDesign.surface,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: active ? primary : EbrokerDesign.border,
+                width: active ? 1.5 : 1)),
+            child: DefaultTextStyle(
+              style: TextStyle(fontFamily: 'PrimaryFont',
+                fontFamilyFallback: const ['NotoSansArabic', 'Arial', 'sans-serif'],
+                fontSize: 14.rf(context), height: 1.3, color: EbrokerDesign.text,
+                fontWeight: active ? FontWeight.w500 : FontWeight.w400),
+              child: Row(children: [
+                if (showSelectedIcon) ...[
+                  Icon(active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    size: 20, color: active ? primary : EbrokerDesign.textLight),
+                  SizedBox(width: 8.rh(context)),
+                ],
+                if (segment.icon != null) ...[segment.icon!, SizedBox(width: 8.rh(context))],
+                if (segment.label != null) Expanded(child: segment.label!),
+              ]),
+            ),
+          ),
+        ),
+      );
+    }
+    return LayoutBuilder(builder: (context, constraints) {
+      final stacked = constraints.maxWidth < 400 && MediaQuery.textScalerOf(context).scale(14) > 20;
+      if (stacked) return Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [for (var i = 0; i < segments.length; i++) ...[
+          if (i > 0) SizedBox(height: 12.rh(context)), option(segments[i]),
+        ]]);
+      return Row(children: [for (var i = 0; i < segments.length; i++) ...[
+        if (i > 0) SizedBox(width: 12.rh(context)), Expanded(child: option(segments[i])),
+      ]]);
+    });
+  }
+}
+
+// filter_screen.dart::_buildOptionChip: original 12/8 padding, 4px corners,
+// solid selected brand and 5% neutral background. Workflow state stays outside.
+class EbrokerChoiceChip extends StatelessWidget {
+  const EbrokerChoiceChip({required this.label, required this.selected,
+    required this.onSelected, this.avatar, super.key});
+  final Widget label;
+  final bool selected;
+  final ValueChanged<bool>? onSelected;
+  final Widget? avatar;
+  @override
+  Widget build(BuildContext context) => Semantics(button: true, selected: selected,
+    enabled: onSelected != null,
+    child: GestureDetector(onTap: onSelected == null ? null : () => onSelected!(!selected),
+      child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Theme.of(context).colorScheme.primary : EbrokerDesign.text.withValues(alpha: .05),
+          borderRadius: BorderRadius.circular(4)),
+        child: DefaultTextStyle(style: TextStyle(fontFamily: 'PrimaryFont',
+          fontFamilyFallback: const ['NotoSansArabic', 'Arial', 'sans-serif'],
+          fontSize: 14.rf(context), height: 1.3,
+          color: selected ? Colors.white : EbrokerDesign.text),
+          child: IconTheme(data: IconThemeData(color: selected ? Colors.white : EbrokerDesign.text),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (avatar != null) ...[avatar!, const SizedBox(width: 8)],
+              Flexible(child: label),
+            ])),
+        ),
+      ),
+    ),
+  );
+}
+
+class EbrokerFilterChip extends EbrokerChoiceChip {
+  const EbrokerFilterChip({required super.label, required super.selected,
+    required super.onSelected, super.avatar, super.key});
+}
+
+class EbrokerActionChip extends StatelessWidget {
+  const EbrokerActionChip({required this.label, required this.onPressed,
+    this.avatar, super.key});
+  final Widget label;
+  final VoidCallback? onPressed;
+  final Widget? avatar;
+  @override
+  Widget build(BuildContext context) => EbrokerChoiceChip(label: label,
+    avatar: avatar, selected: false,
+    onSelected: onPressed == null ? null : (_) => onPressed!());
+}
+
+// add_property/steps/step1_categories_screen.dart category tile, fed by our
+// existing taxonomy instead of the template's remote category/Cubit model.
+class EbrokerWizardCategoryCard extends StatelessWidget {
+  const EbrokerWizardCategoryCard({required this.label, required this.icon,
+    required this.selected, required this.onTap, super.key});
+  final String label;
+  final String icon;
+  final bool selected;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Semantics(button: true, selected: selected, enabled: onTap != null,
+      child: GestureDetector(onTap: onTap,
+        child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          decoration: BoxDecoration(color: selected ? primary : EbrokerDesign.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: selected ? primary : EbrokerDesign.border.withValues(alpha: .7))),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            EbrokerImage(icon, size: 28.rw(context), color: selected ? Colors.white : EbrokerDesign.text),
+            SizedBox(height: 6.rh(context)),
+            EbrokerText(label, size: 12, weight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: selected ? Colors.white : EbrokerDesign.text, align: TextAlign.center, maxLines: 1),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// Keep the purchased fallback composition, using our identity rather than
+// displaying the template vendor's eBroker wordmark in our marketplace.
+class EbrokerPropertyPlaceholder extends StatelessWidget {
+  const EbrokerPropertyPlaceholder({this.size = 56, super.key});
+  final double size;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: EbrokerDesign.page,
+    child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      EbrokerImage('home_active', size: size, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(height: 4),
+      EbrokerText('عقارات حولك', size: 12, align: TextAlign.center,
+        color: Theme.of(context).colorScheme.primary),
+    ])));
+}
+
 // home/widgets/header_card.dart::TitleHeader.
 class EbrokerTitleHeader extends StatelessWidget {
   const EbrokerTitleHeader({required this.title, this.onSeeAll, this.action = 'عرض الكل', super.key});

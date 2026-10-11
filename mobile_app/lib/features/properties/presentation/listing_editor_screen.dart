@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_step_button.dart';
 import '../../account/data/auth_controller.dart';
@@ -323,6 +324,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       };
 
   Widget _basicsStep() {
+    final extraCategoryHeight = (MediaQuery.textScalerOf(context).scale(12.rf(context)) - 12.rf(context))
+        .clamp(0.0, double.infinity).toDouble() * 1.3;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -331,7 +334,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           subtitle: 'اختر الغرض والنوع واكتب عنواناً ووصفاً واضحين.',
         ),
         const SizedBox(height: AppSpacing.s16),
-        SegmentedButton<String>(
+        EbrokerSegmentedButton<String>(
           segments: const [
             ButtonSegment(value: 'sale', label: Text('للبيع')),
             ButtonSegment(value: 'rent', label: Text('للإيجار')),
@@ -345,17 +348,26 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                   }),
         ),
         const SizedBox(height: AppSpacing.s16),
-        Wrap(
-          spacing: AppSpacing.s8,
-          runSpacing: AppSpacing.s8,
+        GridView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12,
+            mainAxisExtent: 85.rh(context) + extraCategoryHeight),
           children: _typeLabels.entries
               .map(
-                (entry) => ChoiceChip(
-                  label: Text(entry.value),
+                (entry) => EbrokerWizardCategoryCard(
+                  label: entry.value,
+                  icon: switch (entry.key) {
+                    'house' || 'villa' => 'home',
+                    'land' || 'farm' => 'propertymap',
+                    'shop' => 'bank',
+                    _ => 'properties',
+                  },
                   selected: _type == entry.key,
-                  onSelected: _busy
+                  onTap: _busy
                       ? null
-                      : (_) => setState(() {
+                      : () => setState(() {
                             _type = entry.key;
                             if (!_requiresSaleTenure) _tenureType = null;
                             if (!_requiresResidential) {
@@ -717,7 +729,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           Text('طريقة عرض السعر للباحث',
               style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: AppSpacing.s8),
-          SegmentedButton<String>(
+          EbrokerSegmentedButton<String>(
             segments: const [
               ButtonSegment(
                   value: 'excludes_sai', label: Text('السعر + السعي')),
