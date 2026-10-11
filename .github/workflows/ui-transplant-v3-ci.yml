@@ -173,6 +173,7 @@ jobs:
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
       - name: Full Flutter regression
+        id: flutter_regression
         working-directory: mobile_app
         shell: bash
         run: |
@@ -181,13 +182,17 @@ jobs:
           test "${#tests[@]}" -gt 0
           flutter test "${tests[@]}"
       - name: Verify compiled Frankfurt endpoint
+        id: compiled_environment
+        if: ${{ !cancelled() && (steps.flutter_regression.conclusion == 'success' || steps.flutter_regression.conclusion == 'failure') }}
         working-directory: mobile_app
         run: >-
           flutter test
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
           test/uat_compiled_environment_test.dart
-      - name: Build V3 baseline UAT APK
+      - name: Build diagnostic V3 baseline UAT APK
+        id: build_apk
+        if: ${{ !cancelled() && steps.compiled_environment.conclusion == 'success' }}
         working-directory: mobile_app
         run: >-
           flutter build apk --release
@@ -195,6 +200,7 @@ jobs:
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
       - name: Prepare APK evidence
+        if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -207,7 +213,9 @@ jobs:
           cp mobile_app/pubspec_overrides.yaml dist/BUILD_PUBSPEC_OVERRIDES.yaml
           sha256sum dist/RESOLVED_PUBSPEC.lock > dist/DEPENDENCY_SHA256.txt
           cat > dist/BUILD_INFO.txt <<EOF
-          purpose=ui-transplant-v3-uat
+          purpose=ui-transplant-v3-baseline-diagnostic
+          acceptance_status=not-approved
+          flutter_regression=${{ steps.flutter_regression.conclusion }}
           source_commit=${SOURCE_COMMIT}
           golden_reference=${GOLDEN_SHA}
           backend_expected_commit=${GOLDEN_SHA}
@@ -218,6 +226,7 @@ jobs:
           run_number=${GITHUB_RUN_NUMBER}
           EOF
       - name: Upload V3 UAT APK and exact commit evidence
+        if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: real-estate-ui-transplant-v3-uat-${{ github.run_number }}
