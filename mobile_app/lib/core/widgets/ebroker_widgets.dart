@@ -297,7 +297,7 @@ class EbrokerPropertyPlaceholder extends StatelessWidget {
     child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
       EbrokerImage('home_active', size: size, color: Theme.of(context).colorScheme.primary),
       const SizedBox(height: 4),
-      EbrokerText('عقارات حولك', size: 12, align: TextAlign.center,
+      EbrokerText('عقارات حولك', size: 12, maxLines: 1, align: TextAlign.center,
         color: Theme.of(context).colorScheme.primary),
     ])));
 }
