@@ -10,7 +10,8 @@ import 'ebroker_widgets.dart';
 class EbrokerPropertyHorizontalCard extends StatelessWidget {
   const EbrokerPropertyHorizontalCard({required this.title, required this.price,
     required this.currency, required this.onTap, this.imageUrl, this.location,
-    this.purposeLabel, this.categoryLabel = 'عقار', super.key});
+    this.purposeLabel, this.categoryLabel = 'عقار', this.facts = const [],
+    this.trailing, this.unavailable = false, this.embedded = false, super.key});
   final String title;
   final String price;
   final String currency;
@@ -19,16 +20,19 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   final String? location;
   final String? purposeLabel;
   final String categoryLabel;
+  final List<AppPropertyFact> facts;
+  final Widget? trailing;
+  final bool unavailable;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
     final enlarged = MediaQuery.textScalerOf(context).scale(14) > 20;
     final amount = AppPropertyPrice(price: price, currency: currency);
-    return AppSurface(onTap: onTap, padding: EdgeInsets.all(8.rh(context)),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    final body = Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: BorderRadius.circular(4),
           child: SizedBox(width: 127.rw(context),
-            child: AppPropertyMedia(imageUrl: imageUrl, height: 116.rh(context)))),
+            child: AppPropertyMedia(imageUrl: imageUrl, height: 116.rh(context), overlay: trailing))),
         SizedBox(width: 8.rw(context)),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -63,6 +67,15 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
                 if (purposeLabel != null) EbrokerPurposeLabel(purposeLabel!),
               ]),
           ])),
-      ]));
+      ]);
+    final content = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      body,
+      if (facts.isNotEmpty) ...[const SizedBox(height: 8), AppPropertyFacts(facts: facts)],
+      if (unavailable) ...[const SizedBox(height: 8), const AppInlineMessage(
+        title: 'هذا العقار غير متاح حالياً', message: 'قد يكون الإعلان أوقف أو لم يعد منشوراً.', tone: AppStatusTone.neutral)],
+    ]);
+    return embedded
+      ? GestureDetector(onTap: onTap, child: Padding(padding: EdgeInsets.all(8.rh(context)), child: content))
+      : AppSurface(onTap: onTap, padding: EdgeInsets.all(8.rh(context)), child: content);
   }
 }

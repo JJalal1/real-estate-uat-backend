@@ -9,24 +9,24 @@ void main() {
     expect(theme.useMaterial3, isTrue);
     expect(scheme.brightness, Brightness.light);
     final roles = <(Color, int)>[
-      (scheme.primary, 0xFF0C7A50),
-      (scheme.primaryContainer, 0xFFE8F5EF),
-      (scheme.onPrimaryContainer, 0xFF075338),
-      (scheme.secondary, 0xFF2C6EAA),
-      (scheme.secondaryContainer, 0xFFEAF2F9),
-      (scheme.onSecondaryContainer, 0xFF174E79),
+      (scheme.primary, 0xFF087C7C),
+      (scheme.primaryContainer, 0xFFE6F2F2),
+      (scheme.onPrimaryContainer, 0xFF065858),
+      (scheme.secondary, 0xFF087C7C),
+      (scheme.secondaryContainer, 0xFFE6F2F2),
+      (scheme.onSecondaryContainer, 0xFF065858),
       (scheme.onSurface, 0xFF4D5454),
       (scheme.onSurfaceVariant, 0x99000000),
       (scheme.surfaceContainerLow, 0xFFFAFAFA),
-      (scheme.surfaceContainer, 0xFFF2F5F3),
-      (scheme.surfaceContainerHigh, 0xFFEBEFEC),
-      (scheme.surfaceContainerHighest, 0xFFE3E8E5),
-      (scheme.outline, 0xFF89948E),
+      (scheme.surfaceContainer, 0xFFF2F2F2),
+      (scheme.surfaceContainerHigh, 0xFFEEEEEE),
+      (scheme.surfaceContainerHighest, 0xFFE9E9E9),
+      (scheme.outline, 0xFF909595),
       (scheme.outlineVariant, 0x99EEEEEE),
       (scheme.error, 0xFFB3261E),
       (scheme.errorContainer, 0xFFF9DEDC),
       (scheme.onErrorContainer, 0xFF410E0B),
-      (scheme.inverseSurface, 0xFF24312B),
+      (scheme.inverseSurface, 0xFF2F3434),
     ];
     for (final (actual, expected) in roles) {
       expect(actual, Color(expected));
@@ -46,7 +46,7 @@ void main() {
     expect(scheme.primary, AppTheme.brandSeed);
   });
 
-  test('purchased Manrope family uses template 1.3 metrics and Arabic fallback', () {
+  test('purchased Manrope uses template 1.3 metrics and platform Arabic fallback', () {
     final text = AppTheme.light.textTheme;
     final scale = <(TextStyle?, double, double, FontWeight)>[
       (text.headlineLarge, 24, 31.2, FontWeight.w700),
@@ -68,7 +68,7 @@ void main() {
       expect(style.fontWeight, weight);
       expect(style.letterSpacing, 0);
       expect(style.fontFamily, 'PrimaryFont');
-      expect(style.fontFamilyFallback, ['NotoSansArabic', 'Arial', 'sans-serif']);
+      expect(style.fontFamilyFallback, ['sans-serif']);
       expect(style.color, const Color(0xFF4D5454));
     }
     expect(AppTypography.bodyLarge.fontFamily, isNull);
@@ -198,11 +198,11 @@ void main() {
       AppTheme.warning,
     ];
     expect(legacy, const [
-      Color(0xFF0C7A50),
-      Color(0xFF075338),
-      Color(0xFFE8F5EF),
-      Color(0xFF2C6EAA),
-      Color(0xFFEAF2F9),
+      Color(0xFF087C7C),
+      Color(0xFF065858),
+      Color(0xFFE6F2F2),
+      Color(0xFF087C7C),
+      Color(0xFFE6F2F2),
       Color(0xFFF8F9F7),
       Colors.white,
       Color(0xFFDCE2DF),

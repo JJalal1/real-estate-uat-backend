@@ -29,12 +29,14 @@ VISUAL_TEST_UPDATES = frozenset({
     "mobile_app/test/uat_services_hub_navigation_test.dart",
 })
 
+CANONICAL_VIEWING_TEST = 'mobile_app/test/uat_listing_publish_viewing_flow_test.dart'
+
 PINNED_PRESENTATION = frozenset({
     "mobile_app/lib/features/account/presentation/auth_gate.dart",
 })
 
 
-ASSET_ADDITIONS = '    - assets/ebroker/svg/\n    - assets/ebroker/svg/agent/\n    - assets/ebroker/svg/MultiColorSvg/\n    - assets/ebroker/svg/Fallback/\n    - assets/ebroker/chat_background/\n    - assets/fonts/OFL-Manrope.txt\n'
+ASSET_ADDITIONS = '    - assets/ebroker/svg/\n    - assets/ebroker/svg/agent/\n    - assets/ebroker/svg/MultiColorSvg/\n    - assets/ebroker/svg/Fallback/\n    - assets/ebroker/chat_background/\n    - assets/ebroker/images/\n    - assets/fonts/OFL-Manrope.txt\n'
 FONT_ADDITION = '\n    - family: PrimaryFont\n      fonts:\n        - asset: assets/ebroker/fonts/Manrope-Regular.ttf\n          weight: 400\n        - asset: assets/ebroker/fonts/Manrope-Medium.ttf\n          weight: 500\n        - asset: assets/ebroker/fonts/Manrope-SemiBold.ttf\n          weight: 600\n        - asset: assets/ebroker/fonts/Manrope-Bold.ttf\n          weight: 700\n        - asset: assets/ebroker/fonts/Manrope-ExtraBold.ttf\n          weight: 800\n'
 
 def approved_pubspec(original):
@@ -44,6 +46,25 @@ def approved_pubspec(original):
         "  cupertino_icons: ^1.0.8\n  flutter_svg: 2.0.10+1\n",
     ).replace("    - assets/payments/\n",
               "    - assets/payments/\n" + ASSET_ADDITIONS) + FONT_ADDITION)
+
+
+def approved_viewing_test(original):
+    """Correct only the obsolete source location, keeping all other checks.
+
+    Golden opens/reuses the property conversation first. Linked viewing actions
+    are rendered there; the old literal refers to a removed details-screen path.
+    """
+    return (original.replace(
+        'viewing request opens its linked conversation after creation',
+        'property conversation entry preserves its linked viewing actions',
+    ).replace(
+        "      expect(details, contains('booking.messageThreadId'));",
+        "      expect(details, contains('startForProperty(property.id)'));",
+    ).replace(
+        "      expect(details, contains(\"context.push('/messages/\\$threadId')\"));",
+        "      expect(details, contains(\"context.push('/messages/\\${thread.id}')\"));\n"
+        "      expect(conversation, contains('booking.messageThreadId == widget.threadId'));",
+    ))
 
 
 def approved_auth_gate(original):
@@ -69,6 +90,8 @@ def paths(raw):
 
 
 def allowed(path, baseline_paths):
+    if path == CANONICAL_VIEWING_TEST:
+        return True
     if path == "mobile_app/pubspec.yaml" or path in VISUAL_TEST_UPDATES:
         return True
     if path in PINNED_PRESENTATION:
@@ -111,6 +134,10 @@ def violations(root, baseline=GOLDEN_SHA, setup=False):
         original = git(root, "show", baseline + ":mobile_app/pubspec.yaml").decode("utf-8")
         if (root / "mobile_app/pubspec.yaml").read_text(encoding="utf-8") != approved_pubspec(original):
             failures.append("mobile_app/pubspec.yaml (original declaration changed beyond pinned SVG/assets/fonts)")
+    if CANONICAL_VIEWING_TEST in changed and (root / CANONICAL_VIEWING_TEST).is_file():
+        original = git(root, "show", baseline + ":" + CANONICAL_VIEWING_TEST).decode("utf-8")
+        if (root / CANONICAL_VIEWING_TEST).read_text(encoding="utf-8") != approved_viewing_test(original):
+            failures.append(CANONICAL_VIEWING_TEST + " (changes beyond the proven obsolete source-location check)")
     for path in PINNED_PRESENTATION & changed:
         if (root / path).is_file():
             original = git(root, "show", baseline + ":" + path).decode("utf-8")

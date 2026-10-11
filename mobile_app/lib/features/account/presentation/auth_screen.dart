@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_screen_sections.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -37,11 +38,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         backgroundColor: EbrokerDesign.page,
         body: LayoutBuilder(builder: (context, constraints) => SingleChildScrollView(
           child: Column(children: [
-            SizedBox(height: (constraints.maxHeight * 0.25).clamp(60.0, 240.0),
-              child: Center(child: EbrokerImage('home_active', size: 72,
-                color: Theme.of(context).colorScheme.primary))),
-            Container(width: double.infinity, constraints: const BoxConstraints(minHeight: 400),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+            SizedBox(height: (constraints.maxHeight - 400.rh(context)).clamp(140.0, 485.0),
+              width: double.infinity,
+              child: Image.asset(ebrokerBannerAsset, fit: BoxFit.cover,
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: .3), colorBlendMode: BlendMode.srcATop)),
+            Container(width: double.infinity, constraints: BoxConstraints(minHeight: 400.rh(context)),
+              padding: EdgeInsets.symmetric(horizontal: 18.rw(context)),
               decoration: const BoxDecoration(color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
               child: Column(children: [

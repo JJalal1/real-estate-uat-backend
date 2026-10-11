@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 /// Manrope PrimaryFont and 1.3 line height from the purchased eBroker source.
-/// Bundled Arabic fallback supports the existing Arabic product language.
+/// Arabic follows the Android system fallback, as in the purchased template.
 abstract final class AppTypography {
   static const fontFamily = 'PrimaryFont';
-  static const fontFamilyFallback = <String>['NotoSansArabic', 'Arial', 'sans-serif'];
+  static const fontFamilyFallback = <String>['sans-serif'];
 
   static const headlineLarge = TextStyle(
     fontSize: 24,

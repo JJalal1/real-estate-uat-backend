@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_property_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -2116,38 +2117,29 @@ class _PropertyResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    // eBroker PropertyHorizontalCard: 8px padding, 127px image, 4/8px corners.
-    return Material(color: Colors.white, borderRadius: BorderRadius.circular(8),
-      child: InkWell(onTap: onDetails, borderRadius: BorderRadius.circular(8),
-        child: Container(padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: selected ? scheme.primary : EbrokerDesign.border)),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SizedBox(width: 127, height: 116, child: ClipRRect(borderRadius: BorderRadius.circular(4),
-              child: Stack(fit: StackFit.expand, children: [
-                AppPropertyMedia(imageUrl: property.mainImage, height: 116),
-                PositionedDirectional(top: 4, end: 4, child: IconButton(
-                  tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة', onPressed: onFavorite,
-                  icon: EbrokerImage(favorite ? 'heart_filled' : 'heart', size: 20,
-                    color: favorite ? scheme.primary : EbrokerDesign.text))),
-              ]))),
-            const SizedBox(width: 8),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Row(children: [Expanded(child: EbrokerText(_typeLabel(property.type ?? ''), size: 12,
-                color: EbrokerDesign.textLight, maxLines: 1)), IconButton(onPressed: onMap,
-                  tooltip: 'عرض على الخريطة', constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  padding: EdgeInsets.zero, icon: EbrokerImage('location', size: 18, color: scheme.primary))]),
-              EbrokerText(property.title, size: 14, weight: FontWeight.w600, maxLines: 2),
-              const SizedBox(height: 4),
-              Text('${_formatPrice(property.price)} ${_currencyLabel(property.currency)}',
-                style: TextStyle(color: scheme.primary, fontSize: 14, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              EbrokerText(property.address ?? '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
-                size: 12, color: EbrokerDesign.textLight, maxLines: 2),
-              const SizedBox(height: 4), _PropertyFacts(property: property),
-              if (property.priceDisplayNote != null) EbrokerText(property.priceDisplayNote!, size: 11),
-            ])),
-          ]))));
+    return Container(decoration: BoxDecoration(color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: selected ? scheme.primary : EbrokerDesign.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
+          price: _formatPrice(property.price), currency: _currencyLabel(property.currency),
+          imageUrl: property.mainImage,
+          location: property.address ?? '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
+          categoryLabel: _typeLabel(property.type ?? ''),
+          purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
+          onTap: onDetails,
+          trailing: IconButton(tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
+            onPressed: onFavorite,
+            icon: EbrokerImage(favorite ? 'heart_filled' : 'heart', size: 20,
+              color: favorite ? scheme.primary : EbrokerDesign.text))),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: _PropertyFacts(property: property)),
+        if (property.priceDisplayNote != null)
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: EbrokerText(property.priceDisplayNote!, size: 11)),
+        TextButton.icon(onPressed: onMap,
+          icon: EbrokerImage('location', size: 18, color: scheme.primary),
+          label: const Text('عرض على الخريطة')),
+      ]));
   }
 }
 

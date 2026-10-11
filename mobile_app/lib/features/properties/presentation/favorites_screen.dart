@@ -120,12 +120,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
               return ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  AppLayout.compactPageGutter,
-                  AppSpacing.s12,
-                  AppLayout.compactPageGutter,
-                  AppSpacing.s32,
-                ),
+                padding: const EdgeInsets.all(16),
                 itemCount: items.length,
                 separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
                 itemBuilder: (context, index) {
@@ -133,7 +128,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   final selected = _selected.contains(property.id);
                   return Stack(
                     children: [
-                      AppPropertyCard(
+                      AppPropertyCard(horizontal: true,
                         categoryLabel: ebrokerPropertyTypeLabel(property.type),
                   title: property.title,
                         price: _formatPrice(property.price),

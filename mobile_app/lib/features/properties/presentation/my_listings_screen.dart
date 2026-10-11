@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_property_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -490,79 +491,17 @@ class _ListingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InkWell(
-            onTap: onOpen,
-            child: Padding(
-              padding:
-                  const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadii.control),
-                    child: SizedBox.square(
-                      dimension: 82,
-                      child: property.mainImage == null
-                          ? ColoredBox(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
-                              child: const EbrokerIcon(Icons.home_work_outlined),
-                            )
-                          : Image.network(
-                              property.mainImage!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Center(
-                                child: EbrokerIcon(Icons.home_work_outlined),
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.s12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          property.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: AppSpacing.s4),
-                        Text(
-                          '${_formatPrice(property.price)} ${property.currency}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        const SizedBox(height: AppSpacing.s8),
-                        Wrap(
-                          spacing: AppSpacing.s8,
-                          runSpacing: AppSpacing.s4,
-                          children: [
-                            AppStatusBadge(
-                              label: state.$1,
-                              tone: state.$2,
-                            ),
-                            AppStatusBadge(
-                              label: '${property.proofDocumentCount} إثبات',
-                              tone: AppStatusTone.neutral,
-                              icon: Icons.description_outlined,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
+            price: _formatPrice(property.price), currency: property.currency,
+            categoryLabel: ebrokerPropertyTypeLabel(property.type),
+            purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
+            imageUrl: property.mainImage, location: property.address, onTap: onOpen),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Wrap(spacing: AppSpacing.s8, runSpacing: AppSpacing.s4, children: [
+              AppStatusBadge(label: state.$1, tone: state.$2),
+              AppStatusBadge(label: '${property.proofDocumentCount} إثبات',
+                tone: AppStatusTone.neutral, icon: Icons.description_outlined),
+            ])),
           if (nextAction != null)
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(

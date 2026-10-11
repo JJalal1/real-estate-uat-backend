@@ -147,9 +147,9 @@ void main() {
         .load();
     final latin = await File('$fontDirectory/Roboto-Regular.ttf').readAsBytes();
     for (final family in ['Arial', 'sans-serif']) {
-      await (FontLoader(family)
-            ..addFont(Future.value(latin.buffer.asByteData())))
-          .load();
+      final loader = FontLoader(family)..addFont(Future.value(latin.buffer.asByteData()));
+      if (family == 'sans-serif') loader.addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'));
+      await loader.load();
     }
   });
 

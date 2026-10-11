@@ -30,6 +30,40 @@ class EbrokerIcon extends StatelessWidget {
     if (icon == Icons.send) return 'send';
     if (icon == Icons.logout) return 'logout';
     if ([Icons.ios_share_outlined, Icons.share_outlined].contains(icon)) return 'share_icon';
+    if ([Icons.notification_important_outlined, Icons.notifications_active_outlined, Icons.notifications_none_rounded, Icons.notifications_off_outlined, Icons.notifications_outlined].contains(icon)) return 'notification';
+    if ([Icons.history, Icons.history_outlined, Icons.history_rounded, Icons.hourglass_bottom, Icons.hourglass_top, Icons.hourglass_top_outlined, Icons.pending_actions_outlined, Icons.schedule_outlined, Icons.timer_off_outlined, Icons.timer_outlined, Icons.update_rounded].contains(icon)) return 'clock';
+    if ([Icons.calendar_month_outlined, Icons.date_range_outlined, Icons.event_available_outlined, Icons.event_busy_outlined].contains(icon)) return 'calendar';
+    if ([Icons.check_circle, Icons.check_circle_outline, Icons.check_circle_rounded, Icons.domain_verification_outlined, Icons.how_to_reg_outlined, Icons.task_alt, Icons.task_alt_outlined, Icons.task_alt_rounded, Icons.verified_outlined, Icons.verified_user_outlined].contains(icon)) return 'verified';
+    if ([Icons.admin_panel_settings_outlined, Icons.privacy_tip_outlined, Icons.security_outlined, Icons.shield, Icons.shield_outlined].contains(icon)) return 'agent/shield-tick';
+    if ([Icons.assignment_ind_outlined, Icons.badge_outlined, Icons.manage_accounts_outlined, Icons.supervisor_account_outlined].contains(icon)) return 'agent/user-check';
+    if ([Icons.groups_2_outlined, Icons.groups_outlined, Icons.people_alt_outlined, Icons.person_search_outlined, Icons.support_agent, Icons.support_agent_outlined].contains(icon)) return 'interested_users';
+    if ([Icons.analytics_outlined, Icons.insights_outlined, Icons.insights_rounded, Icons.monitor_heart_outlined, Icons.query_stats_outlined, Icons.trending_up].contains(icon)) return 'agent/chart';
+    if ([Icons.settings_outlined, Icons.settings_suggest_outlined].contains(icon)) return 'configuration';
+    if ([Icons.article_outlined, Icons.description_outlined, Icons.fact_check_outlined, Icons.gavel_outlined, Icons.menu_book_outlined, Icons.note_alt_outlined, Icons.receipt_long, Icons.receipt_long_outlined, Icons.upload_file_outlined].contains(icon)) return 'article';
+    if ([Icons.apartment, Icons.apartment_outlined, Icons.business, Icons.business_center_outlined, Icons.business_outlined, Icons.category_outlined, Icons.holiday_village_outlined, Icons.inventory_2_outlined, Icons.location_city_outlined, Icons.real_estate_agent_outlined].contains(icon)) return 'properties_icon';
+    if ([Icons.account_balance_outlined, Icons.account_balance_wallet_outlined, Icons.monetization_on_outlined, Icons.payments_outlined].contains(icon)) return 'bank';
+    if ([Icons.crisis_alert_outlined, Icons.error_outline, Icons.flag_outlined, Icons.report_gmailerrorred_outlined, Icons.report_outlined, Icons.report_problem_outlined].contains(icon)) return 'report';
+    if ([Icons.priority_high, Icons.priority_high_rounded, Icons.warning_amber_outlined, Icons.warning_amber_rounded].contains(icon)) return 'warning';
+    if ([Icons.help_outline, Icons.info_outline].contains(icon)) return 'info';
+    if ([Icons.phone_callback_outlined, Icons.phone_in_talk_outlined, Icons.phone_outlined, Icons.send_to_mobile_outlined].contains(icon)) return 'call';
+    if ([Icons.add_photo_alternate_outlined, Icons.broken_image_outlined, Icons.image, Icons.open_in_full].contains(icon)) return 'gallery';
+    if ([Icons.visibility_outlined].contains(icon)) return 'eye';
+    if ([Icons.visibility_off_outlined].contains(icon)) return 'eye_slash';
+    if ([Icons.key_outlined, Icons.lock_outline].contains(icon)) return 'lock';
+    if ([Icons.mark_email_read_outlined, Icons.mark_email_unread_outlined].contains(icon)) return 'email';
+    if ([Icons.add_comment_outlined, Icons.forum_outlined, Icons.mark_chat_read_outlined, Icons.mark_chat_unread_outlined, Icons.quickreply_outlined, Icons.send_outlined].contains(icon)) return 'chat';
+    if ([Icons.apps_outlined, Icons.dashboard_outlined, Icons.grid_view_outlined, Icons.space_dashboard_outlined].contains(icon)) return 'agent/dashboard';
+    if ([Icons.add_location_alt_outlined, Icons.my_location, Icons.my_location_rounded, Icons.place_outlined].contains(icon)) return 'location';
+    if ([Icons.explore_outlined, Icons.location_off_outlined, Icons.public, Icons.public_off].contains(icon)) return 'location_pin';
+    if ([Icons.delete_outline, Icons.delete_outline_rounded].contains(icon)) return 'bin';
+    if ([Icons.draw_outlined, Icons.draw_rounded, Icons.edit_note_outlined].contains(icon)) return 'edit';
+    if ([Icons.copy, Icons.link].contains(icon)) return 'share_icon';
+    if ([Icons.check, Icons.check_rounded].contains(icon)) return 'right';
+    if ([Icons.arrow_back, Icons.arrow_back_rounded, Icons.chevron_left, Icons.chevron_left_rounded].contains(icon)) return 'arrow_left';
+    if ([Icons.arrow_forward].contains(icon)) return 'arrow_right';
+    if ([Icons.expand_more].contains(icon)) return 'down_arrow';
+    if ([Icons.add_road_outlined, Icons.map_outlined, Icons.route_outlined].contains(icon)) return 'propertymap';
+    if ([Icons.autorenew, Icons.refresh, Icons.refresh_rounded, Icons.restart_alt].contains(icon)) return 'update';
     return null;
   }
   @override
@@ -73,7 +107,7 @@ class EbrokerText extends StatelessWidget {
   Widget build(BuildContext context) => Text(text,
     maxLines: maxLines, overflow: TextOverflow.ellipsis, softWrap: true,
     textAlign: align,
-    style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['NotoSansArabic', 'Arial', 'sans-serif'], fontSize: size.rf(context),
+    style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: size.rf(context),
       fontWeight: weight, color: color ?? EbrokerDesign.text, height: 1.3),
   );
 }
@@ -115,7 +149,7 @@ class EbrokerButton extends StatelessWidget {
       },
       child: DefaultTextStyle(
         maxLines: 1, overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['NotoSansArabic', 'Arial', 'sans-serif'], fontSize: 18.rf(context),
+        style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: 18.rf(context),
           color: foreground, height: 1.3),
         child: IconTheme(data: IconThemeData(color: foreground, size: 20),
           child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center,
@@ -179,7 +213,7 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
                 width: active ? 1.5 : 1)),
             child: DefaultTextStyle(
               style: TextStyle(fontFamily: 'PrimaryFont',
-                fontFamilyFallback: const ['NotoSansArabic', 'Arial', 'sans-serif'],
+                fontFamilyFallback: const ['sans-serif'],
                 fontSize: 14.rf(context), height: 1.3, color: EbrokerDesign.text,
                 fontWeight: active ? FontWeight.w500 : FontWeight.w400),
               child: Row(children: [
@@ -229,7 +263,7 @@ class EbrokerChoiceChip extends StatelessWidget {
           color: selected ? Theme.of(context).colorScheme.primary : EbrokerDesign.text.withValues(alpha: .05),
           borderRadius: BorderRadius.circular(4)),
         child: DefaultTextStyle(style: TextStyle(fontFamily: 'PrimaryFont',
-          fontFamilyFallback: const ['NotoSansArabic', 'Arial', 'sans-serif'],
+          fontFamilyFallback: const ['sans-serif'],
           fontSize: 14.rf(context), height: 1.3,
           color: selected ? Colors.white : EbrokerDesign.text),
           child: IconTheme(data: IconThemeData(color: selected ? Colors.white : EbrokerDesign.text),
@@ -307,7 +341,7 @@ class EbrokerPropertyPlaceholder extends StatelessWidget {
 
 // home/widgets/header_card.dart::TitleHeader.
 class EbrokerTitleHeader extends StatelessWidget {
-  const EbrokerTitleHeader({required this.title, this.onSeeAll, this.action = 'عرض الكل', super.key});
+  const EbrokerTitleHeader({required this.title, this.onSeeAll, this.action = 'رؤية الكل', super.key});
   final String title;
   final VoidCallback? onSeeAll;
   final String action;
@@ -335,14 +369,14 @@ class EbrokerCategoryCard extends StatelessWidget {
   Widget build(BuildContext context) => Material(color: Colors.transparent,
     child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(4),
       child: Container(
-        constraints: BoxConstraints(minWidth: 100.rw(context), minHeight: 44),
+        constraints: BoxConstraints(minWidth: 100.rw(context), minHeight: 28.rh(context)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(color: Colors.white,
           border: Border.all(color: selected ? Theme.of(context).colorScheme.primary : EbrokerDesign.border),
           borderRadius: BorderRadius.circular(4)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           EbrokerImage(icon, size: 18.rw(context), color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 12), EbrokerText(label),
+          SizedBox(width: 12.rw(context)), EbrokerText(label, maxLines: 1, align: TextAlign.center),
         ]),
       ),
     ),
@@ -396,3 +430,9 @@ String ebrokerPropertyTypeLabel(String? type) => const <String, String>{
   'apartment': 'شقة', 'house': 'منزل', 'villa': 'فيلا', 'land': 'أرض',
   'shop': 'محل', 'office': 'مكتب', 'farm': 'مزرعة',
 }[type] ?? 'عقار';
+
+String ebrokerCategoryIcon(String? type) => const <String, String>{
+  'apartment': 'properties', 'house': 'home', 'villa': 'home',
+  'land': 'location_pin', 'shop': 'listing_feature', 'office': 'properties_icon',
+  'farm': 'propertymap',
+}[type] ?? 'properties_icon';

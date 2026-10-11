@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_otp_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -74,14 +75,8 @@ class _PhoneVerificationScreenState
               ),
             ],
             const SizedBox(height: 16),
-            TextField(
-              controller: _code,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              onSubmitted: _busy ? null : (_) => _verify(),
-              decoration: const InputDecoration(
-                  labelText: 'رمز التحقق', ),
-            ),
+            EbrokerOtpField(controller: _code,
+              onSubmitted: _busy ? null : (_) => _verify()),
             const SizedBox(height: 12),
             EbrokerFilledButton.icon(
               onPressed: _busy ? null : _verify,

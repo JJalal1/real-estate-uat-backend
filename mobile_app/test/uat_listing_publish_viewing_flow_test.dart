@@ -53,7 +53,7 @@ void main() {
       expect(listings, isNot(contains('uploadProofDocuments')));
     });
 
-    test('viewing request opens its linked conversation after creation', () async {
+    test('property conversation entry preserves its linked viewing actions', () async {
       final details = await File(
         'lib/features/properties/presentation/property_details_screen.dart',
       ).readAsString();
@@ -61,8 +61,9 @@ void main() {
         'lib/features/messages/presentation/conversation_screen.dart',
       ).readAsString();
 
-      expect(details, contains('booking.messageThreadId'));
-      expect(details, contains("context.push('/messages/\$threadId')"));
+      expect(details, contains('startForProperty(property.id)'));
+      expect(details, contains("context.push('/messages/\${thread.id}')"));
+      expect(conversation, contains('booking.messageThreadId == widget.threadId'));
       expect(conversation, contains('طلب معاينة مرتبط بهذه المحادثة'));
       expect(conversation, contains("_bookingAction('confirm')"));
       expect(conversation, contains("_bookingAction('reschedule')"));

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 // Exact design values from reference/ebroker-1.8.0, ui/theme/theme.dart.
-// Brand green is the one identity substitution requested by the owner.
+// The owner confirmed the source teal and neutral palette on 11 October.
 abstract final class EbrokerDesign {
   static const page = Color(0xFFFAFAFA);
   static const surface = Colors.white;

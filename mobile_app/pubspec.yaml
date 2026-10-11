@@ -45,6 +45,7 @@ flutter:
     - assets/ebroker/svg/MultiColorSvg/
     - assets/ebroker/svg/Fallback/
     - assets/ebroker/chat_background/
+    - assets/ebroker/images/
     - assets/fonts/OFL-Manrope.txt
   fonts:
     - family: NotoSansArabic

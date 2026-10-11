@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from check_ui_transplant_v3 import approved_auth_gate, approved_pubspec, violations
+from check_ui_transplant_v3 import approved_auth_gate, approved_pubspec, approved_viewing_test, CANONICAL_VIEWING_TEST, violations
 
 
 class ScopeGuardTests(unittest.TestCase):
@@ -87,6 +87,22 @@ class ScopeGuardTests(unittest.TestCase):
             self.write(path, "unapproved-change\n")
         rejected = {item.split(" (")[0] for item in self.check()}
         self.assertEqual(rejected, expected)
+
+    def test_obsolete_viewing_source_guard_has_a_narrow_exception(self):
+        original = """viewing request opens its linked conversation after creation
+      expect(details, contains('booking.messageThreadId'));
+      expect(details, contains("context.push('/messages/\\$threadId')"));
+      expect(conversation, contains('unchanged-confirm-contract'));
+"""
+        self.write(CANONICAL_VIEWING_TEST, original)
+        self.run_git("add", CANONICAL_VIEWING_TEST)
+        self.run_git("commit", "-qm", "canonical viewing fixture")
+        self.baseline = self.run_git("rev-parse", "HEAD").strip()
+        approved = approved_viewing_test(original)
+        self.write(CANONICAL_VIEWING_TEST, approved)
+        self.assertEqual(self.check(), [])
+        self.write(CANONICAL_VIEWING_TEST, approved.replace('unchanged-confirm-contract', 'weakened-contract'))
+        self.assertTrue(any(item.startswith(CANONICAL_VIEWING_TEST) for item in self.check()))
 
     def test_new_untracked_backend_and_data_files_are_rejected(self):
         self.write("backend-api-runtime/database/migrations/unapproved.php", "new-schema\n")

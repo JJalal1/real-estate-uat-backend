@@ -6,10 +6,40 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
+import '../../../core/widgets/ebroker_screen_sections.dart';
+import '../../properties/presentation/property_details_screen.dart';
+import '../../properties/domain/property_details.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../map/presentation/map_screen.dart';
 
 const homeDiscoveryQuery = NearbyQuery(center: LatLng(15.3694, 44.1910));
+
+// Existing public details supply the advertiser cards; no template API or
+// public directory, follower count or direct-contact capability is introduced.
+class HomeAdvertiserEntry {
+  const HomeAdvertiserEntry(this.propertyId, this.advertiser);
+  final int propertyId;
+  final AdvertiserCommunitySummary advertiser;
+}
+final homeAdvertisersProvider = FutureProvider.autoDispose.family<List<HomeAdvertiserEntry>, NearbyQuery>((ref, query) async {
+  final properties = await ref.watch(nearbyPropertiesProvider(query).future);
+  final ids = properties.where((property) => property.type != null).take(5).map((property) => property.id).toSet();
+  final results = await Future.wait(ids.map((id) async {
+    try {
+      final details = await ref.watch(propertyDetailsProvider(id).future);
+      final advertiser = details.advertiser;
+      return details.status == 'published' && advertiser != null
+        ? HomeAdvertiserEntry(id, advertiser) : null;
+    } catch (_) {
+      return null;
+    }
+  }));
+  final unique = <int, HomeAdvertiserEntry>{};
+  for (final entry in results.whereType<HomeAdvertiserEntry>()) {
+    unique.putIfAbsent(entry.advertiser.id, () => entry);
+  }
+  return unique.values.toList(growable: false);
+});
 
 // Purchased home_screen/HomeSearchField/CategoriesSection/AllPropertiesSection.
 // Data and action callbacks use our existing public API and router exclusively.
@@ -26,6 +56,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final properties = ref.watch(nearbyPropertiesProvider(_query));
+    final advertisers = ref.watch(homeAdvertisersProvider(_query));
     void openMap() => context.push('/property-market');
     return Scaffold(backgroundColor: EbrokerDesign.page,
       appBar: AppBar(backgroundColor: EbrokerDesign.page, elevation: 0,
@@ -33,8 +64,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         title: GestureDetector(onTap: openMap, child: Row(children: [
           EbrokerImage('home_active', size: 42.rw(context), color: scheme.primary), const SizedBox(width: 10),
           const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            EbrokerText('صنعاء', size: 16, weight: FontWeight.w600, maxLines: 1),
-            EbrokerText('اليمن', size: 12, color: EbrokerDesign.textLight, maxLines: 1),
+            EbrokerText('الموقع', size: 12, maxLines: 1),
+            EbrokerText('حدد الموقع', size: 14, weight: FontWeight.w600, maxLines: 1),
           ])), const EbrokerImage('down_arrow', size: 16, color: EbrokerDesign.textLight),
         ])), actions: [Padding(padding: const EdgeInsetsDirectional.only(end: 16),
           child: Semantics(button: true, label: 'الإشعارات', child: Tooltip(message: 'الإشعارات',
@@ -48,21 +79,39 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       }, child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
         SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.only(top: 8, right: 18, left: 18), child: Row(children: [
           Expanded(child: Semantics(button: true, label: 'البحث عن عقار', child: GestureDetector(
-            key: const ValueKey('home-search'), onTap: openMap, child: AbsorbPointer(child: TextField(readOnly: true,
-              decoration: InputDecoration(hintText: 'ابحث عن عقار', prefixIcon: Padding(padding: const EdgeInsets.all(8), child: EbrokerImage('search', color: scheme.primary)))))))),
+            key: const ValueKey('home-search'), onTap: openMap, child: AbsorbPointer(child: SizedBox(height: 48.rh(context), child: TextField(readOnly: true,
+              decoration: InputDecoration(hintText: 'ابحث في منزلك...', prefixIcon: Padding(padding: const EdgeInsets.all(8), child: EbrokerImage('search', color: scheme.primary))))))))),
           const SizedBox(width: 8), Semantics(button: true, label: 'الخريطة', child: GestureDetector(
             key: const ValueKey('home-map'), onTap: openMap, child: Container(width: 48.rw(context), height: 48.rh(context), alignment: Alignment.center,
               decoration: BoxDecoration(color: Colors.white, border: Border.all(color: EbrokerDesign.border), borderRadius: BorderRadius.circular(4)),
               child: EbrokerImage('propertymap', color: scheme.primary)))),
         ]))),
-        SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'أنواع العقارات', onSeeAll: openMap)),
+        SliverToBoxAdapter(child: EbrokerHomeBanner(onTap: openMap)),
+        SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'البحث حسب الفئة', onSeeAll: openMap)),
         SliverToBoxAdapter(child: SizedBox(height: 44.rh(context), child: ListView(scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 18), children: [
-            for (final category in const [('الكل', null), ('شقق', 'apartment'), ('منازل', 'house'), ('أراضٍ', 'land')])
+            for (final category in const [('الكل', null), ('شقق', 'apartment'), ('منازل', 'house'), ('فلل', 'villa'), ('أراضٍ', 'land'), ('محلات', 'shop'), ('مكاتب', 'office'), ('مزارع', 'farm')])
               Padding(padding: const EdgeInsetsDirectional.only(end: 5), child: EbrokerCategoryCard(
-                label: category.$1, icon: category.$2 == 'land' ? 'location' : 'properties_icon', selected: _type == category.$2,
+                label: category.$1, icon: ebrokerCategoryIcon(category.$2), selected: _type == category.$2,
                 onTap: () => setState(() => _type = category.$2))),
           ]))),
+        advertisers.maybeWhen(data: (entries) => entries.isEmpty
+          ? const SliverToBoxAdapter()
+          : SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              EbrokerTitleHeader(title: 'تعرّف على المعلنين', onSeeAll: openMap),
+              SingleChildScrollView(scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.symmetric(horizontal: 18.rw(context)),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (var i = 0; i < entries.length; i++) ...[
+                    if (i > 0) SizedBox(width: 8.rw(context)),
+                    EbrokerAdvertiserCard(width: 320.rw(context),
+                      name: entries[i].advertiser.name, identity: entries[i].advertiser.verificationLabel,
+                      rating: entries[i].advertiser.ratingAverage, ratingCount: entries[i].advertiser.ratingCount,
+                      verified: entries[i].advertiser.verificationStatus == 'approved',
+                      onTap: () => context.push('/properties/${entries[i].propertyId}')),
+                  ],
+                ])),
+            ])), orElse: () => const SliverToBoxAdapter()),
         SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'عقارات في صنعاء', onSeeAll: openMap)),
         properties.when(
           loading: () => SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18),

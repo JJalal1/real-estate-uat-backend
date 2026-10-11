@@ -835,6 +835,12 @@
       "source": "app/assets/svg/whatsapp.svg",
       "sha256": "5b77e1447572a5d12134bd63afcd9db2caaa0d387fbb12cfc5123d7333fc212a",
       "bytes": 1019
+    },
+    {
+      "source": "app/assets/fallback_agent_banner.png",
+      "target": "mobile_app/assets/ebroker/images/fallback_agent_banner.png",
+      "bytes": 1502499,
+      "sha256": "e5aa2c9f3cb54f8b1ae867ac6f12dcb98573555ea4a75b03176edb142fa6c646"
     }
   ]
 }

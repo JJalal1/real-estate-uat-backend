@@ -11,6 +11,19 @@ import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_step_button.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_otp_field.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_property_card.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_screen_sections.dart';
+import 'package:real_estate_mobile/features/account/presentation/phone_verification_screen.dart';
+import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'package:real_estate_mobile/features/properties/data/favorites_repository.dart';
+import 'package:real_estate_mobile/features/properties/data/property_market_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_details_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_market_context_card.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_sai_public_line.dart';
+import 'package:real_estate_mobile/features/properties/presentation/favorites_screen.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_gate.dart';
@@ -48,7 +61,7 @@ AuthUser _user({bool verified = false}) => AuthUser.fromJson({
 final _property = PropertyMarker.fromJson({
   'id': 37, 'title': 'منزل للعائلة في حدة', 'display_price': 102000000,
   'price': 100000000, 'currency': 'YER', 'address': 'صنعاء، حدة',
-  'latitude': 15.3694, 'longitude': 44.1910, 'purpose': 'sale',
+  'latitude': 15.3694, 'longitude': 44.1910, 'purpose': 'sale', 'type': 'house',
 });
 
 class _MessagesFixture implements MessageRepository {
@@ -80,9 +93,47 @@ class _MessagesFixture implements MessageRepository {
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
-class _BookingsFixture implements BookingRepository {
+PropertyDetails _details(int id, {int advertiserId = 2, String status = 'published'}) => PropertyDetails.fromJson({
+  'id': id, 'title': 'منزل للعائلة في حدة', 'description': 'عقار عرض تجريبي لاختبار التصميم، ببيانات مصطنعة.',
+  'purpose': 'sale', 'type': 'house', 'status': status, 'display_price': 102000000,
+  'price': 100000000, 'currency': 'YER', 'address': 'صنعاء، حدة',
+  'latitude': 15.3694, 'longitude': 44.1910, 'area_m2': 240,
+  'bedrooms': 4, 'bathrooms': 3, 'has_parking': true,
+  'advertiser': {'id': advertiserId, 'name': 'معلن تجريبي', 'rating_average': 4.5,
+    'rating_count': 8, 'verification_type': 'owner', 'verification_label': 'مالك موثق',
+    'verification_status': 'approved', 'verification_flags': {'identity_verified': true}},
+});
+class _PropertiesFixture implements PropertyRepository {
+  _PropertiesFixture({this.values});
+  final Map<int, PropertyDetails>? values;
+  final requested = <int>[];
   @override
-  Future<List<ViewingBooking>> mine() async => [];
+  Future<PropertyDetails> details(int id) async {
+    requested.add(id);
+    if (values != null) return values![id] ?? (throw StateError('fixture unavailable'));
+    return _details(id);
+  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+ViewingBooking _booking({int id = 42, int threadId = 19, bool canConfirm = true}) => ViewingBooking.fromJson({
+  'id': id, 'reference': 'PREVIEW-$id', 'requester_user_id': 1, 'requester_name': 'طالب تجريبي',
+  'host_user_id': 2, 'host_name': 'معلن تجريبي', 'message_thread_id': threadId,
+  'target_type': 'property', 'target_id': 37, 'target_title': 'منزل تجريبي',
+  'starts_at': '2026-10-20T10:00:00Z', 'ends_at': '2026-10-20T11:00:00Z',
+  'timezone': 'Asia/Aden', 'status': 'requested', 'can_confirm': canConfirm,
+});
+class _BookingsFixture implements BookingRepository {
+  _BookingsFixture({this.items = const []});
+  final List<ViewingBooking> items;
+  final confirmed = <int>[];
+  @override
+  Future<List<ViewingBooking>> mine() async => items;
+  @override
+  Future<ViewingBooking> confirm(int bookingId, {String? note}) async {
+    confirmed.add(bookingId);
+    return items.firstWhere((item) => item.id == bookingId);
+  }
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
@@ -94,17 +145,21 @@ class _AgreementsFixture implements AgreementRepository {
 }
 
 Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
-  GlobalKey? boundary, String initial = '/', _MessagesFixture? messages}) async {
+  GlobalKey? boundary, String initial = '/', _MessagesFixture? messages,
+  _PropertiesFixture? properties, _BookingsFixture? bookings}) async {
   final router = GoRouter(initialLocation: initial, routes: [
     GoRoute(path: '/', builder: (_, __) => const AppShellScreen()),
     GoRoute(path: '/auth', builder: (_, __) => const AuthScreen()),
     GoRoute(path: '/favorites', builder: (_, __) => const Stage6AuthGate(
-      child: Scaffold(body: Text('favorites destination')))),
+      child: FavoritesScreen())),
     GoRoute(path: '/add-property', builder: (_, __) => const Stage6AuthGate(
       requireListingEligible: true, child: Scaffold(body: Text('listing destination')))),
     GoRoute(path: '/messages/:id', builder: (_, state) => ConversationScreen(
       threadId: int.parse(state.pathParameters['id']!))),
     GoRoute(path: '/listing-preview', builder: (_, __) => const ListingEditorScreen()),
+    GoRoute(path: '/properties/:id', builder: (_, state) => PropertyDetailsScreen(
+      propertyId: int.parse(state.pathParameters['id']!))),
+    GoRoute(path: '/verify-phone', builder: (_, __) => const PhoneVerificationScreen()),
   ]);
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(overrides: [
@@ -112,7 +167,13 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     nearbyPropertiesProvider.overrideWith((ref, query) async => [_property]),
     myListingsProvider.overrideWith((ref) async => []),
     messageRepositoryProvider.overrideWithValue(messages ?? _MessagesFixture()),
-    bookingRepositoryProvider.overrideWithValue(_BookingsFixture()),
+    bookingRepositoryProvider.overrideWithValue(bookings ?? _BookingsFixture()),
+    propertyRepositoryProvider.overrideWithValue(properties ?? _PropertiesFixture()),
+    favoritePropertiesProvider.overrideWith((ref) async => [_property]),
+    favoritePropertyIdsProvider.overrideWith((ref) async => <int>{37}),
+    propertySaiPublicProvider.overrideWith((ref, id) async => const PropertySaiEnvelope()),
+    propertyMarketContextProvider.overrideWith((ref, id) async => const PropertyMarketContext(
+      sufficientData: false, sampleCount: 0)),
     agreementRepositoryProvider.overrideWithValue(_AgreementsFixture()),
   ], child: MaterialApp.router(theme: AppTheme.light, routerConfig: router,
     builder: (context, child) => RepaintBoundary(key: boundary,
@@ -156,7 +217,9 @@ void main() {
     for (final entry in {'MaterialIcons': 'MaterialIcons-Regular.otf',
       'Arial': 'Roboto-Regular.ttf', 'sans-serif': 'Roboto-Regular.ttf'}.entries) {
       final data = await File('$dir/${entry.value}').readAsBytes();
-      await (FontLoader(entry.key)..addFont(Future.value(data.buffer.asByteData()))).load();
+      final loader = FontLoader(entry.key)..addFont(Future.value(data.buffer.asByteData()));
+      if (entry.key == 'sans-serif') loader.addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'));
+      await loader.load();
     }
   });
 
@@ -274,16 +337,80 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final page in ['/', '/auth', '/messages/19', '/listing-preview']) {
+  for (final page in ['/', '/auth', '/messages/19', '/listing-preview', '/properties/37', '/favorites', '/verify-phone']) {
     testWidgets('template screen $page supports 320 width and enlarged Arabic', (tester) async {
       _viewport(tester, const Size(320, 640));
-      await _pump(tester, initial: page, scale: 2.4);
+      await _pump(tester, initial: page, scale: 2.4, user: _user());
       expect(tester.takeException(), isNull);
       if (page == '/') {
         await tester.tap(find.text('حسابي'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }
+    });
+  }
+
+  test('home advertisers are bounded, deduplicated and restricted to public results', () async {
+    final properties = _PropertiesFixture(values: {
+      37: _details(37), 38: _details(38), 39: _details(39, status: 'archived'),
+      40: _details(40, advertiserId: 3), 42: _details(42, advertiserId: 4),
+    });
+    final container = ProviderContainer(overrides: [
+      propertyRepositoryProvider.overrideWithValue(properties),
+      nearbyPropertiesProvider.overrideWith((ref, query) async => [
+        for (var id = 37; id <= 42; id++) PropertyMarker.fromJson({'id': id, 'title': 'تجريبي', 'type': 'house'}),
+      ]),
+    ]);
+    addTearDown(container.dispose);
+    final subscription = container.listen(homeAdvertisersProvider(homeDiscoveryQuery), (_, __) {});
+    addTearDown(subscription.close);
+    final entries = await container.read(homeAdvertisersProvider(homeDiscoveryQuery).future);
+    expect(properties.requested, [37, 38, 39, 40, 41]);
+    expect(entries.map((entry) => entry.propertyId), [37, 40]);
+    expect(entries.map((entry) => entry.advertiser.id), [2, 3]);
+  });
+
+  testWidgets('underline OTP retains digit filtering, autofill and submission', (tester) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    String? submitted;
+    await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
+      body: EbrokerOtpField(controller: controller, onSubmitted: (value) => submitted = value))));
+    final field = find.byType(TextField);
+    await tester.enterText(field, '12a34567');
+    await tester.pump();
+    expect(controller.text, '123456');
+    expect(tester.widget<TextField>(field).autofillHints, [AutofillHints.oneTimeCode]);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    expect(submitted, '123456');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('favorite source card opens its original property route', (tester) async {
+    final router = await _pump(tester, initial: '/favorites', user: _user());
+    expect(find.byType(EbrokerPropertyHorizontalCard), findsOneWidget);
+    await tester.tap(find.text(_property.title));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/properties/37');
+    expect(find.byType(EbrokerPropertyHeading), findsOneWidget);
+    expect(find.text('تواصل مع المعلن'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final allowed in [false, true]) {
+    testWidgets('linked viewing action follows server permission canConfirm=$allowed', (tester) async {
+      final bookings = _BookingsFixture(items: [_booking(threadId: 20, id: 41), _booking(canConfirm: allowed)]);
+      await _pump(tester, initial: '/messages/19', bookings: bookings);
+      expect(find.text('طلب معاينة مرتبط بهذه المحادثة'), findsOneWidget);
+      expect(find.text('تأكيد الموعد'), allowed ? findsOneWidget : findsNothing);
+      if (allowed) {
+        await tester.tap(find.text('تأكيد الموعد'));
+        await tester.pumpAndSettle();
+        expect(bookings.confirmed, [42]);
+      } else {
+        expect(bookings.confirmed, isEmpty);
+      }
+      expect(tester.takeException(), isNull);
     });
   }
 
@@ -295,6 +422,9 @@ void main() {
       final key = GlobalKey();
       final router = await _pump(tester, boundary: key, user: _user(verified: true));
       await _capture(tester, key, 'template-home-navigation');
+      await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -260));
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-home-advertisers');
       await tester.tap(find.text('إعلاناتي'));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-my-listings');
@@ -312,6 +442,21 @@ void main() {
       router.push('/messages/19');
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-conversation');
+      router.pop();
+      router.push('/properties/37');
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-property-details');
+      await tester.drag(find.byType(ListView).first, const Offset(0, -650));
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-property-advertiser');
+      router.pop();
+      router.push('/favorites');
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-favorites');
+      router.pop();
+      router.push('/verify-phone');
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-phone-verification');
       expect(tester.takeException(), isNull);
     } finally {
       debugDisableShadows = previousShadows;

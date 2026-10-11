@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../theme/ebroker_design.dart';
 import 'ebroker_widgets.dart';
+import 'ebroker_property_card.dart';
 
 enum AppButtonStyle { filled, tonal, outlined, text }
 
@@ -730,9 +731,9 @@ class AppPropertyPrice extends StatelessWidget {
           TextSpan(
             text: price,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontSize: 16.rf(context),
+                  fontSize: 14.rf(context),
                   color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w700,
                 ),
           ),
           TextSpan(text: ' $currency', style: Theme.of(context).textTheme.labelMedium),
@@ -789,6 +790,7 @@ class AppPropertyCard extends StatelessWidget {
     this.categoryLabel = 'عقار',
     this.unavailable = false,
     this.trailing,
+    this.horizontal = false,
     super.key,
   });
 
@@ -803,9 +805,14 @@ class AppPropertyCard extends StatelessWidget {
   final String categoryLabel;
   final bool unavailable;
   final Widget? trailing;
+  final bool horizontal;
 
   @override
   Widget build(BuildContext context) {
+    if (horizontal) return EbrokerPropertyHorizontalCard(title: title,
+      price: price, currency: currency, onTap: onTap, imageUrl: imageUrl,
+      location: location, purposeLabel: purposeLabel, categoryLabel: categoryLabel,
+      facts: facts, trailing: trailing, unavailable: unavailable);
     return AppSurface(padding: const EdgeInsets.all(8), onTap: onTap,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: BorderRadius.circular(4),
