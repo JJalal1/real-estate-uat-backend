@@ -1,0 +1,210 @@
+{
+  "files_included": 2005,
+  "files_excluded": 25345,
+  "included_by_component": {
+    "app": 785,
+    "web": 603,
+    "admin": 534,
+    "docs": 83
+  },
+  "exclusion_counts": {
+    "packaging-metadata": 2282,
+    "private-runtime-archive-or-compiled-file": 5,
+    "environment-signing-or-service-configuration": 10,
+    "platform-and-environment-not-needed-for-ui-reference": 88,
+    "service-configuration-reference-omitted": 2,
+    "conservative-content-quarantine:literal-sensitive-assignment": 2,
+    "compiled-public-assets-runtime-data-or-seed-credentials": 5967,
+    "conservative-content-quarantine:seeded-password": 1,
+    "dependency-generated-or-local-output": 16710,
+    "documentation-images-and-generated-assets-omitted": 278
+  },
+  "sanitized_bytes": 13170175,
+  "sanitized_sha256": "4d57450d87d471be8758ec3f350e9867ed56f5d46b4b56bb4a8fb3f7c756a0cc",
+  "manifest_sha256": "7277812b70fe8f79b7fc05b00db14b845e24841e0b4134562f5cabdd45eefeeb",
+  "source_index_sha256": "3b38e8ec2b91dc33a072a257d5d8a4f06205e504fe9d255501cd34b62ddd395d",
+  "archives": [
+    {
+      "component": "app",
+      "filename": "eBroker-App-1.8.0.zip",
+      "bytes": 4865845,
+      "sha256": "761422428e76f367a827732cc686ad47966eb81ad3d6cfca917a9ab10fd27b78"
+    },
+    {
+      "component": "web",
+      "filename": "eBroker-Web-v1.8.0.zip",
+      "bytes": 6863314,
+      "sha256": "9b5fdf8ed52d484cc29ac1ea90095eb7e2e4651a85ebf5e6563b83d8eaec09b0"
+    },
+    {
+      "component": "admin",
+      "filename": "Ebroker Admin - 1.8.0 (Fresh Installation).zip",
+      "bytes": 91798206,
+      "sha256": "32b9a36528cd5d845b18ddec23c3b9f165d70552d7c229fd2a1f7b35e4cee429"
+    },
+    {
+      "component": "docs",
+      "filename": "eBroker-Doc.zip",
+      "bytes": 42397218,
+      "sha256": "9d70210fcb2f6d43f995d2d4cb6407eaa9f7cae6b47823096a7ede8a8fa3060f"
+    }
+  ],
+  "raw_outer_archive": {
+    "filename": "eBroker 1.8.0.zip",
+    "bytes": 155343094,
+    "sha256": "86de3f3c25ed3a43897eb0f49a910ff17f75aecba6eb7baebb113dc3d389372c"
+  },
+  "raw_admin_wrapper": {
+    "archive": "Ebroker Admin Panel (1.8.0).zip",
+    "bytes": 102404427,
+    "sha256": "9339652b30076f55291a7ca371aba45435217895d7c755e794896acf277faa88"
+  },
+  "verified_versions": {
+    "app": "1.8.0+88",
+    "template_dart_constraint": "^3.10.0",
+    "web": "1.8.0",
+    "next_constraint": "^16.2.6",
+    "react_constraint": "^19.2.6",
+    "admin_php_constraint": "^8.1.0",
+    "admin_laravel_constraint": "^10.0"
+  },
+  "scope": "inspection and environment preparation only",
+  "github_reference_status": "blocked_by_automatic_approval_review",
+  "planned_github_reference_branch": "reference/ebroker-1.8.0",
+  "github_reference_commit": null,
+  "github_destination": "JJalal1/real-estate-uat-backend",
+  "source_policy": "original bytes retained; whole-file exclusions only; conservative matching may exclude non-secret samples",
+  "selected_source_files": [
+    {
+      "path": "app/pubspec.yaml",
+      "bytes": 3265,
+      "sha256": "281697811a50b64326b6604c6926f0ae474e63cd3d9a2b97e5511900056c76e9"
+    },
+    {
+      "path": "app/pubspec.lock",
+      "bytes": 72664,
+      "sha256": "5fd4017a3970cf86b70e382eceb6032510425ec13870855a2bd96aca83c23dda"
+    },
+    {
+      "path": "app/lib/ui/theme/theme.dart",
+      "bytes": 4409,
+      "sha256": "a90f14b34bcfb0fb33b591ed99b0b2af05327e29c7948bdaf10191432d753b19"
+    },
+    {
+      "path": "app/lib/app/routes.dart",
+      "bytes": 13002,
+      "sha256": "ff21db80dd2a3a2e3ad7fe93968d302a189d1a5c13c9e511b12f331e2c399034"
+    },
+    {
+      "path": "app/lib/ui/screens/home/home_screen.dart",
+      "bytes": 27362,
+      "sha256": "f5e7b703051722ff61f0fa1aa98138c139f1aae8491ca6a560acbde0c81eac7f"
+    },
+    {
+      "path": "app/lib/ui/screens/home/home_sections.dart",
+      "bytes": 3135,
+      "sha256": "7666092c0c9ff054e7d72cedeb6d8004cc58decffd661ded884cb576dd104b75"
+    },
+    {
+      "path": "app/lib/ui/screens/home/widgets/property_card_big.dart",
+      "bytes": 20815,
+      "sha256": "bad09b3c2e2e173fe847f3dbe2f3a4b9f03512431f43321f697f990f740c4400"
+    },
+    {
+      "path": "app/lib/ui/screens/home/widgets/property_horizontal_card.dart",
+      "bytes": 16427,
+      "sha256": "689bb2fd58fcedd36b51ab2d5c1543cca83552c73699743f100b03ccff5246f9"
+    },
+    {
+      "path": "app/lib/ui/screens/proprties/property_details/property_details_screen.dart",
+      "bytes": 52376,
+      "sha256": "8f885cd384eb334e85c2be6d21e850ce3958171373c77060e49e2d5ea3ee2485"
+    },
+    {
+      "path": "app/lib/ui/screens/proprties/widgets/property_gallery.dart",
+      "bytes": 9271,
+      "sha256": "6124118379a8cea118d6f32166535e17a8851ee16e9c5979216fd8eae918727b"
+    },
+    {
+      "path": "app/lib/ui/screens/filter_screen.dart",
+      "bytes": 60830,
+      "sha256": "fc4470d6db62c089dc77aceeb720d7dd5c17bd765018c4c6f14ad7b85224f9f3"
+    },
+    {
+      "path": "app/lib/ui/screens/home/search_screen.dart",
+      "bytes": 7262,
+      "sha256": "d5bc085583920d67abad060eb6f25457ace3745f44a971631a798381ffa462e2"
+    },
+    {
+      "path": "app/lib/ui/screens/favorites_screen.dart",
+      "bytes": 4372,
+      "sha256": "01fc7afa92188c4aa5fefe7a5b686426b9359859a93d9dda0a1eb8014af6e84e"
+    },
+    {
+      "path": "app/lib/ui/screens/auth/login_screen.dart",
+      "bytes": 58221,
+      "sha256": "cb083462e4bd453ded9d70f5d83b05199235caf2cdad087e456ba1728d949996"
+    },
+    {
+      "path": "app/lib/ui/screens/profile/profile_screen.dart",
+      "bytes": 10811,
+      "sha256": "e247eff8050d2c0a30b527e640c759c5d394cd717a69e452335b3889fd7336a5"
+    },
+    {
+      "path": "app/lib/ui/screens/proprties/add_property/add_property_screen.dart",
+      "bytes": 20356,
+      "sha256": "db0fe3b4ba20c1cd2d1b8ff87ec50f15ed1f3e0fbab8b508005700eb2ea948ef"
+    },
+    {
+      "path": "app/lib/ui/screens/chat/chat_screen.dart",
+      "bytes": 26430,
+      "sha256": "bd14939ac01b33634f7d986c3b9464a1839156152fa4aadea9787189c523ec1f"
+    },
+    {
+      "path": "app/lib/ui/screens/chat/widgets/chat_contact_actions.dart",
+      "bytes": 6190,
+      "sha256": "798fd5430e6510759d8c11d84c459b6b60d76a07908500c9852480a414d0c98f"
+    },
+    {
+      "path": "app/lib/ui/screens/proprties/widgets/property_contact_buttons.dart",
+      "bytes": 6276,
+      "sha256": "e2dd2a39a6d28e29ff8b76741c4e53b7ea6999a7f323a2177aaa6c6aaf51bce4"
+    },
+    {
+      "path": "admin/composer.json",
+      "bytes": 3386,
+      "sha256": "e4a03109330ca9ae42899e608fb7accf21c18797ecf261b165cb017364d0676e"
+    },
+    {
+      "path": "web/package.json",
+      "bytes": 3463,
+      "sha256": "21afc960a25a559f3cb6772c944b96bb316dfc1ad6c807fcb694ca906697b349"
+    }
+  ],
+  "privacy_checks": {
+    "destination_repository": "JJalal1/real-estate-uat-backend",
+    "destination_visibility_verified": "private",
+    "scope": "existing authorized V3 preparation; separate inspect-only template reference",
+    "certificate_excluded": true,
+    "purchase_code_extracted_without_disclosure": true,
+    "purchase_code_occurrences_in_retained_entries": 0,
+    "certificate_licensee_occurrences_in_retained_entries": 0,
+    "forbidden_paths_in_retained_entries": 0,
+    "known_secret_pattern_matches_in_retained_entries": 0,
+    "retained_source_file_count": 2005,
+    "all_retained_source_bytes_match_supplied_archives": true,
+    "sanitized_archive_sha256": "4d57450d87d471be8758ec3f350e9867ed56f5d46b4b56bb4a8fb3f7c756a0cc",
+    "original_or_v3_app_files_changed": false,
+    "build_installer_or_activation_executed": false,
+    "raw_original_archive_stays_with_supplied_attachment": true,
+    "scan_limit": "pattern and exact-certificate-value checks; not a guarantee against every possible secret"
+  },
+  "upload_transport": {
+    "planned_part_count": 26,
+    "part_bytes": 524288,
+    "encoding": "base64 transport into binary Git blobs; not encryption"
+  },
+  "no_installer_or_template_build_executed": true,
+  "no_application_source_changes": true,
+  "no_render_or_supabase_changes": true
+}
