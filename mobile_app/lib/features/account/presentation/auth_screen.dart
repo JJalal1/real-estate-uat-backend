@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/theme/ebroker_design.dart';
 import '../data/auth_controller.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -32,54 +34,39 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(title: const Text('تسجيل الدخول أو إنشاء حساب')),
-        body: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const Icon(Icons.home_work_outlined, size: 72),
-            const SizedBox(height: 18),
-            Text(
-              'حساب واحد للجميع',
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'أدخل رقم واتساب. إذا كان لديك حساب سنسجل دخولك، وإذا كان الرقم جديدًا سننشئ حسابًا أساسيًا كباحث أو متصفح أو مشتري.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _phone,
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.done,
-              onSubmitted: _busy ? null : (_) => _submit(),
-              decoration: const InputDecoration(
-                labelText: 'رقم واتساب',
-                hintText: '+9677xxxxxxxx',
-                prefixIcon: Icon(Icons.chat_outlined),
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'سيتم إرسال رمز تحقق مكوّن من 6 أرقام عبر واتساب. الحساب الجديد سيُطلب منه إدخال الاسم الرباعي بعد التحقق.',
-              style: TextStyle(color: Colors.black54),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: _busy ? null : _submit,
-              icon: _busy
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.mark_chat_read_outlined),
-              label: const Text('إرسال رمز واتساب'),
-            ),
-          ],
+        backgroundColor: EbrokerDesign.page,
+        body: LayoutBuilder(builder: (context, constraints) => SingleChildScrollView(
+          child: Column(children: [
+            SizedBox(height: (constraints.maxHeight * 0.25).clamp(60.0, 240.0),
+              child: Center(child: EbrokerImage('home_active', size: 72,
+                color: Theme.of(context).colorScheme.primary))),
+            Container(width: double.infinity, constraints: const BoxConstraints(minHeight: 400),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              decoration: const BoxDecoration(color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+              child: Column(children: [
+                const SizedBox(height: 32),
+                const EbrokerText('تسجيل الدخول أو إنشاء حساب', size: 24, weight: FontWeight.w700, align: TextAlign.center),
+                const SizedBox(height: 20), const Divider(height: 1), const SizedBox(height: 20),
+                const EbrokerText('حساب واحد للجميع', size: 16, weight: FontWeight.w500, align: TextAlign.center),
+                const SizedBox(height: 4),
+                const EbrokerText('أدخل رقم واتساب للمتابعة بحسابك أو إنشاء حساب أساسي جديد.',
+                  size: 14, color: EbrokerDesign.textLight, align: TextAlign.center),
+                const SizedBox(height: 20),
+                TextField(controller: _phone, keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.done, onSubmitted: _busy ? null : (_) => _submit(),
+                  textDirection: TextDirection.ltr,
+                  decoration: const InputDecoration(hintText: '+9677xxxxxxxx',
+                    prefixIcon: Padding(padding: EdgeInsets.all(12), child: EbrokerImage('call', size: 24)))),
+                const SizedBox(height: 10),
+                const EbrokerText('سيتم إرسال رمز تحقق مكوّن من 6 أرقام عبر واتساب. الحساب الجديد سيُطلب منه إدخال الاسم الرباعي بعد التحقق.',
+                  size: 12, color: EbrokerDesign.textLight),
+                const SizedBox(height: 20),
+                EbrokerButton(onPressed: _submit, loading: _busy, expand: true,
+                  child: const Text('إرسال رمز واتساب')),
+                const SizedBox(height: 32),
+              ])),
+          ])),
         ),
       ),
     );

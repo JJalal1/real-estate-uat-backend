@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/theme/ebroker_design.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -41,14 +43,17 @@ class AccountScreen extends ConsumerWidget {
               children: [
                 _ProfileHeader(user: user),
                 const SizedBox(height: AppSpacing.s16),
-                if (user == null)
+                if (user == null) ...[
+                  AppListRow(title: 'المفضلة', leading: const EbrokerImage('heart'),
+                    onTap: () => context.push('/favorites')),
+                  const SizedBox(height: 12),
                   AppButton(
                     label: 'تسجيل الدخول أو إنشاء حساب',
                     icon: Icons.login,
                     onPressed: () => context.push('/auth'),
                     expand: true,
-                  )
-                else ...[
+                  ),
+                ] else ...[
                   if (!user.isActive) ...[
                     AppInlineMessage(
                       title: 'الحساب يحتاج تحقق الهاتف',
@@ -63,7 +68,7 @@ class AccountScreen extends ConsumerWidget {
                       child: const AppListRow(
                         title: 'أكمل الاسم الرباعي',
                         subtitle: 'أكمل بيانات الحساب الأساسية.',
-                        leading: Icon(Icons.edit_outlined),
+                        leading: EbrokerIcon(Icons.edit_outlined),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.s12),
@@ -126,7 +131,7 @@ class AccountScreen extends ConsumerWidget {
                             : user.verificationProfile.status == 'pending'
                                 ? 'طلب التحقق قيد المراجعة من فريق الدعم.'
                                 : 'تحقق كمالك أو دلال أو مكتب عقارات عندما تحتاج إلى النشر.',
-                        leading: Icon(
+                        leading: EbrokerIcon(
                           user.isOwner
                               ? Icons.home_work_outlined
                               : user.isBroker
@@ -220,18 +225,17 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsetsDirectional.all(AppSpacing.s20),
+      padding: const EdgeInsetsDirectional.all(12),
       decoration: BoxDecoration(
-        color: scheme.primaryContainer,
-        borderRadius: BorderRadius.circular(AppRadii.card),
+        color: Colors.white,
+        border: Border.all(color: EbrokerDesign.border, width: 1.5),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: scheme.surface,
-            child: Icon(Icons.person_outline, size: 32, color: scheme.primary),
-          ),
+          Container(width: 56, height: 56, alignment: Alignment.center,
+            decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(8)),
+            child: EbrokerImage('defaultProfileIcon', size: 40, color: scheme.primary)),
           const SizedBox(width: AppSpacing.s12),
           Expanded(
             child: Column(
@@ -275,10 +279,10 @@ class _AccountGroup extends StatelessWidget {
             children: [
               AppListRow(
                 title: row.title,
-                leading: Icon(row.icon),
+                leading: EbrokerIcon(row.icon),
                 onTap: row.onTap,
               ),
-              if (index != rows.length - 1) const Divider(height: 1),
+              if (index != rows.length - 1) const SizedBox(height: 4),
             ],
           );
         }),

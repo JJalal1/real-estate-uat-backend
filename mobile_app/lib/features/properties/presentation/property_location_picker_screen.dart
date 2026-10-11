@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
@@ -268,7 +269,7 @@ class _PropertyLocationPickerScreenState
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.location_on_rounded,
+                            const EbrokerIcon(Icons.location_on_rounded,
                                 color: AppTheme.brand),
                             const SizedBox(width: 10),
                             Expanded(
@@ -277,7 +278,7 @@ class _PropertyLocationPickerScreenState
                                     ? 'اسحب الدبوس إلى العقار، أو حرّك الخريطة ليعود الدبوس إلى المنتصف.'
                                     : 'جارٍ تحميل الخريطة…',
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
@@ -292,7 +293,7 @@ class _PropertyLocationPickerScreenState
                     left: pin.dx - 24,
                     top: pin.dy - 24,
                     child: IgnorePointer(
-                      child: Icon(
+                      child: EbrokerIcon(
                         Icons.center_focus_strong,
                         size: 48,
                         color: AppTheme.brand.withValues(alpha: 0.38),
@@ -324,7 +325,7 @@ class _PropertyLocationPickerScreenState
                         ),
                         child: const Padding(
                           padding: EdgeInsets.only(top: 5),
-                          child: Icon(
+                          child: EbrokerIcon(
                             Icons.location_on_rounded,
                             size: 52,
                             color: Color(0xFFD84332),
@@ -341,7 +342,7 @@ class _PropertyLocationPickerScreenState
                     heroTag: 'property-picker-current-location',
                     tooltip: 'موقعي الحالي',
                     onPressed: _styleLoaded ? _moveToCurrentLocation : null,
-                    child: const Icon(Icons.my_location_rounded),
+                    child: const EbrokerIcon(Icons.my_location_rounded),
                   ),
                 ),
                 PositionedDirectional(
@@ -373,7 +374,7 @@ class _PropertyLocationPickerScreenState
                                 'بعد التأكيد سنحاول تعبئة المحافظة والحي والشارع تلقائياً، ويمكنك تعديلها.',
                                 textAlign: TextAlign.center,
                               ),
-                            FilledButton.icon(
+                            EbrokerFilledButton.icon(
                               onPressed:
                                   _styleLoaded && !_resolving ? _confirm : null,
                               icon: _resolving
@@ -383,7 +384,7 @@ class _PropertyLocationPickerScreenState
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : const Icon(Icons.check_circle_outline),
+                                  : const EbrokerIcon(Icons.check_circle_outline),
                               label: Padding(
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 12),

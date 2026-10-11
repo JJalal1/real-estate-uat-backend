@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -56,7 +57,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
           actions: [
             IconButton(
                 onPressed: _busy ? null : _load,
-                icon: const Icon(Icons.refresh))
+                icon: const EbrokerIcon(Icons.refresh))
           ],
         ),
         body: _loading
@@ -87,7 +88,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w900)),
+                        ?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 10),
                 _row(deal.isRent ? 'قيمة المقدم' : 'قيمة الصفقة النهائية',
                     _money(deal.baseAmount, deal.currency)),
@@ -137,11 +138,11 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Row(children: [
-                  Icon(Icons.handshake_outlined),
+                  EbrokerIcon(Icons.handshake_outlined),
                   SizedBox(width: 8),
                   Expanded(
                       child: Text('الدفع المباشر بين الطرفين',
-                          style: TextStyle(fontWeight: FontWeight.w900)))
+                          style: TextStyle(fontWeight: FontWeight.w600)))
                 ]),
                 const SizedBox(height: 8),
                 const Text(
@@ -149,9 +150,9 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
+                  child: EbrokerOutlinedButton.icon(
                     onPressed: _busy ? null : _confirmDirect,
-                    icon: const Icon(Icons.verified_outlined),
+                    icon: const EbrokerIcon(Icons.verified_outlined),
                     label: const Text('أؤكد أن الدفع تم مباشرة'),
                   ),
                 ),
@@ -165,7 +166,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w900)),
+                  ?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ...deal.payments.map((payment) => _paymentCard(deal, payment)),
         ],
@@ -184,7 +185,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              Icon(confirmed
+              EbrokerIcon(confirmed
                   ? Icons.check_circle_outline
                   : pendingReview
                       ? Icons.hourglass_top
@@ -192,7 +193,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(payment.statusLabel,
-                    style: const TextStyle(fontWeight: FontWeight.w900)),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
               ),
             ]),
             const SizedBox(height: 8),
@@ -226,7 +227,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.tonal(
+                child: EbrokerFilledButton.tonal(
                   onPressed: _busy
                       ? null
                       : () => _showTransferDetails(
@@ -256,11 +257,11 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Icon(icon),
+                EbrokerIcon(icon),
                 const SizedBox(width: 8),
                 Expanded(
                     child: Text(title,
-                        style: const TextStyle(fontWeight: FontWeight.w900)))
+                        style: const TextStyle(fontWeight: FontWeight.w600)))
               ]),
               const SizedBox(height: 6),
               Text(subtitle),
@@ -269,11 +270,11 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                   style: Theme.of(context)
                       .textTheme
                       .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w900)),
+                      ?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: 10),
               SizedBox(
                   width: double.infinity,
-                  child: FilledButton(
+                  child: EbrokerFilledButton(
                       onPressed: _busy ? null : onTap,
                       child: const Text('اختيار طريقة الدفع'))),
             ],
@@ -299,7 +300,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w900)),
+                        ?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 Text('المبلغ المطلوب: ${_money(amount, deal.currency)}'),
                 const SizedBox(height: 12),
@@ -318,7 +319,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                     leading: _methodLogo(method),
                     title: Text(method.name),
                     subtitle: enabled ? null : Text(reason ?? 'غير متاح'),
-                    trailing: const Icon(Icons.chevron_left),
+                    trailing: const EbrokerIcon(Icons.chevron_left),
                     onTap:
                         enabled ? () => Navigator.pop(context, method) : null,
                   );
@@ -379,11 +380,11 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     'أنت على وشك تحويل ${_amountOnly(payment.amount)} ريال لهذه الصفقة. لا تحول إلى أي رقم آخر يرسله لك شخص عبر المحادثات. بيانات الدفع المعتمدة تظهر في هذه الصفحة فقط.',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -406,9 +407,9 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('إلغاء')),
-            FilledButton.icon(
+            EbrokerFilledButton.icon(
               onPressed: () => Navigator.pop(dialogContext, true),
-              icon: const Icon(Icons.check_circle_outline),
+              icon: const EbrokerIcon(Icons.check_circle_outline),
               label: const Text('لقد أتممت التحويل'),
             ),
           ],
@@ -441,7 +442,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                   InputDecorator(
                     decoration: const InputDecoration(labelText: 'المبلغ'),
                     child: Text(_money(payment.amount, payment.currency),
-                        style: const TextStyle(fontWeight: FontWeight.w900)),
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -462,7 +463,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                             : 'رقم العملية أو الحوالة (إن وجد)'),
                   ),
                   const SizedBox(height: 12),
-                  OutlinedButton.icon(
+                  EbrokerOutlinedButton.icon(
                     onPressed: () async {
                       final paths =
                           await const Stage5MediaPicker().pickImages();
@@ -470,7 +471,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                         setDialogState(() => pickedPath = paths.first);
                       }
                     },
-                    icon: Icon(pickedPath == null
+                    icon: EbrokerIcon(pickedPath == null
                         ? Icons.add_photo_alternate_outlined
                         : Icons.check_circle_outline),
                     label: Text(pickedPath == null
@@ -484,7 +485,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
               TextButton(
                   onPressed: () => Navigator.pop(dialogContext, false),
                   child: const Text('لاحقًا')),
-              FilledButton(
+              EbrokerFilledButton(
                 onPressed: pickedPath == null ||
                         (method.requiresSenderPhone &&
                             phone.text.trim().isEmpty) ||
@@ -544,7 +545,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('رجوع')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('نعم، أؤكد')),
           ],
@@ -583,7 +584,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
       return SizedBox(
           width: size,
           height: size,
-          child: const Icon(Icons.send_to_mobile_outlined));
+          child: const EbrokerIcon(Icons.send_to_mobile_outlined));
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(9),
@@ -592,7 +593,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
           errorBuilder: (_, __, ___) => SizedBox(
               width: size,
               height: size,
-              child: const Icon(Icons.account_balance_wallet_outlined))),
+              child: const EbrokerIcon(Icons.account_balance_wallet_outlined))),
     );
   }
 
@@ -605,7 +606,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
               await Clipboard.setData(ClipboardData(text: value));
               if (mounted) _message('تم النسخ');
             },
-            icon: const Icon(Icons.copy, size: 18),
+            icon: const EbrokerIcon(Icons.copy, size: 18),
             label: Text(action),
           ),
         ],

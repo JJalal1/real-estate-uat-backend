@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -93,7 +94,7 @@ class _ReceivablePaymentScreenState
                                   style: Theme.of(context)
                                       .textTheme
                                       .headlineSmall
-                                      ?.copyWith(fontWeight: FontWeight.w900),
+                                      ?.copyWith(fontWeight: FontWeight.w600),
                                 ),
                                 const SizedBox(height: 4),
                                 const Text(
@@ -107,7 +108,7 @@ class _ReceivablePaymentScreenState
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w900)),
+                                ?.copyWith(fontWeight: FontWeight.w600)),
                         const SizedBox(height: 8),
                         ...?_deal?.paymentMethods.map((method) {
                           final enabled = method.available && method.allowsSaiOnly;
@@ -120,7 +121,7 @@ class _ReceivablePaymentScreenState
                                   ? null
                                   : Text(method.unavailableReason ??
                                       'غير متاحة لسداد مستحق المنصة.'),
-                              trailing: const Icon(Icons.chevron_left),
+                              trailing: const EbrokerIcon(Icons.chevron_left),
                               onTap: enabled && !_busy
                                   ? () => _start(method)
                                   : null,
@@ -173,11 +174,11 @@ class _ReceivablePaymentScreenState
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     'أنت على وشك تحويل ${_amount(payment.amount)} ريال لهذه الصفقة. لا تحول إلى أي رقم آخر يرسله لك شخص عبر المحادثات. بيانات الدفع المعتمدة تظهر في هذه الصفحة فقط.',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -198,7 +199,7 @@ class _ReceivablePaymentScreenState
             TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('إلغاء')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('لقد أتممت التحويل')),
           ],
@@ -230,7 +231,7 @@ class _ReceivablePaymentScreenState
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: Text(_money(payment.amount, payment.currency),
-                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                   TextField(
@@ -248,13 +249,13 @@ class _ReceivablePaymentScreenState
                       decoration: const InputDecoration(
                           labelText: 'رقم العملية أو الحوالة (إن وجد)')),
                   const SizedBox(height: 10),
-                  OutlinedButton.icon(
+                  EbrokerOutlinedButton.icon(
                     onPressed: () async {
                       final files =
                           await const Stage5MediaPicker().pickImages();
                       if (files.isNotEmpty) setLocal(() => proof = files.first);
                     },
-                    icon: Icon(proof == null
+                    icon: EbrokerIcon(proof == null
                         ? Icons.add_photo_alternate_outlined
                         : Icons.check_circle_outline),
                     label: Text(proof == null
@@ -268,7 +269,7 @@ class _ReceivablePaymentScreenState
               TextButton(
                   onPressed: () => Navigator.pop(dialogContext, false),
                   child: const Text('لاحقًا')),
-              FilledButton(
+              EbrokerFilledButton(
                   onPressed: proof == null
                       ? null
                       : () => Navigator.pop(dialogContext, true),
@@ -311,7 +312,7 @@ class _ReceivablePaymentScreenState
             await Clipboard.setData(ClipboardData(text: value));
             if (mounted) _message('تم النسخ');
           },
-          icon: const Icon(Icons.copy, size: 18),
+          icon: const EbrokerIcon(Icons.copy, size: 18),
           label: Text(action),
         ),
       ]);
@@ -322,7 +323,7 @@ class _ReceivablePaymentScreenState
       return SizedBox(
           width: size,
           height: size,
-          child: const Icon(Icons.send_to_mobile_outlined));
+          child: const EbrokerIcon(Icons.send_to_mobile_outlined));
     }
     return Image.asset(path,
         width: size,
@@ -331,7 +332,7 @@ class _ReceivablePaymentScreenState
         errorBuilder: (_, __, ___) => SizedBox(
             width: size,
             height: size,
-            child: const Icon(Icons.account_balance_wallet_outlined)));
+            child: const EbrokerIcon(Icons.account_balance_wallet_outlined)));
   }
 
   String _amount(double value) =>

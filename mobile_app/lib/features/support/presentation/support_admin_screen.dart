@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -96,7 +97,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
             actions: [
               IconButton(
                   onPressed: _loading ? null : _load,
-                  icon: const Icon(Icons.refresh))
+                  icon: const EbrokerIcon(Icons.refresh))
             ]),
         body: _loading && _summary == null
             ? const Center(child: CircularProgressIndicator())
@@ -121,18 +122,18 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                                   title: Text('لا توجد حالات مطابقة.'))),
                         ..._items.map((item) => Card(
                                 child: ListTile(
-                              leading: Icon(item.kind == 'report'
+                              leading: EbrokerIcon(item.kind == 'report'
                                   ? Icons.report_outlined
                                   : Icons.support_agent_outlined),
                               title: Text(item.subject,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w800)),
+                                      fontWeight: FontWeight.w700)),
                               subtitle: Text(
                                   '${item.reference}\n${_statusLabel(item.status)} • ${_priorityLabel(item.priority)}${item.assignedToName == null ? '' : ' • ${item.assignedToName}'}'),
                               isThreeLine: true,
                               trailing: item.isEscalated
-                                  ? const Icon(Icons.priority_high)
-                                  : const Icon(Icons.chevron_left),
+                                  ? const EbrokerIcon(Icons.priority_high)
+                                  : const EbrokerIcon(Icons.chevron_left),
                               onTap: () => _openCase(item.id,
                                   canReassign: canReassign,
                                   canReopen: canReopen,
@@ -284,7 +285,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                               children: [
                             Text(details.summary.subject,
                                 style: const TextStyle(
-                                    fontSize: 17, fontWeight: FontWeight.w900)),
+                                    fontSize: 17, fontWeight: FontWeight.w600)),
                             const SizedBox(height: 6),
                             Text(
                                 'الحالة: ${_statusLabel(details.summary.status)} • الأولوية: ${_priorityLabel(details.summary.priority)}'),
@@ -300,7 +301,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                               Text(
                                   'سبب البلاغ: ${details.summary.reasonCode ?? '-'}',
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w900)),
+                                      fontWeight: FontWeight.w600)),
                               if (details.targetPreview != null)
                                 _TargetPreview(data: details.targetPreview!),
                             ],
@@ -311,7 +312,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w900)),
+                                    ?.copyWith(fontWeight: FontWeight.w600)),
                             ...details.messages.map((m) => Card(
                                 color: m.isInternal
                                     ? Theme.of(context)
@@ -322,7 +323,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                                   title: Text(
                                       '${m.actorName ?? 'النظام'}${m.isInternal ? ' • ملاحظة داخلية' : ''}',
                                       style: const TextStyle(
-                                          fontWeight: FontWeight.w800)),
+                                          fontWeight: FontWeight.w700)),
                                   subtitle: Text(m.body),
                                 ))),
                             if (details.events.isNotEmpty) ...[
@@ -331,10 +332,10 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w900)),
+                                      ?.copyWith(fontWeight: FontWeight.w600)),
                               ...details.events.map((e) => ListTile(
                                   dense: true,
-                                  leading: const Icon(Icons.history),
+                                  leading: const EbrokerIcon(Icons.history),
                                   title: Text(_eventLabel(e.event)),
                                   subtitle: Text([
                                     if (e.actorName != null) e.actorName!,
@@ -502,7 +503,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                             padding: EdgeInsets.symmetric(horizontal: 8),
                             child: Text('تغيير الحالة')),
                       ),
-                    FilledButton(
+                    EbrokerFilledButton(
                         onPressed: () => Navigator.pop(dialogContext),
                         child: const Text('إغلاق')),
                   ],
@@ -560,7 +561,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                 TextButton(
                     onPressed: () => Navigator.pop(dialogContext),
                     child: const Text('إلغاء')),
-                FilledButton(
+                EbrokerFilledButton(
                     onPressed: () {
                       final value = controller.text.trim();
                       if (value.isNotEmpty) {

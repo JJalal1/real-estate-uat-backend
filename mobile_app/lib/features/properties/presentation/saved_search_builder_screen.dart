@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -118,7 +119,7 @@ class _SavedSearchBuilderScreenState
               decoration: const InputDecoration(
                 labelText: 'اسم البحث',
                 hintText: 'مثال: شقة غرفتين في صنعاء',
-                prefixIcon: Icon(Icons.bookmark_add_outlined),
+                prefixIcon: EbrokerIcon(Icons.bookmark_add_outlined),
               ),
             ),
             const SizedBox(height: AppSpacing.s12),
@@ -127,12 +128,12 @@ class _SavedSearchBuilderScreenState
                 ButtonSegment(
                   value: 'sale',
                   label: Text('شراء'),
-                  icon: Icon(Icons.sell_outlined),
+                  icon: EbrokerIcon(Icons.sell_outlined),
                 ),
                 ButtonSegment(
                   value: 'rent',
                   label: Text('إيجار'),
-                  icon: Icon(Icons.key_outlined),
+                  icon: EbrokerIcon(Icons.key_outlined),
                 ),
               ],
               selected: _purpose == null ? const <String>{} : {_purpose!},
@@ -161,7 +162,7 @@ class _SavedSearchBuilderScreenState
               decoration: const InputDecoration(
                 labelText: 'كلمات البحث (اختياري)',
                 hintText: 'حي، شارع، وصف...',
-                prefixIcon: Icon(Icons.search_rounded),
+                prefixIcon: EbrokerIcon(Icons.search_rounded),
               ),
             ),
             const SizedBox(height: AppSpacing.s20),
@@ -253,7 +254,7 @@ class _SavedSearchBuilderScreenState
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
+                    EbrokerIcon(
                       Icons.location_on_outlined,
                       color: Theme.of(context).colorScheme.primary,
                     ),
@@ -269,7 +270,7 @@ class _SavedSearchBuilderScreenState
                           const SizedBox(height: AppSpacing.s8),
                           TextButton.icon(
                             onPressed: _removeLocationFilter,
-                            icon: const Icon(Icons.location_off_outlined),
+                            icon: const EbrokerIcon(Icons.location_off_outlined),
                             label: const Text('إزالة قيد الموقع'),
                           ),
                         ],

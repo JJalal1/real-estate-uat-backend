@@ -1,0 +1,255 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/widgets/app_components.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
+import 'package:real_estate_mobile/features/account/presentation/auth_gate.dart';
+import 'package:real_estate_mobile/features/account/presentation/auth_screen.dart';
+import 'package:real_estate_mobile/features/agreements/data/agreement_repository.dart';
+import 'package:real_estate_mobile/features/agreements/domain/agreement_models.dart';
+import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
+import 'package:real_estate_mobile/features/bookings/data/booking_repository.dart';
+import 'package:real_estate_mobile/features/bookings/domain/booking_models.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
+import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
+import 'package:real_estate_mobile/features/messages/data/message_repository.dart';
+import 'package:real_estate_mobile/features/messages/domain/message_models.dart';
+import 'package:real_estate_mobile/features/messages/presentation/conversation_screen.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
+import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
+
+class _AuthFixture extends AuthController {
+  _AuthFixture(this.user);
+  final AuthUser? user;
+  @override
+  Future<AuthUser?> build() async => user;
+}
+
+AuthUser _user({bool verified = false}) => AuthUser.fromJson({
+  'id': 1, 'name': 'حساب عرض تجريبي', 'phone': '+967700000000',
+  'account_status': 'active', 'phone_verified_at': '2026-10-11T00:00:00Z',
+  'profile_completed_at': '2026-10-11T00:00:00Z',
+  if (verified) 'verification_profile': {
+    'type': 'owner', 'status': 'approved', 'reviewed_at': '2026-10-11T00:00:00Z',
+  },
+});
+
+final _property = PropertyMarker.fromJson({
+  'id': 37, 'title': 'منزل للعائلة في حدة', 'display_price': 102000000,
+  'price': 100000000, 'currency': 'YER', 'address': 'صنعاء، حدة',
+  'latitude': 15.3694, 'longitude': 44.1910, 'purpose': 'sale',
+});
+
+class _MessagesFixture implements MessageRepository {
+  final sent = <String>[];
+  @override
+  Future<MessageThreadDetails> details(int threadId, {int? beforeId}) async =>
+    MessageThreadDetails.fromJson({
+      'thread': {'id': threadId, 'property_id': 37, 'property_status': 'published',
+        'property_title': _property.title, 'other_user': {'id': 2, 'name': 'المعلن'}},
+      'messages': [
+        {'id': 1, 'sender_user_id': 2, 'sender_name': 'المعلن',
+          'body': 'مرحباً، كيف أستطيع مساعدتك؟', 'is_mine': false},
+        {'id': 2, 'sender_user_id': 1, 'sender_name': 'أنت',
+          'body': 'أرغب بمعرفة تفاصيل العقار.', 'is_mine': true},
+        for (var i = 0; i < sent.length; i++)
+          {'id': i + 3, 'sender_user_id': 1, 'sender_name': 'أنت',
+            'body': sent[i], 'is_mine': true},
+      ],
+    });
+  @override
+  Future<PrivateMessageItem> send(int threadId, String body, {String? clientMessageId}) async {
+    sent.add(body);
+    return PrivateMessageItem(id: 3, senderUserId: 1, senderName: 'أنت',
+      body: body, isMine: true, clientMessageId: clientMessageId);
+  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _BookingsFixture implements BookingRepository {
+  @override
+  Future<List<ViewingBooking>> mine() async => [];
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+class _AgreementsFixture implements AgreementRepository {
+  @override
+  Future<List<PropertyAgreement>> mine() async => [];
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
+  GlobalKey? boundary, String initial = '/', _MessagesFixture? messages}) async {
+  final router = GoRouter(initialLocation: initial, routes: [
+    GoRoute(path: '/', builder: (_, __) => const AppShellScreen()),
+    GoRoute(path: '/auth', builder: (_, __) => const AuthScreen()),
+    GoRoute(path: '/favorites', builder: (_, __) => const Stage6AuthGate(
+      child: Scaffold(body: Text('favorites destination')))),
+    GoRoute(path: '/add-property', builder: (_, __) => const Stage6AuthGate(
+      requireListingEligible: true, child: Scaffold(body: Text('listing destination')))),
+    GoRoute(path: '/messages/:id', builder: (_, state) => ConversationScreen(
+      threadId: int.parse(state.pathParameters['id']!))),
+  ]);
+  addTearDown(router.dispose);
+  await tester.pumpWidget(ProviderScope(overrides: [
+    authControllerProvider.overrideWith(() => _AuthFixture(user)),
+    nearbyPropertiesProvider.overrideWith((ref, query) async => [_property]),
+    myListingsProvider.overrideWith((ref) async => []),
+    messageRepositoryProvider.overrideWithValue(messages ?? _MessagesFixture()),
+    bookingRepositoryProvider.overrideWithValue(_BookingsFixture()),
+    agreementRepositoryProvider.overrideWithValue(_AgreementsFixture()),
+  ], child: MaterialApp.router(theme: AppTheme.light, routerConfig: router,
+    builder: (context, child) => RepaintBoundary(key: boundary,
+      child: MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+        child: Directionality(textDirection: TextDirection.rtl, child: child!))))));
+  await tester.pumpAndSettle();
+  return router;
+}
+
+void _viewport(WidgetTester tester, Size size) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = size;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
+  final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 2);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    final file = File('build/v3-preview/$name.png');
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(data!.buffer.asUint8List());
+    image.dispose();
+  });
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() async {
+    for (final entry in {'NotoSansArabic': 'assets/fonts/NotoSansArabic',
+      'PrimaryFont': 'assets/ebroker/fonts/Manrope'}.entries) {
+      final loader = FontLoader(entry.key);
+      for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold']) {
+        loader.addFont(rootBundle.load('${entry.value}-$weight.ttf'));
+      }
+      await loader.load();
+    }
+    final dir = '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts';
+    for (final entry in {'MaterialIcons': 'MaterialIcons-Regular.otf',
+      'Arial': 'Roboto-Regular.ttf', 'sans-serif': 'Roboto-Regular.ttf'}.entries) {
+      final data = await File('$dir/${entry.value}').readAsBytes();
+      await (FontLoader(entry.key)..addFont(Future.value(data.buffer.asByteData()))).load();
+    }
+  });
+
+  testWidgets('template button retains MaterialButton, 56 height, 4 corners and loading lock', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
+      body: EbrokerButton(onPressed: () => taps++, child: const Text('متابعة')))));
+    final material = tester.widget<MaterialButton>(find.byType(MaterialButton));
+    expect(material.height, 56);
+    expect(material.elevation, 0.5);
+    expect((material.shape! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(4));
+    await tester.tap(find.text('متابعة'));
+    expect(taps, 1);
+    await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
+      body: EbrokerButton(onPressed: () => taps++, loading: true, child: const Text('متابعة')))));
+    expect(tester.widget<MaterialButton>(find.byType(MaterialButton)).onPressed, isNull);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(taps, 1);
+  });
+
+  testWidgets('profile favorites entry opens its existing account gate', (tester) async {
+    final router = await _pump(tester);
+    await tester.tap(find.text('حسابي'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('المفضلة'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/favorites');
+    expect(find.text('سجّل الدخول أولاً'), findsOneWidget);
+    expect(find.text('favorites destination'), findsNothing);
+  });
+
+  for (final verified in [false, true]) {
+    testWidgets('center add button enforces publishing eligibility verified=$verified', (tester) async {
+      final router = await _pump(tester, user: _user(verified: verified));
+      final shape = find.byWidgetPredicate((w) => w is EbrokerImage && w.name == 'add_shape');
+      expect(shape, findsOneWidget);
+      await tester.tap(shape);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/add-property');
+      expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('consumer partitions use four template tabs and protect own listings', (tester) async {
+    await _pump(tester, user: _user());
+    expect(find.byType(MarketplaceHomeScreen), findsOneWidget);
+    final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
+    expect(nav.destinations.map((d) => d.label), ['العقارات', 'الرسائل', 'إعلاناتي', 'حسابي']);
+    await tester.tap(find.text('إعلاناتي'));
+    await tester.pumpAndSettle();
+    expect(find.text('توثيق نوع الحساب مطلوب'), findsOneWidget);
+    expect(find.byType(MyListingsScreen), findsNothing);
+  });
+
+  testWidgets('conversation keeps existing repository send and thread identity', (tester) async {
+    final messages = _MessagesFixture();
+    await _pump(tester, initial: '/messages/19', messages: messages);
+    expect(find.text('مرحباً، كيف أستطيع مساعدتك؟'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'هل العقار متاح؟');
+    await tester.tap(find.byWidgetPredicate((w) => w is EbrokerIcon && w.icon == Icons.send));
+    await tester.pumpAndSettle();
+    expect(messages.sent, ['هل العقار متاح؟']);
+    expect(find.text('هل العقار متاح؟'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final page in ['/', '/auth', '/messages/19']) {
+    testWidgets('template screen $page supports 320 width and enlarged Arabic', (tester) async {
+      _viewport(tester, const Size(320, 640));
+      await _pump(tester, initial: page, scale: 2.4);
+      expect(tester.takeException(), isNull);
+      if (page == '/') {
+        await tester.tap(find.text('حسابي'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
+
+  testWidgets('exports actual template screens using clearly synthetic fixtures', (tester) async {
+    _viewport(tester, const Size(412, 915));
+    final key = GlobalKey();
+    final router = await _pump(tester, boundary: key, user: _user(verified: true));
+    await _capture(tester, key, 'template-home-navigation');
+    await tester.tap(find.text('إعلاناتي'));
+    await tester.pumpAndSettle();
+    await _capture(tester, key, 'template-my-listings');
+    await tester.tap(find.text('حسابي'));
+    await tester.pumpAndSettle();
+    await _capture(tester, key, 'template-account');
+    router.push('/auth');
+    await tester.pumpAndSettle();
+    await _capture(tester, key, 'template-auth');
+    router.pop();
+    router.push('/messages/19');
+    await tester.pumpAndSettle();
+    await _capture(tester, key, 'template-conversation');
+    expect(tester.takeException(), isNull);
+  });
+}

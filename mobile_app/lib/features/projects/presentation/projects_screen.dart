@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/ebroker_design.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 
 import '../../../core/theme/app_theme.dart';
 
@@ -43,7 +45,7 @@ class ProjectsScreen extends StatelessWidget {
             IconButton(
               tooltip: 'بحث',
               onPressed: () => _showInfo(context, 'بحث المشاريع'),
-              icon: const Icon(Icons.search),
+              icon: const EbrokerIcon(Icons.search),
             ),
           ],
         ),
@@ -65,7 +67,7 @@ class ProjectsScreen extends StatelessWidget {
                         '${_projects.length} مشاريع مميزة',
                         style:
                             Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: FontWeight.w600,
                                 ),
                       ),
                     ),
@@ -74,7 +76,7 @@ class ProjectsScreen extends StatelessWidget {
                         context,
                         'سيتم ربط عرض الخريطة بمشاريع المطورين عند إضافة بيانات المشاريع إلى الخادم.',
                       ),
-                      icon: const Icon(Icons.map_outlined),
+                      icon: const EbrokerIcon(Icons.map_outlined),
                       label: const Text('الخريطة'),
                     ),
                   ],
@@ -127,7 +129,7 @@ class ProjectsScreen extends StatelessWidget {
             Text(
               project.title,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
             const SizedBox(height: 8),
@@ -138,15 +140,15 @@ class ProjectsScreen extends StatelessWidget {
               style: const TextStyle(
                 color: AppTheme.brandStrong,
                 fontSize: 20,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
+              child: EbrokerFilledButton.icon(
                 onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.chat_bubble_outline),
+                icon: const EbrokerIcon(Icons.chat_bubble_outline),
                 label: const Text('طلب معلومات عن المشروع'),
               ),
             ),
@@ -183,8 +185,8 @@ class _ProjectFilterBarState extends State<_ProjectFilterBar> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppTheme.outlineSoft),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: EbrokerDesign.border),
       ),
       child: Column(
         children: [
@@ -207,9 +209,9 @@ class _ProjectFilterBarState extends State<_ProjectFilterBar> {
                 ),
               ),
               const SizedBox(width: 8),
-              OutlinedButton.icon(
+              EbrokerOutlinedButton.icon(
                 onPressed: widget.onMore,
-                icon: const Icon(Icons.tune, size: 18),
+                icon: const EbrokerIcon(Icons.tune, size: 18),
                 label: const Text('المزيد'),
               ),
             ],
@@ -244,7 +246,7 @@ class _ProjectCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(8),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -299,7 +301,7 @@ class _ProjectCard extends StatelessWidget {
                   Text(
                     project.title,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w600,
                         ),
                   ),
                   const SizedBox(height: 4),
@@ -307,29 +309,29 @@ class _ProjectCard extends StatelessWidget {
                     project.subtitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppTheme.textMuted),
+                    style: const TextStyle(color: EbrokerDesign.textLight),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     project.price,
                     style: const TextStyle(
                       color: AppTheme.brandStrong,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(
+                      const EbrokerIcon(
                         Icons.location_on_outlined,
                         size: 18,
-                        color: AppTheme.textMuted,
+                        color: EbrokerDesign.textLight,
                       ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           project.location,
-                          style: const TextStyle(color: AppTheme.textMuted),
+                          style: const TextStyle(color: EbrokerDesign.textLight),
                         ),
                       ),
                     ],
@@ -369,7 +371,7 @@ class _ProjectsMoreFiltersState extends State<_ProjectsMoreFilters> {
           Text(
             'مزيد من فلاتر المشاريع',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w600,
                 ),
           ),
           const SizedBox(height: 14),
@@ -390,7 +392,7 @@ class _ProjectsMoreFiltersState extends State<_ProjectsMoreFilters> {
             onChanged: (value) => setState(() => _progress = value),
           ),
           const SizedBox(height: 8),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('تطبيق الفلاتر'),
           ),
@@ -409,7 +411,7 @@ class _SheetHandle extends StatelessWidget {
       width: 44,
       height: 5,
       decoration: BoxDecoration(
-        color: AppTheme.outlineSoft,
+        color: EbrokerDesign.border,
         borderRadius: BorderRadius.circular(999),
       ),
     );
@@ -424,7 +426,7 @@ class _ProjectImageFallback extends StatelessWidget {
     return const ColoredBox(
       color: AppTheme.brandSoft,
       child: Center(
-        child: Icon(
+        child: EbrokerIcon(
           Icons.apartment_outlined,
           size: 58,
           color: AppTheme.brandStrong,

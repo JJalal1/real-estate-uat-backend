@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -97,12 +98,12 @@ class _ConversationAgreementCardState
             await context.push('/agreements/${agreement.id}');
             if (mounted) _load();
           },
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                const Icon(Icons.handshake_outlined),
+                const EbrokerIcon(Icons.handshake_outlined),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -110,7 +111,7 @@ class _ConversationAgreementCardState
                     children: [
                       Text(
                         'اتفاق مرتبط بهذه المحادثة • ${agreement.statusLabel}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -125,7 +126,7 @@ class _ConversationAgreementCardState
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_left),
+                const EbrokerIcon(Icons.chevron_left),
               ],
             ),
           ),
@@ -144,14 +145,14 @@ class _ConversationAgreementCardState
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.handshake_outlined),
+            const EbrokerIcon(Icons.handshake_outlined),
             const SizedBox(width: 10),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('جاهزون للاتفاق؟',
-                      style: TextStyle(fontWeight: FontWeight.w900)),
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                   SizedBox(height: 4),
                   Text(
                     'أنشئ مسودة شروط مرتبطة بهذا العقار. لا تصبح مقبولة حتى يوافق الطرفان على نفس النسخة.',
@@ -160,7 +161,7 @@ class _ConversationAgreementCardState
               ),
             ),
             const SizedBox(width: 8),
-            FilledButton.tonal(
+            EbrokerFilledButton.tonal(
               onPressed: _busy ? null : _start,
               child: const Text('بدء اتفاق'),
             ),

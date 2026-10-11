@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/theme/ebroker_design.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -236,7 +238,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('إلغاء'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('تأكيد'),
           ),
@@ -260,11 +262,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              const Icon(Icons.event_available_outlined),
+              const EbrokerIcon(Icons.event_available_outlined),
               const SizedBox(width: 8),
               const Expanded(
                   child: Text('طلب معاينة مرتبط بهذه المحادثة',
-                      style: TextStyle(fontWeight: FontWeight.w900))),
+                      style: TextStyle(fontWeight: FontWeight.w600))),
               Chip(label: Text(booking.statusLabel)),
             ]),
             Text(date),
@@ -290,44 +292,44 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               const SizedBox(height: 10),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 if (booking.canConfirm)
-                  FilledButton.tonalIcon(
+                  EbrokerFilledButton.tonalIcon(
                     onPressed:
                         _bookingBusy ? null : () => _bookingAction('confirm'),
-                    icon: const Icon(Icons.check_circle_outline),
+                    icon: const EbrokerIcon(Icons.check_circle_outline),
                     label: Text(booking.canAcceptReschedule
                         ? 'قبول الموعد الجديد'
                         : 'تأكيد الموعد'),
                   ),
                 if (booking.canDecline)
-                  OutlinedButton.icon(
+                  EbrokerOutlinedButton.icon(
                     onPressed:
                         _bookingBusy ? null : () => _bookingAction('decline'),
-                    icon: const Icon(Icons.cancel_outlined),
+                    icon: const EbrokerIcon(Icons.cancel_outlined),
                     label: const Text('رفض'),
                   ),
                 if (booking.canReschedule)
-                  OutlinedButton.icon(
+                  EbrokerOutlinedButton.icon(
                     onPressed: _bookingBusy
                         ? null
                         : () => _bookingAction('reschedule'),
-                    icon: const Icon(Icons.schedule_outlined),
+                    icon: const EbrokerIcon(Icons.schedule_outlined),
                     label: const Text('تغيير الموعد'),
                   ),
                 if (booking.canCancel)
-                  OutlinedButton.icon(
+                  EbrokerOutlinedButton.icon(
                     onPressed:
                         _bookingBusy ? null : () => _bookingAction('cancel'),
-                    icon: const Icon(Icons.event_busy_outlined),
+                    icon: const EbrokerIcon(Icons.event_busy_outlined),
                     label: const Text('إلغاء'),
                   ),
               ]),
             ],
             if (booking.canComplete) ...[
               const SizedBox(height: 10),
-              FilledButton.tonalIcon(
+              EbrokerFilledButton.tonalIcon(
                   onPressed:
                       _bookingBusy ? null : () => _bookingAction('complete'),
-                  icon: const Icon(Icons.task_alt),
+                  icon: const EbrokerIcon(Icons.task_alt),
                   label: const Text('تسجيل المعاينة كمكتملة')),
             ],
           ],
@@ -344,7 +346,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_outline),
+            EbrokerIcon(Icons.info_outline),
             SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -398,7 +400,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('إلغاء')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('إرسال البلاغ')),
           ],
@@ -436,6 +438,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: EbrokerDesign.page,
         appBar: AppBar(
             title: Text(thread?.otherUserName ?? 'محادثة'),
             actions: [
@@ -448,15 +451,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.phone_outlined)),
+                        : const EbrokerIcon(Icons.phone_outlined)),
               IconButton(
                   onPressed: _loading ? null : _load,
                   tooltip: 'تحديث',
-                  icon: const Icon(Icons.refresh)),
+                  icon: const EbrokerIcon(Icons.refresh)),
               IconButton(
                   onPressed: _loading ? null : _report,
                   tooltip: 'بلاغ',
-                  icon: const Icon(Icons.flag_outlined))
+                  icon: const EbrokerIcon(Icons.flag_outlined))
             ]),
         body: Column(children: [
           if (!_loading && thread?.isPropertyUnavailable == true)
@@ -465,15 +468,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             ConversationAgreementCard(thread: thread),
           if (!_loading && _viewing != null) _viewingCard(_viewing!),
           Expanded(
-              child: _loading
+              child: Container(
+                decoration: const BoxDecoration(image: DecorationImage(
+                  image: AssetImage('assets/ebroker/chat_background/doodle.png'),
+                  repeat: ImageRepeat.repeat, opacity: 0.08)),
+                child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null
                       ? Center(child: Text(_error!))
-                      : _messageList()),
+                      : _messageList())),
           SafeArea(
               top: false,
               child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  padding: const EdgeInsets.all(10),
                   child: Row(children: [
                     Expanded(
                         child: TextField(
@@ -486,6 +493,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             onSubmitted: (_) => _send())),
                     const SizedBox(width: 8),
                     IconButton.filled(
+                        style: IconButton.styleFrom(fixedSize: const Size(46, 46),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))),
                         onPressed: _sending ? null : _send,
                         icon: _sending
                             ? const SizedBox(
@@ -493,7 +502,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                                 height: 20,
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.send)),
+                            : const EbrokerIcon(Icons.send)),
                   ]))),
         ]),
       ),
@@ -521,7 +530,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.history),
+                  : const EbrokerIcon(Icons.history),
               label: const Text('تحميل رسائل أقدم'),
             ),
           );
@@ -540,12 +549,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.phone_in_talk_outlined, size: 20),
+                  const EbrokerIcon(Icons.phone_in_talk_outlined, size: 20),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(
@@ -557,7 +566,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   ),
                   if (time != null) ...[
                     const SizedBox(width: 8),
-                    Text(time, style: Theme.of(context).textTheme.labelSmall),
+                    Text(time, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: item.isMine ? Colors.white : EbrokerDesign.textLight)),
                   ],
                 ],
               ),
@@ -566,25 +575,26 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         }
         return Align(
           alignment: item.isMine
-              ? AlignmentDirectional.centerStart
-              : AlignmentDirectional.centerEnd,
+              ? AlignmentDirectional.centerEnd
+              : AlignmentDirectional.centerStart,
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 320),
+            constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.74),
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(16)),
+                color: item.isMine ? Theme.of(context).colorScheme.primary : Colors.white,
+                border: Border.all(color: EbrokerDesign.border, width: 1.5),
+                borderRadius: BorderRadius.circular(8)),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(item.senderName,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 12)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12, color: item.isMine ? Colors.white : EbrokerDesign.text)),
               const SizedBox(height: 4),
-              Text(item.body),
+              Text(item.body, style: TextStyle(fontSize: 14, height: 1.3, color: item.isMine ? Colors.white : EbrokerDesign.text)),
               if (time != null) ...[
                 const SizedBox(height: 4),
-                Text(time, style: Theme.of(context).textTheme.labelSmall),
+                Text(time, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: item.isMine ? Colors.white : EbrokerDesign.textLight)),
               ],
             ]),
           ),

@@ -132,6 +132,11 @@ void main() {
       ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))
       ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'));
     await fonts.load();
+    final manrope = FontLoader('PrimaryFont');
+    for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) {
+      manrope.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf'));
+    }
+    await manrope.load();
     // Widget tests omit the SDK icon and platform fallback fonts by default.
     // Load the pinned SDK fonts so previews render the same glyphs as Android.
     final flutterRoot = Platform.environment['FLUTTER_ROOT']!;
@@ -186,9 +191,9 @@ void main() {
     testWidgets('$entry retains the real account gate', (tester) async {
       final router = await _pumpHome(tester);
       await tester.pumpAndSettle();
-      final target = find.byKey(ValueKey(entry));
-      await tester.ensureVisible(target);
-      await tester.tap(target);
+      // Favorites/compare moved to the template profile menu; their original
+      // protected routes must still enforce account access.
+      router.push(entry == 'home-compare' ? '/favorites?compare=1' : '/favorites');
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/favorites');
       expect(find.text('سجّل الدخول أولاً'), findsOneWidget);
@@ -236,7 +241,7 @@ void main() {
       return [_exampleProperty];
     });
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, 450));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 450));
     await tester.pumpAndSettle();
     expect(calls, 2);
     expect(tester.takeException(), isNull);

@@ -31,7 +31,7 @@ void main() {
       AppLayout.surfacePadding,
       AppLayout.compactSurfacePadding,
       AppLayout.dialogPadding,
-    ], [16, 24, 360, 600, 840, 32, 24, 12, 16, 8, 16, 12, 24]);
+    ], [18, 18, 360, 600, 840, 32, 24, 12, 16, 8, 16, 12, 24]);
   });
 
   test('shape and elevation match the accepted scale', () {
@@ -41,7 +41,7 @@ void main() {
       AppRadii.card,
       AppRadii.modal,
       AppRadii.pill,
-    ], [8, 12, 16, 24, 999]);
+    ], [8, 4, 8, 16, 999]);
     expect([AppBorderWidths.standard, AppBorderWidths.emphasized], [1, 2]);
     expect([
       AppElevation.flat,
@@ -60,7 +60,7 @@ void main() {
       AppSizes.badgeMinHeight,
       AppSizes.appBarMinHeight,
       AppSizes.navigationMinHeight,
-    ], [48, 48, 56, 32, 28, 64, 80]);
+    ], [48, 56, 48, 32, 28, 56, 76]);
     final theme = AppTheme.light;
     for (final style in [
       theme.filledButtonTheme.style!,

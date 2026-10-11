@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -64,7 +65,7 @@ class _ConversationReportsScreenState
                 TextButton(
                     onPressed: () => Navigator.pop(dialogContext, false),
                     child: const Text('إلغاء')),
-                FilledButton(
+                EbrokerFilledButton(
                     onPressed: () => Navigator.pop(dialogContext, true),
                     child: const Text('فتح وتسجيل الوصول'))
               ],
@@ -87,7 +88,7 @@ class _ConversationReportsScreenState
                     width: 520,
                     child: ListView(shrinkWrap: true, children: [
                       Text(report.propertyTitle ?? 'محادثة خاصة',
-                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
                       const Divider(),
                       ...content.messages.map((m) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
@@ -147,12 +148,12 @@ class _ConversationReportsScreenState
                     else
                       ..._items.map((item) => Card(
                               child: ListTile(
-                            leading: const Icon(Icons.privacy_tip_outlined),
+                            leading: const EbrokerIcon(Icons.privacy_tip_outlined),
                             title: Text(item.propertyTitle ??
                                 'محادثة #${item.threadId}'),
                             subtitle: Text(
                                 '${item.reporterName} • ${item.reasonCode} • ${item.status}'),
-                            trailing: const Icon(Icons.chevron_left),
+                            trailing: const EbrokerIcon(Icons.chevron_left),
                             onTap: () => _open(item),
                           ))),
                   ])),

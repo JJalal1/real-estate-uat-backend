@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -28,7 +29,7 @@ class SupportWorkspaceScreen extends ConsumerWidget {
           actions: [
             IconButton(
                 onPressed: () => ref.invalidate(_supportSummaryProvider),
-                icon: const Icon(Icons.refresh))
+                icon: const EbrokerIcon(Icons.refresh))
           ],
         ),
         body: state.when(
@@ -53,9 +54,9 @@ class SupportWorkspaceScreen extends ConsumerWidget {
                   Card(
                     color: Theme.of(context).colorScheme.errorContainer,
                     child: ListTile(
-                      leading: const Icon(Icons.timer_outlined),
+                      leading: const EbrokerIcon(Icons.timer_outlined),
                       title: const Text('تنبيه مدة الاستجابة',
-                          style: TextStyle(fontWeight: FontWeight.w900)),
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(
                           'اقتربت ${summary.slaWarning} حالة من تجاوز SLA، ومتأخرة ${summary.overdueUnescalated} حالة.'),
                     ),
@@ -66,7 +67,7 @@ class SupportWorkspaceScreen extends ConsumerWidget {
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w900)),
+                        ?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 Card(
                   clipBehavior: Clip.antiAlias,
@@ -122,15 +123,15 @@ class SupportWorkspaceScreen extends ConsumerWidget {
                       style: Theme.of(context)
                           .textTheme
                           .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w900)),
+                          ?.copyWith(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   ...summary.team.map((member) => Card(
                           child: ListTile(
                         leading: const CircleAvatar(
-                            child: Icon(Icons.support_agent)),
+                            child: EbrokerIcon(Icons.support_agent)),
                         title: Text(member.name,
                             style:
-                                const TextStyle(fontWeight: FontWeight.w800)),
+                                const TextStyle(fontWeight: FontWeight.w700)),
                         subtitle: Text(
                             'حالات نشطة مسندة: ${member.assignedActive} • إجراءات آخر 7 أيام: ${member.actions7d}'),
                       ))),
@@ -148,11 +149,11 @@ class SupportWorkspaceScreen extends ConsumerWidget {
       {bool last = false}) {
     return Column(children: [
       ListTile(
-          leading: Icon(icon),
+          leading: EbrokerIcon(icon),
           title:
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
           subtitle: Text(subtitle),
-          trailing: const Icon(Icons.chevron_left),
+          trailing: const EbrokerIcon(Icons.chevron_left),
           onTap: () => context.push(route)),
       if (!last) const Divider(height: 1),
     ]);
@@ -185,7 +186,7 @@ class _SupportMetrics extends StatelessWidget {
           child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(children: [
-                Icon(rows[i].$3),
+                EbrokerIcon(rows[i].$3),
                 const SizedBox(width: 10),
                 Expanded(
                     child: Column(
@@ -194,7 +195,7 @@ class _SupportMetrics extends StatelessWidget {
                         children: [
                       Text('${rows[i].$2}',
                           style: const TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.w900)),
+                              fontSize: 22, fontWeight: FontWeight.w600)),
                       Text(rows[i].$1)
                     ])),
               ]))),

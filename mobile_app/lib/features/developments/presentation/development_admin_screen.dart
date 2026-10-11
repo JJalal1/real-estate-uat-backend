@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../account/data/auth_controller.dart';
@@ -68,13 +69,13 @@ class _DevelopmentAdminScreenState
         appBar: AppBar(
           title: const Text('إدارة المطورين والمشاريع'),
           actions: [
-            IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+            IconButton(onPressed: _load, icon: const EbrokerIcon(Icons.refresh)),
           ],
         ),
         floatingActionButton: canManage
             ? FloatingActionButton.extended(
                 onPressed: _createMenu,
-                icon: const Icon(Icons.add),
+                icon: const EbrokerIcon(Icons.add),
                 label: const Text('إضافة'),
               )
             : null,
@@ -98,13 +99,13 @@ class _DevelopmentAdminScreenState
           style: Theme.of(context)
               .textTheme
               .titleLarge
-              ?.copyWith(fontWeight: FontWeight.w900),
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         ..._developers.map(
           (developer) => Card(
             child: ListTile(
-              leading: const Icon(Icons.business_outlined),
+              leading: const EbrokerIcon(Icons.business_outlined),
               title: Text(developer.name),
               subtitle: Text(
                   '${developer.status} • ${developer.projectsCount} مشروع'),
@@ -117,13 +118,13 @@ class _DevelopmentAdminScreenState
           style: Theme.of(context)
               .textTheme
               .titleLarge
-              ?.copyWith(fontWeight: FontWeight.w900),
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         ..._projects.map(
           (project) => Card(
             child: ExpansionTile(
-              leading: const Icon(Icons.apartment_outlined),
+              leading: const EbrokerIcon(Icons.apartment_outlined),
               title: Text(project.name),
               subtitle: Text('${project.status} • ${project.unitsCount} وحدة'),
               children: [
@@ -134,21 +135,21 @@ class _DevelopmentAdminScreenState
                     runSpacing: 8,
                     children: [
                       if (canManage)
-                        OutlinedButton.icon(
+                        EbrokerOutlinedButton.icon(
                           onPressed: () => _addUnit(project),
-                          icon: const Icon(Icons.add_home_work_outlined),
+                          icon: const EbrokerIcon(Icons.add_home_work_outlined),
                           label: const Text('إضافة وحدة'),
                         ),
                       if (canPublish && project.status != 'published')
-                        FilledButton.tonalIcon(
+                        EbrokerFilledButton.tonalIcon(
                           onPressed: () => _publish(project, true),
-                          icon: const Icon(Icons.public),
+                          icon: const EbrokerIcon(Icons.public),
                           label: const Text('نشر'),
                         ),
                       if (canPublish && project.status == 'published')
-                        OutlinedButton.icon(
+                        EbrokerOutlinedButton.icon(
                           onPressed: () => _publish(project, false),
-                          icon: const Icon(Icons.public_off),
+                          icon: const EbrokerIcon(Icons.public_off),
                           label: const Text('إلغاء النشر'),
                         ),
                     ],
@@ -170,12 +171,12 @@ class _DevelopmentAdminScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.business),
+              leading: const EbrokerIcon(Icons.business),
               title: const Text('إضافة مطور'),
               onTap: () => Navigator.pop(sheetContext, 'developer'),
             ),
             ListTile(
-              leading: const Icon(Icons.apartment),
+              leading: const EbrokerIcon(Icons.apartment),
               title: const Text('إضافة مشروع'),
               onTap: () => Navigator.pop(sheetContext, 'project'),
             ),
@@ -218,7 +219,7 @@ class _DevelopmentAdminScreenState
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('إلغاء'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('حفظ'),
           ),
@@ -306,7 +307,7 @@ class _DevelopmentAdminScreenState
               onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('إلغاء'),
             ),
-            FilledButton(
+            EbrokerFilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('حفظ'),
             ),
@@ -376,7 +377,7 @@ class _DevelopmentAdminScreenState
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('إلغاء'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('إضافة'),
           ),

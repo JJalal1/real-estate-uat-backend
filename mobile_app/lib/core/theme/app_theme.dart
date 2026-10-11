@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_semantic_colors.dart';
 import 'app_tokens.dart';
 import 'app_typography.dart';
+import 'ebroker_design.dart';
 
 export 'app_semantic_colors.dart';
 export 'app_tokens.dart';
@@ -38,15 +39,15 @@ abstract final class AppTheme {
       secondaryContainer: accentSoft,
       onSecondaryContainer: const Color(0xFF174E79),
       surface: surface,
-      onSurface: textStrong,
-      onSurfaceVariant: textMuted,
+      onSurface: EbrokerDesign.text,
+      onSurfaceVariant: EbrokerDesign.textLight,
       surfaceContainerLowest: Colors.white,
-      surfaceContainerLow: page,
+      surfaceContainerLow: EbrokerDesign.page,
       surfaceContainer: const Color(0xFFF2F5F3),
       surfaceContainerHigh: const Color(0xFFEBEFEC),
       surfaceContainerHighest: const Color(0xFFE3E8E5),
       outline: const Color(0xFF89948E),
-      outlineVariant: outlineSoft,
+      outlineVariant: EbrokerDesign.border,
       error: const Color(0xFFB3261E),
       onError: Colors.white,
       errorContainer: const Color(0xFFF9DEDC),
@@ -68,17 +69,19 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: scheme.surfaceContainerLow,
       visualDensity: VisualDensity.standard,
       fontFamily: AppTypography.fontFamily,
+      splashColor: Colors.transparent,
+      splashFactory: NoSplash.splashFactory,
       fontFamilyFallback: AppTypography.fontFamilyFallback,
       textTheme: readableTextTheme,
       appBarTheme: AppBarTheme(
         centerTitle: false,
-        backgroundColor: scheme.surface,
+        backgroundColor: EbrokerDesign.surface,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: AppElevation.flat,
-        scrolledUnderElevation: AppElevation.raised,
+        scrolledUnderElevation: 1.5,
         titleTextStyle: readableTextTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w500,
         ),
       ),
       cardTheme: CardThemeData(
@@ -94,7 +97,7 @@ abstract final class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: scheme.primaryContainer,
+        indicatorColor: Colors.transparent,
         elevation: AppElevation.raised,
         height: AppSizes.navigationMinHeight,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
@@ -129,7 +132,7 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surface,
-        contentPadding: const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
+        contentPadding: const EdgeInsetsDirectional.only(start: 12, end: 8, top: 12, bottom: 12),
         labelStyle: readableTextTheme.bodyLarge?.copyWith(
           color: scheme.onSurfaceVariant,
         ),
@@ -148,17 +151,21 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(AppRadii.control),
           borderSide: BorderSide(
             color: scheme.primary,
-            width: AppBorderWidths.emphasized,
+            width: 1,
           ),
         ),
       ),
+      listTileTheme: const ListTileThemeData(contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4)),
+      elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(
+        minimumSize: const Size(48, 56), backgroundColor: scheme.primary, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)))),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(AppSizes.touchTarget, 52),
+          minimumSize: const Size(AppSizes.touchTarget, 56),
           foregroundColor: scheme.onPrimary,
           textStyle: AppTypography.labelLarge.copyWith(
             fontFamily: AppTypography.fontFamily,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w500,
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.control),
@@ -167,7 +174,7 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(AppSizes.touchTarget, 52),
+          minimumSize: const Size(AppSizes.touchTarget, 56),
           foregroundColor: scheme.onSurface,
           side: BorderSide(color: scheme.outlineVariant),
           textStyle: AppTypography.labelLarge.copyWith(

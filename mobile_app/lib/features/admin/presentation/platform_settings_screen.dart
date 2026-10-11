@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -111,7 +112,7 @@ class _PlatformSettingsScreenState
         appBar: AppBar(title: const Text('إعدادات المنصة'), actions: [
           IconButton(
               onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh))
+              icon: const EbrokerIcon(Icons.refresh))
         ]),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -122,7 +123,7 @@ class _PlatformSettingsScreenState
                     children: [
                       const Card(
                           child: ListTile(
-                              leading: Icon(Icons.security_outlined),
+                              leading: EbrokerIcon(Icons.security_outlined),
                               title: Text('إعدادات آمنة فقط'),
                               subtitle: Text(
                                   'لا تعرض هذه الصفحة كلمات المرور أو مفاتيح API أو بيانات البطاقات الحساسة.'))),
@@ -140,7 +141,7 @@ class _PlatformSettingsScreenState
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w900),
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 6),
                           ..._items
@@ -155,7 +156,7 @@ class _PlatformSettingsScreenState
                                               title: Text(item.labelAr,
                                                   style: const TextStyle(
                                                       fontWeight:
-                                                          FontWeight.w800)),
+                                                          FontWeight.w700)),
                                               onChanged: canManage
                                                   ? (value) => setState(() =>
                                                       _bool[item.key] = value)
@@ -179,9 +180,9 @@ class _PlatformSettingsScreenState
                       ],
                       if (canManage) ...[
                         const SizedBox(height: 12),
-                        FilledButton.icon(
+                        EbrokerFilledButton.icon(
                             onPressed: _saving ? null : _save,
-                            icon: const Icon(Icons.save_outlined),
+                            icon: const EbrokerIcon(Icons.save_outlined),
                             label: Text(
                                 _saving ? 'جارٍ الحفظ...' : 'حفظ الإعدادات')),
                       ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../financial/data/financial_repository.dart';
@@ -29,24 +30,24 @@ class GeneralManagerHomeFinancialOverlay extends ConsumerWidget {
               return Card(
                 elevation: 6,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const GeneralManagerFinanceWorkspaceScreen(),
                   )),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     child: Row(children: [
-                      const Icon(Icons.account_balance_outlined),
+                      const EbrokerIcon(Icons.account_balance_outlined),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'مالية: $waiting تحقق • $overdue متأخر • $holds قيود • $payouts مستحق للمعلنين',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
-                      const Icon(Icons.chevron_left),
+                      const EbrokerIcon(Icons.chevron_left),
                     ]),
                   ),
                 ),
@@ -85,10 +86,10 @@ class GeneralManagerAdministrationFinancialHubScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Card(
                 child: ListTile(
-                  leading: const Icon(Icons.account_tree_outlined),
-                  title: const Text('المنظمة والحسابات والصلاحيات', style: TextStyle(fontWeight: FontWeight.w900)),
+                  leading: const EbrokerIcon(Icons.account_tree_outlined),
+                  title: const Text('المنظمة والحسابات والصلاحيات', style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: const Text('الموظفون والفرق والحسابات والأدوار والمناطق.'),
-                  trailing: const Icon(Icons.chevron_left),
+                  trailing: const EbrokerIcon(Icons.chevron_left),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const GeneralManagerAdministrationScreen(),
                   )),
@@ -96,10 +97,10 @@ class GeneralManagerAdministrationFinancialHubScreen extends StatelessWidget {
               ),
               Card(
                 child: ListTile(
-                  leading: const Icon(Icons.account_balance_wallet_outlined),
-                  title: const Text('إدارة طرق الدفع', style: TextStyle(fontWeight: FontWeight.w900)),
+                  leading: const EbrokerIcon(Icons.account_balance_wallet_outlined),
+                  title: const Text('إدارة طرق الدفع', style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: const Text('التفعيل، المستفيد، الحساب، الحدود، الدفع الكامل والسعي فقط.'),
-                  trailing: const Icon(Icons.chevron_left),
+                  trailing: const EbrokerIcon(Icons.chevron_left),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const GeneralManagerPaymentMethodsScreen(),
                   )),
@@ -128,13 +129,13 @@ class GeneralManagerReportsFinancialHubScreen extends ConsumerWidget {
                   final data = snapshot.data;
                   return Card(
                     child: ListTile(
-                      leading: const Icon(Icons.account_balance_outlined),
-                      title: const Text('المالية', style: TextStyle(fontWeight: FontWeight.w900)),
+                      leading: const EbrokerIcon(Icons.account_balance_outlined),
+                      title: const Text('المالية', style: TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: data == null
                           ? const Text('فتح لوحة المالية التفصيلية')
                           : Text('قيمة الصفقات: ${_money(data['gross_transaction_value'])}\nمستحقات غير محصلة: ${_money(data['open_receivables_amount'])}'),
                       isThreeLine: data != null,
-                      trailing: const Icon(Icons.chevron_left),
+                      trailing: const EbrokerIcon(Icons.chevron_left),
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => const GeneralManagerFinanceWorkspaceScreen(),
                       )),
@@ -144,10 +145,10 @@ class GeneralManagerReportsFinancialHubScreen extends ConsumerWidget {
               ),
               Card(
                 child: ListTile(
-                  leading: const Icon(Icons.analytics_outlined),
-                  title: const Text('تقارير السوق والرحلة والتشغيل', style: TextStyle(fontWeight: FontWeight.w900)),
+                  leading: const EbrokerIcon(Icons.analytics_outlined),
+                  title: const Text('تقارير السوق والرحلة والتشغيل', style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: const Text('التقارير التنفيذية الحالية للسوق والرحلة وفريق الدعم.'),
-                  trailing: const Icon(Icons.chevron_left),
+                  trailing: const EbrokerIcon(Icons.chevron_left),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const GeneralManagerReportsScreen(),
                   )),

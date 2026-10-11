@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -421,7 +422,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         AppSurface(
           child: Row(
             children: [
-              Icon(
+              EbrokerIcon(
                 hasLocation
                     ? Icons.check_circle_outline
                     : Icons.location_on_outlined,
@@ -831,7 +832,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                                 File(path),
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Center(
-                                    child: Icon(Icons.broken_image_outlined)),
+                                    child: EbrokerIcon(Icons.broken_image_outlined)),
                               ),
                             ),
                             PositionedDirectional(
@@ -841,7 +842,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                                 tooltip: 'إزالة الصورة',
                                 onPressed:
                                     _busy ? null : () => _removeImage(index),
-                                icon: const Icon(Icons.close, size: 18),
+                                icon: const EbrokerIcon(Icons.close, size: 18),
                               ),
                             ),
                             if (index == 0 &&
@@ -935,7 +936,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                   : existingOwnershipProof
                       ? 'يوجد مستند مرفوع سابقاً'
                       : 'اضغط لاختيار المستند',
-              leading: Icon(
+              leading: EbrokerIcon(
                 _ownershipProofPath != null || existingOwnershipProof
                     ? Icons.check_circle_outline
                     : Icons.upload_file_outlined,
@@ -983,7 +984,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         children: [
           Row(
             children: [
-              Icon(
+              EbrokerIcon(
                 _isSaiReady
                     ? Icons.check_circle_rounded
                     : Icons.payments_outlined,
@@ -1240,7 +1241,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('إلغاء')),
-          FilledButton(
+          EbrokerFilledButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('حفظ وإرسال')),
         ],
@@ -1349,7 +1350,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
                         height: 160,
-                        child: Center(child: Icon(Icons.broken_image_outlined)),
+                        child: Center(child: EbrokerIcon(Icons.broken_image_outlined)),
                       ),
                     ),
                   )
@@ -1363,7 +1364,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
                         height: 160,
-                        child: Center(child: Icon(Icons.home_work_outlined)),
+                        child: Center(child: EbrokerIcon(Icons.home_work_outlined)),
                       ),
                     ),
                   ),
@@ -1530,7 +1531,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('رجوع')),
-              FilledButton(
+              EbrokerFilledButton(
                   onPressed: () {
                     final text = note.text.trim();
                     if (text.length < 10) {
@@ -1966,3 +1967,4 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
+

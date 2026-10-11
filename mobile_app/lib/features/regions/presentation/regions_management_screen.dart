@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
@@ -257,7 +258,7 @@ class _RegionsManagementScreenState
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('إلغاء')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('حفظ')),
           ],
@@ -300,7 +301,7 @@ class _RegionsManagementScreenState
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('إلغاء')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('إضافة')),
           ],
@@ -361,12 +362,12 @@ class _RegionsManagementScreenState
               child: Column(children: [
                 ListTile(
                   title: Text('العقارات داخل ${cell.nameAr}',
-                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text(
                       '${properties.length} عقار • الأخضر على الخريطة يمثل موقع العقار'),
                   trailing: IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close)),
+                      icon: const EbrokerIcon(Icons.close)),
                 ),
                 const Divider(height: 1),
                 Expanded(
@@ -378,10 +379,10 @@ class _RegionsManagementScreenState
                           itemBuilder: (_, index) {
                             final property = properties[index];
                             return ListTile(
-                              leading: const Icon(Icons.home_work_outlined),
+                              leading: const EbrokerIcon(Icons.home_work_outlined),
                               title: Text(property.title,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w800)),
+                                      fontWeight: FontWeight.w700)),
                               subtitle: Text(
                                   '${property.ownerName ?? 'مستخدم'} • ${property.status} • ${property.address}'),
                               trailing: Text(property.price.toStringAsFixed(0)),
@@ -407,7 +408,7 @@ class _RegionsManagementScreenState
         appBar: AppBar(
           title: const Text('المحافظات والمربعات'),
           actions: [
-            IconButton(onPressed: _load, icon: const Icon(Icons.refresh))
+            IconButton(onPressed: _load, icon: const EbrokerIcon(Icons.refresh))
           ],
         ),
         body: _loading
@@ -440,7 +441,7 @@ class _RegionsManagementScreenState
                           const SizedBox(width: 8),
                           IconButton.filledTonal(
                               onPressed: _createGovernorate,
-                              icon: const Icon(Icons.add_location_alt_outlined),
+                              icon: const EbrokerIcon(Icons.add_location_alt_outlined),
                               tooltip: 'إضافة محافظة'),
                         ],
                       ]),
@@ -460,10 +461,10 @@ class _RegionsManagementScreenState
                         onSubmitted: (_) => _load(),
                         decoration: InputDecoration(
                           labelText: 'بحث عن منطقة بالاسم أو الرمز',
-                          prefixIcon: const Icon(Icons.search),
+                          prefixIcon: const EbrokerIcon(Icons.search),
                           suffixIcon: IconButton(
                               onPressed: _load,
-                              icon: const Icon(Icons.arrow_forward)),
+                              icon: const EbrokerIcon(Icons.arrow_forward)),
                         ),
                       ),
                     ),
@@ -487,25 +488,25 @@ class _RegionsManagementScreenState
                         padding: const EdgeInsets.all(10),
                         child: _drawing
                             ? Wrap(spacing: 8, runSpacing: 8, children: [
-                                FilledButton.icon(
+                                EbrokerFilledButton.icon(
                                     onPressed: _saveDraft,
-                                    icon: const Icon(Icons.save_outlined),
+                                    icon: const EbrokerIcon(Icons.save_outlined),
                                     label: Text(_editingCell == null
                                         ? 'حفظ الخلية'
                                         : 'حفظ الحدود الجديدة')),
-                                OutlinedButton.icon(
+                                EbrokerOutlinedButton.icon(
                                     onPressed: _undoPoint,
-                                    icon: const Icon(Icons.undo),
+                                    icon: const EbrokerIcon(Icons.undo),
                                     label: const Text('تراجع نقطة')),
                                 TextButton.icon(
                                     onPressed: _cancelDrawing,
-                                    icon: const Icon(Icons.close),
+                                    icon: const EbrokerIcon(Icons.close),
                                     label: const Text('إلغاء الرسم')),
                                 Chip(label: Text('${_draft.length} نقطة')),
                               ])
-                            : FilledButton.icon(
+                            : EbrokerFilledButton.icon(
                                 onPressed: _startNewCell,
-                                icon: const Icon(Icons.draw_outlined),
+                                icon: const EbrokerIcon(Icons.draw_outlined),
                                 label:
                                     const Text('رسم خلية جديدة على الخريطة')),
                       ),
@@ -522,12 +523,12 @@ class _RegionsManagementScreenState
                                   child: ExpansionTile(
                                     leading: const CircleAvatar(
                                       backgroundColor: Color(0xFFE5E7EB),
-                                      child: Icon(Icons.grid_view_outlined,
+                                      child: EbrokerIcon(Icons.grid_view_outlined,
                                           color: AppTheme.brandStrong),
                                     ),
                                     title: Text(cell.nameAr,
                                         style: const TextStyle(
-                                            fontWeight: FontWeight.w900)),
+                                            fontWeight: FontWeight.w600)),
                                     subtitle: Text(
                                         '${cell.code} • ${cell.propertiesCount} عقار • ${cell.publishedPropertiesCount} منشور'),
                                     children: [
@@ -538,18 +539,18 @@ class _RegionsManagementScreenState
                                             spacing: 8,
                                             runSpacing: 8,
                                             children: [
-                                              OutlinedButton.icon(
+                                              EbrokerOutlinedButton.icon(
                                                   onPressed: () =>
                                                       _showProperties(cell),
-                                                  icon: const Icon(
+                                                  icon: const EbrokerIcon(
                                                       Icons.home_work_outlined),
                                                   label: const Text(
                                                       'العقارات داخل المنطقة')),
                                               if (_canRegions)
-                                                OutlinedButton.icon(
+                                                EbrokerOutlinedButton.icon(
                                                     onPressed: () =>
                                                         _startRedraw(cell),
-                                                    icon: const Icon(Icons
+                                                    icon: const EbrokerIcon(Icons
                                                         .edit_location_alt_outlined),
                                                     label: const Text(
                                                         'إعادة رسم الحدود')),

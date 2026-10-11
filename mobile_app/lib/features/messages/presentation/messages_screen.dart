@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -210,7 +211,7 @@ class _InboxHeader extends StatelessWidget {
                   color: Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(AppRadii.control),
                 ),
-                child: Icon(
+                child: EbrokerIcon(
                   unreadCount > 0
                       ? Icons.mark_chat_unread_outlined
                       : Icons.mark_chat_read_outlined,
@@ -222,7 +223,7 @@ class _InboxHeader extends StatelessWidget {
           const SizedBox(height: AppSpacing.s12),
           FilterChip(
             selected: unreadOnly,
-            avatar: const Icon(Icons.mark_email_unread_outlined, size: 18),
+            avatar: const EbrokerIcon(Icons.mark_email_unread_outlined, size: 18),
             label: Text(
               unreadCount > 0
                   ? 'غير المقروء فقط ($unreadCount)'
@@ -253,10 +254,10 @@ class _ConversationCard extends StatelessWidget {
     return AppSurface(
       padding: EdgeInsets.zero,
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadii.card),
+        borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsetsDirectional.all(AppSpacing.s14),
+          padding: const EdgeInsetsDirectional.all(AppSpacing.s12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -269,7 +270,7 @@ class _ConversationCard extends StatelessWidget {
                   firstLetter,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: unread ? scheme.primary : scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                       ),
                 ),
               ),
@@ -287,7 +288,7 @@ class _ConversationCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                   fontWeight:
-                                      unread ? FontWeight.w800 : FontWeight.w600,
+                                      unread ? FontWeight.w700 : FontWeight.w600,
                                 ),
                           ),
                         ),
@@ -304,7 +305,7 @@ class _ConversationCard extends StatelessWidget {
                       const SizedBox(height: AppSpacing.s4),
                       Row(
                         children: [
-                          Icon(
+                          EbrokerIcon(
                             Icons.home_work_outlined,
                             size: 16,
                             color: scheme.primary,
@@ -362,12 +363,12 @@ class _ConversationCard extends StatelessWidget {
                     item.unreadCount > 99 ? '99+' : '${item.unreadCount}',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: scheme.onPrimary,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                         ),
                   ),
                 )
               else
-                Icon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
+                EbrokerIcon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
             ],
           ),
         ),

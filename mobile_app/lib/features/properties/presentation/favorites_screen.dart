@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -141,7 +142,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         purposeLabel: _purposeLabel(property.purpose),
                         facts: _facts(property),
                         trailing: _compareMode
-                            ? Icon(
+                            ? EbrokerIcon(
                                 selected
                                     ? Icons.check_circle_rounded
                                     : Icons.radio_button_unchecked_rounded,
@@ -152,7 +153,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                             : IconButton.filledTonal(
                                 tooltip: 'إزالة من المفضلة',
                                 onPressed: () => _remove(context, property.id),
-                                icon: Icon(
+                                icon: EbrokerIcon(
                                   Icons.favorite_rounded,
                                   color: Theme.of(context).colorScheme.error,
                                 ),

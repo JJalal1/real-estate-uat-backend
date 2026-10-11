@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -48,7 +49,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     enabled: !_nameLocked(user),
                     decoration: const InputDecoration(
                       labelText: 'الاسم الرباعي',
-                      border: OutlineInputBorder(),
+                      
                     ),
                   ),
                   if (_nameLocked(user)) ...[
@@ -63,7 +64,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: 'رقم الهاتف',
-                      border: OutlineInputBorder(),
+                      
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -71,9 +72,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     'تغيير رقم الهاتف يعيد الحساب إلى حالة انتظار التحقق.',
                   ),
                   const SizedBox(height: 18),
-                  FilledButton.icon(
+                  EbrokerFilledButton.icon(
                     onPressed: _busy ? null : _save,
-                    icon: const Icon(Icons.save_outlined),
+                    icon: const EbrokerIcon(Icons.save_outlined),
                     label: const Text('حفظ'),
                   ),
                 ],

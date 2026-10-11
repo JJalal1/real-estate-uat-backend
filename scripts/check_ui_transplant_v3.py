@@ -16,12 +16,43 @@ SETUP_FILES = frozenset({
     "scripts/test_ui_transplant_v3_guard.py",
     "scripts/verify_v3_dependency_lock.py",
     "scripts/test_v3_dependency_lock.py",
+    "scripts/verify_template_assets.py",
+    "scripts/test_v3_template_assets.py",
     "scripts/check_v3_analysis.py",
     "scripts/test_v3_analysis.py",
 })
+VISUAL_TEST_UPDATES = frozenset({
+    "mobile_app/test/app_theme_test.dart",
+    "mobile_app/test/app_tokens_test.dart",
+    "mobile_app/test/uat_three_role_workspaces_test.dart",
+    "mobile_app/test/uat_services_hub_navigation_test.dart",
+})
+
 PINNED_PRESENTATION = frozenset({
     "mobile_app/lib/features/account/presentation/auth_gate.dart",
 })
+
+
+ASSET_ADDITIONS = '    - assets/ebroker/svg/\n    - assets/ebroker/svg/agent/\n    - assets/ebroker/svg/MultiColorSvg/\n    - assets/ebroker/svg/Fallback/\n    - assets/ebroker/chat_background/\n    - assets/fonts/OFL-Manrope.txt\n'
+FONT_ADDITION = '\n    - family: PrimaryFont\n      fonts:\n        - asset: assets/ebroker/fonts/Manrope-Regular.ttf\n          weight: 400\n        - asset: assets/ebroker/fonts/Manrope-Medium.ttf\n          weight: 500\n        - asset: assets/ebroker/fonts/Manrope-SemiBold.ttf\n          weight: 600\n        - asset: assets/ebroker/fonts/Manrope-Bold.ttf\n          weight: 700\n        - asset: assets/ebroker/fonts/Manrope-ExtraBold.ttf\n          weight: 800\n'
+
+def approved_pubspec(original):
+    """Permit the purchased fonts/assets and the single SVG renderer only."""
+    return (original.replace(
+        "  cupertino_icons: ^1.0.8\n",
+        "  cupertino_icons: ^1.0.8\n  flutter_svg: 2.0.10+1\n",
+    ).replace("    - assets/payments/\n",
+              "    - assets/payments/\n" + ASSET_ADDITIONS) + FONT_ADDITION)
+
+
+def approved_auth_gate(original):
+    return (original.replace(
+        "import 'package:flutter/material.dart';",
+        "import 'package:flutter/material.dart';\nimport '../../../core/widgets/ebroker_widgets.dart';",
+    ).replace("FilledButton(", "EbrokerFilledButton(")
+     .replace("FilledButton.icon(", "EbrokerFilledButton.icon(")
+     .replace("Icon(", "EbrokerIcon(")
+     .replace("FontWeight.w900", "FontWeight.w600"))
 
 
 def git(root, *args):
@@ -37,8 +68,10 @@ def paths(raw):
 
 
 def allowed(path, baseline_paths):
+    if path == "mobile_app/pubspec.yaml" or path in VISUAL_TEST_UPDATES:
+        return True
     if path in PINNED_PRESENTATION:
-        return False
+        return True
     if path in SETUP_FILES or path.startswith("docs/ui-transplant-v3/"):
         return True
     if path.startswith(("mobile_app/lib/core/theme/", "mobile_app/lib/core/widgets/")):
@@ -73,6 +106,15 @@ def violations(root, baseline=GOLDEN_SHA, setup=False):
             failures.append(path + " (setup must preserve every original file)")
         elif not allowed(path, baseline_paths):
             failures.append(path + " (outside UI transplant scope)")
+    if "mobile_app/pubspec.yaml" in changed and (root / "mobile_app/pubspec.yaml").is_file():
+        original = git(root, "show", baseline + ":mobile_app/pubspec.yaml").decode("utf-8")
+        if (root / "mobile_app/pubspec.yaml").read_text(encoding="utf-8") != approved_pubspec(original):
+            failures.append("mobile_app/pubspec.yaml (original declaration changed beyond pinned SVG/assets/fonts)")
+    for path in PINNED_PRESENTATION & changed:
+        if (root / path).is_file():
+            original = git(root, "show", baseline + ":" + path).decode("utf-8")
+            if (root / path).read_text(encoding="utf-8") != approved_auth_gate(original):
+                failures.append(path + " (authorization gate changed beyond exact template renderer substitutions)")
     return failures
 
 

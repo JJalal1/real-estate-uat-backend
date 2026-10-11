@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -31,7 +32,7 @@ class PropertyMarketContextCard extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
+            EbrokerIcon(
               Icons.query_stats_outlined,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -53,7 +54,7 @@ class PropertyMarketContextCard extends ConsumerWidget {
                     onPressed: () => ref.invalidate(
                       propertyMarketContextProvider(propertyId),
                     ),
-                    icon: const Icon(Icons.refresh_rounded),
+                    icon: const EbrokerIcon(Icons.refresh_rounded),
                     label: const Text('إعادة المحاولة'),
                   ),
                 ],
@@ -89,7 +90,7 @@ class _MarketDataCard extends StatelessWidget {
                 color: scheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(AppRadii.control),
               ),
-              child: Icon(Icons.insights_outlined, color: scheme.onSurfaceVariant),
+              child: EbrokerIcon(Icons.insights_outlined, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(width: AppSpacing.s12),
             Expanded(
@@ -138,7 +139,7 @@ class _MarketDataCard extends StatelessWidget {
                   color: scheme.primaryContainer,
                   borderRadius: BorderRadius.circular(AppRadii.control),
                 ),
-                child: Icon(Icons.insights_rounded, color: scheme.primary),
+                child: EbrokerIcon(Icons.insights_rounded, color: scheme.primary),
               ),
               const SizedBox(width: AppSpacing.s12),
               Expanded(

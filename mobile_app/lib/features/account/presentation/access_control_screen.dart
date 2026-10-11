@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -87,7 +88,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
           actions: [
             IconButton(
                 onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh)),
+                icon: const EbrokerIcon(Icons.refresh)),
           ],
         ),
         body: _loading
@@ -99,11 +100,11 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.lock_outline, size: 48),
+                          const EbrokerIcon(Icons.lock_outline, size: 48),
                           const SizedBox(height: 12),
                           Text(_error!, textAlign: TextAlign.center),
                           const SizedBox(height: 12),
-                          FilledButton(
+                          EbrokerFilledButton(
                               onPressed: _load,
                               child: const Text('إعادة المحاولة')),
                         ],
@@ -122,7 +123,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                               style: Theme.of(context)
                                   .textTheme
                                   .titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w900)),
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 8),
                           TextField(
                             controller: _searchController,
@@ -130,10 +131,10 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                             onSubmitted: (_) => _load(),
                             decoration: InputDecoration(
                               labelText: 'بحث بالاسم أو الهاتف أو البريد',
-                              prefixIcon: const Icon(Icons.search),
+                              prefixIcon: const EbrokerIcon(Icons.search),
                               suffixIcon: IconButton(
                                 onPressed: _load,
-                                icon: const Icon(Icons.arrow_forward),
+                                icon: const EbrokerIcon(Icons.arrow_forward),
                               ),
                             ),
                           ),
@@ -146,7 +147,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                               style: Theme.of(context)
                                   .textTheme
                                   .titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w900)),
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 8),
                           if (_audit.isEmpty)
                             const Card(
@@ -186,7 +187,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
             Row(
               children: [
                 CircleAvatar(
-                    child: Icon(user.isPlatformOwner
+                    child: EbrokerIcon(user.isPlatformOwner
                         ? Icons.shield
                         : Icons.person_outline)),
                 const SizedBox(width: 10),
@@ -195,7 +196,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(user.name,
-                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
                       Text(user.email,
                           style: Theme.of(context).textTheme.bodySmall),
                       if ((user.phone ?? '').trim().isNotEmpty)
@@ -230,21 +231,21 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
                 runSpacing: 8,
                 children: [
                   if (canRoles)
-                    OutlinedButton.icon(
+                    EbrokerOutlinedButton.icon(
                       onPressed: () => _editRoles(user),
-                      icon: const Icon(Icons.badge_outlined),
+                      icon: const EbrokerIcon(Icons.badge_outlined),
                       label: const Text('الأدوار'),
                     ),
                   if (canPermissions)
-                    OutlinedButton.icon(
+                    EbrokerOutlinedButton.icon(
                       onPressed: () => _editPermissions(user),
-                      icon: const Icon(Icons.key_outlined),
+                      icon: const EbrokerIcon(Icons.key_outlined),
                       label: const Text('الصلاحيات'),
                     ),
                   if (canStatus)
-                    OutlinedButton.icon(
+                    EbrokerOutlinedButton.icon(
                       onPressed: () => _editStatus(user),
-                      icon: const Icon(Icons.manage_accounts_outlined),
+                      icon: const EbrokerIcon(Icons.manage_accounts_outlined),
                       label: const Text('الحالة'),
                     ),
                 ],
@@ -259,9 +260,9 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
   Widget _auditTile(AuditEntry entry) => Card(
         margin: const EdgeInsets.only(bottom: 8),
         child: ListTile(
-          leading: const Icon(Icons.history),
+          leading: const EbrokerIcon(Icons.history),
           title: Text(_actionName(entry.action),
-              style: const TextStyle(fontWeight: FontWeight.w800)),
+              style: const TextStyle(fontWeight: FontWeight.w700)),
           subtitle: Text([
             if ((entry.actorName ?? '').isNotEmpty)
               'بواسطة: ${entry.actorName}',
@@ -308,7 +309,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('إلغاء')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('حفظ')),
           ],
@@ -370,7 +371,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('إلغاء')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('حفظ')),
           ],
@@ -410,7 +411,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('إلغاء')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('حفظ')),
           ],
@@ -527,7 +528,7 @@ class _CurrentAccessCard extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w900)),
+                    ?.copyWith(fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
             Wrap(
                 spacing: 6,

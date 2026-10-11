@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -48,15 +49,15 @@ class _PhoneVerificationScreenState
             ),
             const SizedBox(height: 16),
             if (pending == null)
-              OutlinedButton.icon(
+              EbrokerOutlinedButton.icon(
                 onPressed: _busy ? null : _requestLegacyCode,
-                icon: const Icon(Icons.chat_outlined),
+                icon: const EbrokerIcon(Icons.chat_outlined),
                 label: const Text('إرسال رمز واتساب'),
               )
             else
-              OutlinedButton.icon(
+              EbrokerOutlinedButton.icon(
                 onPressed: _busy ? null : _resendPending,
-                icon: const Icon(Icons.refresh),
+                icon: const EbrokerIcon(Icons.refresh),
                 label: const Text('إعادة إرسال الرمز'),
               ),
             if (debugCode != null) ...[
@@ -67,7 +68,7 @@ class _PhoneVerificationScreenState
                   child: Text(
                     'رمز بيئة الاختبار المحلية: $debugCode',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -79,12 +80,12 @@ class _PhoneVerificationScreenState
               maxLength: 6,
               onSubmitted: _busy ? null : (_) => _verify(),
               decoration: const InputDecoration(
-                  labelText: 'رمز التحقق', border: OutlineInputBorder()),
+                  labelText: 'رمز التحقق', ),
             ),
             const SizedBox(height: 12),
-            FilledButton.icon(
+            EbrokerFilledButton.icon(
               onPressed: _busy ? null : _verify,
-              icon: const Icon(Icons.verified_outlined),
+              icon: const EbrokerIcon(Icons.verified_outlined),
               label: const Text('تأكيد والدخول'),
             ),
           ],

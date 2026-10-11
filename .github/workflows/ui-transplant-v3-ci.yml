@@ -34,6 +34,8 @@ jobs:
           fetch-depth: 0
       - name: Verify frozen references and source boundaries
         run: python3 scripts/check_ui_transplant_v3.py --verify-reference-refs
+      - name: Verify byte-identical template assets
+        run: python3 -B scripts/verify_template_assets.py
       - name: Exercise guard rejection cases
         run: python3 -B -m unittest discover -s scripts -p 'test_*v3*.py' -v
       - name: Verify diff whitespace
@@ -172,19 +174,20 @@ jobs:
       - name: Static analysis with exact original INFO baseline
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
-      - name: Stage 1 home and navigation acceptance
+      - name: Template components, screens and navigation acceptance
         id: stage1_ui
         working-directory: mobile_app
         run: >-
           flutter test
           test/ui_transplant_v3_home_test.dart
+          test/ui_transplant_v3_template_test.dart
           test/app_components_test.dart
           test/startup_navigation_layout_test.dart
-      - name: Upload rendered Stage 1 home previews
+      - name: Upload rendered template screen previews
         if: ${{ !cancelled() && steps.stage1_ui.conclusion == 'success' }}
         uses: actions/upload-artifact@v4
         with:
-          name: real-estate-v3-stage1-preview-${{ github.run_number }}
+          name: real-estate-v3-template-preview-${{ github.run_number }}
           path: mobile_app/build/v3-preview/
           if-no-files-found: error
           retention-days: 14
@@ -229,7 +232,7 @@ jobs:
           cp mobile_app/pubspec_overrides.yaml dist/BUILD_PUBSPEC_OVERRIDES.yaml
           sha256sum dist/RESOLVED_PUBSPEC.lock > dist/DEPENDENCY_SHA256.txt
           cat > dist/BUILD_INFO.txt <<EOF
-          purpose=ui-transplant-v3-stage1-diagnostic
+          purpose=ui-transplant-v3-template-diagnostic
           acceptance_status=not-approved
           stage1_ui=${{ steps.stage1_ui.conclusion }}
           flutter_regression=${{ steps.flutter_regression.conclusion }}

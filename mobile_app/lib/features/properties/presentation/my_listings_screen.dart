@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -37,7 +38,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         appBar: const AppAppBar(title: 'إعلاناتي'),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () => _create(context, ref),
-          icon: const Icon(Icons.add_home_work_outlined),
+          icon: const EbrokerIcon(Icons.add_home_work_outlined),
           label: const Text('إضافة عقار'),
         ),
         body: listings.when(
@@ -196,7 +197,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('إلغاء'),
             ),
-            FilledButton(
+            EbrokerFilledButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('متابعة'),
             ),
@@ -259,7 +260,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('ليس الآن')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('أقسم بذلك')),
           ],
@@ -298,7 +299,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('إلغاء'),
             ),
-            FilledButton(
+            EbrokerFilledButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('حذف'),
             ),
@@ -402,12 +403,12 @@ class _OverviewMetric extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, color: Theme.of(context).colorScheme.primary),
+        EbrokerIcon(icon, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: AppSpacing.s4),
         Text(
           '$value',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
         ),
         const SizedBox(height: AppSpacing.s4),
@@ -506,13 +507,13 @@ class _ListingCard extends StatelessWidget {
                               color: Theme.of(context)
                                   .colorScheme
                                   .surfaceContainerHighest,
-                              child: const Icon(Icons.home_work_outlined),
+                              child: const EbrokerIcon(Icons.home_work_outlined),
                             )
                           : Image.network(
                               property.mainImage!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => const Center(
-                                child: Icon(Icons.home_work_outlined),
+                                child: EbrokerIcon(Icons.home_work_outlined),
                               ),
                             ),
                     ),
@@ -536,7 +537,7 @@ class _ListingCard extends StatelessWidget {
                               .titleSmall
                               ?.copyWith(
                                 color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w700,
                               ),
                         ),
                         const SizedBox(height: AppSpacing.s8),
@@ -601,13 +602,13 @@ class _ListingCard extends StatelessWidget {
               children: [
                 TextButton.icon(
                   onPressed: onOpen,
-                  icon: const Icon(Icons.visibility_outlined),
+                  icon: const EbrokerIcon(Icons.visibility_outlined),
                   label: const Text('عرض'),
                 ),
                 if (onEdit != null)
                   TextButton.icon(
                     onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined),
+                    icon: const EbrokerIcon(Icons.edit_outlined),
                     label: Text(
                       property.reviewStatus == 'returned_for_correction'
                           ? 'تصحيح الإعلان'
@@ -615,9 +616,9 @@ class _ListingCard extends StatelessWidget {
                     ),
                   ),
                 if (onSubmit != null)
-                  FilledButton.tonalIcon(
+                  EbrokerFilledButton.tonalIcon(
                     onPressed: onSubmit,
-                    icon: const Icon(Icons.send_outlined),
+                    icon: const EbrokerIcon(Icons.send_outlined),
                     label: Text(
                       property.reviewStatus == 'returned_for_correction'
                           ? 'إعادة الإرسال'
@@ -625,15 +626,15 @@ class _ListingCard extends StatelessWidget {
                     ),
                   ),
                 if (onAttest != null)
-                  FilledButton.tonalIcon(
+                  EbrokerFilledButton.tonalIcon(
                     onPressed: onAttest,
-                    icon: const Icon(Icons.verified_user_outlined),
+                    icon: const EbrokerIcon(Icons.verified_user_outlined),
                     label: const Text('إقرار السعي'),
                   ),
                 if (onDelete != null)
                   TextButton.icon(
                     onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline),
+                    icon: const EbrokerIcon(Icons.delete_outline),
                     label: const Text('حذف'),
                   ),
               ],

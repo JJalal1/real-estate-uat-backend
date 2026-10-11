@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -171,7 +172,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             index: _imageIndex,
             onChanged: (index) => setState(() => _imageIndex = index),
           ),
-          const SizedBox(height: AppSpacing.s40),
+          const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -227,7 +228,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             ],
           ),
           if (!published && !property.isOwner) ...[
-            const SizedBox(height: AppSpacing.s40),
+            const SizedBox(height: 16),
             const AppUnavailableState(),
           ],
           if (property.address != null) ...[
@@ -238,7 +239,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
+                  EbrokerIcon(
                     Icons.location_on_outlined,
                     color: Theme.of(context).colorScheme.primary,
                   ),
@@ -291,7 +292,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             const AppSectionHeader(title: 'عقارات مشابهة'),
             const SizedBox(height: AppSpacing.s12),
             SizedBox(
-              height: 340,
+              height: 340 + (MediaQuery.textScalerOf(context).scale(14) - 14) * 8,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: property.similar.length,
@@ -301,7 +302,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                   final item = property.similar[index];
                   final isFavorite = favoriteIds.contains(item.id);
                   return SizedBox(
-                    width: 260,
+                    width: 290,
                     child: AppPropertyCard(
                       title: item.title,
                       price: _formatPrice(item.price),
@@ -324,7 +325,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                       trailing: IconButton.filledTonal(
                         tooltip:
                             isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-                        icon: Icon(
+                        icon: EbrokerIcon(
                           isFavorite
                               ? Icons.favorite_rounded
                               : Icons.favorite_border_rounded,
@@ -566,7 +567,7 @@ class _Gallery extends StatelessWidget {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
+                        EbrokerIcon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
                         SizedBox(width: AppSpacing.s4),
                         Text(
                           'تكبير الصور',
@@ -657,7 +658,7 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                       fit: BoxFit.contain,
                       width: double.infinity,
                       errorBuilder: (_, __, ___) => const Center(
-                        child: Icon(Icons.broken_image_outlined, color: Colors.white54, size: 52),
+                        child: EbrokerIcon(Icons.broken_image_outlined, color: Colors.white54, size: 52),
                       ),
                       loadingBuilder: (context, child, progress) {
                         if (progress == null) return child;
@@ -673,7 +674,7 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                 child: IconButton.filled(
                   tooltip: 'إغلاق الصور',
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const EbrokerIcon(Icons.close_rounded),
                 ),
               ),
               PositionedDirectional(
@@ -737,7 +738,7 @@ class _AdvertiserCard extends StatelessWidget {
           Row(
             children: [
               CircleAvatar(
-                child: Icon(
+                child: EbrokerIcon(
                   verified ? Icons.verified_user_outlined : Icons.person_outline,
                 ),
               ),
@@ -784,7 +785,7 @@ class _AdvertiserCard extends StatelessWidget {
               children: signals
                   .map(
                     (signal) => Chip(
-                      avatar: Icon(signal.icon, size: 18),
+                      avatar: EbrokerIcon(signal.icon, size: 18),
                       label: Text(signal.label),
                       visualDensity: VisualDensity.compact,
                     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -49,9 +50,9 @@ class _DevelopmentsScreenState extends ConsumerState<DevelopmentsScreen> {
                 onSubmitted: (_) => _reload(),
                 decoration: InputDecoration(
                     hintText: 'ابحث باسم المشروع أو المطور',
-                    prefixIcon: const Icon(Icons.search),
+                    prefixIcon: const EbrokerIcon(Icons.search),
                     suffixIcon: IconButton(
-                        onPressed: _reload, icon: const Icon(Icons.refresh)))),
+                        onPressed: _reload, icon: const EbrokerIcon(Icons.refresh)))),
           ),
           Expanded(
               child: FutureBuilder<List<DevelopmentSummary>>(
@@ -62,9 +63,9 @@ class _DevelopmentsScreenState extends ConsumerState<DevelopmentsScreen> {
               }
               if (snapshot.hasError) {
                 return Center(
-                    child: FilledButton.icon(
+                    child: EbrokerFilledButton.icon(
                         onPressed: _reload,
-                        icon: const Icon(Icons.refresh),
+                        icon: const EbrokerIcon(Icons.refresh),
                         label: const Text('تعذر التحميل - إعادة المحاولة')));
               }
               final rows = snapshot.data ?? const <DevelopmentSummary>[];
@@ -96,19 +97,19 @@ class _ProjectCard extends StatelessWidget {
     final developer = project.developer?.name ?? 'مطور عقاري';
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         onTap: () => context.push('/developments/${project.id}'),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.apartment_outlined),
+              const EbrokerIcon(Icons.apartment_outlined),
               const SizedBox(width: 8),
               Expanded(
                   child: Text(project.name,
                       style: const TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.w900)))
+                          fontSize: 17, fontWeight: FontWeight.w600)))
             ]),
             const SizedBox(height: 6),
             Text(developer,

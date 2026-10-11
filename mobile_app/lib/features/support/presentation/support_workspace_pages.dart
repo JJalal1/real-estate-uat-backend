@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/ebroker_design.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -43,7 +45,7 @@ class SupportManagerHomeScreen extends ConsumerWidget {
     return _DashboardFrame(
       title: 'إدارة الدعم',
       load: () => ref.read(supportWorkspaceRepositoryProvider).dashboard(),
-      topAction: FilledButton.icon(
+      topAction: EbrokerFilledButton.icon(
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => const SupportTasksScreen(
@@ -53,7 +55,7 @@ class SupportManagerHomeScreen extends ConsumerWidget {
             ),
           ),
         ),
-        icon: const Icon(Icons.support_agent_outlined),
+        icon: const EbrokerIcon(Icons.support_agent_outlined),
         label: const Text('العمل كموظف دعم'),
       ),
       cards: const [
@@ -137,7 +139,7 @@ class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
         child: Scaffold(
           appBar: AppBar(
             title: const Text('الفريق وعبء العمل'),
-            actions: [IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh))],
+            actions: [IconButton(onPressed: _refresh, icon: const EbrokerIcon(Icons.refresh))],
           ),
           body: FutureBuilder<(List<SupportTeamMember>, List<SupportTeamSummary>)>(
             future: _future,
@@ -161,8 +163,8 @@ class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
                     else
                       ...teams.map((team) => Card(
                             child: ListTile(
-                              leading: CircleAvatar(child: Icon(team.isFallback ? Icons.all_inbox_outlined : Icons.location_on_outlined)),
-                              title: Text(team.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                              leading: CircleAvatar(child: EbrokerIcon(team.isFallback ? Icons.all_inbox_outlined : Icons.location_on_outlined)),
+                              title: Text(team.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                               subtitle: Text('${team.availableAgents}/${team.agents} متاح • ${team.openTasks} مفتوحة • ${team.unassigned} غير مستلمة'),
                               trailing: team.isFallback ? const Chip(label: Text('وارد عام')) : null,
                             ),
@@ -216,16 +218,16 @@ class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
               Row(
                 children: [
                   const Expanded(child: Text('الحد الأقصى للمهام المفتوحة')),
-                  IconButton(onPressed: capacity <= 1 ? null : () => setLocal(() => capacity--), icon: const Icon(Icons.remove_circle_outline)),
-                  Text('$capacity', style: const TextStyle(fontWeight: FontWeight.w900)),
-                  IconButton(onPressed: capacity >= 50 ? null : () => setLocal(() => capacity++), icon: const Icon(Icons.add_circle_outline)),
+                  IconButton(onPressed: capacity <= 1 ? null : () => setLocal(() => capacity--), icon: const EbrokerIcon(Icons.remove_circle_outline)),
+                  Text('$capacity', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  IconButton(onPressed: capacity >= 50 ? null : () => setLocal(() => capacity++), icon: const EbrokerIcon(Icons.add_circle_outline)),
                 ],
               ),
             ],
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حفظ')),
+            EbrokerFilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حفظ')),
           ],
         ),
       ),
@@ -254,7 +256,7 @@ class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
         content: Text('ستعود جميع المهام المفتوحة المسندة إلى ${member.name} إلى الوارد المشترك ليتم استلامها من موظف متاح.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('إعادة للوارد')),
+          EbrokerFilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('إعادة للوارد')),
         ],
       ),
     );
@@ -285,11 +287,11 @@ class _TeamMemberCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                CircleAvatar(child: Icon(member.isAvailable ? Icons.support_agent : Icons.person_off_outlined)),
+                CircleAvatar(child: EbrokerIcon(member.isAvailable ? Icons.support_agent : Icons.person_off_outlined)),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(member.name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                  Text('${member.teamName ?? 'فريق الدعم'} • ${member.isAvailable ? 'متاح' : 'غير متاح'}', style: const TextStyle(color: AppTheme.textMuted)),
+                  Text(member.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text('${member.teamName ?? 'فريق الدعم'} • ${member.isAvailable ? 'متاح' : 'غير متاح'}', style: const TextStyle(color: EbrokerDesign.textLight)),
                 ])),
                 Chip(label: Text('${member.openTasks}/${member.capacity}')),
               ]),
@@ -303,13 +305,13 @@ class _TeamMemberCard extends StatelessWidget {
                 _MetricChip('منجز اليوم', member.completedToday),
               ]),
               const SizedBox(height: 8),
-              Text('الاستلام: ${member.averageClaimMinutes ?? '—'} د • الرد: ${member.averageResponseMinutes ?? '—'} د • الإنجاز: ${member.averageCompletionMinutes ?? '—'} د', style: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5)),
+              Text('الاستلام: ${member.averageClaimMinutes ?? '—'} د • الرد: ${member.averageResponseMinutes ?? '—'} د • الإنجاز: ${member.averageCompletionMinutes ?? '—'} د', style: const TextStyle(color: EbrokerDesign.textLight, fontSize: 12.5)),
               const SizedBox(height: 10),
               Row(children: [
-                Expanded(child: OutlinedButton.icon(onPressed: onManage, icon: const Icon(Icons.manage_accounts_outlined), label: const Text('إدارة الموظف'))),
+                Expanded(child: EbrokerOutlinedButton.icon(onPressed: onManage, icon: const EbrokerIcon(Icons.manage_accounts_outlined), label: const Text('إدارة الموظف'))),
                 if (onRedistribute != null) ...[
                   const SizedBox(width: 8),
-                  Expanded(child: FilledButton.tonalIcon(onPressed: onRedistribute, icon: const Icon(Icons.move_to_inbox_outlined), label: const Text('إعادة توزيع'))),
+                  Expanded(child: EbrokerFilledButton.tonalIcon(onPressed: onRedistribute, icon: const EbrokerIcon(Icons.move_to_inbox_outlined), label: const Text('إعادة توزيع'))),
                 ],
               ]),
             ],
@@ -451,7 +453,7 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(widget.title),
-          actions: [IconButton(tooltip: 'تحديث', onPressed: _refresh, icon: const Icon(Icons.refresh))],
+          actions: [IconButton(tooltip: 'تحديث', onPressed: _refresh, icon: const EbrokerIcon(Icons.refresh))],
         ),
         body: FutureBuilder<SupportWorkspaceDashboard>(
           future: _future,
@@ -511,12 +513,12 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
                       ...dashboard.attention.map(
                         (task) => Card(
                           child: ListTile(
-                            leading: CircleAvatar(child: Icon(_attentionIcon(task.sourceType))),
+                            leading: CircleAvatar(child: EbrokerIcon(_attentionIcon(task.sourceType))),
                             title: Text(task.subject, maxLines: 1, overflow: TextOverflow.ellipsis),
                             subtitle: Text('${_attentionType(task.sourceType)} • ${_attentionStatus(task.status)}'),
                             trailing: task.isOverdue
                                 ? const Badge(label: Text('متأخر'))
-                                : const Icon(Icons.chevron_left),
+                                : const EbrokerIcon(Icons.chevron_left),
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) => SupportTasksScreen(
@@ -641,7 +643,7 @@ class _PlatformDailySummary extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('ملخص اليوم', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            const Text('ملخص اليوم', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
@@ -672,9 +674,9 @@ class _DashboardCard extends StatelessWidget {
     final urgent = spec.key == 'critical_reports' || spec.key == 'overdue';
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(13),
@@ -684,12 +686,12 @@ class _DashboardCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(spec.icon, color: urgent && count > 0 ? Colors.red.shade700 : AppTheme.brandStrong),
+                  EbrokerIcon(spec.icon, color: urgent && count > 0 ? Colors.red.shade700 : AppTheme.brandStrong),
                   const Spacer(),
-                  Text('$count', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: urgent && count > 0 ? Colors.red.shade800 : AppTheme.textStrong)),
+                  Text('$count', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: urgent && count > 0 ? Colors.red.shade800 : EbrokerDesign.text)),
                 ],
               ),
-              Text(spec.label, maxLines: 2, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+              Text(spec.label, maxLines: 2, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             ],
           ),
         ),
@@ -713,12 +715,12 @@ class _HeroHeader extends StatelessWidget {
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [AppTheme.brand, AppTheme.brandStrong]),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(data.$1, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+          Text(data.$1, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
           const SizedBox(height: 5),
           Text(data.$2, style: const TextStyle(color: Colors.white70, height: 1.45)),
         ],
@@ -739,11 +741,11 @@ class _ErrorState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 48),
+              const EbrokerIcon(Icons.error_outline, size: 48),
               const SizedBox(height: 10),
               Text(friendlyApiError(error), textAlign: TextAlign.center),
               const SizedBox(height: 12),
-              FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
+              EbrokerFilledButton.icon(onPressed: onRetry, icon: const EbrokerIcon(Icons.refresh), label: const Text('إعادة المحاولة')),
             ],
           ),
         ),
@@ -762,7 +764,7 @@ class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.text);
   final String text;
   @override
-  Widget build(BuildContext context) => Text(text, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900));
+  Widget build(BuildContext context) => Text(text, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600));
 }
 
 class _OperationTile extends StatelessWidget {
@@ -783,10 +785,10 @@ class _OperationTile extends StatelessWidget {
   Widget build(BuildContext context) => Card(
         child: ListTile(
           enabled: enabled,
-          leading: CircleAvatar(backgroundColor: AppTheme.brandSoft, child: Icon(icon, color: AppTheme.brandStrong)),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          leading: CircleAvatar(backgroundColor: AppTheme.brandSoft, child: EbrokerIcon(icon, color: AppTheme.brandStrong)),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
           subtitle: subtitle == null ? null : Text(subtitle!),
-          trailing: const Icon(Icons.chevron_left),
+          trailing: const EbrokerIcon(Icons.chevron_left),
           onTap: enabled ? onTap : null,
         ),
       );

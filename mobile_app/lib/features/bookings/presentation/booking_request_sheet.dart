@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -110,22 +111,22 @@ class _BookingRequestSheetState extends ConsumerState<BookingRequestSheet> {
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w900)),
+                        ?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 5),
                 Text(widget.title),
                 const SizedBox(height: 16),
                 Row(children: [
                   Expanded(
-                      child: OutlinedButton.icon(
+                      child: EbrokerOutlinedButton.icon(
                           onPressed: _pickDate,
-                          icon: const Icon(Icons.date_range_outlined),
+                          icon: const EbrokerIcon(Icons.date_range_outlined),
                           label: Text(
                               '${_date.year}/${_date.month}/${_date.day}'))),
                   const SizedBox(width: 8),
                   Expanded(
-                      child: OutlinedButton.icon(
+                      child: EbrokerOutlinedButton.icon(
                           onPressed: _pickTime,
-                          icon: const Icon(Icons.schedule_outlined),
+                          icon: const EbrokerIcon(Icons.schedule_outlined),
                           label: Text(_time.format(context)))),
                 ]),
                 const SizedBox(height: 10),
@@ -152,14 +153,14 @@ class _BookingRequestSheetState extends ConsumerState<BookingRequestSheet> {
                         labelText: 'ملاحظة اختيارية',
                         hintText: 'مثلاً: أفضّل التواصل قبل الموعد بنصف ساعة')),
                 const SizedBox(height: 8),
-                FilledButton.icon(
+                EbrokerFilledButton.icon(
                     onPressed: _busy ? null : _submit,
                     icon: _busy
                         ? const SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.event_available_outlined),
+                        : const EbrokerIcon(Icons.event_available_outlined),
                     label: Text(widget.reschedule == null
                         ? 'إرسال الطلب'
                         : 'حفظ الموعد الجديد')),

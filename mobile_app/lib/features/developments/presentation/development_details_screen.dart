@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../bookings/presentation/booking_request_sheet.dart';
@@ -33,18 +34,18 @@ class DevelopmentDetailsScreen extends ConsumerWidget {
                   style: Theme.of(context)
                       .textTheme
                       .headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w900)),
+                      ?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               Text(p.developer?.name ?? '',
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
+                      ?.copyWith(fontWeight: FontWeight.w700)),
               if (p.address != null) ...[
                 const SizedBox(height: 10),
                 ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.location_on_outlined),
+                    leading: const EbrokerIcon(Icons.location_on_outlined),
                     title: Text(p.address!))
               ],
               if (p.description != null) ...[
@@ -53,7 +54,7 @@ class DevelopmentDetailsScreen extends ConsumerWidget {
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w900)),
+                        ?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 Text(p.description!, style: const TextStyle(height: 1.6))
               ],
@@ -62,7 +63,7 @@ class DevelopmentDetailsScreen extends ConsumerWidget {
                   style: Theme.of(context)
                       .textTheme
                       .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w900)),
+                      ?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               if (details.units.isEmpty)
                 const Card(
@@ -103,7 +104,7 @@ class _UnitCard extends StatelessWidget {
               Row(children: [
                 Expanded(
                     child: Text('${unit.title} (${unit.code})',
-                        style: const TextStyle(fontWeight: FontWeight.w900))),
+                        style: const TextStyle(fontWeight: FontWeight.w600))),
                 Chip(label: Text(_status(unit.status)))
               ]),
               const SizedBox(height: 6),
@@ -117,9 +118,9 @@ class _UnitCard extends StatelessWidget {
               ],
               if (onRequest != null) ...[
                 const SizedBox(height: 10),
-                FilledButton.tonalIcon(
+                EbrokerFilledButton.tonalIcon(
                     onPressed: onRequest,
-                    icon: const Icon(Icons.event_available_outlined),
+                    icon: const EbrokerIcon(Icons.event_available_outlined),
                     label: const Text('طلب معاينة هذه الوحدة'))
               ],
             ])));

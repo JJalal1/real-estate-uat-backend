@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -110,7 +111,7 @@ class _AccountVerificationScreenState
             IconButton(
               tooltip: 'تحديث الحالة',
               onPressed: _busy ? null : _reload,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
             ),
           ],
         ),
@@ -135,9 +136,9 @@ class _AccountVerificationScreenState
                   }
                   if (snapshot.hasError && _application == null) {
                     return Center(
-                      child: FilledButton.icon(
+                      child: EbrokerFilledButton.icon(
                         onPressed: _reload,
-                        icon: const Icon(Icons.refresh),
+                        icon: const EbrokerIcon(Icons.refresh),
                         label: const Text('إعادة المحاولة'),
                       ),
                     );
@@ -153,7 +154,7 @@ class _AccountVerificationScreenState
                         style: Theme.of(context)
                             .textTheme
                             .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w900),
+                            ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
                       const Text(
@@ -164,17 +165,17 @@ class _AccountVerificationScreenState
                         segments: const [
                           ButtonSegment(
                             value: 'owner',
-                            icon: Icon(Icons.home_work_outlined),
+                            icon: EbrokerIcon(Icons.home_work_outlined),
                             label: Text('مالك'),
                           ),
                           ButtonSegment(
                             value: 'broker',
-                            icon: Icon(Icons.real_estate_agent_outlined),
+                            icon: EbrokerIcon(Icons.real_estate_agent_outlined),
                             label: Text('دلال'),
                           ),
                           ButtonSegment(
                             value: 'office',
-                            icon: Icon(Icons.apartment_outlined),
+                            icon: EbrokerIcon(Icons.apartment_outlined),
                             label: Text('مكتب عقارات'),
                           ),
                         ],
@@ -194,7 +195,7 @@ class _AccountVerificationScreenState
                         style: Theme.of(context)
                             .textTheme
                             .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w900),
+                            ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
                       ..._documentTiles(application),
@@ -210,7 +211,7 @@ class _AccountVerificationScreenState
                         ),
                       ],
                       const SizedBox(height: 18),
-                      FilledButton.icon(
+                      EbrokerFilledButton.icon(
                         onPressed: _formLocked ? null : _submit,
                         icon: _busy
                             ? const SizedBox.square(
@@ -218,10 +219,10 @@ class _AccountVerificationScreenState
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : application.approved
-                                ? const Icon(Icons.verified_outlined)
+                                ? const EbrokerIcon(Icons.verified_outlined)
                                 : application.status == 'pending'
-                                    ? const Icon(Icons.hourglass_top_outlined)
-                                    : const Icon(Icons.verified_user_outlined),
+                                    ? const EbrokerIcon(Icons.hourglass_top_outlined)
+                                    : const EbrokerIcon(Icons.verified_user_outlined),
                         label: Text(
                           application.approved
                               ? 'تم التحقق'
@@ -265,8 +266,8 @@ class _AccountVerificationScreenState
         isExpanded: true,
         decoration: const InputDecoration(
           labelText: 'المحافظة التي تقيم فيها',
-          prefixIcon: Icon(Icons.map_outlined),
-          border: OutlineInputBorder(),
+          prefixIcon: EbrokerIcon(Icons.map_outlined),
+          
         ),
         items: values
             .map((value) => DropdownMenuItem<String>(
@@ -301,8 +302,8 @@ class _AccountVerificationScreenState
         isExpanded: true,
         decoration: const InputDecoration(
           labelText: 'المديرية التي تقيم فيها',
-          prefixIcon: Icon(Icons.location_city_outlined),
-          border: OutlineInputBorder(),
+          prefixIcon: EbrokerIcon(Icons.location_city_outlined),
+          
         ),
         items: values
             .map((value) => DropdownMenuItem<String>(
@@ -372,17 +373,17 @@ class _AccountVerificationScreenState
         ),
         Card(
           child: ListTile(
-            leading: Icon(
+            leading: EbrokerIcon(
               _latitude == null ? Icons.add_location_alt_outlined : Icons.check_circle,
             ),
             title: const Text(
               'موقع المكتب',
-              style: TextStyle(fontWeight: FontWeight.w800),
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
             subtitle: Text(_latitude == null
                 ? 'اضغط لاختيار تحديد موقعك الحالي أو الموقع على الخريطة'
                 : 'تم تسجيل الموقع (${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)})'),
-            trailing: const Icon(Icons.chevron_left),
+            trailing: const EbrokerIcon(Icons.chevron_left),
             onTap: _formLocked ? null : _chooseOfficeLocation,
           ),
         ),
@@ -443,7 +444,7 @@ class _AccountVerificationScreenState
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          prefixIcon: icon == null ? null : Icon(icon),
+          prefixIcon: icon == null ? null : EbrokerIcon(icon),
           border: const OutlineInputBorder(),
         ),
       ),
@@ -462,12 +463,12 @@ class _AccountVerificationScreenState
             child: Wrap(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.camera_alt),
+                  leading: const EbrokerIcon(Icons.camera_alt),
                   title: const Text('فتح الكاميرا'),
                   onTap: () => Navigator.of(sheetContext).pop('camera'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.folder_open),
+                  leading: const EbrokerIcon(Icons.folder_open),
                   title: const Text('اختيار من الملفات'),
                   onTap: () => Navigator.of(sheetContext).pop('files'),
                 ),
@@ -509,13 +510,13 @@ class _AccountVerificationScreenState
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.my_location),
+              leading: const EbrokerIcon(Icons.my_location),
               title: const Text('تحديد موقعي الحالي'),
               subtitle: const Text('استخدام GPS لتسجيل موقع المكتب الحالي'),
               onTap: () => Navigator.of(sheetContext).pop('current'),
             ),
             ListTile(
-              leading: const Icon(Icons.map_outlined),
+              leading: const EbrokerIcon(Icons.map_outlined),
               title: const Text('موقع المكتب على الخريطة'),
               subtitle: const Text('تحريك المؤشر واختيار موقع المكتب يدويًا'),
               onTap: () => Navigator.of(sheetContext).pop('map'),
@@ -620,7 +621,7 @@ class _AccountVerificationScreenState
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          icon: const Icon(Icons.mark_email_read_outlined, size: 44),
+          icon: const EbrokerIcon(Icons.mark_email_read_outlined, size: 44),
           title: const Text('تم استلام طلب التحقق بنجاح'),
           content: const Text(
             'بياناتك ومستنداتك الآن قيد المراجعة من فريق الدعم\n'
@@ -630,7 +631,7 @@ class _AccountVerificationScreenState
             textAlign: TextAlign.center,
           ),
           actions: [
-            FilledButton(
+            EbrokerFilledButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('حسنًا'),
             ),
@@ -724,7 +725,7 @@ class _StatusCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 34),
+                EbrokerIcon(icon, size: 34),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -734,7 +735,7 @@ class _StatusCard extends StatelessWidget {
                         application.typeLabel,
                         style: const TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
@@ -777,7 +778,7 @@ class _VerifiedLine extends StatelessWidget {
         padding: const EdgeInsets.only(top: 4),
         child: Row(
           children: [
-            const Icon(Icons.check_circle, size: 18),
+            const EbrokerIcon(Icons.check_circle, size: 18),
             const SizedBox(width: 6),
             Expanded(child: Text(text)),
           ],
@@ -807,12 +808,12 @@ class _DocumentTile extends StatelessWidget {
     final ready = selected || alreadyStored;
     return Card(
       child: ListTile(
-        leading: Icon(
+        leading: EbrokerIcon(
           ready ? Icons.check_circle_outline : Icons.add_photo_alternate_outlined,
         ),
         title: Text(
           requiredDocument ? '$label *' : label,
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         subtitle: Text(
           selected
@@ -823,7 +824,7 @@ class _DocumentTile extends StatelessWidget {
                       ? 'اضغط لالتقاط صورة مباشرة بالكاميرا'
                       : 'اضغط لاختيار فتح الكاميرا أو اختيار من الملفات',
         ),
-        trailing: const Icon(Icons.chevron_left),
+        trailing: const EbrokerIcon(Icons.chevron_left),
         onTap: onTap,
       ),
     );

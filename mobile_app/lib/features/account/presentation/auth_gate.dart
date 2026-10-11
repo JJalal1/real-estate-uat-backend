@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -24,10 +25,10 @@ class Stage6AuthGate extends ConsumerWidget {
           error: (_, __) => Scaffold(
             appBar: AppBar(),
             body: Center(
-              child: FilledButton.icon(
+              child: EbrokerFilledButton.icon(
                 onPressed: () =>
                     ref.read(authControllerProvider.notifier).refresh(),
-                icon: const Icon(Icons.refresh),
+                icon: const EbrokerIcon(Icons.refresh),
                 label: const Text('إعادة المحاولة'),
               ),
             ),
@@ -102,17 +103,17 @@ class _GateMessage extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 68),
+                EbrokerIcon(icon, size: 68),
                 const SizedBox(height: 16),
                 Text(title,
                     style: Theme.of(context)
                         .textTheme
                         .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w900)),
+                        ?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 Text(message, textAlign: TextAlign.center),
                 const SizedBox(height: 20),
-                FilledButton(onPressed: onPressed, child: Text(button)),
+                EbrokerFilledButton(onPressed: onPressed, child: Text(button)),
               ],
             ),
           ),

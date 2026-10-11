@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/ebroker_design.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -22,7 +24,7 @@ class ServicesScreen extends ConsumerWidget {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: AppTheme.page,
+        backgroundColor: EbrokerDesign.page,
         appBar: const AppAppBar(title: 'الخدمات والأدوات'),
         body: auth.when(
           loading: () => const AppLoadingState(),
@@ -98,7 +100,7 @@ class _ServicesHub extends StatelessWidget {
                   color: scheme.primaryContainer,
                   borderRadius: BorderRadius.circular(AppRadii.control),
                 ),
-                child: Icon(Icons.home_work_outlined, color: scheme.primary),
+                child: EbrokerIcon(Icons.home_work_outlined, color: scheme.primary),
               ),
               const SizedBox(width: AppSpacing.s12),
               Expanded(
@@ -137,7 +139,7 @@ class _ServicesHub extends StatelessWidget {
                 title: 'رحلتي العقارية',
                 subtitle:
                     'المحفوظات والرسائل والمعاينات والاتفاقات مع الخطوة التالية.',
-                leading: const Icon(Icons.route_outlined),
+                leading: const EbrokerIcon(Icons.route_outlined),
                 trailing: const AppStatusBadge(
                   label: 'متاح الآن',
                   tone: AppStatusTone.success,
@@ -153,8 +155,8 @@ class _ServicesHub extends StatelessWidget {
                 title: 'البحوث المحفوظة والتنبيهات',
                 subtitle:
                     'تابع نتائج بحثك واحصل على تنبيه عند ظهور عقار مطابق.',
-                leading: const Icon(Icons.saved_search_rounded),
-                trailing: const Icon(Icons.chevron_left_rounded),
+                leading: const EbrokerIcon(Icons.saved_search_rounded),
+                trailing: const EbrokerIcon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => const SavedSearchesScreen(),
@@ -166,7 +168,7 @@ class _ServicesHub extends StatelessWidget {
                 title: 'اتفاقاتي وعقودي',
                 subtitle:
                     'تابع الاتفاقات المقبولة وعقود الإيجار المرتبطة بعقاراتك.',
-                leading: const Icon(Icons.handshake_outlined),
+                leading: const EbrokerIcon(Icons.handshake_outlined),
                 trailing: const AppStatusBadge(
                   label: 'متاح الآن',
                   tone: AppStatusTone.success,
@@ -191,7 +193,7 @@ class _ServicesHub extends StatelessWidget {
                 title: 'مؤشرات الأسعار داخل صفحة العقار',
                 subtitle:
                     'تقارن العقار بعقارات منشورة ومعتمدة مشابهة، وتظهر فقط عندما تكون العينة كافية.',
-                leading: const Icon(Icons.insights_outlined),
+                leading: const EbrokerIcon(Icons.insights_outlined),
                 trailing: const AppStatusBadge(
                   label: 'متاح الآن',
                   tone: AppStatusTone.success,
@@ -203,7 +205,7 @@ class _ServicesHub extends StatelessWidget {
                 title: 'مقارنة العقارات',
                 subtitle:
                     'قارن من عقارين إلى أربعة من المفضلة في السعر والمساحة والسعي والثقة ومؤشر السوق.',
-                leading: const Icon(Icons.compare_arrows_rounded),
+                leading: const EbrokerIcon(Icons.compare_arrows_rounded),
                 trailing: const AppStatusBadge(
                   label: 'متاح الآن',
                   tone: AppStatusTone.success,
@@ -229,7 +231,7 @@ class _ServicesHub extends StatelessWidget {
                   title: 'لوحة عملي',
                   subtitle:
                       'نشاط العملاء، المعاينات، الاتفاقات والإعلانات التي تحتاج إجراء.',
-                  leading: const Icon(Icons.space_dashboard_outlined),
+                  leading: const EbrokerIcon(Icons.space_dashboard_outlined),
                   trailing: const AppStatusBadge(
                     label: 'متاح الآن',
                     tone: AppStatusTone.success,
@@ -247,7 +249,7 @@ class _ServicesHub extends StatelessWidget {
                 subtitle: model.can('create_listing')
                     ? 'أنشئ إعلاناً جديداً وأرسله للمراجعة.'
                     : 'يتطلب حساب مالك أو دلال أو مكتب عقاري موثق.',
-                leading: const Icon(Icons.add_home_work_outlined),
+                leading: const EbrokerIcon(Icons.add_home_work_outlined),
                 trailing: AppStatusBadge(
                   label: model.requiresVerification('create_listing')
                       ? 'يتطلب التحقق'
@@ -270,7 +272,7 @@ class _ServicesHub extends StatelessWidget {
                 title: 'إعلاناتي',
                 subtitle:
                     'تابع دورة الإعلان، وما يحتاج إجراء، والمراجعة والنشر.',
-                leading: const Icon(Icons.inventory_2_outlined),
+                leading: const EbrokerIcon(Icons.inventory_2_outlined),
                 trailing: const AppStatusBadge(
                   label: 'متاح الآن',
                   tone: AppStatusTone.success,
@@ -327,7 +329,7 @@ class _PlannedServiceRow extends StatelessWidget {
     return AppListRow(
       title: title,
       subtitle: subtitle,
-      leading: Icon(icon),
+      leading: EbrokerIcon(icon),
       trailing: const AppStatusBadge(
         label: 'قريباً',
         tone: AppStatusTone.neutral,

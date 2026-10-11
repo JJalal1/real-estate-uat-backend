@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -104,7 +105,7 @@ class _WorkspaceContent extends StatelessWidget {
                   color: Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(AppRadii.control),
                 ),
-                child: Icon(Icons.business_center_outlined, color: Theme.of(context).colorScheme.primary),
+                child: EbrokerIcon(Icons.business_center_outlined, color: Theme.of(context).colorScheme.primary),
               ),
               const SizedBox(width: AppSpacing.s12),
               Expanded(
@@ -138,7 +139,7 @@ class _WorkspaceContent extends StatelessWidget {
             child: AppListRow(
               title: 'أنت متابع كل شيء',
               subtitle: 'لا توجد محادثات غير مقروءة أو إعلانات تحتاج تصحيحاً الآن.',
-              leading: Icon(Icons.task_alt_rounded),
+              leading: EbrokerIcon(Icons.task_alt_rounded),
             ),
           )
         else
@@ -150,7 +151,7 @@ class _WorkspaceContent extends StatelessWidget {
                     (item) => AppListRow(
                       title: item.title,
                       subtitle: item.subtitle,
-                      leading: Icon(item.icon),
+                      leading: EbrokerIcon(item.icon),
                       trailing: AppStatusBadge(label: 'إجراء', tone: item.tone),
                       onTap: () => context.push(item.route),
                     ),
@@ -225,15 +226,15 @@ class _WorkspaceContent extends StatelessWidget {
                 ...data.corrections.map((item) => AppListRow(
                       title: item.title,
                       subtitle: item.reason ?? 'أعد تصحيح الإعلان وأرسله للمراجعة.',
-                      leading: const Icon(Icons.edit_note_outlined),
+                      leading: const EbrokerIcon(Icons.edit_note_outlined),
                       trailing: const AppStatusBadge(label: 'تصحيح', tone: AppStatusTone.warning),
                       onTap: () => context.push('/properties/${item.id}'),
                     )),
                 ...data.staleListings.map((item) => AppListRow(
                       title: item.title,
                       subtitle: 'الإعلان منشور منذ فترة بدون تحديث. راجع المعلومات والتوفر.',
-                      leading: const Icon(Icons.update_rounded),
-                      trailing: const Icon(Icons.chevron_left_rounded),
+                      leading: const EbrokerIcon(Icons.update_rounded),
+                      trailing: const EbrokerIcon(Icons.chevron_left_rounded),
                       onTap: () => context.push('/properties/${item.id}'),
                     )),
               ],
@@ -283,7 +284,7 @@ class _Metric extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary),
+          EbrokerIcon(icon, color: Theme.of(context).colorScheme.primary),
           const Spacer(),
           Text('$value', style: Theme.of(context).textTheme.headlineSmall),
           Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),

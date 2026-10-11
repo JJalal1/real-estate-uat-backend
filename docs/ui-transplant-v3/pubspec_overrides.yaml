@@ -9,3 +9,8 @@ dependency_overrides:
   url_launcher_platform_interface: 2.3.2
   url_launcher_web: 2.4.1
   url_launcher_windows: 3.1.4
+  flutter_svg: 2.0.10+1
+  vector_graphics: 1.1.11+1
+  vector_graphics_codec: 1.1.11+1
+  vector_graphics_compiler: 1.1.11+1
+  path_parsing: 1.0.1

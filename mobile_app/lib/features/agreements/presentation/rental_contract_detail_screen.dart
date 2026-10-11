@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -154,7 +155,7 @@ class _RentalContractDetailScreenState
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('رجوع'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('تسجيل الانتهاء'),
           ),
@@ -199,7 +200,7 @@ class _RentalContractDetailScreenState
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('رجوع'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('تأكيد'),
           ),
@@ -221,7 +222,7 @@ class _RentalContractDetailScreenState
           actions: [
             IconButton(
               onPressed: _busy ? null : _load,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
               tooltip: 'تحديث',
             ),
           ],
@@ -253,12 +254,12 @@ class _RentalContractDetailScreenState
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.home_work_outlined),
+                    const EbrokerIcon(Icons.home_work_outlined),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         contract.statusLabel,
-                        style: const TextStyle(fontWeight: FontWeight.w900),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -281,7 +282,7 @@ class _RentalContractDetailScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('العقار والأطراف',
-                    style: TextStyle(fontWeight: FontWeight.w900)),
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 _row('العقار', contract.propertyTitle),
                 if (contract.propertyAddress != null)
@@ -305,7 +306,7 @@ class _RentalContractDetailScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('سجل الإغلاق',
-                      style: TextStyle(fontWeight: FontWeight.w900)),
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   Text(contract.closureReason!),
                 ],
@@ -318,38 +319,38 @@ class _RentalContractDetailScreenState
           spacing: 8,
           runSpacing: 8,
           children: [
-            OutlinedButton.icon(
+            EbrokerOutlinedButton.icon(
               onPressed: () =>
                   context.push('/agreements/${contract.propertyAgreementId}'),
-              icon: const Icon(Icons.handshake_outlined),
+              icon: const EbrokerIcon(Icons.handshake_outlined),
               label: const Text('الاتفاق'),
             ),
-            OutlinedButton.icon(
+            EbrokerOutlinedButton.icon(
               onPressed: () =>
                   context.push('/messages/${contract.messageThreadId}'),
-              icon: const Icon(Icons.chat_bubble_outline),
+              icon: const EbrokerIcon(Icons.chat_bubble_outline),
               label: const Text('المحادثة'),
             ),
-            OutlinedButton.icon(
+            EbrokerOutlinedButton.icon(
               onPressed: () => context.push('/properties/${contract.propertyId}'),
-              icon: const Icon(Icons.home_outlined),
+              icon: const EbrokerIcon(Icons.home_outlined),
               label: const Text('العقار'),
             ),
           ],
         ),
         if (contract.canAccept) ...[
           const SizedBox(height: 16),
-          FilledButton.icon(
+          EbrokerFilledButton.icon(
             onPressed: _busy ? null : _accept,
-            icon: const Icon(Icons.verified_outlined),
+            icon: const EbrokerIcon(Icons.verified_outlined),
             label: Text('أوافق على النسخة ${revision.revisionNumber}'),
           ),
         ],
         if (contract.canRevise) ...[
           const SizedBox(height: 8),
-          OutlinedButton.icon(
+          EbrokerOutlinedButton.icon(
             onPressed: _busy ? null : _revise,
-            icon: const Icon(Icons.edit_note_outlined),
+            icon: const EbrokerIcon(Icons.edit_note_outlined),
             label: const Text('اقتراح بنود جديدة'),
           ),
         ],
@@ -357,15 +358,15 @@ class _RentalContractDetailScreenState
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: _busy ? null : _cancel,
-            icon: const Icon(Icons.cancel_outlined),
+            icon: const EbrokerIcon(Icons.cancel_outlined),
             label: const Text('إلغاء مسودة العقد'),
           ),
         ],
         if (contract.canTerminate) ...[
           const SizedBox(height: 16),
-          OutlinedButton.icon(
+          EbrokerOutlinedButton.icon(
             onPressed: _busy ? null : _terminate,
-            icon: const Icon(Icons.event_busy_outlined),
+            icon: const EbrokerIcon(Icons.event_busy_outlined),
             label: const Text('تسجيل انتهاء العقد داخل التطبيق'),
           ),
         ],
@@ -397,7 +398,7 @@ class _RentalContractDetailScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('النسخة الحالية ${r.revisionNumber}',
-                style: const TextStyle(fontWeight: FontWeight.w900)),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
             _row('الإيجار', moneyLabel(r.rentAmount, r.currency)),
             _row('الدورية', r.cadenceLabel),
@@ -426,7 +427,7 @@ class _RentalContractDetailScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('قبول النسخة الحالية',
-                style: TextStyle(fontWeight: FontWeight.w900)),
+                style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             _acceptance('المستأجر', contract.tenantAccepted),
             _acceptance('المعلن/المؤجر', contract.advertiserAccepted),
@@ -445,7 +446,7 @@ class _RentalContractDetailScreenState
 
   Widget _acceptance(String label, bool accepted) => Row(
         children: [
-          Icon(
+          EbrokerIcon(
             accepted ? Icons.check_circle : Icons.radio_button_unchecked,
             size: 20,
           ),

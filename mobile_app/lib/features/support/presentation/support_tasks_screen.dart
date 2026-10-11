@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../../../core/theme/ebroker_design.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -116,7 +118,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             IconButton(
               tooltip: 'تحديث',
               onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
             ),
           ],
         ),
@@ -126,9 +128,9 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
               Material(
                 color: Theme.of(context).colorScheme.primaryContainer,
                 child: const ListTile(
-                  leading: Icon(Icons.support_agent_outlined),
+                  leading: EbrokerIcon(Icons.support_agent_outlined),
                   title: Text('أنت الآن تعمل كموظف دعم',
-                      style: TextStyle(fontWeight: FontWeight.w900)),
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text(
                       'استلم الطلب أولاً ثم عالجه بنفس قواعد موظفي الدعم. الرجوع يغلق هذا الوضع.'),
                 ),
@@ -211,7 +213,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   const SizedBox(width: 6),
                   FilterChip(
                     label: const Text('متأخر فقط'),
-                    avatar: const Icon(Icons.timer_off_outlined, size: 18),
+                    avatar: const EbrokerIcon(Icons.timer_off_outlined, size: 18),
                     selected: _overdue,
                     onSelected: (value) {
                       setState(() => _overdue = value);
@@ -222,13 +224,13 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                     const SizedBox(width: 6),
                     ActionChip(
                       avatar:
-                          const Icon(Icons.support_agent_outlined, size: 18),
+                          const EbrokerIcon(Icons.support_agent_outlined, size: 18),
                       label: Text(_assigneeName ?? 'الموظف'),
                       onPressed: _pickAssignee,
                     ),
                     const SizedBox(width: 6),
                     ActionChip(
-                      avatar: const Icon(Icons.date_range_outlined, size: 18),
+                      avatar: const EbrokerIcon(Icons.date_range_outlined, size: 18),
                       label: Text(_dateFilterLabel()),
                       onPressed: _pickDateRange,
                     ),
@@ -256,7 +258,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                         });
                         _load();
                       },
-                      icon: const Icon(Icons.filter_alt_off_outlined),
+                      icon: const EbrokerIcon(Icons.filter_alt_off_outlined),
                       label: const Text('مسح'),
                     ),
                 ],
@@ -320,7 +322,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           PopupMenuItem(value: 'severity:low', child: Text('منخفض الخطورة')),
         ],
         child: Chip(
-          avatar: const Icon(Icons.tune, size: 18),
+          avatar: const EbrokerIcon(Icons.tune, size: 18),
           label: Text(_status == null && _priority == null && _severity == null
               ? 'الحالة والأولوية'
               : '${_statusLabel(_status)} • ${_priorityLabel(_priority)}${_severity == null ? '' : ' • ${_severityLabel(_severity!)}'}'),
@@ -346,13 +348,13 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             shrinkWrap: true,
             children: [
               ListTile(
-                leading: const Icon(Icons.groups_outlined),
+                leading: const EbrokerIcon(Icons.groups_outlined),
                 title: const Text('كل الموظفين'),
                 onTap: () => Navigator.pop(dialogContext),
               ),
               ...team.map(
                 (member) => ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.support_agent)),
+                  leading: const CircleAvatar(child: EbrokerIcon(Icons.support_agent)),
                   title: Text(member.name),
                   subtitle: Text(member.role == 'support_manager'
                       ? 'مدير دعم'
@@ -415,13 +417,13 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 48),
+              const EbrokerIcon(Icons.error_outline, size: 48),
               const SizedBox(height: 10),
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
-              FilledButton.icon(
+              EbrokerFilledButton.icon(
                 onPressed: _load,
-                icon: const Icon(Icons.refresh),
+                icon: const EbrokerIcon(Icons.refresh),
                 label: const Text('إعادة المحاولة'),
               ),
             ],
@@ -436,7 +438,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           children: const [
             SizedBox(height: 140),
-            Icon(Icons.inbox_outlined, size: 58, color: AppTheme.textMuted),
+            EbrokerIcon(Icons.inbox_outlined, size: 58, color: EbrokerDesign.textLight),
             SizedBox(height: 14),
             Center(child: Text('لا توجد مهام مطابقة لهذه الفلاتر.')),
           ],
@@ -540,11 +542,11 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   Text(meta['property_title']?.toString() ?? 'العقار',
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 6),
-                  Text('العميل: ' + (meta['buyer_name']?.toString() ?? task.requesterName ?? '—')),
-                  Text('المعلن: ' + (meta['advertiser_name']?.toString() ?? '—')),
-                  Text('مرات بدء الاتصال: ' + (meta['external_call_count']?.toString() ?? '1')),
+                  Text("العميل: ${meta['buyer_name']?.toString() ?? task.requesterName ?? '—'}"),
+                  Text("المعلن: ${meta['advertiser_name']?.toString() ?? '—'}"),
+                  Text("مرات بدء الاتصال: ${meta['external_call_count']?.toString() ?? '1'}"),
                   if (meta['last_external_call_at'] != null)
-                    Text('آخر اتصال مسجل: ' + meta['last_external_call_at'].toString()),
+                    Text("آخر اتصال مسجل: ${meta['last_external_call_at']}"),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     value: outcome,
@@ -612,7 +614,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                             );
                           });
                         },
-                        icon: const Icon(Icons.schedule_outlined),
+                        icon: const EbrokerIcon(Icons.schedule_outlined),
                         label: const Text('تحديد'),
                       ),
                     ],
@@ -620,7 +622,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   const SizedBox(height: 6),
                   const Text(
                     'لا يتم فتح نص المحادثة من هذه الشاشة. تعتمد المتابعة على مؤشرات الرحلة والاتصال، وأي وصول لمحتوى خاص يبقى ضمن مسار صلاحيات منفصل ومسجل.',
-                    style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                    style: TextStyle(fontSize: 12, color: EbrokerDesign.textLight),
                   ),
                 ],
               ),
@@ -631,7 +633,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
               onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('إلغاء'),
             ),
-            FilledButton(
+            EbrokerFilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('حفظ النتيجة'),
             ),
@@ -711,7 +713,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                         return const Text('تعذر عرض صورة الإثبات.');
                       }
                       return ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         child: Image.memory(Uint8List.fromList(bytes),
                             fit: BoxFit.contain),
                       );
@@ -743,7 +745,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
               },
               child: const Text('رفض')),
-          FilledButton(
+          EbrokerFilledButton(
               onPressed: () async {
                 await _reviewPayment(task.sourceId, 'confirm', null);
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
@@ -768,7 +770,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('إلغاء')),
-          FilledButton(
+          EbrokerFilledButton(
               onPressed: () {
                 final value = controller.text.trim();
                 if (value.length >= 3) Navigator.pop(dialogContext, value);
@@ -843,13 +845,13 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           child: Wrap(
             children: [
               ListTile(
-                leading: const Icon(Icons.history_outlined),
+                leading: const EbrokerIcon(Icons.history_outlined),
                 title: const Text('سجل المهمة'),
                 onTap: () => Navigator.pop(sheetContext, 'history'),
               ),
               if (manager)
                 ListTile(
-                  leading: const Icon(Icons.person_add_alt_1_outlined),
+                  leading: const EbrokerIcon(Icons.person_add_alt_1_outlined),
                   title: Text(task.assignedToUserId == null
                       ? 'إسناد لموظف'
                       : 'إعادة الإسناد'),
@@ -857,7 +859,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 ),
               if (manager)
                 ListTile(
-                  leading: const Icon(Icons.flag_outlined),
+                  leading: const EbrokerIcon(Icons.flag_outlined),
                   title: const Text('الأولوية والخطورة'),
                   onTap: () => Navigator.pop(sheetContext, 'classify'),
                 ),
@@ -866,7 +868,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   !task.isClosed &&
                   task.status != 'escalated')
                 ListTile(
-                  leading: const Icon(Icons.trending_up),
+                  leading: const EbrokerIcon(Icons.trending_up),
                   title: const Text('تصعيد لمدير الدعم'),
                   subtitle: const Text(
                       'للحالات غير الاعتيادية فقط، وليس للموافقة اليومية.'),
@@ -874,14 +876,14 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 ),
               if (manager && task.status == 'escalated')
                 ListTile(
-                  leading: const Icon(Icons.check_circle_outline),
+                  leading: const EbrokerIcon(Icons.check_circle_outline),
                   title: const Text('معالجة التصعيد وإعادته للموظف'),
                   onTap: () =>
                       Navigator.pop(sheetContext, 'resolve_escalation'),
                 ),
               if (manager && task.assignedToUserId != null && !task.isClosed)
                 ListTile(
-                  leading: const Icon(Icons.move_to_inbox_outlined),
+                  leading: const EbrokerIcon(Icons.move_to_inbox_outlined),
                   title: const Text('إعادة إلى الوارد'),
                   onTap: () => Navigator.pop(sheetContext, 'release'),
                 ),
@@ -890,7 +892,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   (task.sourceType == 'support_ticket' ||
                       task.sourceType == 'report'))
                 ListTile(
-                  leading: const Icon(Icons.restart_alt),
+                  leading: const EbrokerIcon(Icons.restart_alt),
                   title: const Text('إعادة فتح المهمة'),
                   onTap: () => Navigator.pop(sheetContext, 'reopen'),
                 ),
@@ -899,7 +901,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       task.sourceType == 'report') &&
                   task.isMine)
                 ListTile(
-                  leading: Icon(task.status == 'waiting_internal'
+                  leading: EbrokerIcon(task.status == 'waiting_internal'
                       ? Icons.play_arrow_outlined
                       : Icons.pause_circle_outline),
                   title: Text(task.status == 'waiting_internal'
@@ -916,7 +918,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   !task.isClosed &&
                   task.isMine)
                 ListTile(
-                  leading: const Icon(Icons.upload_file_outlined),
+                  leading: const EbrokerIcon(Icons.upload_file_outlined),
                   title: const Text('طلب مستند إضافي'),
                   onTap: () => Navigator.pop(sheetContext, 'documents'),
                 ),
@@ -924,7 +926,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   !task.isClosed &&
                   task.isMine)
                 ListTile(
-                  leading: const Icon(Icons.block_outlined),
+                  leading: const EbrokerIcon(Icons.block_outlined),
                   title: const Text('رفض طلب التحقق'),
                   onTap: () => Navigator.pop(sheetContext, 'reject'),
                 ),
@@ -1048,7 +1050,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const CircleAvatar(
-                          child: Icon(Icons.history, size: 18)),
+                          child: EbrokerIcon(Icons.history, size: 18)),
                       title: Text(_eventLabel(event.event)),
                       subtitle: Text(
                         '${event.actorName ?? 'النظام'}$status${event.createdAt == null ? '' : ' • ${_timeAgo(event.createdAt!)}'}',
@@ -1083,7 +1085,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 .map(
                   (member) => ListTile(
                     leading:
-                        const CircleAvatar(child: Icon(Icons.support_agent)),
+                        const CircleAvatar(child: EbrokerIcon(Icons.support_agent)),
                     title: Text(member.name),
                     subtitle: Text(
                       '${member.openTasks} مفتوحة • ${member.overdueTasks} متأخرة',
@@ -1145,7 +1147,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
               onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('إلغاء'),
             ),
-            FilledButton(
+            EbrokerFilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('حفظ'),
             ),
@@ -1179,7 +1181,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('إلغاء'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () {
               final text = controller.text.trim();
               if (text.length >= 3) Navigator.pop(dialogContext, text);
@@ -1232,9 +1234,9 @@ class _TaskCard extends StatelessWidget {
                   height: 42,
                   decoration: BoxDecoration(
                     color: _typeColor(task.sourceType).withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(_typeIcon(task.sourceType),
+                  child: EbrokerIcon(_typeIcon(task.sourceType),
                       color: _typeColor(task.sourceType)),
                 ),
                 const SizedBox(width: 10),
@@ -1246,12 +1248,12 @@ class _TaskCard extends StatelessWidget {
                         task.subject,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w900),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       Text(
                         '${_taskTypeLabel(task)} • ${task.requesterName ?? 'مستخدم #${task.requesterUserId ?? task.sourceId}'}${task.supportTeamName == null ? '' : ' • ${task.supportTeamName}'}${task.governorateName == null ? '' : ' • ${task.governorateName}'}',
                         style: const TextStyle(
-                            color: AppTheme.textMuted, fontSize: 12.5),
+                            color: EbrokerDesign.textLight, fontSize: 12.5),
                       ),
                     ],
                   ),
@@ -1260,7 +1262,7 @@ class _TaskCard extends StatelessWidget {
                   IconButton(
                     tooltip: 'إدارة المهمة',
                     onPressed: onManage,
-                    icon: const Icon(Icons.more_vert),
+                    icon: const EbrokerIcon(Icons.more_vert),
                   ),
               ],
             ),
@@ -1294,26 +1296,26 @@ class _TaskCard extends StatelessWidget {
                 if (task.createdAt != null)
                   Text('وصلت ${_timeAgo(task.createdAt!)}',
                       style: const TextStyle(
-                          fontSize: 11.5, color: AppTheme.textMuted)),
+                          fontSize: 11.5, color: EbrokerDesign.textLight)),
                 if (task.claimedAt != null)
                   Text('استلمت ${_timeAgo(task.claimedAt!)}',
                       style: const TextStyle(
-                          fontSize: 11.5, color: AppTheme.textMuted)),
+                          fontSize: 11.5, color: EbrokerDesign.textLight)),
                 if (task.completedAt != null)
                   Text('أُنجزت ${_timeAgo(task.completedAt!)}',
                       style: const TextStyle(
-                          fontSize: 11.5, color: AppTheme.textMuted)),
+                          fontSize: 11.5, color: EbrokerDesign.textLight)),
                 if (task.lastActivityAt != null && !task.isClosed)
                   Text('آخر تحديث ${_timeAgo(task.lastActivityAt!)}',
                       style: const TextStyle(
-                          fontSize: 11.5, color: AppTheme.textMuted)),
+                          fontSize: 11.5, color: EbrokerDesign.textLight)),
               ],
             ),
             const SizedBox(height: 7),
             Row(
               children: [
-                const Icon(Icons.person_outline,
-                    size: 18, color: AppTheme.textMuted),
+                const EbrokerIcon(Icons.person_outline,
+                    size: 18, color: EbrokerDesign.textLight),
                 const SizedBox(width: 5),
                 Expanded(
                   child: Text(
@@ -1323,17 +1325,17 @@ class _TaskCard extends StatelessWidget {
                             ? 'مستلم مني – ${task.assignedToName}'
                             : 'المسؤول: ${task.assignedToName}',
                     style: const TextStyle(
-                        fontSize: 12.5, color: AppTheme.textMuted),
+                        fontSize: 12.5, color: EbrokerDesign.textLight),
                   ),
                 ),
                 Text(
                   _slaText(task),
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: task.isOverdue
                         ? Colors.red.shade700
-                        : AppTheme.textMuted,
+                        : EbrokerDesign.textLight,
                   ),
                 ),
               ],
@@ -1343,18 +1345,18 @@ class _TaskCard extends StatelessWidget {
               children: [
                 if (task.canClaim) ...[
                   Expanded(
-                    child: FilledButton.icon(
+                    child: EbrokerFilledButton.icon(
                       onPressed: onClaim,
-                      icon: const Icon(Icons.pan_tool_alt_outlined),
+                      icon: const EbrokerIcon(Icons.pan_tool_alt_outlined),
                       label: const Text('استلام'),
                     ),
                   ),
                   const SizedBox(width: 8),
                 ],
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: EbrokerOutlinedButton.icon(
                     onPressed: task.isClosed ? onManage : onOpen,
-                    icon: Icon(task.isClosed
+                    icon: EbrokerIcon(task.isClosed
                         ? Icons.receipt_long_outlined
                         : Icons.open_in_new),
                     label: Text(task.isClosed
@@ -1398,7 +1400,7 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              fontSize: 11.5, fontWeight: FontWeight.w800, color: foreground)),
+              fontSize: 11.5, fontWeight: FontWeight.w700, color: foreground)),
     );
   }
 }
@@ -1436,12 +1438,12 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
             children: [
               ListTile(
                 title: Text(d.summary.subject,
-                    style: const TextStyle(fontWeight: FontWeight.w900)),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: Text(
                     '${d.summary.reference} • ${d.requesterName ?? 'مستخدم'}'),
                 trailing: IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close)),
+                    icon: const EbrokerIcon(Icons.close)),
               ),
               const Divider(),
               Expanded(
@@ -1460,14 +1462,14 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                             children: [
                               Text(m.actorName ?? m.actorRole,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w800)),
+                                      fontWeight: FontWeight.w700)),
                               const SizedBox(height: 4),
                               Text(m.body),
                               if (m.isInternal)
                                 const Text('ملاحظة داخلية',
                                     style: TextStyle(
                                         fontSize: 11,
-                                        color: AppTheme.textMuted)),
+                                        color: EbrokerDesign.textLight)),
                             ],
                           ),
                         ),
@@ -1483,14 +1485,14 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    FilledButton.tonalIcon(
+                    EbrokerFilledButton.tonalIcon(
                       onPressed: _busy ? null : () => _compose(false),
-                      icon: const Icon(Icons.reply),
+                      icon: const EbrokerIcon(Icons.reply),
                       label: const Text('رد'),
                     ),
-                    OutlinedButton.icon(
+                    EbrokerOutlinedButton.icon(
                       onPressed: _busy ? null : () => _compose(true),
-                      icon: const Icon(Icons.note_alt_outlined),
+                      icon: const EbrokerIcon(Icons.note_alt_outlined),
                       label: const Text('ملاحظة داخلية'),
                     ),
                     PopupMenuButton<String>(
@@ -1509,7 +1511,7 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                       ],
                       child: const Chip(
                           label: Text('تغيير الحالة'),
-                          avatar: Icon(Icons.sync_alt, size: 18)),
+                          avatar: EbrokerIcon(Icons.sync_alt, size: 18)),
                     ),
                   ],
                 ),
@@ -1532,7 +1534,7 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
           TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('إلغاء')),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () {
               final value = c.text.trim();
               if (value.isNotEmpty) Navigator.pop(dialogContext, value);
@@ -1620,7 +1622,7 @@ Color _typeColor(String value) => switch (value) {
       'support_ticket' => Colors.deepPurple,
       'report' => Colors.deepOrange,
       'contact_followup' => Colors.teal,
-      _ => AppTheme.textMuted,
+      _ => EbrokerDesign.textLight,
     };
 
 String _statusLabel(String? value) => switch (value) {
@@ -1697,3 +1699,4 @@ String _slaText(SupportTaskItem task) {
   final text = hours > 0 ? '$hours س $mins د' : '$mins د';
   return minutes < 0 ? 'متأخر $text' : 'متبقي $text';
 }
+
