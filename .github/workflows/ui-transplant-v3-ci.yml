@@ -189,7 +189,7 @@ jobs:
           test/app_components_test.dart
           test/startup_navigation_layout_test.dart
       - name: Upload rendered template screen previews
-        if: ${{ !cancelled() && steps.stage1_ui.conclusion == 'success' }}
+        if: ${{ !cancelled() && (steps.stage1_ui.conclusion == 'success' || steps.stage1_ui.conclusion == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
           name: real-estate-v3-template-preview-${{ github.run_number }}

@@ -138,7 +138,7 @@ class _ConversationAgreementCardState
       return const SizedBox.shrink();
     }
 
-    final heading = const Row(
+    const heading = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         EbrokerIcon(Icons.handshake_outlined),
