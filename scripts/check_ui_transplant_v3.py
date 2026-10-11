@@ -14,6 +14,8 @@ SETUP_FILES = frozenset({
     ".github/workflows/ui-transplant-v3-ci.yml",
     "scripts/check_ui_transplant_v3.py",
     "scripts/test_ui_transplant_v3_guard.py",
+    "scripts/verify_v3_dependency_lock.py",
+    "scripts/test_v3_dependency_lock.py",
 })
 PINNED_PRESENTATION = frozenset({
     "mobile_app/lib/features/account/presentation/auth_gate.dart",

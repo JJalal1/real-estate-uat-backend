@@ -86,7 +86,9 @@
 1. فحص الأصل والمراجع ونطاق المصدر، واختبار أن الفحص يرفض تغييرات API/Auth/DB/runtime والاختبارات القديمة.
 2. Laravel regression على بيئة محلية مؤقتة.
 3. migrations واختبارات PostgreSQL 17/PostGIS على قاعدة مؤقتة، وليست Supabase الحية.
-4. Flutter **3.27.3** مع الاعتمادات المقفلة للأصل، analysis والاختبارات وcompile-time Frankfurt guard ثم APK.
+4. Flutter **3.27.3** مع تحقق استقلال الاعتمادات، analysis والاختبارات وcompile-time Frankfurt guard ثم APK.
+
+كشف البناء أن `pubspec.yaml` الأصلي يعلن `url_launcher` بينما `pubspec.lock` الأصلي لا يحتويه ولا يحتوي حزم منصاته السبع. البناء الأصلي يستخدم `flutter pub get` لاستكمالها عند التشغيل. لا نعدل أيًا من الملفين في Git. يحفظ `pubspec_overrides.yaml` هنا إصدارات الحزم الثماني فقط، وتنسخ إلى مساحة بناء CI المؤقتة لتثبيت الاستكمال. يتحقق `verify_v3_dependency_lock.py` أن كل سجلات الحزم الأصلية، بما فيها checksums، وقيود Dart/Flutter بقيت كما في الأصل، وأن الإضافات هي الحزم الثماني المحددة فقط؛ ثم يطبق `--enforce-lockfile` على القفل المكتمل. يسلم القفل الفعلي للبناء وبصمته مع APK، ولا يدعى أن ملف القفل الأصلي وحده كان كافيًا للبناء. الـoverrides تخصص البناء فقط، ولا تدخل إلى مجلد التطبيق في المصدر المعتمد.
 
 لا ترقية Flutter أو اعتماد مكتبات القالب ضمن هذا التجهيز. APK يبقى بتوقيع التطوير الأصلي ومعرّف التطبيق الأصلي؛ تجهيز توقيع المتاجر يأتي ضمن مرحلة الإصدار المستقلة.
 
@@ -94,7 +96,7 @@
 
 ```bash
 python3 scripts/check_ui_transplant_v3.py --setup --verify-reference-refs
-python3 -B -m unittest discover -s scripts -p 'test_ui_transplant_v3_guard.py' -v
+python3 -B -m unittest discover -s scripts -p 'test_*v3*.py' -v
 git diff --check dc2805c9215dcd500fc7034effa953a4c3751761
 ```
 

@@ -35,7 +35,7 @@ jobs:
       - name: Verify frozen references and source boundaries
         run: python3 scripts/check_ui_transplant_v3.py --verify-reference-refs
       - name: Exercise guard rejection cases
-        run: python3 -B -m unittest discover -s scripts -p 'test_ui_transplant_v3_guard.py' -v
+        run: python3 -B -m unittest discover -s scripts -p 'test_*v3*.py' -v
       - name: Verify diff whitespace
         run: git diff --check "$GOLDEN_SHA"
 
@@ -143,6 +143,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.SOURCE_COMMIT }}
+          fetch-depth: 0
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -161,9 +162,13 @@ jobs:
           cache: true
       - name: Resolve original locked packages
         working-directory: mobile_app
-        run: flutter pub get --enforce-lockfile
-      - name: Ensure dependency files are unchanged
-        run: git diff --exit-code -- mobile_app/pubspec.yaml mobile_app/pubspec.lock
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Ensure original dependency declaration is unchanged
+        run: git diff --exit-code -- mobile_app/pubspec.yaml
       - name: Static analysis
         working-directory: mobile_app
         run: flutter analyze
@@ -198,6 +203,9 @@ jobs:
           test -f "$apk"
           cp "$apk" "dist/real-estate-v3-uat-${GITHUB_RUN_NUMBER}.apk"
           sha256sum dist/*.apk > dist/SHA256.txt
+          cp mobile_app/pubspec.lock dist/RESOLVED_PUBSPEC.lock
+          cp mobile_app/pubspec_overrides.yaml dist/BUILD_PUBSPEC_OVERRIDES.yaml
+          sha256sum dist/RESOLVED_PUBSPEC.lock > dist/DEPENDENCY_SHA256.txt
           cat > dist/BUILD_INFO.txt <<EOF
           purpose=ui-transplant-v3-uat
           source_commit=${SOURCE_COMMIT}
