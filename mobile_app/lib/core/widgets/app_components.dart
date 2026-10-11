@@ -495,7 +495,7 @@ class _CenteredState extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Center(
-      child: ConstrainedBox(
+      child: SingleChildScrollView(child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Padding(
           padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
@@ -503,22 +503,11 @@ class _CenteredState extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               EbrokerImage(icon == Icons.error_outline || icon == Icons.cloud_off_outlined
-                ? 'MultiColorSvg/something_went_wrong' : 'MultiColorSvg/no_data_found_illustrator', size: 180),
+                ? 'MultiColorSvg/something_went_wrong' : 'MultiColorSvg/no_data_found_illustrator', size: 240.rs(context)),
               const SizedBox(height: AppSpacing.s12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              EbrokerText(title, size: 22, color: scheme.primary, align: TextAlign.center),
               const SizedBox(height: AppSpacing.s8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
+              EbrokerText(message, size: 16, color: EbrokerDesign.textLight, align: TextAlign.center),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: AppSpacing.s20),
                 AppButton(
@@ -530,7 +519,7 @@ class _CenteredState extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 }
@@ -586,7 +575,12 @@ class AppNavigationBar extends StatelessWidget {
     if (name == 'حسابي') return active ? 'profile_active' : 'profile_outlined';
     if (name == 'إعلاناتي') return active ? 'properties_active' : 'properties';
     if (name == 'المعاينات') return active ? 'calendar_filled' : 'calendar';
-    return name.contains('فريق') ? 'interested_users' : 'dashboard';
+    if (name == 'الفريق') return 'interested_users';
+    if (name == 'التقارير') return 'agent/chart';
+    if (name == 'السوق') return 'propertymap';
+    if (name == 'الإدارة') return 'agent/user-check';
+    if (name == 'الوارد' || name == 'مهامي' || name == 'الأعمال') return 'properties_icon';
+    return 'agent/dashboard';
   }
   @override
   Widget build(BuildContext context) {
@@ -595,7 +589,7 @@ class AppNavigationBar extends StatelessWidget {
     final height = (76.rh(context) + (scaled - 12) * 2).clamp(76.0, 124.0).toDouble();
     final items = <Widget>[];
     for (var index = 0; index < destinations.length; index++) {
-      if (onCreate != null && index == 2) items.add(Expanded(child: Center(
+      if (onCreate != null && index == 2) { items.add(Expanded(child: Center(
         child: Transform.translate(offset: const Offset(0, -30),
           child: Semantics(button: true, label: 'إضافة عقار', child: Tooltip(message: 'إضافة عقار',
             child: GestureDetector(onTap: onCreate, child: SizedBox(width: 56.rw(context), height: 56.rh(context),
@@ -607,6 +601,7 @@ class AppNavigationBar extends StatelessWidget {
                 EbrokerImage('add_shape', size: 56.rh(context), color: scheme.primary),
                 EbrokerImage('plus_btn', size: 18.rh(context), color: Colors.white),
               ])))))))));
+      }
       final selected = index == selectedIndex;
       final item = destinations[index];
       final color = selected ? scheme.primary : EbrokerDesign.text.withValues(alpha: 0.5);
@@ -744,8 +739,9 @@ class AppPropertyPrice extends StatelessWidget {
           TextSpan(
             text: price,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 16.rf(context),
                   color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w500,
                 ),
           ),
           TextSpan(text: ' $currency', style: Theme.of(context).textTheme.labelMedium),

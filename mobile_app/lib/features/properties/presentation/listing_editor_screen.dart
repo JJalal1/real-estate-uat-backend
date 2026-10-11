@@ -12,6 +12,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../../core/widgets/ebroker_step_button.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/property_repository.dart';
 import '../domain/arabic_price_words.dart';
@@ -266,6 +267,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       child: Scaffold(
         appBar: AppAppBar(
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
+          actions: [Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
+            child: EbrokerText('${_step + 1}/5', size: 16, weight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.primary)))],
         ),
         body: SafeArea(
           child: Column(
@@ -285,7 +289,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     tone: AppStatusTone.warning,
                   ),
                 ),
-              _ProgressHeader(step: _step),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsetsDirectional.fromSTEB(
@@ -1027,7 +1030,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         children: [
           if (_step > 0)
             Expanded(
-              child: AppButton(
+              child: EbrokerStepButton(
                 label: 'السابق',
                 style: AppButtonStyle.outlined,
                 onPressed: _busy ? null : () => setState(() => _step--),
@@ -1037,7 +1040,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           if (_step > 0) const SizedBox(width: AppSpacing.s8),
           Expanded(
             flex: 2,
-            child: AppButton(
+            child: EbrokerStepButton(
               label: 'التالي',
               onPressed: _busy ? null : _next,
               expand: true,
@@ -1786,37 +1789,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 }
 
-class _ProgressHeader extends StatelessWidget {
-  const _ProgressHeader({required this.step});
-
-  final int step;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        AppLayout.compactPageGutter,
-        AppSpacing.s12,
-        AppLayout.compactPageGutter,
-        AppSpacing.s4,
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Text('الخطوة ${step + 1} من 5'),
-              const Spacer(),
-              Text('${(step + 1) * 20}%'),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s8),
-          LinearProgressIndicator(value: (step + 1) / 5),
-        ],
-      ),
-    );
-  }
-}
-
 class _BottomBar extends StatelessWidget {
   const _BottomBar({required this.children});
 
@@ -1831,10 +1803,10 @@ class _BottomBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s8,
-            AppLayout.compactPageGutter,
-            AppSpacing.s12,
+            20,
+            10,
+            20,
+            16,
           ),
           child: Row(children: children),
         ),
@@ -1867,17 +1839,17 @@ class _FinalActionsBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s8,
-            AppLayout.compactPageGutter,
-            AppSpacing.s12,
+            20,
+            10,
+            20,
+            16,
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 390;
               final secondary = <Widget>[
                 Expanded(
-                  child: AppButton(
+                  child: EbrokerStepButton(
                     label: 'معاينة',
                     icon: Icons.visibility_outlined,
                     style: AppButtonStyle.outlined,
@@ -1887,7 +1859,7 @@ class _FinalActionsBar extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.s8),
                 Expanded(
-                  child: AppButton(
+                  child: EbrokerStepButton(
                     label: 'حفظ مسودة',
                     icon: Icons.save_outlined,
                     style: AppButtonStyle.tonal,
@@ -1900,7 +1872,7 @@ class _FinalActionsBar extends StatelessWidget {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  AppButton(
+                  EbrokerStepButton(
                     label: 'إرسال للمراجعة',
                     icon: Icons.send_outlined,
                     loading: busy,
@@ -1909,7 +1881,7 @@ class _FinalActionsBar extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.s8),
                   if (compact) ...[
-                    AppButton(
+                    EbrokerStepButton(
                       label: 'حفظ مسودة',
                       icon: Icons.save_outlined,
                       style: AppButtonStyle.tonal,
@@ -1918,7 +1890,7 @@ class _FinalActionsBar extends StatelessWidget {
                       expand: true,
                     ),
                     const SizedBox(height: AppSpacing.s8),
-                    AppButton(
+                    EbrokerStepButton(
                       label: 'معاينة',
                       icon: Icons.visibility_outlined,
                       style: AppButtonStyle.outlined,
@@ -1927,7 +1899,7 @@ class _FinalActionsBar extends StatelessWidget {
                     ),
                   ] else
                     Row(children: secondary),
-                  AppButton(
+                  EbrokerStepButton(
                     label: 'السابق',
                     style: AppButtonStyle.text,
                     onPressed: busy ? null : onPrevious,

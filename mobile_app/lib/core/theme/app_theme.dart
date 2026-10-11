@@ -78,7 +78,7 @@ abstract final class AppTheme {
         backgroundColor: EbrokerDesign.surface,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
-        elevation: AppElevation.flat,
+        elevation: 1.5,
         scrolledUnderElevation: 1.5,
         titleTextStyle: readableTextTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w500,

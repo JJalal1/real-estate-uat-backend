@@ -81,7 +81,7 @@ void main() {
     expect(shell, contains("label: 'العقارات'"));
     expect(shell, contains("label: 'الرسائل'"));
     expect(shell, contains("label: 'إعلاناتي'"));
-    expect(shell, contains("requireListingEligible: true"));
+    expect(shell, contains('requireListingEligible: true'));
     expect(File('lib/features/account/presentation/account_screen.dart').readAsStringSync(), contains("context.push('/bookings')"));
     expect(shell, contains("label: 'حسابي'"));
     expect(shell, isNot(contains("label: 'الخدمات'")));

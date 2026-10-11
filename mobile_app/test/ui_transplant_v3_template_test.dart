@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_step_button.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_gate.dart';
@@ -26,6 +27,7 @@ import 'package:real_estate_mobile/features/messages/domain/message_models.dart'
 import 'package:real_estate_mobile/features/messages/presentation/conversation_screen.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
 import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 
 class _AuthFixture extends AuthController {
   _AuthFixture(this.user);
@@ -100,6 +102,7 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
       requireListingEligible: true, child: Scaffold(body: Text('listing destination')))),
     GoRoute(path: '/messages/:id', builder: (_, state) => ConversationScreen(
       threadId: int.parse(state.pathParameters['id']!))),
+    GoRoute(path: '/listing-preview', builder: (_, __) => const ListingEditorScreen()),
   ]);
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(overrides: [
@@ -183,6 +186,20 @@ void main() {
     expect(find.text('favorites destination'), findsNothing);
   });
 
+  testWidgets('wizard uses its template counter and keeps original field validation', (tester) async {
+    await _pump(tester, user: _user(verified: true), initial: '/listing-preview');
+    expect(find.text('1/5'), findsOneWidget);
+    final next = find.widgetWithText(EbrokerStepButton, 'التالي');
+    expect(next, findsOneWidget);
+    final button = tester.widget<ElevatedButton>(find.descendant(of: next, matching: find.byType(ElevatedButton)));
+    expect((button.style!.shape!.resolve({})! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(6));
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+    expect(find.text('1/5'), findsOneWidget);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final verified in [false, true]) {
     testWidgets('center add button enforces publishing eligibility verified=$verified', (tester) async {
       final router = await _pump(tester, user: _user(verified: verified));
@@ -246,6 +263,10 @@ void main() {
     router.push('/auth');
     await tester.pumpAndSettle();
     await _capture(tester, key, 'template-auth');
+    router.pop();
+    router.push('/listing-preview');
+    await tester.pumpAndSettle();
+    await _capture(tester, key, 'template-listing-editor');
     router.pop();
     router.push('/messages/19');
     await tester.pumpAndSettle();

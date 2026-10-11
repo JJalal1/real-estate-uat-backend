@@ -243,7 +243,7 @@ class _ProfileHeader extends StatelessWidget {
               children: [
                 Text(
                   user == null ? 'مرحباً بك' : user.name,
-                  style: Theme.of(context).textTheme.titleLarge,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: AppSpacing.s4),
                 Text(
@@ -251,7 +251,7 @@ class _ProfileHeader extends StatelessWidget {
                       ? 'تصفح العقارات بحرية وسجّل الدخول عند الحاجة.'
                       : (user.phone ?? user.email),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                        fontSize: 12, color: scheme.onSurfaceVariant,
                       ),
                 ),
               ],

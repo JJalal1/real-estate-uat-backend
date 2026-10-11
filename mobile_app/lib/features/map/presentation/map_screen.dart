@@ -2316,28 +2316,11 @@ class _MapSelectionCard extends StatelessWidget {
 }
 
 class _PropertyImageFallback extends StatelessWidget {
-  const _PropertyImageFallback({this.showLoader = false});
-
-  final bool showLoader;
-
+  const _PropertyImageFallback();
   @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: AppTheme.brandSoft,
-      child: Center(
-        child: showLoader
-            ? const SizedBox.square(
-                dimension: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              )
-            : const EbrokerIcon(
-                Icons.home_work_outlined,
-                color: AppTheme.brandStrong,
-                size: 38,
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ColoredBox(color: EbrokerDesign.page,
+    child: Center(child: EbrokerImage('Fallback/placeholder', size: 38,
+      color: Theme.of(context).colorScheme.primary)));
 }
 
 class _LoadingPropertyCard extends StatelessWidget {
@@ -3011,17 +2994,6 @@ class _MessageCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-String _purposeLabel(String value) {
-  switch (value) {
-    case 'sale':
-      return 'للبيع';
-    case 'rent':
-      return 'للإيجار';
-    default:
-      return value;
   }
 }
 
