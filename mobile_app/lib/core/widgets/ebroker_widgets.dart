@@ -100,7 +100,7 @@ class EbrokerButton extends StatelessWidget {
       (outlined ? Colors.white : tonal ? scheme.primaryContainer : scheme.primary);
     return MaterialButton(
       focusElevation: 0, hoverElevation: 0, highlightElevation: 0,
-      minWidth: expand ? double.infinity : 48,
+      minWidth: expand ? double.infinity : null,
       height: 56.rh(context),
       padding: style?.padding?.resolve(states) ?? const EdgeInsets.symmetric(horizontal: 16),
       shape: RoundedRectangleBorder(
@@ -113,6 +113,7 @@ class EbrokerButton extends StatelessWidget {
         FocusManager.instance.primaryFocus?.unfocus(); onPressed!();
       },
       child: DefaultTextStyle(
+        maxLines: 1, overflow: TextOverflow.ellipsis,
         style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['NotoSansArabic', 'Arial', 'sans-serif'], fontSize: 18.rf(context),
           color: foreground, height: 1.3),
         child: IconTheme(data: IconThemeData(color: foreground, size: 20),

@@ -462,11 +462,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   icon: const EbrokerIcon(Icons.flag_outlined))
             ]),
         body: Column(children: [
-          if (!_loading && thread?.isPropertyUnavailable == true)
-            _propertyAvailabilityBanner(thread!),
-          if (!_loading && thread != null)
-            ConversationAgreementCard(thread: thread),
-          if (!_loading && _viewing != null) _viewingCard(_viewing!),
+          if (!_loading && (thread != null || _viewing != null))
+            ConstrainedBox(constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.35),
+              child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                if (!_loading && thread?.isPropertyUnavailable == true)
+                  _propertyAvailabilityBanner(thread!),
+                if (!_loading && thread != null)
+                  ConversationAgreementCard(thread: thread),
+                if (!_loading && _viewing != null) _viewingCard(_viewing!),
+              ]))),
           Expanded(
               child: Container(
                 decoration: const BoxDecoration(image: DecorationImage(

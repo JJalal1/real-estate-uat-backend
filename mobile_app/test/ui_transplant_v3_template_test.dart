@@ -53,6 +53,7 @@ final _property = PropertyMarker.fromJson({
 
 class _MessagesFixture implements MessageRepository {
   final sent = <String>[];
+  final sentThreadIds = <int>[];
   @override
   Future<MessageThreadDetails> details(int threadId, {int? beforeId}) async =>
     MessageThreadDetails.fromJson({
@@ -71,6 +72,7 @@ class _MessagesFixture implements MessageRepository {
   @override
   Future<PrivateMessageItem> send(int threadId, String body, {String? clientMessageId}) async {
     sent.add(body);
+    sentThreadIds.add(threadId);
     return PrivateMessageItem(id: 3, senderUserId: 1, senderName: 'أنت',
       body: body, isMine: true, clientMessageId: clientMessageId);
   }
@@ -159,6 +161,7 @@ void main() {
   });
 
   testWidgets('template button retains MaterialButton, 56 height, 4 corners and loading lock', (tester) async {
+    _viewport(tester, const Size(412, 915));
     var taps = 0;
     await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
       body: EbrokerButton(onPressed: () => taps++, child: const Text('متابعة')))));
@@ -177,9 +180,11 @@ void main() {
 
   testWidgets('profile favorites entry opens its existing account gate', (tester) async {
     final router = await _pump(tester);
+    final nav = tester.getRect(find.byType(AppNavigationBar));
+    expect(nav.height, lessThan(tester.view.physicalSize.height * 0.45));
     await tester.tap(find.text('حسابي'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('المفضلة'));
+    await tester.tap(find.text('المفضلة').hitTestable());
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/favorites');
     expect(find.text('سجّل الدخول أولاً'), findsOneWidget);
@@ -205,7 +210,7 @@ void main() {
       final router = await _pump(tester, user: _user(verified: verified));
       final shape = find.byWidgetPredicate((w) => w is EbrokerImage && w.name == 'add_shape');
       expect(shape, findsOneWidget);
-      await tester.tap(shape);
+      await tester.tap(find.byTooltip('إضافة عقار'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
       expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
@@ -232,6 +237,7 @@ void main() {
     await tester.tap(find.byWidgetPredicate((w) => w is EbrokerIcon && w.icon == Icons.send));
     await tester.pumpAndSettle();
     expect(messages.sent, ['هل العقار متاح؟']);
+    expect(messages.sentThreadIds, [19]);
     expect(find.text('هل العقار متاح؟'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

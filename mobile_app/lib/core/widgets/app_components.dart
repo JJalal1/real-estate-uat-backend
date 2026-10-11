@@ -494,8 +494,7 @@ class _CenteredState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: SingleChildScrollView(child: ConstrainedBox(
+    final content = ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Padding(
           padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
@@ -513,14 +512,15 @@ class _CenteredState extends StatelessWidget {
                 AppButton(
                   label: actionLabel!,
                   onPressed: onAction,
-                  style: AppButtonStyle.outlined,
+                  expand: true,
                 ),
               ],
             ],
           ),
         ),
-      )),
     );
+    return LayoutBuilder(builder: (context, constraints) => Center(
+      child: constraints.hasBoundedHeight ? SingleChildScrollView(child: content) : content));
   }
 }
 
@@ -589,7 +589,7 @@ class AppNavigationBar extends StatelessWidget {
     final height = (76.rh(context) + (scaled - 12) * 2).clamp(76.0, 124.0).toDouble();
     final items = <Widget>[];
     for (var index = 0; index < destinations.length; index++) {
-      if (onCreate != null && index == 2) { items.add(Expanded(child: Center(
+      if (onCreate != null && index == 2) { items.add(Expanded(child: Center(heightFactor: 1,
         child: Transform.translate(offset: const Offset(0, -30),
           child: Semantics(button: true, label: 'إضافة عقار', child: Tooltip(message: 'إضافة عقار',
             child: GestureDetector(onTap: onCreate, child: SizedBox(width: 56.rw(context), height: 56.rh(context),

@@ -22,6 +22,7 @@ SETUP_FILES = frozenset({
     "scripts/test_v3_analysis.py",
 })
 VISUAL_TEST_UPDATES = frozenset({
+    "mobile_app/test/app_components_test.dart",
     "mobile_app/test/app_theme_test.dart",
     "mobile_app/test/app_tokens_test.dart",
     "mobile_app/test/uat_three_role_workspaces_test.dart",

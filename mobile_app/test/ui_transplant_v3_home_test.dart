@@ -287,6 +287,8 @@ void main() {
         await tester.ensureVisible(card);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        tester.state<ScrollableState>(find.byType(Scrollable).first).position.jumpTo(0);
+        await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
       });
     }

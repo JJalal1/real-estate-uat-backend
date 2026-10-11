@@ -138,36 +138,29 @@ class _ConversationAgreementCardState
       return const SizedBox.shrink();
     }
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const EbrokerIcon(Icons.handshake_outlined),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('جاهزون للاتفاق؟',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                  SizedBox(height: 4),
-                  Text(
-                    'أنشئ مسودة شروط مرتبطة بهذا العقار. لا تصبح مقبولة حتى يوافق الطرفان على نفس النسخة.',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            EbrokerFilledButton.tonal(
-              onPressed: _busy ? null : _start,
-              child: const Text('بدء اتفاق'),
-            ),
-          ],
-        ),
-      ),
+    final heading = const Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        EbrokerIcon(Icons.handshake_outlined),
+        SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('جاهزون للاتفاق؟', style: TextStyle(fontWeight: FontWeight.w600)),
+          SizedBox(height: 4),
+          Text('أنشئ مسودة شروط مرتبطة بهذا العقار. لا تصبح مقبولة حتى يوافق الطرفان على نفس النسخة.'),
+        ])),
+      ],
     );
+    final action = EbrokerFilledButton.tonal(
+      onPressed: _busy ? null : _start, child: const Text('بدء اتفاق'));
+    return Card(margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Padding(padding: const EdgeInsets.all(12),
+        child: LayoutBuilder(builder: (context, constraints) {
+          if (constraints.maxWidth < 400 && MediaQuery.textScalerOf(context).scale(14) > 18) {
+            return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+              children: [heading, const SizedBox(height: 8), action]);
+          }
+          return Row(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [Expanded(child: heading), const SizedBox(width: 8), action]);
+        })));
   }
 }
