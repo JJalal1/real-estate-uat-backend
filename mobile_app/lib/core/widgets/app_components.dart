@@ -680,12 +680,12 @@ class AppNavigationBar extends StatelessWidget {
                               minHeight: AppSizes.touchTarget,
                             ),
                             decoration: BoxDecoration(
-                              color: selected ? scheme.primaryContainer : Colors.transparent,
+                              color: selected ? scheme.primary : Colors.transparent,
                               borderRadius: BorderRadius.circular(AppRadii.pill),
                             ),
                             child: Icon(
                               destination.icon,
-                              color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                              color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: AppSpacing.s4),
