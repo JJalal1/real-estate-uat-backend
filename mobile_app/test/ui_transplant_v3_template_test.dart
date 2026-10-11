@@ -338,9 +338,10 @@ void main() {
   });
 
   for (final page in ['/', '/auth', '/messages/19', '/listing-preview', '/properties/37', '/favorites', '/verify-phone']) {
-    testWidgets('template screen $page supports 320 width and enlarged Arabic', (tester) async {
+    for (final scale in (page == '/properties/37' || page == '/favorites' || page == '/verify-phone') ? [1.0, 2.4] : [2.4]) {
+    testWidgets('template screen $page supports 320 width and Arabic scale $scale', (tester) async {
       _viewport(tester, const Size(320, 640));
-      await _pump(tester, initial: page, scale: 2.4, user: _user());
+      await _pump(tester, initial: page, scale: scale, user: _user());
       expect(tester.takeException(), isNull);
       if (page == '/') {
         await tester.tap(find.text('حسابي'));
@@ -350,13 +351,19 @@ void main() {
     });
   }
 
+    }
+
   testWidgets('own listing source card supports enlarged Arabic without losing review controls', (tester) async {
     _viewport(tester, const Size(320, 640));
     await _pump(tester, scale: 2.4, user: _user(verified: true));
     await tester.tap(find.text('إعلاناتي'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byType(EbrokerPropertyHorizontalCard), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(find.byType(EbrokerPropertyHorizontalCard), findsOneWidget);
-    expect(find.text('تعديل'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('تعديل'), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    expect(find.text('تعديل').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -414,6 +421,8 @@ void main() {
       expect(find.text('طلب معاينة مرتبط بهذه المحادثة'), findsOneWidget);
       expect(find.text('تأكيد الموعد'), allowed ? findsOneWidget : findsNothing);
       if (allowed) {
+        await tester.ensureVisible(find.text('تأكيد الموعد'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('تأكيد الموعد'));
         await tester.pumpAndSettle();
         expect(bookings.confirmed, [42]);

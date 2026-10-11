@@ -65,8 +65,11 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           EbrokerImage('home_active', size: 42.rw(context), color: scheme.primary), const SizedBox(width: 10),
           const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             EbrokerText('الموقع', size: 12, maxLines: 1),
-            EbrokerText('حدد الموقع', size: 14, weight: FontWeight.w600, maxLines: 1),
-          ])), const EbrokerImage('down_arrow', size: 16, color: EbrokerDesign.textLight),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Flexible(child: EbrokerText('حدد الموقع', size: 14, weight: FontWeight.w600, maxLines: 1)),
+              SizedBox(width: 4), EbrokerImage('down_arrow', size: 16, color: EbrokerDesign.textLight),
+            ]),
+          ])),
         ])), actions: [Padding(padding: const EdgeInsetsDirectional.only(end: 16),
           child: Semantics(button: true, label: 'الإشعارات', child: Tooltip(message: 'الإشعارات',
             child: GestureDetector(onTap: () => context.push('/notifications'),

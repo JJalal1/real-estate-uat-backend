@@ -99,6 +99,14 @@ class EbrokerAdvertiserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
+    final enlarged = MediaQuery.textScalerOf(context).scale(11.5) > 20;
+    final identityLabel = EbrokerText(identity, size: 11.5, weight: FontWeight.w600,
+      color: primary, maxLines: enlarged ? 2 : 1);
+    final identityRow = Row(mainAxisSize: MainAxisSize.min, children: [
+      EbrokerImage('following', size: 14.rw(context), color: primary),
+      SizedBox(width: 5.rw(context)),
+      if (enlarged) Expanded(child: identityLabel) else identityLabel,
+    ]);
     return Semantics(button: true, label: 'المعلن $name',
       child: GestureDetector(onTap: onTap,
         child: Container(width: width, padding: EdgeInsets.all(12.rw(context)),
@@ -114,11 +122,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
                 child: Container(padding: EdgeInsets.symmetric(horizontal: 10.rw(context), vertical: 6.rh(context)),
                   decoration: BoxDecoration(color: primary.withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(8.rw(context))),
-                  child: SizedBox(width: 132.rw(context), child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    EbrokerImage('following', size: 14.rw(context), color: primary),
-                    SizedBox(width: 5.rw(context)),
-                    Expanded(child: EbrokerText(identity, size: 11.5, weight: FontWeight.w600, color: primary, maxLines: 2)),
-                  ])))),
+                  child: enlarged ? SizedBox(width: 132.rw(context), child: identityRow) : identityRow)),
               Positioned(left: 6.rw(context), bottom: 0,
                 child: Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
                   Container(width: 70.rw(context), height: 70.rw(context),
@@ -126,9 +130,11 @@ class EbrokerAdvertiserCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14.rw(context)),
                       border: Border.all(color: EbrokerDesign.surface, width: 3.rw(context))),
                     child: ClipRRect(borderRadius: BorderRadius.circular(11.rw(context)),
-                      child: Center(child: EbrokerImage('defaultProfileIcon', size: 28.rw(context))))),
+                      child: Center(child: EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary)))),
                   if (verified) Positioned(bottom: -5.rh(context),
-                    child: const EbrokerImage('agent_badge', size: 22)),
+                    child: Container(width: 22.rw(context), height: 22.rh(context), alignment: Alignment.center,
+                      decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                      child: EbrokerImage('agent_badge', size: 13.rw(context), color: Colors.white))),
                 ])),
             ])),
             SizedBox(height: 10.rh(context)),

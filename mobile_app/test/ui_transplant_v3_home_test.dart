@@ -166,6 +166,7 @@ void main() {
     expect(find.text('إضافة عقار'), findsNothing);
     final property = find.byKey(const ValueKey('home-property-37'));
     await tester.ensureVisible(property);
+    await tester.pumpAndSettle();
     await tester.tap(property);
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/properties/37');
@@ -209,7 +210,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('لا توجد عقارات في هذا النطاق'), findsOneWidget);
     final action = find.text('استكشاف الخريطة');
-    await tester.ensureVisible(action);
+    await tester.scrollUntilVisible(action, 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();
@@ -232,6 +233,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, 2);
     expect(find.byKey(const ValueKey('home-property-37')), findsOneWidget);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-search')), -300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -262,7 +265,7 @@ void main() {
     await _pumpHome(tester, advertiser: true, user: user);
     await tester.pumpAndSettle();
     final action = find.text('إضافة عقار');
-    await tester.ensureVisible(action);
+    await tester.scrollUntilVisible(action, 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();

@@ -224,14 +224,18 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: MediaQuery.textScalerOf(context).scale(14) > 20 ? 1 : 2,
                   mainAxisSpacing: 16, crossAxisSpacing: 16,
-                  mainAxisExtent: 39.rh(context) + (MediaQuery.textScalerOf(context).scale(14) - 14) * 2),
+                  mainAxisExtent: 39.rh(context) + (MediaQuery.sizeOf(context).width < 360 ? 18 : 0) + (MediaQuery.textScalerOf(context).scale(14) - 14) * 4.5),
                 itemBuilder: (context, index) => Row(children: [
                   Container(width: 36.rw(context), height: 36.rh(context), padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(color: EbrokerDesign.surface,
                       borderRadius: BorderRadius.circular(4), border: Border.all(color: EbrokerDesign.border)),
                     child: EbrokerIcon(facts[index].icon, size: 24, color: EbrokerDesign.text)),
                   SizedBox(width: 10.rw(context)),
-                  Expanded(child: EbrokerText(facts[index].label, maxLines: 2)),
+                  Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      EbrokerText(_factLabel(facts[index].icon), size: 12, color: EbrokerDesign.textLight, maxLines: 1),
+                      EbrokerText(facts[index].label, weight: FontWeight.w500, maxLines: 2),
+                    ])),
                 ]))),
           ],
           if (published) ...[
@@ -799,6 +803,16 @@ class _PropertyDetailsSkeleton extends StatelessWidget {
       ],
     );
   }
+}
+
+String _factLabel(IconData icon) {
+  if (icon == Icons.square_foot) { return 'المساحة'; }
+  if (icon == Icons.bed_outlined) { return 'غرف النوم'; }
+  if (icon == Icons.bathtub_outlined) { return 'الحمامات'; }
+  if (icon == Icons.local_parking_outlined) { return 'الموقف'; }
+  if (icon == Icons.account_balance_outlined) { return 'نوع الملكية'; }
+  if (icon == Icons.explore_outlined) { return 'واجهة المبنى'; }
+  return 'المواصفات';
 }
 
 String _purposeLabel(String value) => value == 'rent' ? 'للإيجار' : 'للبيع';

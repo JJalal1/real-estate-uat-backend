@@ -30,7 +30,7 @@ class EbrokerOtpField extends StatelessWidget {
               ],
             ]))))),
         Positioned.fill(child: Opacity(opacity: 0, alwaysIncludeSemantics: true,
-          child: TextField(controller: controller, keyboardType: TextInputType.number,
+          child: TextField(controller: controller, autofocus: true, keyboardType: TextInputType.number,
             autofillHints: const [AutofillHints.oneTimeCode], maxLength: 6,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             textInputAction: TextInputAction.done, onSubmitted: onSubmitted,
