@@ -165,7 +165,7 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
   await tester.pumpWidget(ProviderScope(overrides: [
     authControllerProvider.overrideWith(() => _AuthFixture(user)),
     nearbyPropertiesProvider.overrideWith((ref, query) async => [_property]),
-    myListingsProvider.overrideWith((ref) async => []),
+    myListingsProvider.overrideWith((ref) async => [_details(37)]),
     messageRepositoryProvider.overrideWithValue(messages ?? _MessagesFixture()),
     bookingRepositoryProvider.overrideWithValue(bookings ?? _BookingsFixture()),
     propertyRepositoryProvider.overrideWithValue(properties ?? _PropertiesFixture()),
@@ -349,6 +349,16 @@ void main() {
       }
     });
   }
+
+  testWidgets('own listing source card supports enlarged Arabic without losing review controls', (tester) async {
+    _viewport(tester, const Size(320, 640));
+    await _pump(tester, scale: 2.4, user: _user(verified: true));
+    await tester.tap(find.text('إعلاناتي'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EbrokerPropertyHorizontalCard), findsOneWidget);
+    expect(find.text('تعديل'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   test('home advertisers are bounded, deduplicated and restricted to public results', () async {
     final properties = _PropertiesFixture(values: {

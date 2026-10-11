@@ -809,10 +809,12 @@ class AppPropertyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (horizontal) return EbrokerPropertyHorizontalCard(title: title,
+    if (horizontal) {
+      return EbrokerPropertyHorizontalCard(title: title,
       price: price, currency: currency, onTap: onTap, imageUrl: imageUrl,
       location: location, purposeLabel: purposeLabel, categoryLabel: categoryLabel,
       facts: facts, trailing: trailing, unavailable: unavailable);
+    }
     return AppSurface(padding: const EdgeInsets.all(8), onTap: onTap,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: BorderRadius.circular(4),
