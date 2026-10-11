@@ -1,0 +1,52 @@
+{
+  "files_included": 2005,
+  "files_excluded": 25345,
+  "included_by_component": {
+    "app": 785,
+    "web": 603,
+    "admin": 534,
+    "docs": 83
+  },
+  "exclusion_counts": {
+    "packaging-metadata": 2282,
+    "private-runtime-archive-or-compiled-file": 5,
+    "environment-signing-or-service-configuration": 10,
+    "platform-and-environment-not-needed-for-ui-reference": 88,
+    "service-configuration-reference-omitted": 2,
+    "conservative-content-quarantine:literal-sensitive-assignment": 2,
+    "compiled-public-assets-runtime-data-or-seed-credentials": 5967,
+    "conservative-content-quarantine:seeded-password": 1,
+    "dependency-generated-or-local-output": 16710,
+    "documentation-images-and-generated-assets-omitted": 278
+  },
+  "sanitized_bytes": 13170175,
+  "sanitized_sha256": "4d57450d87d471be8758ec3f350e9867ed56f5d46b4b56bb4a8fb3f7c756a0cc",
+  "manifest_sha256": "7277812b70fe8f79b7fc05b00db14b845e24841e0b4134562f5cabdd45eefeeb",
+  "source_index_sha256": "3b38e8ec2b91dc33a072a257d5d8a4f06205e504fe9d255501cd34b62ddd395d",
+  "archives": [
+    {
+      "component": "app",
+      "filename": "eBroker-App-1.8.0.zip",
+      "bytes": 4865845,
+      "sha256": "761422428e76f367a827732cc686ad47966eb81ad3d6cfca917a9ab10fd27b78"
+    },
+    {
+      "component": "web",
+      "filename": "eBroker-Web-v1.8.0.zip",
+      "bytes": 6863314,
+      "sha256": "9b5fdf8ed52d484cc29ac1ea90095eb7e2e4651a85ebf5e6563b83d8eaec09b0"
+    },
+    {
+      "component": "admin",
+      "filename": "Ebroker Admin - 1.8.0 (Fresh Installation).zip",
+      "bytes": 91798206,
+      "sha256": "32b9a36528cd5d845b18ddec23c3b9f165d70552d7c229fd2a1f7b35e4cee429"
+    },
+    {
+      "component": "docs",
+      "filename": "eBroker-Doc.zip",
+      "bytes": 42397218,
+      "sha256": "9d70210fcb2f6d43f995d2d4cb6407eaa9f7cae6b47823096a7ede8a8fa3060f"
+    }
+  ]
+}

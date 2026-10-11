@@ -1,0 +1,33 @@
+{
+  "destination_repository": "JJalal1/real-estate-uat-backend",
+  "destination_visibility_verified": "private",
+  "scope": "existing authorized V3 preparation; separate inspect-only template reference",
+  "certificate_excluded": true,
+  "purchase_code_extracted_without_disclosure": true,
+  "purchase_code_occurrences_in_retained_entries": 0,
+  "certificate_licensee_occurrences_in_retained_entries": 0,
+  "forbidden_paths_in_retained_entries": 0,
+  "known_secret_pattern_matches_in_retained_entries": 0,
+  "retained_source_file_count": 2005,
+  "all_retained_source_bytes_match_supplied_archives": true,
+  "sanitized_archive_sha256": "4d57450d87d471be8758ec3f350e9867ed56f5d46b4b56bb4a8fb3f7c756a0cc",
+  "original_or_v3_app_files_changed": false,
+  "build_installer_or_activation_executed": false,
+  "raw_original_archive_stays_with_supplied_attachment": true,
+  "scan_limit": "pattern and exact-certificate-value checks; not a guarantee against every possible secret",
+  "authorization": {
+    "user_explicitly_approved_exact_sanitized_payload_and_destination": true,
+    "date_local": "2026-10-11",
+    "timezone": "Asia/Aden",
+    "destination": "JJalal1/real-estate-uat-backend",
+    "private_repository_verified_before_upload": true,
+    "template_support_private_repository_confirmation_supplied": true,
+    "support_screenshot_retained_outside_git": true
+  },
+  "restore_validation": {
+    "full_verified_extraction": true,
+    "corrupted_part_rejected_without_extraction": true,
+    "existing_destination_rejected": true,
+    "path_traversal_rejected_without_extraction": true
+  }
+}

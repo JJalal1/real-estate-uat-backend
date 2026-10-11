@@ -1,14 +1,34 @@
-# Real Estate UAT Backend — Render/Supabase
+# مرجع eBroker 1.8.0 المنقح
 
-This repository bundle was built directly from the accepted local `CLOUD_READINESS V1.0` backend source supplied by the project owner.
+هذا فرع مرجعي مستقل داخل المستودع الخاص `JJalal1/real-estate-uat-backend`، للفحص والتصميم فقط. لا يدمج في فرع الأصل أو النسخة الثالثة، ولا يستخدم فرع تشغيل أو نشر.
 
-It is intended for a private GitHub repository and remote Docker build on Render. It contains no `.env` files, database dumps, local storage data, APKs, private keys, or deployment credentials.
+حزمة المصدر المرفقة فحصت قراءة فقط. النسخة هنا منقحة: **2005 ملفات أصلية مشمولة**، محفوظة بايتًا ببايت، مع استبعادات موثقة. الحزمة الأصلية الكاملة بقيت كما وصلت في مرفق صاحب المشروع؛ لا توصف هذه النسخة المنقحة بأنها الحزمة الأصلية الكاملة.
 
-Deployment order:
-1. Configure Supabase UAT (PostGIS + private Storage bucket).
-2. Push this repository content to the private GitHub repository.
-3. Create/sync the Render Blueprint from `render.yaml`.
-4. Enter the `sync: false` values in Render Dashboard only.
-5. Deploy and verify `/api/health`.
+- الإصدار الفعلي للتطبيق: `1.8.0+88` من `app/pubspec.yaml`.
+- SHA256 للحزمة المرفقة: `86de3f3c25ed3a43897eb0f49a910ff17f75aecba6eb7baebb113dc3d389372c`.
+- حجم ZIP المنقح: `13170175` بايت.
+- SHA256 للـZIP المنقح: `4d57450d87d471be8758ec3f350e9867ed56f5d46b4b56bb4a8fb3f7c756a0cc`.
+- المصدر موزع على `app/` و`web/` و`admin/` و`docs/` داخل ZIP.
 
-See `docs/` for the exact checklist.
+## التحقق وإعادة التركيب
+
+يحفظ مجلد `archive/` 26 جزءًا ثنائيًا من ZIP واحد. ترتيبها وأحجامها وبصماتها في `reference-index.json`. Base64 استعمل عند النقل إلى Git فقط؛ الأجزاء في Git بايتات ثنائية، وليست ملفات Base64 ولا تشفيرًا.
+
+بعد checkout لهذا الفرع، نفذ باستخدام Python النظام دون تثبيت اعتمادات القالب:
+
+```bash
+python3 scripts/restore_reference.py --verify-only
+python3 scripts/restore_reference.py --destination ./ebroker-reference
+```
+
+يتحقق البرنامج من SHA256 لكل جزء والـZIP وبيان التدقيق، وبصمة Git لكل جزء، ثم يتحقق من عضوية ZIP وCRC وبصمة كل ملف مشمول. يرفض الملفات الرمزية والتشفير والمسارات غير الآمنة أو المكررة ومجلد إخراج موجود. لا ينفذ أي ملف من القالب ولا installer ولا تفعيل.
+
+بعد الاستخراج، يوجد الجرد الكامل في `ebroker-reference/audit/file-manifest.json`، مع بصمات الملفات المستبعدة وأسباب الاستبعاد دون قيم الإعدادات. `SOURCE_INDEX.tsv` فهرس مستقل بكل الملفات المشمولة؛ `audit-summary.json` يوضح أعداد المكونات والاستبعادات.
+
+## الخصوصية والنطاق
+
+لا تتضمن هذه النسخة شهادة الشراء أو رمزها أو اسم صاحبها، ولا ملفات البيئة أو إعدادات Firebase والتوقيع المشمولة في الاستبعاد. استبعدت كذلك الاعتماديات والمخرجات والبيانات التشغيلية والبذور وصور التوثيق غير اللازمة وملفات طابقت قواعد تحفظية. الاستبعاد لا يعني أن كل ملف مستبعد سر. `UPLOAD_PROOF.json` يوثق فحوصًا محددة والإذن الصريح برفع هذا المرجع إلى هذا المستودع الخاص؛ الصورة الخاصة لتأكيد الدعم تبقى خارج Git. فحص الأنماط لا يضمن استحالة وجود كل نوع محتمل من البيانات الحساسة.
+
+هذا المرجع لا يبنى ضمن CI ولا يحتاج أسرارًا. حواجز API/Auth/DB وآليات الحساب والإعلان والدعم والمحادثة والمعاينة في مشروعنا تبقى حاكمة. يستفيد نقل الواجهة من التصميم ويعاد ربطه ببيئة مشروعنا الأصلية؛ لا تنسخ منظومة القالب أو اعتماداتها أو installer.
+
+خطة المراحل الخمس ومصفوفة الاعتماد وبنود المطابقة موجودة في طلب مراجعة التجهيز #67، على فرع `work/ui-transplant-v3-setup`، وليست ضمن فرع القالب. اعتماد الخطة يسبق التلبيس؛ نجاح هذا المرجع لا يعني إقفال المطابقة أو قبول إصدار التطبيق.
