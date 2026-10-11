@@ -9,7 +9,7 @@ import '../../account/presentation/auth_gate.dart';
 import '../../admin/presentation/general_manager_finance_hubs.dart';
 import '../../admin/presentation/general_manager_pages.dart';
 import '../../bookings/presentation/bookings_screen.dart';
-import '../../map/presentation/map_screen.dart';
+import '../../discovery/presentation/marketplace_home_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
 import '../../properties/presentation/my_listings_screen.dart';
 import '../../support/presentation/support_tasks_screen.dart';
@@ -182,7 +182,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       case 'advertiser':
         return const _ShellData(
           pages: [
-            MapScreen(),
+            MarketplaceHomeScreen(showAdvertiserActions: true),
             Stage6AuthGate(child: MyListingsScreen()),
             Stage6AuthGate(child: MessagesScreen()),
             Stage6AuthGate(child: BookingsScreen()),
@@ -199,7 +199,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       case 'regular':
         return const _ShellData(
           pages: [
-            MapScreen(),
+            MarketplaceHomeScreen(),
             Stage6AuthGate(child: MessagesScreen()),
             Stage6AuthGate(child: BookingsScreen()),
             AccountScreen(),
@@ -213,7 +213,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         );
       default:
         return const _ShellData(
-          pages: [MapScreen(), AccountScreen()],
+          pages: [MarketplaceHomeScreen(), AccountScreen()],
           items: [
             _NavItemData(label: 'العقارات', icon: Icons.travel_explore_outlined),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
