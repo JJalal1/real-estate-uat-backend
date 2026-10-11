@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 
 import '../domain/agreement_models.dart';
 
@@ -211,9 +212,9 @@ class _AgreementTermsFormState extends State<_AgreementTermsForm> {
                   decoration: const InputDecoration(labelText: 'شروط أو ملاحظات إضافية'),
                 ),
                 const SizedBox(height: 16),
-                FilledButton.icon(
+                EbrokerFilledButton.icon(
                   onPressed: _submit,
-                  icon: const Icon(Icons.description_outlined),
+                  icon: const EbrokerIcon(Icons.description_outlined),
                   label: Text(widget.current == null ? 'إنشاء المسودة' : 'إنشاء النسخة الجديدة'),
                 ),
               ],
@@ -404,9 +405,9 @@ class _RentalContractTermsFormState extends State<_RentalContractTermsForm> {
                   decoration: const InputDecoration(labelText: 'بنود إضافية'),
                 ),
                 const SizedBox(height: 16),
-                FilledButton.icon(
+                EbrokerFilledButton.icon(
                   onPressed: _submit,
-                  icon: const Icon(Icons.home_work_outlined),
+                  icon: const EbrokerIcon(Icons.home_work_outlined),
                   label: Text(widget.current == null ? 'إنشاء مسودة العقد' : 'إنشاء النسخة الجديدة'),
                 ),
               ],
@@ -430,14 +431,14 @@ class _DateRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
+          child: EbrokerOutlinedButton.icon(
             onPressed: onPick,
-            icon: const Icon(Icons.calendar_month_outlined),
+            icon: const EbrokerIcon(Icons.calendar_month_outlined),
             label: Text(value == null ? label : '$label: ${_displayDate(value!)}'),
           ),
         ),
         if (onClear != null)
-          IconButton(onPressed: onClear, icon: const Icon(Icons.close), tooltip: 'مسح التاريخ'),
+          IconButton(onPressed: onClear, icon: const EbrokerIcon(Icons.close), tooltip: 'مسح التاريخ'),
       ],
     );
   }

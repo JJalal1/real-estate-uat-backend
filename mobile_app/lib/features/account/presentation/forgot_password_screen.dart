@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -43,12 +44,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               enabled: !_requested,
               decoration: const InputDecoration(
                 labelText: 'البريد الإلكتروني أو الهاتف',
-                border: OutlineInputBorder(),
+
               ),
             ),
             const SizedBox(height: 14),
             if (!_requested)
-              FilledButton(
+              EbrokerFilledButton(
                 onPressed: _busy ? null : _request,
                 child: const Text('إرسال رمز الاستعادة'),
               )
@@ -60,7 +61,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     child: Text(
                       'رمز بيئة التطوير المحلية: $_debugCode',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -71,7 +72,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 maxLength: 6,
                 decoration: const InputDecoration(
                   labelText: 'رمز الاستعادة',
-                  border: OutlineInputBorder(),
+
                 ),
               ),
               const SizedBox(height: 12),
@@ -80,11 +81,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 obscureText: true,
                 decoration: const InputDecoration(
                   labelText: 'كلمة المرور الجديدة',
-                  border: OutlineInputBorder(),
+
                 ),
               ),
               const SizedBox(height: 14),
-              FilledButton(
+              EbrokerFilledButton(
                 onPressed: _busy ? null : _reset,
                 child: const Text('تغيير كلمة المرور'),
               ),

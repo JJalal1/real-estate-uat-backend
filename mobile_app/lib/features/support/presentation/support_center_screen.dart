@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -66,10 +67,10 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(title: const Text('الدعم وبلاغاتي')),
-        floatingActionButton: FloatingActionButton.extended(
+        floatingActionButton: EbrokerButton(
           onPressed: _openTicket,
-          icon: const Icon(Icons.support_agent_outlined),
-          label: const Text('تذكرة دعم'),
+          icon: const EbrokerIcon(Icons.support_agent_outlined),
+          child: const Text('تذكرة دعم'),
         ),
         body: RefreshIndicator(
           onRefresh: _load,
@@ -86,7 +87,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                       Text(
                         'مركز الدعم',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w600,
                             ),
                       ),
                       const SizedBox(height: 8),
@@ -116,7 +117,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                 ..._cases.map(
                   (item) => Card(
                     child: ListTile(
-                      leading: Icon(
+                      leading: EbrokerIcon(
                         item.kind == 'report'
                             ? Icons.flag_outlined
                             : Icons.support_agent_outlined,
@@ -125,13 +126,13 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                         item.subject,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       subtitle: Text(
                         '${item.reference} • ${_statusLabel(item.status)}'
                         '${item.isEscalated ? ' • مصعّدة' : ''}',
                       ),
-                      trailing: const Icon(Icons.chevron_left),
+                      trailing: const EbrokerIcon(Icons.chevron_left),
                       onTap: () => _openDetails(item.id),
                     ),
                   ),
@@ -201,7 +202,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
               onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('إلغاء'),
             ),
-            FilledButton(
+            EbrokerFilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('فتح التذكرة'),
             ),
@@ -261,7 +262,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                   children: [
                     Text(
                       details.summary.subject,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 6),
                     Text('الحالة: ${_statusLabel(details.summary.status)}'),
@@ -278,7 +279,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                             color: Theme.of(context)
                                 .colorScheme
                                 .surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(12),
@@ -291,7 +292,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                                           ? 'صاحب الطلب'
                                           : 'الدعم'),
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -327,10 +328,10 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                       }
                     }
                   },
-                  icon: const Icon(Icons.reply_outlined),
+                  icon: const EbrokerIcon(Icons.reply_outlined),
                   label: const Text('إضافة رد'),
                 ),
-              FilledButton(
+              EbrokerFilledButton(
                 onPressed: () => Navigator.pop(dialogContext),
                 child: const Text('إغلاق'),
               ),
@@ -361,7 +362,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('إلغاء'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('إرسال'),
           ),
@@ -401,9 +402,9 @@ class _ErrorCard extends StatelessWidget {
           children: [
             Text(message),
             const SizedBox(height: 10),
-            OutlinedButton.icon(
+            EbrokerOutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
               label: const Text('إعادة المحاولة'),
             ),
           ],

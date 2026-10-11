@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_property_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +12,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/ebroker_design.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
 import '../data/property_discovery_history_store.dart';
@@ -89,7 +92,7 @@ Future<Uint8List> renderMapPropertyPriceImage(
       style: TextStyle(
         color: foreground,
         fontSize: selected ? 13 : 12,
-        fontWeight: FontWeight.w900,
+        fontWeight: FontWeight.w600,
         height: 1.05,
       ),
     ),
@@ -1181,20 +1184,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           Material(
             elevation: 5,
             color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(8),
             child: InkWell(
               onTap: _saveCurrentSearch,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(8),
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.notifications_active_outlined, color: AppTheme.brand),
+                    EbrokerIcon(Icons.notifications_active_outlined, color: AppTheme.brand),
                     SizedBox(width: 7),
                     Text(
                       'حفظ البحث',
-                      style: TextStyle(fontWeight: FontWeight.w900),
+                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -1205,20 +1208,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           Material(
             elevation: 5,
             color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(8),
             child: InkWell(
               onTap: _beginAreaSelection,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(8),
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.gesture_rounded, color: AppTheme.brand),
+                    EbrokerIcon(Icons.gesture_rounded, color: AppTheme.brand),
                     SizedBox(width: 7),
                     Text(
                       'رسم منطقة',
-                      style: TextStyle(fontWeight: FontWeight.w900),
+                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -1242,12 +1245,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       start: 14,
       child: Material(
         elevation: 3,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(8),
         color: Colors.white,
         child: InputChip(
-          avatar: const Icon(Icons.gesture_rounded, size: 18),
+          avatar: const EbrokerIcon(Icons.gesture_rounded, size: 18),
           label: const Text('منطقة مرسومة'),
-          deleteIcon: const Icon(Icons.close_rounded, size: 18),
+          deleteIcon: const EbrokerIcon(Icons.close_rounded, size: 18),
           onDeleted: _clearSelectedArea,
         ),
       ),
@@ -1281,12 +1284,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Row(
                     children: [
-                      Icon(Icons.draw_rounded, color: AppTheme.brand),
+                      EbrokerIcon(Icons.draw_rounded, color: AppTheme.brand),
                       SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           'ارسم بإصبعك حدود المنطقة المطلوبة مثل القلم. عند رفع إصبعك سيتم عرض العقارات داخل الرسم فقط.',
-                          style: TextStyle(fontWeight: FontWeight.w900),
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
@@ -1304,13 +1307,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: EbrokerOutlinedButton.icon(
                       onPressed: _cancelAreaSelection,
                       style: OutlinedButton.styleFrom(
                         backgroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 13),
                       ),
-                      icon: const Icon(Icons.close_rounded),
+                      icon: const EbrokerIcon(Icons.close_rounded),
                       label: const Text('إلغاء'),
                     ),
                   ),
@@ -1324,12 +1327,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: AppTheme.brand.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(13),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.touch_app_rounded, color: Colors.white),
+                          EbrokerIcon(Icons.touch_app_rounded, color: Colors.white),
                           SizedBox(width: 8),
                           Flexible(
                             child: Text(
@@ -1337,7 +1340,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -1414,7 +1417,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             IconButton.filledTonal(
               tooltip: 'حفظ البحث الحالي',
               onPressed: _saveCurrentSearch,
-              icon: const Icon(Icons.notifications_active_outlined),
+              icon: const EbrokerIcon(Icons.notifications_active_outlined),
             ),
             const SizedBox(width: 8),
             IconButton.filledTonal(
@@ -1424,7 +1427,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     properties.asData?.value ?? const <PropertyMarker>[];
                 _showSearchSheet(items);
               },
-              icon: const Icon(Icons.search),
+              icon: const EbrokerIcon(Icons.search),
             ),
             const SizedBox(width: 8),
           ],
@@ -1436,7 +1439,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: SegmentedButton<int>(
+                    child: EbrokerSegmentedButton<int>(
                       showSelectedIcon: false,
                       segments: const [
                         ButtonSegment(value: 0, label: Text('الأحدث')),
@@ -1464,7 +1467,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   children: [
                     if (_searchText.isNotEmpty)
                       InputChip(
-                        avatar: const Icon(Icons.search, size: 18),
+                        avatar: const EbrokerIcon(Icons.search, size: 18),
                         label: Text(_searchText),
                         onDeleted: () {
                           _searchController.clear();
@@ -1474,7 +1477,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       ),
                     if (_selectedAreaBounds != null)
                       InputChip(
-                        avatar: const Icon(Icons.crop_free, size: 18),
+                        avatar: const EbrokerIcon(Icons.crop_free, size: 18),
                         label: const Text('منطقة محددة'),
                         onDeleted: _clearSelectedArea,
                       ),
@@ -1598,7 +1601,7 @@ class _MapQuickFilterPanel extends StatelessWidget {
     return Material(
       elevation: 6,
       shadowColor: Colors.black.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(8),
       color: Colors.white.withValues(alpha: 0.97),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -1625,14 +1628,14 @@ class _MapQuickFilterPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 7),
-                FilledButton.icon(
+                EbrokerFilledButton.icon(
                   onPressed: onSearch,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.accent,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
-                  icon: const Icon(Icons.search),
+                  icon: const EbrokerIcon(Icons.search),
                   label: Text(searchText.isEmpty ? 'بحث' : 'بحث ✓'),
                 ),
               ],
@@ -1672,9 +1675,9 @@ class _MapQuickFilterPanel extends StatelessWidget {
                       selected: type == 'office',
                       onTap: () => onType('office')),
                   const SizedBox(width: 4),
-                  OutlinedButton.icon(
+                  EbrokerOutlinedButton.icon(
                     onPressed: onMore,
-                    icon: const Icon(Icons.tune, size: 17),
+                    icon: const EbrokerIcon(Icons.tune, size: 17),
                     label: Text(
                         filterCount == 0 ? 'المزيد' : 'المزيد ($filterCount)'),
                   ),
@@ -1705,26 +1708,26 @@ class _PurposeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: selected ? AppTheme.brandSoft : Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
           height: 48,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: selected ? AppTheme.brand : AppTheme.outlineSoft,
+              color: selected ? AppTheme.brand : EbrokerDesign.border,
               width: selected ? 1.5 : 1,
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              EbrokerIcon(
                 icon,
                 size: 19,
-                color: selected ? AppTheme.brandStrong : AppTheme.textStrong,
+                color: selected ? AppTheme.brandStrong : EbrokerDesign.text,
               ),
               const SizedBox(width: 5),
               Flexible(
@@ -1732,9 +1735,9 @@ class _PurposeButton extends StatelessWidget {
                   label,
                   maxLines: 1,
                   style: TextStyle(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color:
-                        selected ? AppTheme.brandStrong : AppTheme.textStrong,
+                        selected ? AppTheme.brandStrong : EbrokerDesign.text,
                   ),
                 ),
               ),
@@ -1758,21 +1761,9 @@ class _TypeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 6),
-      child: ChoiceChip(
+      child: EbrokerChoiceChip(
         label: Text(label),
         selected: selected,
-        showCheckmark: selected,
-        checkmarkColor: AppTheme.brandStrong,
-        backgroundColor: Colors.white,
-        selectedColor: AppTheme.brandSoft,
-        side: BorderSide(
-          color: selected ? AppTheme.brand : AppTheme.outlineSoft,
-          width: selected ? 1.5 : 1.1,
-        ),
-        labelStyle: TextStyle(
-          color: selected ? AppTheme.brandStrong : AppTheme.textStrong,
-          fontWeight: FontWeight.w900,
-        ),
         onSelected: (_) => onTap(),
       ),
     );
@@ -1798,7 +1789,7 @@ class _MapListSwitcherBar extends StatelessWidget {
       color: Colors.white,
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.16),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(8),
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
         height: 58,
@@ -1810,13 +1801,13 @@ class _MapListSwitcherBar extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(mapMode
+                    EbrokerIcon(mapMode
                         ? Icons.view_list_outlined
                         : Icons.map_outlined),
                     const SizedBox(width: 7),
                     Text(
                       mapMode ? 'قائمة' : 'خريطة',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -1830,8 +1821,8 @@ class _MapListSwitcherBar extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: AppTheme.textStrong,
-                    fontWeight: FontWeight.w900,
+                    color: EbrokerDesign.text,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -1843,13 +1834,13 @@ class _MapListSwitcherBar extends StatelessWidget {
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_circle, color: AppTheme.brandStrong),
+                    EbrokerIcon(Icons.add_circle, color: AppTheme.brandStrong),
                     SizedBox(width: 7),
                     Text(
                       'إضافة',
                       style: TextStyle(
                         color: AppTheme.brandStrong,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -1932,7 +1923,7 @@ class _MapActionButton extends StatelessWidget {
       child: IconButton(
         tooltip: tooltip,
         onPressed: onPressed,
-        icon: Icon(icon),
+        icon: EbrokerIcon(icon),
       ),
     );
   }
@@ -1946,9 +1937,9 @@ class _FilterCountButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
+    return EbrokerOutlinedButton.icon(
       onPressed: onPressed,
-      icon: const Icon(Icons.tune, size: 18),
+      icon: const EbrokerIcon(Icons.tune, size: 18),
       label: Text(count == 0 ? 'تصفية' : '$count'),
     );
   }
@@ -2008,7 +1999,7 @@ class _SearchSheetState extends State<_SearchSheet> {
               width: 44,
               height: 5,
               decoration: BoxDecoration(
-                color: AppTheme.outlineSoft,
+                color: EbrokerDesign.border,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -2017,7 +2008,7 @@ class _SearchSheetState extends State<_SearchSheet> {
           Text(
             'ابحث عن عقارك',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w600,
                 ),
           ),
           const SizedBox(height: 10),
@@ -2027,7 +2018,7 @@ class _SearchSheetState extends State<_SearchSheet> {
             textInputAction: TextInputAction.search,
             decoration: const InputDecoration(
               hintText: 'اسم منطقة، شارع أو عقار',
-              prefixIcon: Icon(Icons.search),
+              prefixIcon: EbrokerIcon(Icons.search),
             ),
             onChanged: (_) => setState(() {}),
             onSubmitted: (value) => Navigator.of(context).pop(value),
@@ -2039,7 +2030,7 @@ class _SearchSheetState extends State<_SearchSheet> {
               child: Text(
                 'بحثت مؤخراً',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
               ),
             ),
@@ -2049,8 +2040,8 @@ class _SearchSheetState extends State<_SearchSheet> {
               runSpacing: 7,
               children: widget.recentSearches
                   .map(
-                    (value) => ActionChip(
-                      avatar: const Icon(Icons.history_rounded, size: 18),
+                    (value) => EbrokerActionChip(
+                      avatar: const EbrokerIcon(Icons.history_rounded, size: 18),
                       label: Text(value),
                       onPressed: () => Navigator.of(context).pop(value),
                     ),
@@ -2068,7 +2059,7 @@ class _SearchSheetState extends State<_SearchSheet> {
                 separatorBuilder: (_, __) => const Divider(),
                 itemBuilder: (context, index) => ListTile(
                   dense: true,
-                  leading: const Icon(Icons.location_on_outlined),
+                  leading: const EbrokerIcon(Icons.location_on_outlined),
                   title: Text(
                     suggestions[index],
                     maxLines: 1,
@@ -2083,7 +2074,7 @@ class _SearchSheetState extends State<_SearchSheet> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: EbrokerOutlinedButton(
                   onPressed: () => Navigator.of(context).pop(''),
                   child: const Text('مسح البحث'),
                 ),
@@ -2091,9 +2082,9 @@ class _SearchSheetState extends State<_SearchSheet> {
               const SizedBox(width: 10),
               Expanded(
                 flex: 2,
-                child: FilledButton.icon(
+                child: EbrokerFilledButton.icon(
                   onPressed: () => Navigator.of(context).pop(_controller.text),
-                  icon: const Icon(Icons.search),
+                  icon: const EbrokerIcon(Icons.search),
                   label: const Text('عرض النتائج'),
                 ),
               ),
@@ -2124,141 +2115,30 @@ class _PropertyResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = property.mainImage;
-
-    return SizedBox(
-      height: 164,
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
+    final scheme = Theme.of(context).colorScheme;
+    return Container(decoration: BoxDecoration(color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: selected ? scheme.primary : EbrokerDesign.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
+          price: _formatPrice(property.price), currency: _currencyLabel(property.currency),
+          imageUrl: property.mainImage,
+          location: property.address ?? '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
+          categoryLabel: _typeLabel(property.type ?? ''),
+          purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
           onTap: onDetails,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: selected ? AppTheme.brand : AppTheme.outlineSoft,
-                width: selected ? 1.6 : 1,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 132,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      imageUrl == null
-                          ? const _PropertyImageFallback()
-                          : Image.network(
-                              imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  const _PropertyImageFallback(),
-                              loadingBuilder: (context, child, progress) {
-                                if (progress == null) return child;
-                                return const _PropertyImageFallback(
-                                    showLoader: true);
-                              },
-                            ),
-                      PositionedDirectional(
-                        top: 8,
-                        start: 8,
-                        child: Material(
-                          color: Colors.white.withValues(alpha: 0.94),
-                          shape: const CircleBorder(),
-                          child: IconButton(
-                            tooltip: favorite
-                                ? 'إزالة من المفضلة'
-                                : 'حفظ في المفضلة',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: onFavorite,
-                            icon: Icon(
-                              favorite
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              color: favorite
-                                  ? Theme.of(context).colorScheme.error
-                                  : AppTheme.textStrong,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            if (property.purpose != null)
-                              _MiniTag(label: _purposeLabel(property.purpose!)),
-                            if (property.type != null) ...[
-                              const SizedBox(width: 6),
-                              _MiniTag(label: _typeLabel(property.type!)),
-                            ],
-                            const Spacer(),
-                            IconButton(
-                              tooltip: 'عرض على الخريطة',
-                              visualDensity: VisualDensity.compact,
-                              constraints: const BoxConstraints.tightFor(
-                                  width: 32, height: 32),
-                              padding: EdgeInsets.zero,
-                              onPressed: onMap,
-                              icon: const Icon(Icons.location_on_outlined,
-                                  size: 19),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          property.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${_formatPrice(property.price)} ${_currencyLabel(property.currency)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: AppTheme.brandStrong,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                        ),
-                        const Spacer(),
-                        _PropertyFacts(property: property),
-                        const SizedBox(height: 6),
-                        Text(
-                          property.address ??
-                              '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.textMuted,
-                                  ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+          trailing: IconButton(tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
+            onPressed: onFavorite,
+            icon: EbrokerImage(favorite ? 'heart_filled' : 'heart', size: 20,
+              color: favorite ? scheme.primary : EbrokerDesign.text))),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: _PropertyFacts(property: property)),
+        if (property.priceDisplayNote != null)
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: EbrokerText(property.priceDisplayNote!, size: 11)),
+        TextButton.icon(onPressed: onMap,
+          icon: EbrokerImage('location', size: 18, color: scheme.primary),
+          label: const Text('عرض على الخريطة')),
+      ]));
   }
 }
 
@@ -2296,40 +2176,15 @@ class _Fact extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: AppTheme.textMuted),
+        EbrokerIcon(icon, size: 16, color: EbrokerDesign.textLight),
         const SizedBox(width: 4),
         Text(
           text,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textMuted,
+                color: EbrokerDesign.textLight,
               ),
         ),
       ],
-    );
-  }
-}
-
-class _MiniTag extends StatelessWidget {
-  const _MiniTag({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppTheme.brandSoft,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppTheme.brandStrong,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
     );
   }
 }
@@ -2354,7 +2209,7 @@ class _MapSelectionCard extends StatelessWidget {
     return Material(
       color: Colors.white,
       elevation: 8,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(8),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onDetails,
@@ -2385,14 +2240,14 @@ class _MapSelectionCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w900, fontSize: 16),
+                          fontWeight: FontWeight.w600, fontSize: 16),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       '${_formatPrice(property.price)} ${_currencyLabel(property.currency)}',
                       style: const TextStyle(
                         color: AppTheme.brandStrong,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                         fontSize: 18,
                       ),
                     ),
@@ -2402,7 +2257,7 @@ class _MapSelectionCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          color: AppTheme.textMuted, fontSize: 12),
+                          color: EbrokerDesign.textLight, fontSize: 12),
                     ),
                   ],
                 ),
@@ -2415,19 +2270,19 @@ class _MapSelectionCard extends StatelessWidget {
                         ? 'إزالة من المفضلة'
                         : 'حفظ في المفضلة',
                     onPressed: onFavorite,
-                    icon: Icon(
+                    icon: EbrokerIcon(
                       favorite
                           ? Icons.favorite_rounded
                           : Icons.favorite_border_rounded,
                       color: favorite
                           ? Theme.of(context).colorScheme.error
-                          : AppTheme.textStrong,
+                          : EbrokerDesign.text,
                     ),
                   ),
                   IconButton(
                     tooltip: 'إغلاق',
                     onPressed: onClose,
-                    icon: const Icon(Icons.close),
+                    icon: const EbrokerIcon(Icons.close),
                   ),
                 ],
               ),
@@ -2440,28 +2295,9 @@ class _MapSelectionCard extends StatelessWidget {
 }
 
 class _PropertyImageFallback extends StatelessWidget {
-  const _PropertyImageFallback({this.showLoader = false});
-
-  final bool showLoader;
-
+  const _PropertyImageFallback();
   @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: AppTheme.brandSoft,
-      child: Center(
-        child: showLoader
-            ? const SizedBox.square(
-                dimension: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              )
-            : const Icon(
-                Icons.home_work_outlined,
-                color: AppTheme.brandStrong,
-                size: 38,
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const EbrokerPropertyPlaceholder(size: 38);
 }
 
 class _LoadingPropertyCard extends StatelessWidget {
@@ -2473,8 +2309,8 @@ class _LoadingPropertyCard extends StatelessWidget {
       height: 164,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.outlineSoft),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: EbrokerDesign.border),
       ),
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -2483,7 +2319,7 @@ class _LoadingPropertyCard extends StatelessWidget {
             width: 118,
             decoration: BoxDecoration(
               color: AppTheme.brandSoft,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
           const SizedBox(width: 12),
@@ -2550,20 +2386,20 @@ class _ResultsState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: AppTheme.textMuted),
+            EbrokerIcon(icon, size: 48, color: EbrokerDesign.textLight),
             const SizedBox(height: 12),
             Text(
               title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
             const SizedBox(height: 6),
             Text(message, textAlign: TextAlign.center),
             if (buttonLabel != null && onPressed != null) ...[
               const SizedBox(height: 14),
-              FilledButton.tonal(
+              EbrokerFilledButton.tonal(
                 onPressed: onPressed,
                 child: Text(buttonLabel!),
               ),
@@ -2774,7 +2610,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
       constraints:
           BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
       decoration: const BoxDecoration(
-        color: AppTheme.page,
+        color: EbrokerDesign.page,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
@@ -2784,7 +2620,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
             width: 44,
             height: 5,
             decoration: BoxDecoration(
-              color: AppTheme.outlineSoft,
+              color: EbrokerDesign.border,
               borderRadius: BorderRadius.circular(999),
             ),
           ),
@@ -2799,13 +2635,13 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
                       Text(
                         'تصفية العقارات',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w600,
                             ),
                       ),
                       const SizedBox(height: 2),
                       const Text(
                         'الفلاتر الأساسية أمامك، واضغط المزيد للخيارات التفصيلية.',
-                        style: TextStyle(color: AppTheme.textMuted),
+                        style: TextStyle(color: EbrokerDesign.textLight),
                       ),
                     ],
                   ),
@@ -2867,23 +2703,23 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
                   const SizedBox(height: 18),
                   Material(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(8),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(8),
                       onTap: () => setState(() => _showMore = !_showMore),
                       child: Padding(
                         padding: const EdgeInsets.all(14),
                         child: Row(
                           children: [
-                            const Icon(Icons.tune, color: AppTheme.accent),
+                            const EbrokerIcon(Icons.tune, color: AppTheme.accent),
                             const SizedBox(width: 9),
                             const Expanded(
                               child: Text(
                                 'المزيد من الفلاتر',
-                                style: TextStyle(fontWeight: FontWeight.w900),
+                                style: TextStyle(fontWeight: FontWeight.w600),
                               ),
                             ),
-                            Icon(_showMore
+                            EbrokerIcon(_showMore
                                 ? Icons.expand_less
                                 : Icons.expand_more),
                           ],
@@ -3009,9 +2845,9 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
             child: SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
+              child: EbrokerFilledButton.icon(
                 onPressed: _submitting ? null : _apply,
-                icon: const Icon(Icons.search),
+                icon: const EbrokerIcon(Icons.search),
                 label: const Text('عرض العقارات'),
               ),
             ),
@@ -3022,7 +2858,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
   }
 
   Widget _choice(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
+    return EbrokerChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: _submitting ? null : (_) => onTap(),
@@ -3035,7 +2871,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
     required int number,
     required ValueChanged<int?> onChanged,
   }) {
-    return ChoiceChip(
+    return EbrokerChoiceChip(
       label: Text(label),
       selected: value == number,
       onSelected: _submitting
@@ -3055,7 +2891,7 @@ class _FilterSectionTitle extends StatelessWidget {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w600,
           ),
     );
   }
@@ -3073,16 +2909,16 @@ class _ApiFailureBanner extends StatelessWidget {
       color: const Color(0xFFFFF7F4),
       elevation: 6,
       shadowColor: Colors.black.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: const Color(0xFFE5A497), width: 1.2),
         ),
         child: Row(
           children: [
-            const Icon(Icons.cloud_off_outlined, color: Color(0xFF9B3D2B)),
+            const EbrokerIcon(Icons.cloud_off_outlined, color: Color(0xFF9B3D2B)),
             const SizedBox(width: 9),
             Expanded(
               child: Text(
@@ -3091,7 +2927,7 @@ class _ApiFailureBanner extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFF6D2D21),
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   height: 1.35,
                 ),
               ),
@@ -3099,7 +2935,7 @@ class _ApiFailureBanner extends StatelessWidget {
             const SizedBox(width: 8),
             TextButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh, size: 18),
+              icon: const EbrokerIcon(Icons.refresh, size: 18),
               label: const Text('إعادة'),
             ),
           ],
@@ -3125,7 +2961,7 @@ class _MessageCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Icon(
+            EbrokerIcon(
               error ? Icons.error_outline : Icons.info_outline,
               color: error ? Colors.red.shade700 : AppTheme.accent,
             ),
@@ -3135,17 +2971,6 @@ class _MessageCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-String _purposeLabel(String value) {
-  switch (value) {
-    case 'sale':
-      return 'للبيع';
-    case 'rent':
-      return 'للإيجار';
-    default:
-      return value;
   }
 }
 

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_screen_sections.dart';
+import '../../../core/theme/ebroker_design.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -171,63 +174,28 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             index: _imageIndex,
             onChanged: (index) => setState(() => _imageIndex = index),
           ),
-          const SizedBox(height: AppSpacing.s40),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  property.title,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ),
-              if (property.isOwner)
-                PopupMenuButton<String>(
-                  tooltip: 'إدارة الإعلان',
-                  onSelected: (action) => _ownerAction(action, property),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('تعديل الإعلان')),
-                    PopupMenuItem(value: 'mine', child: Text('إعلاناتي')),
-                  ],
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s8),
-          AppPropertyPrice(
-            price: _formatPrice(property.price),
-            currency: property.currency,
-            suffix: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
+          EbrokerPropertyHeading(
+            category: _typeLabel(property.type), title: property.title,
+            purpose: _purposeLabel(property.purpose),
+            price: AppPropertyPrice(price: _formatPrice(property.price), currency: property.currency),
+            trailing: property.isOwner ? PopupMenuButton<String>(
+              tooltip: 'إدارة الإعلان',
+              onSelected: (action) => _ownerAction(action, property),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'edit', child: Text('تعديل الإعلان')),
+                PopupMenuItem(value: 'mine', child: Text('إعلاناتي')),
+              ],
+            ) : null,
           ),
           PropertySaiPublicLine(propertyId: property.id),
-          const SizedBox(height: AppSpacing.s12),
-          Wrap(
-            spacing: AppSpacing.s8,
-            runSpacing: AppSpacing.s8,
-            children: [
-              AppStatusBadge(
-                label: _purposeLabel(property.purpose),
-                tone: AppStatusTone.info,
-                icon: property.purpose == 'rent'
-                    ? Icons.key_outlined
-                    : Icons.sell_outlined,
-              ),
-              AppStatusBadge(
-                label: _typeLabel(property.type),
-                tone: AppStatusTone.neutral,
-                icon: Icons.home_work_outlined,
-              ),
-              if (!published)
-                AppStatusBadge(
-                  label: _statusLabel(property.status),
-                  tone: property.status == 'rejected'
-                      ? AppStatusTone.error
-                      : AppStatusTone.warning,
-                  icon: Icons.info_outline,
-                ),
-            ],
-          ),
+          if (!published) ...[
+            const SizedBox(height: AppSpacing.s12),
+            AppStatusBadge(label: _statusLabel(property.status),
+              tone: property.status == 'rejected' ? AppStatusTone.error : AppStatusTone.warning,
+              icon: Icons.info_outline),
+          ],
           if (!published && !property.isOwner) ...[
-            const SizedBox(height: AppSpacing.s40),
+            const SizedBox(height: 16),
             const AppUnavailableState(),
           ],
           if (property.address != null) ...[
@@ -238,7 +206,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
+                  EbrokerIcon(
                     Icons.location_on_outlined,
                     color: Theme.of(context).colorScheme.primary,
                   ),
@@ -250,9 +218,25 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           ],
           if (facts.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(title: 'مواصفات العقار'),
-            const SizedBox(height: AppSpacing.s8),
-            AppSurface(child: AppPropertyFacts(facts: facts)),
+            EbrokerSectionPanel(title: 'مواصفات العقار',
+              child: GridView.builder(shrinkWrap: true, padding: EdgeInsets.zero,
+                physics: const NeverScrollableScrollPhysics(), itemCount: facts.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: MediaQuery.textScalerOf(context).scale(14) > 20 ? 1 : 2,
+                  mainAxisSpacing: 16, crossAxisSpacing: 16,
+                  mainAxisExtent: 39.rh(context) + (MediaQuery.sizeOf(context).width < 360 ? 18 : 0) + (MediaQuery.textScalerOf(context).scale(14) - 14) * 4.5),
+                itemBuilder: (context, index) => Row(children: [
+                  Container(width: 36.rw(context), height: 36.rh(context), padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(color: EbrokerDesign.surface,
+                      borderRadius: BorderRadius.circular(4), border: Border.all(color: EbrokerDesign.border)),
+                    child: EbrokerIcon(facts[index].icon, size: 24, color: EbrokerDesign.text)),
+                  SizedBox(width: 10.rw(context)),
+                  Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      EbrokerText(_factLabel(facts[index].icon), size: 12, color: EbrokerDesign.textLight, maxLines: 1),
+                      EbrokerText(facts[index].label, weight: FontWeight.w500, maxLines: 2),
+                    ])),
+                ]))),
           ],
           if (published) ...[
             const SizedBox(height: AppSpacing.s24),
@@ -268,13 +252,11 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             ),
           ],
           const SizedBox(height: AppSpacing.s24),
-          const AppSectionHeader(title: 'وصف العقار'),
-          const SizedBox(height: AppSpacing.s8),
-          AppSurface(
+          EbrokerSectionPanel(title: 'وصف العقار',
             child: Text(
               property.description ??
                   'لم يضف المعلن وصفاً تفصيلياً لهذا العقار بعد.',
-              style: Theme.of(context).textTheme.bodyLarge,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
           if (published && property.advertiser != null) ...[
@@ -291,7 +273,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             const AppSectionHeader(title: 'عقارات مشابهة'),
             const SizedBox(height: AppSpacing.s12),
             SizedBox(
-              height: 340,
+              height: 340 + (MediaQuery.textScalerOf(context).scale(14) - 14) * 8,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: property.similar.length,
@@ -301,9 +283,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                   final item = property.similar[index];
                   final isFavorite = favoriteIds.contains(item.id);
                   return SizedBox(
-                    width: 260,
+                    width: 290,
                     child: AppPropertyCard(
-                      title: item.title,
+                      categoryLabel: ebrokerPropertyTypeLabel(item.type),
+                  title: item.title,
                       price: _formatPrice(item.price),
                       currency: item.currency,
                       imageUrl: item.mainImage,
@@ -324,7 +307,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                       trailing: IconButton.filledTonal(
                         tooltip:
                             isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-                        icon: Icon(
+                        icon: EbrokerIcon(
                           isFavorite
                               ? Icons.favorite_rounded
                               : Icons.favorite_border_rounded,
@@ -519,8 +502,8 @@ class _Gallery extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadii.card),
-      child: AspectRatio(
-        aspectRatio: 4 / 3,
+      child: SizedBox(
+        height: 218.rs(context),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -549,58 +532,26 @@ class _Gallery extends StatelessWidget {
                   ),
                 ),
               ),
+            if (images.length > 1)
+              Positioned(bottom: 10, left: 0, right: 0,
+                child: IgnorePointer(child: Row(mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(images.length, (i) => Container(width: 8, height: 8,
+                    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    decoration: BoxDecoration(shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: index == i ? .9 : .4))))))),
             if (images.isNotEmpty)
-              PositionedDirectional(
-                top: AppSpacing.s12,
-                end: AppSpacing.s12,
-                child: IgnorePointer(
-                  child: Container(
-                    padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: AppSpacing.s10,
-                      vertical: AppSpacing.s6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: .58),
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: AppSpacing.s4),
-                        Text(
-                          'تكبير الصور',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            if (images.isNotEmpty)
-              PositionedDirectional(
-                bottom: AppSpacing.s12,
-                end: AppSpacing.s12,
-                child: Container(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: AppSpacing.s12,
-                    vertical: AppSpacing.s4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .inverseSurface
-                        .withValues(alpha: .86),
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Text(
-                    '${index + 1}/${images.length}',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onInverseSurface,
-                        ),
-                  ),
-                ),
-              ),
+              PositionedDirectional(bottom: 12.rh(context), end: 16.rw(context),
+                child: Semantics(button: true, label: 'تكبير الصور',
+                  child: GestureDetector(onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: images, initialIndex: index))),
+                    child: Container(padding: EdgeInsets.symmetric(horizontal: 8.rw(context), vertical: 4.rh(context)),
+                      decoration: BoxDecoration(color: EbrokerDesign.surface,
+                        borderRadius: BorderRadius.circular(16), border: Border.all(color: EbrokerDesign.border)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const EbrokerImage('gallery', size: 14, color: EbrokerDesign.text),
+                        SizedBox(width: 4.rw(context)),
+                        EbrokerText('${images.length}', size: 12, weight: FontWeight.w600),
+                      ]))))),
           ],
         ),
       ),
@@ -657,7 +608,7 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                       fit: BoxFit.contain,
                       width: double.infinity,
                       errorBuilder: (_, __, ___) => const Center(
-                        child: Icon(Icons.broken_image_outlined, color: Colors.white54, size: 52),
+                        child: EbrokerIcon(Icons.broken_image_outlined, color: Colors.white54, size: 52),
                       ),
                       loadingBuilder: (context, child, progress) {
                         if (progress == null) return child;
@@ -673,7 +624,7 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                 child: IconButton.filled(
                   tooltip: 'إغلاق الصور',
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const EbrokerIcon(Icons.close_rounded),
                 ),
               ),
               PositionedDirectional(
@@ -730,43 +681,13 @@ class _AdvertiserCard extends StatelessWidget {
         const _AdvertiserTrustSignal(Icons.location_on_outlined, 'موقع المكتب مسجل'),
     ];
 
-    return AppSurface(
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                child: Icon(
-                  verified ? Icons.verified_user_outlined : Icons.person_outline,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      advertiser.name,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: AppSpacing.s4),
-                    Text(
-                      verified ? advertiser.verificationLabel : 'معلن غير موثق',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              AppStatusBadge(
-                label: verified ? 'موثق' : 'غير موثق',
-                tone: verified ? AppStatusTone.success : AppStatusTone.warning,
-                icon: verified ? Icons.verified_outlined : Icons.info_outline,
-              ),
-            ],
-          ),
+          EbrokerAdvertiserCard(name: advertiser.name,
+            identity: verified ? advertiser.verificationLabel : 'معلن غير موثق',
+            rating: advertiser.ratingAverage, ratingCount: advertiser.ratingCount,
+            verified: verified, onTap: onCommunity),
           const SizedBox(height: AppSpacing.s12),
           Text(
             verified
@@ -784,7 +705,7 @@ class _AdvertiserCard extends StatelessWidget {
               children: signals
                   .map(
                     (signal) => Chip(
-                      avatar: Icon(signal.icon, size: 18),
+                      avatar: EbrokerIcon(signal.icon, size: 18),
                       label: Text(signal.label),
                       visualDensity: VisualDensity.compact,
                     ),
@@ -814,7 +735,6 @@ class _AdvertiserCard extends StatelessWidget {
             expand: true,
           ),
         ],
-      ),
     );
   }
 }
@@ -883,6 +803,16 @@ class _PropertyDetailsSkeleton extends StatelessWidget {
       ],
     );
   }
+}
+
+String _factLabel(IconData icon) {
+  if (icon == Icons.square_foot) { return 'المساحة'; }
+  if (icon == Icons.bed_outlined) { return 'غرف النوم'; }
+  if (icon == Icons.bathtub_outlined) { return 'الحمامات'; }
+  if (icon == Icons.local_parking_outlined) { return 'الموقف'; }
+  if (icon == Icons.account_balance_outlined) { return 'نوع الملكية'; }
+  if (icon == Icons.explore_outlined) { return 'واجهة المبنى'; }
+  return 'المواصفات';
 }
 
 String _purposeLabel(String value) => value == 'rent' ? 'للإيجار' : 'للبيع';

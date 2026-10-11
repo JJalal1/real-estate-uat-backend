@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -406,7 +407,7 @@ class _ListingReviewCaseScreenState
                           if (item.reviewHistory[i].reason != null)
                             item.reviewHistory[i].reason!,
                         ].join('\n'),
-                        leading: const Icon(Icons.history),
+                        leading: const EbrokerIcon(Icons.history),
                       ),
                       if (i != item.reviewHistory.length - 1) const Divider(height: 1),
                     ],
@@ -560,7 +561,7 @@ class _ListingReviewCaseScreenState
                   onPressed: () => Navigator.pop(dialogContext, false),
                   child: const Text('إلغاء'),
                 ),
-                FilledButton(
+                EbrokerFilledButton(
                   onPressed: () {
                     if (duplicates.isNotEmpty && duplicateController.text.trim().length < 10) {
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
@@ -665,7 +666,7 @@ class _ListingReviewCaseScreenState
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('إلغاء'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () {
               final reason = controller.text.trim();
               if (reason.length < minLength) {
@@ -774,7 +775,7 @@ class _PublicationBlocks extends ConsumerWidget {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () {
               final value = controller.text.trim();
               if (value.length >= 10) Navigator.pop(dialogContext, value);
@@ -814,7 +815,7 @@ class _ProtectedImage extends ConsumerWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError || snapshot.data == null) {
-          return const Center(child: Icon(Icons.broken_image_outlined));
+          return const Center(child: EbrokerIcon(Icons.broken_image_outlined));
         }
         return ClipRRect(
           borderRadius: BorderRadius.circular(AppRadii.control),

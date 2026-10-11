@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_property_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -35,10 +37,10 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: const AppAppBar(title: 'إعلاناتي'),
-        floatingActionButton: FloatingActionButton.extended(
+        floatingActionButton: EbrokerButton(
           onPressed: () => _create(context, ref),
-          icon: const Icon(Icons.add_home_work_outlined),
-          label: const Text('إضافة عقار'),
+          icon: const EbrokerIcon(Icons.add_home_work_outlined),
+          child: const Text('إضافة عقار'),
         ),
         body: listings.when(
           loading: () => const _MyListingsSkeleton(),
@@ -196,7 +198,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('إلغاء'),
             ),
-            FilledButton(
+            EbrokerFilledButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('متابعة'),
             ),
@@ -259,7 +261,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('ليس الآن')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('أقسم بذلك')),
           ],
@@ -298,7 +300,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('إلغاء'),
             ),
-            FilledButton(
+            EbrokerFilledButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('حذف'),
             ),
@@ -402,12 +404,12 @@ class _OverviewMetric extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, color: Theme.of(context).colorScheme.primary),
+        EbrokerIcon(icon, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: AppSpacing.s4),
         Text(
           '$value',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
         ),
         const SizedBox(height: AppSpacing.s4),
@@ -451,7 +453,7 @@ class _LifecycleFilterBar extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.s8),
         itemBuilder: (context, index) {
           final key = labels.keys.elementAt(index);
-          return ChoiceChip(
+          return EbrokerChoiceChip(
             selected: selected == key,
             label: Text('${labels[key]} (${counts[key]})'),
             onSelected: (_) => onChanged(key),
@@ -489,79 +491,17 @@ class _ListingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InkWell(
-            onTap: onOpen,
-            child: Padding(
-              padding:
-                  const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadii.control),
-                    child: SizedBox.square(
-                      dimension: 82,
-                      child: property.mainImage == null
-                          ? ColoredBox(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
-                              child: const Icon(Icons.home_work_outlined),
-                            )
-                          : Image.network(
-                              property.mainImage!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Center(
-                                child: Icon(Icons.home_work_outlined),
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.s12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          property.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: AppSpacing.s4),
-                        Text(
-                          '${_formatPrice(property.price)} ${property.currency}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                        const SizedBox(height: AppSpacing.s8),
-                        Wrap(
-                          spacing: AppSpacing.s8,
-                          runSpacing: AppSpacing.s4,
-                          children: [
-                            AppStatusBadge(
-                              label: state.$1,
-                              tone: state.$2,
-                            ),
-                            AppStatusBadge(
-                              label: '${property.proofDocumentCount} إثبات',
-                              tone: AppStatusTone.neutral,
-                              icon: Icons.description_outlined,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
+            price: _formatPrice(property.price), currency: property.currency,
+            categoryLabel: ebrokerPropertyTypeLabel(property.type),
+            purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
+            imageUrl: property.mainImage, location: property.address, onTap: onOpen),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Wrap(spacing: AppSpacing.s8, runSpacing: AppSpacing.s4, children: [
+              AppStatusBadge(label: state.$1, tone: state.$2),
+              AppStatusBadge(label: '${property.proofDocumentCount} إثبات',
+                tone: AppStatusTone.neutral, icon: Icons.description_outlined),
+            ])),
           if (nextAction != null)
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(
@@ -601,13 +541,13 @@ class _ListingCard extends StatelessWidget {
               children: [
                 TextButton.icon(
                   onPressed: onOpen,
-                  icon: const Icon(Icons.visibility_outlined),
+                  icon: const EbrokerIcon(Icons.visibility_outlined),
                   label: const Text('عرض'),
                 ),
                 if (onEdit != null)
                   TextButton.icon(
                     onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined),
+                    icon: const EbrokerIcon(Icons.edit_outlined),
                     label: Text(
                       property.reviewStatus == 'returned_for_correction'
                           ? 'تصحيح الإعلان'
@@ -615,9 +555,9 @@ class _ListingCard extends StatelessWidget {
                     ),
                   ),
                 if (onSubmit != null)
-                  FilledButton.tonalIcon(
+                  EbrokerFilledButton.tonalIcon(
                     onPressed: onSubmit,
-                    icon: const Icon(Icons.send_outlined),
+                    icon: const EbrokerIcon(Icons.send_outlined),
                     label: Text(
                       property.reviewStatus == 'returned_for_correction'
                           ? 'إعادة الإرسال'
@@ -625,15 +565,15 @@ class _ListingCard extends StatelessWidget {
                     ),
                   ),
                 if (onAttest != null)
-                  FilledButton.tonalIcon(
+                  EbrokerFilledButton.tonalIcon(
                     onPressed: onAttest,
-                    icon: const Icon(Icons.verified_user_outlined),
+                    icon: const EbrokerIcon(Icons.verified_user_outlined),
                     label: const Text('إقرار السعي'),
                   ),
                 if (onDelete != null)
                   TextButton.icon(
                     onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline),
+                    icon: const EbrokerIcon(Icons.delete_outline),
                     label: const Text('حذف'),
                   ),
               ],

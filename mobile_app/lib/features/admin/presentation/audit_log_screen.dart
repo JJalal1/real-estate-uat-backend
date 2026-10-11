@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -19,7 +20,7 @@ class AuditLogScreen extends ConsumerWidget {
           appBar: AppBar(title: const Text('سجل العمليات'), actions: [
             IconButton(
                 onPressed: () => ref.invalidate(_auditLogProvider),
-                icon: const Icon(Icons.refresh))
+                icon: const EbrokerIcon(Icons.refresh))
           ]),
           body: state.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -42,10 +43,10 @@ class AuditLogScreen extends ConsumerWidget {
                         final row = rows[i];
                         return Card(
                             child: ListTile(
-                          leading: const Icon(Icons.history),
+                          leading: const EbrokerIcon(Icons.history),
                           title: Text(row.action,
                               style:
-                                  const TextStyle(fontWeight: FontWeight.w800)),
+                                  const TextStyle(fontWeight: FontWeight.w700)),
                           subtitle: Text([
                             'بواسطة: ${row.actorName ?? 'النظام'}',
                             if (row.subjectType != null)

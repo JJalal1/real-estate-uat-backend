@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -54,7 +55,7 @@ class _AccountVerificationSupportScreenState
             IconButton(
               tooltip: 'تحديث',
               onPressed: _approvingUserId == null ? _refresh : null,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
             ),
           ],
         ),
@@ -71,16 +72,16 @@ class _AccountVerificationSupportScreenState
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error_outline, size: 48),
+                      const EbrokerIcon(Icons.error_outline, size: 48),
                       const SizedBox(height: 12),
                       Text(
                         friendlyApiError(snapshot.error!),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
-                      FilledButton.icon(
+                      EbrokerFilledButton.icon(
                         onPressed: _refresh,
-                        icon: const Icon(Icons.refresh),
+                        icon: const EbrokerIcon(Icons.refresh),
                         label: const Text('إعادة المحاولة'),
                       ),
                     ],
@@ -96,7 +97,7 @@ class _AccountVerificationSupportScreenState
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
                     const SizedBox(height: 140),
-                    const Icon(Icons.fact_check_outlined, size: 56),
+                    const EbrokerIcon(Icons.fact_check_outlined, size: 56),
                     const SizedBox(height: 14),
                     Center(
                       child: Text(widget.focusUserId == null
@@ -137,11 +138,11 @@ class _AccountVerificationSupportScreenState
                   return Card(
                     child: ListTile(
                       leading: const CircleAvatar(
-                        child: Icon(Icons.verified_user_outlined),
+                        child: EbrokerIcon(Icons.verified_user_outlined),
                       ),
                       title: Text(
                         title,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       subtitle: Text([
                         item.typeLabel,
@@ -154,7 +155,7 @@ class _AccountVerificationSupportScreenState
                               dimension: 22,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.chevron_left),
+                          : const EbrokerIcon(Icons.chevron_left),
                       onTap: _approvingUserId == null
                           ? () => _showDetails(item)
                           : null,
@@ -206,15 +207,15 @@ class _AccountVerificationSupportScreenState
                   const Divider(height: 28),
                   const Text(
                     'المستندات',
-                    style: TextStyle(fontWeight: FontWeight.w900),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   ...documents.map(
                     (document) => Padding(
                       padding: const EdgeInsets.only(bottom: 6),
-                      child: OutlinedButton.icon(
+                      child: EbrokerOutlinedButton.icon(
                         onPressed: () => _openDocument(item, document),
-                        icon: const Icon(Icons.image),
+                        icon: const EbrokerIcon(Icons.image),
                         label: Text(document.label),
                       ),
                     ),
@@ -228,12 +229,12 @@ class _AccountVerificationSupportScreenState
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('إغلاق'),
             ),
-            FilledButton.icon(
+            EbrokerFilledButton.icon(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 _confirmApprove(item);
               },
-              icon: const Icon(Icons.verified_outlined),
+              icon: const EbrokerIcon(Icons.verified_outlined),
               label: const Text('اعتماد التحقق'),
             ),
           ],
@@ -287,7 +288,7 @@ class _AccountVerificationSupportScreenState
                   trailing: IconButton(
                     tooltip: 'إغلاق',
                     onPressed: () => Navigator.of(dialogContext).pop(),
-                    icon: const Icon(Icons.close),
+                    icon: const EbrokerIcon(Icons.close),
                   ),
                 ),
                 const Divider(height: 1),
@@ -326,7 +327,7 @@ class _AccountVerificationSupportScreenState
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('إلغاء'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('اعتماد'),
           ),
@@ -396,7 +397,7 @@ class _InfoLine extends StatelessWidget {
               width: 120,
               child: Text(
                 '$label:',
-                style: const TextStyle(fontWeight: FontWeight.w800),
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
             Expanded(child: Text(value)),

@@ -9,24 +9,24 @@ void main() {
     expect(theme.useMaterial3, isTrue);
     expect(scheme.brightness, Brightness.light);
     final roles = <(Color, int)>[
-      (scheme.primary, 0xFF0C7A50),
-      (scheme.primaryContainer, 0xFFE8F5EF),
-      (scheme.onPrimaryContainer, 0xFF075338),
-      (scheme.secondary, 0xFF2C6EAA),
-      (scheme.secondaryContainer, 0xFFEAF2F9),
-      (scheme.onSecondaryContainer, 0xFF174E79),
-      (scheme.onSurface, 0xFF15201B),
-      (scheme.onSurfaceVariant, 0xFF5F6B65),
-      (scheme.surfaceContainerLow, 0xFFF8F9F7),
-      (scheme.surfaceContainer, 0xFFF2F5F3),
-      (scheme.surfaceContainerHigh, 0xFFEBEFEC),
-      (scheme.surfaceContainerHighest, 0xFFE3E8E5),
-      (scheme.outline, 0xFF89948E),
-      (scheme.outlineVariant, 0xFFDCE2DF),
+      (scheme.primary, 0xFF087C7C),
+      (scheme.primaryContainer, 0xFFE6F2F2),
+      (scheme.onPrimaryContainer, 0xFF065858),
+      (scheme.secondary, 0xFF087C7C),
+      (scheme.secondaryContainer, 0xFFE6F2F2),
+      (scheme.onSecondaryContainer, 0xFF065858),
+      (scheme.onSurface, 0xFF4D5454),
+      (scheme.onSurfaceVariant, 0x99000000),
+      (scheme.surfaceContainerLow, 0xFFFAFAFA),
+      (scheme.surfaceContainer, 0xFFF2F2F2),
+      (scheme.surfaceContainerHigh, 0xFFEEEEEE),
+      (scheme.surfaceContainerHighest, 0xFFE9E9E9),
+      (scheme.outline, 0xFF909595),
+      (scheme.outlineVariant, 0x99EEEEEE),
       (scheme.error, 0xFFB3261E),
       (scheme.errorContainer, 0xFFF9DEDC),
       (scheme.onErrorContainer, 0xFF410E0B),
-      (scheme.inverseSurface, 0xFF24312B),
+      (scheme.inverseSurface, 0xFF2F3434),
     ];
     for (final (actual, expected) in roles) {
       expect(actual, Color(expected));
@@ -46,29 +46,30 @@ void main() {
     expect(scheme.primary, AppTheme.brandSeed);
   });
 
-  test('accepted text scale uses explicit metrics and the safe fallback', () {
+  test('purchased Manrope uses template 1.3 metrics and platform Arabic fallback', () {
     final text = AppTheme.light.textTheme;
     final scale = <(TextStyle?, double, double, FontWeight)>[
-      (text.headlineLarge, 28, 40, FontWeight.w700),
-      (text.headlineMedium, 24, 36, FontWeight.w700),
-      (text.headlineSmall, 22, 32, FontWeight.w600),
-      (text.titleLarge, 20, 32, FontWeight.w600),
-      (text.titleMedium, 18, 28, FontWeight.w600),
-      (text.titleSmall, 16, 24, FontWeight.w600),
-      (text.bodyLarge, 16, 28, FontWeight.w400),
-      (text.bodyMedium, 14, 24, FontWeight.w400),
-      (text.bodySmall, 12, 20, FontWeight.w400),
-      (text.labelLarge, 16, 24, FontWeight.w600),
-      (text.labelMedium, 14, 20, FontWeight.w600),
-      (text.labelSmall, 12, 20, FontWeight.w600),
+      (text.headlineLarge, 24, 31.2, FontWeight.w700),
+      (text.headlineMedium, 24, 31.2, FontWeight.w700),
+      (text.headlineSmall, 22, 28.6, FontWeight.w600),
+      (text.titleLarge, 18, 23.4, FontWeight.w600),
+      (text.titleMedium, 18, 23.4, FontWeight.w600),
+      (text.titleSmall, 16, 20.8, FontWeight.w600),
+      (text.bodyLarge, 16, 20.8, FontWeight.w400),
+      (text.bodyMedium, 14, 18.2, FontWeight.w400),
+      (text.bodySmall, 12, 15.6, FontWeight.w400),
+      (text.labelLarge, 16, 20.8, FontWeight.w600),
+      (text.labelMedium, 14, 18.2, FontWeight.w600),
+      (text.labelSmall, 12, 15.6, FontWeight.w600),
     ];
     for (final (style, size, lineHeight, weight) in scale) {
       expect(style!.fontSize, size);
       expect(style.height! * size, closeTo(lineHeight, 0.000001));
       expect(style.fontWeight, weight);
       expect(style.letterSpacing, 0);
-      expect(style.fontFamilyFallback, ['Arial', 'sans-serif']);
-      expect(style.color, const Color(0xFF15201B));
+      expect(style.fontFamily, 'PrimaryFont');
+      expect(style.fontFamilyFallback, ['sans-serif']);
+      expect(style.color, const Color(0xFF4D5454));
     }
     expect(AppTypography.bodyLarge.fontFamily, isNull);
     for (final style in [
@@ -197,16 +198,16 @@ void main() {
       AppTheme.warning,
     ];
     expect(legacy, const [
-      Color(0xFF0C7A50),
-      Color(0xFF075338),
-      Color(0xFFE8F5EF),
-      Color(0xFF2C6EAA),
-      Color(0xFFEAF2F9),
-      Color(0xFFF8F9F7),
+      Color(0xFF087C7C),
+      Color(0xFF065858),
+      Color(0xFFE6F2F2),
+      Color(0xFF087C7C),
+      Color(0xFFE6F2F2),
+      Color(0xFFFAFAFA),
       Colors.white,
-      Color(0xFFDCE2DF),
-      Color(0xFF15201B),
-      Color(0xFF5F6B65),
+      Color(0x99EEEEEE),
+      Color(0xFF4D5454),
+      Color(0x99000000),
       Color(0xFFC88700),
     ]);
   });

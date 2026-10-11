@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
@@ -349,7 +350,7 @@ class _GeneralManagerReportsScreenState
                   'لا تظهر أرباحًا أو تقييمات أو نسب نجاح غير قابلة للحساب من النظام الحالي.',
             ),
             const SizedBox(height: 16),
-            SegmentedButton<String>(
+            EbrokerSegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'day', label: Text('اليوم')),
                 ButtonSegment(value: '7d', label: Text('7 أيام')),
@@ -468,7 +469,7 @@ class _GeneralManagerTeamScreenState
           actions: [
             IconButton(
                 onPressed: _refresh,
-                icon: const Icon(Icons.refresh),
+                icon: const EbrokerIcon(Icons.refresh),
                 tooltip: 'تحديث')
           ],
         ),
@@ -702,7 +703,7 @@ class _GeneralManagerMapScreenState
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 labelText: 'ابحث عن محافظة أو مديرية أو منطقة',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const EbrokerIcon(Icons.search),
                 suffixIcon: _searching
                     ? const Padding(
                         padding: EdgeInsets.all(14),
@@ -726,7 +727,7 @@ class _GeneralManagerMapScreenState
                   children: _results
                       .take(6)
                       .map((place) => ListTile(
-                            leading: const Icon(Icons.place_outlined),
+                            leading: const EbrokerIcon(Icons.place_outlined),
                             title: Text(place.label,
                                 maxLines: 2, overflow: TextOverflow.ellipsis),
                             onTap: () => _focusPlace(place),
@@ -741,7 +742,7 @@ class _GeneralManagerMapScreenState
                   value: _governorateId,
                   decoration: const InputDecoration(
                       labelText: 'المحافظة',
-                      prefixIcon: Icon(Icons.location_city_outlined)),
+                      prefixIcon: EbrokerIcon(Icons.location_city_outlined)),
                   hint: const Text('كل اليمن'),
                   items: _governorates
                       .map((gov) => DropdownMenuItem(
@@ -758,11 +759,11 @@ class _GeneralManagerMapScreenState
               IconButton.filledTonal(
                   onPressed: _showYemen,
                   tooltip: 'عرض اليمن بالكامل',
-                  icon: const Icon(Icons.public)),
+                  icon: const EbrokerIcon(Icons.public)),
             ]),
             const SizedBox(height: 12),
             ClipRRect(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(8),
               child: SizedBox(
                 height: 390,
                 child: Stack(children: [
@@ -846,7 +847,7 @@ class _ExecutiveDataPageState extends ConsumerState<_ExecutiveDataPage> {
           IconButton(
               tooltip: 'تحديث',
               onPressed: _refresh,
-              icon: const Icon(Icons.refresh))
+              icon: const EbrokerIcon(Icons.refresh))
         ]),
         body: FutureBuilder<GeneralManagerInsights>(
           future: _future,
@@ -890,13 +891,13 @@ class _PageError extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         children: [
           const SizedBox(height: 100),
-          const Icon(Icons.cloud_off_outlined, size: 48),
+          const EbrokerIcon(Icons.cloud_off_outlined, size: 48),
           const SizedBox(height: 12),
           Text(friendlyApiError(error), textAlign: TextAlign.center),
           const SizedBox(height: 12),
-          FilledButton.icon(
+          EbrokerFilledButton.icon(
               onPressed: retry,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
               label: const Text('إعادة المحاولة'))
         ],
       );
@@ -915,9 +916,9 @@ class _ExecutiveHero extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
           color: healthy ? scheme.primaryContainer : scheme.errorContainer,
-          borderRadius: BorderRadius.circular(20)),
+          borderRadius: BorderRadius.circular(8)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(healthy ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+        EbrokerIcon(healthy ? Icons.check_circle_outline : Icons.warning_amber_rounded,
             size: 30),
         const SizedBox(width: 12),
         Expanded(
@@ -927,7 +928,7 @@ class _ExecutiveHero extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w900)),
+                  ?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Text(subtitle),
         ])),
@@ -948,7 +949,7 @@ class _SectionTitle extends StatelessWidget {
                 style: Theme.of(context)
                     .textTheme
                     .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900))),
+                    ?.copyWith(fontWeight: FontWeight.w600))),
         if (actionLabel != null && onAction != null)
           TextButton(onPressed: onAction, child: Text(actionLabel!)),
       ]);
@@ -965,14 +966,14 @@ class _InfoPanel extends StatelessWidget {
       child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(icon),
+            EbrokerIcon(icon),
             const SizedBox(width: 12),
             Expanded(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                   Text(title,
-                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 5),
                   Text(subtitle,
                       style: TextStyle(
@@ -997,12 +998,12 @@ class _ActionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
       child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           onTap: onTap,
           child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(children: [
-                Icon(icon, size: 30),
+                EbrokerIcon(icon, size: 30),
                 const SizedBox(width: 12),
                 Expanded(
                     child: Column(
@@ -1010,13 +1011,13 @@ class _ActionPanel extends StatelessWidget {
                         children: [
                       Text(title,
                           style: const TextStyle(
-                              fontWeight: FontWeight.w900, fontSize: 16)),
+                              fontWeight: FontWeight.w600, fontSize: 16)),
                       const SizedBox(height: 4),
                       Text(subtitle)
                     ])),
                 const SizedBox(width: 8),
                 Column(children: [
-                  const Icon(Icons.chevron_left),
+                  const EbrokerIcon(Icons.chevron_left),
                   Text(actionLabel,
                       style: Theme.of(context).textTheme.labelSmall)
                 ]),
@@ -1046,7 +1047,7 @@ class _MetricGrid extends StatelessWidget {
                       width: width,
                       child: Card(
                           child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         onTap: item.onTap,
                         child: Padding(
                             padding: const EdgeInsets.all(14),
@@ -1054,10 +1055,10 @@ class _MetricGrid extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(children: [
-                                    Icon(item.icon),
+                                    EbrokerIcon(item.icon),
                                     const Spacer(),
                                     if (item.onTap != null)
-                                      const Icon(Icons.chevron_left, size: 18)
+                                      const EbrokerIcon(Icons.chevron_left, size: 18)
                                   ]),
                                   const SizedBox(height: 10),
                                   Text('${item.value}',
@@ -1065,7 +1066,7 @@ class _MetricGrid extends StatelessWidget {
                                           .textTheme
                                           .headlineSmall
                                           ?.copyWith(
-                                              fontWeight: FontWeight.w900)),
+                                              fontWeight: FontWeight.w600)),
                                   const SizedBox(height: 3),
                                   Text(item.label,
                                       style: const TextStyle(
@@ -1092,12 +1093,12 @@ class _AdminTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
           minVerticalPadding: 14,
-          leading: Icon(icon),
+          leading: EbrokerIcon(icon),
           title:
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Padding(
               padding: const EdgeInsets.only(top: 4), child: Text(subtitle)),
-          trailing: const Icon(Icons.chevron_left),
+          trailing: const EbrokerIcon(Icons.chevron_left),
           onTap: onTap));
 }
 
@@ -1113,7 +1114,7 @@ class _TeamMemberCard extends StatelessWidget {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 CircleAvatar(
-                    child: Icon(member.isManager
+                    child: EbrokerIcon(member.isManager
                         ? Icons.supervisor_account_outlined
                         : Icons.support_agent_outlined)),
                 const SizedBox(width: 10),
@@ -1123,7 +1124,7 @@ class _TeamMemberCard extends StatelessWidget {
                         children: [
                       Text(member.name,
                           style: const TextStyle(
-                              fontWeight: FontWeight.w900, fontSize: 16)),
+                              fontWeight: FontWeight.w600, fontSize: 16)),
                       Text(member.isManager ? 'مدير دعم' : 'موظف دعم')
                     ])),
                 if (member.overdueTasks > 0)
@@ -1165,8 +1166,8 @@ class _GovernorateCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         onTap: onTap,
-        leading: const CircleAvatar(child: Icon(Icons.location_city_outlined)),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
+        leading: const CircleAvatar(child: EbrokerIcon(Icons.location_city_outlined)),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Wrap(spacing: 6, children: [
@@ -1174,7 +1175,7 @@ class _GovernorateCard extends StatelessWidget {
               _MiniChip('بيع', sale),
               _MiniChip('إيجار', rent)
             ])),
-        trailing: const Icon(Icons.chevron_left),
+        trailing: const EbrokerIcon(Icons.chevron_left),
       ));
 }
 
@@ -1197,7 +1198,7 @@ class _DataList extends StatelessWidget {
               title: Text(row.label),
               trailing: Text('${row.value}',
                   style: const TextStyle(
-                      fontWeight: FontWeight.w900, fontSize: 17))),
+                      fontWeight: FontWeight.w600, fontSize: 17))),
           if (index != rows.length - 1) const Divider(height: 1)
         ]);
       })));

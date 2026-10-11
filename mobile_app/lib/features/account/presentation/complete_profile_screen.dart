@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -38,7 +39,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
               style: Theme.of(context)
                   .textTheme
                   .headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w900),
+                  ?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -52,18 +53,18 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
               decoration: const InputDecoration(
                 labelText: 'الاسم الرباعي',
                 hintText: 'الاسم الأول الثاني الثالث الرابع',
-                border: OutlineInputBorder(),
+
               ),
             ),
             const SizedBox(height: 16),
-            FilledButton.icon(
+            EbrokerFilledButton.icon(
               onPressed: _busy ? null : _submit,
               icon: _busy
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.check_circle_outline),
+                  : const EbrokerIcon(Icons.check_circle_outline),
               label: const Text('حفظ ومتابعة'),
             ),
           ],

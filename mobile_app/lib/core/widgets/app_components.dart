@@ -1,59 +1,29 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../theme/ebroker_design.dart';
+import 'ebroker_widgets.dart';
+import 'ebroker_property_card.dart';
 
 enum AppButtonStyle { filled, tonal, outlined, text }
 
 enum AppStatusTone { success, warning, info, neutral, error }
 
 class AppButton extends StatelessWidget {
-  const AppButton({
-    required this.label,
-    required this.onPressed,
-    this.icon,
-    this.style = AppButtonStyle.filled,
-    this.expand = false,
-    this.loading = false,
-    super.key,
-  });
-
+  const AppButton({required this.label, required this.onPressed, this.icon,
+    this.style = AppButtonStyle.filled, this.expand = false, this.loading = false, super.key});
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
   final AppButtonStyle style;
   final bool expand;
   final bool loading;
-
   @override
   Widget build(BuildContext context) {
-    final callback = loading ? null : onPressed;
-    final child = Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (loading)
-          const SizedBox.square(
-            dimension: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        else if (icon != null)
-          Icon(icon, size: 20),
-        if (loading || icon != null) const SizedBox(width: AppSpacing.s8),
-        Flexible(child: Text(label, textAlign: TextAlign.center)),
-      ],
-    );
-
-    final Widget button = switch (style) {
-      AppButtonStyle.filled => FilledButton(onPressed: callback, child: child),
-      AppButtonStyle.tonal => FilledButton.tonal(onPressed: callback, child: child),
-      AppButtonStyle.outlined => OutlinedButton(onPressed: callback, child: child),
-      AppButtonStyle.text => TextButton(onPressed: callback, child: child),
-    };
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: AppSizes.buttonMinHeight),
-      child: expand ? SizedBox(width: double.infinity, child: button) : button,
-    );
+    if (style == AppButtonStyle.text) return TextButton(onPressed: loading ? null : onPressed, child: Text(label));
+    return EbrokerButton(onPressed: onPressed, expand: expand, loading: loading,
+      outlined: style == AppButtonStyle.outlined, tonal: style == AppButtonStyle.tonal,
+      icon: icon == null ? null : EbrokerIcon(icon), child: Text(label, textAlign: TextAlign.center));
   }
 }
 
@@ -84,7 +54,7 @@ class AppIconButton extends StatelessWidget {
           dimension: AppSizes.touchTarget,
           child: IconButton(
             onPressed: onPressed,
-            icon: Icon(icon),
+            icon: EbrokerIcon(icon),
             style: IconButton.styleFrom(
               backgroundColor: selected ? scheme.primaryContainer : null,
               foregroundColor: selected ? scheme.onPrimaryContainer : null,
@@ -141,13 +111,13 @@ class AppTextField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
+          prefixIcon: prefixIcon == null ? null : EbrokerIcon(prefixIcon),
           suffixIcon: suffixIcon == null
               ? null
               : IconButton(
                   tooltip: onSuffixPressed == null ? null : 'إجراء',
                   onPressed: onSuffixPressed,
-                  icon: Icon(suffixIcon),
+                  icon: EbrokerIcon(suffixIcon),
                 ),
         ),
       ),
@@ -173,10 +143,10 @@ class AppFilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
-      child: FilterChip(
+      child: EbrokerFilterChip(
         selected: selected,
         onSelected: onSelected,
-        avatar: icon == null ? null : Icon(icon, size: 18),
+        avatar: icon == null ? null : EbrokerIcon(icon, size: 18),
         label: Text(label),
       ),
     );
@@ -268,36 +238,16 @@ class AppSectionHeader extends StatelessWidget {
 }
 
 class AppListRow extends StatelessWidget {
-  const AppListRow({
-    required this.title,
-    this.subtitle,
-    this.leading,
-    this.trailing,
-    this.onTap,
-    super.key,
-  });
-
+  const AppListRow({required this.title, this.subtitle, this.leading,
+    this.trailing, this.onTap, super.key});
   final String title;
   final String? subtitle;
   final Widget? leading;
   final Widget? trailing;
   final VoidCallback? onTap;
-
   @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      minTileHeight: AppSizes.touchTarget,
-      contentPadding: const EdgeInsetsDirectional.symmetric(
-        horizontal: AppLayout.surfacePadding,
-        vertical: AppSpacing.s4,
-      ),
-      title: Text(title),
-      subtitle: subtitle == null ? null : Text(subtitle!),
-      leading: leading,
-      trailing: trailing ?? (onTap == null ? null : const Icon(Icons.chevron_left)),
-      onTap: onTap,
-    );
-  }
+  Widget build(BuildContext context) => EbrokerProfileTile(title: title,
+    subtitle: subtitle, leading: leading, trailing: trailing, onTap: onTap);
 }
 
 class AppStatusBadge extends StatelessWidget {
@@ -329,7 +279,7 @@ class AppStatusBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 16, color: colors.$2),
+            EbrokerIcon(icon, size: 16, color: colors.$2),
             const SizedBox(width: AppSpacing.s4),
           ],
           Flexible(
@@ -374,7 +324,7 @@ class AppInlineMessage extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon ?? _toneIcon(tone), color: colors.$2),
+          EbrokerIcon(icon ?? _toneIcon(tone), color: colors.$2),
           const SizedBox(width: AppSpacing.s12),
           Expanded(
             child: Column(
@@ -545,43 +495,33 @@ class _CenteredState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: ConstrainedBox(
+    final content = ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Padding(
           padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 48, color: scheme.onSurfaceVariant),
+              EbrokerImage(icon == Icons.error_outline || icon == Icons.cloud_off_outlined
+                ? 'MultiColorSvg/something_went_wrong' : 'MultiColorSvg/no_data_found_illustrator', size: 240.rs(context)),
               const SizedBox(height: AppSpacing.s12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              EbrokerText(title, size: 22, color: scheme.primary, align: TextAlign.center),
               const SizedBox(height: AppSpacing.s8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
+              EbrokerText(message, size: 16, color: EbrokerDesign.textLight, align: TextAlign.center),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: AppSpacing.s20),
                 AppButton(
                   label: actionLabel!,
                   onPressed: onAction,
-                  style: AppButtonStyle.outlined,
+                  expand: true,
                 ),
               ],
             ],
           ),
         ),
-      ),
     );
+    return LayoutBuilder(builder: (context, constraints) => Center(
+      child: constraints.hasBoundedHeight ? SingleChildScrollView(child: content) : content));
   }
 }
 
@@ -606,7 +546,8 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       toolbarHeight: AppSizes.appBarMinHeight,
-      title: Text(title),
+      title: EbrokerText(title, size: 18, weight: FontWeight.w500, maxLines: 1),
+      titleSpacing: leading == null ? 16 : 0,
       actions: actions,
       leading: leading,
       centerTitle: centerTitle,
@@ -622,94 +563,63 @@ class AppNavDestination {
 }
 
 class AppNavigationBar extends StatelessWidget {
-  const AppNavigationBar({
-    required this.destinations,
-    required this.selectedIndex,
-    required this.onSelected,
-    super.key,
-  });
-
+  const AppNavigationBar({required this.destinations, required this.selectedIndex,
+    required this.onSelected, this.onCreate, super.key});
   final List<AppNavDestination> destinations;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
-
+  final VoidCallback? onCreate;
+  String _asset(AppNavDestination item, bool active) {
+    final name = item.label;
+    if (name == 'العقارات' || name == 'الرئيسية') return active ? 'home_active' : 'home';
+    if (name == 'الرسائل') return active ? 'chat_active' : 'chat';
+    if (name == 'حسابي') return active ? 'profile_active' : 'profile_outlined';
+    if (name == 'إعلاناتي') return active ? 'properties_active' : 'properties';
+    if (name == 'المعاينات') return active ? 'calendar_filled' : 'calendar';
+    if (name == 'الفريق') return 'interested_users';
+    if (name == 'التقارير') return 'agent/chart';
+    if (name == 'السوق') return 'propertymap';
+    if (name == 'الإدارة') return 'agent/user-check';
+    if (name == 'الوارد' || name == 'مهامي' || name == 'الأعمال') return 'properties_icon';
+    return 'agent/dashboard';
+  }
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textScaler = MediaQuery.textScalerOf(context);
-    final scaledLabel = textScaler.scale(12);
-    final contentHeight = (AppSizes.navigationMinHeight + (scaledLabel - 12) * 2)
-        .clamp(AppSizes.navigationMinHeight, 116.0)
-        .toDouble();
-
-    return Material(
-      color: scheme.surface,
-      elevation: AppElevation.floating,
-      child: SafeArea(
-        top: false,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: contentHeight),
-          child: Row(
-            // Scaffold permits the full viewport height here. Stretching would
-            // make the bar consume that height and leave the page no space.
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: List.generate(destinations.length, (index) {
-              final destination = destinations[index];
-              final selected = index == selectedIndex;
-              return Expanded(
-                child: Semantics(
-                  button: true,
-                  selected: selected,
-                  label: destination.label,
-                  child: InkWell(
-                    onTap: () => onSelected(index),
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.symmetric(
-                        horizontal: AppSpacing.s4,
-                        vertical: AppSpacing.s8,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AnimatedContainer(
-                            duration: AppMotion.fast,
-                            curve: AppMotion.curve,
-                            constraints: const BoxConstraints(
-                              minWidth: AppSizes.touchTarget,
-                              minHeight: AppSizes.touchTarget,
-                            ),
-                            decoration: BoxDecoration(
-                              color: selected ? scheme.primary : Colors.transparent,
-                              borderRadius: BorderRadius.circular(AppRadii.pill),
-                            ),
-                            child: Icon(
-                              destination.icon,
-                              color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.s4),
-                          Text(
-                            destination.label,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
+    final scaled = MediaQuery.textScalerOf(context).scale(12);
+    final height = (76.rh(context) + (scaled - 12) * 2).clamp(76.0, 124.0).toDouble();
+    final items = <Widget>[];
+    for (var index = 0; index < destinations.length; index++) {
+      if (onCreate != null && index == 2) { items.add(Expanded(child: Center(heightFactor: 1,
+        child: Transform.translate(offset: const Offset(0, -30),
+          child: Semantics(button: true, label: 'إضافة عقار', child: Tooltip(message: 'إضافة عقار',
+            child: GestureDetector(onTap: onCreate, child: SizedBox(width: 56.rw(context), height: 56.rh(context),
+              child: Stack(alignment: Alignment.center, children: [
+                Container(width: 46.rw(context), height: 48.rh(context),
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(99999),
+                    boxShadow: [BoxShadow(color: EbrokerDesign.text.withValues(alpha: 0.5),
+                      offset: const Offset(0, -1.5), blurRadius: 5)])),
+                EbrokerImage('add_shape', size: 56.rh(context), color: scheme.primary),
+                EbrokerImage('plus_btn', size: 18.rh(context), color: Colors.white),
+              ])))))))));
+      }
+      final selected = index == selectedIndex;
+      final item = destinations[index];
+      final color = selected ? scheme.primary : EbrokerDesign.text.withValues(alpha: 0.5);
+      items.add(Expanded(child: Semantics(button: true, selected: selected, label: item.label,
+        child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => onSelected(index),
+          child: Padding(padding: const EdgeInsets.all(4),
+            child: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+              AnimatedScale(scale: selected ? 1.3 : 1, duration: const Duration(milliseconds: 200),
+                child: EbrokerImage(_asset(item, selected), size: 24.rh(context), color: color)),
+              const SizedBox(height: 4),
+              EbrokerText(item.label, size: 12, color: color, maxLines: 2, align: TextAlign.center),
+            ]))))));
+    }
+    return Container(decoration: BoxDecoration(color: Colors.white, boxShadow: [
+      BoxShadow(color: EbrokerDesign.text.withValues(alpha: 0.2), offset: const Offset(0, -1), blurRadius: 5),
+    ]), child: SafeArea(top: false, child: ConstrainedBox(
+      constraints: BoxConstraints(minHeight: height), child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: items))));
   }
 }
 
@@ -773,7 +683,6 @@ class AppPropertyMedia extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: height,
       width: double.infinity,
@@ -781,26 +690,12 @@ class AppPropertyMedia extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (imageUrl == null || imageUrl!.isEmpty)
-            ColoredBox(
-              color: scheme.primaryContainer,
-              child: Icon(
-                Icons.home_work_outlined,
-                size: 56,
-                color: scheme.onPrimaryContainer,
-              ),
-            )
+            const EbrokerPropertyPlaceholder()
           else
             Image.network(
               imageUrl!,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => ColoredBox(
-                color: scheme.primaryContainer,
-                child: Icon(
-                  Icons.home_work_outlined,
-                  size: 56,
-                  color: scheme.onPrimaryContainer,
-                ),
-              ),
+              errorBuilder: (_, __, ___) => const EbrokerPropertyPlaceholder(),
               loadingBuilder: (context, child, progress) {
                 if (progress == null) return child;
                 return const AppSkeleton(height: 190, radius: 0);
@@ -836,6 +731,7 @@ class AppPropertyPrice extends StatelessWidget {
           TextSpan(
             text: price,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 14.rf(context),
                   color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.w700,
                 ),
@@ -864,7 +760,7 @@ class AppPropertyFacts extends StatelessWidget {
             (fact) => Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(fact.icon, size: 18, color: scheme.onSurfaceVariant),
+                EbrokerIcon(fact.icon, size: 18, color: scheme.onSurfaceVariant),
                 const SizedBox(width: AppSpacing.s4),
                 Text(
                   fact.label,
@@ -891,8 +787,10 @@ class AppPropertyCard extends StatelessWidget {
     this.location,
     this.facts = const <AppPropertyFact>[],
     this.purposeLabel,
+    this.categoryLabel = 'عقار',
     this.unavailable = false,
     this.trailing,
+    this.horizontal = false,
     super.key,
   });
 
@@ -904,83 +802,42 @@ class AppPropertyCard extends StatelessWidget {
   final String? location;
   final List<AppPropertyFact> facts;
   final String? purposeLabel;
+  final String categoryLabel;
   final bool unavailable;
   final Widget? trailing;
+  final bool horizontal;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return AppSurface(
-      padding: EdgeInsets.zero,
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppPropertyMedia(
-              imageUrl: imageUrl,
-              badge: purposeLabel == null
-                  ? null
-                  : AppStatusBadge(
-                      label: purposeLabel!,
-                      tone: unavailable ? AppStatusTone.neutral : AppStatusTone.info,
-                    ),
-              overlay: trailing,
-            ),
-            Padding(
-              padding: const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.s8),
-                  AppPropertyPrice(price: price, currency: currency),
-                  if (location != null && location!.trim().isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.s8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.location_on_outlined, size: 18, color: scheme.onSurfaceVariant),
-                        const SizedBox(width: AppSpacing.s4),
-                        Expanded(
-                          child: Text(
-                            location!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (facts.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.s12),
-                    AppPropertyFacts(facts: facts),
-                  ],
-                  if (unavailable) ...[
-                    const SizedBox(height: AppSpacing.s12),
-                    const AppInlineMessage(
-                      message: 'هذا الإعلان غير متاح حالياً.',
-                      tone: AppStatusTone.neutral,
-                      icon: Icons.visibility_off_outlined,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    if (horizontal) {
+      return EbrokerPropertyHorizontalCard(title: title,
+      price: price, currency: currency, onTap: onTap, imageUrl: imageUrl,
+      location: location, purposeLabel: purposeLabel, categoryLabel: categoryLabel,
+      facts: facts, trailing: trailing, unavailable: unavailable);
+    }
+    return AppSurface(padding: const EdgeInsets.all(8), onTap: onTap,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ClipRRect(borderRadius: BorderRadius.circular(4),
+          child: AppPropertyMedia(imageUrl: imageUrl, height: 132.rh(context), overlay: trailing)),
+        const SizedBox(height: 8),
+        Row(children: [EbrokerImage('properties_icon', size: 18, color: EbrokerDesign.textLight),
+          const SizedBox(width: 4), Expanded(child: EbrokerText(categoryLabel, size: 12,
+            weight: FontWeight.w600, color: EbrokerDesign.textLight))]),
+        const SizedBox(height: 8), EbrokerText(title, size: 16, weight: FontWeight.w600, maxLines: 2),
+        if (location != null && location!.trim().isNotEmpty) ...[
+          const SizedBox(height: 8), Row(children: [
+            const EbrokerImage('location', size: 18, color: EbrokerDesign.textLight), const SizedBox(width: 5),
+            Expanded(child: EbrokerText(location!, size: 12, color: EbrokerDesign.textLight, maxLines: 2))]),
+        ],
+        const SizedBox(height: 8), const Divider(height: 1), const SizedBox(height: 8),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: AppPropertyPrice(price: price, currency: currency)),
+          if (purposeLabel != null) EbrokerPurposeLabel(purposeLabel!),
+        ]),
+        if (facts.isNotEmpty) ...[const SizedBox(height: 8), AppPropertyFacts(facts: facts)],
+        if (unavailable) ...[const SizedBox(height: 8), const AppInlineMessage(
+          message: 'هذا الإعلان غير متاح حالياً.', tone: AppStatusTone.neutral, icon: Icons.visibility_off_outlined)],
+      ]));
   }
 }
 

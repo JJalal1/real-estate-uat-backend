@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -137,14 +138,14 @@ class _PropertyCompareColumn extends StatelessWidget {
               child: image == null
                   ? Container(
                       color: Theme.of(context).colorScheme.surfaceContainer,
-                      child: const Icon(Icons.home_work_outlined, size: 44),
+                      child: const EbrokerIcon(Icons.home_work_outlined, size: 44),
                     )
                   : Image.network(
                       image,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: Theme.of(context).colorScheme.surfaceContainer,
-                        child: const Icon(Icons.broken_image_outlined, size: 40),
+                        child: const EbrokerIcon(Icons.broken_image_outlined, size: 40),
                       ),
                     ),
             ),

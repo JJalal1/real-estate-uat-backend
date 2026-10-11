@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
@@ -8,7 +10,6 @@ import '../../account/presentation/account_screen.dart';
 import '../../account/presentation/auth_gate.dart';
 import '../../admin/presentation/general_manager_finance_hubs.dart';
 import '../../admin/presentation/general_manager_pages.dart';
-import '../../bookings/presentation/bookings_screen.dart';
 import '../../discovery/presentation/marketplace_home_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
 import '../../properties/presentation/my_listings_screen.dart';
@@ -44,9 +45,9 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('إلغاء'),
             ),
-            FilledButton.icon(
+            EbrokerFilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              icon: const Icon(Icons.exit_to_app),
+              icon: const EbrokerIcon(Icons.exit_to_app),
               label: const Text('خروج'),
             ),
           ],
@@ -108,6 +109,8 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
                 .toList(growable: false),
             selectedIndex: _index,
             onSelected: _selectTab,
+            onCreate: const ['anonymous', 'regular', 'advertiser'].contains(mode)
+                ? () => context.push('/add-property') : null,
           ),
         ),
       ),
@@ -180,42 +183,19 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           ],
         );
       case 'advertiser':
-        return const _ShellData(
-          pages: [
-            MarketplaceHomeScreen(showAdvertiserActions: true),
-            Stage6AuthGate(child: MyListingsScreen()),
-            Stage6AuthGate(child: MessagesScreen()),
-            Stage6AuthGate(child: BookingsScreen()),
-            AccountScreen(),
-          ],
-          items: [
-            _NavItemData(label: 'العقارات', icon: Icons.travel_explore_outlined),
-            _NavItemData(label: 'إعلاناتي', icon: Icons.inventory_2_outlined),
-            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
-            _NavItemData(label: 'المعاينات', icon: Icons.calendar_month_outlined),
-            _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
-          ],
-        );
       case 'regular':
-        return const _ShellData(
+      default:
+        return _ShellData(
           pages: [
-            MarketplaceHomeScreen(),
-            Stage6AuthGate(child: MessagesScreen()),
-            Stage6AuthGate(child: BookingsScreen()),
-            AccountScreen(),
+            MarketplaceHomeScreen(showAdvertiserActions: mode == 'advertiser'),
+            const Stage6AuthGate(child: MessagesScreen()),
+            const Stage6AuthGate(requireListingEligible: true, child: MyListingsScreen()),
+            const AccountScreen(),
           ],
-          items: [
+          items: const [
             _NavItemData(label: 'العقارات', icon: Icons.travel_explore_outlined),
             _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
-            _NavItemData(label: 'المعاينات', icon: Icons.calendar_month_outlined),
-            _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
-          ],
-        );
-      default:
-        return const _ShellData(
-          pages: [MarketplaceHomeScreen(), AccountScreen()],
-          items: [
-            _NavItemData(label: 'العقارات', icon: Icons.travel_explore_outlined),
+            _NavItemData(label: 'إعلاناتي', icon: Icons.inventory_2_outlined),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
           ],
         );

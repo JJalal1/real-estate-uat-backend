@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -139,7 +140,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('رجوع')),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('تأكيد'),
           ),
@@ -158,7 +159,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('تفاصيل الاتفاق'),
-          actions: [IconButton(onPressed: _busy ? null : _load, icon: const Icon(Icons.refresh))],
+          actions: [IconButton(onPressed: _busy ? null : _load, icon: const EbrokerIcon(Icons.refresh))],
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -179,9 +180,9 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                const Icon(Icons.handshake_outlined),
+                const EbrokerIcon(Icons.handshake_outlined),
                 const SizedBox(width: 8),
-                Expanded(child: Text('${agreement.transactionLabel} • ${agreement.statusLabel}', style: const TextStyle(fontWeight: FontWeight.w900))),
+                Expanded(child: Text('${agreement.transactionLabel} • ${agreement.statusLabel}', style: const TextStyle(fontWeight: FontWeight.w600))),
               ]),
               const SizedBox(height: 6),
               Text('مرجع: ${agreement.reference}'),
@@ -196,30 +197,30 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
         _acceptanceCard(agreement),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton.icon(
+          EbrokerOutlinedButton.icon(
             onPressed: () => context.push('/messages/${agreement.messageThreadId}'),
-            icon: const Icon(Icons.chat_bubble_outline),
+            icon: const EbrokerIcon(Icons.chat_bubble_outline),
             label: const Text('المحادثة'),
           ),
-          OutlinedButton.icon(
+          EbrokerOutlinedButton.icon(
             onPressed: () => context.push('/properties/${agreement.propertyId}'),
-            icon: const Icon(Icons.home_outlined),
+            icon: const EbrokerIcon(Icons.home_outlined),
             label: const Text('العقار'),
           ),
         ]),
         if (agreement.canAccept) ...[
           const SizedBox(height: 16),
-          FilledButton.icon(
+          EbrokerFilledButton.icon(
             onPressed: _busy ? null : _accept,
-            icon: const Icon(Icons.verified_outlined),
+            icon: const EbrokerIcon(Icons.verified_outlined),
             label: Text('أوافق على النسخة ${revision.revisionNumber}'),
           ),
         ],
         if (agreement.canRevise) ...[
           const SizedBox(height: 8),
-          OutlinedButton.icon(
+          EbrokerOutlinedButton.icon(
             onPressed: _busy ? null : _revise,
-            icon: const Icon(Icons.edit_note_outlined),
+            icon: const EbrokerIcon(Icons.edit_note_outlined),
             label: const Text('اقتراح شروط جديدة'),
           ),
         ],
@@ -227,34 +228,34 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: _busy ? null : _cancel,
-            icon: const Icon(Icons.cancel_outlined),
+            icon: const EbrokerIcon(Icons.cancel_outlined),
             label: const Text('إلغاء مسودة الاتفاق'),
           ),
         ],
         if (agreement.isAccepted) ...[
           const SizedBox(height: 18),
-          FilledButton.icon(
+          EbrokerFilledButton.icon(
             onPressed: () => Navigator.of(context).push<void>(
               MaterialPageRoute<void>(
                 builder: (_) => DealFinancialScreen(agreementId: agreement.id),
               ),
             ),
-            icon: const Icon(Icons.account_balance_wallet_outlined),
+            icon: const EbrokerIcon(Icons.account_balance_wallet_outlined),
             label: const Text('فتح تسوية الصفقة'),
           ),
         ],
         if (agreement.isAccepted && agreement.isRental) ...[
           const SizedBox(height: 10),
           if (agreement.rentalContractId == null)
-            FilledButton.tonalIcon(
+            EbrokerFilledButton.tonalIcon(
               onPressed: _busy ? null : _createRentalContract,
-              icon: const Icon(Icons.home_work_outlined),
+              icon: const EbrokerIcon(Icons.home_work_outlined),
               label: const Text('إنشاء عقد إيجار داخل التطبيق'),
             )
           else
-            FilledButton.tonalIcon(
+            EbrokerFilledButton.tonalIcon(
               onPressed: () => context.push('/rental-contracts/${agreement.rentalContractId}'),
-              icon: const Icon(Icons.description_outlined),
+              icon: const EbrokerIcon(Icons.description_outlined),
               label: const Text('فتح عقد الإيجار'),
             ),
         ],
@@ -288,7 +289,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('النسخة الحالية ${r.revisionNumber}', style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text('النسخة الحالية ${r.revisionNumber}', style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 10),
           _row('المبلغ', moneyLabel(r.agreedAmount, r.currency)),
           if (agreement.isRental) ...[
@@ -311,7 +312,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('قبول النسخة الحالية', style: TextStyle(fontWeight: FontWeight.w900)),
+          const Text('قبول النسخة الحالية', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           _acceptance('طالب العقار/المستأجر', agreement.requesterAccepted),
           _acceptance('المعلن', agreement.advertiserAccepted),
@@ -326,7 +327,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
   }
 
   Widget _acceptance(String label, bool accepted) => Row(children: [
-        Icon(accepted ? Icons.check_circle : Icons.radio_button_unchecked, size: 20),
+        EbrokerIcon(accepted ? Icons.check_circle : Icons.radio_button_unchecked, size: 20),
         const SizedBox(width: 8),
         Text('$label: ${accepted ? 'وافق' : 'لم يوافق بعد'}'),
       ]);

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 class PropertyLandBoundarySelection {
@@ -166,12 +167,12 @@ class _PropertyLandBoundaryPickerScreenState
             IconButton(
               tooltip: 'تراجع عن آخر نقطة',
               onPressed: _points.isEmpty ? null : _undo,
-              icon: const Icon(Icons.undo_rounded),
+              icon: const EbrokerIcon(Icons.undo_rounded),
             ),
             IconButton(
               tooltip: 'مسح الحدود',
               onPressed: _points.isEmpty ? null : _clear,
-              icon: const Icon(Icons.delete_outline_rounded),
+              icon: const EbrokerIcon(Icons.delete_outline_rounded),
             ),
           ],
         ),
@@ -212,9 +213,9 @@ class _PropertyLandBoundaryPickerScreenState
               bottom: 18,
               child: SafeArea(
                 top: false,
-                child: FilledButton.icon(
+                child: EbrokerFilledButton.icon(
                   onPressed: _points.length >= 3 ? _confirm : null,
-                  icon: const Icon(Icons.check_circle_outline),
+                  icon: const EbrokerIcon(Icons.check_circle_outline),
                   label: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 14),
                     child: Text('اعتماد حدود الأرض'),

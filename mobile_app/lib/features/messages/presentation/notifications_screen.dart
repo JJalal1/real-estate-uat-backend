@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -167,9 +168,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                     ),
                               ),
                               const SizedBox(height: AppSpacing.s10),
-                              FilterChip(
+                              EbrokerFilterChip(
                                 selected: _unreadOnly,
-                                avatar: const Icon(
+                                avatar: const EbrokerIcon(
                                   Icons.notifications_active_outlined,
                                   size: 18,
                                 ),
@@ -190,7 +191,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                             borderRadius:
                                 BorderRadius.circular(AppRadii.control),
                           ),
-                          child: Icon(
+                          child: EbrokerIcon(
                             unread > 0
                                 ? Icons.notifications_active_outlined
                                 : Icons.notifications_none_rounded,
@@ -296,7 +297,7 @@ class _NotificationCard extends StatelessWidget {
                     : scheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(AppRadii.control),
               ),
-              child: Icon(
+              child: EbrokerIcon(
                 presentation.$1,
                 color: !item.isRead ? scheme.primary : scheme.onSurfaceVariant,
               ),
@@ -314,7 +315,7 @@ class _NotificationCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 fontWeight: item.isRead
                                     ? FontWeight.w600
-                                    : FontWeight.w800,
+                                    : FontWeight.w700,
                               ),
                         ),
                       ),
@@ -345,7 +346,7 @@ class _NotificationCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.s8),
-            Icon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
+            EbrokerIcon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
           ],
         ),
       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,7 +30,7 @@ class AdminDashboardScreen extends ConsumerWidget {
           actions: [
             IconButton(
                 onPressed: () => ref.invalidate(_adminDashboardProvider),
-                icon: const Icon(Icons.refresh))
+                icon: const EbrokerIcon(Icons.refresh))
           ],
         ),
         body: state.when(
@@ -55,13 +56,13 @@ class AdminDashboardScreen extends ConsumerWidget {
                   ...summary.alerts.map((item) => Card(
                         child: ListTile(
                           leading:
-                              const Icon(Icons.notification_important_outlined),
+                              const EbrokerIcon(Icons.notification_important_outlined),
                           title: Text(item.label,
                               style:
-                                  const TextStyle(fontWeight: FontWeight.w800)),
+                                  const TextStyle(fontWeight: FontWeight.w700)),
                           trailing: Badge(
                               label: Text('${item.count}'),
-                              child: const Icon(Icons.chevron_left)),
+                              child: const EbrokerIcon(Icons.chevron_left)),
                           onTap: item.route.isEmpty
                               ? null
                               : () => context.push(item.route),
@@ -148,7 +149,7 @@ class _SummaryGrid extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(children: [
-            Icon(rows[i].icon),
+            EbrokerIcon(rows[i].icon),
             const SizedBox(width: 10),
             Expanded(
                 child: Column(
@@ -157,7 +158,7 @@ class _SummaryGrid extends StatelessWidget {
                     children: [
                   Text('${rows[i].value}',
                       style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w900)),
+                          fontSize: 22, fontWeight: FontWeight.w600)),
                   Text(rows[i].label,
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                 ])),
@@ -255,11 +256,11 @@ class _AdminMenu extends StatelessWidget {
       child: Column(children: [
         for (var i = 0; i < visible.length; i++) ...[
           ListTile(
-            leading: Icon(visible[i].icon),
+            leading: EbrokerIcon(visible[i].icon),
             title: Text(visible[i].title,
-                style: const TextStyle(fontWeight: FontWeight.w800)),
+                style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(visible[i].subtitle),
-            trailing: const Icon(Icons.chevron_left),
+            trailing: const EbrokerIcon(Icons.chevron_left),
             onTap: () => context.push(visible[i].route),
           ),
           if (i != visible.length - 1) const Divider(height: 1),
@@ -277,5 +278,5 @@ class _Title extends StatelessWidget {
       style: Theme.of(context)
           .textTheme
           .titleLarge
-          ?.copyWith(fontWeight: FontWeight.w900));
+          ?.copyWith(fontWeight: FontWeight.w600));
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -48,7 +49,7 @@ class _AccountVerificationAdminScreenState
             IconButton(
               tooltip: 'تحديث',
               onPressed: _busy ? null : _reload,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
             ),
           ],
         ),
@@ -65,7 +66,7 @@ class _AccountVerificationAdminScreenState
                             value: _status,
                             decoration: const InputDecoration(
                               labelText: 'الحالة',
-                              border: OutlineInputBorder(),
+
                             ),
                             items: const [
                               DropdownMenuItem(
@@ -102,7 +103,7 @@ class _AccountVerificationAdminScreenState
                             value: _typeFilter,
                             decoration: const InputDecoration(
                               labelText: 'نوع الحساب',
-                              border: OutlineInputBorder(),
+
                             ),
                             items: const [
                               DropdownMenuItem<String>(
@@ -173,19 +174,19 @@ class _AccountVerificationAdminScreenState
                               return Card(
                                 child: ListTile(
                                   leading: const CircleAvatar(
-                                    child: Icon(Icons.verified_user_outlined),
+                                    child: EbrokerIcon(Icons.verified_user_outlined),
                                   ),
                                   title: Text(
                                     item.name,
                                     style: const TextStyle(
-                                      fontWeight: FontWeight.w900,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   subtitle: Text(
                                     '${item.typeLabel} • ${item.statusLabel}\n${item.phone ?? ''}',
                                   ),
                                   isThreeLine: true,
-                                  trailing: const Icon(Icons.chevron_left),
+                                  trailing: const EbrokerIcon(Icons.chevron_left),
                                   onTap: _busy
                                       ? null
                                       : () => _reviewApplication(item),
@@ -296,7 +297,7 @@ class _AccountVerificationReviewDetailsState
                   children: [
                     Text(a.name,
                         style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w900)),
+                            fontSize: 20, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
                     Text(a.phone ?? ''),
                     Text('نوع الحساب: ${a.typeLabel}'),
@@ -313,35 +314,35 @@ class _AccountVerificationReviewDetailsState
                 style: Theme.of(context)
                     .textTheme
                     .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900)),
+                    ?.copyWith(fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
             ...a.documents.map((document) => Card(
                   child: ListTile(
-                    leading: const Icon(Icons.description_outlined),
+                    leading: const EbrokerIcon(Icons.description_outlined),
                     title: Text(accountVerificationDocumentLabel(document.kind),
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
                     subtitle: Text(document.originalName),
-                    trailing: const Icon(Icons.open_in_full),
+                    trailing: const EbrokerIcon(Icons.open_in_full),
                     onTap: _busy ? null : () => _openDocument(document),
                   ),
                 )),
             if (a.status == 'pending' || a.status == 'needs_more_info') ...[
               const SizedBox(height: 16),
-              FilledButton.icon(
+              EbrokerFilledButton.icon(
                 onPressed: _busy ? null : () => _action('approve'),
-                icon: const Icon(Icons.verified_outlined),
+                icon: const EbrokerIcon(Icons.verified_outlined),
                 label: const Text('اعتماد التحقق'),
               ),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
+              EbrokerOutlinedButton.icon(
                 onPressed: _busy ? null : () => _action('more_info'),
-                icon: const Icon(Icons.info_outline),
+                icon: const EbrokerIcon(Icons.info_outline),
                 label: const Text('طلب مستند أو توضيح إضافي'),
               ),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
+              EbrokerOutlinedButton.icon(
                 onPressed: _busy ? null : () => _action('reject'),
-                icon: const Icon(Icons.cancel_outlined),
+                icon: const EbrokerIcon(Icons.cancel_outlined),
                 label: const Text('رفض الطلب'),
               ),
             ],
@@ -381,7 +382,7 @@ class _AccountVerificationReviewDetailsState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('بيانات الطلب',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
             const Divider(),
             ...rows.where((row) => row.$2 != null && row.$2!.trim().isNotEmpty).map(
                   (row) => Padding(
@@ -413,7 +414,7 @@ class _AccountVerificationReviewDetailsState
                   title: Text(accountVerificationDocumentLabel(document.kind)),
                   trailing: IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
+                    icon: const EbrokerIcon(Icons.close),
                   ),
                 ),
                 Flexible(
@@ -472,14 +473,14 @@ class _AccountVerificationReviewDetailsState
         content: TextField(
           controller: controller,
           maxLines: 4,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
+          decoration: const InputDecoration(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(null),
             child: const Text('إلغاء'),
           ),
-          FilledButton(
+          EbrokerFilledButton(
             onPressed: () {
               final value = controller.text.trim();
               if (required && value.length < 3) return;

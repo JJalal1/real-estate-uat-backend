@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -90,10 +91,10 @@ class _SupportUsersScreenState extends ConsumerState<SupportUsersScreen> {
                   onSubmitted: (_) => _load(),
                   decoration: InputDecoration(
                       labelText: 'بحث بالاسم أو الهاتف أو البريد',
-                      prefixIcon: const Icon(Icons.search),
+                      prefixIcon: const EbrokerIcon(Icons.search),
                       suffixIcon: IconButton(
                           onPressed: _load,
-                          icon: const Icon(Icons.arrow_forward))),
+                          icon: const EbrokerIcon(Icons.arrow_forward))),
                 )),
             if (_loading) const LinearProgressIndicator(),
             if (_error != null)
@@ -109,16 +110,16 @@ class _SupportUsersScreenState extends ConsumerState<SupportUsersScreen> {
                           return Card(
                               child: ListTile(
                             leading: const CircleAvatar(
-                                child: Icon(Icons.person_outline)),
+                                child: EbrokerIcon(Icons.person_outline)),
                             title: Text(user.name,
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.w800)),
+                                    fontWeight: FontWeight.w700)),
                             subtitle: Text([
                               if (user.phone != null) user.phone!,
                               user.email,
                               'الحالة: ${user.accountStatus}'
                             ].join('\n')),
-                            trailing: const Icon(Icons.chevron_left),
+                            trailing: const EbrokerIcon(Icons.chevron_left),
                             onTap: () => _open(user),
                           ));
                         },
@@ -155,7 +156,7 @@ class _UserContextDialog extends StatelessWidget {
                 const Divider(height: 24),
                 Text(
                     'تذاكر: ${contextData.counts['tickets'] ?? 0} • بلاغات: ${contextData.counts['reports'] ?? 0} • مفتوحة: ${contextData.counts['open'] ?? 0}',
-                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 if (contextData.cases.isNotEmpty)
                   const Text(
@@ -165,11 +166,11 @@ class _UserContextDialog extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     title: Text(item.subject),
                     subtitle: Text('${item.reference} • ${item.status}'),
-                    trailing: const Icon(Icons.chevron_left),
+                    trailing: const EbrokerIcon(Icons.chevron_left),
                     onTap: () => Navigator.pop(context, item.id))),
               ]))),
       actions: [
-        FilledButton(
+        EbrokerFilledButton(
             onPressed: () => Navigator.pop(context), child: const Text('إغلاق'))
       ],
     );

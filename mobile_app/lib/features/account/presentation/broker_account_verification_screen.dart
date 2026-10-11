@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,7 +53,7 @@ class _BrokerAccountVerificationScreenState
           actions: [
             IconButton(
               onPressed: _busy ? null : _reload,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
               tooltip: 'تحديث حالة التوثيق',
             ),
           ],
@@ -67,9 +68,9 @@ class _BrokerAccountVerificationScreenState
                   }
                   if (snapshot.hasError) {
                     return Center(
-                      child: FilledButton.icon(
+                      child: EbrokerFilledButton.icon(
                         onPressed: _reload,
-                        icon: const Icon(Icons.refresh),
+                        icon: const EbrokerIcon(Icons.refresh),
                         label: const Text('إعادة المحاولة'),
                       ),
                     );
@@ -105,14 +106,14 @@ class _BrokerAccountVerificationScreenState
                                 ? null
                                 : () => _pick((value) => _selfie = value)),
                         const SizedBox(height: 14),
-                        FilledButton.icon(
+                        EbrokerFilledButton.icon(
                           onPressed: _busy ? null : _submit,
                           icon: _busy
                               ? const SizedBox.square(
                                   dimension: 18,
                                   child:
                                       CircularProgressIndicator(strokeWidth: 2))
-                              : const Icon(Icons.verified_user_outlined),
+                              : const EbrokerIcon(Icons.verified_user_outlined),
                           label: Text(application.pending
                               ? 'إعادة إرسال طلب التوثيق'
                               : 'إرسال طلب التوثيق'),
@@ -219,8 +220,8 @@ class _StatusCard extends StatelessWidget {
     };
     return Card(
       child: ListTile(
-        leading: Icon(icon, size: 34),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        leading: EbrokerIcon(icon, size: 34),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(subtitle),
       ),
     );
@@ -236,14 +237,14 @@ class _PickTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
         child: ListTile(
-          leading: Icon(value == null
+          leading: EbrokerIcon(value == null
               ? Icons.add_photo_alternate_outlined
               : Icons.check_circle_outline),
           title:
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+              Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
           subtitle:
               Text(value == null ? 'اضغط لاختيار الصورة' : 'تم اختيار الصورة'),
-          trailing: const Icon(Icons.chevron_left),
+          trailing: const EbrokerIcon(Icons.chevron_left),
           onTap: onTap,
         ),
       );

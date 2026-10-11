@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -10,7 +11,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../../core/widgets/ebroker_step_button.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/property_repository.dart';
 import '../domain/arabic_price_words.dart';
@@ -265,6 +268,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       child: Scaffold(
         appBar: AppAppBar(
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
+          actions: [Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
+            child: EbrokerText('${_step + 1}/5', size: 16, weight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.primary)))],
         ),
         body: SafeArea(
           child: Column(
@@ -284,7 +290,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                     tone: AppStatusTone.warning,
                   ),
                 ),
-              _ProgressHeader(step: _step),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsetsDirectional.fromSTEB(
@@ -319,6 +324,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       };
 
   Widget _basicsStep() {
+    final extraCategoryHeight = (MediaQuery.textScalerOf(context).scale(12.rf(context)) - 12.rf(context))
+        .clamp(0.0, double.infinity).toDouble() * 1.3;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -327,7 +334,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           subtitle: 'اختر الغرض والنوع واكتب عنواناً ووصفاً واضحين.',
         ),
         const SizedBox(height: AppSpacing.s16),
-        SegmentedButton<String>(
+        EbrokerSegmentedButton<String>(
           segments: const [
             ButtonSegment(value: 'sale', label: Text('للبيع')),
             ButtonSegment(value: 'rent', label: Text('للإيجار')),
@@ -341,17 +348,26 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                   }),
         ),
         const SizedBox(height: AppSpacing.s16),
-        Wrap(
-          spacing: AppSpacing.s8,
-          runSpacing: AppSpacing.s8,
+        GridView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12,
+            mainAxisExtent: 85.rh(context) + extraCategoryHeight),
           children: _typeLabels.entries
               .map(
-                (entry) => ChoiceChip(
-                  label: Text(entry.value),
+                (entry) => EbrokerWizardCategoryCard(
+                  label: entry.value,
+                  icon: switch (entry.key) {
+                    'house' || 'villa' => 'home',
+                    'land' || 'farm' => 'propertymap',
+                    'shop' => 'bank',
+                    _ => 'properties',
+                  },
                   selected: _type == entry.key,
-                  onSelected: _busy
+                  onTap: _busy
                       ? null
-                      : (_) => setState(() {
+                      : () => setState(() {
                             _type = entry.key;
                             if (!_requiresSaleTenure) _tenureType = null;
                             if (!_requiresResidential) {
@@ -421,7 +437,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         AppSurface(
           child: Row(
             children: [
-              Icon(
+              EbrokerIcon(
                 hasLocation
                     ? Icons.check_circle_outline
                     : Icons.location_on_outlined,
@@ -713,7 +729,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           Text('طريقة عرض السعر للباحث',
               style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: AppSpacing.s8),
-          SegmentedButton<String>(
+          EbrokerSegmentedButton<String>(
             segments: const [
               ButtonSegment(
                   value: 'excludes_sai', label: Text('السعر + السعي')),
@@ -831,7 +847,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                                 File(path),
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Center(
-                                    child: Icon(Icons.broken_image_outlined)),
+                                    child: EbrokerIcon(Icons.broken_image_outlined)),
                               ),
                             ),
                             PositionedDirectional(
@@ -841,7 +857,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                                 tooltip: 'إزالة الصورة',
                                 onPressed:
                                     _busy ? null : () => _removeImage(index),
-                                icon: const Icon(Icons.close, size: 18),
+                                icon: const EbrokerIcon(Icons.close, size: 18),
                               ),
                             ),
                             if (index == 0 &&
@@ -935,7 +951,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                   : existingOwnershipProof
                       ? 'يوجد مستند مرفوع سابقاً'
                       : 'اضغط لاختيار المستند',
-              leading: Icon(
+              leading: EbrokerIcon(
                 _ownershipProofPath != null || existingOwnershipProof
                     ? Icons.check_circle_outline
                     : Icons.upload_file_outlined,
@@ -983,7 +999,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         children: [
           Row(
             children: [
-              Icon(
+              EbrokerIcon(
                 _isSaiReady
                     ? Icons.check_circle_rounded
                     : Icons.payments_outlined,
@@ -1026,7 +1042,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
         children: [
           if (_step > 0)
             Expanded(
-              child: AppButton(
+              child: EbrokerStepButton(
                 label: 'السابق',
                 style: AppButtonStyle.outlined,
                 onPressed: _busy ? null : () => setState(() => _step--),
@@ -1036,7 +1052,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           if (_step > 0) const SizedBox(width: AppSpacing.s8),
           Expanded(
             flex: 2,
-            child: AppButton(
+            child: EbrokerStepButton(
               label: 'التالي',
               onPressed: _busy ? null : _next,
               expand: true,
@@ -1240,7 +1256,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('إلغاء')),
-          FilledButton(
+          EbrokerFilledButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('حفظ وإرسال')),
         ],
@@ -1349,7 +1365,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
                         height: 160,
-                        child: Center(child: Icon(Icons.broken_image_outlined)),
+                        child: Center(child: EbrokerIcon(Icons.broken_image_outlined)),
                       ),
                     ),
                   )
@@ -1363,7 +1379,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox(
                         height: 160,
-                        child: Center(child: Icon(Icons.home_work_outlined)),
+                        child: Center(child: EbrokerIcon(Icons.home_work_outlined)),
                       ),
                     ),
                   ),
@@ -1530,7 +1546,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('رجوع')),
-              FilledButton(
+              EbrokerFilledButton(
                   onPressed: () {
                     final text = note.text.trim();
                     if (text.length < 10) {
@@ -1785,37 +1801,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 }
 
-class _ProgressHeader extends StatelessWidget {
-  const _ProgressHeader({required this.step});
-
-  final int step;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        AppLayout.compactPageGutter,
-        AppSpacing.s12,
-        AppLayout.compactPageGutter,
-        AppSpacing.s4,
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Text('الخطوة ${step + 1} من 5'),
-              const Spacer(),
-              Text('${(step + 1) * 20}%'),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s8),
-          LinearProgressIndicator(value: (step + 1) / 5),
-        ],
-      ),
-    );
-  }
-}
-
 class _BottomBar extends StatelessWidget {
   const _BottomBar({required this.children});
 
@@ -1830,10 +1815,10 @@ class _BottomBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s8,
-            AppLayout.compactPageGutter,
-            AppSpacing.s12,
+            20,
+            10,
+            20,
+            16,
           ),
           child: Row(children: children),
         ),
@@ -1866,17 +1851,17 @@ class _FinalActionsBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s8,
-            AppLayout.compactPageGutter,
-            AppSpacing.s12,
+            20,
+            10,
+            20,
+            16,
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 390;
               final secondary = <Widget>[
                 Expanded(
-                  child: AppButton(
+                  child: EbrokerStepButton(
                     label: 'معاينة',
                     icon: Icons.visibility_outlined,
                     style: AppButtonStyle.outlined,
@@ -1886,7 +1871,7 @@ class _FinalActionsBar extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.s8),
                 Expanded(
-                  child: AppButton(
+                  child: EbrokerStepButton(
                     label: 'حفظ مسودة',
                     icon: Icons.save_outlined,
                     style: AppButtonStyle.tonal,
@@ -1899,7 +1884,7 @@ class _FinalActionsBar extends StatelessWidget {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  AppButton(
+                  EbrokerStepButton(
                     label: 'إرسال للمراجعة',
                     icon: Icons.send_outlined,
                     loading: busy,
@@ -1908,7 +1893,7 @@ class _FinalActionsBar extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.s8),
                   if (compact) ...[
-                    AppButton(
+                    EbrokerStepButton(
                       label: 'حفظ مسودة',
                       icon: Icons.save_outlined,
                       style: AppButtonStyle.tonal,
@@ -1917,7 +1902,7 @@ class _FinalActionsBar extends StatelessWidget {
                       expand: true,
                     ),
                     const SizedBox(height: AppSpacing.s8),
-                    AppButton(
+                    EbrokerStepButton(
                       label: 'معاينة',
                       icon: Icons.visibility_outlined,
                       style: AppButtonStyle.outlined,
@@ -1926,7 +1911,7 @@ class _FinalActionsBar extends StatelessWidget {
                     ),
                   ] else
                     Row(children: secondary),
-                  AppButton(
+                  EbrokerStepButton(
                     label: 'السابق',
                     style: AppButtonStyle.text,
                     onPressed: busy ? null : onPrevious,

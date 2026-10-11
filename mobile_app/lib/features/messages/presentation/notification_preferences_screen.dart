@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -192,7 +193,7 @@ class _PreferenceCard extends StatelessWidget {
             color: value ? scheme.primaryContainer : scheme.surfaceContainer,
             borderRadius: BorderRadius.circular(AppRadii.control),
           ),
-          child: Icon(
+          child: EbrokerIcon(
             icon,
             color: value ? scheme.primary : scheme.onSurfaceVariant,
           ),

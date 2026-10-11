@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -31,10 +32,10 @@ class BrokerListingVerificationsScreen extends ConsumerWidget {
                 children: [
                   Text(friendlyApiError(error), textAlign: TextAlign.center),
                   const SizedBox(height: 12),
-                  FilledButton.icon(
+                  EbrokerFilledButton.icon(
                     onPressed: () =>
                         ref.invalidate(brokerVerificationQueueProvider),
-                    icon: const Icon(Icons.refresh),
+                    icon: const EbrokerIcon(Icons.refresh),
                     label: const Text('إعادة المحاولة'),
                   ),
                 ],
@@ -88,7 +89,7 @@ class _VerificationCard extends ConsumerWidget {
           children: [
             Text(
               item.listingTitle,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 6),
             Text('المربع: ${item.geoCellName ?? 'غير محدد'}'),
@@ -112,19 +113,19 @@ class _VerificationCard extends ConsumerWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                FilledButton.icon(
+                EbrokerFilledButton.icon(
                   onPressed: () => _respond(context, ref, 'available'),
-                  icon: const Icon(Icons.check_circle_outline),
+                  icon: const EbrokerIcon(Icons.check_circle_outline),
                   label: const Text('العقار متاح'),
                 ),
-                OutlinedButton.icon(
+                EbrokerOutlinedButton.icon(
                   onPressed: () => _respond(context, ref, 'unavailable'),
-                  icon: const Icon(Icons.block_outlined),
+                  icon: const EbrokerIcon(Icons.block_outlined),
                   label: const Text('العقار غير متاح'),
                 ),
-                OutlinedButton.icon(
+                EbrokerOutlinedButton.icon(
                   onPressed: () => _respond(context, ref, 'unable_to_verify'),
-                  icon: const Icon(Icons.help_outline),
+                  icon: const EbrokerIcon(Icons.help_outline),
                   label: const Text('لا أستطيع التأكد'),
                 ),
               ],
@@ -180,7 +181,7 @@ Future<String?> _noteDialog(BuildContext context, String title) async {
         maxLines: 4,
         decoration: const InputDecoration(
           hintText: 'اكتب ملاحظة واضحة للدعم',
-          border: OutlineInputBorder(),
+
         ),
       ),
       actions: [
@@ -188,7 +189,7 @@ Future<String?> _noteDialog(BuildContext context, String title) async {
           onPressed: () => Navigator.pop(dialogContext),
           child: const Text('إلغاء'),
         ),
-        FilledButton(
+        EbrokerFilledButton(
           onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
           child: const Text('إرسال'),
         ),

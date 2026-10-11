@@ -13,6 +13,11 @@ from pathlib import Path
 
 GOLDEN_SHA = "dc2805c9215dcd500fc7034effa953a4c3751761"
 MISSING_PACKAGES = {
+    "flutter_svg": "2.0.10+1",
+    "path_parsing": "1.0.1",
+    "vector_graphics": "1.1.11+1",
+    "vector_graphics_codec": "1.1.11+1",
+    "vector_graphics_compiler": "1.1.11+1",
     "url_launcher": "6.3.2",
     "url_launcher_android": "6.3.17",
     "url_launcher_ios": "6.3.3",
@@ -84,7 +89,7 @@ def main():
         print("Dependency guard FAILED: " + str(error))
         return 1
     print(f"Original {count} locked package records and SDK constraints preserved.")
-    print("Only eight already-declared url_launcher packages completed at pinned build-only versions.")
+    print("Only original url_launcher completion plus five pinned SVG-renderer packages added.")
     return 0
 
 

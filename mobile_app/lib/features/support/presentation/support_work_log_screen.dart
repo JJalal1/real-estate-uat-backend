@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -62,7 +63,7 @@ class _SupportWorkLogScreenState extends ConsumerState<SupportWorkLogScreen> {
           appBar: AppBar(title: const Text('سجل عمل الدعم'), actions: [
             IconButton(
                 onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh))
+                icon: const EbrokerIcon(Icons.refresh))
           ]),
           body: Column(children: [
             if (_agents.isNotEmpty)
@@ -98,10 +99,10 @@ class _SupportWorkLogScreenState extends ConsumerState<SupportWorkLogScreen> {
                           final row = _rows[i];
                           return Card(
                               child: ListTile(
-                            leading: const Icon(Icons.history),
+                            leading: const EbrokerIcon(Icons.history),
                             title: Text(_label(row.action),
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.w800)),
+                                    fontWeight: FontWeight.w700)),
                             subtitle: Text([
                               if (row.actorName != null) row.actorName!,
                               if (row.subjectType != null)

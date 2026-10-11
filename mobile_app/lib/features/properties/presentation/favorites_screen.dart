@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -119,12 +120,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
               return ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  AppLayout.compactPageGutter,
-                  AppSpacing.s12,
-                  AppLayout.compactPageGutter,
-                  AppSpacing.s32,
-                ),
+                padding: const EdgeInsets.all(16),
                 itemCount: items.length,
                 separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
                 itemBuilder: (context, index) {
@@ -132,8 +128,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   final selected = _selected.contains(property.id);
                   return Stack(
                     children: [
-                      AppPropertyCard(
-                        title: property.title,
+                      AppPropertyCard(horizontal: true,
+                        categoryLabel: ebrokerPropertyTypeLabel(property.type),
+                  title: property.title,
                         price: _formatPrice(property.price),
                         currency: property.currency,
                         imageUrl: property.mainImage,
@@ -141,7 +138,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         purposeLabel: _purposeLabel(property.purpose),
                         facts: _facts(property),
                         trailing: _compareMode
-                            ? Icon(
+                            ? EbrokerIcon(
                                 selected
                                     ? Icons.check_circle_rounded
                                     : Icons.radio_button_unchecked_rounded,
@@ -152,7 +149,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                             : IconButton.filledTonal(
                                 tooltip: 'إزالة من المفضلة',
                                 onPressed: () => _remove(context, property.id),
-                                icon: Icon(
+                                icon: EbrokerIcon(
                                   Icons.favorite_rounded,
                                   color: Theme.of(context).colorScheme.error,
                                 ),

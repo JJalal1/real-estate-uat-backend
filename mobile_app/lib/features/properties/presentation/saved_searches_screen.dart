@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -88,7 +89,7 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
                   color: scheme.primaryContainer,
                   borderRadius: BorderRadius.circular(AppRadii.control),
                 ),
-                child: Icon(Icons.saved_search_rounded, color: scheme.primary),
+                child: EbrokerIcon(Icons.saved_search_rounded, color: scheme.primary),
               ),
               const SizedBox(width: AppSpacing.s12),
               Expanded(
@@ -208,7 +209,7 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
           content: const Text('سيتم إيقاف تنبيهاته وحذفه من حسابك.'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حذف')),
+            EbrokerFilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حذف')),
           ],
         ),
       );
@@ -279,6 +280,7 @@ class SavedSearchResultsScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final item = items[index];
                 return AppPropertyCard(
+                  categoryLabel: ebrokerPropertyTypeLabel(item.type),
                   title: item.title,
                   price: _formatPrice(item.price),
                   currency: item.currency,

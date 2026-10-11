@@ -132,6 +132,11 @@ void main() {
       ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))
       ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'));
     await fonts.load();
+    final manrope = FontLoader('PrimaryFont');
+    for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) {
+      manrope.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf'));
+    }
+    await manrope.load();
     // Widget tests omit the SDK icon and platform fallback fonts by default.
     // Load the pinned SDK fonts so previews render the same glyphs as Android.
     final flutterRoot = Platform.environment['FLUTTER_ROOT']!;
@@ -142,9 +147,9 @@ void main() {
         .load();
     final latin = await File('$fontDirectory/Roboto-Regular.ttf').readAsBytes();
     for (final family in ['Arial', 'sans-serif']) {
-      await (FontLoader(family)
-            ..addFont(Future.value(latin.buffer.asByteData())))
-          .load();
+      final loader = FontLoader(family)..addFont(Future.value(latin.buffer.asByteData()));
+      if (family == 'sans-serif') loader.addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'));
+      await loader.load();
     }
   });
 
@@ -161,6 +166,7 @@ void main() {
     expect(find.text('إضافة عقار'), findsNothing);
     final property = find.byKey(const ValueKey('home-property-37'));
     await tester.ensureVisible(property);
+    await tester.pumpAndSettle();
     await tester.tap(property);
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/properties/37');
@@ -186,9 +192,9 @@ void main() {
     testWidgets('$entry retains the real account gate', (tester) async {
       final router = await _pumpHome(tester);
       await tester.pumpAndSettle();
-      final target = find.byKey(ValueKey(entry));
-      await tester.ensureVisible(target);
-      await tester.tap(target);
+      // Favorites/compare moved to the template profile menu; their original
+      // protected routes must still enforce account access.
+      router.push(entry == 'home-compare' ? '/favorites?compare=1' : '/favorites');
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/favorites');
       expect(find.text('سجّل الدخول أولاً'), findsOneWidget);
@@ -204,7 +210,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('لا توجد عقارات في هذا النطاق'), findsOneWidget);
     final action = find.text('استكشاف الخريطة');
-    await tester.ensureVisible(action);
+    await tester.scrollUntilVisible(action, 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/property-market');
@@ -221,10 +228,13 @@ void main() {
     await tester.pumpAndSettle();
     final retry = find.text('إعادة المحاولة');
     await tester.ensureVisible(retry);
+    await tester.pumpAndSettle();
     await tester.tap(retry);
     await tester.pumpAndSettle();
     expect(calls, 2);
     expect(find.byKey(const ValueKey('home-property-37')), findsOneWidget);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-search')), -300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -236,7 +246,7 @@ void main() {
       return [_exampleProperty];
     });
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, 450));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 450));
     await tester.pumpAndSettle();
     expect(calls, 2);
     expect(tester.takeException(), isNull);
@@ -255,7 +265,8 @@ void main() {
     await _pumpHome(tester, advertiser: true, user: user);
     await tester.pumpAndSettle();
     final action = find.text('إضافة عقار');
-    await tester.ensureVisible(action);
+    await tester.scrollUntilVisible(action, 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();
     expect(find.text('توثيق نوع الحساب مطلوب'), findsOneWidget);
@@ -282,6 +293,8 @@ void main() {
         await tester.ensureVisible(card);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        tester.state<ScrollableState>(find.byType(Scrollable).first).position.jumpTo(0);
+        await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
       });
     }

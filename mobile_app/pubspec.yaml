@@ -25,6 +25,7 @@ dependencies:
   path: ^1.9.0
 
   cupertino_icons: ^1.0.8
+  flutter_svg: 2.0.10+1
 
 dev_dependencies:
   flutter_test:
@@ -39,6 +40,13 @@ flutter:
   uses-material-design: true
   assets:
     - assets/payments/
+    - assets/ebroker/svg/
+    - assets/ebroker/svg/agent/
+    - assets/ebroker/svg/MultiColorSvg/
+    - assets/ebroker/svg/Fallback/
+    - assets/ebroker/chat_background/
+    - assets/ebroker/images/
+    - assets/fonts/OFL-Manrope.txt
   fonts:
     - family: NotoSansArabic
       fonts:
@@ -50,3 +58,16 @@ flutter:
           weight: 600
         - asset: assets/fonts/NotoSansArabic-Bold.ttf
           weight: 700
+
+    - family: PrimaryFont
+      fonts:
+        - asset: assets/ebroker/fonts/Manrope-Regular.ttf
+          weight: 400
+        - asset: assets/ebroker/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/ebroker/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/ebroker/fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/ebroker/fonts/Manrope-ExtraBold.ttf
+          weight: 800

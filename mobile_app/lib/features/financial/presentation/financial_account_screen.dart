@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -66,7 +67,7 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
           actions: [
             IconButton(
                 onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh))
+                icon: const EbrokerIcon(Icons.refresh))
           ],
         ),
         body: _loading
@@ -159,11 +160,11 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(overdue ? Icons.warning_amber_outlined : Icons.receipt_long),
+            EbrokerIcon(overdue ? Icons.warning_amber_outlined : Icons.receipt_long),
             const SizedBox(width: 8),
             Expanded(
                 child: Text('${row['reference'] ?? 'مستحق منصة'}',
-                    style: const TextStyle(fontWeight: FontWeight.w900))),
+                    style: const TextStyle(fontWeight: FontWeight.w600))),
           ]),
           const SizedBox(height: 8),
           _line('المبلغ الأصلي', _money(total, currency)),
@@ -175,7 +176,7 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
+              child: EbrokerFilledButton.icon(
                 onPressed: () async {
                   final changed = await Navigator.of(context).push<bool>(
                     MaterialPageRoute(
@@ -190,7 +191,7 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
                   );
                   if (changed == true) await _load();
                 },
-                icon: const Icon(Icons.payments_outlined),
+                icon: const EbrokerIcon(Icons.payments_outlined),
                 label: const Text('سداد مستحق المنصة'),
               ),
             ),
@@ -202,11 +203,11 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
 
   Widget _payoutCard(Map<String, dynamic> row) => Card(
         child: ListTile(
-          leading: Icon(row['status'] == 'paid'
+          leading: EbrokerIcon(row['status'] == 'paid'
               ? Icons.check_circle_outline
               : Icons.account_balance_wallet_outlined),
           title: Text(_money(_number(row['amount']), '${row['currency'] ?? 'YER'}'),
-              style: const TextStyle(fontWeight: FontWeight.w900)),
+              style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
               '${row['status'] == 'paid' ? 'تم التحويل' : 'بانتظار التحويل'} • ${row['reference'] ?? ''}${row['paid_at'] == null ? '' : '\n${row['paid_at']}'}'),
           isThreeLine: row['paid_at'] != null,
@@ -217,12 +218,12 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
     final agreementId = _int(row['property_agreement_id']);
     return Card(
       child: ListTile(
-        leading: const Icon(Icons.handshake_outlined),
+        leading: const EbrokerIcon(Icons.handshake_outlined),
         title: Text('${row['property_title'] ?? 'صفقة عقارية'}'),
         subtitle: Text(
             '${row['transaction_type'] == 'rent' ? 'إيجار' : 'بيع'} • ${_money(_number(row['base_amount']), '${row['currency'] ?? 'YER'}')}\nالسعي: ${_money(_number(row['sai_total_amount']), '${row['currency'] ?? 'YER'}')}'),
         isThreeLine: true,
-        trailing: agreementId > 0 ? const Icon(Icons.chevron_left) : null,
+        trailing: agreementId > 0 ? const EbrokerIcon(Icons.chevron_left) : null,
         onTap: agreementId <= 0
             ? null
             : () async {
@@ -239,9 +240,9 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
     if (!summary.listingCreationBlocked && !summary.publishedListingsHidden) {
       return const Card(
         child: ListTile(
-          leading: Icon(Icons.verified_outlined),
+          leading: EbrokerIcon(Icons.verified_outlined),
           title: Text('الحساب المالي سليم',
-              style: TextStyle(fontWeight: FontWeight.w800)),
+              style: TextStyle(fontWeight: FontWeight.w700)),
           subtitle: Text('لا توجد مستحقات مالية تمنع إنشاء إعلان جديد.'),
         ),
       );
@@ -251,11 +252,11 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Row(children: [
-            Icon(Icons.info_outline),
+            EbrokerIcon(Icons.info_outline),
             SizedBox(width: 8),
             Expanded(
                 child: Text('يوجد مستحق للمنصة',
-                    style: TextStyle(fontWeight: FontWeight.w900)))
+                    style: TextStyle(fontWeight: FontWeight.w600)))
           ]),
           const SizedBox(height: 8),
           Text(summary.publishedListingsHidden
@@ -273,12 +274,12 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 20),
+                EbrokerIcon(icon, size: 20),
                 const SizedBox(height: 6),
                 Text(value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w900)),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
                 Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
               ]),
         ),
@@ -286,7 +287,7 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
 
   Widget _paymentCard(FinancialPayment payment) => Card(
         child: ListTile(
-          leading: Icon(payment.status == 'confirmed'
+          leading: EbrokerIcon(payment.status == 'confirmed'
               ? Icons.check_circle_outline
               : Icons.payments_outlined),
           title: Text(payment.propertyTitle ?? payment.reference,
@@ -295,7 +296,7 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
               '${payment.statusLabel} • ${_money(payment.amount, payment.currency)}${payment.reviewNote == null ? '' : '\n${payment.reviewNote}'}'),
           isThreeLine: payment.reviewNote != null,
           trailing:
-              payment.agreementId == null ? null : const Icon(Icons.chevron_left),
+              payment.agreementId == null ? null : const EbrokerIcon(Icons.chevron_left),
           onTap: payment.agreementId == null
               ? null
               : () async {
@@ -311,7 +312,7 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
       style: Theme.of(context)
           .textTheme
           .titleMedium
-          ?.copyWith(fontWeight: FontWeight.w800));
+          ?.copyWith(fontWeight: FontWeight.w700));
   Widget _empty(String value) =>
       Card(child: Padding(padding: const EdgeInsets.all(18), child: Text(value)));
   Widget _line(String label, String value) => Padding(
@@ -352,9 +353,9 @@ class _Error extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            FilledButton.icon(
+            EbrokerFilledButton.icon(
                 onPressed: retry,
-                icon: const Icon(Icons.refresh),
+                icon: const EbrokerIcon(Icons.refresh),
                 label: const Text('إعادة المحاولة')),
           ]),
         ),

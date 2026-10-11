@@ -38,7 +38,11 @@ void main() {
     expect(find.text('الرسائل'), findsOneWidget);
     expect(find.text('المعاينات'), findsOneWidget);
     expect(find.text('حسابي'), findsOneWidget);
-    expect(find.byType(FittedBox), findsNothing);
+    // SVG rendering scales its vector canvas with a FittedBox internally.
+    // Navigation text must never be fitted or shrink the user's text scale.
+    expect(find.ancestor(
+      of: find.descendant(of: find.byType(AppNavigationBar), matching: find.byType(Text)),
+      matching: find.byType(FittedBox)), findsNothing);
     await tester.tap(find.text('الرسائل'));
     await tester.pumpAndSettle();
     expect(selected, 1);

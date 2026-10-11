@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -74,7 +75,7 @@ class PropertySaiDisplayLine extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
+            EbrokerIcon(
               Icons.handshake_outlined,
               size: 20,
               color: Theme.of(context).colorScheme.primary,

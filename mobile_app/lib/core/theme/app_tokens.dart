@@ -20,8 +20,8 @@ abstract final class AppSpacing {
 
 /// Use directional insets/alignment when applying these layout values.
 abstract final class AppLayout {
-  static const double compactPageGutter = AppSpacing.s16;
-  static const double widePageGutter = AppSpacing.s24;
+  static const double compactPageGutter = 18;
+  static const double widePageGutter = 18;
   static const double narrowBreakpoint = 360;
   static const double wideBreakpoint = 600;
   static const double contentMaxWidth = 840;
@@ -37,9 +37,9 @@ abstract final class AppLayout {
 
 abstract final class AppRadii {
   static const double small = 8;
-  static const double control = 12;
-  static const double card = 16;
-  static const double modal = 24;
+  static const double control = 4;
+  static const double card = 8;
+  static const double modal = 16;
   static const double pill = 999;
 }
 
@@ -59,20 +59,20 @@ abstract final class AppElevation {
 abstract final class AppSizes {
   /// Applies to both width and height of every independent action.
   static const double touchTarget = 48;
-  static const double buttonMinHeight = 48;
+  static const double buttonMinHeight = 56;
 
   /// Excludes helper and error text.
-  static const double fieldMinHeight = 56;
+  static const double fieldMinHeight = 48;
 
   /// Visual height only; interactive chips still need [touchTarget].
   static const double chipMinHeight = 32;
   static const double badgeMinHeight = 28;
 
   /// Add the system inset; allow content to grow.
-  static const double appBarMinHeight = 64;
+  static const double appBarMinHeight = 56;
 
   /// Add the system inset and grow for scaled or wrapped labels.
-  static const double navigationMinHeight = 80;
+  static const double navigationMinHeight = 76;
 }
 
 /// Accepted interaction timing. Respect reduced-motion settings by using

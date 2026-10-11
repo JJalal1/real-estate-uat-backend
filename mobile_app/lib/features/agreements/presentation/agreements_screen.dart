@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -50,7 +51,7 @@ class _AgreementsScreenState extends ConsumerState<AgreementsScreen> {
         appBar: AppBar(
           title: const Text('اتفاقاتي وعقودي'),
           actions: [
-            IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'تحديث'),
+            IconButton(onPressed: _loading ? null : _load, icon: const EbrokerIcon(Icons.refresh), tooltip: 'تحديث'),
           ],
         ),
         body: _loading
@@ -62,7 +63,7 @@ class _AgreementsScreenState extends ConsumerState<AgreementsScreen> {
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         Text(_error!, textAlign: TextAlign.center),
                         const SizedBox(height: 12),
-                        FilledButton(onPressed: _load, child: const Text('إعادة المحاولة')),
+                        EbrokerFilledButton(onPressed: _load, child: const Text('إعادة المحاولة')),
                       ]),
                     ),
                   )
@@ -102,11 +103,11 @@ class _AgreementsScreenState extends ConsumerState<AgreementsScreen> {
           await context.push('/agreements/${item.id}');
           if (mounted) _load();
         },
-        leading: Icon(item.isRental ? Icons.key_outlined : Icons.handshake_outlined),
+        leading: EbrokerIcon(item.isRental ? Icons.key_outlined : Icons.handshake_outlined),
         title: Text('${item.transactionLabel} • ${moneyLabel(r.agreedAmount, r.currency)}'),
         subtitle: Text('${item.statusLabel}\nمرجع: ${item.reference} • نسخة ${r.revisionNumber}'),
         isThreeLine: true,
-        trailing: const Icon(Icons.chevron_left),
+        trailing: const EbrokerIcon(Icons.chevron_left),
       ),
     );
   }
@@ -120,11 +121,11 @@ class _AgreementsScreenState extends ConsumerState<AgreementsScreen> {
           await context.push('/rental-contracts/${item.id}');
           if (mounted) _load();
         },
-        leading: const Icon(Icons.home_work_outlined),
+        leading: const EbrokerIcon(Icons.home_work_outlined),
         title: Text(item.propertyTitle),
         subtitle: Text('${item.statusLabel}\n${moneyLabel(r.rentAmount, r.currency)} • ${r.cadenceLabel}'),
         isThreeLine: true,
-        trailing: const Icon(Icons.chevron_left),
+        trailing: const EbrokerIcon(Icons.chevron_left),
       ),
     );
   }
@@ -139,7 +140,7 @@ class _InfoBanner extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.info_outline),
+          const EbrokerIcon(Icons.info_outline),
           const SizedBox(width: 10),
           const Expanded(
             child: Text(

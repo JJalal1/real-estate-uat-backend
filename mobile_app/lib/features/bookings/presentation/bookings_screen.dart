@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -54,15 +55,15 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                   child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.calendar_month_outlined, size: 58),
+                        const EbrokerIcon(Icons.calendar_month_outlined, size: 58),
                         const SizedBox(height: 12),
                         const Text(
                             'سجّل الدخول لطلب مواعيد المعاينة ومتابعة الحجوزات.',
                             textAlign: TextAlign.center),
                         const SizedBox(height: 14),
-                        FilledButton.icon(
+                        EbrokerFilledButton.icon(
                             onPressed: () => context.push('/auth'),
-                            icon: const Icon(Icons.login),
+                            icon: const EbrokerIcon(Icons.login),
                             label: const Text('تسجيل الدخول')),
                       ])));
             }
@@ -75,7 +76,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
               if (canManaged)
                 Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                    child: SegmentedButton<bool>(
+                    child: EbrokerSegmentedButton<bool>(
                         showSelectedIcon: false,
                         segments: const [
                           ButtonSegment(value: false, label: Text('مواعيدي')),
@@ -94,9 +95,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                           Text(friendlyApiError(error),
                               textAlign: TextAlign.center),
                           const SizedBox(height: 10),
-                          OutlinedButton.icon(
+                          EbrokerOutlinedButton.icon(
                               onPressed: _refresh,
-                              icon: const Icon(Icons.refresh),
+                              icon: const EbrokerIcon(Icons.refresh),
                               label: const Text('إعادة المحاولة'))
                         ]))),
                 data: (items) {
@@ -108,7 +109,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                               physics: const AlwaysScrollableScrollPhysics(),
                               children: const [
                                   SizedBox(height: 140),
-                                  Icon(Icons.event_busy_outlined, size: 54),
+                                  EbrokerIcon(Icons.event_busy_outlined, size: 54),
                                   SizedBox(height: 12),
                                   Center(
                                       child: Text('لا توجد طلبات معاينة حالياً.'))
@@ -201,7 +202,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                   TextButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('إلغاء')),
-                  FilledButton(
+                  EbrokerFilledButton(
                       onPressed: () =>
                           Navigator.pop(context, controller.text.trim()),
                       child: const Text('حفظ'))
@@ -236,7 +237,7 @@ class _BookingCard extends StatelessWidget {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (highlighted) ...[
                 const Chip(
-                  avatar: Icon(Icons.notifications_active_outlined, size: 16),
+                  avatar: EbrokerIcon(Icons.notifications_active_outlined, size: 16),
                   label: Text('من الإشعار'),
                 ),
                 const SizedBox(height: 6),
@@ -244,7 +245,7 @@ class _BookingCard extends StatelessWidget {
               Row(children: [
                 Expanded(
                     child: Text(booking.targetTitle,
-                        style: const TextStyle(fontWeight: FontWeight.w900))),
+                        style: const TextStyle(fontWeight: FontWeight.w600))),
                 Chip(label: Text(booking.statusLabel))
               ]),
               const SizedBox(height: 5),
@@ -278,9 +279,9 @@ class _BookingCard extends StatelessWidget {
               ],
               if (booking.messageThreadId != null) ...[
                 const SizedBox(height: 10),
-                OutlinedButton.icon(
+                EbrokerOutlinedButton.icon(
                   onPressed: () => onAction('conversation'),
-                  icon: const Icon(Icons.chat_bubble_outline),
+                  icon: const EbrokerIcon(Icons.chat_bubble_outline),
                   label: const Text('فتح محادثة المعاينة'),
                 ),
               ],
@@ -288,34 +289,34 @@ class _BookingCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   if (booking.canConfirm)
-                    FilledButton.icon(
+                    EbrokerFilledButton.icon(
                         onPressed: () => onAction('confirm'),
-                        icon: const Icon(Icons.check_circle_outline),
+                        icon: const EbrokerIcon(Icons.check_circle_outline),
                         label: Text(booking.canAcceptReschedule
                             ? 'قبول الموعد الجديد'
                             : 'تأكيد')),
                   if (booking.canDecline)
-                    OutlinedButton.icon(
+                    EbrokerOutlinedButton.icon(
                         onPressed: () => onAction('decline'),
-                        icon: const Icon(Icons.cancel_outlined),
+                        icon: const EbrokerIcon(Icons.cancel_outlined),
                         label: const Text('رفض')),
                   if (booking.canReschedule)
-                    OutlinedButton.icon(
+                    EbrokerOutlinedButton.icon(
                         onPressed: () => onAction('reschedule'),
-                        icon: const Icon(Icons.schedule_outlined),
+                        icon: const EbrokerIcon(Icons.schedule_outlined),
                         label: const Text('تغيير الموعد')),
                   if (booking.canCancel)
-                    OutlinedButton.icon(
+                    EbrokerOutlinedButton.icon(
                         onPressed: () => onAction('cancel'),
-                        icon: const Icon(Icons.event_busy_outlined),
+                        icon: const EbrokerIcon(Icons.event_busy_outlined),
                         label: const Text('إلغاء')),
                 ])
               ],
               if (booking.canComplete) ...[
                 const SizedBox(height: 10),
-                FilledButton.tonalIcon(
+                EbrokerFilledButton.tonalIcon(
                     onPressed: () => onAction('complete'),
-                    icon: const Icon(Icons.task_alt),
+                    icon: const EbrokerIcon(Icons.task_alt),
                     label: const Text('تسجيل كمكتمل'))
               ],
               const SizedBox(height: 6),

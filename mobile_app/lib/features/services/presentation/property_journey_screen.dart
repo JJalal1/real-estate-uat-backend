@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -79,7 +80,7 @@ class _JourneyContent extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(next.icon, color: Theme.of(context).colorScheme.primary),
+              EbrokerIcon(next.icon, color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: AppSpacing.s12),
               Expanded(
                 child: Column(
@@ -163,7 +164,7 @@ class _JourneyContent extends StatelessWidget {
                   onTap: () => context.push('/bookings?booking=${booking.id}'),
                   child: Row(
                     children: [
-                      const Icon(Icons.event_available_outlined),
+                      const EbrokerIcon(Icons.event_available_outlined),
                       const SizedBox(width: AppSpacing.s12),
                       Expanded(
                         child: Column(
@@ -195,10 +196,10 @@ class _JourneyContent extends StatelessWidget {
                 child: AppListRow(
                   title: '${agreement.transactionLabel} • ${_formatPrice(agreement.currentRevision.agreedAmount)} ${agreement.currentRevision.currency}',
                   subtitle: agreement.statusLabel,
-                  leading: const Icon(Icons.handshake_outlined),
+                  leading: const EbrokerIcon(Icons.handshake_outlined),
                   trailing: agreement.canAccept
                       ? const AppStatusBadge(label: 'بانتظار موافقتك', tone: AppStatusTone.warning)
-                      : const Icon(Icons.chevron_left_rounded),
+                      : const EbrokerIcon(Icons.chevron_left_rounded),
                   onTap: () => context.push('/agreements/${agreement.id}'),
                 ),
               )),
@@ -280,7 +281,7 @@ class _MetricCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary),
+          EbrokerIcon(icon, color: Theme.of(context).colorScheme.primary),
           const Spacer(),
           Text('$value', style: Theme.of(context).textTheme.headlineSmall),
           Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),

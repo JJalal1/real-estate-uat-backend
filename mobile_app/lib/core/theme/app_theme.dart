@@ -3,25 +3,25 @@ import 'package:flutter/material.dart';
 import 'app_semantic_colors.dart';
 import 'app_tokens.dart';
 import 'app_typography.dart';
+import 'ebroker_design.dart';
 
 export 'app_semantic_colors.dart';
 export 'app_tokens.dart';
 export 'app_typography.dart';
 
 abstract final class AppTheme {
-  // Calm, high-trust marketplace palette. Green is reserved for brand/action;
-  // neutral surfaces carry most of the visual weight.
-  static const brandSeed = Color(0xFF0C7A50);
+  // Purchased eBroker palette, including the exact teal shown in the reference.
+  static const brandSeed = Color(0xFF087C7C);
   static const brand = brandSeed;
-  static const brandStrong = Color(0xFF075338);
-  static const brandSoft = Color(0xFFE8F5EF);
-  static const accent = Color(0xFF2C6EAA);
-  static const accentSoft = Color(0xFFEAF2F9);
-  static const page = Color(0xFFF8F9F7);
+  static const brandStrong = Color(0xFF065858);
+  static const brandSoft = Color(0xFFE6F2F2);
+  static const accent = brand;
+  static const accentSoft = brandSoft;
+  static const page = Color(0xFFFAFAFA);
   static const surface = Color(0xFFFFFFFF);
-  static const outlineSoft = Color(0xFFDCE2DF);
-  static const textStrong = Color(0xFF15201B);
-  static const textMuted = Color(0xFF5F6B65);
+  static const outlineSoft = Color(0x99EEEEEE);
+  static const textStrong = Color(0xFF4D5454);
+  static const textMuted = Color(0x99000000);
   static const warning = Color(0xFFC88700);
 
   static ThemeData get light {
@@ -36,22 +36,22 @@ abstract final class AppTheme {
       secondary: accent,
       onSecondary: Colors.white,
       secondaryContainer: accentSoft,
-      onSecondaryContainer: const Color(0xFF174E79),
+      onSecondaryContainer: brandStrong,
       surface: surface,
-      onSurface: textStrong,
-      onSurfaceVariant: textMuted,
+      onSurface: EbrokerDesign.text,
+      onSurfaceVariant: EbrokerDesign.textLight,
       surfaceContainerLowest: Colors.white,
-      surfaceContainerLow: page,
-      surfaceContainer: const Color(0xFFF2F5F3),
-      surfaceContainerHigh: const Color(0xFFEBEFEC),
-      surfaceContainerHighest: const Color(0xFFE3E8E5),
-      outline: const Color(0xFF89948E),
-      outlineVariant: outlineSoft,
+      surfaceContainerLow: EbrokerDesign.page,
+      surfaceContainer: const Color(0xFFF2F2F2),
+      surfaceContainerHigh: const Color(0xFFEEEEEE),
+      surfaceContainerHighest: const Color(0xFFE9E9E9),
+      outline: const Color(0xFF909595),
+      outlineVariant: EbrokerDesign.border,
       error: const Color(0xFFB3261E),
       onError: Colors.white,
       errorContainer: const Color(0xFFF9DEDC),
       onErrorContainer: const Color(0xFF410E0B),
-      inverseSurface: const Color(0xFF24312B),
+      inverseSurface: const Color(0xFF2F3434),
       onInverseSurface: Colors.white,
     );
 
@@ -67,18 +67,24 @@ abstract final class AppTheme {
       extensions: const [AppSemanticColors.light],
       scaffoldBackgroundColor: scheme.surfaceContainerLow,
       visualDensity: VisualDensity.standard,
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: brand, selectionHandleColor: brand,
+        selectionColor: Color(0x4D087C7C),
+      ),
       fontFamily: AppTypography.fontFamily,
+      splashColor: Colors.transparent,
+      splashFactory: NoSplash.splashFactory,
       fontFamilyFallback: AppTypography.fontFamilyFallback,
       textTheme: readableTextTheme,
       appBarTheme: AppBarTheme(
         centerTitle: false,
-        backgroundColor: scheme.surface,
+        backgroundColor: EbrokerDesign.surface,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
-        elevation: AppElevation.flat,
-        scrolledUnderElevation: AppElevation.raised,
+        elevation: 1.5,
+        scrolledUnderElevation: 1.5,
         titleTextStyle: readableTextTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w500,
         ),
       ),
       cardTheme: CardThemeData(
@@ -94,7 +100,7 @@ abstract final class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: scheme.primaryContainer,
+        indicatorColor: Colors.transparent,
         elevation: AppElevation.raised,
         height: AppSizes.navigationMinHeight,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
@@ -129,12 +135,14 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surface,
-        contentPadding: const EdgeInsetsDirectional.all(AppLayout.surfacePadding),
+        contentPadding: const EdgeInsetsDirectional.only(start: 12, end: 8),
+        prefixIconConstraints: const BoxConstraints(minHeight: 5, minWidth: 5),
+        suffixIconConstraints: const BoxConstraints(minHeight: 5, minWidth: 5),
         labelStyle: readableTextTheme.bodyLarge?.copyWith(
           color: scheme.onSurfaceVariant,
         ),
         hintStyle: readableTextTheme.bodyLarge?.copyWith(
-          color: scheme.onSurfaceVariant,
+          color: EbrokerDesign.text.withValues(alpha: .7), fontSize: 14, fontWeight: FontWeight.w400,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.control),
@@ -148,17 +156,21 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(AppRadii.control),
           borderSide: BorderSide(
             color: scheme.primary,
-            width: AppBorderWidths.emphasized,
+            width: 1,
           ),
         ),
       ),
+      listTileTheme: const ListTileThemeData(contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4)),
+      elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(
+        minimumSize: const Size(48, 56), backgroundColor: scheme.primary, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)))),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(AppSizes.touchTarget, 52),
+          minimumSize: const Size(AppSizes.touchTarget, 56),
           foregroundColor: scheme.onPrimary,
           textStyle: AppTypography.labelLarge.copyWith(
             fontFamily: AppTypography.fontFamily,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w500,
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.control),
@@ -167,7 +179,7 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(AppSizes.touchTarget, 52),
+          minimumSize: const Size(AppSizes.touchTarget, 56),
           foregroundColor: scheme.onSurface,
           side: BorderSide(color: scheme.outlineVariant),
           textStyle: AppTypography.labelLarge.copyWith(
@@ -185,7 +197,7 @@ abstract final class AppTheme {
         side: BorderSide(color: scheme.outlineVariant),
         checkmarkColor: scheme.onPrimaryContainer,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.pill),
+          borderRadius: BorderRadius.circular(EbrokerDesign.controlRadius),
         ),
         padding: const EdgeInsetsDirectional.symmetric(horizontal: AppSpacing.s4),
         labelStyle: readableTextTheme.labelMedium,

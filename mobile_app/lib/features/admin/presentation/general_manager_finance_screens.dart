@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -51,7 +52,7 @@ class _GeneralManagerPaymentMethodsScreenState
         child: Scaffold(
           appBar: AppBar(
             title: const Text('إدارة طرق الدفع'),
-            actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
+            actions: [IconButton(onPressed: _load, icon: const EbrokerIcon(Icons.refresh))],
           ),
           body: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -78,13 +79,13 @@ class _GeneralManagerPaymentMethodsScreenState
   Widget _tile(FinancialPaymentMethod method) => Card(
         child: ListTile(
           leading: _logo(method),
-          title: Text(method.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+          title: Text(method.name, style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
             '${method.currency} • ${method.isEnabled ? 'مفعلة' : 'متوقفة'}\n'
             'دفع كامل: ${method.allowsFullPayment ? 'نعم' : 'لا'} • سعي فقط: ${method.allowsSaiOnly ? 'نعم' : 'لا'}',
           ),
           isThreeLine: true,
-          trailing: const Icon(Icons.edit_outlined),
+          trailing: const EbrokerIcon(Icons.edit_outlined),
           onTap: () => _edit(method),
         ),
       );
@@ -140,7 +141,7 @@ class _GeneralManagerPaymentMethodsScreenState
             ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
-              FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حفظ')),
+              EbrokerFilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حفظ')),
             ],
           ),
         ),
@@ -188,14 +189,14 @@ class _GeneralManagerPaymentMethodsScreenState
   Widget _logo(FinancialPaymentMethod method) {
     final path = method.localAssetPath;
     if (path == null) {
-      return const SizedBox(width: 42, height: 42, child: Icon(Icons.send_to_mobile_outlined));
+      return const SizedBox(width: 42, height: 42, child: EbrokerIcon(Icons.send_to_mobile_outlined));
     }
     return Image.asset(
       path,
       width: 42,
       height: 42,
       fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => const SizedBox(width: 42, height: 42, child: Icon(Icons.account_balance_wallet_outlined)),
+      errorBuilder: (_, __, ___) => const SizedBox(width: 42, height: 42, child: EbrokerIcon(Icons.account_balance_wallet_outlined)),
     );
   }
 }
@@ -268,7 +269,7 @@ class _GeneralManagerFinanceWorkspaceScreenState
         child: Scaffold(
           appBar: AppBar(
             title: const Text('المالية'),
-            actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
+            actions: [IconButton(onPressed: _load, icon: const EbrokerIcon(Icons.refresh))],
           ),
           body: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -403,9 +404,9 @@ class _GeneralManagerFinanceWorkspaceScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 20),
+              EbrokerIcon(icon, size: 20),
               const SizedBox(height: 5),
-              Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
+              Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
               Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ),
@@ -416,8 +417,8 @@ class _GeneralManagerFinanceWorkspaceScreenState
     final rows = _maps(_data?[key]);
     return Card(
       child: ExpansionTile(
-        leading: Icon(icon),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        leading: EbrokerIcon(icon),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text('${rows.length} سجل'),
         children: rows.isEmpty
             ? const [Padding(padding: EdgeInsets.all(16), child: Text('لا توجد بيانات ضمن الفلاتر الحالية.'))]
@@ -480,7 +481,7 @@ class _FinanceError extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            FilledButton.icon(onPressed: retry, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
+            EbrokerFilledButton.icon(onPressed: retry, icon: const EbrokerIcon(Icons.refresh), label: const Text('إعادة المحاولة')),
           ]),
         ),
       );

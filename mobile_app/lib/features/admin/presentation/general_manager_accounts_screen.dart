@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -76,12 +77,12 @@ class _GeneralManagerAccountsScreenState
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(builder: (_) => const AccessControlScreen()),
               ),
-              icon: const Icon(Icons.settings_suggest_outlined),
+              icon: const EbrokerIcon(Icons.settings_suggest_outlined),
             ),
             IconButton(
               tooltip: 'تحديث',
               onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
             ),
           ],
         ),
@@ -102,11 +103,11 @@ class _GeneralManagerAccountsScreenState
                           onSubmitted: (_) => _load(),
                           decoration: InputDecoration(
                             labelText: 'ابحث بالاسم أو الهاتف أو البريد',
-                            prefixIcon: const Icon(Icons.search),
+                            prefixIcon: const EbrokerIcon(Icons.search),
                             suffixIcon: IconButton(
                               tooltip: 'بحث',
                               onPressed: _load,
-                              icon: const Icon(Icons.arrow_back),
+                              icon: const EbrokerIcon(Icons.arrow_back),
                             ),
                           ),
                         ),
@@ -139,7 +140,7 @@ class _GeneralManagerAccountsScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  child: Icon(user.isPlatformOwner
+                  child: EbrokerIcon(user.isPlatformOwner
                       ? Icons.shield_outlined
                       : adminRole == null
                           ? Icons.person_outline
@@ -152,7 +153,7 @@ class _GeneralManagerAccountsScreenState
                     children: [
                       Text(user.name,
                           style: const TextStyle(
-                              fontWeight: FontWeight.w900, fontSize: 16)),
+                              fontWeight: FontWeight.w600, fontSize: 16)),
                       const SizedBox(height: 2),
                       Text(
                         user.isPlatformOwner
@@ -202,14 +203,14 @@ class _GeneralManagerAccountsScreenState
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  OutlinedButton.icon(
+                  EbrokerOutlinedButton.icon(
                     onPressed: () => _editRole(user),
-                    icon: const Icon(Icons.workspace_premium_outlined),
+                    icon: const EbrokerIcon(Icons.workspace_premium_outlined),
                     label: const Text('تغيير الدور الإداري'),
                   ),
-                  OutlinedButton.icon(
+                  EbrokerOutlinedButton.icon(
                     onPressed: () => _editStatus(user),
-                    icon: const Icon(Icons.manage_accounts_outlined),
+                    icon: const EbrokerIcon(Icons.manage_accounts_outlined),
                     label: const Text('حالة الحساب'),
                   ),
                 ],
@@ -264,7 +265,7 @@ class _GeneralManagerAccountsScreenState
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('إلغاء')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('حفظ')),
           ],
@@ -303,7 +304,7 @@ class _GeneralManagerAccountsScreenState
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('إلغاء')),
-            FilledButton(
+            EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('حفظ')),
           ],
@@ -339,13 +340,13 @@ class _GeneralManagerAccountsScreenState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off_outlined, size: 48),
+              const EbrokerIcon(Icons.cloud_off_outlined, size: 48),
               const SizedBox(height: 12),
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
-              FilledButton.icon(
+              EbrokerFilledButton.icon(
                 onPressed: _load,
-                icon: const Icon(Icons.refresh),
+                icon: const EbrokerIcon(Icons.refresh),
                 label: const Text('إعادة المحاولة'),
               ),
             ],
@@ -363,14 +364,14 @@ class _DirectoryIntro extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.account_tree_outlined),
+              const EbrokerIcon(Icons.account_tree_outlined),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('إدارة الناس بصورة إدارية',
-                        style: TextStyle(fontWeight: FontWeight.w900)),
+                        style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
                     Text(
                       'الأدوار الأساسية تظهر بأسماء مفهومة. الصلاحيات التقنية التفصيلية موجودة في زر الأدوات المتقدمة عند الحاجة.',

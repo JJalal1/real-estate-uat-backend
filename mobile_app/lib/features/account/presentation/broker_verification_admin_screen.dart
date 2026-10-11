@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -50,7 +51,7 @@ class _BrokerVerificationAdminScreenState
                   }
                   if (snapshot.hasError) {
                     return Center(
-                        child: FilledButton(
+                        child: EbrokerFilledButton(
                             onPressed: () => setState(_reload),
                             child: const Text('إعادة المحاولة')));
                   }
@@ -111,12 +112,12 @@ class _BrokerVerificationAdminScreenState
             controller: controller,
             minLines: 2,
             maxLines: 4,
-            decoration: const InputDecoration(border: OutlineInputBorder())),
+            decoration: const InputDecoration()),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('إلغاء')),
-          FilledButton(
+          EbrokerFilledButton(
               onPressed: () =>
                   Navigator.pop(dialogContext, controller.text.trim()),
               child: const Text('رفض وإرسال الملاحظة')),
@@ -172,7 +173,7 @@ class _ApplicationCard extends StatelessWidget {
           children: [
             Text(application.name,
                 style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             Text(application.phone ?? ''),
             const SizedBox(height: 12),
             const Wrap(
@@ -195,7 +196,7 @@ class _ApplicationCard extends StatelessWidget {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         child: Image.memory(snapshot.data!,
                             height: 180, fit: BoxFit.cover)),
                   );
@@ -204,15 +205,15 @@ class _ApplicationCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                    child: FilledButton.icon(
+                    child: EbrokerFilledButton.icon(
                         onPressed: busy ? null : onApprove,
-                        icon: const Icon(Icons.check),
+                        icon: const EbrokerIcon(Icons.check),
                         label: const Text('توثيق'))),
                 const SizedBox(width: 8),
                 Expanded(
-                    child: OutlinedButton.icon(
+                    child: EbrokerOutlinedButton.icon(
                         onPressed: busy ? null : onReject,
-                        icon: const Icon(Icons.close),
+                        icon: const EbrokerIcon(Icons.close),
                         label: const Text('رفض'))),
               ],
             ),

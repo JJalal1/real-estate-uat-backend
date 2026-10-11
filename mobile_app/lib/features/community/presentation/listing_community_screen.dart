@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -79,10 +80,10 @@ class _ListingCommunityScreenState
         appBar: AppBar(title: const Text('التعليقات وتقييم المعلن')),
         floatingActionButton: user == null
             ? null
-            : FloatingActionButton.extended(
+            : EbrokerButton(
                 onPressed: _addComment,
-                icon: const Icon(Icons.add_comment_outlined),
-                label: const Text('تعليق'),
+                icon: const EbrokerIcon(Icons.add_comment_outlined),
+                child: const Text('تعليق'),
               ),
         body: RefreshIndicator(
           onRefresh: _load,
@@ -103,12 +104,12 @@ class _ListingCommunityScreenState
                 if (user == null)
                   Card(
                     child: ListTile(
-                      leading: const Icon(Icons.login),
+                      leading: const EbrokerIcon(Icons.login),
                       title: const Text('سجّل الدخول للمشاركة'),
                       subtitle: const Text(
                         'التعليقات والتقييم والبلاغات تحتاج حساباً فعالاً.',
                       ),
-                      trailing: const Icon(Icons.chevron_left),
+                      trailing: const EbrokerIcon(Icons.chevron_left),
                       onTap: () => context.push('/auth'),
                     ),
                   ),
@@ -119,7 +120,7 @@ class _ListingCommunityScreenState
                       child: Text(
                         'التعليقات (${_comments.length})',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w600,
                             ),
                       ),
                     ),
@@ -130,7 +131,7 @@ class _ListingCommunityScreenState
                           widget.propertyId,
                           'الإعلان',
                         ),
-                        icon: const Icon(Icons.flag_outlined),
+                        icon: const EbrokerIcon(Icons.flag_outlined),
                         label: const Text('بلاغ عن الإعلان'),
                       ),
                   ],
@@ -181,13 +182,13 @@ class _ListingCommunityScreenState
           children: [
             Row(
               children: [
-                const Icon(Icons.verified_user_outlined),
+                const EbrokerIcon(Icons.verified_user_outlined),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     widget.advertiserName,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w600,
                       fontSize: 17,
                     ),
                   ),
@@ -196,7 +197,7 @@ class _ListingCommunityScreenState
                   rating.count == 0
                       ? 'لا تقييمات'
                       : '${rating.average.toStringAsFixed(1)} / 5 (${rating.count})',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -204,7 +205,7 @@ class _ListingCommunityScreenState
             Row(
               children: List.generate(
                 5,
-                (index) => Icon(
+                (index) => EbrokerIcon(
                   index < rating.average.round()
                       ? Icons.star
                       : Icons.star_border,
@@ -224,28 +225,28 @@ class _ListingCommunityScreenState
               runSpacing: 8,
               children: [
                 if (canRate)
-                  FilledButton.tonalIcon(
+                  EbrokerFilledButton.tonalIcon(
                     onPressed: _rateAdvertiser,
-                    icon: const Icon(Icons.star_outline),
+                    icon: const EbrokerIcon(Icons.star_outline),
                     label: Text(
                       rating.myRating == null ? 'قيّم المعلن' : 'عدّل تقييمك',
                     ),
                   ),
                 if (currentUserId != null &&
                     currentUserId != widget.advertiserId)
-                  OutlinedButton.icon(
+                  EbrokerOutlinedButton.icon(
                     onPressed: () => _report(
                       'advertiser',
                       widget.advertiserId,
                       'المعلن',
                     ),
-                    icon: const Icon(Icons.flag_outlined),
+                    icon: const EbrokerIcon(Icons.flag_outlined),
                     label: const Text('بلاغ عن المعلن'),
                   ),
                 if (rating.myRating != null)
                   TextButton.icon(
                     onPressed: _deleteRating,
-                    icon: const Icon(Icons.delete_outline),
+                    icon: const EbrokerIcon(Icons.delete_outline),
                     label: const Text('حذف تقييمي'),
                   ),
               ],
@@ -298,7 +299,7 @@ class _ListingCommunityScreenState
                 onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('إلغاء'),
               ),
-              FilledButton(
+              EbrokerFilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('حذف'),
               ),
@@ -421,12 +422,12 @@ class _CommentCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const CircleAvatar(child: Icon(Icons.person_outline)),
+                const CircleAvatar(child: EbrokerIcon(Icons.person_outline)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     comment.authorName,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
                 if (comment.isOwner)
@@ -447,7 +448,7 @@ class _CommentCard extends StatelessWidget {
                   IconButton(
                     tooltip: 'بلاغ',
                     onPressed: onReport,
-                    icon: const Icon(Icons.flag_outlined),
+                    icon: const EbrokerIcon(Icons.flag_outlined),
                   ),
               ],
             ),
@@ -482,9 +483,9 @@ class _ErrorCard extends StatelessWidget {
           children: [
             Text(message),
             const SizedBox(height: 10),
-            FilledButton.icon(
+            EbrokerFilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
               label: const Text('إعادة المحاولة'),
             ),
           ],

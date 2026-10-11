@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 
 class CommunityRatingDialogResult {
   const CommunityRatingDialogResult({
@@ -124,7 +125,7 @@ class _CommunityTextDialogState extends State<_CommunityTextDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('إلغاء'),
         ),
-        FilledButton(
+        EbrokerFilledButton(
           onPressed: _submit,
           child: const Text('حفظ'),
         ),
@@ -217,7 +218,7 @@ class _AdvertiserRatingDialogState extends State<_AdvertiserRatingDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('إلغاء'),
         ),
-        FilledButton(
+        EbrokerFilledButton(
           onPressed: _submit,
           child: const Text('حفظ'),
         ),
@@ -322,7 +323,7 @@ class _CommunityReportDialogState extends State<_CommunityReportDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('إلغاء'),
         ),
-        FilledButton(
+        EbrokerFilledButton(
           onPressed: _submit,
           child: const Text('إرسال البلاغ'),
         ),

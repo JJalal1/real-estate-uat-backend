@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
@@ -172,7 +173,7 @@ class _PlatformRegionsScreenState
             IconButton(
               tooltip: 'تحديث',
               onPressed: _loading ? null : () => _load(),
-              icon: const Icon(Icons.refresh),
+              icon: const EbrokerIcon(Icons.refresh),
             ),
           ],
         ),
@@ -192,7 +193,7 @@ class _PlatformRegionsScreenState
                           value: _governorateId,
                           decoration: const InputDecoration(
                             labelText: 'المحافظة',
-                            prefixIcon: Icon(Icons.location_city_outlined),
+                            prefixIcon: EbrokerIcon(Icons.location_city_outlined),
                           ),
                           items: _governorates
                               .map(
@@ -210,7 +211,7 @@ class _PlatformRegionsScreenState
                         TextField(
                           decoration: const InputDecoration(
                             labelText: 'البحث في المناطق',
-                            prefixIcon: Icon(Icons.search),
+                            prefixIcon: EbrokerIcon(Icons.search),
                           ),
                           onChanged: (value) {
                             setState(() => _search = value);
@@ -219,7 +220,7 @@ class _PlatformRegionsScreenState
                         ),
                         const SizedBox(height: 12),
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(8),
                           child: SizedBox(
                             height: 280,
                             child: MapLibreMap(
@@ -244,7 +245,7 @@ class _PlatformRegionsScreenState
                                 'المناطق',
                                 style: TextStyle(
                                   fontSize: 18,
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -267,7 +268,7 @@ class _PlatformRegionsScreenState
                                   backgroundColor: cell.isActive
                                       ? AppTheme.brandSoft
                                       : Colors.grey.shade200,
-                                  child: Icon(
+                                  child: EbrokerIcon(
                                     Icons.place_outlined,
                                     color: cell.isActive
                                         ? AppTheme.brandStrong
@@ -276,7 +277,7 @@ class _PlatformRegionsScreenState
                                 ),
                                 title: Text(
                                   cell.nameAr,
-                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                  style: const TextStyle(fontWeight: FontWeight.w700),
                                 ),
                                 subtitle: Text(
                                   '${cell.governorateName} • ${cell.code} • ${cell.isActive ? 'نشطة' : 'متوقفة'}',
@@ -301,12 +302,12 @@ class _PlatformRegionsScreenState
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
           color: AppTheme.brandSoft,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: const Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.map_outlined, color: AppTheme.brandStrong),
+            EbrokerIcon(Icons.map_outlined, color: AppTheme.brandStrong),
             SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -323,13 +324,13 @@ class _PlatformRegionsScreenState
         padding: const EdgeInsets.all(24),
         children: [
           const SizedBox(height: 80),
-          const Icon(Icons.error_outline, size: 50),
+          const EbrokerIcon(Icons.error_outline, size: 50),
           const SizedBox(height: 10),
           Text(_error!, textAlign: TextAlign.center),
           const SizedBox(height: 12),
-          FilledButton.icon(
+          EbrokerFilledButton.icon(
             onPressed: _load,
-            icon: const Icon(Icons.refresh),
+            icon: const EbrokerIcon(Icons.refresh),
             label: const Text('إعادة المحاولة'),
           ),
         ],
