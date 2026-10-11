@@ -149,7 +149,7 @@ void main() {
     await tester.ensureVisible(property);
     await tester.tap(property);
     await tester.pumpAndSettle();
-    expect(router.routeInformationProvider.value.uri.path, '/properties/37');
+    expect(router.state.uri.path, '/properties/37');
     expect(find.text('property 37'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -163,7 +163,7 @@ void main() {
       await tester.ensureVisible(target);
       await tester.tap(target);
       await tester.pumpAndSettle();
-      expect(router.routeInformationProvider.value.uri.path, '/property-market');
+      expect(router.state.uri.path, '/property-market');
       expect(find.text('map destination'), findsOneWidget);
     });
   }
@@ -176,10 +176,10 @@ void main() {
       await tester.ensureVisible(target);
       await tester.tap(target);
       await tester.pumpAndSettle();
-      expect(router.routeInformationProvider.value.uri.path, '/favorites');
+      expect(router.state.uri.path, '/favorites');
       expect(find.text('سجّل الدخول أولاً'), findsOneWidget);
       if (entry == 'home-compare') {
-        expect(router.routeInformationProvider.value.uri.queryParameters['compare'], '1');
+        expect(router.state.uri.queryParameters['compare'], '1');
       }
       expect(find.textContaining('favorites compare='), findsNothing);
     });
@@ -193,7 +193,8 @@ void main() {
     await tester.ensureVisible(action);
     await tester.tap(action);
     await tester.pumpAndSettle();
-    expect(router.routeInformationProvider.value.uri.path, '/property-market');
+    expect(router.state.uri.path, '/property-market');
+    expect(find.text('map destination'), findsOneWidget);
   });
 
   testWidgets('a failed feed can be retried without losing navigation',
