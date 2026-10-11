@@ -1342,4 +1342,3 @@ String _propertyTypeLabel(String type) => switch (type) {
       'farm' => 'مزرعة',
       _ => type.isEmpty ? 'غير محدد' : type
     };
-

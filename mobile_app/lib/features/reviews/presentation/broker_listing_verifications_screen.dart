@@ -181,7 +181,7 @@ Future<String?> _noteDialog(BuildContext context, String title) async {
         maxLines: 4,
         decoration: const InputDecoration(
           hintText: 'اكتب ملاحظة واضحة للدعم',
-          
+
         ),
       ),
       actions: [

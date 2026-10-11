@@ -1699,4 +1699,3 @@ String _slaText(SupportTaskItem task) {
   final text = hours > 0 ? '$hours س $mins د' : '$mins د';
   return minutes < 0 ? 'متأخر $text' : 'متبقي $text';
 }
-

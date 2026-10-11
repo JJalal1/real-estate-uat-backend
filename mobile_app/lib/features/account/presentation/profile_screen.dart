@@ -49,7 +49,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     enabled: !_nameLocked(user),
                     decoration: const InputDecoration(
                       labelText: 'الاسم الرباعي',
-                      
+
                     ),
                   ),
                   if (_nameLocked(user)) ...[
@@ -64,7 +64,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: 'رقم الهاتف',
-                      
+
                     ),
                   ),
                   const SizedBox(height: 8),

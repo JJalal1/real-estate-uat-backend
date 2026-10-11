@@ -66,7 +66,7 @@ class _AccountVerificationAdminScreenState
                             value: _status,
                             decoration: const InputDecoration(
                               labelText: 'الحالة',
-                              
+
                             ),
                             items: const [
                               DropdownMenuItem(
@@ -103,7 +103,7 @@ class _AccountVerificationAdminScreenState
                             value: _typeFilter,
                             decoration: const InputDecoration(
                               labelText: 'نوع الحساب',
-                              
+
                             ),
                             items: const [
                               DropdownMenuItem<String>(

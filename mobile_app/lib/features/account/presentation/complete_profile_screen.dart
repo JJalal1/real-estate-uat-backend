@@ -53,7 +53,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
               decoration: const InputDecoration(
                 labelText: 'الاسم الرباعي',
                 hintText: 'الاسم الأول الثاني الثالث الرابع',
-                
+
               ),
             ),
             const SizedBox(height: 16),

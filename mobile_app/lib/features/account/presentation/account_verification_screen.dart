@@ -267,7 +267,7 @@ class _AccountVerificationScreenState
         decoration: const InputDecoration(
           labelText: 'المحافظة التي تقيم فيها',
           prefixIcon: EbrokerIcon(Icons.map_outlined),
-          
+
         ),
         items: values
             .map((value) => DropdownMenuItem<String>(
@@ -303,7 +303,7 @@ class _AccountVerificationScreenState
         decoration: const InputDecoration(
           labelText: 'المديرية التي تقيم فيها',
           prefixIcon: EbrokerIcon(Icons.location_city_outlined),
-          
+
         ),
         items: values
             .map((value) => DropdownMenuItem<String>(

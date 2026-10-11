@@ -39,7 +39,12 @@ jobs:
       - name: Exercise guard rejection cases
         run: python3 -B -m unittest discover -s scripts -p 'test_*v3*.py' -v
       - name: Verify diff whitespace
-        run: git diff --check "$GOLDEN_SHA"
+        # Purchased SVGs and the upstream license retain their exact source bytes.
+        # All template assets are independently checked above against SHA256.
+        run: >-
+          git diff --check "$GOLDEN_SHA" -- .
+          ':(exclude)mobile_app/assets/ebroker/'
+          ':(exclude)mobile_app/assets/fonts/OFL-Manrope.txt'
 
   laravel:
     name: Laravel original regression

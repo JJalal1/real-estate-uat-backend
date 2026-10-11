@@ -44,7 +44,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               enabled: !_requested,
               decoration: const InputDecoration(
                 labelText: 'البريد الإلكتروني أو الهاتف',
-                
+
               ),
             ),
             const SizedBox(height: 14),
@@ -72,7 +72,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 maxLength: 6,
                 decoration: const InputDecoration(
                   labelText: 'رمز الاستعادة',
-                  
+
                 ),
               ),
               const SizedBox(height: 12),
@@ -81,7 +81,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 obscureText: true,
                 decoration: const InputDecoration(
                   labelText: 'كلمة المرور الجديدة',
-                  
+
                 ),
               ),
               const SizedBox(height: 14),
