@@ -132,6 +132,20 @@ void main() {
       ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))
       ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'));
     await fonts.load();
+    // Widget tests omit the SDK icon and platform fallback fonts by default.
+    // Load the pinned SDK fonts so previews render the same glyphs as Android.
+    final flutterRoot = Platform.environment['FLUTTER_ROOT']!;
+    final fontDirectory = '$flutterRoot/bin/cache/artifacts/material_fonts';
+    final icons = await File('$fontDirectory/MaterialIcons-Regular.otf').readAsBytes();
+    await (FontLoader('MaterialIcons')
+          ..addFont(Future.value(icons.buffer.asByteData())))
+        .load();
+    final latin = await File('$fontDirectory/Roboto-Regular.ttf').readAsBytes();
+    for (final family in ['Arial', 'sans-serif']) {
+      await (FontLoader(family)
+            ..addFont(Future.value(latin.buffer.asByteData())))
+          .load();
+    }
   });
 
   testWidgets('public home uses display price and opens the real property ID',
