@@ -203,11 +203,11 @@ void main() {
       Color(0xFFE6F2F2),
       Color(0xFF087C7C),
       Color(0xFFE6F2F2),
-      Color(0xFFF8F9F7),
+      Color(0xFFFAFAFA),
       Colors.white,
-      Color(0xFFDCE2DF),
-      Color(0xFF15201B),
-      Color(0xFF5F6B65),
+      Color(0x99EEEEEE),
+      Color(0xFF4D5454),
+      Color(0x99000000),
       Color(0xFFC88700),
     ]);
   });
