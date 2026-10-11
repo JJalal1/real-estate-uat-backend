@@ -69,9 +69,8 @@
     "admin_laravel_constraint": "^10.0"
   },
   "scope": "inspection and environment preparation only",
-  "github_reference_status": "blocked_by_automatic_approval_review",
-  "planned_github_reference_branch": "reference/ebroker-1.8.0",
-  "github_reference_commit": null,
+  "github_reference_status": "retrieved_and_verified",
+  "github_reference_commit": "425f019070db73253ff77181c77623d28225cc25",
   "github_destination": "JJalal1/real-estate-uat-backend",
   "source_policy": "original bytes retained; whole-file exclusions only; conservative matching may exclude non-secret samples",
   "selected_source_files": [
@@ -200,11 +199,42 @@
     "scan_limit": "pattern and exact-certificate-value checks; not a guarantee against every possible secret"
   },
   "upload_transport": {
-    "planned_part_count": 26,
     "part_bytes": 524288,
-    "encoding": "base64 transport into binary Git blobs; not encryption"
+    "encoding": "base64 transport into binary Git blobs; not encryption",
+    "part_count": 26
   },
   "no_installer_or_template_build_executed": true,
   "no_application_source_changes": true,
-  "no_render_or_supabase_changes": true
+  "no_render_or_supabase_changes": true,
+  "github_reference_branch": "reference/ebroker-1.8.0",
+  "github_reference_verification": "TEMPLATE_REFERENCE_VERIFICATION.json",
+  "reference_roundtrip_checks": {
+    "all_part_sizes_sha256_and_git_blob_sha_verified": true,
+    "reconstructed_zip_size_and_sha256_verified": true,
+    "zip_membership_and_crc_verified": true,
+    "unsafe_duplicate_symbolic_and_encrypted_members_rejected_by_validator": true,
+    "source_index_sha256": "3b38e8ec2b91dc33a072a257d5d8a4f06205e504fe9d255501cd34b62ddd395d",
+    "file_manifest_sha256": "7277812b70fe8f79b7fc05b00db14b845e24841e0b4134562f5cabdd45eefeeb",
+    "retained_source_files_verified": 2005,
+    "selected_adoption_source_files_verified": 21,
+    "included_by_component": {
+      "app": 785,
+      "web": 603,
+      "admin": 534,
+      "docs": 83
+    },
+    "excluded_source_files_in_manifest": 25345,
+    "verify_only_exit_code": 0,
+    "verified_extraction_exit_code": 0,
+    "template_build_installer_or_activation_executed": false
+  },
+  "upload_authorization": {
+    "user_explicitly_approved_exact_sanitized_payload_and_destination": true,
+    "date_local": "2026-10-11",
+    "timezone": "Asia/Aden",
+    "destination": "JJalal1/real-estate-uat-backend",
+    "private_repository_verified_before_upload": true,
+    "template_support_private_repository_confirmation_supplied": true,
+    "support_screenshot_retained_outside_git": true
+  }
 }

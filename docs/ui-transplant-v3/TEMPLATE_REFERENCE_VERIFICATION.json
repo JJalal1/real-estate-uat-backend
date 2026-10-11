@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "status": "retrieved_and_verified",
+  "verified_at_utc": "2026-10-11T13:50:33Z",
+  "repository": "JJalal1/real-estate-uat-backend",
+  "repository_visibility": "private",
+  "reference_branch": "reference/ebroker-1.8.0",
+  "reference_commit": "425f019070db73253ff77181c77623d28225cc25",
+  "sanitized_archive": {
+    "bytes": 13170175,
+    "sha256": "4d57450d87d471be8758ec3f350e9867ed56f5d46b4b56bb4a8fb3f7c756a0cc"
+  },
+  "retrieval": {
+    "source": "GitHub file contents at pinned reference commit",
+    "encoding": "base64 decoded into original binary bytes",
+    "parts": [
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part001",
+        "bytes": 524288,
+        "sha256": "7a9adc434e0fe57ecf77475944d98e802a87c2693a066bb3d248109c0feb729e",
+        "git_blob_sha": "ff86fcc63a3db398c5b5563ffb8eb94021054e8e",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part002",
+        "bytes": 524288,
+        "sha256": "2e44719d742ccf1761512fb85a4a397d5cd8e90416cb5a6318a60d16f58cfb4a",
+        "git_blob_sha": "03f4c3ce2a6c540d1c6f2284530dbe7890cfae64",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part003",
+        "bytes": 524288,
+        "sha256": "d436c8592231c2ed2bcdca9f04d44510e8e9e32589c75005623b2ed8cf3146c4",
+        "git_blob_sha": "4d8495463514b45e89eefce4c811d7d08bedc3ee",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part004",
+        "bytes": 524288,
+        "sha256": "3b24b67a4b801e6e5e85769c9b1f16e68e44a24480aa6f076c4e6d6e444a0724",
+        "git_blob_sha": "b52a2b05c7c032534f53a3ff6cf4d1f9693f175c",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part005",
+        "bytes": 524288,
+        "sha256": "87e6a3a7ef4896da1f2238afc2490f7cee639892712d931e2b21749646fab431",
+        "git_blob_sha": "520660d2cf29e6fba0cbca0b7838903010ce2f46",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part006",
+        "bytes": 524288,
+        "sha256": "db76074729a027b67a5f044336b747fdb94ea04d9c55c6d5bb2b294c005a2e78",
+        "git_blob_sha": "985a3ac3ff3170ff3222cd3a8ee68e5fb67f34e6",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part007",
+        "bytes": 524288,
+        "sha256": "5658051e4da58662a11ea62fdbfc9b540873eb3e25b826a9de24d8ae15c77805",
+        "git_blob_sha": "eda03215a4d1bf052ce7110df0f738696f094eab",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part008",
+        "bytes": 524288,
+        "sha256": "2f3304ff5c2621c16a9ba9a2445ec119fad09c5b338d5cebc5a97bf14e70643a",
+        "git_blob_sha": "f581f70dd1dc58cdcfb3af5d6ec685d7046ba7f3",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part009",
+        "bytes": 524288,
+        "sha256": "fb3307b5086d278262fc4f400f5e282766db6cb82777abbf933bf0becfb14aa4",
+        "git_blob_sha": "d823d5049c764f414d81b190710fa43436abd833",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part010",
+        "bytes": 524288,
+        "sha256": "682acb70d161d013d9ec65dff15aa01fc5ff3f5deaa13f5abe4cd538f206ff6d",
+        "git_blob_sha": "eda817bef655d3369739085eb8d1b569db075a63",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part011",
+        "bytes": 524288,
+        "sha256": "0c3a10158f6cbc520d68d519ab355a0e3823a34115aae3bbe723e54050e51622",
+        "git_blob_sha": "bb1469df4f23b40f10427f943602c08382cb2312",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part012",
+        "bytes": 524288,
+        "sha256": "69266689e9f9c7dd0ecfbb7492c8545c9b652e43a2622c8bdac603ee827c5fab",
+        "git_blob_sha": "0c056c6d7e68a052278e9dee61b0185fb1747b27",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part013",
+        "bytes": 524288,
+        "sha256": "7626d3f4d19abcafe6c144d45269f66183c52c0e28a7594f7b4aae0f0fceac00",
+        "git_blob_sha": "2d0664869c1decf2e421def169d6f74852798b44",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part014",
+        "bytes": 524288,
+        "sha256": "2ab0d93444ca7c0a684ba2898e3f38381152f96ff2ee3bd0c566b0cf67807f97",
+        "git_blob_sha": "14fb3b58bfb55f4702d9ee2cf971742b54940dfc",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part015",
+        "bytes": 524288,
+        "sha256": "205d1d7a05b81f681f9d31d4e48587003e47557a77a100a54e451140fcdb0423",
+        "git_blob_sha": "44103a2ee5595a204821b681d9fe19d4332423af",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part016",
+        "bytes": 524288,
+        "sha256": "f2f9e5972b369e4b3109032e4bb33c5f39be858f175615292b06aee753758b75",
+        "git_blob_sha": "cdd697028145acd36473fd7d39916e7e52037688",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part017",
+        "bytes": 524288,
+        "sha256": "852b8042e7673fef2d9fa05fd03bf5ad2f20d192ece3827cb65652e319790cea",
+        "git_blob_sha": "0acb4c60ef173b89106e484cd966d1161ad6d561",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part018",
+        "bytes": 524288,
+        "sha256": "12521c703bec0ec579fbb2fc5aff299ac7142a5cd683052f64713946d8d1690b",
+        "git_blob_sha": "4617f0820a493f526871cc8bbefb99292059d90b",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part019",
+        "bytes": 524288,
+        "sha256": "a75e451753a21e25774c394c14180a6db35ce051d16ad377015c387426d27226",
+        "git_blob_sha": "4874cfa4048342c65af461eeb652589baaba2461",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part020",
+        "bytes": 524288,
+        "sha256": "6c749cadf37dec03ff81d944b6925f8e3185b3a45acb6890e885e4b6c9e1d19f",
+        "git_blob_sha": "2b5dd1d65d0ce1bffa268ac0eb76232072ea059d",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part021",
+        "bytes": 524288,
+        "sha256": "c0749ccea5211ddcefaa6c0cf037b4b22cc9c08d39b6dfa1645b4b2e300efb21",
+        "git_blob_sha": "1c70478d50aa622a455e3652c5a8d1d31ef4da06",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part022",
+        "bytes": 524288,
+        "sha256": "657b6573323d7ea67025a7c3bc13b11c6d1164115a8eb282439437926ea08db0",
+        "git_blob_sha": "8c2978058a4b68502b6d329e74672d6005e39d57",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part023",
+        "bytes": 524288,
+        "sha256": "78be06c145fd02939ca7892cc93fc8222674602e9c3b20abc5cf6f3937af453b",
+        "git_blob_sha": "6d3f0de351a8636df451e8c583c0b1ead91b4851",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part024",
+        "bytes": 524288,
+        "sha256": "083149bbf1395bfa42573a4245d0253b87fa88ad9dc887924958e3bc087ee762",
+        "git_blob_sha": "db9911aabfa4d8db26b9b346a28c1c497f8dea08",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part025",
+        "bytes": 524288,
+        "sha256": "bb8941129cd2768ca470ddb2aae0a87f2ec574fd3705b7989cad8629aef394f7",
+        "git_blob_sha": "0a8358e42542c2c4ccc02b796bcacc1a6dedb217",
+        "verified": true
+      },
+      {
+        "path": "archive/ebroker-1.8.0-sanitized.zip.part026",
+        "bytes": 62975,
+        "sha256": "d465e3ad68b167b5341ad9a0166231e6bdffda095758c552dc392bc388733430",
+        "git_blob_sha": "797f98749efd07f2616dc6fe60e46dd0fbf49c81",
+        "verified": true
+      }
+    ]
+  },
+  "validation": {
+    "all_part_sizes_sha256_and_git_blob_sha_verified": true,
+    "reconstructed_zip_size_and_sha256_verified": true,
+    "zip_membership_and_crc_verified": true,
+    "unsafe_duplicate_symbolic_and_encrypted_members_rejected_by_validator": true,
+    "source_index_sha256": "3b38e8ec2b91dc33a072a257d5d8a4f06205e504fe9d255501cd34b62ddd395d",
+    "file_manifest_sha256": "7277812b70fe8f79b7fc05b00db14b845e24841e0b4134562f5cabdd45eefeeb",
+    "retained_source_files_verified": 2005,
+    "selected_adoption_source_files_verified": 21,
+    "included_by_component": {
+      "app": 785,
+      "web": 603,
+      "admin": 534,
+      "docs": 83
+    },
+    "excluded_source_files_in_manifest": 25345,
+    "verify_only_exit_code": 0,
+    "verified_extraction_exit_code": 0,
+    "template_build_installer_or_activation_executed": false
+  },
+  "original_preservation": {
+    "golden_commit": "dc2805c9215dcd500fc7034effa953a4c3751761",
+    "compared_preparation_commit": "0450403d9cfa8e65c49df92ba8cf772844d3b876",
+    "original_files_verified": 657,
+    "changed_original_files": 0,
+    "comparison": "recursive Git trees, original blob SHAs and modes",
+    "audit_branch_commit": "dc2805c9215dcd500fc7034effa953a4c3751761",
+    "rollback_branch_commit": "dc2805c9215dcd500fc7034effa953a4c3751761",
+    "v3_base_branch_commit": "dc2805c9215dcd500fc7034effa953a4c3751761",
+    "template_reference_moved": false
+  },
+  "boundaries": {
+    "raw_vendor_archive_reaudited": false,
+    "validation_against": "sanitized GitHub reference and hashes pinned by prior source audit",
+    "current_update": "preparation documentation only",
+    "render_or_supabase_mutated": false,
+    "ui_transplant_started": false,
+    "plan_acceptance_required_before_ui_transplant": true,
+    "parity_approved": false
+  },
+  "application_ci": {
+    "verified_run_id": 38105393124,
+    "verified_run_commit": "0450403d9cfa8e65c49df92ba8cf772844d3b876",
+    "conclusion": "failure",
+    "flutter_passed": 187,
+    "flutter_failed": 1,
+    "failed_test": "uat_listing_publish_viewing_flow_test.dart: viewing request opens its linked conversation after creation",
+    "missing_property_viewing_entry_remains_open": true
+  }
+}
