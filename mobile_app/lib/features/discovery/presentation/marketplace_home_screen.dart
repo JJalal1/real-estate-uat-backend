@@ -31,9 +31,10 @@ class MarketplaceHomeScreen extends ConsumerWidget {
         child: RefreshIndicator(
           onRefresh: () async {
             try {
-              await ref.refresh(
+              final refreshed = ref.refresh(
                 nearbyPropertiesProvider(homeDiscoveryQuery).future,
               );
+              await refreshed;
             } catch (_) {
               // The provider exposes the error and its retry action below.
             }
