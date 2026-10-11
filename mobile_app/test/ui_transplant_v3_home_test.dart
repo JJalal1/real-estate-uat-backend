@@ -210,6 +210,7 @@ void main() {
     expect(find.text('لا توجد عقارات في هذا النطاق'), findsOneWidget);
     final action = find.text('استكشاف الخريطة');
     await tester.ensureVisible(action);
+    await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/property-market');
@@ -226,6 +227,7 @@ void main() {
     await tester.pumpAndSettle();
     final retry = find.text('إعادة المحاولة');
     await tester.ensureVisible(retry);
+    await tester.pumpAndSettle();
     await tester.tap(retry);
     await tester.pumpAndSettle();
     expect(calls, 2);
@@ -261,6 +263,7 @@ void main() {
     await tester.pumpAndSettle();
     final action = find.text('إضافة عقار');
     await tester.ensureVisible(action);
+    await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();
     expect(find.text('توثيق نوع الحساب مطلوب'), findsOneWidget);
