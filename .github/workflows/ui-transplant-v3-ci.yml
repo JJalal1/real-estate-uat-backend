@@ -187,6 +187,9 @@ jobs:
           test/ui_transplant_v3_home_test.dart
           test/ui_transplant_v3_template_test.dart
           test/app_components_test.dart
+          test/app_theme_test.dart
+          test/uat_comments_fix_test.dart
+          test/uat_listing_publish_viewing_flow_test.dart
           test/startup_navigation_layout_test.dart
       - name: Upload rendered template screen previews
         if: ${{ !cancelled() && (steps.stage1_ui.conclusion == 'success' || steps.stage1_ui.conclusion == 'failure') }}

@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from check_ui_transplant_v3 import approved_auth_gate, approved_pubspec, approved_viewing_test, CANONICAL_VIEWING_TEST, violations
+from check_ui_transplant_v3 import approved_auth_gate, approved_pubspec, approved_viewing_test, CANONICAL_VIEWING_TEST, approved_comments_test, COMMENTS_RENDER_FRAME_TEST, violations
 
 
 class ScopeGuardTests(unittest.TestCase):
@@ -103,6 +103,26 @@ class ScopeGuardTests(unittest.TestCase):
         self.assertEqual(self.check(), [])
         self.write(CANONICAL_VIEWING_TEST, approved.replace('unchanged-confirm-contract', 'weakened-contract'))
         self.assertTrue(any(item.startswith(CANONICAL_VIEWING_TEST) for item in self.check()))
+
+    def test_comment_render_waits_cannot_weaken_count_or_refresh_assertions(self):
+        original = """    await tester.scrollUntilVisible(communityButton, 300);
+    expect(find.text('0 comment'), findsOneWidget);
+    expect(detailsCalls, greaterThanOrEqualTo(2));
+    await tester.scrollUntilVisible(communityButton, 300);
+    expect(find.text('3 comments'), findsOneWidget);
+"""
+        self.write(COMMENTS_RENDER_FRAME_TEST, original)
+        self.run_git("add", COMMENTS_RENDER_FRAME_TEST)
+        self.run_git("commit", "-qm", "comment render fixture")
+        self.baseline = self.run_git("rev-parse", "HEAD").strip()
+        approved = approved_comments_test(original)
+        self.write(COMMENTS_RENDER_FRAME_TEST, approved)
+        self.assertEqual(self.check(), [])
+        self.assertEqual(approved.count('await tester.pumpAndSettle();'), 2)
+        self.write(COMMENTS_RENDER_FRAME_TEST, approved.replace('greaterThanOrEqualTo(2)', 'greaterThanOrEqualTo(1)'))
+        self.assertTrue(any(item.startswith(COMMENTS_RENDER_FRAME_TEST) for item in self.check()))
+        self.write(COMMENTS_RENDER_FRAME_TEST, approved.replace('3 comments', '0 comment'))
+        self.assertTrue(any(item.startswith(COMMENTS_RENDER_FRAME_TEST) for item in self.check()))
 
     def test_new_untracked_backend_and_data_files_are_rejected(self):
         self.write("backend-api-runtime/database/migrations/unapproved.php", "new-schema\n")

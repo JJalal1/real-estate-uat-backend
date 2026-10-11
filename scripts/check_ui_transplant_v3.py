@@ -30,6 +30,7 @@ VISUAL_TEST_UPDATES = frozenset({
 })
 
 CANONICAL_VIEWING_TEST = 'mobile_app/test/uat_listing_publish_viewing_flow_test.dart'
+COMMENTS_RENDER_FRAME_TEST = 'mobile_app/test/uat_comments_fix_test.dart'
 
 PINNED_PRESENTATION = frozenset({
     "mobile_app/lib/features/account/presentation/auth_gate.dart",
@@ -67,6 +68,19 @@ def approved_viewing_test(original):
     ))
 
 
+def approved_comments_test(original):
+    """Wait for a rendered frame after a programmatic scroll, preserving assertions.
+
+    The transplanted card is taller. ensureVisible can jump a prefetched sliver
+    without pumping; the original tap otherwise reads its stale render offset.
+    """
+    return original.replace(
+        "    await tester.scrollUntilVisible(communityButton, 300);\n",
+        "    await tester.scrollUntilVisible(communityButton, 300);\n"
+        "    await tester.pumpAndSettle();\n",
+    )
+
+
 def approved_auth_gate(original):
     return (original.replace(
         "import 'package:flutter/material.dart';",
@@ -90,7 +104,7 @@ def paths(raw):
 
 
 def allowed(path, baseline_paths):
-    if path == CANONICAL_VIEWING_TEST:
+    if path in {CANONICAL_VIEWING_TEST, COMMENTS_RENDER_FRAME_TEST}:
         return True
     if path == "mobile_app/pubspec.yaml" or path in VISUAL_TEST_UPDATES:
         return True
@@ -138,6 +152,10 @@ def violations(root, baseline=GOLDEN_SHA, setup=False):
         original = git(root, "show", baseline + ":" + CANONICAL_VIEWING_TEST).decode("utf-8")
         if (root / CANONICAL_VIEWING_TEST).read_text(encoding="utf-8") != approved_viewing_test(original):
             failures.append(CANONICAL_VIEWING_TEST + " (changes beyond the proven obsolete source-location check)")
+    if COMMENTS_RENDER_FRAME_TEST in changed and (root / COMMENTS_RENDER_FRAME_TEST).is_file():
+        original = git(root, "show", baseline + ":" + COMMENTS_RENDER_FRAME_TEST).decode("utf-8")
+        if (root / COMMENTS_RENDER_FRAME_TEST).read_text(encoding="utf-8") != approved_comments_test(original):
+            failures.append(COMMENTS_RENDER_FRAME_TEST + " (changes beyond the two post-scroll render waits)")
     for path in PINNED_PRESENTATION & changed:
         if (root / path).is_file():
             original = git(root, "show", baseline + ":" + path).decode("utf-8")
