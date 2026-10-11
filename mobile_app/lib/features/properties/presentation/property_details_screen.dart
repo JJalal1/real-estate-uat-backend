@@ -304,7 +304,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                   return SizedBox(
                     width: 290,
                     child: AppPropertyCard(
-                      title: item.title,
+                      categoryLabel: ebrokerPropertyTypeLabel(item.type),
+                  title: item.title,
                       price: _formatPrice(item.price),
                       currency: item.currency,
                       imageUrl: item.mainImage,

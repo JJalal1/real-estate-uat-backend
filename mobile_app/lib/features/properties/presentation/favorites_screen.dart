@@ -134,7 +134,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   return Stack(
                     children: [
                       AppPropertyCard(
-                        title: property.title,
+                        categoryLabel: ebrokerPropertyTypeLabel(property.type),
+                  title: property.title,
                         price: _formatPrice(property.price),
                         currency: property.currency,
                         imageUrl: property.mainImage,

@@ -280,6 +280,7 @@ class SavedSearchResultsScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final item = items[index];
                 return AppPropertyCard(
+                  categoryLabel: ebrokerPropertyTypeLabel(item.type),
                   title: item.title,
                   price: _formatPrice(item.price),
                   currency: item.currency,

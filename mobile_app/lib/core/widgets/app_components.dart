@@ -786,6 +786,7 @@ class AppPropertyCard extends StatelessWidget {
     this.location,
     this.facts = const <AppPropertyFact>[],
     this.purposeLabel,
+    this.categoryLabel = 'عقار',
     this.unavailable = false,
     this.trailing,
     super.key,
@@ -799,6 +800,7 @@ class AppPropertyCard extends StatelessWidget {
   final String? location;
   final List<AppPropertyFact> facts;
   final String? purposeLabel;
+  final String categoryLabel;
   final bool unavailable;
   final Widget? trailing;
 
@@ -810,7 +812,7 @@ class AppPropertyCard extends StatelessWidget {
           child: AppPropertyMedia(imageUrl: imageUrl, height: 132.rh(context), overlay: trailing)),
         const SizedBox(height: 8),
         Row(children: [EbrokerImage('properties_icon', size: 18, color: EbrokerDesign.textLight),
-          const SizedBox(width: 4), Expanded(child: EbrokerText(purposeLabel ?? 'عقار', size: 12,
+          const SizedBox(width: 4), Expanded(child: EbrokerText(categoryLabel, size: 12,
             weight: FontWeight.w600, color: EbrokerDesign.textLight))]),
         const SizedBox(height: 8), EbrokerText(title, size: 16, weight: FontWeight.w600, maxLines: 2),
         if (location != null && location!.trim().isNotEmpty) ...[

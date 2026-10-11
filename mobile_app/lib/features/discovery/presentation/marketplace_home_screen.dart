@@ -75,6 +75,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               return Padding(padding: const EdgeInsets.only(bottom: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 EbrokerPropertyHorizontalCard(key: ValueKey('home-property-${property.id}'), title: property.title,
                   price: property.price.toStringAsFixed(0), currency: property.currency, imageUrl: property.mainImage, location: property.address,
+                  categoryLabel: ebrokerPropertyTypeLabel(property.type),
                   purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع', onTap: () => context.push('/properties/${property.id}')),
                 if (property.priceDisplayNote != null) Padding(padding: const EdgeInsets.only(top: 8), child: EbrokerText(property.priceDisplayNote!, size: 12)),
               ]));

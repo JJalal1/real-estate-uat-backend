@@ -290,28 +290,31 @@ void main() {
   testWidgets('exports actual template screens using clearly synthetic fixtures', (tester) async {
     final previousShadows = debugDisableShadows;
     debugDisableShadows = false;
-    addTearDown(() => debugDisableShadows = previousShadows);
-    _viewport(tester, const Size(412, 915));
-    final key = GlobalKey();
-    final router = await _pump(tester, boundary: key, user: _user(verified: true));
-    await _capture(tester, key, 'template-home-navigation');
-    await tester.tap(find.text('إعلاناتي'));
-    await tester.pumpAndSettle();
-    await _capture(tester, key, 'template-my-listings');
-    await tester.tap(find.text('حسابي'));
-    await tester.pumpAndSettle();
-    await _capture(tester, key, 'template-account');
-    router.push('/auth');
-    await tester.pumpAndSettle();
-    await _capture(tester, key, 'template-auth');
-    router.pop();
-    router.push('/listing-preview');
-    await tester.pumpAndSettle();
-    await _capture(tester, key, 'template-listing-editor');
-    router.pop();
-    router.push('/messages/19');
-    await tester.pumpAndSettle();
-    await _capture(tester, key, 'template-conversation');
-    expect(tester.takeException(), isNull);
+    try {
+      _viewport(tester, const Size(412, 915));
+      final key = GlobalKey();
+      final router = await _pump(tester, boundary: key, user: _user(verified: true));
+      await _capture(tester, key, 'template-home-navigation');
+      await tester.tap(find.text('إعلاناتي'));
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-my-listings');
+      await tester.tap(find.text('حسابي'));
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-account');
+      router.push('/auth');
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-auth');
+      router.pop();
+      router.push('/listing-preview');
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-listing-editor');
+      router.pop();
+      router.push('/messages/19');
+      await tester.pumpAndSettle();
+      await _capture(tester, key, 'template-conversation');
+      expect(tester.takeException(), isNull);
+    } finally {
+      debugDisableShadows = previousShadows;
+    }
   });
 }

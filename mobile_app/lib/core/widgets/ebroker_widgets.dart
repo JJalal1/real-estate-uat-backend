@@ -390,3 +390,9 @@ class EbrokerProfileTile extends StatelessWidget {
     ),
   );
 }
+
+// Presentation labels for the unchanged server property taxonomy.
+String ebrokerPropertyTypeLabel(String? type) => const <String, String>{
+  'apartment': 'شقة', 'house': 'منزل', 'villa': 'فيلا', 'land': 'أرض',
+  'shop': 'محل', 'office': 'مكتب', 'farm': 'مزرعة',
+}[type] ?? 'عقار';
