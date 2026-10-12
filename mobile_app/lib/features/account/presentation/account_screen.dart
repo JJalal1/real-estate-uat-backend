@@ -235,13 +235,15 @@ class _ProfileHeader extends ConsumerWidget {
               children: [
                 Text(
                   user == null ? 'مرحباً بك' : user.name,
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: AppSpacing.s4),
                 Text(
                   user == null
                       ? 'تصفح العقارات بحرية وسجّل الدخول عند الحاجة.'
-                      : (user.phone ?? user.email),
+                      : (user.email is String && (user.email as String).trim().isNotEmpty ? user.email : (user.phone ?? '')),
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontSize: 12, color: scheme.onSurfaceVariant,
                       ),

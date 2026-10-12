@@ -68,7 +68,9 @@ class BrokerDashboardScreen extends ConsumerWidget {
           return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerWorkspaceProvider); await ref.read(brokerWorkspaceProvider.future); },
             child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), physics: const AlwaysScrollableScrollPhysics(), children: [
               BrokerPanel(child: Row(children: [
-                const EbrokerImage('defaultProfileIcon', size: 38), const SizedBox(width: 12),
+                profile?.photoUrl == null ? const EbrokerImage('defaultProfileIcon', size: 38)
+                  : ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(profile!.photoUrl!, width: 44, height: 44, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const EbrokerImage('defaultProfileIcon', size: 38))), const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(profile?.name ?? user?.name ?? 'مرحبًا بك', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                   Text('${profile?.typeLabel ?? 'معلن'} موثق${profile?.governorate == null ? '' : ' · ${profile!.governorate}'}'),
@@ -100,7 +102,7 @@ class BrokerDashboardScreen extends ConsumerWidget {
                 final width = oneColumn ? size.maxWidth : (size.maxWidth - 12) / 2;
                 return Wrap(spacing: 12, runSpacing: 12, children: [
                   for (final metric in <({int count, String label, String route})>[
-                    (count: brokerInt(listings['published']), label: 'إعلانات منشورة', route: '/my-listings'),
+                    (count: profile?.activeListings ?? brokerInt(listings['published']), label: 'عقارات نشطة', route: '/my-listings'),
                     (count: brokerInt(activity['new_customers_this_week']), label: 'عملاء جدد هذا الأسبوع', route: '/broker/customers'),
                     (count: brokerInt(activity['active_viewings']), label: 'معاينات نشطة', route: '/broker/activity'),
                     (count: brokerInt(activity['completed_deals']), label: 'صفقات مكتملة مؤكدة', route: '/broker/activity'),

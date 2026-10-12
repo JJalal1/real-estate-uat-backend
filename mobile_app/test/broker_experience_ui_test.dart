@@ -131,7 +131,9 @@ void main() {
     await _pump(tester, const BrokerAvailabilityScreen(), repo);
     final button = find.textContaining('ما زالت متوفرة');
     await tester.ensureVisible(button.last); await tester.tap(button.last); await tester.pumpAndSettle();
-    expect(repo.availabilityChanges.single, ([11], 'available'));
+    expect(repo.availabilityChanges, hasLength(1));
+    expect(repo.availabilityChanges.single.$1, [11]);
+    expect(repo.availabilityChanges.single.$2, 'available');
   });
   testWidgets('customer affirmation is explicit and rating stays locked until confirmed', (tester) async {
     final repo = BrokerTestRepository(viewerId: 2);
