@@ -18,6 +18,7 @@ class RefreshBrokerAvailability
                 try {
                     if (! Cache::has('broker-availability-swept')) {
                         app(BrokerAvailabilityService::class)->sweep();
+                        app(\App\Services\BrokerCustomerFollowupService::class)->sweep();
                         Cache::put('broker-availability-swept', true, 60);
                     }
                 } finally { $lock->release(); }

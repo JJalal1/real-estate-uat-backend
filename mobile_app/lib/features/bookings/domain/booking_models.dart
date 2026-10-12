@@ -26,6 +26,7 @@ class ViewingBooking {
     required this.canDecline,
     required this.canAcceptReschedule,
     required this.awaitingRequesterConfirmation,
+    this.targetLatitude, this.targetLongitude,
   });
 
   factory ViewingBooking.fromJson(Map<String, dynamic> json) => ViewingBooking(
@@ -40,6 +41,7 @@ class ViewingBooking {
         targetId: _int(json['target_id']),
         targetTitle: json['target_title']?.toString() ?? '',
         targetAddress: json['target_address']?.toString(),
+        targetLatitude: (json['target_latitude'] as num?)?.toDouble(), targetLongitude: (json['target_longitude'] as num?)?.toDouble(),
         startsAt: DateTime.parse(json['starts_at'].toString()),
         endsAt: DateTime.parse(json['ends_at'].toString()),
         timezone: json['timezone']?.toString() ?? 'UTC',
@@ -69,6 +71,7 @@ class ViewingBooking {
   final int targetId;
   final String targetTitle;
   final String? targetAddress;
+  final double? targetLatitude, targetLongitude;
   final DateTime startsAt;
   final DateTime endsAt;
   final String timezone;

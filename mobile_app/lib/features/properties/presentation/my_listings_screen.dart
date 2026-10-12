@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_card_actions.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -582,56 +583,23 @@ class _ListingCard extends StatelessWidget {
           ])),
           Padding(
             padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
-            child: Wrap(
-              spacing: AppSpacing.s4,
-              runSpacing: AppSpacing.s4,
-              alignment: WrapAlignment.start,
-              children: [
-                if (property.status == 'published' && property.reviewStatus == 'approved' && !['sold', 'rented'].contains(property.availabilityStatus)) ...[
-                  AppButton(label: 'ما زال متوفرًا', icon: Icons.check_circle_outline, onPressed: onAvailability == null ? null : () => onAvailability!('available')),
-                  if (property.availabilityStatus == 'available') AppButton(label: 'إيقاف مؤقت', icon: Icons.pause_circle_outline, onPressed: onAvailability == null ? null : () => onAvailability!('paused')),
-                  AppButton(label: property.purpose == 'rent' ? 'تم التأجير' : 'تم البيع', onPressed: onClose),
-                ],
-                if (property.availabilityStatus == 'available' && property.status == 'published') TextButton.icon(onPressed: onShare, icon: const EbrokerIcon(Icons.share_outlined, size: 18), label: const Text('مشاركة')),
-                TextButton.icon(
-                  onPressed: onOpen,
-                  icon: const EbrokerIcon(Icons.visibility_outlined),
-                  label: const Text('عرض'),
-                ),
-                if (onEdit != null)
-                  TextButton.icon(
-                    onPressed: onEdit,
-                    icon: const EbrokerIcon(Icons.edit_outlined),
-                    label: Text(
-                      property.reviewStatus == 'returned_for_correction'
-                          ? 'تصحيح الإعلان'
-                          : 'تعديل',
-                    ),
-                  ),
-                if (onSubmit != null)
-                  EbrokerFilledButton.tonalIcon(
-                    onPressed: onSubmit,
-                    icon: const EbrokerIcon(Icons.send_outlined),
-                    label: Text(
-                      property.reviewStatus == 'returned_for_correction'
-                          ? 'إعادة الإرسال'
-                          : 'إرسال للمراجعة',
-                    ),
-                  ),
-                if (onAttest != null)
-                  EbrokerFilledButton.tonalIcon(
-                    onPressed: onAttest,
-                    icon: const EbrokerIcon(Icons.verified_user_outlined),
-                    label: const Text('إقرار السعي'),
-                  ),
-                if (onDelete != null)
-                  TextButton.icon(
-                    onPressed: onDelete,
-                    icon: const EbrokerIcon(Icons.delete_outline),
-                    label: const Text('حذف'),
-                  ),
+            child: EbrokerCardActions(actions: [
+              if (onEdit != null && ['draft', 'returned_for_correction'].contains(property.reviewStatus))
+                EbrokerCardAction(property.reviewStatus == 'returned_for_correction' ? 'تصحيح الإعلان' : 'إكمال الإعلان', onEdit, icon: Icons.edit_outlined),
+              if (onAttest != null) EbrokerCardAction('إقرار السعي', onAttest, icon: Icons.verified_user_outlined),
+              if (property.status == 'published' && property.reviewStatus == 'approved' && property.availabilityStatus == 'confirmation_paused')
+                EbrokerCardAction('أكد التوفر لإعادة إظهاره', onAvailability == null ? null : () => onAvailability!('available'), icon: Icons.check_circle_outline),
+              EbrokerCardAction('عرض', onOpen, icon: Icons.visibility_outlined),
+              if (property.status == 'published' && property.reviewStatus == 'approved' && !['sold', 'rented'].contains(property.availabilityStatus)) ...[
+                if (property.availabilityStatus != 'confirmation_paused') EbrokerCardAction('ما زال متوفرًا', onAvailability == null ? null : () => onAvailability!('available'), icon: Icons.check_circle_outline),
+                if (property.availabilityStatus == 'available') EbrokerCardAction('إيقاف مؤقت', onAvailability == null ? null : () => onAvailability!('paused'), icon: Icons.pause_circle_outline),
+                EbrokerCardAction(property.purpose == 'rent' ? 'تم التأجير' : 'تم البيع', onClose, icon: Icons.task_alt),
               ],
-            ),
+              if (property.availabilityStatus == 'available' && property.status == 'published') EbrokerCardAction('مشاركة', onShare, icon: Icons.share_outlined),
+              if (onEdit != null && !['draft', 'returned_for_correction'].contains(property.reviewStatus)) EbrokerCardAction('تعديل', onEdit, icon: Icons.edit_outlined),
+              if (onSubmit != null) EbrokerCardAction(property.reviewStatus == 'returned_for_correction' ? 'إعادة الإرسال' : 'إرسال للمراجعة', onSubmit, icon: Icons.send_outlined),
+              if (onDelete != null) EbrokerCardAction('حذف', onDelete, icon: Icons.delete_outline),
+            ]),
           ),
         ],
       ),

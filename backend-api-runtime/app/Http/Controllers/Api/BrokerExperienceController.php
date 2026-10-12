@@ -12,6 +12,9 @@ use App\Models\User;
 use App\Services\ApiTokenService;
 use App\Services\AuditLogService;
 use App\Services\BrokerAvailabilityService;
+use App\Models\BrokerCustomerFollowup;
+use App\Services\BrokerCustomerFollowupService;
+use Carbon\Carbon;
 use App\Services\BrokerDealService;
 use App\Services\BrokerRankingService;
 use App\Services\CloudAssetStorageService;
@@ -21,6 +24,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class BrokerExperienceController extends Controller
 {
@@ -99,6 +103,7 @@ class BrokerExperienceController extends Controller
         $original['customer_activity']['unread_conversations']=$unread;
         $original['customer_activity']['completed_deals']=$completed;
         $original['customer_activity']['new_customers_this_week']=(clone $threads)->where('message_threads.created_at','>=',now()->startOfWeek())->count();
+        $original['needs_attention']['customer_followups_due']=BrokerCustomerFollowup::query()->where('user_id',$actor->id)->where('remind_at','<=',now())->whereIn('message_thread_id',(clone $threads)->select('message_threads.id'))->count();
         $original['needs_attention']['availability_count']=$freshness;
         $original['needs_attention']['pending_deal_count']=BrokerDealOutcome::query()->where('advertiser_user_id',$actor->id)->whereIn('status',['pending_customer','disputed'])->count();
         $original['financial_summary']=$this->finance->financialSummaryFor($actor);
@@ -109,20 +114,74 @@ class BrokerExperienceController extends Controller
     public function customers(Request $request): JsonResponse
     {
         $actor=$this->professional($request);
-        $v=$request->validate(['stage'=>['nullable',Rule::in(['new','contacted','viewing','not_interested','completed'])],'page'=>['nullable','integer','min:1'],'property_id'=>['nullable','integer','min:1']]);
-        $query=$this->customerQuery($actor)->with(['property:id,title,status,availability_status','participants']);
+        $v=$request->validate(['stage'=>['nullable',Rule::in(['new','contacted','viewing','not_interested','completed'])],
+            'filter'=>['nullable',Rule::in(['all','unread','followup_due'])], 'page'=>['nullable','integer','min:1'],'property_id'=>['nullable','integer','min:1']]);
+        $query=$this->customerQuery($actor)->with(['property:id,title,status,availability_status','participants'])
+            ->select('message_threads.*')->selectSub($this->unreadMessages($actor)->selectRaw('COUNT(*)'), 'unread_count');
         if (!empty($v['stage'])) $query->where('lead_stage',$v['stage']);
         if (!empty($v['property_id'])) $query->where('property_id',$v['property_id']);
+        if (($v['filter'] ?? null) === 'unread') $query->whereExists($this->unreadMessages($actor)->selectRaw('1'));
+        if (($v['filter'] ?? null) === 'followup_due') $query->whereIn('message_threads.id', BrokerCustomerFollowup::query()
+            ->where('user_id',$actor->id)->whereNotNull('remind_at')->where('remind_at','<=',now())->select('message_thread_id'));
         $page=$query->orderByDesc('last_message_at')->orderByDesc('id')->paginate(30);
         $rows=collect($page->items());
         $users=User::query()->whereIn('id',$rows->pluck('started_by_user_id'))->get(['id','name'])->keyBy('id');
         $outcomes=BrokerDealOutcome::query()->whereIn('message_thread_id',$rows->pluck('id'))->get()->keyBy('message_thread_id');
+        $followups=BrokerCustomerFollowup::query()->where('user_id',$actor->id)->whereIn('message_thread_id',$rows->pluck('id'))->get()->keyBy('message_thread_id');
         return response()->json(['data'=>$rows->map(fn ($thread) => [
             'thread_id'=>$thread->id,'customer_id'=>$thread->started_by_user_id,'customer_name'=>$users->get($thread->started_by_user_id)?->name ?? 'عميل',
             'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,'stage'=>$thread->lead_stage,
             'last_message_at'=>$thread->last_message_at?->toIso8601String(),
+            'unread_count'=>(int)$thread->unread_count,
+            'followup'=>$this->followupData($followups->get($thread->id)),
             'deal'=>$outcomes->has($thread->id) ? $this->outcomeData($outcomes->get($thread->id),$actor) : null,
         ])->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage()]]);
+    }
+
+    public function customerFollowup(Request $request, MessageThread $thread): JsonResponse
+    {
+        $actor=$this->professional($request);
+        $this->customerQuery($actor)->whereKey($thread->id)->firstOrFail();
+        return response()->json(['data'=>$this->followupData(BrokerCustomerFollowup::query()->where('user_id',$actor->id)->where('message_thread_id',$thread->id)->first())]);
+    }
+
+    public function saveCustomerFollowup(Request $request, MessageThread $thread, BrokerCustomerFollowupService $service): JsonResponse
+    {
+        $actor=$this->professional($request);
+        $v=$request->validate(['private_note'=>['sometimes','nullable','string','max:1500'], 'remind_at'=>['sometimes','nullable','date']]);
+        return DB::transaction(function () use ($actor,$thread,$v,$service,$request): JsonResponse {
+            $this->customerQuery($actor)->whereKey($thread->id)->lockForUpdate()->firstOrFail();
+            $row=BrokerCustomerFollowup::query()->firstOrCreate(['user_id'=>$actor->id,'message_thread_id'=>$thread->id]);
+            if (array_key_exists('remind_at',$v)) {
+                $date=isset($v['remind_at']) ? Carbon::parse($v['remind_at'])->utc() : null;
+                $same=$date && $row->remind_at && $date->equalTo($row->remind_at);
+                if ($date && !$same && ($date->lte(now()) || $date->gt(now()->addYear()))) {
+                    throw ValidationException::withMessages(['remind_at'=>['اختر موعدًا قادمًا خلال سنة.']]);
+                }
+                if (!$same) {
+                    $row->forceFill(['remind_at'=>$date,'reminded_at'=>null]);
+                    $service->clearNotice((int)$actor->id,(int)$thread->id);
+                }
+            }
+            if (array_key_exists('private_note',$v)) $row->private_note=trim((string)$v['private_note']) ?: null;
+            $row->save();
+            $this->audit->record($actor,'broker.customer_followup_updated',$thread,['remind_at'=>$row->remind_at?->toIso8601String()],$request,$thread->started_by_user_id);
+            return response()->json(['data'=>$this->followupData($row)]);
+        });
+    }
+
+    private function followupData(?BrokerCustomerFollowup $row): array
+    {
+        return ['private_note'=>$row?->private_note,'remind_at'=>$row?->remind_at?->toIso8601String(),
+            'is_due'=>$row?->remind_at?->lte(now()) ?? false];
+    }
+
+    private function unreadMessages(User $actor)
+    {
+        return DB::table('private_messages as unread_m')->join('message_thread_participants as read_p',fn ($join) =>
+            $join->on('read_p.thread_id','=','unread_m.thread_id')->where('read_p.user_id','=',$actor->id))
+            ->whereColumn('unread_m.thread_id','message_threads.id')->where('unread_m.sender_user_id','<>',$actor->id)
+            ->where(fn ($q) => $q->whereNull('read_p.last_read_message_id')->orWhereColumn('unread_m.id','>','read_p.last_read_message_id'));
     }
 
     public function updateCustomer(Request $request, MessageThread $thread): JsonResponse

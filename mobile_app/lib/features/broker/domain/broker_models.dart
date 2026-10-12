@@ -43,14 +43,21 @@ class BrokerDeal {
 
 const brokerLeadLabels = {'new': 'عميل جديد', 'contacted': 'تم التواصل', 'viewing': 'طلب معاينة', 'not_interested': 'غير مهتم', 'completed': 'تمت الصفقة'};
 class BrokerCustomer {
-  const BrokerCustomer({required this.threadId, required this.customerName, required this.propertyId, required this.propertyTitle, required this.stage, this.deal});
+  const BrokerCustomer({required this.threadId, required this.customerName, required this.propertyId, required this.propertyTitle, required this.stage, this.deal,
+    this.unreadCount = 0, this.privateNote = '', this.remindAt, this.followupDue = false});
   final int threadId, propertyId;
   final String customerName, propertyTitle, stage;
   final BrokerDeal? deal;
+  final int unreadCount;
+  final String privateNote;
+  final DateTime? remindAt;
+  final bool followupDue;
   String get stageLabel => brokerLeadLabels[stage] ?? 'عميل جديد';
   factory BrokerCustomer.fromJson(Map<String, dynamic> j) => BrokerCustomer(threadId: brokerInt(j['thread_id']), customerName: '${j['customer_name'] ?? 'العميل'}',
     propertyId: brokerInt(j['property_id']), propertyTitle: '${j['property_title'] ?? 'العقار'}', stage: '${j['stage'] ?? 'new'}',
-    deal: j['deal'] is Map ? BrokerDeal.fromJson(brokerMap(j['deal'])) : null);
+    deal: j['deal'] is Map ? BrokerDeal.fromJson(brokerMap(j['deal'])) : null,
+    unreadCount: brokerInt(j['unread_count']), privateNote: '${brokerMap(j['followup'])['private_note'] ?? ''}',
+    remindAt: DateTime.tryParse('${brokerMap(j['followup'])['remind_at'] ?? ''}'), followupDue: brokerMap(j['followup'])['is_due'] == true);
 }
 
 class BrokerAvailability {

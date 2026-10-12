@@ -218,6 +218,103 @@ class BrokerExperienceApiTest extends TestCase
         $this->assertDatabaseCount('property_agreements',0);
     }
 
+    public function test_customer_followup_is_private_owned_and_does_not_create_a_message(): void
+    {
+        [$broker,$bh]=$this->actor('followup-owner',true);
+        [$customer,$ch]=$this->actor('followup-customer');
+        [, $oh]=$this->actor('followup-outsider',true);
+        $property=$this->listing($broker);
+        $thread=$this->conversation($ch,$property);
+        $url='/api/broker/customers/'.$thread.'/followup';
+        $before=DB::table('private_messages')->count();
+        $this->withHeaders($bh)->patchJson($url,['private_note'=>'ملاحظة خاصة لا تظهر للعميل','remind_at'=>now()->addDay()->toIso8601String()])->assertOk();
+        $this->withHeaders($bh)->getJson($url)->assertOk()->assertJsonPath('data.private_note','ملاحظة خاصة لا تظهر للعميل');
+        $this->withHeaders($oh)->getJson($url)->assertNotFound();
+        $this->withHeaders($oh)->patchJson($url,['private_note'=>'changed'])->assertNotFound();
+        $this->withHeaders($ch)->getJson($url)->assertForbidden();
+        $this->withHeaders($ch)->getJson('/api/messages/threads/'.$thread)->assertOk()->assertJsonMissing(['private_note'=>'ملاحظة خاصة لا تظهر للعميل']);
+        $this->getJson('/api/advertisers/'.$broker->id.'/profile')->assertOk()->assertJsonMissing(['private_note'=>'ملاحظة خاصة لا تظهر للعميل']);
+        $this->assertSame($before,DB::table('private_messages')->count());
+        $this->assertDatabaseCount('broker_customer_followups',1);
+    }
+
+    public function test_followup_reminder_is_once_reschedulable_and_can_be_completed(): void
+    {
+        [$broker,$bh]=$this->actor('followup-due',true);
+        [$customer,$ch]=$this->actor('followup-due-customer');
+        $thread=$this->conversation($ch,$this->listing($broker));
+        $url='/api/broker/customers/'.$thread.'/followup';
+        $this->withHeaders($bh)->patchJson($url,['private_note'=>'لا توضع في الإشعار','remind_at'=>now()->addMinutes(2)->toIso8601String()])->assertOk();
+        $this->travel(3)->minutes();
+        $service=app(\App\Services\BrokerCustomerFollowupService::class);
+        $this->assertSame(1,$service->sweep());$this->assertSame(0,$service->sweep());
+        $notice=DB::table('user_notifications')->where('type','broker_customer_followup_due')->first();
+        $this->assertSame($broker->id,(int)$notice->user_id);
+        $this->assertStringNotContainsString('لا توضع في الإشعار',$notice->body);
+        $this->assertSame($thread,(int)$notice->entity_id);
+        $this->withHeaders($bh)->getJson('/api/broker/customers?filter=followup_due')->assertOk()->assertJsonCount(1,'data');
+        $this->withHeaders($bh)->patchJson($url,['private_note'=>'الملاحظة ما زالت خاصة'])->assertOk();
+        $this->assertSame(0,$service->sweep());
+        $this->withHeaders($bh)->patchJson($url,['remind_at'=>now()->addHour()->toIso8601String()])->assertOk();
+        $this->assertNotNull(DB::table('user_notifications')->where('id',$notice->id)->value('read_at'));
+        $this->travel(61)->minutes();$this->assertSame(1,$service->sweep());
+        $this->withHeaders($bh)->patchJson($url,['remind_at'=>null])->assertOk()->assertJsonPath('data.private_note','الملاحظة ما زالت خاصة');
+        $this->withHeaders($bh)->getJson('/api/broker/customers?filter=followup_due')->assertJsonCount(0,'data');
+        $this->assertSame(0,$service->sweep());
+        $this->assertSame(0,DB::table('user_notifications')->where('type','broker_customer_followup_due')->where('user_id',$customer->id)->count());
+    }
+
+    public function test_followup_validation_and_changed_ownership_preserve_private_records(): void
+    {
+        [$broker,$bh]=$this->actor('followup-invalid',true);
+        [, $ch]=$this->actor('followup-invalid-customer');
+        [$other]=$this->actor('followup-new-owner',true);
+        $property=$this->listing($broker);$thread=$this->conversation($ch,$property);
+        $url='/api/broker/customers/'.$thread.'/followup';
+        $this->withHeaders($bh)->patchJson($url,['private_note'=>str_repeat('x',1501)])->assertUnprocessable();
+        $this->withHeaders($bh)->patchJson($url,['remind_at'=>now()->subMinute()->toIso8601String()])->assertUnprocessable();
+        $this->withHeaders($bh)->patchJson($url,['remind_at'=>now()->addYears(2)->toIso8601String()])->assertUnprocessable();
+        $this->withHeaders($bh)->patchJson($url,['private_note'=>'تبقى خاصة','remind_at'=>now()->addMinute()->toIso8601String()])->assertOk();
+        $property->forceFill(['user_id'=>$other->id])->saveQuietly();
+        $this->travel(2)->minutes();
+        $this->assertSame(0,app(\App\Services\BrokerCustomerFollowupService::class)->sweep());
+        $this->withHeaders($bh)->getJson($url)->assertNotFound();
+        $this->assertDatabaseHas('broker_customer_followups',['user_id'=>$broker->id,'private_note'=>'تبقى خاصة']);
+    }
+
+    public function test_unread_customer_shortcut_uses_the_server_read_marker(): void
+    {
+        [$broker,$bh]=$this->actor('unread-shortcut',true);
+        [, $ch]=$this->actor('unread-shortcut-customer');
+        $thread=$this->conversation($ch,$this->listing($broker));
+        $this->withHeaders($ch)->postJson('/api/messages/threads/'.$thread.'/messages',['body'=>'أرغب بالمعاينة','client_message_id'=>'shortcut-message'])->assertCreated();
+        $this->withHeaders($bh)->getJson('/api/broker/customers?filter=unread')->assertOk()->assertJsonCount(1,'data')->assertJsonPath('data.0.thread_id',$thread);
+        $this->withHeaders($bh)->getJson('/api/messages/threads/'.$thread)->assertOk();
+        $this->withHeaders($bh)->getJson('/api/broker/customers?filter=unread')->assertOk()->assertJsonCount(0,'data');
+        $this->withHeaders($bh)->getJson('/api/broker/customers?filter=all')->assertJsonCount(1,'data');
+    }
+
+    public function test_today_viewing_range_is_private_uses_utc_boundaries_and_returns_public_map_coordinates(): void
+    {
+        [$broker,$bh]=$this->actor('daily-viewings',true);
+        [$customer,$ch]=$this->actor('daily-viewings-customer');
+        [, $oh]=$this->actor('daily-viewings-outside');
+        $property=$this->listing($broker);
+        foreach ([['today',now()->startOfDay()->addHours(10)],['next-day',now()->addDay()->startOfDay()->addHours(10)]] as [$ref,$date]) {
+            \App\Models\ViewingBooking::query()->create(['reference'=>'DAILY-'.$ref,'target_type'=>'property','target_id'=>$property->id,'target_title_snapshot'=>$property->title,
+                'requester_user_id'=>$customer->id,'requester_name_snapshot'=>$customer->name,'host_user_id'=>$broker->id,'host_name_snapshot'=>$broker->name,
+                'starts_at'=>$date,'ends_at'=>$date->copy()->addHour(),'timezone'=>'Asia/Aden','status'=>'confirmed']);
+        }
+        $query=http_build_query(['starts_from'=>now()->startOfDay()->toIso8601String(),'starts_before'=>now()->addDay()->startOfDay()->toIso8601String()]);
+        $this->withHeaders($bh)->getJson('/api/bookings/mine?'.$query)->assertOk()->assertJsonCount(1,'data')->assertJsonPath('data.0.reference','DAILY-today')->assertJsonPath('data.0.target_latitude',15.35);
+        $this->withHeaders($oh)->getJson('/api/bookings/mine?'.$query)->assertOk()->assertJsonCount(0,'data');
+        $this->withHeaders($bh)->getJson('/api/bookings/mine')->assertJsonCount(2,'data');
+        $this->withHeaders($bh)->getJson('/api/bookings/mine?'.http_build_query(['starts_from'=>now()->toIso8601String()]))->assertUnprocessable();
+        $this->withHeaders($bh)->getJson('/api/bookings/mine?'.http_build_query(['starts_from'=>now()->toIso8601String(),'starts_before'=>now()->addDays(40)->toIso8601String()]))->assertUnprocessable();
+        $property->forceFill(['availability_status'=>'paused'])->saveQuietly();
+        $this->withHeaders($bh)->getJson('/api/bookings/mine?'.$query)->assertOk()->assertJsonPath('data.0.target_latitude',null);
+    }
+
     private function actor(string $key, bool $professional=false, string $governorate='صنعاء'): array
     {
         $user=User::query()->create(['name'=>'Broker Test '.$key,'email'=>$key.'@broker.test','phone'=>'+9677'.substr(hash('crc32b',$key),0,8),

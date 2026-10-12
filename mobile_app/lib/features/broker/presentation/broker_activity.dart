@@ -12,6 +12,7 @@ import '../../messages/presentation/messages_screen.dart';
 import '../data/broker_repository.dart';
 import '../domain/broker_models.dart';
 import 'broker_workspaces.dart';
+import 'customer_followup_sheet.dart';
 
 String brokerMoney(dynamic amount, String currency) => '${brokerNumber(amount).toStringAsFixed(2)} ${currency == 'YER' ? 'ر.ي' : currency}';
 
@@ -52,14 +53,15 @@ double? _brokerAmount(String text) {
 }
 
 class BrokerActivityScreen extends StatelessWidget {
-  const BrokerActivityScreen({this.initialTab = 0, super.key});
+  const BrokerActivityScreen({this.initialTab = 0, this.todayOnly = false, super.key});
   final int initialTab;
+  final bool todayOnly;
   @override
-  Widget build(BuildContext context) => DefaultTabController(length: 3, initialIndex: initialTab.clamp(0, 2).toInt(), child: BrokerScaffold(
+  Widget build(BuildContext context) => DefaultTabController(key: ValueKey('activity-$initialTab-$todayOnly'), length: 3, initialIndex: initialTab.clamp(0, 2).toInt(), child: BrokerScaffold(
     appBar: AppBar(title: const Text('نشاطي'), bottom: const TabBar(isScrollable: true, tabs: [
       Tab(text: 'الصفقات'), Tab(text: 'المعاينات'), Tab(text: 'المحادثات'),
     ])),
-    body: const TabBarView(children: [BrokerDealsList(), BookingsScreen(embedded: true), MessagesScreen(embedded: true)]),
+    body: TabBarView(children: [const BrokerDealsList(), BookingsScreen(embedded: true, initiallyToday: todayOnly), const MessagesScreen(embedded: true)]),
   ));
 }
 
@@ -173,6 +175,7 @@ class BrokerConversationTools extends ConsumerWidget {
         else if (thread.canManageCustomer) ...[
           Text(brokerLeadLabels[thread.leadStage] ?? 'عميل جديد'),
           Wrap(spacing: 8, children: [AppButton(label: 'تسجيل نتيجة الصفقة', onPressed: () => reportBrokerDeal(context, ref, thread.id)),
+            AppButton(label: 'ملاحظة وتذكير', icon: Icons.event_note_outlined, onPressed: () => editCustomerFollowup(context, ref, thread.id)),
             AppButton(label: 'متابعة العميل', onPressed: () => context.push('/broker/customers?property=${thread.propertyId}'))]),
         ] else const Text('يمكنك تأكيد نتيجة الصفقة هنا عندما يسجلها المعلن.'),
       ]))));

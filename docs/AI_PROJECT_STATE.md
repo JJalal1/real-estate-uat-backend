@@ -1,6 +1,15 @@
 # AI Project State — REAL ESTATE UAT
 
-Last updated: 2026-09-09
+Last updated: 2026-10-12
+
+## Active broker UAT work — current authority
+
+The private feature branch is `work/broker-experience-v1`, based on the purchased eBroker design foundation. Broker UX commit `5dcd71856102f82d755522b4d92332e856273267` passed Broker Experience CI run `38202499279`, produced APK 1007, and is live on `real-estate-uat-api-frankfurt` (deploy `dep-db6jtcjl550s73b91phg`). The broker migration, PostgreSQL/PostGIS and private storage readiness passed. Device acceptance remains pending; this workspace cannot issue direct live API smoke requests due to its network policy.
+
+The product owner has now explicitly requested six conveniences: exact dashboard destinations, automatic local listing recovery, private customer notes/reminders, editable quick replies, a today viewing agenda, and one primary action per operational card. These reuse the existing listing, conversation, booking, notification and eBroker components. New follow-up data is advertiser/account-bound and inaccessible to direct anonymous/authenticated database clients. Automatic recovery stays in app-private Android no-backup storage; saving/submitting the server listing remains explicit.
+
+This work does not authorize merging into main or protected reference branches, or creating production/paid resources. Historical phase/environment statements below are retained as history and do not override this active branch, current code or fresh CI evidence.
+
 
 ## Current gate — Phase 4 CLOSED; next work is product-owner priority intake
 

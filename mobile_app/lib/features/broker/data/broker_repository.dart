@@ -52,8 +52,14 @@ class BrokerRepository {
     _page(await _get('/brokers', public: true, query: {'page': page, 'per_page': perPage, if (governorate != null) 'governorate': governorate}), BrokerProfile.fromJson);
   Future<BrokerProfile> profile(int id) async => BrokerProfile.fromJson(brokerMap((await _get('/advertisers/$id/profile', public: true))['data']));
   Future<Map<String, dynamic>> workspace() async => brokerMap((await _get('/broker/workspace'))['data']);
-  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1}) async =>
-    _page(await _get('/broker/customers', query: {'page': page, if (stage != null) 'stage': stage, if (propertyId != null) 'property_id': propertyId}), BrokerCustomer.fromJson);
+  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) async =>
+    _page(await _get('/broker/customers', query: {'page': page, if (stage != null) 'stage': stage, if (propertyId != null) 'property_id': propertyId,
+      if (filter != null && filter != 'all') 'filter': filter}), BrokerCustomer.fromJson);
+  Future<Map<String, dynamic>> followup(int threadId) async => brokerMap((await _get('/broker/customers/$threadId/followup'))['data']);
+  Future<void> saveFollowup(int threadId, {required String note, DateTime? remindAt}) async {
+    await _dio.patch<void>('/broker/customers/$threadId/followup', data: {'private_note': note.trim(), 'remind_at': remindAt?.toUtc().toIso8601String()},
+      options: await _auth.requiredAuthOptions());
+  }
   Future<void> updateCustomer(int threadId, String stage) async {
     await _dio.patch<void>('/broker/customers/$threadId/stage', data: {'stage': stage}, options: await _auth.requiredAuthOptions());
   }

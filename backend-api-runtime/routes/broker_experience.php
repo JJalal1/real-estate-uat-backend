@@ -15,6 +15,8 @@ Route::middleware(['auth.api','account.active'])->group(function (): void {
     Route::post('/broker/support/tasks/{task}/resolution', [BrokerExperienceController::class,'resolveDeal'])->middleware('permission:support.handle_reports');
     Route::get('/broker/customers', [BrokerExperienceController::class,'customers']);
     Route::patch('/broker/customers/{thread}/stage', [BrokerExperienceController::class,'updateCustomer']);
+    Route::get('/broker/customers/{thread}/followup', [BrokerExperienceController::class,'customerFollowup']);
+    Route::patch('/broker/customers/{thread}/followup', [BrokerExperienceController::class,'saveCustomerFollowup']);
     Route::post('/broker/customers/{thread}/completed-deal', [BrokerExperienceController::class,'reportDeal']);
     Route::get('/broker/listings/availability', [BrokerExperienceController::class,'listingAvailability']);
     Route::post('/broker/listings/availability', [BrokerExperienceController::class,'changeAvailability']);

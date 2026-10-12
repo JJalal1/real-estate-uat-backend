@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_card_actions.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,17 +11,19 @@ import '../data/booking_repository.dart';
 import '../domain/booking_models.dart';
 import 'booking_request_sheet.dart';
 
-final _bookingRowsProvider = FutureProvider.autoDispose
-    .family<List<ViewingBooking>, bool>((ref, managed) {
+typedef _BookingListKey = (bool, DateTime?, DateTime?);
+final _bookingRowsProvider = FutureProvider.autoDispose.family<List<ViewingBooking>, _BookingListKey>((ref, key) {
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   final repo = ref.watch(bookingRepositoryProvider);
-  return managed ? repo.managed() : repo.mine();
+  return key.$1 ? repo.managed(from: key.$2, before: key.$3) : repo.mine(from: key.$2, before: key.$3);
 });
 
 class BookingsScreen extends ConsumerStatefulWidget {
-  const BookingsScreen({this.initialBookingId, this.embedded = false, super.key});
+  const BookingsScreen({this.initialBookingId, this.embedded = false, this.initiallyToday = false, super.key});
 
   final int? initialBookingId;
   final bool embedded;
+  final bool initiallyToday;
 
   @override
   ConsumerState<BookingsScreen> createState() => _BookingsScreenState();
@@ -27,8 +31,24 @@ class BookingsScreen extends ConsumerStatefulWidget {
 
 class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   bool _managed = false;
+  late bool _today = widget.initiallyToday;
+  _BookingListKey _key(bool managed) {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    return (managed, _today ? start : null, _today ? DateTime(now.year, now.month, now.day + 1) : null);
+  }
+  @override
+  void didUpdateWidget(covariant BookingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initiallyToday != widget.initiallyToday) _today = widget.initiallyToday;
+  }
 
   List<ViewingBooking> _prioritized(List<ViewingBooking> items) {
+    if (_today) {
+      final now = DateTime.now();
+      items = items.where((b) { final d = b.startsAt.toLocal(); return d.year == now.year && d.month == now.month && d.day == now.day; }).toList()
+        ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+    }
     final id = widget.initialBookingId;
     if (id == null) return items;
     final index = items.indexWhere((item) => item.id == id);
@@ -72,8 +92,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                 user.hasPermission('bookings.manage') ||
                 user.hasPermission('developments.manage');
             if (!canManaged && _managed) _managed = false;
-            final rows = ref.watch(_bookingRowsProvider(_managed));
+            final rows = ref.watch(_bookingRowsProvider(_key(_managed)));
             return Column(children: [
+              Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Wrap(spacing: 8, runSpacing: 8, children: [
+                EbrokerChoiceChip(label: const Text('كل المعاينات'), selected: !_today, onSelected: (_) => setState(() => _today = false)),
+                EbrokerChoiceChip(label: const Text('معاينات اليوم'), selected: _today, onSelected: (_) => setState(() => _today = true)),
+              ])),
               if (canManaged)
                 Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
@@ -108,12 +132,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                       child: displayed.isEmpty
                           ? ListView(
                               physics: const AlwaysScrollableScrollPhysics(),
-                              children: const [
-                                  SizedBox(height: 140),
-                                  EbrokerIcon(Icons.event_busy_outlined, size: 54),
-                                  SizedBox(height: 12),
-                                  Center(
-                                      child: Text('لا توجد طلبات معاينة حالياً.'))
+                              children: [
+                                  const SizedBox(height: 140),
+                                  const EbrokerIcon(Icons.event_busy_outlined, size: 54),
+                                  const SizedBox(height: 12),
+                                  Center(child: Text(_today ? 'لا توجد معاينات اليوم.' : 'لا توجد طلبات معاينة حالياً.'))
                                 ])
                           : ListView.separated(
                               padding:
@@ -142,10 +165,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   }
 
   Future<void> _refresh() async {
-    ref.invalidate(_bookingRowsProvider(false));
-    ref.invalidate(_bookingRowsProvider(true));
+    ref.invalidate(_bookingRowsProvider(_key(false)));
+    ref.invalidate(_bookingRowsProvider(_key(true)));
     try {
-      await ref.read(_bookingRowsProvider(_managed).future);
+      await ref.read(_bookingRowsProvider(_key(_managed)).future);
     } catch (_) {}
   }
 
@@ -153,6 +176,14 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     if (action == 'conversation') {
       final threadId = booking.messageThreadId;
       if (threadId != null && mounted) await context.push('/messages/$threadId');
+      return;
+    }
+    if (action == 'map' && booking.targetLatitude != null && booking.targetLongitude != null) {
+      final coordinates = '${booking.targetLatitude},${booking.targetLongitude}';
+      try {
+        final opened = await launchUrl(Uri(scheme: 'geo', path: coordinates, queryParameters: {'q': coordinates}), mode: LaunchMode.externalApplication);
+        if (!opened && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح الخريطة على هذا الجهاز.')));
+      } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح الخريطة على هذا الجهاز.'))); }
       return;
     }
     try {
@@ -278,48 +309,16 @@ class _BookingCard extends StatelessWidget {
                 const SizedBox(height: 7),
                 Text('سبب الإلغاء: ${booking.cancellationReason}')
               ],
-              if (booking.messageThreadId != null) ...[
-                const SizedBox(height: 10),
-                EbrokerOutlinedButton.icon(
-                  onPressed: () => onAction('conversation'),
-                  icon: const EbrokerIcon(Icons.chat_bubble_outline),
-                  label: const Text('فتح محادثة المعاينة'),
-                ),
-              ],
-              if (booking.isActive) ...[
-                const SizedBox(height: 10),
-                Wrap(spacing: 8, runSpacing: 8, children: [
-                  if (booking.canConfirm)
-                    EbrokerFilledButton.icon(
-                        onPressed: () => onAction('confirm'),
-                        icon: const EbrokerIcon(Icons.check_circle_outline),
-                        label: Text(booking.canAcceptReschedule
-                            ? 'قبول الموعد الجديد'
-                            : 'تأكيد')),
-                  if (booking.canDecline)
-                    EbrokerOutlinedButton.icon(
-                        onPressed: () => onAction('decline'),
-                        icon: const EbrokerIcon(Icons.cancel_outlined),
-                        label: const Text('رفض')),
-                  if (booking.canReschedule)
-                    EbrokerOutlinedButton.icon(
-                        onPressed: () => onAction('reschedule'),
-                        icon: const EbrokerIcon(Icons.schedule_outlined),
-                        label: const Text('تغيير الموعد')),
-                  if (booking.canCancel)
-                    EbrokerOutlinedButton.icon(
-                        onPressed: () => onAction('cancel'),
-                        icon: const EbrokerIcon(Icons.event_busy_outlined),
-                        label: const Text('إلغاء')),
-                ])
-              ],
-              if (booking.canComplete) ...[
-                const SizedBox(height: 10),
-                EbrokerFilledButton.tonalIcon(
-                    onPressed: () => onAction('complete'),
-                    icon: const EbrokerIcon(Icons.task_alt),
-                    label: const Text('تسجيل كمكتمل'))
-              ],
+              const SizedBox(height: 10),
+              EbrokerCardActions(actions: [
+                if (booking.canConfirm) EbrokerCardAction(booking.canAcceptReschedule ? 'قبول الموعد الجديد' : 'تأكيد', () => onAction('confirm'), icon: Icons.check_circle_outline),
+                if (booking.canComplete) EbrokerCardAction('تسجيل كمكتمل', () => onAction('complete'), icon: Icons.task_alt),
+                if (booking.messageThreadId != null) EbrokerCardAction('فتح محادثة المعاينة', () => onAction('conversation'), icon: Icons.chat_bubble_outline),
+                if (booking.targetLatitude != null && booking.targetLongitude != null) EbrokerCardAction('موقع العقار', () => onAction('map'), icon: Icons.location_on_outlined),
+                if (booking.isActive && booking.canDecline) EbrokerCardAction('رفض', () => onAction('decline'), icon: Icons.cancel_outlined),
+                if (booking.isActive && booking.canReschedule) EbrokerCardAction('تغيير الموعد', () => onAction('reschedule'), icon: Icons.schedule_outlined),
+                if (booking.isActive && booking.canCancel) EbrokerCardAction('إلغاء', () => onAction('cancel'), icon: Icons.event_busy_outlined),
+              ]),
               const SizedBox(height: 6),
               Text('المرجع: ${booking.reference}',
                   style: Theme.of(context).textTheme.bodySmall),

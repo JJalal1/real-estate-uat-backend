@@ -66,13 +66,15 @@ final _property = PropertyMarker.fromJson({
 });
 
 class _MessagesFixture implements MessageRepository {
+  _MessagesFixture({this.canManageCustomer = false});
+  final bool canManageCustomer;
   final sent = <String>[];
   final sentThreadIds = <int>[];
   @override
   Future<MessageThreadDetails> details(int threadId, {int? beforeId}) async =>
     MessageThreadDetails.fromJson({
       'thread': {'id': threadId, 'property_id': 37, 'property_status': 'published',
-        'property_title': _property.title, 'other_user': {'id': 2, 'name': 'المعلن'}},
+        'can_manage_customer': canManageCustomer, 'property_title': _property.title, 'other_user': {'id': 2, 'name': 'المعلن'}},
       'messages': [
         {'id': 1, 'sender_user_id': 2, 'sender_name': 'المعلن',
           'body': 'مرحباً، كيف أستطيع مساعدتك؟', 'is_mine': false},
@@ -129,7 +131,7 @@ class _BookingsFixture implements BookingRepository {
   final List<ViewingBooking> items;
   final confirmed = <int>[];
   @override
-  Future<List<ViewingBooking>> mine() async => items;
+  Future<List<ViewingBooking>> mine({DateTime? from, DateTime? before}) async => items;
   @override
   Future<ViewingBooking> confirm(int bookingId, {String? note}) async {
     confirmed.add(bookingId);
@@ -341,6 +343,22 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('quick reply is editable and only sends after the original send button', (tester) async {
+    final messages = _MessagesFixture(canManageCustomer: true);
+    await _pump(tester, user: _user(verified: true), initial: '/messages/19', messages: messages);
+    await tester.tap(find.byTooltip('ردود سريعة')); await tester.pumpAndSettle();
+    await tester.tap(find.text('سأرد عليك')); await tester.pumpAndSettle();
+    expect(messages.sent, isEmpty);
+    final editor = tester.widget<TextField>(find.byType(TextField));
+    expect(editor.controller!.text, isNotEmpty);
+    await tester.enterText(find.byType(TextField), 'سأرد عليك بعد العصر.');
+    expect(messages.sent, isEmpty);
+    await tester.tap(find.byWidgetPredicate((w) => w is EbrokerIcon && w.icon == Icons.send));
+    await tester.pumpAndSettle();
+    expect(messages.sent, ['سأرد عليك بعد العصر.']); expect(messages.sentThreadIds, [19]);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final page in ['/', '/auth', '/messages/19', '/listing-preview', '/properties/37', '/favorites', '/verify-phone']) {
     for (final scale in (page == '/properties/37' || page == '/favorites' || page == '/verify-phone') ? [1.0, 2.4] : [2.4]) {
     testWidgets('template screen $page supports 320 width and Arabic scale $scale', (tester) async {
@@ -365,8 +383,8 @@ void main() {
     await tester.scrollUntilVisible(find.byType(EbrokerPropertyHorizontalCard), 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.byType(EbrokerPropertyHorizontalCard), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('تعديل'), 300, scrollable: find.byType(Scrollable).first);
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byTooltip('خيارات البطاقة'), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byTooltip('خيارات البطاقة')); await tester.pumpAndSettle();
     expect(find.text('تعديل').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

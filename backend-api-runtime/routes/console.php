@@ -117,3 +117,9 @@ Schedule::command('support:process-contact-followups')->hourly();
     $this->info('Availability reminders and pauses refreshed.');
 });
 \Illuminate\Support\Facades\Schedule::command('broker:refresh-availability')->hourly()->withoutOverlapping();
+
+\Illuminate\Support\Facades\Artisan::command('broker:process-followups', function (): void {
+    $sent=app(\App\Services\BrokerCustomerFollowupService::class)->sweep(500);
+    $this->info("Private customer reminders: {$sent}.");
+});
+\Illuminate\Support\Facades\Schedule::command('broker:process-followups')->everyMinute()->withoutOverlapping();

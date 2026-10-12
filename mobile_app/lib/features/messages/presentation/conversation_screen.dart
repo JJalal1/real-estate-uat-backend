@@ -35,6 +35,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   String? _pendingMessageKey;
   String? _pendingMessageText;
 
+  void _chooseQuickReply(String text) {
+    if (_sending) return;
+    final current = _controller.text.trim();
+    final candidate = current.isEmpty ? text : '$current\n$text';
+    if (candidate.length > 2000) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختصر الرسالة الحالية قبل إضافة الرد السريع.'))); return;
+    }
+    _controller.value = TextEditingValue(text: candidate, selection: TextSelection.collapsed(offset: candidate.length));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -486,6 +496,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               child: Padding(
                   padding: const EdgeInsets.all(10),
                   child: Row(children: [
+                    PopupMenuButton<String>(tooltip: 'ردود سريعة', enabled: !_sending && !_loading && _error == null,
+                      icon: const EbrokerIcon(Icons.quickreply_outlined, size: 22),
+                      onSelected: _chooseQuickReply,
+                      itemBuilder: (_) => [
+                        if (thread?.canManageCustomer == true && thread?.isPropertyUnavailable != true) const PopupMenuItem(value: 'العقار متاح حاليًا. هل يناسبك تحديد موعد للمعاينة؟', child: Text('العقار متاح')),
+                        const PopupMenuItem(value: 'متى يناسبك موعد المعاينة؟', child: Text('اقتراح موعد معاينة')),
+                        const PopupMenuItem(value: 'شكرًا لتواصلك. سأراجع التفاصيل وأرد عليك.', child: Text('سأرد عليك')),
+                        const PopupMenuItem(value: 'شكرًا لك. هل ما زلت مهتمًا بهذا العقار؟', child: Text('متابعة الاهتمام')),
+                      ]),
                     Expanded(
                         child: TextField(
                             controller: _controller,

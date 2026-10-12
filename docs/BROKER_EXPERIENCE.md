@@ -25,3 +25,13 @@ Ordering is independent of displayed stars: 50% rating quality, 35% recent confi
 ## Verification and release
 
 `Broker Experience CI` runs the original Laravel suite, disposable PostgreSQL/PostGIS migration and access checks, Flutter analysis, original and new widget/navigation regression, rendered previews and a release UAT APK. Native Android code, dependency declarations and original pinned build dependency checks remain intact. Compilation targets the existing Frankfurt UAT API. Deploy only the green feature commit to the existing UAT runtime and apply Laravel migrations there; do not apply anonymous/client database grants. Commit evidence and APK SHA-256 accompany the build artifact. Feature PR merging still requires the repository's review and product-owner approval policy.
+
+
+## Broker conveniences
+
+- Dashboard unread/follow-up/viewing shortcuts retain the requested filter/tab. Read markers are authoritative on the server.
+- The canonical listing editor recovers text, public listing photos and its current step locally per signed-in account and original editor listing ID. Android recovery lives in app-private `no_backup`; no token, identity/selfie or ownership-proof file is copied. An existing saved draft ID is resolved before another write to avoid creating a duplicate. A successful explicit server save removes local recovery. Public listing media and private evidence uploads remain explicit; preview never submits.
+- Customer notes and reminders reuse the canonical property conversation. GET/PATCH `/broker/customers/{thread}/followup` authorize the current verified listing owner/participant. Notes never enter customer messages, public profiles, notification bodies or audit metadata. The due processor locks rows and creates one owner-only notification per scheduled date; rescheduling/completing marks the old notice read. Scheduled commands and bounded traffic refresh reuse existing notification infrastructure. This UAT uses in-app reminders; a sleeping free runtime advances due reminders when relevant traffic resumes.
+- Quick replies insert editable composer text. Only the existing explicit Send button sends a retry-safe message; no viewing or transaction is auto-confirmed.
+- `starts_from`/`starts_before` on existing booking lists scope a bounded UTC date window while preserving actor permissions. The phone supplies its local day boundaries, renders today chronologically, and opens the canonical conversation or a currently public property's map coordinates.
+- Operational cards expose a primary authorized action and a menu retaining all other actions. Backend review, financial, ownership and two-party-confirmation rules remain unchanged.

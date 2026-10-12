@@ -63,7 +63,7 @@ class BrokerTestRepository implements BrokerRepository {
   @override
   Future<void> updateAvailability(List<int> ids, String state) async { availabilityChanges.add((List.of(ids), state)); }
   @override
-  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1}) async => const BrokerPage(items: [
+  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) async => const BrokerPage(items: [
     BrokerCustomer(threadId: 19, customerName: 'عميل تجريبي', propertyId: 11, propertyTitle: 'شقة حدة', stage: 'new'),
   ], page: 1, lastPage: 1);
   @override

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_card_actions.dart';
+import 'customer_followup_sheet.dart';
 import '../../account/data/auth_controller.dart';
 import '../../properties/data/property_repository.dart';
 import '../data/broker_repository.dart';
@@ -58,8 +60,9 @@ class BrokerDashboardScreen extends ConsumerWidget {
           final attention = brokerMap(data['needs_attention']), finance = brokerMap(data['financial_summary']);
           final corrections = brokerRows(attention['correction_listings']).length;
           final priorities = <({String text, String route, IconData icon})>[
-            if (brokerInt(activity['unread_conversations']) > 0) (text: '${brokerInt(activity['unread_conversations'])} محادثات تحتاج ردك', route: '/broker/customers', icon: Icons.chat_bubble_outline),
-            if (brokerInt(activity['active_viewings']) > 0) (text: '${brokerInt(activity['active_viewings'])} معاينات للمتابعة', route: '/broker/activity', icon: Icons.event_outlined),
+            if (brokerInt(activity['unread_conversations']) > 0) (text: '${brokerInt(activity['unread_conversations'])} محادثات تحتاج ردك', route: '/broker/customers?filter=unread', icon: Icons.chat_bubble_outline),
+            if (brokerInt(activity['active_viewings']) > 0) (text: '${brokerInt(activity['active_viewings'])} معاينات للمتابعة', route: '/broker/activity?tab=viewings', icon: Icons.event_outlined),
+            if (brokerInt(attention['customer_followups_due']) > 0) (text: '${brokerInt(attention['customer_followups_due'])} عملاء حان موعد متابعتهم', route: '/broker/customers?filter=followup_due', icon: Icons.event_note_outlined),
             if (corrections > 0) (text: '$corrections إعلانات تحتاج تصحيحًا', route: '/my-listings', icon: Icons.edit_outlined),
             if (brokerInt(attention['availability_count']) > 0) (text: '${brokerInt(attention['availability_count'])} إعلانات تحتاج تأكيد التوفر', route: '/broker/availability', icon: Icons.update),
             if (brokerInt(attention['pending_deal_count']) > 0) (text: 'تابع نتائج الصفقات التي تنتظر التأكيد', route: '/broker/activity', icon: Icons.check_circle_outline),
@@ -94,6 +97,7 @@ class BrokerDashboardScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 AppButton(label: 'إضافة عقار', icon: Icons.add, onPressed: () => context.push('/add-property')),
+                AppButton(label: 'معاينات اليوم', icon: Icons.today_outlined, onPressed: () => context.push('/broker/activity?tab=viewings&today=1')),
                 AppButton(label: 'تحديث التوفر', icon: Icons.update, onPressed: () => context.push('/broker/availability')),
                 AppButton(label: 'المستحقات', icon: Icons.account_balance_wallet_outlined, onPressed: () => context.push('/broker/finance')),
               ]),
@@ -105,7 +109,7 @@ class BrokerDashboardScreen extends ConsumerWidget {
                   for (final metric in <({int count, String label, String route})>[
                     (count: profile?.activeListings ?? brokerInt(listings['published']), label: 'عقارات نشطة', route: '/my-listings'),
                     (count: brokerInt(activity['new_customers_this_week']), label: 'عملاء جدد هذا الأسبوع', route: '/broker/customers'),
-                    (count: brokerInt(activity['active_viewings']), label: 'معاينات نشطة', route: '/broker/activity'),
+                    (count: brokerInt(activity['active_viewings']), label: 'معاينات نشطة', route: '/broker/activity?tab=viewings'),
                     (count: brokerInt(activity['completed_deals']), label: 'صفقات مكتملة مؤكدة', route: '/broker/activity'),
                   ]) SizedBox(width: width, child: InkWell(onTap: () => context.push(metric.route), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${metric.count}', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
@@ -123,9 +127,10 @@ class BrokerDashboardScreen extends ConsumerWidget {
 }
 
 class BrokerCustomersScreen extends ConsumerStatefulWidget {
-  const BrokerCustomersScreen({this.propertyId, this.selectForDeal = false, super.key});
+  const BrokerCustomersScreen({this.propertyId, this.selectForDeal = false, this.initialFilter = 'all', super.key});
   final int? propertyId;
   final bool selectForDeal;
+  final String initialFilter;
   @override
   ConsumerState<BrokerCustomersScreen> createState() => _BrokerCustomersState();
 }
@@ -133,14 +138,15 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
   final _items = <BrokerCustomer>[];
   bool _loading = true, _moreBusy = false;
   String? _stage, _error;
+  late String _filter;
   int _page = 1, _lastPage = 1, _request = 0;
   @override
-  void initState() { super.initState(); Future.microtask(_load); }
+  void initState() { super.initState(); _filter = const ['unread', 'followup_due'].contains(widget.initialFilter) ? widget.initialFilter : 'all'; Future.microtask(_load); }
   Future<void> _load({bool more = false}) async {
     final request = ++_request;
     if (more) { setState(() => _moreBusy = true); } else { setState(() { _loading = true; _error = null; }); }
     try {
-      final result = await ref.read(brokerRepositoryProvider).customers(stage: _stage, propertyId: widget.propertyId, page: more ? _page + 1 : 1);
+      final result = await ref.read(brokerRepositoryProvider).customers(stage: _stage, propertyId: widget.propertyId, filter: _filter, page: more ? _page + 1 : 1);
       if (!mounted || request != _request) return;
       setState(() { if (!more) _items.clear(); _items.addAll(result.items); _page = result.page; _lastPage = result.lastPage; _loading = false; _moreBusy = false; });
     } catch (error) { if (mounted && request == _request) setState(() { _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
@@ -154,6 +160,10 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
     appBar: AppAppBar(title: widget.selectForDeal ? 'اختر عميل الصفقة' : 'العملاء'),
     body: _loading ? const AppLoadingState() : _error != null ? AppErrorState(message: _error!, onRetry: _load) : RefreshIndicator(onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
+        if (!widget.selectForDeal) Padding(padding: const EdgeInsets.only(bottom: 10), child: Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final entry in const {'all': 'كل العملاء', 'unread': 'تحتاج ردك', 'followup_due': 'حان موعد المتابعة'}.entries) EbrokerChoiceChip(
+            label: Text(entry.value), selected: _filter == entry.key, onSelected: (_) { setState(() => _filter = entry.key); _load(); }),
+        ])),
         if (!widget.selectForDeal) DropdownButtonFormField<String>(value: _stage, isExpanded: true, hint: const Text('كل العملاء'), decoration: const InputDecoration(labelText: 'حالة المتابعة'),
           items: [const DropdownMenuItem(value: null, child: Text('كل العملاء')), for (final entry in brokerLeadLabels.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
           onChanged: (value) { setState(() => _stage = value); _load(); }),
@@ -161,6 +171,7 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
         if (_items.isEmpty) const BrokerPanel(child: Text('لا توجد عملاء في هذه القائمة بعد. ستظهر هنا المحادثات المرتبطة بإعلاناتك.')),
         for (final item in _items) Padding(padding: const EdgeInsets.only(bottom: 10), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [const EbrokerIcon(Icons.person_outline, size: 22), const SizedBox(width: 8), Expanded(child: Text(item.customerName, style: Theme.of(context).textTheme.titleMedium)),
+            if (item.unreadCount > 0) AppStatusBadge(label: '${item.unreadCount} غير مقروءة', tone: AppStatusTone.info),
             if (!widget.selectForDeal && item.stage != 'completed') PopupMenuButton<String>(tooltip: 'تحديث حالة العميل',
               onSelected: (value) => _change(item, value), itemBuilder: (_) => [for (final entry in brokerLeadLabels.entries.where((e) => e.key != 'completed')) PopupMenuItem(value: entry.key, child: Text(entry.value))]),
           ]),
@@ -168,11 +179,16 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
           const SizedBox(height: 8), Text(item.deal?.statusLabel ?? item.stageLabel, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
           const SizedBox(height: 10),
           if (widget.selectForDeal) AppButton(label: 'الصفقة مع هذا العميل', expand: true, onPressed: () => Navigator.of(context).pop(item))
-          else Wrap(spacing: 8, runSpacing: 8, children: [
-            AppButton(label: 'المحادثة', icon: Icons.chat_bubble_outline, onPressed: () async { await context.push('/messages/${item.threadId}'); if (mounted) _load(); }),
-            AppButton(label: 'العقار', icon: Icons.home_outlined, onPressed: () => context.push('/properties/${item.propertyId}')),
-            if (item.deal != null) AppButton(label: 'نتيجة الصفقة', icon: Icons.check_circle_outline, onPressed: () => context.push('/broker/deals/${item.deal!.id}')),
-          ]),
+          else ...[
+            if (item.privateNote.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text('ملاحظة خاصة: ${item.privateNote}', maxLines: 2, overflow: TextOverflow.ellipsis)),
+            if (item.remindAt != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text('${item.followupDue ? 'حان موعد المتابعة' : 'المتابعة'}: ${followupDateLabel(item.remindAt!)}')),
+            EbrokerCardActions(actions: [
+              EbrokerCardAction(item.unreadCount > 0 ? 'الرد على العميل' : 'المحادثة', () async { await context.push('/messages/${item.threadId}'); if (mounted) _load(); }, icon: Icons.chat_bubble_outline),
+              EbrokerCardAction('ملاحظة وتذكير', () async { final saved = await editCustomerFollowup(context, ref, item.threadId, customer: item); if (saved && mounted) _load(); }, icon: Icons.event_note_outlined),
+              EbrokerCardAction('العقار', () => context.push('/properties/${item.propertyId}'), icon: Icons.home_outlined),
+              if (item.deal != null) EbrokerCardAction('نتيجة الصفقة', () => context.push('/broker/deals/${item.deal!.id}'), icon: Icons.check_circle_outline),
+            ]),
+          ],
         ]))),
         if (_page < _lastPage) AppButton(label: _moreBusy ? 'جار التحميل' : 'تحميل المزيد', onPressed: _moreBusy ? null : () => _load(more: true)),
       ])),

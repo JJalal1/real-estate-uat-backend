@@ -21,12 +21,15 @@ use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
 {
+    private array $bookingLocations = [];
     public function __construct(private readonly AuditLogService $audit,private readonly UserNotificationService $notifications) {}
 
     public function mine(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $rows=ViewingBooking::query()->where(fn(Builder $q)=>$q->where('requester_user_id',$user->id)->orWhere('host_user_id',$user->id))->orderByDesc('starts_at')->limit(250)->get();
+        $query=ViewingBooking::query()->where(fn(Builder $q)=>$q->where('requester_user_id',$user->id)->orWhere('host_user_id',$user->id));
+        $this->applyDateRange($query,$request);
+        $rows=$query->orderByDesc('starts_at')->limit(250)->get();$this->loadLocations($rows);
         return response()->json(['data'=>$rows->map(fn(ViewingBooking $b)=>$this->bookingData($b,$user))->values()]);
     }
 
@@ -34,7 +37,8 @@ class BookingController extends Controller
     {
         /** @var User $user */ $user=$request->user();$global=$user->hasPermission('bookings.manage');$development=$user->hasPermission('developments.manage');abort_unless($global||$development,403);
         $q=ViewingBooking::query();if(!$global)$q->where('target_type','development_unit');
-        $rows=$q->orderByDesc('starts_at')->limit(300)->get();return response()->json(['data'=>$rows->map(fn(ViewingBooking $b)=>$this->bookingData($b,$user))->values()]);
+        $this->applyDateRange($q,$request);
+        $rows=$q->orderByDesc('starts_at')->limit(300)->get();$this->loadLocations($rows);return response()->json(['data'=>$rows->map(fn(ViewingBooking $b)=>$this->bookingData($b,$user))->values()]);
     }
 
     public function show(Request $request, ViewingBooking $booking): JsonResponse
@@ -164,8 +168,24 @@ class BookingController extends Controller
 
     private function reference(): string {for($i=0;$i<8;$i++){$reference='V'.strtoupper(bin2hex(random_bytes(6)));if(!ViewingBooking::query()->where('reference',$reference)->exists())return $reference;}throw new \RuntimeException('Could not allocate viewing booking reference.');}
 
+    private function applyDateRange(Builder $query, Request $request): void
+    {
+        $v=$request->validate(['starts_from'=>['nullable','required_with:starts_before','date'], 'starts_before'=>['nullable','required_with:starts_from','date','after:starts_from']]);
+        if (!isset($v['starts_from'],$v['starts_before'])) return;
+        $from=CarbonImmutable::parse($v['starts_from'])->utc();
+        $before=CarbonImmutable::parse($v['starts_before'])->utc();
+        if ($from->diffInDays($before) > 32) throw ValidationException::withMessages(['starts_before'=>['اختر فترة لا تتجاوز شهرًا.']]);
+        $query->where('starts_at','>=',$from)->where('starts_at','<',$before);
+    }
+
+    private function loadLocations($rows): void
+    {
+        $ids=collect($rows)->where('target_type','property')->pluck('target_id')->unique();
+        $this->bookingLocations=Property::query()->publiclyAvailable()->whereIn('id',$ids)->get(['id','latitude','longitude'])->keyBy('id')->all();
+    }
+
     private function bookingData(ViewingBooking $b,User $viewer,bool $includeEvents=false): array
     {
-        $isRequester=(int)$b->requester_user_id===(int)$viewer->id;$awaitingRequester=$this->awaitsRequesterAcceptance($b);$canManage=$this->canManage($viewer,$b);$data=['id'=>$b->id,'reference'=>$b->reference,'requester_user_id'=>$b->requester_user_id,'requester_name'=>$b->requester_name_snapshot,'host_user_id'=>$b->host_user_id,'host_name'=>$b->host_name_snapshot,'message_thread_id'=>$b->message_thread_id,'target_type'=>$b->target_type,'target_id'=>$b->target_id,'target_title'=>$b->target_title_snapshot,'target_address'=>$b->target_address_snapshot,'starts_at'=>$b->starts_at?->toIso8601String(),'ends_at'=>$b->ends_at?->toIso8601String(),'timezone'=>$b->timezone,'status'=>$b->status,'requester_note'=>$b->requester_note,'host_note'=>$b->host_note,'cancellation_reason'=>$b->cancellation_reason,'confirmed_at'=>$b->confirmed_at?->toIso8601String(),'cancelled_at'=>$b->cancelled_at?->toIso8601String(),'completed_at'=>$b->completed_at?->toIso8601String(),'last_action_by_user_id'=>$b->last_action_by_user_id,'last_action_by_name'=>$b->last_action_by_name_snapshot,'is_requester'=>$isRequester,'awaiting_requester_confirmation'=>$awaitingRequester,'can_manage'=>$canManage,'can_confirm'=>($canManage&&$b->status==='requested'&&!$awaitingRequester)||($isRequester&&$awaitingRequester),'can_decline'=>$canManage&&$b->status==='requested'&&!$awaitingRequester,'can_accept_reschedule'=>$isRequester&&$awaitingRequester,'can_cancel'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true),'can_reschedule'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true)];if($includeEvents){if(!$b->relationLoaded('events'))$b->load('events');$data['events']=$b->events->map(fn(ViewingBookingEvent $e)=>['id'=>$e->id,'actor_name'=>$e->actor_name_snapshot,'event'=>$e->event,'from_status'=>$e->from_status,'to_status'=>$e->to_status,'metadata'=>$e->metadata,'created_at'=>$e->created_at?->toIso8601String()])->values();}return $data;
+        $isRequester=(int)$b->requester_user_id===(int)$viewer->id;$awaitingRequester=$this->awaitsRequesterAcceptance($b);$canManage=$this->canManage($viewer,$b);$data=['id'=>$b->id,'reference'=>$b->reference,'requester_user_id'=>$b->requester_user_id,'requester_name'=>$b->requester_name_snapshot,'host_user_id'=>$b->host_user_id,'host_name'=>$b->host_name_snapshot,'message_thread_id'=>$b->message_thread_id,'target_type'=>$b->target_type,'target_id'=>$b->target_id,'target_title'=>$b->target_title_snapshot,'target_address'=>$b->target_address_snapshot,'starts_at'=>$b->starts_at?->toIso8601String(),'ends_at'=>$b->ends_at?->toIso8601String(),'timezone'=>$b->timezone,'status'=>$b->status,'requester_note'=>$b->requester_note,'host_note'=>$b->host_note,'cancellation_reason'=>$b->cancellation_reason,'confirmed_at'=>$b->confirmed_at?->toIso8601String(),'cancelled_at'=>$b->cancelled_at?->toIso8601String(),'completed_at'=>$b->completed_at?->toIso8601String(),'last_action_by_user_id'=>$b->last_action_by_user_id,'last_action_by_name'=>$b->last_action_by_name_snapshot,'is_requester'=>$isRequester,'awaiting_requester_confirmation'=>$awaitingRequester,'can_manage'=>$canManage,'can_confirm'=>($canManage&&$b->status==='requested'&&!$awaitingRequester)||($isRequester&&$awaitingRequester),'can_decline'=>$canManage&&$b->status==='requested'&&!$awaitingRequester,'can_accept_reschedule'=>$isRequester&&$awaitingRequester,'can_cancel'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true),'can_reschedule'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true)];$location=$b->target_type==='property' ? ($this->bookingLocations[$b->target_id] ?? null) : null;$data['target_latitude']=$location?->latitude;$data['target_longitude']=$location?->longitude;if($includeEvents){if(!$b->relationLoaded('events'))$b->load('events');$data['events']=$b->events->map(fn(ViewingBookingEvent $e)=>['id'=>$e->id,'actor_name'=>$e->actor_name_snapshot,'event'=>$e->event,'from_status'=>$e->from_status,'to_status'=>$e->to_status,'metadata'=>$e->metadata,'created_at'=>$e->created_at?->toIso8601String()])->values();}return $data;
     }
 }

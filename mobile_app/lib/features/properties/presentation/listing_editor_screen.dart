@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/listing_recovery_store.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/ebroker_design.dart';
@@ -35,7 +37,7 @@ class ListingEditorScreen extends ConsumerStatefulWidget {
       _ListingEditorScreenState();
 }
 
-class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
+class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with WidgetsBindingObserver {
   static const _typeLabels = <String, String>{
     'apartment': 'شقة',
     'house': 'منزل',
@@ -120,6 +122,108 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   bool _saiBusy = false;
   String _priceDisplayMode = 'excludes_sai';
 
+  Timer? _recoveryTimer;
+  late ListingRecoveryStore _recoveryStore;
+  int? _recoveryUserId, _recoveredServerId;
+  bool _recoveryReady = false, _recoveryFinished = false, _recoverySaved = false, _recoveryFailed = false;
+  String? _lastRecoverySignature;
+
+  Map<String, TextEditingController> get _recoveryFields => {
+    'title': _title, 'description': _description, 'price': _price, 'monthly_rent': _monthlyRent,
+    'rental_term_months': _rentalTermMonths, 'advance_months': _advanceMonths, 'area': _area,
+    'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'district': _district,
+    'street': _street, 'building_reference': _buildingReference, 'unit_number': _unitNumber,
+    'floor_number': _floorNumber, 'phone': _phone, 'whatsapp': _whatsapp,
+    'document_owner_name': _documentOwnerName, 'relationship_note': _relationshipNote,
+  };
+
+  Map<String, dynamic> _recoverySnapshot() => {
+    'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
+    'tenure_type': _tenureType, 'parking': _parkingChoice, 'facade': _facade,
+    'ownership_document_type': _ownershipDocumentType, 'relationship_type': _relationshipType,
+    'latitude': _latitude, 'longitude': _longitude, 'land_boundary': _landBoundaryGeoJson,
+    'replace_images': _replaceImages, 'price_display_mode': _priceDisplayMode,
+    'server_property_id': _existing?.id ?? _recoveredServerId,
+    'proof_needs_reselection': _ownershipProofPath != null,
+    'fields': {for (final entry in _recoveryFields.entries) entry.key: entry.value.text},
+  };
+
+  @override
+  void setState(VoidCallback fn) { super.setState(fn); _scheduleRecovery(); }
+
+  void _scheduleRecovery() {
+    if (!_recoveryReady || _recoveryFinished || _recoveryUserId == null) return;
+    _recoveryTimer?.cancel();
+    _recoveryTimer = Timer(const Duration(milliseconds: 650), () => unawaited(_saveRecovery()));
+  }
+
+  Future<void> _saveRecovery() async {
+    final userId = _recoveryUserId;
+    if (userId == null || !_recoveryReady || _recoveryFinished) return;
+    final data = _recoverySnapshot();
+    final images = List<String>.of(_imagePaths);
+    final signature = jsonEncode([data, images]);
+    if (signature == _lastRecoverySignature) return;
+    try {
+      await _recoveryStore.write(userId, widget.existingProperty?.id, data, images);
+      _lastRecoverySignature = signature;
+      if (mounted && !_recoveryFinished) super.setState(() { _recoverySaved = true; _recoveryFailed = false; });
+    } catch (_) { if (mounted) super.setState(() => _recoveryFailed = true); }
+  }
+
+  Future<void> _restoreRecovery() async {
+    if (_recoveryUserId == null) {
+      try {
+        final actor = await ref.read(authControllerProvider.future);
+        if (!mounted) return;
+        _recoveryUserId = actor?.id;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    final userId = _recoveryUserId;
+    if (userId == null) { _recoveryReady = true; super.setState(() {}); return; }
+    final data = await _recoveryStore.read(userId, widget.existingProperty?.id);
+    if (!mounted) return;
+    if (data != null) {
+      final fields = data['fields'];
+      if (fields is Map) for (final entry in _recoveryFields.entries) {
+        final text = fields[entry.key]; if (text is String) entry.value.text = text;
+      }
+      _step = (data['step'] is int ? data['step'] as int : 0).clamp(0, 4).toInt();
+      if (const ['sale', 'rent'].contains(data['purpose'])) _purpose = data['purpose'] as String;
+      if (_typeLabels.containsKey(data['type'])) _type = data['type'] as String;
+      if (propertyAreaUnitLabels.containsKey(data['area_unit'])) _areaUnit = data['area_unit'] as String;
+      _tenureType = const ['freehold', 'waqf'].contains(data['tenure_type']) ? data['tenure_type'] as String : null;
+      _parkingChoice = const ['yes', 'no'].contains(data['parking']) ? data['parking'] as String : null;
+      _facade = propertyFacadeLabels.containsKey(data['facade']) ? data['facade'] as String : null;
+      _ownershipDocumentType = _ownershipDocumentTypes.containsKey(data['ownership_document_type']) ? data['ownership_document_type'] as String : null;
+      _relationshipType = _relationshipTypes.containsKey(data['relationship_type']) ? data['relationship_type'] as String : null;
+      _latitude = (data['latitude'] as num?)?.toDouble(); _longitude = (data['longitude'] as num?)?.toDouble();
+      if (data['land_boundary'] is Map) _landBoundaryGeoJson = Map<String, dynamic>.from(data['land_boundary'] as Map);
+      _replaceImages = data['replace_images'] == true;
+      if (const ['excludes_sai', 'includes_sai'].contains(data['price_display_mode'])) _priceDisplayMode = data['price_display_mode'] as String;
+      _imagePaths = (data['image_paths'] as List? ?? const []).whereType<String>().toList();
+      final serverId = data['server_property_id'];
+      if (widget.existingProperty == null && serverId is int && serverId > 0) _recoveredServerId = serverId;
+      _recoverySaved = true;
+      if (data['proof_needs_reselection'] == true) _message('استعدنا بيانات الإعلان. أعد اختيار ملف إثبات الملكية عند إكمال المسودة.');
+    }
+    _recoveryReady = true;
+    _lastRecoverySignature = jsonEncode([_recoverySnapshot(), _imagePaths]);
+    super.setState(() {});
+  }
+
+  Future<bool> _resolveRecoveredDraft() async {
+    if (_recoveredServerId == null || _workingDraft != null) return true;
+    try {
+      final existing = await ref.read(propertyRepositoryProvider).details(_recoveredServerId!);
+      if (!mounted) return false;
+      setState(() => _workingDraft = existing);
+      await _refreshSai(existing.id);
+      return true;
+    } catch (error) { if (mounted) _message(friendlyApiError(error)); return false; }
+  }
+
   PropertyDetails? get _existing => _workingDraft ?? widget.existingProperty;
   bool get _startedAsEditing => widget.existingProperty != null;
   bool get _isEditing => _existing != null;
@@ -170,11 +274,24 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _recoveryTimer?.cancel();
+      unawaited(_saveRecovery());
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _price.addListener(_onPriceChanged);
     _monthlyRent.addListener(_onPriceChanged);
     _advanceMonths.addListener(_onPriceChanged);
+    _recoveryStore = ref.read(listingRecoveryStoreProvider);
+    _recoveryUserId = ref.read(authControllerProvider).asData?.value?.id;
+    Future.microtask(_restoreRecovery);
+    for (final controller in _recoveryFields.values) { controller.addListener(_scheduleRecovery); }
     final property = _existing;
     if (property == null) return;
 
@@ -221,14 +338,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _price.removeListener(_onPriceChanged);
     _monthlyRent.removeListener(_onPriceChanged);
     _advanceMonths.removeListener(_onPriceChanged);
+    _recoveryTimer?.cancel();
+    final pendingRecovery = _saveRecovery();
     unawaited(
-      _mediaPicker.clearTemporaryFiles(<String>[
+      pendingRecovery.whenComplete(() => _mediaPicker.clearTemporaryFiles(<String>[
         ..._imagePaths,
         if (_ownershipProofPath != null) _ownershipProofPath!,
-      ]).catchError((_) {}),
+      ].where((path) => !ListingRecoveryStore.isSavedMedia(path)))).catchError((_) {}),
     );
     for (final controller in <TextEditingController>[
       _title,
@@ -251,6 +371,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       _documentOwnerName,
       _relationshipNote,
     ]) {
+      controller.removeListener(_scheduleRecovery);
       controller.dispose();
     }
     super.dispose();
@@ -273,8 +394,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               color: Theme.of(context).colorScheme.primary)))],
         ),
         body: SafeArea(
-          child: Column(
+          child: !_recoveryReady ? const AppLoadingState() : Column(
             children: [
+              if (_recoveryUserId != null) Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 0), child: Text(
+                _recoveryFailed ? 'تعذر الحفظ التلقائي. يمكنك حفظ مسودة.' : _recoverySaved ? 'حُفظ تقدمك تلقائيًا على هذا الجهاز' : 'يُحفظ تقدمك تلقائيًا على هذا الجهاز',
+                style: Theme.of(context).textTheme.bodySmall)),
               if (correctionReason != null &&
                   correctionReason.trim().isNotEmpty)
                 Padding(
@@ -1231,6 +1355,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 
   Future<void> _persist({required bool submit}) async {
+    if (!_recoveryReady || !await _resolveRecoveredDraft()) return;
     final validation = submit ? _validateForSubmit() : _validateCore();
     if (validation != null) {
       _message(validation);
@@ -1300,6 +1425,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
       }
 
       if (!mounted) return;
+      _recoveryFinished = true;
+      _recoveryTimer?.cancel();
+      if (_recoveryUserId != null) await _recoveryStore.clear(_recoveryUserId!, widget.existingProperty?.id);
       _message(submit
           ? 'تم حفظ الإعلان وإرساله للمراجعة.'
           : 'تم حفظ الإعلان كمسودة. يمكنك إكماله وإرساله لاحقاً.');
@@ -1430,6 +1558,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
   }
 
   Future<PropertyDetails?> _ensureDraftForSai() async {
+    if (!_recoveryReady || !await _resolveRecoveredDraft()) return null;
     final validation = _validateCore();
     if (validation != null) {
       _message(validation);
@@ -1752,7 +1881,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
     _imagePaths = <String>[];
     _ownershipProofPath = null;
     try {
-      await _mediaPicker.clearTemporaryFiles(paths);
+      await _mediaPicker.clearTemporaryFiles(paths.where((path) => !ListingRecoveryStore.isSavedMedia(path)));
     } catch (_) {}
   }
 
