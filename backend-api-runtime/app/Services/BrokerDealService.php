@@ -8,6 +8,8 @@ use App\Models\Property;
 use App\Models\PropertyDealFinancialTerm;
 use App\Models\PropertyPlatformReceivable;
 use App\Models\PropertySaiTerm;
+use App\Models\SupportCase;
+use App\Models\SupportTask;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +25,7 @@ class BrokerDealService
         private readonly AuditLogService $audit,
         private readonly UserNotificationService $notifications,
         private readonly SupportCaseService $support,
+        private readonly SupportTaskService $tasks,
     ) {}
 
     public function report(User $actor, MessageThread $thread, ?float $amount, Request $request): BrokerDealOutcome
@@ -63,6 +66,8 @@ class BrokerDealService
     public function decide(User $actor, BrokerDealOutcome $outcome, bool $confirmed, Request $request): BrokerDealOutcome
     {
         return DB::transaction(function () use ($actor, $outcome, $confirmed, $request): BrokerDealOutcome {
+            Property::query()->withoutGlobalScopes()->whereKey($outcome->property_id)->lockForUpdate()->firstOrFail();
+            MessageThread::query()->whereKey($outcome->message_thread_id)->lockForUpdate()->firstOrFail();
             $locked = BrokerDealOutcome::query()->lockForUpdate()->findOrFail($outcome->id);
             abort_unless((int)$locked->customer_user_id === (int)$actor->id, 403);
             if ($locked->status === 'confirmed' && $confirmed) return $locked;
@@ -72,8 +77,15 @@ class BrokerDealService
                 $locked->forceFill(['status'=>'confirmed','customer_confirmed_at'=>now(),'confirmed_at'=>now()])->save();
                 $this->freezeFinance($locked, $request);
                 MessageThread::query()->whereKey($locked->message_thread_id)->update(['lead_stage'=>'completed','lead_updated_at'=>now()]);
+                if ($locked->support_case_id) {
+                    $case=SupportCase::query()->find($locked->support_case_id);
+                    if ($case && !in_array($case->status,SupportCaseService::CLOSED_STATUSES,true)) $this->support->setStatus($actor,$case,'resolved',$request);
+                }
             } else {
-                $case = $this->support->create($actor,'ticket','مراجعة نتيجة صفقة',
+                $case=$locked->support_case_id ? SupportCase::query()->find($locked->support_case_id) : null;
+                if ($case && !in_array($case->status,SupportCaseService::CLOSED_STATUSES,true)) {
+                    $case=$this->support->requesterReply($actor,$case,'لم تتم الصفقة، ولا أؤكد نتيجتها بعد طلب التأكيد مجددًا.',$request);
+                } else $case = $this->support->create($actor,'support_ticket','مراجعة نتيجة صفقة',
                     'العميل لم يؤكد إتمام صفقة العقار '.$locked->snapshot['property_title'].'. لا تحتسب الصفقة أو يفتح تقييم حتى يحسم التأكيد.',
                     'broker_deal_outcome',$locked->id,'deal_not_confirmed','normal',$request);
                 $locked->forceFill(['status'=>'disputed','support_case_id'=>$case->id])->save();
@@ -83,6 +95,40 @@ class BrokerDealService
                 $confirmed ? 'أكد العميل إتمام الصفقة. سجلت النتيجة وفتح التقييم وفق السياسة.' : 'لم يؤكد العميل إتمام الصفقة. لن تحتسب حتى تحسم المراجعة.',
                 'broker_deal_outcome',$locked->id,['deal_id'=>$locked->id,'thread_id'=>$locked->message_thread_id]);
             $this->audit->record($actor,$confirmed ? 'broker.deal_confirmed' : 'broker.deal_disputed',$locked,[],$request,$locked->advertiser_user_id);
+            return $locked->fresh();
+        });
+    }
+
+    public function resolveSupport(User $actor, SupportTask $task, string $decision, string $note, Request $request, bool $actingAsAgent=false): BrokerDealOutcome
+    {
+        $this->tasks->assertTaskExecution($actor,$task,$actingAsAgent);
+        abort_unless(in_array($task->source_type,['support_ticket','report'],true),422);
+        $case=SupportCase::query()->findOrFail($task->source_id);
+        abort_unless($case->target_type === 'broker_deal_outcome',422);
+        $outcome=BrokerDealOutcome::query()->findOrFail($case->target_id);
+        return DB::transaction(function () use ($actor,$task,$case,$outcome,$decision,$note,$request,$actingAsAgent): BrokerDealOutcome {
+            $property=Property::query()->withoutGlobalScopes()->whereKey($outcome->property_id)->lockForUpdate()->firstOrFail();
+            $thread=MessageThread::query()->whereKey($outcome->message_thread_id)->lockForUpdate()->firstOrFail();
+            $locked=BrokerDealOutcome::query()->whereKey($outcome->id)->lockForUpdate()->firstOrFail();
+            $claimed=SupportTask::query()->whereKey($task->id)->lockForUpdate()->firstOrFail();
+            $this->tasks->assertTaskExecution($actor,$claimed,$actingAsAgent);
+            abort_unless($claimed->isActive() && $locked->status === 'disputed' && (int)$locked->support_case_id === (int)$case->id,409);
+            $locked->forceFill(['status'=>$decision === 'retry' ? 'pending_customer' : 'cancelled',
+                'resolved_by_user_id'=>$actor->id,'resolution_note'=>trim($note),'customer_confirmed_at'=>null,'confirmed_at'=>null])->save();
+            if ($decision === 'cancel') {
+                // A rejected completion claim can be made available again only by normal advertiser confirmation.
+                $property->forceFill(['availability_status'=>'paused','availability_due_at'=>null,'availability_notified_at'=>null])->saveQuietly();
+                $thread->forceFill(['lead_stage'=>'contacted','lead_updated_at'=>now()])->save();
+            }
+            $this->support->internalNote($actor,$case,trim($note),$request);
+            $this->support->setStatus($actor,$case->fresh(),$decision === 'retry' ? 'waiting_requester' : 'dismissed',$request);
+            foreach ([(int)$locked->customer_user_id,(int)$locked->advertiser_user_id] as $recipient) {
+                $this->notifications->create($recipient,$decision === 'retry' ? 'broker_deal_confirmation' : 'broker_deal_result',
+                    $decision === 'retry' ? 'مراجعة نتيجة الصفقة' : 'ألغيت نتيجة الصفقة',
+                    $decision === 'retry' ? 'راجع نتيجة الصفقة مجددًا. لا تحتسب إلا بتأكيد العميل.' : 'ألغيت النتيجة بعد المراجعة دون احتساب صفقة أو مستحق جديد.',
+                    'broker_deal_outcome',$locked->id,['deal_id'=>$locked->id]);
+            }
+            $this->audit->record($actor,'broker.deal_reviewed',$locked,['decision'=>$decision,'task_id'=>$task->id],$request,$locked->customer_user_id);
             return $locked->fresh();
         });
     }

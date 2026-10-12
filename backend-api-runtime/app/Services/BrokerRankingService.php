@@ -25,6 +25,12 @@ class BrokerRankingService
             ->selectRaw('result.advertiser_user_id, COUNT(*) AS completed_deals')
             ->selectRaw('SUM(CASE WHEN result.confirmed_at >= ? THEN CASE WHEN due.id IS NULL OR due.status = ? THEN 1.0 ELSE 0.5 END ELSE 0 END) AS recent_deal_credit', [now()->subDays(90),'paid']);
         $listings = DB::table('properties')->where('status','published')->where('availability_status','available')
+            ->whereNotExists(function ($q): void {
+                $q->selectRaw('1')->from('property_platform_receivables as financial_due')
+                    ->whereColumn('financial_due.advertiser_user_id','properties.user_id')
+                    ->whereIn('financial_due.status',['open','under_review','overdue','disputed'])
+                    ->whereColumn('financial_due.amount_paid','<','financial_due.amount_total')->where('financial_due.due_at','<=',now());
+            })
             ->where(function ($query): void { $query->whereNull('availability_notified_at')->orWhere('availability_notified_at','>',now()->subDays(2)); })
             ->whereNull('financial_hold_at')->groupBy('user_id')->selectRaw('user_id, COUNT(*) AS active_listings')
             ->selectRaw('SUM(CASE WHEN availability_confirmed_at >= ? OR published_at >= ? THEN 1 ELSE 0 END) AS recent_activity', [now()->subDays(30),now()->subDays(30)]);
@@ -61,7 +67,8 @@ class BrokerRankingService
             'id'=>(int)$user->id,'name'=>$profile?->type === 'office' ? ($details['office_name'] ?? $user->name) : $user->name,
             'account_type'=>$profile?->type ?? 'broker','verified'=>$profile?->isApproved() ?? false,
             'governorate'=>$details['governorate'] ?? null,'work_areas'=>$details['work_areas'] ?? [],
-            'specializations'=>$details['specializations'] ?? [],'bio'=>$user->public_professional_bio,
+            'specializations'=>$details['specialties'] ?? [],'bio'=>$user->public_professional_bio,
+            'photo_url'=>$user->public_professional_photo_path ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16) : null,
             'rating_average'=>round((float)($user->rating_average ?? 0),2),'rating_count'=>(int)($user->rating_count ?? 0),
             'completed_deals'=>(int)($user->completed_deals ?? 0),'active_listings'=>(int)($user->active_listings ?? 0),
             'joined_at'=>$user->created_at?->toDateString(),

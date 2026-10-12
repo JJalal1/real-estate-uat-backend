@@ -11,6 +11,10 @@ use App\Models\PropertyPlatformReceivable;
 use App\Models\PropertySaiTerm;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\SupportTask;
+use App\Services\SupportTaskService;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use App\Services\BrokerAvailabilityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -138,6 +142,79 @@ class BrokerExperienceApiTest extends TestCase
         $this->withHeaders($customerHeaders)->postJson('/api/notifications/'.$notification->id.'/read')->assertOk();
         $this->withHeaders($customerHeaders)->getJson('/api/notifications')->assertJsonCount(0,'data');
         $this->assertNotNull($notification->fresh()->read_at);
+    }
+
+    public function test_reminders_merge_across_batches_and_public_photo_is_separate_from_verification(): void
+    {
+        Storage::fake('public');
+        [$broker,$bh]=$this->actor('photos',true);
+        [, $outsider]=$this->actor('photos-outside');
+        $a=$this->listing($broker);$b=$this->listing($broker);
+        $a->forceFill(['availability_due_at'=>now()->subHour()])->saveQuietly();
+        $b->forceFill(['availability_due_at'=>now()->subHour()])->saveQuietly();
+        app(BrokerAvailabilityService::class)->sweep(1);
+        app(BrokerAvailabilityService::class)->sweep(1);
+        $notices=DB::table('user_notifications')->where('type','broker_availability_due')->get();
+        $this->assertCount(1,$notices);
+        $this->assertSame(2,json_decode($notices->first()->data,true)['count']);
+        $this->getJson('/api/advertisers/'.$broker->id.'/profile')->assertJsonPath('data.photo_url',null);
+        $this->get('/api/advertisers/'.$broker->id.'/photo')->assertNotFound();
+        $this->withHeaders($outsider)->post('/api/broker/profile/photo',['photo'=>UploadedFile::fake()->image('photo.jpg')])->assertForbidden();
+        $this->withHeaders($bh)->post('/api/broker/profile/photo',['photo'=>UploadedFile::fake()->image('public-photo.jpg')])->assertOk();
+        $this->get('/api/advertisers/'.$broker->id.'/photo')->assertOk();
+        $data=$this->getJson('/api/advertisers/'.$broker->id.'/profile')->assertOk()->json('data');
+        $this->assertStringContainsString('/api/advertisers/'.$broker->id.'/photo?v=',$data['photo_url']);
+        $this->assertArrayNotHasKey('public_professional_photo_path',$data);
+        $this->assertArrayNotHasKey('documents',$data);
+    }
+
+    public function test_claimed_support_can_retry_but_cannot_artificially_confirm_a_disputed_deal(): void
+    {
+        [$broker,$bh]=$this->actor('retry',true);
+        [, $ch]=$this->actor('retry-client');
+        [$agent,$ah]=$this->actor('retry-agent');
+        [, $otherHeaders]=$this->actor('retry-other-agent');
+        $role=Role::query()->where('key','support_agent')->firstOrFail();
+        $agent->roles()->attach($role->id,['created_at'=>now()]);
+        $permissions=DB::table('permissions')->where('key','support.handle_reports')->pluck('id');
+        foreach ($permissions as $permission) DB::table('role_permission')->insertOrIgnore(['role_id'=>$role->id,'permission_id'=>$permission]);
+        $thread=$this->conversation($ch,$this->listing($broker));
+        $id=(int)$this->withHeaders($bh)->postJson('/api/broker/customers/'.$thread.'/completed-deal',[])->assertCreated()->json('data.id');
+        $this->withHeaders($ch)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>false])->assertOk();
+        $outcome=BrokerDealOutcome::query()->findOrFail($id);
+        $task=SupportTask::query()->where('source_type','support_ticket')->where('source_id',$outcome->support_case_id)->firstOrFail();
+        $url='/api/broker/support/tasks/'.$task->id.'/resolution';
+        $this->withHeaders($otherHeaders)->postJson($url,['decision'=>'retry','note'=>'review request'])->assertForbidden();
+        $this->withHeaders($ah)->postJson($url,['decision'=>'retry','note'=>'review request'])->assertConflict();
+        $this->withHeaders($ah)->postJson('/api/admin/workspace/tasks/'.$task->id.'/claim',[])->assertOk();
+        $this->withHeaders($ah)->postJson($url,['decision'=>'confirmed','note'=>'review request'])->assertUnprocessable();
+        $this->withHeaders($ah)->postJson($url,['decision'=>'retry','note'=>'العميل يحتاج إعادة تأكيد النتيجة'])->assertOk()->assertJsonPath('data.status','pending_customer');
+        $this->assertDatabaseCount('property_platform_receivables',0);
+        $this->withHeaders($ch)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>false])->assertOk();
+        $this->assertDatabaseCount('support_cases',1);
+        $this->withHeaders($ah)->postJson($url,['decision'=>'retry','note'=>'أعيد طلب تأكيد النتيجة بعد مراجعة الطرفين'])->assertOk();
+        $this->withHeaders($ch)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>true])->assertOk();
+        $this->assertDatabaseCount('property_platform_receivables',1);
+        $this->assertDatabaseHas('support_cases',['id'=>$outcome->support_case_id,'status'=>'resolved']);
+    }
+
+    public function test_receivable_payment_works_without_an_agreement_and_legacy_creation_is_dormant(): void
+    {
+        [$broker,$bh]=$this->actor('standalone-finance',true);
+        [, $ch]=$this->actor('standalone-buyer');
+        [, $oh]=$this->actor('standalone-outsider');
+        $thread=$this->conversation($ch,$this->listing($broker));
+        $this->withHeaders($ch)->postJson('/api/messages/threads/'.$thread.'/agreement',[])->assertStatus(410);
+        $id=(int)$this->withHeaders($bh)->postJson('/api/broker/customers/'.$thread.'/completed-deal',[])->assertCreated()->json('data.id');
+        $this->withHeaders($ch)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>true])->assertOk();
+        $due=PropertyPlatformReceivable::query()->firstOrFail();
+        $this->withHeaders($oh)->getJson('/api/finance/receivables/'.$due->id)->assertForbidden();
+        $this->withHeaders($bh)->getJson('/api/finance/receivables/'.$due->id)->assertOk()->assertJsonPath('data.agreement_id',null)->assertJsonPath('data.can_pay_full',false);
+        $method=\App\Models\PropertyPaymentMethod::query()->create(['key'=>'broker-test-bank','name_ar'=>'وسيلة الاختبار','asset_key'=>'bank',
+            'beneficiary_name'=>'اختبار','destination_label'=>'الحساب','destination_value'=>'TEST-ACCOUNT','currency'=>'YER',
+            'min_amount'=>0,'max_amount'=>9999999,'allows_full_payment'=>false,'allows_sai_only'=>true,'is_enabled'=>true,'sort_order'=>100]);
+        $this->withHeaders($bh)->postJson('/api/finance/receivables/'.$due->id.'/payments',['payment_method_id'=>$method->id])->assertCreated()->assertJsonPath('data.amount',500);
+        $this->assertDatabaseCount('property_agreements',0);
     }
 
     private function actor(string $key, bool $professional=false, string $governorate='صنعاء'): array

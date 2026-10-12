@@ -16,6 +16,12 @@ class PropertySaiAgreementSettlementTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['broker_experience.legacy_contract_creation'=>true]);
+    }
+
     public function test_sale_settlement_uses_final_agreed_amount_frozen_thread_term_and_is_idempotent(): void
     {
         [$advertiser, $advertiserHeaders] = $this->user('sai-settle-owner@example.test', '+967771000001');

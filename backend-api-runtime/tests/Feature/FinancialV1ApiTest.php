@@ -19,6 +19,12 @@ class FinancialV1ApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['broker_experience.legacy_contract_creation'=>true]);
+    }
+
     public function test_financial_routes_require_authentication(): void
     {
         $this->getJson('/api/finance/payments/mine')->assertUnauthorized();

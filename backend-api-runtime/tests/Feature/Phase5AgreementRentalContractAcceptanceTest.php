@@ -14,6 +14,12 @@ class Phase5AgreementRentalContractAcceptanceTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['broker_experience.legacy_contract_creation'=>true]);
+    }
+
     public function test_agreement_is_property_conversation_bound_idempotent_and_private(): void
     {
         [$owner,$ownerHeaders]=$this->user('p5-owner1@example.test','+967770000001');

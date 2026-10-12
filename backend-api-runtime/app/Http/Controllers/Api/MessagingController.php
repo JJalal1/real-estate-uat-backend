@@ -81,6 +81,8 @@ class MessagingController extends Controller
         $key='listing:'.$property->id.':'.$pair[0].':'.$pair[1];
         [$thread,$created]=DB::transaction(function()use($property,$user,$owner,$key): array {
             $this->advisoryLock('message-thread:'.$key);
+            $current=Property::query()->lockForUpdate()->findOrFail($property->id);
+            abort_unless($current->isPubliclyAvailable() && (int)$current->user_id === (int)$owner->id,409,'العقار لم يعد متاحًا للتواصل الجديد.');
             $thread=MessageThread::query()->firstOrCreate(['conversation_key'=>$key],[
                 'property_id'=>$property->id,'started_by_user_id'=>$user->id,'last_message_at'=>now(),
             ]);
@@ -322,9 +324,12 @@ class MessagingController extends Controller
             $unread=PrivateMessage::query()->where('thread_id',$thread->id)->where('sender_user_id','<>',$user->id)->when($me?->last_read_message_id,fn($q,$id)=>$q->where('id','>',$id))->count();
         }
         return [
-            'id'=>$thread->id,'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,'property_status'=>$thread->property?->status,
+            'id'=>$thread->id,'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,
+            'property_status'=>$thread->property?->status === 'published' && !$thread->property->isPubliclyAvailable() ? 'unavailable' : $thread->property?->status,
+            'can_manage_customer'=>$user->hasApprovedVerificationProfile() && (int)($thread->property?->user_id ?? 0) === (int)$user->id && (int)$thread->started_by_user_id !== (int)$user->id,
+            'lead_stage'=>$thread->lead_stage,
             'other_user'=>['id'=>$other?->user_id,'name'=>$other?->user_name_snapshot??'مستخدم'],
-            'can_call_advertiser'=>$thread->property?->status==='published' && (int)($thread->property?->user_id??0)!==(int)$user->id,
+            'can_call_advertiser'=>($thread->property?->isPubliclyAvailable() ?? false) && (int)($thread->property?->user_id??0)!==(int)$user->id,
             'unread_count'=>(int)($unread??0),'last_message_preview'=>$latest?->body?mb_substr($latest->body,0,120):null,
             'last_message_at'=>$thread->last_message_at?->toIso8601String(),'created_at'=>$thread->created_at?->toIso8601String(),
         ];

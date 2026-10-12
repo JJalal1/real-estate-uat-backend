@@ -24,6 +24,7 @@ Route::middleware(['auth.api', 'account.active'])->group(function (): void {
     Route::get('/finance/agreements/{agreement}', [PropertyFinancialController::class, 'deal']);
     Route::post('/finance/agreements/{agreement}/payments', [PropertyFinancialController::class, 'createPayment']);
     Route::post('/finance/agreements/{agreement}/direct-confirmation', [PropertyFinancialController::class, 'confirmDirect']);
+    Route::get('/finance/receivables/{receivable}', [PropertyFinancialController::class, 'receivable']);
     Route::post('/finance/receivables/{receivable}/payments', [PropertyFinancialController::class, 'createReceivablePayment']);
     Route::post('/finance/payments/{payment}/proof', [PropertyFinancialController::class, 'submitProof'])->middleware('throttle:8,1');
     Route::get('/finance/payments/{payment}/proof', [PropertyFinancialController::class, 'proof']);

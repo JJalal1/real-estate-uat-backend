@@ -53,6 +53,17 @@ class PropertyFinancialController extends Controller
         return response()->json(['message'=>'تم إنشاء عملية الدفع.','data'=>$this->paymentData($payment,$user)],201);
     }
 
+    public function receivable(Request $request, PropertyPlatformReceivable $receivable): JsonResponse
+    {
+        $user=$request->user();
+        abort_unless((int)$receivable->advertiser_user_id === (int)$user->id,403);
+        $term=PropertyDealFinancialTerm::query()->findOrFail($receivable->deal_financial_term_id);
+        $data=$this->dealData($term,$user,false);
+        $data['payment_methods']=$this->finance->paymentMethods(max(0,$receivable->amount_total-$receivable->amount_paid),$receivable->currency);
+        $data['can_pay_full']=false;
+        return response()->json(['data'=>$data]);
+    }
+
     public function createReceivablePayment(Request $request, PropertyPlatformReceivable $receivable): JsonResponse
     {
         /** @var User $user */ $user=$request->user();

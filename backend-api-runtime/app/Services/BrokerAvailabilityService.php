@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Property;
 use App\Models\User;
+use App\Models\UserNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -39,6 +40,13 @@ class BrokerAvailabilityService
                 ])->saveQuietly();
                 $this->audit->record($actor, 'broker.availability_updated', $property, ['state'=>$state], $request, $actor->id);
             }
+            $notices=UserNotification::query()->where('user_id',$actor->id)->where('type','broker_availability_due')->whereNull('read_at')->lockForUpdate()->get();
+            foreach ($notices as $notice) {
+                $remaining=array_values(array_diff($notice->data['property_ids'] ?? [],$ids));
+                $notice->forceFill(['read_at'=>$remaining ? null : now(),
+                    'body'=>'لديك '.count($remaining).' إعلانات تحتاج تحديث التوفر. يمكنك تأكيدها معًا خلال يومين.',
+                    'data'=>['property_ids'=>$remaining,'count'=>count($remaining),'grace_days'=>2]])->save();
+            }
             return $rows->all();
         });
     }
@@ -69,6 +77,13 @@ class BrokerAvailabilityService
                 $property->saveQuietly();
             }
             foreach ($reminders as $userId=>$ids) {
+                $notice=UserNotification::query()->where('user_id',$userId)->where('type','broker_availability_due')->whereNull('read_at')->latest('id')->lockForUpdate()->first();
+                if ($notice) {
+                    $ids=array_values(array_unique(array_merge($notice->data['property_ids'] ?? [],$ids)));
+                    $notice->forceFill(['body'=>'لديك '.count($ids).' إعلانات تحتاج تحديث التوفر. يمكنك تأكيدها معًا خلال يومين.',
+                        'data'=>['property_ids'=>$ids,'count'=>count($ids),'grace_days'=>2]])->save();
+                    continue;
+                }
                 // Availability confirmation is an essential notice and cannot be suppressed by optional activity preferences.
                 $this->notifications->create($userId, 'broker_availability_due', 'أكد توفر إعلاناتك',
                     'لديك '.count($ids).' إعلانات تحتاج تحديث التوفر. يمكنك تأكيدها معًا خلال يومين.',

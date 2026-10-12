@@ -7,12 +7,14 @@ use App\Models\BrokerDealOutcome;
 use App\Models\MessageThread;
 use App\Models\Property;
 use App\Models\PropertyPlatformReceivable;
+use App\Models\SupportTask;
 use App\Models\User;
 use App\Services\ApiTokenService;
 use App\Services\AuditLogService;
 use App\Services\BrokerAvailabilityService;
 use App\Services\BrokerDealService;
 use App\Services\BrokerRankingService;
+use App\Services\CloudAssetStorageService;
 use App\Services\PropertyFinancialService;
 use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -53,16 +55,40 @@ class BrokerExperienceController extends Controller
         return response()->json(['data'=>['bio'=>$actor->public_professional_bio]]);
     }
 
+    public function uploadPhoto(Request $request, CloudAssetStorageService $storage): JsonResponse
+    {
+        $actor=$this->professional($request);
+        $request->validate(['photo'=>['required','file','image','mimes:jpg,jpeg,png,webp','max:5120']]);
+        // A separate, explicitly uploaded public photo; verification evidence is never reused.
+        $path=$storage->storePublic($request->file('photo'),'professional-photos/'.$actor->id);
+        try {
+            $old=DB::transaction(function () use ($actor,$path) {
+                $locked=User::query()->lockForUpdate()->findOrFail($actor->id);
+                $old=$locked->public_professional_photo_path;
+                $locked->forceFill(['public_professional_photo_path'=>$path])->save();
+                return $old;
+            });
+        } catch (\Throwable $e) { $storage->deletePublic($path); throw $e; }
+        if ($old) $storage->deletePublic($old);
+        $this->audit->record($actor,'broker.public_photo_updated',$actor,[],$request,$actor->id);
+        return response()->json(['data'=>['uploaded'=>true]]);
+    }
+
+    public function photo(User $advertiser, CloudAssetStorageService $storage)
+    {
+        abort_unless($advertiser->isActive() && $advertiser->hasApprovedVerificationProfile() && $advertiser->public_professional_photo_path,404);
+        return $storage->responsePublic($advertiser->public_professional_photo_path,null,['Cache-Control'=>'public, max-age=3600','X-Content-Type-Options'=>'nosniff']);
+    }
+
     public function workspace(Request $request): JsonResponse
     {
         $actor=$this->professional($request);
         $original=app(ProfessionalWorkspaceController::class)->show($request)->getData(true)['data'];
         $own=Property::query()->withoutGlobalScopes()->where('user_id',$actor->id);
         $threads=$this->customerQuery($actor);
-        $ids=(clone $threads)->pluck('id');
-        $unread=$ids->isEmpty() ? 0 : DB::table('private_messages as m')
+        $unread=DB::table('private_messages as m')
             ->join('message_thread_participants as p',fn ($join) => $join->on('p.thread_id','=','m.thread_id')->where('p.user_id','=',$actor->id))
-            ->whereIn('m.thread_id',$ids)->where('m.sender_user_id','<>',$actor->id)
+            ->whereIn('m.thread_id',(clone $threads)->select('message_threads.id'))->where('m.sender_user_id','<>',$actor->id)
             ->where(fn ($q) => $q->whereNull('p.last_read_message_id')->orWhereColumn('m.id','>','p.last_read_message_id'))
             ->distinct()->count('m.thread_id');
         $completed=BrokerDealOutcome::query()->where('advertiser_user_id',$actor->id)->where('status','confirmed')->count();
@@ -83,9 +109,10 @@ class BrokerExperienceController extends Controller
     public function customers(Request $request): JsonResponse
     {
         $actor=$this->professional($request);
-        $v=$request->validate(['stage'=>['nullable',Rule::in(['new','contacted','viewing','not_interested','completed'])],'page'=>['nullable','integer','min:1']]);
+        $v=$request->validate(['stage'=>['nullable',Rule::in(['new','contacted','viewing','not_interested','completed'])],'page'=>['nullable','integer','min:1'],'property_id'=>['nullable','integer','min:1']]);
         $query=$this->customerQuery($actor)->with(['property:id,title,status,availability_status','participants']);
         if (!empty($v['stage'])) $query->where('lead_stage',$v['stage']);
+        if (!empty($v['property_id'])) $query->where('property_id',$v['property_id']);
         $page=$query->orderByDesc('last_message_at')->orderByDesc('id')->paginate(30);
         $rows=collect($page->items());
         $users=User::query()->whereIn('id',$rows->pluck('started_by_user_id'))->get(['id','name'])->keyBy('id');
@@ -141,8 +168,9 @@ class BrokerExperienceController extends Controller
     public function activity(Request $request): JsonResponse
     {
         $actor=$request->user();
+        $v=$request->validate(['thread_id'=>['nullable','integer','min:1'],'page'=>['nullable','integer','min:1']]);
         $page=BrokerDealOutcome::query()->where(fn ($q) => $q->where('advertiser_user_id',$actor->id)->orWhere('customer_user_id',$actor->id))
-            ->latest('id')->paginate(30);
+            ->when(isset($v['thread_id']),fn ($q) => $q->where('message_thread_id',$v['thread_id']))->latest('id')->paginate(30);
         return response()->json(['data'=>collect($page->items())->map(fn ($o) => $this->outcomeData($o,$actor))->values(),
             'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage()]]);
     }
@@ -182,13 +210,24 @@ class BrokerExperienceController extends Controller
     public function recordView(Request $request, Property $property): JsonResponse
     {
         abort_unless($property->isPubliclyAvailable(),404);
+        abort_if($this->finance->hasOverdueReceivable((int)$property->user_id),404);
         $v=$request->validate(['viewer_key'=>['required','string','min:16','max:128']]);
         $viewer=$this->tokens->authenticate($request,false);
         if ($viewer && (int)$viewer->id === (int)$property->user_id) return response()->json(['data'=>['recorded'=>false]]);
         $hash=hash_hmac('sha256',$viewer ? 'user:'.$viewer->id : 'device:'.$v['viewer_key'],(string)config('app.key'));
-        $recorded=DB::table('property_listing_views')->insertOrIgnore(['property_id'=>$property->id,'viewer_hash'=>$hash,'view_date'=>now()->toDateString(),'created_at'=>now()]);
-        if ($recorded) DB::table('properties')->where('id',$property->id)->increment('view_count');
+        $recorded=DB::transaction(function () use ($property,$hash) {
+            $recorded=DB::table('property_listing_views')->insertOrIgnore(['property_id'=>$property->id,'viewer_hash'=>$hash,'view_date'=>now()->toDateString(),'created_at'=>now()]);
+            if ($recorded) DB::table('properties')->where('id',$property->id)->increment('view_count');
+            return $recorded;
+        });
         return response()->json(['data'=>['recorded'=>(bool)$recorded]]);
+    }
+
+    public function resolveDeal(Request $request, SupportTask $task): JsonResponse
+    {
+        $v=$request->validate(['decision'=>['required',Rule::in(['retry','cancel'])],'note'=>['required','string','min:5','max:2000'],'acting_as_agent'=>['nullable','boolean']]);
+        $result=$this->deals->resolveSupport($request->user(),$task,$v['decision'],$v['note'],$request,(bool)($v['acting_as_agent'] ?? false));
+        return response()->json(['data'=>['id'=>$result->id,'status'=>$result->status]]);
     }
 
     private function professional(Request $request): User
@@ -212,6 +251,7 @@ class BrokerExperienceController extends Controller
             'property_title'=>$outcome->snapshot['property_title'],'customer_name'=>$outcome->snapshot['customer_name'],
             'advertiser_name'=>$outcome->snapshot['advertiser_name'],'confirmed_at'=>$outcome->confirmed_at?->toIso8601String(),
             'can_confirm'=>(int)$viewer->id === (int)$outcome->customer_user_id && $outcome->status === 'pending_customer',
-            'can_rate'=>(int)$viewer->id === (int)$outcome->customer_user_id && $outcome->status === 'confirmed','support_case_id'=>$outcome->support_case_id];
+            'can_rate'=>(int)$viewer->id === (int)$outcome->customer_user_id && $outcome->status === 'confirmed',
+            'can_view_support_case'=>(int)$viewer->id === (int)$outcome->customer_user_id,'support_case_id'=>$outcome->support_case_id];
     }
 }

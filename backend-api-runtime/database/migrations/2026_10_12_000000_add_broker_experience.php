@@ -18,6 +18,7 @@ return new class extends Migration
         });
         Schema::table('users', function (Blueprint $table): void {
             $table->string('public_professional_bio', 900)->nullable();
+            $table->string('public_professional_photo_path')->nullable();
         });
         Schema::table('message_threads', function (Blueprint $table): void {
             $table->string('lead_stage', 24)->default('new');
@@ -43,6 +44,10 @@ return new class extends Migration
             $table->foreignId('resolved_by_user_id')->nullable()->constrained('users')->restrictOnDelete();
             $table->text('resolution_note')->nullable();
             $table->timestamps();
+            $table->index('property_id');
+            $table->index('sai_term_id');
+            $table->index('support_case_id');
+            $table->index('resolved_by_user_id');
             $table->index(['advertiser_user_id', 'status', 'confirmed_at'], 'broker_outcomes_advertiser_state_idx');
             $table->index(['customer_user_id', 'status'], 'broker_outcomes_customer_state_idx');
         });
@@ -61,6 +66,7 @@ return new class extends Migration
         });
         Schema::table('advertiser_ratings', function (Blueprint $table): void {
             $table->foreignId('broker_deal_outcome_id')->nullable()->constrained('broker_deal_outcomes')->restrictOnDelete();
+            $table->index('broker_deal_outcome_id');
         });
         if (DB::connection()->getDriverName() === 'pgsql') {
             foreach (['broker_deal_outcomes', 'property_listing_views'] as $table) {

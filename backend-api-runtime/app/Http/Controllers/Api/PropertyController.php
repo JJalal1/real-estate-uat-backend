@@ -191,6 +191,18 @@ class PropertyController extends Controller
             ->latest('id')
             ->paginate($perPage);
 
+        if ($workspaceView) {
+            $ids=collect($page->items())->pluck('id');
+            $favorites=DB::table('property_favorites')->whereIn('property_id',$ids)->groupBy('property_id')->selectRaw('property_id, COUNT(*) AS total')->pluck('total','property_id');
+            $conversations=DB::table('message_threads')->whereIn('property_id',$ids)->groupBy('property_id')->selectRaw('property_id, COUNT(*) AS total')->pluck('total','property_id');
+            $viewings=DB::table('viewing_bookings')->where('target_type','property')->whereIn('target_id',$ids)->groupBy('target_id')->selectRaw('target_id, COUNT(*) AS total')->pluck('total','target_id');
+            foreach ($page->items() as $property) {
+                $property->setAttribute('favorite_count',(int)$favorites->get($property->id,0));
+                $property->setAttribute('conversation_count',(int)$conversations->get($property->id,0));
+                $property->setAttribute('viewing_count',(int)$viewings->get($property->id,0));
+            }
+        }
+
         return response()->json([
             'data' => collect($page->items())
                 ->map(fn (Property $property) => $workspaceView
@@ -807,9 +819,9 @@ class PropertyController extends Controller
             'can_edit' => ! in_array($property->review_status, ['submitted', 'under_review', 'rejected_blocked'], true),
             'is_owner' => true,
             'status' => $property->status,
-            'favorite_count' => \App\Models\PropertyFavorite::query()->where('property_id',$property->id)->count(),
-            'conversation_count' => \App\Models\MessageThread::query()->where('property_id',$property->id)->count(),
-            'viewing_count' => \App\Models\ViewingBooking::query()->where('target_type','property')->where('target_id',$property->id)->count(),
+            'favorite_count' => (int) $property->favorite_count,
+            'conversation_count' => (int) $property->conversation_count,
+            'viewing_count' => (int) $property->viewing_count,
             'ownership_document_type' => $property->ownership_document_type,
             'document_owner_name' => $property->document_owner_name,
             'owner_relationship_type' => $property->owner_relationship_type,
