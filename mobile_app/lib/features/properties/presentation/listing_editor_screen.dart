@@ -186,8 +186,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!mounted) return;
     if (data != null) {
       final fields = data['fields'];
-      if (fields is Map) for (final entry in _recoveryFields.entries) {
-        final text = fields[entry.key]; if (text is String) entry.value.text = text;
+      if (fields is Map) {
+        for (final entry in _recoveryFields.entries) {
+          final text = fields[entry.key]; if (text is String) entry.value.text = text;
+        }
       }
       _step = (data['step'] is int ? data['step'] as int : 0).clamp(0, 4).toInt();
       if (const ['sale', 'rent'].contains(data['purpose'])) _purpose = data['purpose'] as String;
@@ -1356,6 +1358,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Future<void> _persist({required bool submit}) async {
     if (!_recoveryReady || !await _resolveRecoveredDraft()) return;
+    if (!mounted) return;
     final validation = submit ? _validateForSubmit() : _validateCore();
     if (validation != null) {
       _message(validation);
