@@ -39,7 +39,7 @@ class MessagingController extends Controller
         /** @var User $user */ $user=$request->user();
         $rows=MessageThread::query()
             ->whereHas('participants',fn($q)=>$q->where('user_id',$user->id))
-            ->with(['property:id,user_id,title,status','participants'])
+            ->with(['property:id,user_id,title,status,availability_status,availability_notified_at','participants'])
             ->orderByDesc('last_message_at')->orderByDesc('id')->limit(250)->get();
         $threadIds=$rows->pluck('id');
         $latestByThread=collect();
@@ -73,7 +73,7 @@ class MessagingController extends Controller
     public function startForProperty(Request $request, Property $property): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        abort_unless($property->status==='published',404);
+        abort_unless($property->isPubliclyAvailable(),404);
         if((int)$property->user_id===(int)$user->id) throw ValidationException::withMessages(['property_id'=>['You cannot start a conversation with yourself.']]);
         $owner=User::query()->findOrFail((int)$property->user_id);
         abort_unless($owner->isActive(),409,'The advertiser is unavailable.');
@@ -88,7 +88,7 @@ class MessagingController extends Controller
             foreach([[$user->id,$user->name],[$owner->id,$owner->name]] as [$id,$name]){
                 MessageThreadParticipant::query()->firstOrCreate(['thread_id'=>$thread->id,'user_id'=>$id],['user_name_snapshot'=>$name]);
             }
-            return [$thread->fresh(['property:id,user_id,title,status','participants']),$created];
+            return [$thread->fresh(['property:id,user_id,title,status,availability_status,availability_notified_at','participants']),$created];
         });
         $this->audit->record($user,'messages.thread_opened',$thread,['property_id'=>$property->id],$request,$owner->id);
         return response()->json(['message'=>'Conversation ready.','data'=>$this->threadSummary($thread,$user)],$created?201:200);
@@ -100,7 +100,7 @@ class MessagingController extends Controller
         $participant=$this->participant($thread,$user);
         $validated=$request->validate(['before_id'=>['nullable','integer','min:1']]);
         $beforeId=isset($validated['before_id'])?(int)$validated['before_id']:null;
-        $thread->load(['property:id,user_id,title,status','participants']);
+        $thread->load(['property:id,user_id,title,status,availability_status,availability_notified_at','participants']);
 
         $rows=PrivateMessage::query()
             ->where('thread_id',$thread->id)
@@ -175,7 +175,7 @@ class MessagingController extends Controller
         /** @var User $user */ $user=$request->user();
         $this->participant($thread,$user);
         $property=Property::query()->withoutGlobalScopes()->findOrFail((int)$thread->property_id);
-        abort_unless($property->status==='published',409,'لا يمكن بدء اتصال جديد لأن الإعلان لم يعد منشوراً.');
+        abort_unless($property->isPubliclyAvailable(),409,'لا يمكن بدء اتصال جديد لأن الإعلان لم يعد منشوراً.');
         abort_if((int)$property->user_id===(int)$user->id,403,'المعلن لا يستخدم هذا الإجراء للاتصال بنفسه.');
 
         $advertiser=User::query()->findOrFail((int)$property->user_id);
@@ -267,7 +267,7 @@ class MessagingController extends Controller
     public function adminReports(Request $request): JsonResponse
     {
         $validated=$request->validate(['status'=>['nullable',Rule::in(['open','under_review','resolved','dismissed'])]]);
-        $rows=ConversationReport::query()->with('thread.property:id,user_id,title,status')->when($validated['status']??null,fn($q,$v)=>$q->where('status',$v))->latest('id')->limit(200)->get();
+        $rows=ConversationReport::query()->with('thread.property:id,user_id,title,status,availability_status,availability_notified_at')->when($validated['status']??null,fn($q,$v)=>$q->where('status',$v))->latest('id')->limit(200)->get();
         return response()->json(['data'=>$rows->map(fn(ConversationReport $r)=>$this->reportSummary($r))->values()]);
     }
 
@@ -275,7 +275,7 @@ class MessagingController extends Controller
     {
         /** @var User $actor */ $actor=$request->user();
         abort_unless(in_array($report->status,['open','under_review'],true),409,'Only active complaints can authorize private conversation access.');
-        $thread=MessageThread::query()->with(['property:id,user_id,title,status','participants'])->findOrFail($report->thread_id);
+        $thread=MessageThread::query()->with(['property:id,user_id,title,status,availability_status,availability_notified_at','participants'])->findOrFail($report->thread_id);
         if($report->status==='open')$report->forceFill(['status'=>'under_review'])->save();
         PrivateMessageAccessEvent::query()->create(['conversation_report_id'=>$report->id,'thread_id'=>$thread->id,'actor_user_id'=>$actor->id,'actor_name_snapshot'=>$actor->name,'action'=>'opened_reported_private_content','created_at'=>now()]);
         $this->audit->record($actor,'conversations.private_content_opened',$report,['thread_id'=>$thread->id,'support_case_id'=>$report->support_case_id,'workflow'=>'conversation_complaint'],$request,$report->reporter_user_id);
@@ -338,7 +338,7 @@ class MessagingController extends Controller
 
     private function reportSummary(ConversationReport $report): array
     {
-        if(!$report->relationLoaded('thread'))$report->load('thread.property:id,user_id,title,status');
+        if(!$report->relationLoaded('thread'))$report->load('thread.property:id,user_id,title,status,availability_status,availability_notified_at');
         return ['id'=>$report->id,'thread_id'=>$report->thread_id,'support_case_id'=>$report->support_case_id,'property_id'=>$report->thread?->property_id,'property_title'=>$report->thread?->property?->title,'reporter_user_id'=>$report->reporter_user_id,'reporter_name'=>$report->reporter_name_snapshot,'reason_code'=>$report->reason_code,'status'=>$report->status,'resolved_by_name'=>$report->resolved_by_name_snapshot,'resolved_at'=>$report->resolved_at?->toIso8601String(),'created_at'=>$report->created_at?->toIso8601String()];
     }
 

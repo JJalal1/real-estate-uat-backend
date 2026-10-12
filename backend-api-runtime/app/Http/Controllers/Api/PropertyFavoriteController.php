@@ -68,7 +68,7 @@ class PropertyFavoriteController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        abort_unless($property->status === 'published', 404);
+        abort_unless($property->isPubliclyAvailable(), 404);
 
         $favorite = PropertyFavorite::query()->firstOrCreate([
             'user_id' => $user->id,
@@ -108,7 +108,7 @@ class PropertyFavoriteController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        abort_unless($property->status === 'published', 404);
+        abort_unless($property->isPubliclyAvailable(), 404);
 
         return response()->json([
             'data' => [

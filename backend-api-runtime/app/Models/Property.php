@@ -26,7 +26,7 @@ class Property extends Model
         'price' => 'float', 'monthly_rent'=>'float', 'rental_term_months'=>'integer', 'advance_months'=>'integer',
         'latitude' => 'float', 'longitude' => 'float', 'area_m2' => 'integer', 'area_value' => 'float',
         'bedrooms' => 'integer', 'bathrooms' => 'integer', 'has_parking' => 'boolean', 'submitted_at' => 'datetime', 'published_at' => 'datetime', 'reviewed_at' => 'datetime',
-        'financial_hold_at'=>'datetime','land_boundary_geojson'=>'array','duplicate_check_score'=>'integer','duplicate_check_metadata'=>'array','duplicate_self_verification'=>'array','duplicate_checked_at'=>'datetime',
+        'availability_confirmed_at'=>'datetime','availability_due_at'=>'datetime','availability_notified_at'=>'datetime','availability_status'=>'string','financial_hold_at'=>'datetime','land_boundary_geojson'=>'array','duplicate_check_score'=>'integer','duplicate_check_metadata'=>'array','duplicate_self_verification'=>'array','duplicate_checked_at'=>'datetime',
     ];
 
     protected static function booted(): void
@@ -71,6 +71,20 @@ class Property extends Model
                 $property->reviewed_at = $property->getOriginal('reviewed_at');
             }
         });
+    }
+
+    public function scopePubliclyAvailable(Builder $query): Builder
+    {
+        return $query->where('status', 'published')->where('availability_status', 'available')
+            ->where(function (Builder $nested): void {
+                $nested->whereNull('availability_notified_at')->orWhere('availability_notified_at', '>', now()->subDays(2));
+            });
+    }
+
+    public function isPubliclyAvailable(): bool
+    {
+        return $this->status === 'published' && ($this->availability_status ?? 'available') === 'available'
+            && ($this->availability_notified_at === null || $this->availability_notified_at->gt(now()->subDays(2)));
     }
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }

@@ -157,7 +157,7 @@ class PropertyController extends Controller
     {
         $user = $this->tokens->authenticate($request, false);
         $isOwner = $user !== null && (int) $property->user_id === (int) $user->id;
-        abort_unless($property->status === 'published' || $isOwner, 404);
+        abort_unless($property->isPubliclyAvailable() || $isOwner, 404);
 
         $property->load('images');
 
@@ -306,6 +306,7 @@ class PropertyController extends Controller
     private function filterRules(): array
     {
         return [
+            'advertiser_id' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:120'],
             'purpose' => ['nullable', Rule::in(self::PURPOSES)],
             'type' => ['nullable', Rule::in(self::TYPES)],
@@ -546,11 +547,12 @@ class PropertyController extends Controller
     {
         return Property::query()
             ->with('images')
-            ->where('status', 'published');
+            ->publiclyAvailable();
     }
 
     private function applyFilters(Builder $query, array $validated): void
     {
+        if (isset($validated['advertiser_id'])) $query->where('user_id', $validated['advertiser_id']);
         $search = trim((string) ($validated['search'] ?? ''));
         if ($search !== '') {
             $query->where(function (Builder $nested) use ($search) {
@@ -780,7 +782,11 @@ class PropertyController extends Controller
             'address' => $property->address,
             'latitude' => (float) $property->latitude,
             'longitude' => (float) $property->longitude,
-            'status' => $property->status,
+            'status' => $property->status === 'published' && !$property->isPubliclyAvailable() ? 'unavailable' : $property->status,
+            'availability_status' => $property->availability_status ?? 'available',
+            'availability_confirmed_at' => $property->availability_confirmed_at?->toIso8601String(),
+            'availability_due_at' => $property->availability_due_at?->toIso8601String(),
+            'view_count' => (int) $property->view_count,
             'main_image' => $mainImage ? $this->imageUrl($mainImage, $request) : null,
         ];
     }
@@ -800,6 +806,10 @@ class PropertyController extends Controller
             'can_submit' => in_array($property->review_status, ['draft', 'returned_for_correction'], true),
             'can_edit' => ! in_array($property->review_status, ['submitted', 'under_review', 'rejected_blocked'], true),
             'is_owner' => true,
+            'status' => $property->status,
+            'favorite_count' => \App\Models\PropertyFavorite::query()->where('property_id',$property->id)->count(),
+            'conversation_count' => \App\Models\MessageThread::query()->where('property_id',$property->id)->count(),
+            'viewing_count' => \App\Models\ViewingBooking::query()->where('target_type','property')->where('target_id',$property->id)->count(),
             'ownership_document_type' => $property->ownership_document_type,
             'document_owner_name' => $property->document_owner_name,
             'owner_relationship_type' => $property->owner_relationship_type,
@@ -828,7 +838,7 @@ class PropertyController extends Controller
     private function detailData(Property $property, Request $request): array
     {
         $property->loadMissing(['images','user.accountVerificationProfile.documents']);
-        $ratingQuery=AdvertiserRating::query()->where('advertiser_user_id',$property->user_id)->where('status','visible');
+        $ratingQuery=AdvertiserRating::query()->confirmedCustomerRatings()->where('advertiser_user_id',$property->user_id)->where('status','visible');
         $ratingCount=(clone $ratingQuery)->count();
         $ratingAverage=$ratingCount>0?round((float)(clone $ratingQuery)->avg('rating'),2):0.0;
         $commentCount=ListingComment::query()->where('property_id',$property->id)->where('status','visible')->count();

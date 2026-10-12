@@ -103,22 +103,24 @@ class CommunityController extends Controller
             'comment'=>['nullable','string','max:1000'],
             'property_id'=>['nullable','integer','exists:properties,id'],
         ]);
-        $published=Property::query()->where('user_id',$advertiser->id)->where('status','published');
-        if(isset($validated['property_id'])) $published->whereKey((int)$validated['property_id']);
-        if(!$published->exists()) throw ValidationException::withMessages(['advertiser'=>['Advertiser must have a published listing.']]);
+        $completed=\App\Models\BrokerDealOutcome::query()->where('advertiser_user_id',$advertiser->id)
+            ->where('customer_user_id',$rater->id)->where('status','confirmed')
+            ->when(isset($validated['property_id']),fn ($q) => $q->where('property_id',$validated['property_id']))
+            ->latest('id')->first();
+        if (!$completed) throw ValidationException::withMessages(['advertiser'=>['التقييم متاح فقط بعد صفقة أكدها الطرفان.']]);
 
         $existing=AdvertiserRating::query()->where('advertiser_user_id',$advertiser->id)->where('rater_user_id',$rater->id)->first();
         if($existing){
             $existing->forceFill([
-                'rating'=>(int)$validated['rating'],'comment'=>isset($validated['comment'])?trim((string)$validated['comment']):null,
-                'source_property_id'=>$validated['property_id']??$existing->source_property_id,
+                'broker_deal_outcome_id'=>$completed->id,'rating'=>(int)$validated['rating'],'comment'=>isset($validated['comment'])?trim((string)$validated['comment']):null,
+                'source_property_id'=>$completed->property_id,
                 'advertiser_name_snapshot'=>$advertiser->name,'rater_name_snapshot'=>$rater->name,
             ])->save();$rating=$existing->fresh();$created=false;
         }else{
             $rating=AdvertiserRating::query()->create([
                 'advertiser_user_id'=>$advertiser->id,'advertiser_name_snapshot'=>$advertiser->name,
                 'rater_user_id'=>$rater->id,'rater_name_snapshot'=>$rater->name,
-                'source_property_id'=>$validated['property_id']??null,'rating'=>(int)$validated['rating'],
+                'broker_deal_outcome_id'=>$completed->id,'source_property_id'=>$completed->property_id,'rating'=>(int)$validated['rating'],
                 'comment'=>isset($validated['comment'])?trim((string)$validated['comment']):null,'status'=>'visible',
             ]);$created=true;
         }
@@ -170,13 +172,14 @@ class CommunityController extends Controller
 
     private function ratingSummaryData(User $advertiser, ?User $viewer): array
     {
-        $base=AdvertiserRating::query()->where('advertiser_user_id',$advertiser->id)->where('status','visible');
+        $base=AdvertiserRating::query()->confirmedCustomerRatings()->where('advertiser_user_id',$advertiser->id)->where('status','visible');
         $count=(clone $base)->count();$average=$count>0?round((float)(clone $base)->avg('rating'),2):0.0;
         $distribution=[];for($score=1;$score<=5;$score++)$distribution[(string)$score]=(clone $base)->where('rating',$score)->count();
         $mine=$viewer?AdvertiserRating::query()->where('advertiser_user_id',$advertiser->id)->where('rater_user_id',$viewer->id)->first():null;
         return [
             'advertiser_id'=>$advertiser->id,'advertiser_name'=>$advertiser->name,'average'=>$average,'count'=>$count,
             'distribution'=>$distribution,
+            'can_rate'=>$viewer && \App\Models\BrokerDealOutcome::query()->where('advertiser_user_id',$advertiser->id)->where('customer_user_id',$viewer->id)->where('status','confirmed')->exists(),
             'my_rating'=>$mine?['id'=>$mine->id,'rating'=>(int)$mine->rating,'comment'=>$mine->comment,'status'=>$mine->status]:null,
         ];
     }

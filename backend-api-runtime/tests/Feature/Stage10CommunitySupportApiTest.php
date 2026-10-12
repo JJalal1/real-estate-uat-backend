@@ -60,6 +60,8 @@ class Stage10CommunitySupportApiTest extends TestCase
         [, $raterB]=$this->user('s10-rater-b@example.test','+967720000009');
         [, $moderator]=$this->user('s10-rate-mod@example.test','+967720000010',['content_moderator']);
         $listing=$this->publishedListing($advertiser,'Rating listing');
+        $this->confirmedRatingFixture($advertiser,$listing,$raterA);
+        $this->confirmedRatingFixture($advertiser,$listing,$raterB);
 
         $this->withHeaders($advertiserHeaders)->putJson("/api/advertisers/{$advertiser->id}/rating",['rating'=>5,'property_id'=>$listing->id])->assertUnprocessable();
         $this->withHeaders($raterA)->putJson("/api/advertisers/{$advertiser->id}/rating",['rating'=>5,'comment'=>'Excellent response.','property_id'=>$listing->id])->assertCreated();
@@ -165,6 +167,7 @@ class Stage10CommunitySupportApiTest extends TestCase
         [$advertiser]=$this->user('s10-detail-ad@example.test','+967720000020');
         [, $viewerHeaders]=$this->user('s10-detail-viewer@example.test','+967720000021');
         $listing=$this->publishedListing($advertiser,'Community detail');
+        $this->confirmedRatingFixture($advertiser,$listing,$viewerHeaders);
         $this->withHeaders($viewerHeaders)->postJson("/api/properties/{$listing->id}/comments",['body'=>'Visible comment.'])->assertCreated();
         $this->withHeaders($viewerHeaders)->putJson("/api/advertisers/{$advertiser->id}/rating",['rating'=>4,'property_id'=>$listing->id])->assertCreated();
         $this->getJson("/api/properties/{$listing->id}")->assertOk()
@@ -172,6 +175,17 @@ class Stage10CommunitySupportApiTest extends TestCase
             ->assertJsonPath('data.advertiser.rating_average',4)
             ->assertJsonPath('data.advertiser.rating_count',1)
             ->assertJsonPath('data.community.comments_count',1);
+    }
+
+    private function confirmedRatingFixture(User $advertiser, Property $property, array $headers): void
+    {
+        $plain=substr($headers['Authorization'],7);
+        $customer=\App\Models\ApiToken::query()->where('token_hash',hash('sha256',$plain))->value('user_id');
+        $thread=\App\Models\MessageThread::query()->create(['property_id'=>$property->id,'started_by_user_id'=>$customer,'conversation_key'=>'rating-fixture:'.$property->id.':'.$customer,'last_message_at'=>now()]);
+        \App\Models\BrokerDealOutcome::query()->create(['reference'=>'TEST-RATING-'.$thread->id,'property_id'=>$property->id,'message_thread_id'=>$thread->id,
+            'advertiser_user_id'=>$advertiser->id,'customer_user_id'=>$customer,'status'=>'confirmed','transaction_type'=>$property->purpose,
+            'basis_amount'=>$property->price,'currency'=>$property->currency,'snapshot'=>['property_title'=>$property->title,'advertiser_name'=>$advertiser->name,'customer_name'=>'Test customer'],
+            'advertiser_confirmed_at'=>now(),'customer_confirmed_at'=>now(),'confirmed_at'=>now()]);
     }
 
     private function user(string $email,string $phone,array $roles=[]): array

@@ -111,3 +111,9 @@ Artisan::command('uat:cloud-check', function (CloudAssetStorageService $storage)
 
 Schedule::command('support:escalate-overdue')->hourly();
 Schedule::command('support:process-contact-followups')->hourly();
+
+\Illuminate\Support\Facades\Artisan::command('broker:refresh-availability', function (): void {
+    app(\App\Services\BrokerAvailabilityService::class)->sweep(500);
+    $this->info('Availability reminders and pauses refreshed.');
+});
+\Illuminate\Support\Facades\Schedule::command('broker:refresh-availability')->hourly()->withoutOverlapping();

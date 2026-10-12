@@ -8,6 +8,8 @@ permissions:
 concurrency:
   group: broker-experience-${{ github.ref }}
   cancel-in-progress: true
+env:
+  SOURCE_COMMIT: ${{ github.sha }}
 jobs:
   source:
     name: Private source checkpoint
@@ -35,3 +37,98 @@ jobs:
           path: source-checkpoint/
           retention-days: 3
           if-no-files-found: error
+
+  laravel:
+    name: Laravel original regression
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+      - name: Create disposable local environment
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+      - name: Install original backend dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Generate temporary test key
+        run: php artisan key:generate --force
+      - name: Full Laravel regression
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+
+  postgres:
+    name: Disposable PostgreSQL 17 and PostGIS
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_audit
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: real_estate_audit
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Create disposable local environment
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+      - name: Install original backend dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Generate temporary test key
+        run: php artisan key:generate --force
+      - name: Prepare API roles in disposable database
+        run: >-
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
+          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+      - name: Apply original migration chain to disposable database
+        run: php artisan migrate --force
+      - name: PostgreSQL schema and access regression
+        run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: PostGIS original overlap contract
+        run: >-
+          php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php
+          --filter=test_postgis_rejects_interior_overlap_but_allows_touching_borders
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped

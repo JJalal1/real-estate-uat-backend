@@ -44,7 +44,7 @@ class BookingController extends Controller
 
     public function requestForProperty(Request $request, Property $property): JsonResponse
     {
-        /** @var User $actor */ $actor=$request->user();abort_unless($property->status==='published',404);abort_if((int)$property->user_id===(int)$actor->id,409,'You cannot request a viewing for your own listing.');
+        /** @var User $actor */ $actor=$request->user();abort_unless($property->isPubliclyAvailable(),404);abort_if((int)$property->user_id===(int)$actor->id,409,'You cannot request a viewing for your own listing.');
         $host=User::query()->find($property->user_id);abort_if(!$host||!$host->isActive(),409,'The advertiser is unavailable for viewings.');$schedule=$this->schedule($request);
         return $this->createBooking($request,$actor,['type'=>'property','id'=>$property->id,'title'=>$property->title,'address'=>$property->address,'host'=>$host],$schedule);
     }
@@ -123,7 +123,7 @@ class BookingController extends Controller
 
     private function currentHostForConfirmation(User $actor,ViewingBooking $booking): ?User
     {
-        if($booking->target_type==='property'){$property=Property::query()->whereKey($booking->target_id)->where('status','published')->first();abort_if(!$property,409,'The listing is no longer published.');$host=User::query()->find($property->user_id);abort_if(!$host||!$host->isActive(),409,'The advertiser is unavailable.');return $host;}
+        if($booking->target_type==='property'){$property=Property::query()->whereKey($booking->target_id)->publiclyAvailable()->first();abort_if(!$property,409,'The listing is no longer published.');$host=User::query()->find($property->user_id);abort_if(!$host||!$host->isActive(),409,'The advertiser is unavailable.');return $host;}
         $unit=DevelopmentUnit::query()->with('development.developer')->find($booking->target_id);$development=$unit?->development;abort_if(!$unit||!$development||$development->status!=='published'||$development->developer?->status!=='active'||$unit->status!=='available',409,'The development unit is no longer available for viewing.');if($booking->host_user_id){$host=User::query()->find($booking->host_user_id);if($host?->isActive())return $host;}if($booking->last_action_by_user_id){$candidate=User::query()->find($booking->last_action_by_user_id);if($candidate?->isActive()&&$this->canManage($candidate,$booking))return $candidate;}return $this->canManage($actor,$booking)?$actor:null;
     }
 
