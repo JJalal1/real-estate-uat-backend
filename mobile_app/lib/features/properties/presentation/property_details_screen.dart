@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/listing_viewer_key_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../router/app_deep_links.dart';
@@ -43,6 +44,15 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _startingConversation = false;
   bool _changingFavorite = false;
   bool _consumingPendingFavorite = false;
+  bool _viewRecorded = false;
+
+  Future<void> _recordView() async {
+    try {
+      final repo = ref.read(propertyRepositoryProvider);
+      final key = await ref.read(listingViewerKeyProvider.future);
+      if (mounted) await repo.recordView(widget.propertyId, key);
+    } catch (_) { /* A failed analytics request never blocks public browsing. */ }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +66,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               orElse: () => const <int>{},
             );
     final loaded = details.asData?.value;
+    if (!_viewRecorded && loaded != null && !loaded.isOwner && loaded.status == 'published') {
+      _viewRecorded = true;
+      Future<void>.microtask(_recordView);
+    }
 
     if (user != null &&
         user.isActive &&
@@ -687,7 +701,7 @@ class _AdvertiserCard extends StatelessWidget {
           EbrokerAdvertiserCard(name: advertiser.name,
             identity: verified ? advertiser.verificationLabel : 'معلن غير موثق',
             rating: advertiser.ratingAverage, ratingCount: advertiser.ratingCount,
-            verified: verified, onTap: onCommunity),
+            verified: verified, onTap: verified ? () => context.push('/advertisers/${advertiser.id}') : onCommunity),
           const SizedBox(height: AppSpacing.s12),
           Text(
             verified

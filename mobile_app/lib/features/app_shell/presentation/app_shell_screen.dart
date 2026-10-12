@@ -13,6 +13,8 @@ import '../../admin/presentation/general_manager_pages.dart';
 import '../../discovery/presentation/marketplace_home_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
 import '../../properties/presentation/my_listings_screen.dart';
+import '../../broker/presentation/broker_workspaces.dart';
+import '../../broker/presentation/broker_activity.dart';
 import '../../support/presentation/support_tasks_screen.dart';
 import '../../support/presentation/support_workspace_pages.dart';
 
@@ -72,8 +74,9 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     final mode = _modeFor(user);
     final shell = _shellFor(mode, user);
 
-    if (_lastMode != mode) {
-      _lastMode = mode;
+    final accountScope = '$mode:${user?.id ?? 'guest'}';
+    if (_lastMode != accountScope) {
+      _lastMode = accountScope;
       _index = 0;
       _visitedIndices
         ..clear()
@@ -89,7 +92,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     final lazyPages = List<Widget>.generate(
       shell.pages.length,
       (pageIndex) => _visitedIndices.contains(pageIndex)
-          ? shell.pages[pageIndex]
+          ? KeyedSubtree(key: ValueKey('$accountScope:$pageIndex'), child: shell.pages[pageIndex])
           : const SizedBox.shrink(),
       growable: false,
     );
@@ -109,7 +112,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
                 .toList(growable: false),
             selectedIndex: _index,
             onSelected: _selectTab,
-            onCreate: const ['anonymous', 'regular', 'advertiser'].contains(mode)
+            onCreate: const ['anonymous', 'regular'].contains(mode)
                 ? () => context.push('/add-property') : null,
           ),
         ),
@@ -183,6 +186,15 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           ],
         );
       case 'advertiser':
+        return const _ShellData(pages: [
+          BrokerDashboardScreen(), MyListingsScreen(), BrokerCustomersScreen(), BrokerActivityScreen(), AccountScreen(),
+        ], items: [
+          _NavItemData(label: 'الرئيسية', icon: Icons.home_outlined),
+          _NavItemData(label: 'عقاراتي', icon: Icons.inventory_2_outlined),
+          _NavItemData(label: 'العملاء', icon: Icons.people_outline),
+          _NavItemData(label: 'نشاطي', icon: Icons.calendar_month_outlined),
+          _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
+        ]);
       case 'regular':
       default:
         return _ShellData(

@@ -31,6 +31,8 @@ import 'package:real_estate_mobile/features/account/presentation/auth_screen.dar
 import 'package:real_estate_mobile/features/agreements/data/agreement_repository.dart';
 import 'package:real_estate_mobile/features/agreements/domain/agreement_models.dart';
 import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
+import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
+import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
 import 'package:real_estate_mobile/features/bookings/data/booking_repository.dart';
 import 'package:real_estate_mobile/features/bookings/domain/booking_models.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
@@ -164,6 +166,9 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(overrides: [
     authControllerProvider.overrideWith(() => _AuthFixture(user)),
+    brokerDirectoryProvider.overrideWith((_) async => []),
+    brokerThreadDealProvider.overrideWith((_, __) async => null),
+    brokerWorkspaceProvider.overrideWith((_) async => {'broker_profile': {'id': 1, 'name': 'حساب عرض تجريبي', 'account_type': 'owner', 'verified': true}, 'listings': {'published': 1}, 'customer_activity': {}, 'needs_attention': {}, 'financial_summary': {}}),
     nearbyPropertiesProvider.overrideWith((ref, query) async => [_property]),
     myListingsProvider.overrideWith((ref) async => [_details(37)]),
     messageRepositoryProvider.overrideWithValue(messages ?? _MessagesFixture()),
@@ -304,8 +309,8 @@ void main() {
     testWidgets('center add button enforces publishing eligibility verified=$verified', (tester) async {
       final router = await _pump(tester, user: _user(verified: verified));
       final shape = find.byWidgetPredicate((w) => w is EbrokerImage && w.name == 'add_shape');
-      expect(shape, findsOneWidget);
-      await tester.tap(find.byTooltip('إضافة عقار'));
+      expect(shape, verified ? findsNothing : findsOneWidget);
+      await tester.tap(verified ? find.text('إضافة عقار') : find.byTooltip('إضافة عقار'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
       expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
@@ -356,7 +361,7 @@ void main() {
   testWidgets('own listing source card supports enlarged Arabic without losing review controls', (tester) async {
     _viewport(tester, const Size(320, 640));
     await _pump(tester, scale: 2.4, user: _user(verified: true));
-    await tester.tap(find.text('إعلاناتي'));
+    await tester.tap(find.text('عقاراتي'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byType(EbrokerPropertyHorizontalCard), 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
@@ -441,10 +446,10 @@ void main() {
       final key = GlobalKey();
       final router = await _pump(tester, boundary: key, user: _user(verified: true));
       await _capture(tester, key, 'template-home-navigation');
-      await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -260));
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -260));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-home-advertisers');
-      await tester.tap(find.text('إعلاناتي'));
+      await tester.tap(find.text('عقاراتي'));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-my-listings');
       await tester.tap(find.text('حسابي'));

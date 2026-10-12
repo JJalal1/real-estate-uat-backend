@@ -17,6 +17,14 @@ class FinancialRepository {
   final Dio _dio;
   final AuthRepository _auth;
 
+  Future<FinancialDeal> receivableDeal(int receivableId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/finance/receivables/$receivableId',
+      options: await _auth.requiredAuthOptions(),
+    );
+    return FinancialDeal.fromJson(_data(response.data));
+  }
+
   Future<FinancialDeal> deal(int agreementId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/finance/agreements/$agreementId',

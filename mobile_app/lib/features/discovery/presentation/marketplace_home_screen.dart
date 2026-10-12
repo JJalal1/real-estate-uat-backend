@@ -11,6 +11,8 @@ import '../../properties/presentation/property_details_screen.dart';
 import '../../properties/domain/property_details.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../map/presentation/map_screen.dart';
+import '../../broker/data/broker_repository.dart';
+import '../../broker/presentation/broker_directory.dart';
 
 const homeDiscoveryQuery = NearbyQuery(center: LatLng(15.3694, 44.1910));
 
@@ -56,7 +58,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final properties = ref.watch(nearbyPropertiesProvider(_query));
-    final advertisers = ref.watch(homeAdvertisersProvider(_query));
+    final advertisers = ref.watch(brokerDirectoryProvider);
     void openMap() => context.push('/property-market');
     return Scaffold(backgroundColor: EbrokerDesign.page,
       appBar: AppBar(backgroundColor: EbrokerDesign.page, elevation: 0,
@@ -101,17 +103,19 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         advertisers.maybeWhen(data: (entries) => entries.isEmpty
           ? const SliverToBoxAdapter()
           : SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              EbrokerTitleHeader(title: 'تعرّف على المعلنين', onSeeAll: openMap),
+              EbrokerTitleHeader(title: 'تعرّف على الدلالين', onSeeAll: () => context.push('/brokers')),
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 18, vertical: 8), child: BrokerGovernorateFilter()),
               SingleChildScrollView(scrollDirection: Axis.horizontal,
                 padding: EdgeInsets.symmetric(horizontal: 18.rw(context)),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   for (var i = 0; i < entries.length; i++) ...[
                     if (i > 0) SizedBox(width: 8.rw(context)),
                     EbrokerAdvertiserCard(width: 320.rw(context),
-                      name: entries[i].advertiser.name, identity: entries[i].advertiser.verificationLabel,
-                      rating: entries[i].advertiser.ratingAverage, ratingCount: entries[i].advertiser.ratingCount,
-                      verified: entries[i].advertiser.verificationStatus == 'approved',
-                      onTap: () => context.push('/properties/${entries[i].propertyId}')),
+                      name: entries[i].name, identity: entries[i].typeLabel,
+                      rating: entries[i].rating, ratingCount: entries[i].ratingCount,
+                      verified: entries[i].verified, photoUrl: entries[i].photoUrl,
+                      completedDeals: entries[i].completedDeals, activeListings: entries[i].activeListings,
+                      onTap: () => context.push('/advertisers/${entries[i].id}')),
                   ],
                 ])),
             ])), orElse: () => const SliverToBoxAdapter()),

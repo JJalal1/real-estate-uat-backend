@@ -15,6 +15,7 @@ import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_gate.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
+import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
 
 final _exampleProperty = PropertyMarker.fromJson({
@@ -98,6 +99,7 @@ Future<GoRouter> _pumpHome(
     ProviderScope(
       overrides: [
         authControllerProvider.overrideWith(() => _TestAuthController(user)),
+        brokerDirectoryProvider.overrideWith((_) async => []),
         nearbyPropertiesProvider(homeDiscoveryQuery).overrideWith(
           (_) => load?.call() ?? Future.value([_exampleProperty]),
         ),

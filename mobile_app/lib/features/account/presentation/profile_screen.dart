@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../data/auth_controller.dart';
@@ -16,6 +17,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _name = TextEditingController();
   final _phone = TextEditingController();
+  final _email = TextEditingController();
   bool _initialized = false;
   bool _busy = false;
 
@@ -23,6 +25,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void dispose() {
     _name.dispose();
     _phone.dispose();
+    _email.dispose();
     super.dispose();
   }
 
@@ -33,6 +36,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _initialized = true;
       _name.text = user.name;
       _phone.text = user.phone ?? '';
+      _email.text = user.email;
     }
 
     return Directionality(
@@ -44,6 +48,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             : ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
+                  if (user.hasVerifiedPublishingProfile) TextButton.icon(onPressed: () => context.push('/advertisers/${user.id}'), icon: const EbrokerIcon(Icons.add_a_photo_outlined, size: 20), label: const Text('تعديل الصورة والنبذة العامة')),
                   TextField(
                     controller: _name,
                     enabled: !_nameLocked(user),
@@ -72,6 +77,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     'تغيير رقم الهاتف يعيد الحساب إلى حالة انتظار التحقق.',
                   ),
                   const SizedBox(height: 18),
+                  TextField(controller: _email, keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(labelText: 'البريد الإلكتروني')),
+                  const SizedBox(height: 18),
                   EbrokerFilledButton.icon(
                     onPressed: _busy ? null : _save,
                     icon: const EbrokerIcon(Icons.save_outlined),
@@ -93,6 +101,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await ref.read(authControllerProvider.notifier).updateProfile(
             name: _name.text,
             phone: _phone.text,
+            email: _email.text,
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

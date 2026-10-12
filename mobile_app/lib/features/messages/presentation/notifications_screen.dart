@@ -21,7 +21,6 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _loading = true;
-  bool _unreadOnly = false;
   String? _error;
   List<AppNotificationItem> _items = const [];
   bool _actionPending = false;
@@ -104,9 +103,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final unread = _items.where((item) => !item.isRead).length;
-    final visible = _unreadOnly
-        ? _items.where((item) => !item.isRead).toList(growable: false)
-        : _items;
+    final visible = _items.where((item) => !item.isRead).toList(growable: false);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -157,7 +154,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                               ),
                               const SizedBox(height: AppSpacing.s4),
                               Text(
-                                'الإشعارات المهمة تبقى هنا، وتقدر تتحكم في الفئات الاختيارية من الإعدادات.',
+                                'تختفي الإشعارات من هذه القائمة بعد قراءتها.',
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -168,16 +165,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                     ),
                               ),
                               const SizedBox(height: AppSpacing.s10),
-                              EbrokerFilterChip(
-                                selected: _unreadOnly,
-                                avatar: const EbrokerIcon(
-                                  Icons.notifications_active_outlined,
-                                  size: 18,
-                                ),
-                                label: const Text('غير المقروء فقط'),
-                                onSelected: (value) =>
-                                    setState(() => _unreadOnly = value),
-                              ),
                             ],
                           ),
                         ),
@@ -284,13 +271,13 @@ class _NotificationCard extends StatelessWidget {
       selected: !item.isRead,
       onTap: pending ? null : onTap,
       child: Padding(
-        padding: const EdgeInsetsDirectional.all(AppSpacing.s14),
+        padding: const EdgeInsetsDirectional.all(AppSpacing.s10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: !item.isRead
                     ? scheme.primaryContainer
@@ -298,7 +285,7 @@ class _NotificationCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadii.control),
               ),
               child: EbrokerIcon(
-                presentation.$1,
+                presentation.$1, size: 18,
                 color: !item.isRead ? scheme.primary : scheme.onSurfaceVariant,
               ),
             ),

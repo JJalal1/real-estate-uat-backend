@@ -71,6 +71,7 @@ class AppTextField extends StatelessWidget {
     this.controller,
     this.label,
     this.hint,
+    this.helperText,
     this.prefixIcon,
     this.suffixIcon,
     this.onSuffixPressed,
@@ -86,6 +87,7 @@ class AppTextField extends StatelessWidget {
   final TextEditingController? controller;
   final String? label;
   final String? hint;
+  final String? helperText;
   final IconData? prefixIcon;
   final IconData? suffixIcon;
   final VoidCallback? onSuffixPressed;
@@ -111,6 +113,8 @@ class AppTextField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
+          helperText: helperText,
+          helperMaxLines: 4,
           prefixIcon: prefixIcon == null ? null : EbrokerIcon(prefixIcon),
           suffixIcon: suffixIcon == null
               ? null
@@ -574,8 +578,9 @@ class AppNavigationBar extends StatelessWidget {
     if (name == 'العقارات' || name == 'الرئيسية') return active ? 'home_active' : 'home';
     if (name == 'الرسائل') return active ? 'chat_active' : 'chat';
     if (name == 'حسابي') return active ? 'profile_active' : 'profile_outlined';
-    if (name == 'إعلاناتي') return active ? 'properties_active' : 'properties';
-    if (name == 'المعاينات') return active ? 'calendar_filled' : 'calendar';
+    if (name == 'إعلاناتي' || name == 'عقاراتي') return active ? 'properties_active' : 'properties';
+    if (name == 'المعاينات' || name == 'نشاطي') return active ? 'calendar_filled' : 'calendar';
+    if (name == 'العملاء') return 'interested_users';
     if (name == 'الفريق') return 'interested_users';
     if (name == 'التقارير') return 'agent/chart';
     if (name == 'السوق') return 'propertymap';

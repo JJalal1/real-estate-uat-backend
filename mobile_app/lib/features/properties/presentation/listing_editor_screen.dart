@@ -673,6 +673,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           AppTextField(
             controller: _price,
             label: 'سعر البيع بالريال اليمني *',
+            helperText: amountWords.isEmpty ? null : amountWords,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             enabled: !_busy,
           )
@@ -680,6 +681,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
           AppTextField(
             controller: _monthlyRent,
             label: 'الإيجار الشهري بالريال اليمني *',
+            helperText: amountWords.isEmpty ? null : amountWords,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             enabled: !_busy,
           ),
@@ -713,16 +715,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> {
               tone: AppStatusTone.info,
             ),
           ],
-        ],
-        if (amountWords.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.s8),
-          AppInlineMessage(
-            title: _purpose == 'rent'
-                ? 'الإيجار الشهري بالحروف'
-                : 'المبلغ بالحروف',
-            message: amountWords,
-            tone: AppStatusTone.info,
-          ),
         ],
         if (_isSaiReady && _visitorPaysSai) ...[
           const SizedBox(height: AppSpacing.s16),

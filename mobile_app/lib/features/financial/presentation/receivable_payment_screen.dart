@@ -11,7 +11,7 @@ import '../domain/financial_models.dart';
 class ReceivablePaymentScreen extends ConsumerStatefulWidget {
   const ReceivablePaymentScreen({
     required this.receivableId,
-    required this.agreementId,
+    this.agreementId = 0,
     required this.remainingAmount,
     required this.currency,
     this.propertyTitle,
@@ -44,8 +44,10 @@ class _ReceivablePaymentScreenState
 
   Future<void> _load() async {
     try {
-      final deal =
-          await ref.read(financialRepositoryProvider).deal(widget.agreementId);
+      final repo = ref.read(financialRepositoryProvider);
+      final deal = widget.agreementId > 0
+          ? await repo.deal(widget.agreementId)
+          : await repo.receivableDeal(widget.receivableId);
       if (!mounted) return;
       setState(() {
         _deal = deal;

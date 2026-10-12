@@ -87,7 +87,7 @@ class EbrokerSectionPanel extends StatelessWidget {
 class EbrokerAdvertiserCard extends StatelessWidget {
   const EbrokerAdvertiserCard({required this.name, required this.identity,
     required this.rating, required this.ratingCount, required this.verified,
-    required this.onTap, this.width, super.key});
+    required this.onTap, this.width, this.photoUrl, this.completedDeals, this.activeListings, super.key});
   final String name;
   final String identity;
   final double rating;
@@ -95,6 +95,8 @@ class EbrokerAdvertiserCard extends StatelessWidget {
   final bool verified;
   final VoidCallback onTap;
   final double? width;
+  final String? photoUrl;
+  final int? completedDeals, activeListings;
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +132,8 @@ class EbrokerAdvertiserCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14.rw(context)),
                       border: Border.all(color: EbrokerDesign.surface, width: 3.rw(context))),
                     child: ClipRRect(borderRadius: BorderRadius.circular(11.rw(context)),
-                      child: Center(child: EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary)))),
+                      child: photoUrl == null ? Center(child: EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary))
+                        : Image.network(photoUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary)))),
                   if (verified) Positioned(bottom: -5.rh(context),
                     child: Container(width: 22.rw(context), height: 22.rh(context), alignment: Alignment.center,
                       decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
@@ -138,6 +141,8 @@ class EbrokerAdvertiserCard extends StatelessWidget {
                 ])),
             ])),
             SizedBox(height: 10.rh(context)),
+            if (completedDeals != null && activeListings != null) Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: Text('$completedDeals صفقات مؤكدة · $activeListings عقارات نشطة', style: Theme.of(context).textTheme.bodySmall)),
             EbrokerText(name, size: 16, weight: FontWeight.w600, maxLines: 1),
             SizedBox(height: 2.rh(context)),
             EbrokerText(identity, size: 12, color: EbrokerDesign.textLight, maxLines: 1),

@@ -177,6 +177,13 @@ class PropertyDetails {
     this.rentalTermMonths,
     this.advanceMonths,
     this.financialHold = false,
+    this.availabilityStatus = 'available',
+    this.availabilityConfirmedAt,
+    this.availabilityDueAt,
+    this.viewCount = 0,
+    this.favoriteCount = 0,
+    this.conversationCount = 0,
+    this.viewingCount = 0,
     this.saiAttestationRequired = false,
     this.description,
     this.areaM2,
@@ -257,6 +264,9 @@ class PropertyDetails {
   final String? contactPhone;
   final String? contactWhatsapp;
   final bool isOwner;
+  final String availabilityStatus;
+  final DateTime? availabilityConfirmedAt, availabilityDueAt;
+  final int viewCount, favoriteCount, conversationCount, viewingCount;
   final String? ownershipDocumentType;
   final String? documentOwnerName;
   final String? ownerRelationshipType;
@@ -302,6 +312,13 @@ class PropertyDetails {
       rentalTermMonths: _asInt(json['rental_term_months']),
       advanceMonths: _asInt(json['advance_months']),
       financialHold: _asBool(json['financial_hold']) ?? false,
+      availabilityStatus: json['availability_status']?.toString() ?? 'available',
+      availabilityConfirmedAt: DateTime.tryParse('${json['availability_confirmed_at'] ?? ''}'),
+      availabilityDueAt: DateTime.tryParse('${json['availability_due_at'] ?? ''}'),
+      viewCount: _asInt(json['view_count']) ?? 0,
+      favoriteCount: _asInt(json['favorite_count']) ?? 0,
+      conversationCount: _asInt(json['conversation_count']) ?? 0,
+      viewingCount: _asInt(json['viewing_count']) ?? 0,
       saiAttestationRequired:
           _asBool(json['sai_attestation_required']) ?? false,
       currency: json['currency']?.toString() ?? 'YER',

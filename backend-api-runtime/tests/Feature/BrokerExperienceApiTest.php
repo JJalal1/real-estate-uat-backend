@@ -213,7 +213,8 @@ class BrokerExperienceApiTest extends TestCase
         $method=\App\Models\PropertyPaymentMethod::query()->create(['key'=>'broker-test-bank','name_ar'=>'وسيلة الاختبار','asset_key'=>'bank',
             'beneficiary_name'=>'اختبار','destination_label'=>'الحساب','destination_value'=>'TEST-ACCOUNT','currency'=>'YER',
             'min_amount'=>0,'max_amount'=>9999999,'allows_full_payment'=>false,'allows_sai_only'=>true,'is_enabled'=>true,'sort_order'=>100]);
-        $this->withHeaders($bh)->postJson('/api/finance/receivables/'.$due->id.'/payments',['payment_method_id'=>$method->id])->assertCreated()->assertJsonPath('data.amount',500);
+        $this->withHeaders($bh)->postJson('/api/finance/receivables/'.$due->id.'/payments',['payment_method_id'=>$method->id])->assertCreated()->assertJsonPath('data.required_amount',500);
+        $this->assertDatabaseHas('property_payments',['deal_financial_term_id'=>$due->deal_financial_term_id,'required_amount'=>500,'mode'=>'platform_receivable']);
         $this->assertDatabaseCount('property_agreements',0);
     }
 

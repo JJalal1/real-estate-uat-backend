@@ -21,6 +21,9 @@ import '../features/agreements/presentation/agreements_screen.dart';
 import '../features/agreements/presentation/rental_contract_detail_screen.dart';
 import '../features/app_shell/presentation/app_shell_screen.dart';
 import '../features/bookings/presentation/bookings_screen.dart';
+import '../features/broker/presentation/broker_workspaces.dart';
+import '../features/broker/presentation/broker_activity.dart';
+import '../features/broker/presentation/broker_directory.dart';
 import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
 import '../features/messages/presentation/messages_screen.dart';
@@ -47,6 +50,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
+      GoRoute(path: '/brokers', builder: (context, state) => const BrokerDirectoryScreen()),
+      GoRoute(path: '/advertisers/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return id > 0 ? BrokerPublicProfileScreen(id: id) : const _RouteErrorScreen();
+      }),
+      GoRoute(path: '/broker/workspace', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerDashboardScreen())),
+      GoRoute(path: '/broker/customers', builder: (context, state) => Stage6AuthGate(requireListingEligible: true,
+        child: BrokerCustomersScreen(propertyId: int.tryParse(state.uri.queryParameters['property'] ?? '')))),
+      GoRoute(path: '/broker/availability', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerAvailabilityScreen())),
+      GoRoute(path: '/broker/finance', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerFinanceScreen())),
+      GoRoute(path: '/broker/activity', builder: (context, state) => Stage6AuthGate(child: BrokerActivityScreen(initialTab: state.uri.queryParameters['tab'] == 'viewings' ? 1 : 0))),
+      GoRoute(path: '/broker/deals/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return id > 0 ? Stage6AuthGate(child: BrokerDealScreen(id: id)) : const _RouteErrorScreen();
+      }),
       GoRoute(
         path: '/auth',
         builder: (context, state) => AuthScreen(

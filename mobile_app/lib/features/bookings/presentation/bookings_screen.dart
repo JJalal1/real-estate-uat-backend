@@ -16,9 +16,10 @@ final _bookingRowsProvider = FutureProvider.autoDispose
 });
 
 class BookingsScreen extends ConsumerStatefulWidget {
-  const BookingsScreen({this.initialBookingId, super.key});
+  const BookingsScreen({this.initialBookingId, this.embedded = false, super.key});
 
   final int? initialBookingId;
+  final bool embedded;
 
   @override
   ConsumerState<BookingsScreen> createState() => _BookingsScreenState();
@@ -45,7 +46,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('المعاينات والحجوزات')),
+        appBar: widget.embedded ? null : AppBar(title: const Text('المعاينات والحجوزات')),
         body: auth.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, __) => const Center(child: Text('تعذر تحميل الحساب.')),

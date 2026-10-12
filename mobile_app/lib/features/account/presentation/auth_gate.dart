@@ -72,7 +72,7 @@ class Stage6AuthGate extends ConsumerWidget {
                 onPressed: () => context.push('/account-verification'),
               );
             }
-            return child;
+            return KeyedSubtree(key: ValueKey('account:${user.id}'), child: child);
           },
         );
   }

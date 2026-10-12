@@ -54,6 +54,10 @@ String? internalLocationForAppLink(Uri uri) {
   }
 
   final segments = uri.pathSegments;
+  if (segments.length == 3 && segments[0] == 'broker' && segments[1] == 'deals') {
+    final id = int.tryParse(segments[2]) ?? 0;
+    return id > 0 ? '/broker/deals/$id' : null;
+  }
   if (segments.length == 2) {
     final id = int.tryParse(segments.last) ?? 0;
     if (id <= 0) return null;
@@ -61,6 +65,7 @@ String? internalLocationForAppLink(Uri uri) {
     if (segments.first == 'properties') {
       return '/properties/$id';
     }
+    if (segments.first == 'advertisers') return '/advertisers/$id';
     if (segments.first == 'messages') {
       return '/messages/$id';
     }
