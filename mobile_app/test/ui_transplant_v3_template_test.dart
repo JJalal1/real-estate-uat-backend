@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_step_button.dart';
@@ -42,6 +43,16 @@ import 'package:real_estate_mobile/features/messages/presentation/conversation_s
 import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
 import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
+
+// Layout fixtures isolate device IO; broker_convenience_test covers actual recovery files.
+class _EmptyRecovery extends ListingRecoveryStore {
+  @override
+  Future<Map<String, dynamic>?> read(int userId, int? listingId) async => null;
+  @override
+  Future<void> write(int userId, int? listingId, Map<String, dynamic> snapshot, List<String> paths) async {}
+  @override
+  Future<void> clear(int userId, int? listingId) async {}
+}
 
 class _AuthFixture extends AuthController {
   _AuthFixture(this.user);
@@ -167,6 +178,7 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(overrides: [
     authControllerProvider.overrideWith(() => _AuthFixture(user)),
+    listingRecoveryStoreProvider.overrideWithValue(_EmptyRecovery()),
     brokerDirectoryProvider.overrideWith((_) async => []),
     brokerThreadDealProvider.overrideWith((_, __) async => null),
     brokerWorkspaceProvider.overrideWith((_) async => {'broker_profile': {'id': 1, 'name': 'حساب عرض تجريبي', 'account_type': 'owner', 'verified': true}, 'listings': {'published': 1}, 'customer_activity': {}, 'needs_attention': {}, 'financial_summary': {}}),
@@ -383,8 +395,12 @@ void main() {
     await tester.scrollUntilVisible(find.byType(EbrokerPropertyHorizontalCard), 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.byType(EbrokerPropertyHorizontalCard), findsOneWidget);
-    await tester.scrollUntilVisible(find.byTooltip('خيارات البطاقة'), 300, scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.byTooltip('خيارات البطاقة')); await tester.pumpAndSettle();
+    final listingScroll = find.ancestor(of: find.byType(EbrokerPropertyHorizontalCard), matching: find.byType(Scrollable)).last;
+    await tester.scrollUntilVisible(find.byTooltip('خيارات البطاقة').hitTestable(), 180, scrollable: listingScroll);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('خيارات البطاقة').hitTestable()); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('تعديل').hitTestable(), 100, scrollable: find.byType(Scrollable).last);
+    await tester.pumpAndSettle();
     expect(find.text('تعديل').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

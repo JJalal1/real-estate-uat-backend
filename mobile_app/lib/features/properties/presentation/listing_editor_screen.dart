@@ -1407,6 +1407,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (mounted) setState(() => _workingDraft = draft);
       ref.read(propertyDataRevisionProvider.notifier).state++;
       await _clearUploadedTemporaryFiles();
+      await _saveRecovery();
 
       if (submit) {
         try {
@@ -1587,6 +1588,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (mounted) setState(() => _workingDraft = draft);
     ref.read(propertyDataRevisionProvider.notifier).state++;
     await _clearUploadedTemporaryFiles();
+    await _saveRecovery();
     return draft;
   }
 
@@ -1882,6 +1884,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_ownershipProofPath != null) _ownershipProofPath!,
     ];
     _imagePaths = <String>[];
+    _replaceImages = false;
     _ownershipProofPath = null;
     try {
       await _mediaPicker.clearTemporaryFiles(paths.where((path) => !ListingRecoveryStore.isSavedMedia(path)));

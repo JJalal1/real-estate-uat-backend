@@ -128,6 +128,10 @@ jobs:
         run: php artisan migrate --force
       - name: PostgreSQL schema and access regression
         run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Broker ownership, followup and UTC date range on PostgreSQL
+        run: >-
+          php artisan test tests/Feature/BrokerExperienceApiTest.php
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: PostGIS original overlap contract
         run: >-
           php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php

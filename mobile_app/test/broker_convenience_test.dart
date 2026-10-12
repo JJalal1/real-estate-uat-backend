@@ -69,7 +69,7 @@ Future<void> _pump(WidgetTester tester, Widget screen, {BrokerTestRepository? re
     brokerRepositoryProvider.overrideWithValue(repo ?? BrokerTestRepository()),
     listingRecoveryStoreProvider.overrideWithValue(recovery ?? _Recovery()),
     if (bookings != null) bookingRepositoryProvider.overrideWithValue(bookings)],
-    child: MaterialApp(theme: AppTheme.light, builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)), child: child!), home: RepaintBoundary(key: boundary, child: screen))));
+    child: MaterialApp(theme: AppTheme.light, builder: (context, child) => RepaintBoundary(key: boundary, child: MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)), child: child!)), home: screen)));
   await tester.pumpAndSettle();
 }
 Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
@@ -129,10 +129,13 @@ void main() {
     await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => BrokerTestAuth(1)), brokerRepositoryProvider.overrideWithValue(BrokerTestRepository())],
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.textContaining('معاينات للمتابعة')); await tester.tap(find.textContaining('معاينات للمتابعة')); await tester.pumpAndSettle();
+    await tester.ensureVisible(find.textContaining('معاينات للمتابعة')); await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('معاينات للمتابعة').hitTestable()); await tester.pumpAndSettle();
     expect(find.text('selected:viewings'), findsOneWidget);
     router.pop(); await tester.pumpAndSettle();
-    await tester.ensureVisible(find.textContaining('محادثات تحتاج ردك')); await tester.tap(find.textContaining('محادثات تحتاج ردك')); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.textContaining('محادثات تحتاج ردك').hitTestable(), -150, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('محادثات تحتاج ردك').hitTestable()); await tester.pumpAndSettle();
     expect(find.text('filter:unread'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -160,6 +163,7 @@ void main() {
     await tester.enterText(find.byType(TextField).last, 'يفضل موعد العصر');
     await tester.tap(find.text('ذكّرني غدًا')); await tester.pumpAndSettle();
     expect(find.textContaining('الملاحظة والتذكير خاصان'), findsOneWidget);
+    await _capture(tester, boundary, 'convenience-private-followup');
     await tester.tap(find.text('حفظ المتابعة')); await tester.pumpAndSettle();
     expect(repo.savedNote, 'يفضل موعد العصر'); expect(repo.savedDate, isNotNull); expect(repo.savedDate!.hour, 9);
     expect(tester.takeException(), isNull);
