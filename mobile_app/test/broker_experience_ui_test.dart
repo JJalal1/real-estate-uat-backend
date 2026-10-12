@@ -27,7 +27,7 @@ final exampleBroker = BrokerProfile.fromJson({'id': 1, 'name': 'دلال عرض 
 
 AuthUser brokerTestUser([int id = 1]) => AuthUser.fromJson({'id': id, 'name': 'حساب عرض تجريبي', 'email': 'preview@example.test',
   'phone': '+967700000000', 'account_status': 'active', 'phone_verified_at': '2026-10-12T00:00:00Z', 'profile_completed_at': '2026-10-12T00:00:00Z',
-  'verification_profile': {'type': 'broker', 'status': 'approved', 'reviewed_at': '2026-10-12T00:00:00Z'}});
+  if (id == 1) 'verification_profile': {'type': 'broker', 'status': 'approved', 'reviewed_at': '2026-10-12T00:00:00Z'}});
 class BrokerTestAuth extends AuthController {
   BrokerTestAuth([this.id = 1]);
   final int id;
@@ -44,6 +44,8 @@ Map<String, dynamic> brokerTestWorkspace() => {
 };
 
 class BrokerTestRepository implements BrokerRepository {
+  BrokerTestRepository({this.viewerId = 1});
+  final int viewerId;
   final availabilityChanges = <(List<int>, String)>[];
   final decisions = <(int, bool)>[];
   String dealStatus = 'pending_customer';
@@ -66,7 +68,7 @@ class BrokerTestRepository implements BrokerRepository {
   ], page: 1, lastPage: 1);
   @override
   Future<BrokerDeal> deal(int id) async => BrokerDeal(id: id, threadId: 19, propertyId: 11, advertiserId: 1, propertyTitle: 'شقة حدة',
-    customerName: 'عميل تجريبي', advertiserName: exampleBroker.name, status: dealStatus, amount: 100000000, currency: 'YER', canConfirm: dealStatus == 'pending_customer', canRate: dealStatus == 'confirmed');
+    customerName: 'عميل تجريبي', advertiserName: exampleBroker.name, status: dealStatus, amount: 100000000, currency: 'YER', canConfirm: viewerId == 2 && dealStatus == 'pending_customer', canRate: viewerId == 2 && dealStatus == 'confirmed');
   @override
   Future<BrokerDeal> decide(int id, bool confirmed) async { decisions.add((id, confirmed)); dealStatus = confirmed ? 'confirmed' : 'disputed'; return deal(id); }
   @override
@@ -81,18 +83,18 @@ class BrokerTestRepository implements BrokerRepository {
 }
 class _Properties implements PropertyRepository {
   @override
-  Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1}) async => ([PropertySummary.fromJson({
+  Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1, String? purpose}) async => ([PropertySummary.fromJson({
     'id': 11, 'title': 'شقة حدة', 'purpose': 'sale', 'type': 'apartment', 'price': 100000000, 'currency': 'YER', 'latitude': 15.37, 'longitude': 44.19,
   })], false);
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
-Future<void> _pump(WidgetTester tester, Widget screen, BrokerTestRepository repo, {double scale = 1, Size size = const Size(412, 915), GlobalKey? boundary}) async {
+Future<void> _pump(WidgetTester tester, Widget screen, BrokerTestRepository repo, {int userId = 1, double scale = 1, Size size = const Size(412, 915), GlobalKey? boundary}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(BrokerTestAuth.new), brokerRepositoryProvider.overrideWithValue(repo),
+  await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => BrokerTestAuth(userId)), brokerRepositoryProvider.overrideWithValue(repo),
     propertyRepositoryProvider.overrideWithValue(_Properties())], child: MaterialApp(theme: AppTheme.light, builder: (context, child) =>
       MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)), child: RepaintBoundary(key: boundary, child: child!)), home: screen)));
   await tester.pumpAndSettle();
@@ -127,13 +129,13 @@ void main() {
   testWidgets('availability update submits selected real listing IDs', (tester) async {
     final repo = BrokerTestRepository();
     await _pump(tester, const BrokerAvailabilityScreen(), repo);
-    final button = find.textContaining('تأكيد توفر');
+    final button = find.textContaining('ما زالت متوفرة');
     await tester.ensureVisible(button.last); await tester.tap(button.last); await tester.pumpAndSettle();
     expect(repo.availabilityChanges.single, ([11], 'available'));
   });
   testWidgets('customer affirmation is explicit and rating stays locked until confirmed', (tester) async {
-    final repo = BrokerTestRepository();
-    await _pump(tester, const BrokerDealScreen(id: 4), repo);
+    final repo = BrokerTestRepository(viewerId: 2);
+    await _pump(tester, const BrokerDealScreen(id: 4), repo, userId: 2);
     expect(find.text('تقييم المعلن'), findsNothing);
     await tester.tap(find.text('نعم، تمت الصفقة')); await tester.pumpAndSettle();
     expect(repo.decisions, isEmpty);
@@ -142,7 +144,7 @@ void main() {
     expect(find.text('تقييم المعلن'), findsOneWidget);
   });
   final screens = <String, Widget>{'dashboard': const BrokerDashboardScreen(), 'customers': const BrokerCustomersScreen(),
-    'availability': const BrokerAvailabilityScreen(), 'deals': const BrokerDealsList(), 'finance': const BrokerFinanceScreen(),
+    'availability': const BrokerAvailabilityScreen(), 'deals': const BrokerScaffold(appBar: AppAppBar(title: 'نشاطي'), body: BrokerDealsList()), 'finance': const BrokerFinanceScreen(),
     'public-profile': const BrokerPublicProfileScreen(id: 1), 'directory': const BrokerDirectoryScreen(), 'account': const AccountScreen()};
   for (final entry in screens.entries) {
     testWidgets('${entry.key} remains usable at 320 width with large Arabic', (tester) async {

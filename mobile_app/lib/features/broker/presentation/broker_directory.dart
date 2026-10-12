@@ -77,17 +77,23 @@ class BrokerPublicProfileScreen extends ConsumerStatefulWidget {
 class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileScreen> {
   final List<PropertySummary> _properties = [];
   bool _loading = true, _more = false;
-  int _page = 0;
-  String? _error;
+  int _page = 0, _request = 0;
+  String? _error, _purpose;
   @override
   void initState() { super.initState(); Future.microtask(_loadProperties); }
+  @override
+  void didUpdateWidget(covariant BrokerPublicProfileScreen old) {
+    super.didUpdateWidget(old);
+    if (old.id != widget.id) { _properties.clear(); _page = 0; _loadProperties(); }
+  }
   Future<void> _loadProperties({bool next = false}) async {
+    final request = ++_request;
     setState(() { _loading = true; _error = null; });
     try {
-      final rows = await ref.read(propertyRepositoryProvider).advertiserListings(widget.id, page: next ? _page + 1 : 1);
-      if (!mounted) return;
+      final rows = await ref.read(propertyRepositoryProvider).advertiserListings(widget.id, page: next ? _page + 1 : 1, purpose: _purpose);
+      if (!mounted || request != _request) return;
       setState(() { if (!next) _properties.clear(); _properties.addAll(rows.$1); _more = rows.$2; _page = next ? _page + 1 : 1; _loading = false; });
-    } catch (e) { if (mounted) setState(() { _loading = false; _error = friendlyApiError(e); }); }
+    } catch (e) { if (mounted && request == _request) setState(() { _loading = false; _error = friendlyApiError(e); }); }
   }
   Future<void> _editBio(BrokerProfile profile) async {
     String bio = profile.bio ?? '';
@@ -124,6 +130,8 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
         AppButton(label: 'تغيير الصورة العامة', icon: Icons.add_a_photo_outlined, onPressed: _photo),
       ]),
       const SizedBox(height: 20), Text('العقارات النشطة', style: Theme.of(context).textTheme.titleLarge),
+      Wrap(spacing: 8, children: [for (final item in const [('الكل', null), ('للبيع', 'sale'), ('للإيجار', 'rent')])
+        AppFilterChip(label: item.$1, selected: _purpose == item.$2, onSelected: (_) { setState(() => _purpose = item.$2); _loadProperties(); })]),
       const SizedBox(height: 8), const Text('اختر عقارًا لبدء التواصل أو طلب معاينته.'), const SizedBox(height: 12),
       for (final property in _properties) Padding(padding: const EdgeInsets.only(bottom: 12), child: EbrokerPropertyHorizontalCard(
         title: property.title, price: property.price.toStringAsFixed(0), currency: property.currency, imageUrl: property.mainImage,

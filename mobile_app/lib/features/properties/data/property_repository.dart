@@ -26,8 +26,8 @@ class PropertyRepository {
   final Dio _dio;
   final AuthRepository _auth;
 
-  Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1}) async {
-    final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {'advertiser_id': id, 'page': page, 'per_page': 20});
+  Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1, String? purpose}) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {'advertiser_id': id, 'page': page, 'per_page': 20, if (purpose != null) 'purpose': purpose});
     final rows = (response.data?['data'] as List? ?? const []).whereType<Map>().map((j) => PropertySummary.fromJson(Map<String, dynamic>.from(j))).toList();
     final meta = response.data?['meta'] as Map? ?? const {};
     return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));

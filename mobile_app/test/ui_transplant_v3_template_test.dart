@@ -32,7 +32,6 @@ import 'package:real_estate_mobile/features/agreements/data/agreement_repository
 import 'package:real_estate_mobile/features/agreements/domain/agreement_models.dart';
 import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
 import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
-import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
 import 'package:real_estate_mobile/features/bookings/data/booking_repository.dart';
 import 'package:real_estate_mobile/features/bookings/domain/booking_models.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';

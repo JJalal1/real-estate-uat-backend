@@ -215,7 +215,7 @@ class _ProfileHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final photo = user?.hasVerifiedPublishingProfile == true ? ref.watch(brokerProfileProvider(user.id as int)).asData?.value?.photoUrl : null;
+    final photo = user?.hasVerifiedPublishingProfile == true ? ref.watch(brokerProfileProvider(user.id as int)).asData?.value.photoUrl : null;
     return Container(
       padding: const EdgeInsetsDirectional.all(12),
       decoration: BoxDecoration(
