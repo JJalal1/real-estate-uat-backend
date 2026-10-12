@@ -94,6 +94,12 @@ void main() {
     final root = Platform.environment['FLUTTER_ROOT']!;
     final icons = await File('$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
     await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
+    final latin = await File('$root/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf').readAsBytes();
+    for (final name in ['Arial', 'sans-serif']) {
+      final font = FontLoader(name)..addFont(Future.value(latin.buffer.asByteData()));
+      if (name == 'sans-serif') font.addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'));
+      await font.load();
+    }
   });
   test('device recovery isolates accounts/listings and keeps public images after picker cleanup', () async {
     final dir = await Directory.systemTemp.createTemp('listing-recovery-test-');

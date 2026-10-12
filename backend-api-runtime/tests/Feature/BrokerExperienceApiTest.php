@@ -335,7 +335,7 @@ class BrokerExperienceApiTest extends TestCase
             'status'=>'published','review_status'=>'approved','published_at'=>now()]);
         $sai=PropertySaiTerm::query()->create(['property_id'=>$p->id,'version'=>1,'advertiser_type'=>'broker','purpose'=>$purpose,
             'source_mode'=>'broker_requested','requested_broker_rate_percent'=>2,'sai_rate_percent'=>2,'payer'=>'advertiser',
-            'calculation_basis'=>$purpose==='rent' ? 'monthly_rent' : 'sale_price','platform_share_percent'=>25,'broker_share_percent'=>75,
+            'calculation_basis'=>$purpose==='rent' ? 'first_month_rent' : 'final_sale_value','platform_share_percent'=>25,'broker_share_percent'=>75,
             'platform_terms_status'=>'accepted','platform_terms_accepted_at'=>now(),'created_by_user_id'=>$broker->id]);
         $p->forceFill(['current_sai_term_id'=>$sai->id])->saveQuietly();
         return $p;
