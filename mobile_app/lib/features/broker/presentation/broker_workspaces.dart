@@ -68,13 +68,14 @@ class BrokerDashboardScreen extends ConsumerWidget {
           return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerWorkspaceProvider); await ref.read(brokerWorkspaceProvider.future); },
             child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), physics: const AlwaysScrollableScrollPhysics(), children: [
               BrokerPanel(child: Row(children: [
-                profile?.photoUrl == null ? const EbrokerImage('defaultProfileIcon', size: 38)
+                profile?.photoUrl == null ? EbrokerImage('defaultProfileIcon', size: 38, color: Theme.of(context).colorScheme.primary)
                   : ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(profile!.photoUrl!, width: 44, height: 44, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const EbrokerImage('defaultProfileIcon', size: 38))), const SizedBox(width: 12),
+                    errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 38, color: Theme.of(context).colorScheme.primary))), const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(profile?.name ?? user?.name ?? 'مرحبًا بك', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                   Text('${profile?.typeLabel ?? 'معلن'} موثق${profile?.governorate == null ? '' : ' · ${profile!.governorate}'}'),
-                  if (profile != null && profile.ratingCount > 0) Text('⭐ ${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييمًا'),
+                  if (profile != null && profile.ratingCount > 0) Row(children: [const EbrokerIcon(Icons.star_outline, size: 16, color: Colors.amber),
+                    const SizedBox(width: 4), Expanded(child: Text('${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييمًا'))]),
                 ])),
                 if (profile != null) IconButton(tooltip: 'ملفي العام', onPressed: () => context.push('/advertisers/${profile.id}'), icon: const EbrokerIcon(Icons.open_in_new, size: 20)),
               ])),

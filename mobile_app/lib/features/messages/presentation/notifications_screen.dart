@@ -198,13 +198,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   sliver: SliverToBoxAdapter(child: _NotificationSkeleton()),
                 )
               else if (_error != null)
-                SliverFillRemaining(
-                  hasScrollBody: false,
+                SliverToBoxAdapter(
                   child: AppErrorState(message: _error!, onRetry: _load),
                 )
               else if (_items.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
+                const SliverToBoxAdapter(
                   child: AppEmptyState(
                     title: 'لا توجد إشعارات بعد',
                     message:
@@ -213,8 +211,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   ),
                 )
               else if (visible.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
+                const SliverToBoxAdapter(
                   child: AppEmptyState(
                     title: 'ما عندك إشعارات غير مقروءة',
                     message: 'كل الإشعارات الحالية مقروءة.',

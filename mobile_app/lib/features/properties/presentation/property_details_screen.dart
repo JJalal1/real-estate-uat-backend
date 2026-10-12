@@ -46,6 +46,12 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _consumingPendingFavorite = false;
   bool _viewRecorded = false;
 
+  @override
+  void didUpdateWidget(covariant PropertyDetailsScreen old) {
+    super.didUpdateWidget(old);
+    if (old.propertyId != widget.propertyId) { _viewRecorded = false; _imageIndex = 0; }
+  }
+
   Future<void> _recordView() async {
     try {
       final repo = ref.read(propertyRepositoryProvider);

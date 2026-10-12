@@ -17,15 +17,17 @@ void main() {
 
   test('professional workspace prioritizes real next actions', () {
     final source = File(
-      'lib/features/services/presentation/professional_workspace_screen.dart',
+      'lib/features/broker/presentation/broker_workspaces.dart',
     ).readAsStringSync();
 
-    expect(source, contains('يحتاج إجراء الآن'));
-    expect(source, contains('unreadConversations'));
-    expect(source, contains('activeViewings'));
-    expect(source, contains('activeAgreements'));
-    expect(source, contains('corrections.length'));
-    expect(source, contains('staleListings.length'));
+    expect(source, contains('يحتاج إجراء منك'));
+    expect(source, contains('brokerWorkspaceProvider'));
+    expect(source, contains('unread_conversations'));
+    expect(source, contains('active_viewings'));
+    expect(source, contains('correction_listings'));
+    expect(source, contains('availability_count'));
+    expect(source, contains('pending_deal_count'));
+    expect(source, isNot(contains('activeAgreements')));
   });
 
   test('discovery remembers recent searches and reports result count clearly', () {

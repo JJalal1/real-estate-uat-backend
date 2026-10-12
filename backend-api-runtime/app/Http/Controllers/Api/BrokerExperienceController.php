@@ -193,12 +193,11 @@ class BrokerExperienceController extends Controller
     {
         $actor=$this->professional($request);
         $rows=PropertyPlatformReceivable::query()->where('advertiser_user_id',$actor->id)->with('financialTerm.property')->latest('id')->limit(250)->get();
-        $summary=[];
-        foreach ($rows->groupBy('currency') as $currency=>$group) {
-            $summary[]=['currency'=>$currency,'paid'=>round((float)$group->sum('amount_paid'),2),
-                'open'=>round((float)$group->filter(fn ($r) => in_array($r->status,['open','under_review','overdue','disputed'],true))
-                    ->sum(fn ($r) => max(0,$r->amount_total-$r->amount_paid)),2)];
-        }
+        // Summaries cover the full account even when the visible history is bounded.
+        $summary=PropertyPlatformReceivable::query()->where('advertiser_user_id',$actor->id)->groupBy('currency')->select('currency')
+            ->selectRaw('SUM(amount_paid) AS paid')
+            ->selectRaw("SUM(CASE WHEN status IN ('open','under_review','overdue','disputed') AND amount_total > amount_paid THEN amount_total - amount_paid ELSE 0 END) AS open")
+            ->get()->map(fn ($balance) => ['currency'=>$balance->currency,'paid'=>round((float)$balance->paid,2),'open'=>round((float)$balance->open,2)])->values();
         return response()->json(['data'=>['balances'=>$summary,'policy'=>$this->finance->financialSummaryFor($actor),
             'receivables'=>$rows->map(fn ($r) => ['id'=>$r->id,'reference'=>$r->reference,'property_id'=>$r->property_id,
                 'property_title'=>$r->financialTerm?->property?->title,'transaction_type'=>$r->financialTerm?->transaction_type,
