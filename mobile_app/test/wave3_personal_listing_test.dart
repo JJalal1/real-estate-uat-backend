@@ -106,8 +106,9 @@ void main() {
     expect(types.selected, {'broker'});
     expect(types.onSelectionChanged, isNull);
     final submit = find.widgetWithText(EbrokerFilledButton, 'إرسال طلب الترقية للمراجعة');
+    await tester.scrollUntilVisible(submit, 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(tester.widget<EbrokerFilledButton>(submit).onPressed, isNotNull);
-    await tester.ensureVisible(submit);
     await tester.tap(submit);
     await tester.pumpAndSettle();
     expect(find.text('أكمل جميع المستندات المطلوبة قبل إرسال طلب التحقق.'), findsOneWidget);
