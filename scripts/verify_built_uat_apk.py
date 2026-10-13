@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the built APK and publish it only inside the existing private repository."""
+"""Read-only verification of the APK produced by the required UAT gates."""
 import base64
 import hashlib
 import json
@@ -15,7 +15,7 @@ repo = os.environ['GITHUB_REPOSITORY']
 source = os.environ['SOURCE_COMMIT']
 run = int(os.environ['GITHUB_RUN_NUMBER'])
 version = 1000 + run
-token = os.environ['BUILD_CHECKPOINT_TOKEN']
+token = os.environ['APK_VERIFY_TOKEN']
 root = f'https://api.github.com/repos/{repo}'
 headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
 
@@ -59,17 +59,4 @@ evidence = {'source_commit': source, 'version_code': version, 'sha256': digest, 
     'fonts_match': 5, 'zip_crc': 'passed', 'apksigner': 'passed', 'certificate_sha256': certificate,
     'handset_acceptance': 'pending'}
 Path('dist/APK_VERIFICATION.json').write_text(json.dumps(evidence, indent=2) + '\n')
-release = api('/releases', {'tag_name': f'uat-{version}', 'target_commitish': source, 'name': f'REAL ESTATE UAT {version}',
-    'draft': False, 'prerelease': True, 'make_latest': 'false',
-    'body': f'Private UAT installer from {source}. Backend, PostgreSQL/PostGIS, Docker runtime, Flutter analysis, focused/full Flutter and compiled endpoint gates passed. Handset acceptance remains pending. No Production deployment or main merge.'})
-for path in [apk, Path('dist/BUILD_INFO.txt'), Path('dist/APK_VERIFICATION.json'), Path('dist/SHA256.txt')]:
-    name = f'real-estate-uat-{version}.apk' if path == apk else path.name
-    upload = release['upload_url'].split('{', 1)[0] + '?name=' + urllib.parse.quote(name)
-    request = urllib.request.Request(upload, data=path.read_bytes(), method='POST', headers={
-        **headers, 'Content-Type': 'application/vnd.android.package-archive' if path == apk else 'application/octet-stream'})
-    with urllib.request.urlopen(request, timeout=300) as response:
-        result = json.load(response)
-    if path == apk:
-        evidence['download_url'] = result['browser_download_url']
-evidence['release_url'] = release['html_url']
 print(json.dumps(evidence))

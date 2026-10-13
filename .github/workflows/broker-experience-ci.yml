@@ -163,8 +163,7 @@ jobs:
           docker run --rm --entrypoint php real-estate-wave3-uat
           -r '$image=imagecreatetruecolor(20,20); imagestring($image,1,0,0,"UAT",0); ob_start(); imagepng($image); $bytes=ob_get_clean(); imagedestroy($image); if(substr($bytes,0,8)!=="\x89PNG\r\n\x1a\n") exit(1); echo "Runtime PNG fixture support verified.\n";'
 
-  flutter:    permissions:
-      contents: write
+  flutter:
     name: Flutter broker experience and UAT APK
     needs: [source, laravel, postgres, runtime]
     runs-on: ubuntu-latest
@@ -293,13 +292,8 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 14
-      - name: Preserve tested APK if Actions artifact quota is full
-        if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' && steps.apk_artifact.outcome == 'failure' }}
-        env:
-          BUILD_CHECKPOINT_TOKEN: ${{ github.token }}
-        run: python3 -B scripts/publish_uat_build_checkpoint.py
-      - name: Verify and publish the tested private UAT installer
+      - name: Verify the tested UAT APK
         if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' }}
         env:
-          BUILD_CHECKPOINT_TOKEN: ${{ github.token }}
-        run: python3 -B scripts/publish_verified_uat_release.py
+          APK_VERIFY_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/verify_built_uat_apk.py
