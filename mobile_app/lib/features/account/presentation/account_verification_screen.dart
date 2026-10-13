@@ -182,7 +182,7 @@ class _AccountVerificationScreenState
                           ),
                         ],
                         selected: <String>{_type},
-                        onSelectionChanged: _formLocked
+                        onSelectionChanged: _formLocked || _upgrading
                             ? null
                             : (value) => setState(() => _type = value.first),
                       ),

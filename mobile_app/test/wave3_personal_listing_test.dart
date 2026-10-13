@@ -4,6 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
+import 'package:real_estate_mobile/features/account/data/account_verification_repository.dart';
+import 'package:real_estate_mobile/features/account/domain/account_verification.dart';
+import 'package:real_estate_mobile/features/account/presentation/account_verification_screen.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
@@ -24,6 +28,24 @@ class _UploadAuth implements AuthRepository {
   Future<Options> requiredAuthOptions() async => Options(headers: {'Authorization': 'Bearer fixture'});
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _Verification implements AccountVerificationRepository {
+  int submitCalls = 0;
+  @override
+  Future<AccountVerificationApplication> status() async => AccountVerificationApplication.fromJson({
+    'user_id': 1, 'name': 'عبدالله محمد علي القاضي', 'type': 'owner', 'status': 'approved',
+    'details': {'governorate': 'أمانة العاصمة', 'district': 'السبعين'},
+    'documents': [
+      {'kind': 'identity_document', 'original_name': 'old-identity.jpg'},
+      {'kind': 'selfie', 'original_name': 'old-selfie.jpg'},
+    ],
+  });
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #submit) submitCalls++;
+    throw UnimplementedError();
+  }
 }
 
 Future<GoRouter> _gate(WidgetTester tester, {List<PropertyDetails> listings = const [], int? recovered}) async {
@@ -71,6 +93,26 @@ void main() {
     await _gate(tester, listings: [_listing('draft')], recovered: 99);
     expect(find.text('editor ready'), findsNothing);
     expect(find.text('فعّل حساب دلال'), findsOneWidget);
+  });
+
+  testWidgets('owner upgrade opens broker form and requires fresh identity evidence', (tester) async {
+    final repository = _Verification();
+    await tester.pumpWidget(ProviderScope(overrides: [
+      authControllerProvider.overrideWith(_OwnerAuth.new),
+      accountVerificationRepositoryProvider.overrideWithValue(repository),
+    ], child: MaterialApp(theme: AppTheme.light, home: const AccountVerificationScreen(initialType: 'broker'))));
+    await tester.pumpAndSettle();
+    final types = tester.widget<EbrokerSegmentedButton<String>>(find.byType(EbrokerSegmentedButton<String>));
+    expect(types.selected, {'broker'});
+    expect(types.onSelectionChanged, isNull);
+    final submit = find.widgetWithText(EbrokerFilledButton, 'إرسال طلب الترقية للمراجعة');
+    expect(tester.widget<EbrokerFilledButton>(submit).onPressed, isNotNull);
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(find.text('أكمل جميع المستندات المطلوبة قبل إرسال طلب التحقق.'), findsOneWidget);
+    expect(repository.submitCalls, 0);
+    expect(tester.takeException(), isNull);
   });
 
   test('whole-floor state survives models and multipart boolean encoding', () async {

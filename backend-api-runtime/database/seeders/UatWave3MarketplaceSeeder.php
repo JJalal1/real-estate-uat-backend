@@ -79,7 +79,7 @@ class UatWave3MarketplaceSeeder extends Seeder
                     }
                     foreach ($persona['active'] as $i => $type) {
                         $property = $this->listing($actor, $type, $i % 2 ? 'rent' : 'sale', null, 'published', 'available', $key === 'new' && $type === 'apartment');
-                        $thread = $this->conversation($actor, $buyers[($i + 1) % count($buyers)], $property, $i ? 'viewing_scheduled' : 'contacted');
+                        $thread = $this->conversation($actor, $buyers[($i + 1) % count($buyers)], $property, $i ? 'viewing' : 'contacted');
                         $this->viewing($actor, $buyers[($i + 1) % count($buyers)], $property, $thread, $i);
                         BrokerCustomerFollowup::create(['user_id' => $actor->id, 'message_thread_id' => $thread->id,
                             'private_note' => $i ? 'يرغب في موعد آخر بعد حضور أحد أفراد الأسرة.' : 'الميزانية مناسبة. إرسال تفاصيل الموقع قبل المعاينة.', 'remind_at' => now()->addHours($i + 2)]);
@@ -148,7 +148,7 @@ class UatWave3MarketplaceSeeder extends Seeder
             if ($type === 'broker' && $key !== 'pending') $roles[Role::where('key', 'broker')->firstOrFail()->id] = ['created_at' => now()];
             $user->roles()->sync($roles);
             if ($type) {
-                $details = ['governorate' => 'صنعاء', 'district' => 'السبعين', 'work_areas' => ['حدة', 'بيت بوس', 'السنينة'], 'specialties' => ['شقق سكنية', 'عقارات تجارية'], 'uat_fixture' => true];
+                $details = ['governorate' => 'أمانة العاصمة', 'district' => 'السبعين', 'work_areas' => ['حدة', 'بيت بوس', 'السنينة'], 'specialties' => ['شقق سكنية', 'عقارات تجارية'], 'uat_fixture' => true];
                 if ($type === 'office') $details += ['office_name' => $name, 'commercial_register_number' => 'UAT-WAVE3-OFFICE', 'neighborhood' => 'حدة', 'street' => 'شارع الخمسين', 'landmark' => 'قرب الحديقة', 'latitude' => 15.328, 'longitude' => 44.196, 'office_phone' => $phone];
                 $profile = AccountVerificationProfile::create(['user_id' => $user->id, 'type' => $type, 'status' => $key === 'pending' ? 'pending' : 'approved', 'details' => $details,
                     'submitted_at' => now()->subDays(3), 'reviewed_at' => $key === 'pending' ? null : now()->subDays(2), 'review_note' => 'UAT Wave3 fictional persona; no real identity asserted.']);
@@ -295,6 +295,6 @@ class UatWave3MarketplaceSeeder extends Seeder
             'status' => $position ? 'requested' : 'confirmed', 'requester_note' => 'سأحضر مع أحد أفراد الأسرة.', 'confirmed_at' => $position ? null : now()]);
         ViewingBookingEvent::create(['viewing_booking_id' => $booking->id, 'actor_user_id' => $customer->id, 'actor_name_snapshot' => $customer->name,
             'event' => 'requested', 'to_status' => 'requested', 'metadata' => ['uat_wave3' => true], 'created_at' => now()]);
-        app(UserNotificationService::class)->create($actor->id, 'booking_requested', 'طلب معاينة جديد', 'راجع الوقت المقترح للمعاينة.', 'viewing_booking', $booking->id, ['booking_id' => $booking->id, 'thread_id' => $thread->id]);
+        app(UserNotificationService::class)->create($actor->id, 'viewing_requested', 'طلب معاينة جديد', 'راجع الوقت المقترح للمعاينة.', 'viewing_booking', $booking->id, ['booking_id' => $booking->id, 'thread_id' => $thread->id]);
     }
 }

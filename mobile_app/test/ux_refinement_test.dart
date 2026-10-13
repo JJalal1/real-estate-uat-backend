@@ -167,7 +167,7 @@ void main() {
       final key = GlobalKey();
       await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(type: type), boundary: key);
       expect(find.text('اسم أو رقم المبنى *'), findsNothing);
-      expect(find.text('رقم الوحدة أو موضعها *'), type == 'apartment' ? findsOneWidget : findsNothing);
+      expect(find.text('رقم الشقة أو موضعها داخل الدور *'), type == 'apartment' ? findsOneWidget : findsNothing);
       expect(find.text('أي دور؟ *'), type == 'apartment' || type == 'floor' ? findsOneWidget : findsNothing);
       if (type == 'floor') await _capture(tester, key, 'floor');
       if (type == 'shop') {
@@ -182,11 +182,11 @@ void main() {
     final store = _Recovery(_snapshot(type: 'apartment'));
     await _pump(tester, const ListingEditorScreen(), snapshot: store.snapshot);
     expect(find.text('الوحدة تشغل الدور كاملًا'), findsOneWidget);
-    expect(find.text('رقم الوحدة أو موضعها *'), findsOneWidget);
+    expect(find.text('رقم الشقة أو موضعها داخل الدور *'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const ValueKey('unit-whole-floor')));
     await tester.tap(find.byKey(const ValueKey('unit-whole-floor')));
     await tester.pumpAndSettle();
-    expect(find.text('رقم الوحدة أو موضعها *'), findsNothing);
+    expect(find.text('رقم الشقة أو موضعها داخل الدور *'), findsNothing);
     expect(find.text('أي دور؟ *'), findsOneWidget);
     expect(find.text('دور كامل'), findsNothing);
     expect(tester.takeException(), isNull);

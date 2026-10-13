@@ -49,6 +49,7 @@ class Wave3UatSeedTest extends TestCase
         $this->assertDatabaseCount('advertiser_ratings', 10);
         $this->assertDatabaseCount('viewing_bookings', 10);
         $this->assertDatabaseCount('broker_customer_followups', 10);
+        $this->assertSame(0, DB::table('message_threads')->whereNotIn('lead_stage', ['new', 'contacted', 'viewing', 'not_interested', 'completed'])->count());
         $this->assertDatabaseMissing('listing_reviews', ['action' => 'uat_old_trial']);
         $this->assertDatabaseHas('properties', ['review_status' => 'returned_for_correction']);
         $this->assertDatabaseHas('properties', ['review_status' => 'submitted']);
