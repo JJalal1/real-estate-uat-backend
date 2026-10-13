@@ -197,6 +197,7 @@ class PropertyDetails {
     this.buildingReference,
     this.unitNumber,
     this.floorNumber,
+    this.unitOccupiesEntireFloor = false,
     this.landBoundaryGeoJson,
     this.duplicateCheckStatus,
     this.duplicateCheckScore = 0,
@@ -249,6 +250,7 @@ class PropertyDetails {
   final String? buildingReference;
   final String? unitNumber;
   final String? floorNumber;
+  final bool unitOccupiesEntireFloor;
   final Map<String, dynamic>? landBoundaryGeoJson;
   final String? duplicateCheckStatus;
   final int duplicateCheckScore;
@@ -334,6 +336,7 @@ class PropertyDetails {
       buildingReference: _nullableString(json['building_reference']),
       unitNumber: _nullableString(json['unit_number']),
       floorNumber: _nullableString(json['floor_number']),
+      unitOccupiesEntireFloor: json['unit_occupies_entire_floor'] == true || json['type'] == 'floor',
       landBoundaryGeoJson: json['land_boundary_geojson'] is Map<String, dynamic>
           ? Map<String, dynamic>.from(
               json['land_boundary_geojson'] as Map<String, dynamic>)
@@ -436,6 +439,7 @@ class PropertyListingInput {
     this.buildingReference,
     this.unitNumber,
     this.floorNumber,
+    this.unitOccupiesEntireFloor = false,
     this.landBoundaryGeoJson,
     this.contactPhone,
     this.contactWhatsapp,
@@ -467,6 +471,7 @@ class PropertyListingInput {
   final String? buildingReference;
   final String? unitNumber;
   final String? floorNumber;
+  final bool unitOccupiesEntireFloor;
   final Map<String, dynamic>? landBoundaryGeoJson;
   final double latitude;
   final double longitude;
@@ -495,7 +500,8 @@ class PropertyListingInput {
         'rental_term_months': rentalTermMonths,
       if (purpose == 'rent' && advanceMonths != null)
         'advance_months': advanceMonths,
-      'listing_input_version': 4,
+      'listing_input_version': 5,
+      'unit_occupies_entire_floor': type == 'apartment' && unitOccupiesEntireFloor,
       if (areaValue != null) 'area_value': areaValue,
       if (areaUnit != null && areaUnit!.trim().isNotEmpty)
         'area_unit': areaUnit,

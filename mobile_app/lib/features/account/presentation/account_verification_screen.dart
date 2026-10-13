@@ -13,7 +13,8 @@ import '../domain/account_verification.dart';
 import '../domain/yemen_admin_divisions.dart';
 
 class AccountVerificationScreen extends ConsumerStatefulWidget {
-  const AccountVerificationScreen({super.key});
+  const AccountVerificationScreen({this.initialType, super.key});
+  final String? initialType;
 
   @override
   ConsumerState<AccountVerificationScreen> createState() =>
@@ -81,7 +82,8 @@ class _AccountVerificationScreenState
   }
 
   void _applyApplication(AccountVerificationApplication application) {
-    _type = application.type ?? 'owner';
+    _type = widget.initialType == 'broker' && application.type != 'broker' && application.status != 'pending'
+        ? 'broker' : application.type ?? 'owner';
     final storedGovernorate = application.detailText('governorate') ?? '';
     _governorate.text =
         YemenAdminDivisions.canonicalGovernorate(storedGovernorate);
@@ -218,13 +220,15 @@ class _AccountVerificationScreenState
                                 dimension: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : application.approved
+                            : application.approved && !_upgrading
                                 ? const EbrokerIcon(Icons.verified_outlined)
                                 : application.status == 'pending'
                                     ? const EbrokerIcon(Icons.hourglass_top_outlined)
                                     : const EbrokerIcon(Icons.verified_user_outlined),
                         label: Text(
-                          application.approved
+                          _upgrading
+                              ? 'إرسال طلب الترقية للمراجعة'
+                              : application.approved
                               ? 'تم التحقق'
                               : application.status == 'pending'
                                   ? 'تم إرسال الطلب - قيد المراجعة'
@@ -233,7 +237,10 @@ class _AccountVerificationScreenState
                                       : 'إرسال طلب التحقق للمراجعة',
                         ),
                       ),
-                      if (application.approved) ...[
+                      if (_upgrading) ...[
+                        const SizedBox(height: 12),
+                        const Text('تظهر أدوات الدلال بعد اعتماد الترقية. أرفق مستندات الطلب الجديد؛ الترقية لا تتجاوز المراجعة.', textAlign: TextAlign.center),
+                      ] else if (application.approved) ...[
                         const SizedBox(height: 12),
                         const Text(
                           'هذا النوع موثق حاليًا. تغيير نوع الحساب يتطلب مراجعة جديدة، لذلك لا يتم تغييره من هذه الشاشة أثناء حالة الاعتماد.',
@@ -248,11 +255,13 @@ class _AccountVerificationScreenState
     );
   }
 
+  bool get _upgrading => widget.initialType == 'broker' && _application?.approved == true && _application?.type == 'owner' && _type == 'broker';
+
   bool get _formLocked {
     final application = _application;
     return _busy ||
         application?.status == 'pending' ||
-        application?.approved == true;
+        (application?.approved == true && !_upgrading);
   }
 
   Widget _governorateDropdown() {

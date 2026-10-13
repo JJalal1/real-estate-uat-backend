@@ -40,8 +40,7 @@ class ListingEditorScreen extends ConsumerStatefulWidget {
 class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with WidgetsBindingObserver {
   static const _typeLabels = <String, String>{
     'apartment': 'شقة',
-    'floor': 'دور كامل',
-    'building': 'عمارة كاملة',
+    'building': 'عمارة',
     'house': 'منزل',
     'villa': 'فيلا',
     'land': 'أرض',
@@ -128,6 +127,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   PropertySaiManagement? _saiPolicy;
   String? _saiPolicyError;
   bool _saiAccepted = false, _saiTouched = false, _hasRecoveredSai = false;
+  bool _wholeFloor = false;
   bool _shopInBuilding = false, _existingSaiLoaded = false;
   int _saiPolicyRequest = 0;
   String _priceDisplayMode = 'excludes_sai';
@@ -149,7 +149,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
-    'editor_version': 4, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted, 'shop_in_building': _shopInBuilding,
+    'editor_version': 5, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted, 'shop_in_building': _shopInBuilding,
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
     'tenure_type': _tenureType, 'parking': _parkingChoice, 'facade': _facade,
     'ownership_document_type': _ownershipDocumentType, 'relationship_type': _relationshipType,
@@ -207,6 +207,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _step = (data['step'] is int ? data['step'] as int : 0).clamp(0, 3).toInt();
       if (const ['sale', 'rent'].contains(data['purpose'])) _purpose = data['purpose'] as String;
       if (_typeLabels.containsKey(data['type'])) _type = data['type'] as String;
+      if (data['type'] == 'floor') _type = 'apartment';
+      _wholeFloor = _type == 'apartment' && (data['type'] == 'floor' || data['unit_occupies_entire_floor'] == true);
       if (propertyAreaUnitLabels.containsKey(data['area_unit'])) _areaUnit = data['area_unit'] as String;
       _tenureType = const ['freehold', 'waqf'].contains(data['tenure_type']) ? data['tenure_type'] as String : null;
       _parkingChoice = const ['yes', 'no'].contains(data['parking']) ? data['parking'] as String : null;
@@ -320,7 +322,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (property == null) return;
 
     _purpose = property.purpose;
-    _type = property.type;
+    _type = property.type == 'floor' ? 'apartment' : property.type;
+    _wholeFloor = _type == 'apartment' && property.unitOccupiesEntireFloor;
     _tenureType = property.tenureType;
     _title.text = property.title;
     _description.text = property.description ?? '';
@@ -519,8 +522,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                   onTap: _busy
                       ? null
                       : () => setState(() {
+                            if (_type != entry.key) _wholeFloor = false;
                             _type = entry.key;
-                            if (_type == 'floor') _unitNumber.clear();
                             if (_type != 'shop') _shopInBuilding = false;
                             if (!_requiresSaleTenure) _tenureType = null;
                             if (!_requiresResidential) {
@@ -696,18 +699,23 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         ),
         if (_isUnitType) ...[
           const SizedBox(height: 16),
-          Text(_type == 'floor' ? 'أي دور تعرض بالكامل؟' : _type == 'shop' ? 'حدد المحل بوضوح' : 'أين الوحدة داخل المبنى؟',
+          Text(_type == 'shop' ? 'حدد المحل بوضوح' : 'أين الوحدة داخل المبنى؟',
             style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
-          if (_type != 'floor') AppTextField(controller: _unitNumber,
-            label: _type == 'shop' ? 'اسم أو رقم المحل أو موضعه *' : 'رقم الوحدة أو موضعها *',
-            hint: _type == 'shop' ? 'مثال: المحل الأمامي بجوار المدخل' : 'مثال: 7 أو شمالية أو أمامية', enabled: !_busy),
           if (_type == 'shop') CheckboxListTile(contentPadding: EdgeInsets.zero,
             title: const Text('المحل داخل مبنى متعدد الأدوار'), value: _shopInBuilding,
             onChanged: _busy ? null : (value) => setState(() { _shopInBuilding = value == true; if (!_shopInBuilding) _floorNumber.clear(); })),
           if (_unitNeedsFloor) ...[
             const SizedBox(height: 12),
             AppTextField(controller: _floorNumber, label: 'أي دور؟ *', hint: 'مثال: الأرضي أو 3', enabled: !_busy),
+          ],
+          if (_type == 'apartment') CheckboxListTile(key: const ValueKey('unit-whole-floor'),
+            contentPadding: EdgeInsets.zero, title: const Text('الوحدة تشغل الدور كاملًا'), value: _wholeFloor,
+            onChanged: _busy ? null : (value) => setState(() { _wholeFloor = value == true; if (_wholeFloor) _unitNumber.clear(); })),
+          if (!_wholeFloor) ...[
+            const SizedBox(height: 12),
+            AppTextField(controller: _unitNumber,
+              label: _type == 'shop' ? 'اسم أو رقم المحل أو موضعه *' : _type == 'apartment' ? 'رقم الشقة أو موضعها داخل الدور *' : 'رقم المكتب أو موضعه *',
+              hint: _type == 'shop' ? 'مثال: المحل الأمامي بجوار المدخل' : 'مثال: 7 أو شمالية أو أمامية', enabled: !_busy),
           ],
         ],
         const SizedBox(height: AppSpacing.s16),
@@ -1163,7 +1171,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final areaValue = double.tryParse(_area.text.trim());
       if (areaValue == null || areaValue <= 0) return 'أدخل عدداً صحيحاً للبن.';
       if (_isUnitType) {
-        if (_type != 'floor' && _unitNumber.text.trim().isEmpty) {
+        if (!_wholeFloor && _unitNumber.text.trim().isEmpty) {
           return 'أدخل رقم الوحدة أو موضعها لتمييزها عن غيرها.';
         }
         if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) {
@@ -1276,7 +1284,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       buildingFacade: _requiresStructure ? _facade : null,
       address: _composedAddress,
       buildingReference: _isUnitType ? _buildingReference.text.trim() : null,
-      unitNumber: _isUnitType && _type != 'floor' ? _unitNumber.text.trim() : null,
+      unitNumber: _isUnitType && !_wholeFloor ? _unitNumber.text.trim() : null,
+      unitOccupiesEntireFloor: _type == 'apartment' && _wholeFloor,
       floorNumber: _unitNeedsFloor && _floorNumber.text.trim().isNotEmpty
           ? _floorNumber.text.trim()
           : null,

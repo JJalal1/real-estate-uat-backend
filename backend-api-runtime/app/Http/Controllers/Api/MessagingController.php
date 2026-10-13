@@ -326,7 +326,7 @@ class MessagingController extends Controller
         return [
             'id'=>$thread->id,'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,
             'property_status'=>$thread->property?->status === 'published' && !$thread->property->isPubliclyAvailable() ? 'unavailable' : $thread->property?->status,
-            'can_manage_customer'=>$user->hasApprovedVerificationProfile() && (int)($thread->property?->user_id ?? 0) === (int)$user->id && (int)$thread->started_by_user_id !== (int)$user->id,
+            'can_manage_customer'=>app(\App\Services\ListingAccessService::class)->isProfessional($user) && (int)($thread->property?->user_id ?? 0) === (int)$user->id && (int)$thread->started_by_user_id !== (int)$user->id,
             'lead_stage'=>$thread->lead_stage,
             'other_user'=>['id'=>$other?->user_id,'name'=>$other?->user_name_snapshot??'مستخدم'],
             'can_call_advertiser'=>($thread->property?->isPubliclyAvailable() ?? false) && (int)($thread->property?->user_id??0)!==(int)$user->id,

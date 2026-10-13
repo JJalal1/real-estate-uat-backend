@@ -53,7 +53,7 @@ class BrokerExperienceController extends Controller
 
     public function updateProfile(Request $request): JsonResponse
     {
-        $actor=$this->professional($request);
+        $actor=$this->advertiser($request);
         $v=$request->validate(['bio'=>['nullable','string','max:900']]);
         $actor->forceFill(['public_professional_bio'=>trim((string)($v['bio'] ?? '')) ?: null])->save();
         return response()->json(['data'=>['bio'=>$actor->public_professional_bio]]);
@@ -61,7 +61,7 @@ class BrokerExperienceController extends Controller
 
     public function uploadPhoto(Request $request, CloudAssetStorageService $storage): JsonResponse
     {
-        $actor=$this->professional($request);
+        $actor=$this->advertiser($request);
         $request->validate(['photo'=>['required','file','image','mimes:jpg,jpeg,png,webp','max:5120']]);
         // A separate, explicitly uploaded public photo; verification evidence is never reused.
         $path=$storage->storePublic($request->file('photo'),'professional-photos/'.$actor->id);
@@ -113,7 +113,7 @@ class BrokerExperienceController extends Controller
 
     public function customers(Request $request): JsonResponse
     {
-        $actor=$this->professional($request);
+        $actor=$request->filled('property_id') ? $this->advertiser($request) : $this->professional($request);
         $v=$request->validate(['stage'=>['nullable',Rule::in(['new','contacted','viewing','not_interested','completed'])],
             'filter'=>['nullable',Rule::in(['all','unread','followup_due'])], 'page'=>['nullable','integer','min:1'],'property_id'=>['nullable','integer','min:1']]);
         $query=$this->customerQuery($actor)->with(['property:id,title,status,availability_status','participants'])
@@ -199,7 +199,7 @@ class BrokerExperienceController extends Controller
 
     public function listingAvailability(Request $request): JsonResponse
     {
-        $actor=$this->professional($request);
+        $actor=$this->advertiser($request);
         $rows=Property::query()->withoutGlobalScopes()->where('user_id',$actor->id)->where('status','published')
             ->whereNotIn('availability_status',['sold','rented'])->orderBy('availability_due_at')->limit(250)->get();
         return response()->json(['data'=>$rows->map(fn ($p) => [
@@ -213,14 +213,14 @@ class BrokerExperienceController extends Controller
     {
         $v=$request->validate(['property_ids'=>['required','array','min:1','max:100'],'property_ids.*'=>['required','integer','distinct','min:1'],
             'state'=>['required',Rule::in(['available','paused','sold','rented'])]]);
-        $rows=$this->availability->change($this->professional($request),$v['property_ids'],$v['state'],$request);
+        $rows=$this->availability->change($this->advertiser($request),$v['property_ids'],$v['state'],$request);
         return response()->json(['data'=>['updated'=>count($rows),'property_ids'=>array_map(fn ($p) => $p->id,$rows),'state'=>$v['state']]]);
     }
 
     public function reportDeal(Request $request, MessageThread $thread): JsonResponse
     {
         $v=$request->validate(['basis_amount'=>['nullable','numeric','gt:0','max:9999999999999']]);
-        $outcome=$this->deals->report($this->professional($request),$thread,isset($v['basis_amount']) ? (float)$v['basis_amount'] : null,$request);
+        $outcome=$this->deals->report($this->advertiser($request),$thread,isset($v['basis_amount']) ? (float)$v['basis_amount'] : null,$request);
         return response()->json(['data'=>$this->outcomeData($outcome,$request->user())],201);
     }
 
@@ -250,7 +250,7 @@ class BrokerExperienceController extends Controller
 
     public function finance(Request $request): JsonResponse
     {
-        $actor=$this->professional($request);
+        $actor=$this->advertiser($request);
         $rows=PropertyPlatformReceivable::query()->where('advertiser_user_id',$actor->id)->with('financialTerm.property')->latest('id')->limit(250)->get();
         // Summaries cover the full account even when the visible history is bounded.
         $summary=PropertyPlatformReceivable::query()->where('advertiser_user_id',$actor->id)->groupBy('currency')->select('currency')
@@ -288,10 +288,17 @@ class BrokerExperienceController extends Controller
         return response()->json(['data'=>['id'=>$result->id,'status'=>$result->status]]);
     }
 
-    private function professional(Request $request): User
+    private function advertiser(Request $request): User
     {
         $actor=$request->user();
         abort_unless($actor && $actor->hasApprovedVerificationProfile(),403);
+        return $actor;
+    }
+
+    private function professional(Request $request): User
+    {
+        $actor=$this->advertiser($request);
+        abort_unless(app(\App\Services\ListingAccessService::class)->isProfessional($actor),403);
         return $actor;
     }
 

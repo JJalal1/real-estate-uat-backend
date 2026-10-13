@@ -81,6 +81,7 @@ Route::get('/services/catalog', [ServicePaymentController::class, 'catalog']);
 Route::get('/properties/{property}/services', [ServicePaymentController::class, 'propertyServices']);
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
+    Route::get('/listing-access', [PropertyController::class, 'listingAccess']);
     Route::get('/listing-sai-policy', [PropertySaiController::class, 'policy']);
     Route::get('/properties/{property}/sai-management', [PropertySaiController::class, 'management']);
     Route::get('/services/hub', [FreeServicesHubController::class, 'show']);

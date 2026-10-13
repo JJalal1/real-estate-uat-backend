@@ -11,11 +11,13 @@ class Stage6AuthGate extends ConsumerWidget {
     required this.child,
     this.requireActive = true,
     this.requireListingEligible = false,
+    this.requireProfessional = false,
   });
 
   final Widget child;
   final bool requireActive;
   final bool requireListingEligible;
+  final bool requireProfessional;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,6 +73,11 @@ class Stage6AuthGate extends ConsumerWidget {
                 button: 'اختيار نوع الحساب والتحقق',
                 onPressed: () => context.push('/account-verification'),
               );
+            }
+            if (requireProfessional && !user.hasVerifiedProfessionalProfile) {
+              return _GateMessage(icon: Icons.work_outline, title: 'أدوات الدلال بعد اعتماد التوثيق',
+                message: 'فعّل حساب دلال أو مكتب عقارات ليظهر لك العمل والعملاء والإحصائيات.',
+                button: 'فعّل حساب دلال', onPressed: () => context.push('/account-verification?upgrade=broker'));
             }
             return KeyedSubtree(key: ValueKey('account:${user.id}'), child: child);
           },

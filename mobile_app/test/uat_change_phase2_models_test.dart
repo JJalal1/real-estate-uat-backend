@@ -23,7 +23,7 @@ void main() {
       );
 
       final payload = input.toMap();
-      expect(payload['listing_input_version'], 4);
+      expect(payload['listing_input_version'], 5);
       expect(payload['tenure_type'], 'freehold');
       expect(payload['area_value'], 2);
       expect(payload['area_unit'], 'libna_sanaani');

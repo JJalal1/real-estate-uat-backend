@@ -505,6 +505,8 @@ class PropertyRepository {
       fields['replace_images'] = 1;
     }
 
+    final wholeFloor = fields['unit_occupies_entire_floor'];
+    if (wholeFloor is bool) fields['unit_occupies_entire_floor'] = wholeFloor ? 1 : 0;
     final form = FormData.fromMap(fields);
     for (final path in imagePaths.take(12)) {
       form.files.add(

@@ -178,6 +178,20 @@ void main() {
     });
   }
 
+  testWidgets('whole floor is a contextual apartment option and preserves recovery', (tester) async {
+    final store = _Recovery(_snapshot(type: 'apartment'));
+    await _pump(tester, const ListingEditorScreen(), snapshot: store.snapshot);
+    expect(find.text('الوحدة تشغل الدور كاملًا'), findsOneWidget);
+    expect(find.text('رقم الوحدة أو موضعها *'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('unit-whole-floor')));
+    await tester.tap(find.byKey(const ValueKey('unit-whole-floor')));
+    await tester.pumpAndSettle();
+    expect(find.text('رقم الوحدة أو موضعها *'), findsNothing);
+    expect(find.text('أي دور؟ *'), findsOneWidget);
+    expect(find.text('دور كامل'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('fourth step shows inline monetary commission and preview never saves', (tester) async {
     final repository = _Properties(), key = GlobalKey();
     await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(step: 3), properties: repository, boundary: key);
@@ -192,7 +206,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('explicit draft save carries v4 fields and customer-paid commission, without submission', (tester) async {
+  testWidgets('explicit draft save carries v5 fields and customer-paid commission, without submission', (tester) async {
     final repository = _Properties();
     final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const ListingEditorScreen()),
       GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing')))]);
@@ -200,7 +214,7 @@ void main() {
     await _pump(tester, const SizedBox(), snapshot: _snapshot(step: 3), properties: repository, router: router);
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
-    expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 4);
+    expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 5);
     expect(repository.payer, 'buyer'); expect(repository.rate, 2);
     expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
   });

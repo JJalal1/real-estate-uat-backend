@@ -16,7 +16,7 @@ class ProfessionalWorkspaceController extends Controller
         /** @var User $user */
         $user = $request->user();
         $profile = $user->verificationProfile();
-        abort_unless($profile && $profile->isApproved(), 403, 'يلزم حساب نشر موثق لفتح لوحة العمل.');
+        abort_unless($profile && $profile->isApproved() && in_array($profile->type, ['broker', 'office'], true), 403, 'يلزم اعتماد حساب دلال أو مكتب لفتح لوحة العمل.');
 
         $listingIds = Property::query()->where('user_id', $user->id)->pluck('id');
         $publishedIds = Property::query()

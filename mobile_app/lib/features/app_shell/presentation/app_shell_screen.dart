@@ -128,7 +128,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     }
     if (roles.contains('support_manager')) return 'manager';
     if (roles.contains('support_agent')) return 'agent';
-    if (user.hasVerifiedPublishingProfile == true) return 'advertiser';
+    if (user.hasVerifiedProfessionalProfile == true) return 'advertiser';
     return 'regular';
   }
 

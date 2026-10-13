@@ -121,7 +121,7 @@ class AccountScreen extends ConsumerWidget {
                       child: AppListRow(
                         title: 'نوع الحساب: ${user.accountTypeLabel}',
                         subtitle: user.verificationProfile.status == 'approved'
-                            ? 'تم التحقق من صفتك المهنية.'
+                            ? user.isOwner ? 'هوية المالك معتمدة لعرض عقار شخصي.' : 'تم التحقق من صفتك المهنية.'
                             : user.verificationProfile.status == 'pending'
                                 ? 'طلب التحقق قيد المراجعة من فريق الدعم.'
                                 : 'تحقق كمالك أو دلال أو مكتب عقارات عندما تحتاج إلى النشر.',
@@ -136,7 +136,18 @@ class AccountScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    if (user.hasVerifiedPublishingProfile) ...[
+                    if (user.isOwner && user.hasVerifiedPublishingProfile) ...[
+                      const SizedBox(height: AppSpacing.s20),
+                      const AppSectionHeader(title: 'عقاري الشخصي'),
+                      const SizedBox(height: AppSpacing.s8),
+                      _AccountGroup(rows: [
+                        _AccountRow('عقاري', Icons.home_outlined, () => context.push('/my-listings')),
+                        _AccountRow('إضافة عقار شخصي', Icons.add_home_outlined, () => context.push('/add-property')),
+                        _AccountRow('مستحقات المنصة', Icons.account_balance_wallet_outlined, () => context.push('/broker/finance')),
+                        _AccountRow('فعّل حساب دلال', Icons.work_outline, () => context.push('/account-verification?upgrade=broker')),
+                      ]),
+                    ],
+                    if (user.hasVerifiedProfessionalProfile) ...[
                       const SizedBox(height: AppSpacing.s24),
                       const AppSectionHeader(title: 'إدارة عقاراتي'),
                       const SizedBox(height: AppSpacing.s8),
@@ -171,7 +182,7 @@ class AccountScreen extends ConsumerWidget {
                           Icons.event_available_outlined,
                           () => context.push('/bookings'),
                         ),
-                        _AccountRow(
+                        if (user.hasVerifiedProfessionalProfile) _AccountRow(
                           'نتائج الصفقات',
                           Icons.check_circle_outline,
                           () => context.push('/broker/activity'),

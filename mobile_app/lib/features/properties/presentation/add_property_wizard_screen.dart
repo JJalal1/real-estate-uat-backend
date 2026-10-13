@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../domain/property_details.dart';
 import 'listing_editor_screen.dart';
+import 'personal_listing_creation_gate.dart';
 
 /// Compatibility entry point retained for existing routes and deep links.
 ///
@@ -17,6 +18,7 @@ class AddPropertyWizardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListingEditorScreen(existingProperty: existingProperty);
+    final editor = ListingEditorScreen(existingProperty: existingProperty);
+    return existingProperty == null ? PersonalListingCreationGate(child: editor) : editor;
   }
 }

@@ -75,7 +75,7 @@ class PropertyIdentityService
                 && $this->unitMarker((string) ($listing['floor_number'] ?? '')) === '') {
                 $errors['floor_number'][] = 'حدد أي دور يعرضه الإعلان.';
             }
-            if ($type !== 'floor' && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '') {
+            if ($type !== 'floor' && !($type === 'apartment' && (bool) ($listing['unit_occupies_entire_floor'] ?? false)) && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '') {
                 $errors['unit_number'][] = 'حدد رقم الوحدة أو موضعها داخل الدور حتى نميزها عن غيرها.';
             }
             if (trim((string) ($listing['address'] ?? '')) === '') {
@@ -337,7 +337,7 @@ class PropertyIdentityService
                 return ['decision' => 'confirmed_duplicate', 'score' => 100, 'signals' => ['same_building_same_unit'],
                     'candidate' => $this->candidatePayload($candidate, $this->distanceBetween($listing, $candidate), true)];
             }
-            $floorOverlap = $sameFloor && ($other->property_type === 'floor' || $asset->property_type === 'floor');
+            $floorOverlap = $sameFloor && ($other->unit_number === '@whole_floor' || $asset->unit_number === '@whole_floor');
             // Missing building names must not let an existing named unit be
             // republished unnoticed, or merge nearby distinct units silently.
             if ($floorOverlap || ($sameFloor && $sameUnit
@@ -467,6 +467,7 @@ class PropertyIdentityService
     {
         $this->validateIdentityInput($listing);
         $type = (string) $listing['type'];
+        $wholeFloor = $type === 'floor' || ($type === 'apartment' && (bool) ($listing['unit_occupies_entire_floor'] ?? false));
         $kind = $this->kindForType($type);
         $inputVersion = (int) ($listing['listing_input_version'] ?? 1);
         if (
@@ -483,10 +484,10 @@ class PropertyIdentityService
         }
         $address = $this->normalizedText((string) ($listing['address'] ?? ''));
         $buildingReference = $kind === 'unit' ? $this->normalizedText((string) ($listing['building_reference'] ?? '')) : null;
-        $unitNumber = $kind === 'unit' ? ($type === 'floor' ? '@whole_floor' : $this->normalizedText((string) ($listing['unit_number'] ?? ''))) : null;
+        $unitNumber = $kind === 'unit' ? ($wholeFloor ? '@whole_floor' : $this->normalizedText((string) ($listing['unit_number'] ?? ''))) : null;
         $floorNumber = $kind === 'unit' ? $this->normalizedText((string) ($listing['floor_number'] ?? '')) : null;
         if ($inputVersion >= 4 && $kind === 'unit') {
-            if ($type !== 'floor') $unitNumber = $this->unitMarker((string) ($listing['unit_number'] ?? ''));
+            if (!$wholeFloor) $unitNumber = $this->unitMarker((string) ($listing['unit_number'] ?? ''));
             $floorNumber = $this->floorMarker((string) ($listing['floor_number'] ?? ''));
         }
         // Existing named-building identities keep their original hashes. New

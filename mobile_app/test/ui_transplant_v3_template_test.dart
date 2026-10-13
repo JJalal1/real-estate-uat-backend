@@ -61,12 +61,12 @@ class _AuthFixture extends AuthController {
   Future<AuthUser?> build() async => user;
 }
 
-AuthUser _user({bool verified = false}) => AuthUser.fromJson({
+AuthUser _user({bool verified = false, String type = 'owner'}) => AuthUser.fromJson({
   'id': 1, 'name': 'حساب عرض تجريبي', 'phone': '+967700000000',
   'account_status': 'active', 'phone_verified_at': '2026-10-11T00:00:00Z',
   'profile_completed_at': '2026-10-11T00:00:00Z',
   if (verified) 'verification_profile': {
-    'type': 'owner', 'status': 'approved', 'reviewed_at': '2026-10-11T00:00:00Z',
+    'type': type, 'status': 'approved', 'reviewed_at': '2026-10-11T00:00:00Z',
   },
 });
 
@@ -274,10 +274,21 @@ void main() {
     expect(find.text('favorites destination'), findsNothing);
   });
 
+  for (final type in ['owner', 'broker', 'office']) {
+    testWidgets('$type sees the navigation for its approved identity', (tester) async {
+      await _pump(tester, user: _user(verified: true, type: type));
+      final labels = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((item) => item.label).toList();
+      expect(labels.contains('عملي'), type != 'owner');
+      expect(labels.contains('العملاء'), type != 'owner');
+      expect(labels.contains('حسابي'), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('wizard uses its template counter and keeps original field validation', (tester) async {
     await _pump(tester, user: _user(verified: true), initial: '/listing-preview');
     expect(find.text('1/4'), findsOneWidget);
-    expect(find.byType(EbrokerWizardCategoryCard), findsNWidgets(9));
+    expect(find.byType(EbrokerWizardCategoryCard), findsNWidgets(8));
     final grid = tester.widget<GridView>(find.byType(GridView));
     expect((grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount).crossAxisCount, 3);
     expect(find.text('نوع الملكية *'), findsOneWidget);
@@ -322,7 +333,7 @@ void main() {
 
   for (final verified in [false, true]) {
     testWidgets('center add button enforces publishing eligibility verified=$verified', (tester) async {
-      final router = await _pump(tester, user: _user(verified: verified));
+      final router = await _pump(tester, user: _user(verified: verified, type: 'broker'));
       final shape = find.byWidgetPredicate((w) => w is EbrokerImage && w.name == 'add_shape');
       expect(shape, verified ? findsNothing : findsOneWidget);
       await tester.tap(verified ? find.text('إضافة عقار') : find.byTooltip('إضافة عقار'));
@@ -391,7 +402,7 @@ void main() {
 
   testWidgets('own listing source card supports enlarged Arabic without losing review controls', (tester) async {
     _viewport(tester, const Size(320, 640));
-    await _pump(tester, scale: 2.4, user: _user(verified: true));
+    await _pump(tester, scale: 2.4, user: _user(verified: true, type: 'broker'));
     await tester.tap(find.text('عملي'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('عقارات نشطة'), 250, scrollable: find.byType(Scrollable).first);
@@ -483,7 +494,7 @@ void main() {
     try {
       _viewport(tester, const Size(412, 915));
       final key = GlobalKey();
-      final router = await _pump(tester, boundary: key, user: _user(verified: true));
+      final router = await _pump(tester, boundary: key, user: _user(verified: true, type: 'broker'));
       await _capture(tester, key, 'template-home-navigation');
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -260));
       await tester.pumpAndSettle();

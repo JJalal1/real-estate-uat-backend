@@ -218,10 +218,15 @@ class PropertyController extends Controller
         ]);
     }
 
+    public function listingAccess(Request $request): JsonResponse
+    {
+        return response()->json(['data' => app(\App\Services\ListingAccessService::class)->metadata($request->user())]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         /** @var User $user */
-        $user=$request->user();$this->assertAdvertiserCanCreateDraft($user);$validated=$request->validate($this->listingRules(false));
+        $user=$request->user();$this->assertAdvertiserCanCreateDraft($user);app(\App\Services\ListingAccessService::class)->assertCanCreate($user);$validated=$request->validate($this->listingRules(false));
         $validated=$this->normalizeListingFields($validated,null,false);
         $this->assertV2ListingCompleteness($validated);
         $cell=$this->regions->assertListingAllowed($user,(float)$validated['latitude'],(float)$validated['longitude']);
@@ -230,6 +235,8 @@ class PropertyController extends Controller
         $storedPublic=[];$storedPrivate=[];
         try{
             $property=DB::transaction(function()use($request,$validated,$user,$cell,$asset,&$storedPublic,&$storedPrivate){
+                $lockedUser=User::query()->lockForUpdate()->findOrFail($user->id);
+                app(\App\Services\ListingAccessService::class)->assertCanCreate($lockedUser);
                 $property=Property::query()->create(array_merge($this->listingPayload($validated,false),['user_id'=>$user->id,'property_asset_id'=>$asset->id,'geo_cell_id'=>$cell?->id,'owner_key'=>null,'status'=>'draft','review_status'=>'draft']));
                 $this->syncLocation($property);$this->storeImages($request,$property,0,$storedPublic);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
                 $this->audit->record($user,'listing.created',$property,['purpose'=>$property->purpose,'status'=>'draft','property_asset_id'=>$asset->id],$request,$user->id);
@@ -345,7 +352,7 @@ class PropertyController extends Controller
             'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
             'currency' => ['sometimes', 'string', 'size:3'],
-            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4])],
+            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4, 5])],
             'area_m2' => ['nullable', 'integer', 'min:1', 'max:10000000'],
             'area_value' => ['nullable', 'numeric', 'gt:0', 'max:10000000'],
             'area_unit' => ['nullable', 'string', Rule::in(array_keys(self::AREA_UNITS))],
@@ -357,6 +364,7 @@ class PropertyController extends Controller
             'building_reference' => ['nullable', 'string', 'max:160'],
             'unit_number' => ['nullable', 'string', 'max:64'],
             'floor_number' => ['nullable', 'string', 'max:32'],
+            'unit_occupies_entire_floor' => ['sometimes', 'boolean'],
             'land_boundary_geojson' => ['nullable'],
             'latitude' => array_merge($required, ['numeric', 'between:-90,90']),
             'longitude' => array_merge($required, ['numeric', 'between:-180,180']),
@@ -384,7 +392,7 @@ class PropertyController extends Controller
         $allowed = [
             'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
             'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude',
-            'building_reference', 'unit_number', 'floor_number', 'land_boundary_geojson',
+            'building_reference', 'unit_number', 'floor_number', 'unit_occupies_entire_floor', 'land_boundary_geojson',
             'contact_phone', 'contact_whatsapp',
             'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note',
         ];
@@ -482,14 +490,16 @@ class PropertyController extends Controller
                 $validated['has_parking'] = null; $validated['building_facade'] = null;
             }
         }
-        if ($effectiveType === 'floor') $validated['unit_number'] = null;
+        $wholeFloor = $effectiveType === 'floor' || ($effectiveType === 'apartment' && (bool) ($validated['unit_occupies_entire_floor'] ?? $existing?->unit_occupies_entire_floor ?? false));
+        $validated['unit_occupies_entire_floor'] = $effectiveType === 'apartment' && $wholeFloor;
+        if ($wholeFloor) $validated['unit_number'] = null;
         if ($effectiveType === 'shop' && (int) ($validated['listing_input_version'] ?? 1) >= 4 && !array_key_exists('floor_number', $validated)) $validated['floor_number'] = null;
         return $validated;
     }
 
     private function assertV2ListingCompleteness(array $listing): void
     {
-        if (! in_array((int) ($listing['listing_input_version'] ?? 1), [2, 4], true)) {
+        if (! in_array((int) ($listing['listing_input_version'] ?? 1), [2, 4, 5], true)) {
             return;
         }
 
@@ -542,6 +552,7 @@ class PropertyController extends Controller
             'description' => $property->description,
             'purpose' => $property->purpose,
             'type' => $property->type,
+            'unit_occupies_entire_floor' => $property->type === 'floor' || (bool) $property->unit_occupies_entire_floor,
             'tenure_type' => $property->tenure_type,
             'price' => $property->price,
             'currency' => $property->currency,
@@ -594,7 +605,15 @@ class PropertyController extends Controller
             });
         }
 
-        foreach (['purpose', 'type'] as $field) {
+        if (($validated['type'] ?? null) === 'apartment') {
+            $query->whereIn('type', ['apartment', 'floor']);
+        } elseif (($validated['type'] ?? null) === 'floor') {
+            $query->where(fn (Builder $scope) => $scope->where('type', 'floor')
+                ->orWhere(fn (Builder $unit) => $unit->where('type', 'apartment')->where('unit_occupies_entire_floor', true)));
+        } elseif (! empty($validated['type'])) {
+            $query->where('type', $validated['type']);
+        }
+        foreach (['purpose'] as $field) {
             if (! empty($validated[$field])) {
                 $query->where($field, $validated[$field]);
             }
@@ -798,6 +817,7 @@ class PropertyController extends Controller
             'title' => $property->title,
             'purpose' => $property->purpose,
             'type' => $property->type,
+            'unit_occupies_entire_floor' => $property->type === 'floor' || (bool) $property->unit_occupies_entire_floor,
             'tenure_type' => $property->tenure_type,
             'price' => (float) $property->price,
             'currency' => $property->currency,

@@ -136,6 +136,10 @@ jobs:
         run: >-
           php artisan test tests/Feature/UxRefinementApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Wave3 account boundaries and floor identity on PostgreSQL
+        run: >-
+          php artisan test tests/Feature/Wave3MarketplaceApiTest.php
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: PostGIS original overlap contract
         run: >-
           php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php
