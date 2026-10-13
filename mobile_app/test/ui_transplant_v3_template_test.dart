@@ -166,6 +166,8 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     GoRoute(path: '/auth', builder: (_, __) => const AuthScreen()),
     GoRoute(path: '/favorites', builder: (_, __) => const Stage6AuthGate(
       child: FavoritesScreen())),
+    GoRoute(path: '/my-listings', builder: (_, __) => const Stage6AuthGate(
+      child: MyListingsScreen())),
     GoRoute(path: '/add-property', builder: (_, __) => const Stage6AuthGate(
       requireListingEligible: true, child: Scaffold(body: Text('listing destination')))),
     GoRoute(path: '/messages/:id', builder: (_, state) => ConversationScreen(
@@ -274,8 +276,8 @@ void main() {
 
   testWidgets('wizard uses its template counter and keeps original field validation', (tester) async {
     await _pump(tester, user: _user(verified: true), initial: '/listing-preview');
-    expect(find.text('1/5'), findsOneWidget);
-    expect(find.byType(EbrokerWizardCategoryCard), findsNWidgets(7));
+    expect(find.text('1/4'), findsOneWidget);
+    expect(find.byType(EbrokerWizardCategoryCard), findsNWidgets(9));
     final grid = tester.widget<GridView>(find.byType(GridView));
     expect((grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount).crossAxisCount, 3);
     expect(find.text('نوع الملكية *'), findsOneWidget);
@@ -290,7 +292,7 @@ void main() {
     expect((button.style!.shape!.resolve({})! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(6));
     await tester.tap(next);
     await tester.pumpAndSettle();
-    expect(find.text('1/5'), findsOneWidget);
+    expect(find.text('1/4'), findsOneWidget);
     expect(find.byType(SnackBar), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -390,7 +392,11 @@ void main() {
   testWidgets('own listing source card supports enlarged Arabic without losing review controls', (tester) async {
     _viewport(tester, const Size(320, 640));
     await _pump(tester, scale: 2.4, user: _user(verified: true));
-    await tester.tap(find.text('عقاراتي'));
+    await tester.tap(find.text('عملي'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('عقارات نشطة'), 250, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('عقارات نشطة'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byType(EbrokerPropertyHorizontalCard), 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
@@ -482,9 +488,15 @@ void main() {
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -260));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-home-advertisers');
-      await tester.tap(find.text('عقاراتي'));
+      await tester.tap(find.text('عملي'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('عقارات نشطة'), 250, scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('عقارات نشطة'));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-my-listings');
+      router.pop();
+      await tester.pumpAndSettle();
       await tester.tap(find.text('حسابي'));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-account');

@@ -159,6 +159,8 @@ void main() {
       (tester) async {
     final router = await _pumpHome(tester);
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-property-37')), 250, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(find.text('السعر المعروض يشمل السعي'), findsOneWidget);
     expect(
       find.byWidgetPredicate((widget) => widget is Text &&
@@ -210,6 +212,8 @@ void main() {
   testWidgets('empty home leaves discovery usable', (tester) async {
     final router = await _pumpHome(tester, load: () async => []);
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('لا توجد عقارات في هذا النطاق'), 250, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(find.text('لا توجد عقارات في هذا النطاق'), findsOneWidget);
     final action = find.text('استكشاف الخريطة');
     await tester.scrollUntilVisible(action, 300, scrollable: find.byType(Scrollable).first);
@@ -229,7 +233,7 @@ void main() {
     });
     await tester.pumpAndSettle();
     final retry = find.text('إعادة المحاولة');
-    await tester.ensureVisible(retry);
+    await tester.scrollUntilVisible(retry, 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(retry);
     await tester.pumpAndSettle();
@@ -285,6 +289,8 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         final pending = Completer<List<PropertyMarker>>();
         await _pumpHome(tester, load: () => pending.future, scale: scale);
+        await tester.scrollUntilVisible(find.byType(AppSkeleton).first, 250, scrollable: find.byType(Scrollable).first);
+        await tester.pump();
         expect(find.byType(AppSkeleton), findsWidgets);
         expect(Directionality.of(tester.element(find.byType(MarketplaceHomeScreen))),
             TextDirection.rtl);
@@ -292,7 +298,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         final card = find.byKey(const ValueKey('home-property-37'));
-        await tester.ensureVisible(card);
+        await tester.scrollUntilVisible(card, 250, scrollable: find.byType(Scrollable).first);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         tester.state<ScrollableState>(find.byType(Scrollable).first).position.jumpTo(0);
@@ -324,7 +330,7 @@ void main() {
     }
 
     await capture('home-top');
-    await tester.ensureVisible(find.byKey(const ValueKey('home-property-37')));
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-property-37')), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await capture('home-properties');
     expect(tester.takeException(), isNull);

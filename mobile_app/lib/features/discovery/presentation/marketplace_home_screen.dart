@@ -106,7 +106,6 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             TextButton.icon(onPressed: () => context.push('/broker/workspace'), icon: const EbrokerIcon(Icons.work_outline, size: 18), label: const Text('إدارة عملي')),
             TextButton.icon(onPressed: () => context.push('/add-property'), icon: const EbrokerIcon(Icons.add, size: 18), label: const Text('إضافة عقار')),
           ]))),
-        SliverToBoxAdapter(child: EbrokerHomeBanner(onTap: openMap)),
         SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'البحث حسب الفئة', onSeeAll: openMap)),
         SliverToBoxAdapter(child: SizedBox(height: 44.rh(context), child: ListView(scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 18), children: [
@@ -115,6 +114,24 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                 label: category.$1, icon: ebrokerCategoryIcon(category.$2), selected: _type == category.$2,
                 onTap: () => setState(() => _type = category.$2))),
           ]))),
+        SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'عقارات في صنعاء', onSeeAll: openMap)),
+        properties.when(
+          loading: () => SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Column(children: const [AppSkeleton(height: 250, radius: 8), SizedBox(height: 8), AppSkeleton(height: 80, radius: 4)]))),
+          error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(nearbyPropertiesProvider(_query)))),
+          data: (items) => items.isEmpty ? SliverToBoxAdapter(child: AppEmptyState(title: 'لا توجد عقارات في هذا النطاق',
+            message: 'يمكنك استكشاف مناطق أخرى على الخريطة.', actionLabel: 'استكشاف الخريطة', onAction: openMap))
+            : SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 18), sliver: SliverList(delegate: SliverChildBuilderDelegate((context, index) {
+              final property = items[index];
+              return Padding(padding: const EdgeInsets.only(bottom: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                EbrokerPropertyHorizontalCard(key: ValueKey('home-property-${property.id}'), imageFirst: true, title: property.title,
+                  price: property.price.toStringAsFixed(0), currency: property.currency, imageUrl: property.mainImage, location: property.address,
+                  categoryLabel: ebrokerPropertyTypeLabel(property.type),
+                  purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع', onTap: () => context.push('/properties/${property.id}')),
+                if (property.priceDisplayNote != null) Padding(padding: const EdgeInsets.only(top: 8), child: EbrokerText(property.priceDisplayNote!, size: 12)),
+              ]));
+            }, childCount: items.length))),
+        ),
         advertisers.maybeWhen(data: (entries) => entries.isEmpty
           ? const SliverToBoxAdapter()
           : SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -134,24 +151,6 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                   ],
                 ])),
             ])), orElse: () => const SliverToBoxAdapter()),
-        SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'عقارات في صنعاء', onSeeAll: openMap)),
-        properties.when(
-          loading: () => SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Column(children: const [AppSkeleton(height: 250, radius: 8), SizedBox(height: 8), AppSkeleton(height: 80, radius: 4)]))),
-          error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(nearbyPropertiesProvider(_query)))),
-          data: (items) => items.isEmpty ? SliverToBoxAdapter(child: AppEmptyState(title: 'لا توجد عقارات في هذا النطاق',
-            message: 'يمكنك استكشاف مناطق أخرى على الخريطة.', actionLabel: 'استكشاف الخريطة', onAction: openMap))
-            : SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 18), sliver: SliverList(delegate: SliverChildBuilderDelegate((context, index) {
-              final property = items[index];
-              return Padding(padding: const EdgeInsets.only(bottom: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                EbrokerPropertyHorizontalCard(key: ValueKey('home-property-${property.id}'), imageFirst: true, title: property.title,
-                  price: property.price.toStringAsFixed(0), currency: property.currency, imageUrl: property.mainImage, location: property.address,
-                  categoryLabel: ebrokerPropertyTypeLabel(property.type),
-                  purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع', onTap: () => context.push('/properties/${property.id}')),
-                if (property.priceDisplayNote != null) Padding(padding: const EdgeInsets.only(top: 8), child: EbrokerText(property.priceDisplayNote!, size: 12)),
-              ]));
-            }, childCount: items.length))),
-        ),
         const SliverToBoxAdapter(child: SizedBox(height: 40)),
       ])),
     );
