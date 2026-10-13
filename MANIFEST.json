@@ -1,0 +1,13 @@
+{
+  "source_commit": "b06b8c8d46896ee11d88ff684e3c633fc3f5dfe5",
+  "run_number": 26,
+  "files": {
+    "BUILD_INFO.txt": 484,
+    "RESOLVED_PUBSPEC.lock": 30159,
+    "DEPENDENCY_SHA256.txt": 93,
+    "BUILD_PUBSPEC_OVERRIDES.yaml": 550,
+    "SHA256.txt": 101,
+    "real-estate-broker-uat-26.apk": 48996805
+  },
+  "chunk_bytes": 384000
+}
