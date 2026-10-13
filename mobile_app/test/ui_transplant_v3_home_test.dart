@@ -289,7 +289,7 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         final pending = Completer<List<PropertyMarker>>();
         await _pumpHome(tester, load: () => pending.future, scale: scale);
-        await tester.scrollUntilVisible(find.byType(AppSkeleton).first, 250, scrollable: find.byType(Scrollable).first);
+        await tester.scrollUntilVisible(find.byKey(const ValueKey('home-feed-loading')), 250, scrollable: find.byType(Scrollable).first);
         await tester.pump();
         expect(find.byType(AppSkeleton), findsWidgets);
         expect(Directionality.of(tester.element(find.byType(MarketplaceHomeScreen))),

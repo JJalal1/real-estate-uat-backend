@@ -110,7 +110,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
               actionLabel: 'تعديل البحث', onAction: _edit),
           for (final row in _rows) Padding(padding: const EdgeInsets.only(bottom: 14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              EbrokerPropertyHorizontalCard(title: row.title, price: row.price.toStringAsFixed(0), currency: row.currency,
+              EbrokerPropertyHorizontalCard(imageFirst: true, title: row.title, price: row.price.toStringAsFixed(0), currency: row.currency,
                 imageUrl: row.mainImage, location: row.address, categoryLabel: ebrokerPropertyTypeLabel(row.type),
                 purposeLabel: row.purpose == 'rent' ? 'للإيجار' : 'للبيع',
                 onTap: () => context.push('/properties/${row.id}')),

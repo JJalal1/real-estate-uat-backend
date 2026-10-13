@@ -117,7 +117,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'عقارات في صنعاء', onSeeAll: openMap)),
         properties.when(
           loading: () => SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Column(children: const [AppSkeleton(height: 250, radius: 8), SizedBox(height: 8), AppSkeleton(height: 80, radius: 4)]))),
+            child: Column(children: const [AppSkeleton(key: ValueKey('home-feed-loading'), height: 250, radius: 8), SizedBox(height: 8), AppSkeleton(height: 80, radius: 4)]))),
           error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(nearbyPropertiesProvider(_query)))),
           data: (items) => items.isEmpty ? SliverToBoxAdapter(child: AppEmptyState(title: 'لا توجد عقارات في هذا النطاق',
             message: 'يمكنك استكشاف مناطق أخرى على الخريطة.', actionLabel: 'استكشاف الخريطة', onAction: openMap))
