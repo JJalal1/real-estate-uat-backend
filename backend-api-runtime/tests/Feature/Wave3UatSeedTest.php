@@ -41,6 +41,10 @@ class Wave3UatSeedTest extends TestCase
         $this->assertDatabaseCount('properties', 27);
         $this->assertDatabaseCount('broker_deal_outcomes', 11);
         $this->assertDatabaseCount('property_platform_receivables', 11);
+        $this->assertSame(7, DB::table('property_platform_receivables')->where('status', 'paid')->count());
+        $this->assertSame(4, DB::table('property_platform_receivables')->where('status', 'open')->count());
+        $this->assertDatabaseCount('property_payments', 7);
+        $this->assertSame(7, DB::table('property_payments')->where('status', 'confirmed')->count());
         $this->assertDatabaseCount('property_agreements', 0);
         $this->assertDatabaseCount('advertiser_ratings', 10);
         $this->assertDatabaseCount('viewing_bookings', 10);

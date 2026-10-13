@@ -12,7 +12,7 @@ import 'package:real_estate_mobile/features/properties/domain/property_details.d
 import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/personal_listing_creation_gate.dart';
 
-class _OwnerAuth extends AsyncNotifier<AuthUser?> {
+class _OwnerAuth extends AuthController {
   @override
   Future<AuthUser?> build() async => AuthUser.fromJson({'id': 1, 'name': 'عبدالله محمد علي القاضي',
     'account_status': 'active', 'phone_verified_at': '2026-10-13T10:00:00Z', 'profile_completed_at': '2026-10-13T10:00:00Z',

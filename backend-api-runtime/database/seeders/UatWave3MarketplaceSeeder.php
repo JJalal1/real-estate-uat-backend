@@ -10,6 +10,8 @@ use App\Models\MessageThread;
 use App\Models\PrivateMessage;
 use App\Models\Property;
 use App\Models\PropertyImage;
+use App\Models\PropertyDealFinancialTerm;
+use App\Models\PropertyPaymentMethod;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\ViewingBooking;
@@ -18,6 +20,7 @@ use App\Services\BrokerDealService;
 use App\Services\CloudAssetStorageService;
 use App\Services\PropertyIdentityService;
 use App\Services\PropertySaiService;
+use App\Services\PropertyFinancialService;
 use App\Services\SupportTaskService;
 use App\Services\UatWave3CleanupService;
 use App\Services\UserNotificationService;
@@ -66,6 +69,7 @@ class UatWave3MarketplaceSeeder extends Seeder
                         $request = Request::create('/uat/wave3/fixtures', 'POST');
                         $deal = app(BrokerDealService::class)->report($actor, $thread, null, $request);
                         $deal = app(BrokerDealService::class)->decide($customer, $deal, true, $request);
+                        if (in_array($key, ['strong', 'office'], true)) $this->settleFixtureReceivable($deal->id, $actor);
                         if ($i < count($buyers)) AdvertiserRating::create([
                             'broker_deal_outcome_id' => $deal->id, 'advertiser_user_id' => $actor->id, 'advertiser_name_snapshot' => $actor->name,
                             'rater_user_id' => $customer->id, 'rater_name_snapshot' => $customer->name, 'source_property_id' => $property->id,
@@ -255,6 +259,31 @@ class UatWave3MarketplaceSeeder extends Seeder
         $property->forceFill(['view_count' => 1])->saveQuietly();
         DB::table('property_favorites')->insert(['user_id' => $customer->id, 'property_id' => $property->id, 'created_at' => now(), 'updated_at' => now()]);
         return $thread;
+    }
+
+    private function settleFixtureReceivable(int $dealId, User $actor): void
+    {
+        $finance = app(PropertyFinancialService::class);
+        $term = PropertyDealFinancialTerm::where('broker_deal_outcome_id', $dealId)->firstOrFail();
+        $method = PropertyPaymentMethod::where('currency', $term->currency)->where('is_enabled', true)->orderBy('id')->firstOrFail();
+        $reviewer = User::where('is_platform_owner', true)->firstOrFail();
+        $request = Request::create('/uat/wave3/fixtures', 'POST');
+        $payment = $finance->createPayment($term, $actor, 'platform_receivable', $method, $request);
+        $image = imagecreatetruecolor(720, 220);
+        imagefilledrectangle($image, 0, 0, 719, 219, imagecolorallocate($image, 238, 242, 245));
+        $ink = imagecolorallocate($image, 35, 45, 60);
+        imagestring($image, 5, 30, 55, 'UAT PAYMENT FIXTURE / NO REAL TRANSFER', $ink);
+        imagestring($image, 5, 30, 100, 'Payment '.$payment->reference, $ink);
+        $temp = tempnam(sys_get_temp_dir(), 'wave3-payment-proof-');
+        try {
+            imagepng($image, $temp);
+            $path = app(CloudAssetStorageService::class)->storePrivate(new UploadedFile($temp, 'uat-payment.png', 'image/png', null, true), 'uat-wave3/payments/'.$payment->id);
+            $this->privatePaths[] = $path;
+            $payment = $finance->submitProof($payment, $actor, ['proof_path' => $path, 'proof_original_name' => 'UAT-PAYMENT-FIXTURE.png',
+                'proof_mime_type' => 'image/png', 'proof_size_bytes' => filesize($temp), 'provider_reference' => 'UAT-W3-'.$payment->id,
+                'sender_name' => $actor->name, 'sender_phone' => $actor->phone], $request);
+            $finance->reviewPayment($payment, $reviewer, 'confirm', 'Fictional UAT payment fixture; no real transfer or funds.', $request);
+        } finally { imagedestroy($image); if (is_file($temp)) unlink($temp); }
     }
 
     private function viewing(User $actor, User $customer, Property $property, MessageThread $thread, int $position): void
