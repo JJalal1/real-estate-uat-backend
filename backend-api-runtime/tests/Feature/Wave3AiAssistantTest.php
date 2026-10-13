@@ -27,6 +27,10 @@ class Wave3AiAssistantTest extends TestCase
 
     private function model(array $value): void
     {
+        // A fresh factory prevents a previous fake callback from answering a
+        // later follow-up. Keep the different responses and all assertions.
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::preventStrayRequests();
         Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
             'candidates' => [['content' => ['parts' => [['text' => json_encode($value, JSON_UNESCAPED_UNICODE)]]]]],
         ])]);
