@@ -131,6 +131,9 @@ class Wave3MarketplaceApiTest extends TestCase
 
     private function create(array $headers, array $changes = []): int
     {
-        return (int) $this->withHeaders($headers)->post('/api/properties', $this->payload($changes))->assertCreated()->json('data.id');
+        $id = (int) $this->withHeaders($headers)->post('/api/properties', $this->payload($changes))->assertCreated()->json('data.id');
+        $type = Property::findOrFail($id)->user->verificationProfileType();
+        $this->withHeaders($headers)->putJson("/api/properties/$id/sai", $type === 'owner' ? [] : ['broker_sai_rate_percent' => 2, 'platform_terms_decision' => 'accept'])->assertOk();
+        return $id;
     }
 }

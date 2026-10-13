@@ -48,6 +48,8 @@ return [
         'timeout' => (int) env('UAT_STORAGE_TIMEOUT', 90),
     ],
 
+    'uat_wave3' => ['enabled' => filter_var(env('UAT_WAVE3_FIXTURES_ENABLED', false), FILTER_VALIDATE_BOOLEAN)],
+
     'whatsapp' => [
         'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
         'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
@@ -59,7 +61,9 @@ return [
             'code' => env('UAT_TEST_OTP_CODE'),
             'phone_numbers' => array_values(array_filter(array_map(
                 static fn ($value) => trim((string) $value),
-                explode(',', (string) env('UAT_TEST_PHONE_NUMBERS', '')),
+                array_merge(explode(',', (string) env('UAT_TEST_PHONE_NUMBERS', '')),
+                    in_array(env('APP_ENV'), ['uat', 'staging'], true) && filter_var(env('UAT_WAVE3_FIXTURES_ENABLED', false), FILTER_VALIDATE_BOOLEAN)
+                        ? array_map(static fn ($suffix) => '+120255501'.str_pad((string) $suffix, 2, '0', STR_PAD_LEFT), [1,2,3,4,5,10,11,12,13,14,15]) : []),
             ))),
         ],
     ],

@@ -157,3 +157,11 @@ No Phase 4 acceptance authorizes a merge to `main` or any Production deployment.
 ## D-032 — October 13 marketplace and dynamic listing refinement
 
 The owner authorizes thoughtful refinement using eBroker assets and the supplied Houzi references, rather than literal template copying. Verified advertisers start in the marketplace with a separate work area. Listing input v4 distinguishes whole floors/buildings and moves photos and Sai into their appropriate form contexts. New Sai terms are customer-paid, with unchanged percentage policies and immutable historical terms. The first assisted-search path proposes editable filters and fetches real canonical API results; no external AI provider is enabled. UAT checks and handset/reference-video acceptance remain separate gates. See `UX_REFINEMENT_ROUND2_AR.md`.
+
+## D-W3 — Contextual unit scope and reviewed professional activation
+
+The October 13 Wave3 handoff supersedes standalone whole-floor selection and owner professional tabs. Preserve exact old whole-floor identity, offer one personal property under existing verification, and require approved broker/office identity for CRM/workspace. The backend enforces the cap independently of Flutter; pending upgrades do not grant professional tools.
+
+## D-W3-UAT — One-shot fixture replacement, operational preservation
+
+The owner authorized replacing old UAT marketplace fixtures only. Match exact legacy email/phone pairs, exclude any operational role/direct privilege/platform owner, back up sanitized scoped rows privately, and verify protected account snapshots. No global truncate, FK disabling or RLS change. Only scoped immutable DELETE guards are removed/recreated within the enclosing transaction; ordinary UPDATE/history guards stay active. An unforeseen financial/contract history stops cleanup. No reset endpoint or repeated cleanup on deploy.

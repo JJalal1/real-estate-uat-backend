@@ -198,3 +198,11 @@ Do not fabricate a valuation when comparable data is insufficient. Return/displa
 ## 20. Legal/guide content
 
 The Real-estate Guide and Legal Documents library are informational. Do not present templates as government-certified or legal advice unless that is genuinely verified. Sensitive/high-risk cases should direct users to an appropriate specialist.
+
+## 21. October 13 Wave3 account and unit scope
+
+The first listing step offers basic types only; a whole-floor unit is an apartment with `unit_occupies_entire_floor`, not a separate first-step category. It requires a floor, clears a unit position, and uses the existing `@whole_floor` identity marker. Old `floor` listings remain readable/editable and match apartment searches. Whole buildings/houses/villas discard irrelevant floor/unit fields.
+
+A modern ordinary account needs the existing owner verification before publishing one personal property. Any non-archived personal listing, including a draft, consumes that slot; editing/resuming it does not create another slot. A second creation is rejected by the backend under a user-row transaction lock and offers broker review. Approved brokers/offices can manage multiple listings and use the work/CRM screens. An approved owner retains owned-property availability, conversation/viewing/outcome actions and platform receivables without getting professional CRM. Broker activation is free and grants tools only after normal verification approval; registration remains ordinary.
+
+The historical v0 local/test listing compatibility is retained; modern registration cannot request it. No commission formulas, financial snapshots, hierarchy, contracts or public/private storage boundaries change.

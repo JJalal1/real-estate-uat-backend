@@ -4,7 +4,7 @@ import 'package:real_estate_mobile/features/properties/domain/property_field_opt
 
 void main() {
   group('UAT Change Phase 2 property contract', () {
-    test('v4 payload preserves original area unit and optional contact', () {
+    test('v5 payload preserves original area unit and optional contact', () {
       const input = PropertyListingInput(
         title: 'منزل للاختبار',
         purpose: 'sale',

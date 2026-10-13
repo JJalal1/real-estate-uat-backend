@@ -1,12 +1,20 @@
 # AI Project State — REAL ESTATE UAT
 
-Last updated: 2026-10-12
+Last updated: 2026-10-13
 
-## Active broker UAT work — current authority
+## Wave3 marketplace — current authority
+
+The current task is `docs/WAVE3_MARKETPLACE_AR.md`: eight basic listing types, whole-floor scope inside apartment details, one personal listing for modern non-professional accounts, and approved broker/office-only work tools. Owner verification and private per-property relationship evidence remain required. The earlier six broker conveniences and customer-paid commission policy are retained.
+
+Wave3 includes an explicitly authorized, one-shot cleanup of the exact legacy Frankfurt UAT fixture identities followed by 11 fictional marketplace personas and 27 listings. The implementation preserves operational accounts/roles/verification data, verifies a private sanitized backup, restores immutable delete triggers in the same transaction, and refuses Production or another Supabase project. See that task document for the scope and fixture entry phones. A successful seeding marker prevents any repeat cleanup or recreation of legacy accounts.
+
+Draft PR 70 is the evidence index for the latest exact source SHA, green CI, APK, and Frankfurt deployment. Earlier APK 1019 corresponds to second-round baseline `2f05967397e1921fc55927111f57b0445f0c7e45`; it does not contain Wave3. Automated checks do not imply handset acceptance. Artifact-storage quota has a private Git-object APK fallback; required tests remain blocking.
+
+## Earlier broker UAT work — history
 
 The private feature branch is `work/broker-experience-v1`. Its completed six-convenience baseline is commit `aa9af22660c641781b43ef024691aa25585f2bbd`, Broker Experience CI 12 (`38314145189`), APK 1012 and the same live Frankfurt UAT deploy (`dep-db6lniivcj2c738g020g`). Handset acceptance for that build is not recorded here as completed.
 
-The product owner's October 13 second-round UX refinement is now the active work package, documented in `docs/UX_REFINEMENT_ROUND2_AR.md`. It deliberately changes the advertiser's initial page to the marketplace, refines the four-step dynamic listing editor and inline customer-paid commission, quiets unread notifications, and adds a limited editable assisted-search flow using actual public API results. Literal template parity and the older five-step/initial-dashboard decisions are superseded within this authorized scope; the original assets, fonts, dependencies, native code, permissions, review and immutable financial history remain protected.
+The product owner's October 13 second-round UX refinement is the preceding work package, documented in `docs/UX_REFINEMENT_ROUND2_AR.md`. It deliberately changes the advertiser's initial page to the marketplace, refines the four-step dynamic listing editor and inline customer-paid commission, quiets unread notifications, and adds a limited editable assisted-search flow using actual public API results. Literal template parity and the older five-step/initial-dashboard decisions are superseded within this authorized scope; the original assets, fonts, dependencies, native code, permissions, review and immutable financial history remain protected.
 
 The latest exact commit, CI results, APK identity and rollout evidence belong to Draft PR 70 and its matching workflow artifacts. A candidate is not accepted on a handset merely because it builds. The supplied Houzi screenshots were reviewed; the named MP4 was not attached and no claim is made that it was watched. See the new task document for manual acceptance and the remaining reference review.
 

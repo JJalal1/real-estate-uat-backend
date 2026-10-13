@@ -11,7 +11,7 @@ Read it before proposing or applying changes.
 - Repository: `JJalal1/real-estate-uat-backend`.
 - Primary branch: `main`.
 - Active private product branch: `work/broker-experience-v1`.
-- Current task: October 13 UX refinement; read `docs/UX_REFINEMENT_ROUND2_AR.md`. Phase 2–4 statements below are historical.
+- Current task: October 13 Wave3 marketplace; read `docs/WAVE3_MARKETPLACE_AR.md`. The product owner explicitly authorized UAT fixture cleanup and the personal/professional distinction. Phase 2–4 statements below are historical.
 - Current stack: Flutter Android + Laravel API + PostgreSQL/PostGIS + Supabase Storage + Render UAT + GitHub Actions.
 
 ## 2. Source of truth
