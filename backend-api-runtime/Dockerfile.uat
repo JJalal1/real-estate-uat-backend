@@ -19,7 +19,8 @@ RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
         libxml2-dev \
         libpq-dev \
         libzip-dev \
-    && docker-php-ext-install curl dom mbstring pdo_pgsql zip opcache \
+        libpng-dev \
+    && docker-php-ext-install curl dom mbstring pdo_pgsql zip opcache gd \
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
