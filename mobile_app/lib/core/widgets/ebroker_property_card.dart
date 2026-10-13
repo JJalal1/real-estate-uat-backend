@@ -30,7 +30,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final enlarged = MediaQuery.textScalerOf(context).scale(14) > 20;
     final amount = AppPropertyPrice(price: price, currency: currency);
-    if (imageFirst) return AppSurface(onTap: onTap, padding: EdgeInsets.zero,
+    if (imageFirst) { return AppSurface(onTap: onTap, padding: EdgeInsets.zero,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
           child: AppPropertyMedia(imageUrl: imageUrl, height: 190.rh(context), overlay: trailing)),
@@ -43,7 +43,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
           if (facts.isNotEmpty) ...[const SizedBox(height: 10), AppPropertyFacts(facts: facts)],
           if (unavailable) ...[const SizedBox(height: 8), const Text('هذا العقار غير متاح حاليًا')],
         ])),
-      ]));
+      ])); }
     final body = Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: BorderRadius.circular(4),
           child: SizedBox(width: 127.rw(context),

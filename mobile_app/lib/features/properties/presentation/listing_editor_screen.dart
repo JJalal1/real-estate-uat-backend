@@ -149,7 +149,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
-    'editor_version': 4, 'sai_terms_accepted': _saiAccepted, 'shop_in_building': _shopInBuilding,
+    'editor_version': 4, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted, 'shop_in_building': _shopInBuilding,
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
     'tenure_type': _tenureType, 'parking': _parkingChoice, 'facade': _facade,
     'ownership_document_type': _ownershipDocumentType, 'relationship_type': _relationshipType,
@@ -200,6 +200,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final fields = data['fields'];
       if (fields is Map) {
         for (final entry in _recoveryFields.entries) {
+          if (entry.key == 'broker_sai_rate_percent' && data['sai_touched'] != true) continue;
           final text = fields[entry.key]; if (text is String) entry.value.text = text;
         }
       }
@@ -219,8 +220,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _imagePaths = (data['image_paths'] as List? ?? const []).whereType<String>().toList();
       final serverId = data['server_property_id'];
       if (widget.existingProperty == null && serverId is int && serverId > 0) _recoveredServerId = serverId;
-      _hasRecoveredSai = fields is Map && fields.containsKey('broker_sai_rate_percent');
-      _saiAccepted = data['sai_terms_accepted'] == true;
+      _hasRecoveredSai = data['sai_touched'] == true && fields is Map && fields.containsKey('broker_sai_rate_percent');
+      _saiTouched = _hasRecoveredSai;
+      if (_hasRecoveredSai) _saiAccepted = data['sai_terms_accepted'] == true;
       _shopInBuilding = data['shop_in_building'] == true || _floorNumber.text.isNotEmpty;
       _recoverySaved = true;
       if (data['proof_needs_reselection'] == true) _message('استعدنا بيانات الإعلان. أعد اختيار ملف إثبات الملكية عند إكمال المسودة.');
@@ -1520,14 +1522,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     try {
       final envelope =
           await ref.read(propertyRepositoryProvider).saiForEditor(propertyId);
-      if (mounted) setState(() {
+      if (mounted) { setState(() {
         _existingSaiLoaded = true;
         final management = envelope.management;
-        if (management != null && !_saiTouched && !_hasRecoveredSai) {
+        if (management != null && management.purpose == _purpose && !_saiTouched && !_hasRecoveredSai) {
           _saiRate.text = (management.requestedBrokerRatePercent ?? 0).toString();
           _saiAccepted = management.platformTermsStatus == 'accepted';
         }
-      });
+      }); }
     } catch (_) {
       // Keep local edits and the separate policy retry available.
     }

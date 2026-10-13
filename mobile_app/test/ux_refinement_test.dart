@@ -52,6 +52,14 @@ class _Properties implements PropertyRepository {
       'purpose': 'rent', 'price': 300000, 'monthly_rent': 100000, 'currency': 'YER', 'latitude': 13.5, 'longitude': 44.0})], false);
   }
   @override
+  Future<PropertyDetails> details(int id) async => PropertyDetails.fromJson({'id': id,
+    'title': 'مسودة محفوظة', 'purpose': 'sale', 'type': 'house', 'price': 10000000,
+    'latitude': 15.3694, 'longitude': 44.1910, 'status': 'draft', 'images': []});
+  @override
+  Future<PropertySaiEnvelope> saiForEditor(int id) async => const PropertySaiEnvelope(management:
+    PropertySaiManagement(configured: true, advertiserType: 'broker', purpose: 'sale',
+      requestedBrokerRatePercent: 2, platformTermsStatus: 'accepted'));
+  @override
   dynamic noSuchMethod(Invocation invocation) {
     if (invocation.memberName == #createListing || invocation.memberName == #updateListing) {
       writes.add('draft');
@@ -85,7 +93,7 @@ class _Messages implements MessageRepository {
 
 Map<String, dynamic> _snapshot({int step = 2, String type = 'house'}) => {
   'editor_version': 4, 'step': step, 'type': type, 'purpose': 'sale', 'tenure_type': 'freehold',
-  'latitude': 15.3694, 'longitude': 44.1910, 'parking': 'no', 'facade': 'north', 'sai_terms_accepted': true,
+  'latitude': 15.3694, 'longitude': 44.1910, 'parking': 'no', 'facade': 'north', 'sai_touched': true, 'sai_terms_accepted': true,
   'fields': {'title': 'منزل اختبار التحسين', 'description': 'وصف العقار', 'price': '10000000',
     'area': '160', 'bedrooms': '3', 'bathrooms': '2', 'governorate': 'صنعاء', 'district': 'حدة',
     'floor_number': type == 'floor' || type == 'apartment' ? '3' : '',
@@ -194,6 +202,20 @@ void main() {
     await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
     expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 4);
     expect(repository.payer, 'buyer'); expect(repository.rate, 2);
+    expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('recovery does not replace an untouched server commission with an uninitialized default', (tester) async {
+    final repository = _Properties();
+    final recovery = _snapshot(step: 3)..['server_property_id'] = 77..['sai_touched'] = false;
+    (recovery['fields'] as Map)['broker_sai_rate_percent'] = '0';
+    final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const ListingEditorScreen()),
+      GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing')))]);
+    addTearDown(router.dispose);
+    await _pump(tester, const SizedBox(), snapshot: recovery, properties: repository, router: router);
+    await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
+    await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
+    expect(repository.writes, ['draft', 'sai']); expect(repository.rate, 2);
     expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 
