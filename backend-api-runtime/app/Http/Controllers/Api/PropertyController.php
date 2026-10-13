@@ -27,10 +27,10 @@ use Throwable;
 
 class PropertyController extends Controller
 {
-    private const TYPES = ['apartment', 'house', 'villa', 'land', 'shop', 'office', 'farm'];
+    private const TYPES = ['apartment', 'floor', 'building', 'house', 'villa', 'land', 'shop', 'office', 'farm'];
     private const PURPOSES = ['sale', 'rent'];
     private const TENURE_TYPES = ['freehold', 'waqf'];
-    private const SALE_TENURE_PROPERTY_TYPES = ['apartment', 'house', 'villa', 'land', 'farm'];
+    private const SALE_TENURE_PROPERTY_TYPES = ['apartment', 'floor', 'building', 'house', 'villa', 'land', 'farm'];
     private const AREA_UNITS = [
         'sqm' => 1.0,
         'libna_sanaani' => 44.44,
@@ -40,8 +40,8 @@ class PropertyController extends Controller
         'qasaba_ibbi' => 56.25,
     ];
     private const FACADES = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'multiple'];
-    private const RESIDENTIAL_TYPES = ['apartment', 'house', 'villa'];
-    private const STRUCTURE_TYPES = ['apartment', 'house', 'villa', 'shop', 'office'];
+    private const RESIDENTIAL_TYPES = ['apartment', 'floor', 'house', 'villa'];
+    private const STRUCTURE_TYPES = ['apartment', 'floor', 'building', 'house', 'villa', 'shop', 'office'];
 
     public function __construct(
         private readonly ApiTokenService $tokens,
@@ -320,6 +320,8 @@ class PropertyController extends Controller
         return [
             'advertiser_id' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:120'],
+            'currency' => ['nullable', 'string', 'size:3'],
+            'max_monthly_rent' => ['nullable', 'numeric', 'min:0'],
             'purpose' => ['nullable', Rule::in(self::PURPOSES)],
             'type' => ['nullable', Rule::in(self::TYPES)],
             'min_price' => ['nullable', 'numeric', 'min:0'],
@@ -343,7 +345,7 @@ class PropertyController extends Controller
             'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
             'currency' => ['sometimes', 'string', 'size:3'],
-            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3])],
+            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4])],
             'area_m2' => ['nullable', 'integer', 'min:1', 'max:10000000'],
             'area_value' => ['nullable', 'numeric', 'gt:0', 'max:10000000'],
             'area_unit' => ['nullable', 'string', Rule::in(array_keys(self::AREA_UNITS))],
@@ -405,7 +407,7 @@ class PropertyController extends Controller
             $payload['building_reference'] = null;
             $payload['unit_number'] = null;
             $payload['floor_number'] = null;
-        } elseif (! in_array(($payload['type'] ?? null), ['apartment','office','shop'], true)) {
+        } elseif (! in_array(($payload['type'] ?? null), ['apartment','floor','office','shop'], true)) {
             $payload['building_reference'] = null;
             $payload['unit_number'] = null;
             $payload['floor_number'] = null;
@@ -414,6 +416,7 @@ class PropertyController extends Controller
             $payload['land_boundary_geojson'] = null;
         }
 
+        if (($payload['type'] ?? null) === 'floor') $payload['unit_number'] = null;
         return $payload;
     }
 
@@ -462,7 +465,7 @@ class PropertyController extends Controller
             $validated['building_reference'] = null;
             $validated['unit_number'] = null;
             $validated['floor_number'] = null;
-        } elseif (! in_array($effectiveType, ['apartment','office','shop'], true)) {
+        } elseif (! in_array($effectiveType, ['apartment','floor','office','shop'], true)) {
             $validated['building_reference'] = null;
             $validated['unit_number'] = null;
             $validated['floor_number'] = null;
@@ -471,12 +474,22 @@ class PropertyController extends Controller
             $validated['land_boundary_geojson'] = null;
         }
 
+        if ((int) ($validated['listing_input_version'] ?? 1) >= 4) {
+            if (! in_array($effectiveType, self::RESIDENTIAL_TYPES, true)) {
+                $validated['bedrooms'] = null; $validated['bathrooms'] = null;
+            }
+            if (! in_array($effectiveType, self::STRUCTURE_TYPES, true)) {
+                $validated['has_parking'] = null; $validated['building_facade'] = null;
+            }
+        }
+        if ($effectiveType === 'floor') $validated['unit_number'] = null;
+        if ($effectiveType === 'shop' && (int) ($validated['listing_input_version'] ?? 1) >= 4 && !array_key_exists('floor_number', $validated)) $validated['floor_number'] = null;
         return $validated;
     }
 
     private function assertV2ListingCompleteness(array $listing): void
     {
-        if ((int) ($listing['listing_input_version'] ?? 1) !== 2) {
+        if (! in_array((int) ($listing['listing_input_version'] ?? 1), [2, 4], true)) {
             return;
         }
 
@@ -565,6 +578,10 @@ class PropertyController extends Controller
     private function applyFilters(Builder $query, array $validated): void
     {
         if (isset($validated['advertiser_id'])) $query->where('user_id', $validated['advertiser_id']);
+        if (isset($validated['currency'])) $query->where('currency', strtoupper($validated['currency']));
+        if (isset($validated['max_monthly_rent'])) {
+            $query->where('purpose', 'rent')->where('monthly_rent', '<=', $validated['max_monthly_rent']);
+        }
         $search = trim((string) ($validated['search'] ?? ''));
         if ($search !== '') {
             $query->where(function (Builder $nested) use ($search) {

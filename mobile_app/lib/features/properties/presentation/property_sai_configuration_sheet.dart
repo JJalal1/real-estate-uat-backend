@@ -70,7 +70,7 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
     _rateController = TextEditingController(
       text: currentRequested == null ? '0' : _formatRate(currentRequested),
     );
-    _payer = management.payer;
+    _payer = isSale ? 'buyer' : 'tenant';
   }
 
   @override
@@ -81,9 +81,6 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
 
   @override
   Widget build(BuildContext context) {
-    final payerOptions = isSale
-        ? const <String, String>{'seller': 'البائع', 'buyer': 'المشتري'}
-        : const <String, String>{'landlord': 'المؤجر', 'tenant': 'المستأجر'};
     final effective = isOwner || enteredRate == 0 ? fixedRate : enteredRate;
 
     return Directionality(
@@ -102,8 +99,8 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
               AppSectionHeader(
                 title: 'تحديد السعي قبل إرسال الإعلان',
                 subtitle: isOwner
-                    ? 'نسبة السعي ثابتة في النظام. حدد فقط الطرف الذي يتحملها.'
-                    : 'حدد نسبة السعي والطرف الذي يتحملها ضمن الحد المسموح.',
+                    ? 'نسبة السعي ثابتة في النظام ويتحملها العميل.'
+                    : 'حدد نسبة السعي ضمن الحد المسموح.',
               ),
               const SizedBox(height: AppSpacing.s16),
               if (isOwner)
@@ -143,17 +140,8 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
                   ),
               ],
               const SizedBox(height: AppSpacing.s16),
-              Text('من يتحمل السعي؟', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.s8),
-              ...payerOptions.entries.map(
-                (entry) => RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  value: entry.key,
-                  groupValue: _payer,
-                  onChanged: _busy ? null : (value) => setState(() => _payer = value),
-                  title: Text('السعي ${_formatRate(effective)}% يتحملها ${entry.value}'),
-                ),
-              ),
+              Text('السعي ${_formatRate(effective)}% يتحمله ${isSale ? 'المشتري' : 'المستأجر'}',
+                style: Theme.of(context).textTheme.bodyMedium),
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.s8),
                 AppInlineMessage(message: _error!, tone: AppStatusTone.error),

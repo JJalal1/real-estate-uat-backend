@@ -18,6 +18,21 @@ class PropertySaiController extends Controller
         private readonly ApiTokenService $tokens,
     ) {}
 
+    public function policy(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['purpose' => ['required', Rule::in(['sale', 'rent'])]]);
+        return response()->json(['data' => $this->sai->policy($request->user(), $validated['purpose'])]);
+    }
+
+    public function management(Request $request, Property $property): JsonResponse
+    {
+        abort_unless((int) $request->user()->id === (int) $property->user_id, 403);
+        return response()->json(['data' => [
+            'sai' => $this->sai->publicData($property),
+            'sai_management' => $this->sai->managementData($property, $request->user()),
+        ]]);
+    }
+
     public function show(Request $request, Property $property): JsonResponse
     {
         $viewer = $this->tokens->authenticate($request, false);
@@ -41,7 +56,7 @@ class PropertySaiController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-            'sai_payer' => ['required', 'string', Rule::in(['seller', 'buyer', 'landlord', 'tenant'])],
+            'sai_payer' => ['sometimes', 'string', Rule::in(['seller', 'buyer', 'landlord', 'tenant'])],
             'broker_sai_rate_percent' => ['nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             'platform_terms_decision' => ['nullable', 'string', Rule::in(['accept', 'reject'])],
         ]);
@@ -54,7 +69,7 @@ class PropertySaiController extends Controller
         $term = $this->sai->configure(
             $user,
             $property,
-            (string) $validated['sai_payer'],
+            (string) ($validated['sai_payer'] ?? ($property->purpose === 'rent' ? 'tenant' : 'buyer')),
             $brokerRate,
             isset($validated['platform_terms_decision']) ? (string) $validated['platform_terms_decision'] : null,
             $request,

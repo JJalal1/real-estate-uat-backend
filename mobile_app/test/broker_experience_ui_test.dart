@@ -119,11 +119,14 @@ void main() {
       await font.load();
     }
   });
-  testWidgets('verified broker lands on dashboard with five operational tabs', (tester) async {
+  testWidgets('verified broker lands in the marketplace and opens a separate work dashboard', (tester) async {
     await _pump(tester, const AppShellScreen(), BrokerTestRepository());
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
-    expect(nav.destinations.map((d) => d.label), ['الرئيسية', 'عقاراتي', 'العملاء', 'نشاطي', 'حسابي']);
+    expect(nav.destinations.map((d) => d.label), ['الرئيسية', 'عملي', 'العملاء', 'نشاطي', 'حسابي']);
     expect(nav.onCreate, isNull);
+    expect(find.text('يحتاج إجراء منك'), findsNothing);
+    expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
+    nav.onSelected(1); await tester.pumpAndSettle();
     expect(find.text('يحتاج إجراء منك'), findsOneWidget);
   });
   testWidgets('availability update submits selected real listing IDs', (tester) async {

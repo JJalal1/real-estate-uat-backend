@@ -37,7 +37,7 @@ class BrokerPanel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
-      border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: .35)), borderRadius: BorderRadius.circular(12)),
+      borderRadius: BorderRadius.circular(8)),
     child: child,
   );
 }
@@ -97,9 +97,9 @@ class BrokerDashboardScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 AppButton(label: 'إضافة عقار', icon: Icons.add, onPressed: () => context.push('/add-property')),
-                AppButton(label: 'معاينات اليوم', icon: Icons.today_outlined, onPressed: () => context.push('/broker/activity?tab=viewings&today=1')),
-                AppButton(label: 'تحديث التوفر', icon: Icons.update, onPressed: () => context.push('/broker/availability')),
-                AppButton(label: 'المستحقات', icon: Icons.account_balance_wallet_outlined, onPressed: () => context.push('/broker/finance')),
+                TextButton.icon(icon: const EbrokerIcon(Icons.today_outlined, size: 18), label: const Text('معاينات اليوم'), onPressed: () => context.push('/broker/activity?tab=viewings&today=1')),
+                TextButton.icon(icon: const EbrokerIcon(Icons.update, size: 18), label: const Text('تحديث التوفر'), onPressed: () => context.push('/broker/availability?due=1')),
+                TextButton.icon(icon: const EbrokerIcon(Icons.account_balance_wallet_outlined, size: 18), label: const Text('المستحقات'), onPressed: () => context.push('/broker/finance')),
               ]),
               const SizedBox(height: 20),
               LayoutBuilder(builder: (context, size) {
@@ -196,13 +196,17 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
 }
 
 class BrokerAvailabilityScreen extends ConsumerStatefulWidget {
-  const BrokerAvailabilityScreen({super.key});
+  const BrokerAvailabilityScreen({this.initiallyDue = false, super.key});
+  final bool initiallyDue;
   @override
   ConsumerState<BrokerAvailabilityScreen> createState() => _BrokerAvailabilityState();
 }
 class _BrokerAvailabilityState extends ConsumerState<BrokerAvailabilityScreen> {
   final _selected = <int>{};
   bool _busy = false, _initialized = false;
+  late bool _onlyDue;
+  @override
+  void initState() { super.initState(); _onlyDue = widget.initiallyDue; }
   Future<void> _confirm(List<int> ids) async {
     if (ids.isEmpty || _busy) return;
     setState(() => _busy = true);
@@ -215,11 +219,19 @@ class _BrokerAvailabilityState extends ConsumerState<BrokerAvailabilityScreen> {
     appBar: const AppAppBar(title: 'تحديث توفر الإعلانات'),
     body: ref.watch(brokerAvailabilityProvider).when(loading: () => const AppLoadingState(),
       error: (error, _) => AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(brokerAvailabilityProvider)),
-      data: (items) {
+      data: (allItems) {
+        final items = _onlyDue ? allItems.where((i) => i.needsConfirmation || i.status == 'confirmation_paused').toList() : allItems;
         if (!_initialized) { _selected.addAll(items.where((i) => i.needsConfirmation || i.status == 'confirmation_paused').map((i) => i.id)); _initialized = true; }
         return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerAvailabilityProvider); await ref.read(brokerAvailabilityProvider.future); },
           child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
             const Text('أكد إعلانات البيع كل 14 يومًا والإيجار كل 7 أيام. الإعلانات المتوقفة بسبب التأكيد تعود عند تحديث التوفر ما دامت معتمدة.'),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, children: [
+              EbrokerChoiceChip(label: const Text('تحتاج تأكيد التوفر'), selected: _onlyDue,
+                onSelected: (_) => setState(() { _onlyDue = true; _selected.clear(); _initialized = false; })),
+              EbrokerChoiceChip(label: const Text('كل إعلاناتي'), selected: !_onlyDue,
+                onSelected: (_) => setState(() { _onlyDue = false; _selected.clear(); _initialized = false; })),
+            ]),
             const SizedBox(height: 12),
             if (items.isEmpty) const BrokerPanel(child: Text('لا توجد إعلانات تحتاج تحديث التوفر حاليًا.'))
             else ...[

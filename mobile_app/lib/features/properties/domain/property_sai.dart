@@ -45,6 +45,7 @@ class PropertySaiManagement {
     this.publicDisplayText,
     this.fixedRatePercent,
     this.brokerMaxRatePercent,
+    this.professionalPlatformSharePercent,
   });
 
   final bool configured;
@@ -66,6 +67,7 @@ class PropertySaiManagement {
   final String? publicDisplayText;
   final double? fixedRatePercent;
   final double? brokerMaxRatePercent;
+  final double? professionalPlatformSharePercent;
 
   bool get isOwner => advertiserType == 'owner';
   bool get isProfessional => advertiserType == 'broker' || advertiserType == 'office';
@@ -91,6 +93,7 @@ class PropertySaiManagement {
       publicDisplayText: _textOrNull(json['public_display_text']),
       fixedRatePercent: _asDoubleOrNull(json['fixed_rate_percent']),
       brokerMaxRatePercent: _asDoubleOrNull(json['broker_max_rate_percent']),
+      professionalPlatformSharePercent: _asDoubleOrNull(json['professional_platform_share_percent']),
     );
   }
 }
@@ -130,4 +133,24 @@ int? _asIntOrNull(dynamic value) {
 String? _textOrNull(dynamic value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : text;
+}
+
+/// Preview only: the immutable server term and confirmed final deal determine
+/// settlement. The platform percentage comes exclusively from server policy.
+class PropertySaiQuote {
+  const PropertySaiQuote(this.rate, this.total, this.platform, this.net, this.fallback);
+  final double rate, total, platform, net;
+  final bool fallback;
+  static PropertySaiQuote? calculate(PropertySaiManagement policy, double requestedRate, double basis) {
+    if (!requestedRate.isFinite || !basis.isFinite || basis <= 0 || requestedRate < 0) return null;
+    final fallback = policy.isOwner || requestedRate == 0;
+    final rate = fallback ? policy.fixedRatePercent : requestedRate;
+    final share = fallback ? 100.0 : policy.professionalPlatformSharePercent;
+    if (rate == null || share == null || share < 0 || share > 100) return null;
+    if (!policy.isOwner && (policy.brokerMaxRatePercent == null || requestedRate > policy.brokerMaxRatePercent!)) return null;
+    double money(double value) => (value * 100).round() / 100;
+    final total = money(basis * rate / 100);
+    final platform = money(total * share / 100);
+    return PropertySaiQuote(rate, total, platform, money(total - platform), fallback);
+  }
 }

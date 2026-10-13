@@ -10,7 +10,8 @@ Read it before proposing or applying changes.
 - Do not create or migrate to Production unless the product owner explicitly requests it.
 - Repository: `JJalal1/real-estate-uat-backend`.
 - Primary branch: `main`.
-- Current completed product branch: `phase2/listing-journey-hardening`.
+- Active private product branch: `work/broker-experience-v1`.
+- Current task: October 13 UX refinement; read `docs/UX_REFINEMENT_ROUND2_AR.md`. Phase 2–4 statements below are historical.
 - Current stack: Flutter Android + Laravel API + PostgreSQL/PostGIS + Supabase Storage + Render UAT + GitHub Actions.
 
 ## 2. Source of truth

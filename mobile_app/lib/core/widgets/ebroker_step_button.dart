@@ -28,7 +28,11 @@ class EbrokerStepButton extends StatelessWidget {
             color: outlined ? EbrokerDesign.text : Colors.white, maxLines: 2, align: TextAlign.center)),
         ]);
     final callback = loading ? null : onPressed;
-    return SizedBox(height: 48.rh(context), width: expand ? double.infinity : null,
+    final height = 48.rh(context) * (MediaQuery.textScalerOf(context).scale(15) / 15).clamp(1.0, double.infinity);
+    if (style == AppButtonStyle.text) return SizedBox(height: height,
+      width: expand ? double.infinity : null, child: TextButton(onPressed: callback,
+        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)), child: child));
+    return SizedBox(height: height, width: expand ? double.infinity : null,
       child: outlined ? OutlinedButton(onPressed: callback,
         style: OutlinedButton.styleFrom(backgroundColor: Colors.transparent,
           foregroundColor: EbrokerDesign.text,

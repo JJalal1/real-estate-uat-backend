@@ -11,7 +11,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   const EbrokerPropertyHorizontalCard({required this.title, required this.price,
     required this.currency, required this.onTap, this.imageUrl, this.location,
     this.purposeLabel, this.categoryLabel = 'عقار', this.facts = const [],
-    this.trailing, this.unavailable = false, this.embedded = false, super.key});
+    this.trailing, this.unavailable = false, this.embedded = false, this.imageFirst = false, super.key});
   final String title;
   final String price;
   final String currency;
@@ -24,11 +24,26 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   final Widget? trailing;
   final bool unavailable;
   final bool embedded;
+  final bool imageFirst;
 
   @override
   Widget build(BuildContext context) {
     final enlarged = MediaQuery.textScalerOf(context).scale(14) > 20;
     final amount = AppPropertyPrice(price: price, currency: currency);
+    if (imageFirst) return AppSurface(onTap: onTap, padding: EdgeInsets.zero,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+          child: AppPropertyMedia(imageUrl: imageUrl, height: 190.rh(context), overlay: trailing)),
+        Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Wrap(spacing: 12, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [amount, if (purposeLabel != null) EbrokerPurposeLabel(purposeLabel!)]),
+          const SizedBox(height: 8), EbrokerText(title, size: 16, weight: FontWeight.w600, maxLines: 2),
+          const SizedBox(height: 6),
+          EbrokerText([categoryLabel, if (location != null && location!.isNotEmpty) location!].join(' · '),
+            size: 12, color: EbrokerDesign.textLight, maxLines: 2),
+          if (facts.isNotEmpty) ...[const SizedBox(height: 10), AppPropertyFacts(facts: facts)],
+          if (unavailable) ...[const SizedBox(height: 8), const Text('هذا العقار غير متاح حاليًا')],
+        ])),
+      ]));
     final body = Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: BorderRadius.circular(4),
           child: SizedBox(width: 127.rw(context),

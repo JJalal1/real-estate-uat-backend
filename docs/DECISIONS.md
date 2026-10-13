@@ -153,3 +153,7 @@ The previously discussed follow-on sequence — in-app agreement/rental contract
 The product owner explicitly chose to complete other product priorities first. The next work package must therefore be defined from those newer priorities. Old phase numbering does not override a newer explicit product-owner decision.
 
 No Phase 4 acceptance authorizes a merge to `main` or any Production deployment.
+
+## D-032 — October 13 marketplace and dynamic listing refinement
+
+The owner authorizes thoughtful refinement using eBroker assets and the supplied Houzi references, rather than literal template copying. Verified advertisers start in the marketplace with a separate work area. Listing input v4 distinguishes whole floors/buildings and moves photos and Sai into their appropriate form contexts. New Sai terms are customer-paid, with unchanged percentage policies and immutable historical terms. The first assisted-search path proposes editable filters and fetches real canonical API results; no external AI provider is enabled. UAT checks and handset/reference-video acceptance remain separate gates. See `UX_REFINEMENT_ROUND2_AR.md`.

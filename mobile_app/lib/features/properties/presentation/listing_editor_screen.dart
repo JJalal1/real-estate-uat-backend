@@ -25,7 +25,7 @@ import '../domain/property_location_address.dart';
 import '../domain/property_sai.dart';
 import 'property_land_boundary_picker_screen.dart';
 import 'property_location_picker_screen.dart';
-import 'property_sai_configuration_sheet.dart';
+import 'listing_sai_section.dart';
 
 class ListingEditorScreen extends ConsumerStatefulWidget {
   const ListingEditorScreen({super.key, this.existingProperty});
@@ -40,6 +40,8 @@ class ListingEditorScreen extends ConsumerStatefulWidget {
 class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with WidgetsBindingObserver {
   static const _typeLabels = <String, String>{
     'apartment': 'شقة',
+    'floor': 'دور كامل',
+    'building': 'عمارة كاملة',
     'house': 'منزل',
     'villa': 'فيلا',
     'land': 'أرض',
@@ -49,14 +51,18 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
   static const _saleTenureTypes = <String>{
     'apartment',
+    'floor',
+    'building',
     'house',
     'villa',
     'land',
     'farm',
   };
-  static const _residentialTypes = <String>{'apartment', 'house', 'villa'};
+  static const _residentialTypes = <String>{'apartment', 'floor', 'house', 'villa'};
   static const _structureTypes = <String>{
     'apartment',
+    'floor',
+    'building',
     'house',
     'villa',
     'shop',
@@ -118,8 +124,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   List<String> _imagePaths = <String>[];
   String? _ownershipProofPath;
   PropertyDetails? _workingDraft;
-  PropertySaiEnvelope? _saiEnvelope;
-  bool _saiBusy = false;
+  final _saiRate = TextEditingController(text: '0');
+  PropertySaiManagement? _saiPolicy;
+  String? _saiPolicyError;
+  bool _saiAccepted = false, _saiTouched = false, _hasRecoveredSai = false;
+  bool _shopInBuilding = false, _existingSaiLoaded = false;
+  int _saiPolicyRequest = 0;
   String _priceDisplayMode = 'excludes_sai';
 
   Timer? _recoveryTimer;
@@ -129,6 +139,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   String? _lastRecoverySignature;
 
   Map<String, TextEditingController> get _recoveryFields => {
+    'broker_sai_rate_percent': _saiRate,
     'title': _title, 'description': _description, 'price': _price, 'monthly_rent': _monthlyRent,
     'rental_term_months': _rentalTermMonths, 'advance_months': _advanceMonths, 'area': _area,
     'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'district': _district,
@@ -138,6 +149,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
+    'editor_version': 4, 'sai_terms_accepted': _saiAccepted, 'shop_in_building': _shopInBuilding,
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
     'tenure_type': _tenureType, 'parking': _parkingChoice, 'facade': _facade,
     'ownership_document_type': _ownershipDocumentType, 'relationship_type': _relationshipType,
@@ -191,7 +203,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           final text = fields[entry.key]; if (text is String) entry.value.text = text;
         }
       }
-      _step = (data['step'] is int ? data['step'] as int : 0).clamp(0, 4).toInt();
+      _step = (data['step'] is int ? data['step'] as int : 0).clamp(0, 3).toInt();
       if (const ['sale', 'rent'].contains(data['purpose'])) _purpose = data['purpose'] as String;
       if (_typeLabels.containsKey(data['type'])) _type = data['type'] as String;
       if (propertyAreaUnitLabels.containsKey(data['area_unit'])) _areaUnit = data['area_unit'] as String;
@@ -207,6 +219,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _imagePaths = (data['image_paths'] as List? ?? const []).whereType<String>().toList();
       final serverId = data['server_property_id'];
       if (widget.existingProperty == null && serverId is int && serverId > 0) _recoveredServerId = serverId;
+      _hasRecoveredSai = fields is Map && fields.containsKey('broker_sai_rate_percent');
+      _saiAccepted = data['sai_terms_accepted'] == true;
+      _shopInBuilding = data['shop_in_building'] == true || _floorNumber.text.isNotEmpty;
       _recoverySaved = true;
       if (data['proof_needs_reselection'] == true) _message('استعدنا بيانات الإعلان. أعد اختيار ملف إثبات الملكية عند إكمال المسودة.');
     }
@@ -229,29 +244,34 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   PropertyDetails? get _existing => _workingDraft ?? widget.existingProperty;
   bool get _startedAsEditing => widget.existingProperty != null;
   bool get _isEditing => _existing != null;
-  bool get _isSaiReady {
-    final management = _saiEnvelope?.management;
-    if (management == null || !management.configured) return false;
-    if (!management.isProfessional) return true;
-    final requested = management.requestedBrokerRatePercent ?? 0;
-    return requested <= 0 || management.platformTermsStatus == 'accepted';
+  bool get _isSaiReady => _inlineSaiValidation == null;
+  double get _enteredSaiRate => double.tryParse(_saiRate.text.trim()) ?? double.nan;
+  String? get _inlineSaiValidation {
+    final policy = _saiPolicy;
+    if (policy == null) return 'تعذر تحميل سياسة السعي. أعد تحميلها قبل الإرسال.';
+    if (policy.isOwner) return null;
+    if (_isEditing && !_existingSaiLoaded && !_saiTouched && !_hasRecoveredSai) return 'انتظر تحميل السعي الحالي أو حدد النسبة بنفسك.';
+    final rate = _enteredSaiRate, maximum = policy.brokerMaxRatePercent;
+    if (!rate.isFinite || rate < 0 || maximum == null || rate > maximum || (rate * 100 - (rate * 100).round()).abs() > .000001) {
+      return 'أدخل نسبة سعي صحيحة ضمن الحد المسموح وبدقتين عشريتين على الأكثر.';
+    }
+    if (rate > 0 && !_saiAccepted) return 'وافق على مستحق المنصة الموضح قبل إرسال الإعلان.';
+    return null;
   }
-
-  String get _saiDisplayText =>
-      _saiEnvelope?.sai?.displayText ??
-      _saiEnvelope?.management?.publicDisplayText ??
-      (_isSaiReady ? 'تم تحديد السعي' : 'لم يتم تحديد السعي بعد');
-  bool get _requiresSaleTenure =>
-      _purpose == 'sale' && _saleTenureTypes.contains(_type);
+  String get _saiDisplayText {
+    final policy = _saiPolicy;
+    if (policy == null) return 'سياسة السعي غير محملة';
+    final rate = policy.isOwner || _enteredSaiRate == 0 ? policy.fixedRatePercent : _enteredSaiRate;
+    return 'السعي ${rate ?? '—'}% · يتحمله ${_purpose == 'rent' ? 'المستأجر' : 'المشتري'}';
+  }
+  bool get _requiresSaleTenure => _purpose == 'sale' && _saleTenureTypes.contains(_type);
   bool get _requiresResidential => _residentialTypes.contains(_type);
   bool get _requiresStructure => _structureTypes.contains(_type);
-  bool get _isUnitType => const {'apartment', 'office', 'shop'}.contains(_type);
-  bool get _unitNeedsFloor => const {'apartment', 'office'}.contains(_type);
+  bool get _isUnitType => const {'apartment', 'floor', 'office', 'shop'}.contains(_type);
+  bool get _unitNeedsFloor => const {'apartment', 'floor', 'office'}.contains(_type) || (_type == 'shop' && _shopInBuilding);
   bool? get _parkingValue =>
       _parkingChoice == null ? null : _parkingChoice == 'yes';
-  bool get _visitorPaysSai => const {'buyer', 'tenant'}.contains(
-        _saiEnvelope?.sai?.payer ?? _saiEnvelope?.management?.payer,
-      );
+  bool get _visitorPaysSai => true;
   double? get _effectivePrice {
     if (_purpose == 'rent') {
       final monthly = double.tryParse(_monthlyRent.text.trim());
@@ -292,7 +312,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _advanceMonths.addListener(_onPriceChanged);
     _recoveryStore = ref.read(listingRecoveryStoreProvider);
     _recoveryUserId = ref.read(authControllerProvider).asData?.value?.id;
-    Future.microtask(_restoreRecovery);
+    Future.microtask(() async { await _restoreRecovery(); if (mounted) await _loadSaiPolicy(); });
     for (final controller in _recoveryFields.values) { controller.addListener(_scheduleRecovery); }
     final property = _existing;
     if (property == null) return;
@@ -328,6 +348,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _buildingReference.text = property.buildingReference ?? '';
     _unitNumber.text = property.unitNumber ?? '';
     _floorNumber.text = property.floorNumber ?? '';
+    _shopInBuilding = _type == 'shop' && _floorNumber.text.isNotEmpty;
     _landBoundaryGeoJson = property.landBoundaryGeoJson;
     _phone.text = property.contactPhone ?? '';
     _whatsapp.text = property.contactWhatsapp ?? '';
@@ -353,6 +374,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       ].where((path) => !ListingRecoveryStore.isSavedMedia(path)))).catchError((_) {}),
     );
     for (final controller in <TextEditingController>[
+      _saiRate,
       _title,
       _description,
       _price,
@@ -392,7 +414,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         appBar: AppAppBar(
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
           actions: [Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
-            child: EbrokerText('${_step + 1}/5', size: 16, weight: FontWeight.w600,
+            child: EbrokerText('${_step + 1}/4', size: 16, weight: FontWeight.w600,
               color: Theme.of(context).colorScheme.primary)))],
         ),
         body: SafeArea(
@@ -445,8 +467,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         0 => _basicsStep(),
         1 => _locationStep(),
         2 => _specificationsStep(),
-        3 => _priceStep(),
-        _ => _mediaEvidenceReviewStep(),
+        _ => _priceStep(),
       };
 
   Widget _basicsStep() {
@@ -470,6 +491,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               ? null
               : (values) => setState(() {
                     _purpose = values.first;
+                    _saiAccepted = false; _saiTouched = true;
+                    unawaited(_loadSaiPolicy());
                     if (!_requiresSaleTenure) _tenureType = null;
                   }),
         ),
@@ -495,6 +518,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                       ? null
                       : () => setState(() {
                             _type = entry.key;
+                            if (_type == 'floor') _unitNumber.clear();
+                            if (_type != 'shop') _shopInBuilding = false;
                             if (!_requiresSaleTenure) _tenureType = null;
                             if (!_requiresResidential) {
                               _bedrooms.clear();
@@ -545,6 +570,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           enabled: !_busy,
           maxLines: 5,
         ),
+        const SizedBox(height: 24),
+        _listingPhotos(),
       ],
     );
   }
@@ -575,7 +602,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               Expanded(
                 child: Text(
                   hasLocation
-                      ? 'تم تحديد الموقع: ${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}'
+                      ? 'تم تحديد موقع العقار على الخريطة'
                       : 'لم يتم تحديد موقع العقار بعد.',
                 ),
               ),
@@ -651,6 +678,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             expand: true,
           ),
         ],
+        const SizedBox(height: 24),
+        _ownershipEvidence(),
       ],
     );
   }
@@ -664,34 +693,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           subtitle: 'أدخل المعلومات التي تساعد الباحث على مقارنة العقار بدقة.',
         ),
         if (_isUnitType) ...[
-          const SizedBox(height: AppSpacing.s16),
-          AppInlineMessage(
-            title: 'هوية الوحدة داخل المبنى',
-            message:
-                'يمكن نشر وحدات مختلفة في نفس العمارة، لكن لا يمكن نشر نفس الوحدة مرتين.',
-            tone: AppStatusTone.info,
-          ),
-          const SizedBox(height: AppSpacing.s12),
-          AppTextField(
-            controller: _buildingReference,
-            label: 'اسم أو رقم المبنى *',
-            hint: 'مثال: عمارة النور 12',
-            enabled: !_busy,
-          ),
-          const SizedBox(height: AppSpacing.s12),
-          Row(children: [
-            Expanded(
-                child: AppTextField(
-                    controller: _unitNumber,
-                    label: 'رقم الوحدة *',
-                    enabled: !_busy)),
-            const SizedBox(width: AppSpacing.s8),
-            Expanded(
-                child: AppTextField(
-                    controller: _floorNumber,
-                    label: _unitNeedsFloor ? 'الدور *' : 'الدور',
-                    enabled: !_busy)),
-          ]),
+          const SizedBox(height: 16),
+          Text(_type == 'floor' ? 'أي دور تعرض بالكامل؟' : _type == 'shop' ? 'حدد المحل بوضوح' : 'أين الوحدة داخل المبنى؟',
+            style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          if (_type != 'floor') AppTextField(controller: _unitNumber,
+            label: _type == 'shop' ? 'اسم أو رقم المحل أو موضعه *' : 'رقم الوحدة أو موضعها *',
+            hint: _type == 'shop' ? 'مثال: المحل الأمامي بجوار المدخل' : 'مثال: 7 أو شمالية أو أمامية', enabled: !_busy),
+          if (_type == 'shop') CheckboxListTile(contentPadding: EdgeInsets.zero,
+            title: const Text('المحل داخل مبنى متعدد الأدوار'), value: _shopInBuilding,
+            onChanged: _busy ? null : (value) => setState(() { _shopInBuilding = value == true; if (!_shopInBuilding) _floorNumber.clear(); })),
+          if (_unitNeedsFloor) ...[
+            const SizedBox(height: 12),
+            AppTextField(controller: _floorNumber, label: 'أي دور؟ *', hint: 'مثال: الأرضي أو 3', enabled: !_busy),
+          ],
         ],
         const SizedBox(height: AppSpacing.s16),
         Row(
@@ -700,7 +715,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               flex: 2,
               child: AppTextField(
                 controller: _area,
-                label: 'عدد اللبن *',
+                label: _areaUnit == 'sqm' ? 'المساحة *' : 'عدد الوحدات *',
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 enabled: !_busy,
@@ -842,7 +857,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             ),
           ],
         ],
-        if (_isSaiReady && _visitorPaysSai) ...[
+        ListingSaiSection(purpose: _purpose, policy: _saiPolicy, rateController: _saiRate,
+          basis: _purpose == 'rent' ? double.tryParse(_monthlyRent.text.trim()) : _effectivePrice,
+          accepted: _saiAccepted, error: _saiPolicyError, enabled: !_busy,
+          onRetry: () => unawaited(_loadSaiPolicy()),
+          onChanged: () => setState(() => _saiTouched = true),
+          onAcceptanceChanged: (value) => setState(() { _saiAccepted = value; _saiTouched = true; })),
+        if (_saiPolicy != null && _visitorPaysSai) ...[
           const SizedBox(height: AppSpacing.s16),
           Text('طريقة عرض السعر للباحث',
               style: Theme.of(context).textTheme.titleSmall),
@@ -881,25 +902,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     );
   }
 
-  Widget _mediaEvidenceReviewStep() {
-    final user = ref.watch(authControllerProvider).asData?.value;
-    final isOwner = user?.isOwner == true;
-    final isProfessional = user?.isBroker == true || user?.isOffice == true;
+  Widget _listingPhotos() {
     final existingImages = _existing?.images.length ?? 0;
-    final effectiveImages = _replaceImages
-        ? _imagePaths.length
-        : existingImages + _imagePaths.length;
-    final existingOwnershipProof = _existing?.ownershipProofPresent == true;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const AppSectionHeader(
-          title: 'الصور والإثبات والمراجعة',
-          subtitle:
-              'احفظ كمسودة متى شئت، ثم أرسل للمراجعة فقط عندما يصبح الإعلان جاهزاً.',
-        ),
-        const SizedBox(height: AppSpacing.s16),
+    final effectiveImages = _replaceImages ? _imagePaths.length : existingImages + _imagePaths.length;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         AppSurface(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -931,6 +937,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                       ? null
                       : (value) => setState(() => _replaceImages = value),
                 ),
+              ],
+              if (!_replaceImages && existingImages > 0) ...[
+                const SizedBox(height: 10),
+                SizedBox(height: 110, child: ListView.separated(scrollDirection: Axis.horizontal,
+                  itemCount: existingImages, separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, index) => ClipRRect(borderRadius: BorderRadius.circular(8),
+                    child: Image.network(_existing!.images[index].url, width: 140, height: 110, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox(width: 140, child: Center(child: EbrokerIcon(Icons.image_outlined, size: 24))))))),
               ],
               if (_imagePaths.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.s8),
@@ -1003,14 +1017,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             ],
           ),
         ),
-        if (isProfessional) ...[
-          const SizedBox(height: AppSpacing.s12),
-          const AppInlineMessage(
-            message:
-                'الحساب المهني الموثق لا يُطلب منه إثبات ملكية لا يخصه. الإعلان نفسه يبقى خاضعاً للمراجعة ومنع التكرار.',
-            tone: AppStatusTone.info,
-          ),
-        ],
+    ]);
+  }
+
+  Widget _ownershipEvidence() {
+    final user = ref.watch(authControllerProvider).asData?.value;
+    final isOwner = user?.isOwner == true;
+    final existingOwnershipProof = _existing?.ownershipProofPresent == true;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (isOwner) ...[
           const SizedBox(height: AppSpacing.s16),
           const AppSectionHeader(
@@ -1077,85 +1091,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             ),
           ),
         ],
-        const SizedBox(height: AppSpacing.s20),
-        const AppSectionHeader(
-          title: 'السعي',
-          subtitle: 'حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.',
-        ),
-        const SizedBox(height: AppSpacing.s8),
-        _saiConfigurationCard(),
-        const SizedBox(height: AppSpacing.s20),
-        const AppSectionHeader(title: 'ملخص الإعلان'),
-        const SizedBox(height: AppSpacing.s8),
-        AppSurface(
-          child: Column(
-            children: [
-              _SummaryRow(label: 'العنوان', value: _title.text.trim()),
-              _SummaryRow(
-                  label: 'الغرض',
-                  value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
-              _SummaryRow(label: 'النوع', value: _typeLabels[_type] ?? _type),
-              _SummaryRow(label: 'السعر', value: _priceSummaryText),
-              _SummaryRow(label: 'الموقع', value: _composedAddress),
-              _SummaryRow(
-                  label: 'عدد اللبن',
-                  value:
-                      '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
-              _SummaryRow(label: 'السعي', value: _saiDisplayText),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _saiConfigurationCard() {
-    final scheme = Theme.of(context).colorScheme;
-    return AppSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              EbrokerIcon(
-                _isSaiReady
-                    ? Icons.check_circle_rounded
-                    : Icons.payments_outlined,
-                color: _isSaiReady ? scheme.primary : scheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              Expanded(
-                child: Text(
-                  _saiDisplayText,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s8),
-          Text(
-            _isSaiReady
-                ? 'يمكنك تعديل اختيار السعي قبل الإرسال إذا احتجت.'
-                : 'لن يتم إرسال الإعلان للمراجعة حتى يتم تحديد السعي المطلوب.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: AppSpacing.s12),
-          AppButton(
-            label: _isSaiReady ? 'تعديل السعي' : 'تحديد السعي',
-            icon: Icons.payments_outlined,
-            loading: _saiBusy,
-            onPressed: _busy || _saiBusy ? null : _configureSai,
-            expand: true,
-          ),
-        ],
-      ),
-    );
+    ]);
   }
 
   Widget _actions() {
-    if (_step < 4) {
+    if (_step < 3) {
       return _BottomBar(
         children: [
           if (_step > 0)
@@ -1221,11 +1161,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final areaValue = double.tryParse(_area.text.trim());
       if (areaValue == null || areaValue <= 0) return 'أدخل عدداً صحيحاً للبن.';
       if (_isUnitType) {
-        if (_buildingReference.text.trim().isEmpty) {
-          return 'أدخل اسم أو رقم المبنى.';
-        }
-        if (_unitNumber.text.trim().isEmpty) {
-          return 'أدخل رقم الوحدة.';
+        if (_type != 'floor' && _unitNumber.text.trim().isEmpty) {
+          return 'أدخل رقم الوحدة أو موضعها لتمييزها عن غيرها.';
         }
         if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) {
           return 'أدخل رقم الدور.';
@@ -1276,7 +1213,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final core = _validateCore();
     if (core != null) return core;
     if (!_isSaiReady) {
-      return 'حدد السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.';
+      return _inlineSaiValidation;
     }
 
     final existingImages = _existing?.images.length ?? 0;
@@ -1337,8 +1274,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       buildingFacade: _requiresStructure ? _facade : null,
       address: _composedAddress,
       buildingReference: _isUnitType ? _buildingReference.text.trim() : null,
-      unitNumber: _isUnitType ? _unitNumber.text.trim() : null,
-      floorNumber: _isUnitType && _floorNumber.text.trim().isNotEmpty
+      unitNumber: _isUnitType && _type != 'floor' ? _unitNumber.text.trim() : null,
+      floorNumber: _unitNeedsFloor && _floorNumber.text.trim().isNotEmpty
           ? _floorNumber.text.trim()
           : null,
       landBoundaryGeoJson: _type == 'land' ? _landBoundaryGeoJson : null,
@@ -1408,6 +1345,22 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       ref.read(propertyDataRevisionProvider.notifier).state++;
       await _clearUploadedTemporaryFiles();
       await _saveRecovery();
+
+      // These writes follow the explicit Save/Submit action. Neither editing
+      // the percentage nor displaying a preview mutates a server listing.
+      final policy = _saiPolicy;
+      if (policy != null && (policy.isOwner || ((_existingSaiLoaded || _saiTouched || _hasRecoveredSai || !_startedAsEditing) && _enteredSaiRate.isFinite && _enteredSaiRate >= 0 && _enteredSaiRate <= (policy.brokerMaxRatePercent ?? -1)))) {
+        try {
+          await repository.configureSai(draft.id,
+            payer: _purpose == 'rent' ? 'tenant' : 'buyer',
+            brokerRatePercent: policy.isOwner ? null : _enteredSaiRate,
+            platformTermsDecision: !policy.isOwner && _enteredSaiRate > 0 ? (_saiAccepted ? 'accept' : 'reject') : null);
+          ref.read(propertyDataRevisionProvider.notifier).state++;
+        } catch (error) {
+          if (mounted) _message('حُفظت المسودة، لكن تعذر حفظ السعي: ${friendlyApiError(error)}');
+          return;
+        }
+      }
 
       if (submit) {
         try {
@@ -1551,45 +1504,33 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (mounted) setState(() {});
   }
 
-  Future<void> _refreshSai(int propertyId) async {
+  Future<void> _loadSaiPolicy() async {
+    final request = ++_saiPolicyRequest;
+    final purpose = _purpose;
+    if (mounted) setState(() { _saiPolicy = null; _saiPolicyError = null; });
     try {
-      final envelope =
-          await ref.read(propertyRepositoryProvider).sai(propertyId);
-      if (mounted) setState(() => _saiEnvelope = envelope);
-    } catch (_) {
-      // Sai configuration remains explicitly available in the final step.
+      final policy = await ref.read(propertyRepositoryProvider).saiPolicy(purpose);
+      if (mounted && request == _saiPolicyRequest && purpose == _purpose) setState(() => _saiPolicy = policy);
+    } catch (error) {
+      if (mounted && request == _saiPolicyRequest) setState(() => _saiPolicyError = friendlyApiError(error));
     }
   }
 
-  Future<PropertyDetails?> _ensureDraftForSai() async {
-    if (!_recoveryReady || !await _resolveRecoveredDraft()) return null;
-    final validation = _validateCore();
-    if (validation != null) {
-      _message(validation);
-      return null;
+  Future<void> _refreshSai(int propertyId) async {
+    try {
+      final envelope =
+          await ref.read(propertyRepositoryProvider).saiForEditor(propertyId);
+      if (mounted) setState(() {
+        _existingSaiLoaded = true;
+        final management = envelope.management;
+        if (management != null && !_saiTouched && !_hasRecoveredSai) {
+          _saiRate.text = (management.requestedBrokerRatePercent ?? 0).toString();
+          _saiAccepted = management.platformTermsStatus == 'accepted';
+        }
+      });
+    } catch (_) {
+      // Keep local edits and the separate policy retry available.
     }
-    final repository = ref.read(propertyRepositoryProvider);
-    final current = _existing;
-    final draft = current == null
-        ? await repository.createListing(
-            _input(),
-            imagePaths: _imagePaths,
-            submitForReview: false,
-            ownershipProofPath: _ownershipProofPath,
-          )
-        : await repository.updateListing(
-            current.id,
-            _input(),
-            imagePaths: _imagePaths,
-            replaceImages: _replaceImages,
-            submitForReview: false,
-            ownershipProofPath: _ownershipProofPath,
-          );
-    if (mounted) setState(() => _workingDraft = draft);
-    ref.read(propertyDataRevisionProvider.notifier).state++;
-    await _clearUploadedTemporaryFiles();
-    await _saveRecovery();
-    return draft;
   }
 
   Future<bool> _checkIdentityBeforeSubmit(int propertyId) async {
@@ -1710,31 +1651,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     );
     if (selection != null && mounted) {
       setState(() => _landBoundaryGeoJson = selection.geoJson);
-    }
-  }
-
-  Future<void> _configureSai() async {
-    setState(() => _saiBusy = true);
-    try {
-      final draft = await _ensureDraftForSai();
-      if (draft == null || !mounted) return;
-      final repository = ref.read(propertyRepositoryProvider);
-      final ready = await showPropertySaiConfigurationSheet(
-        context,
-        repository: repository,
-        propertyId: draft.id,
-        purpose: _purpose,
-      );
-      if (!mounted) return;
-      await _refreshSai(draft.id);
-      if (!ready && mounted) {
-        _message(
-            'لم يتم تأكيد السعي. أكمل بيانات السعي قبل إرسال الإعلان للمراجعة.');
-      }
-    } catch (error) {
-      if (mounted) _message(friendlyApiError(error));
-    } finally {
-      if (mounted) setState(() => _saiBusy = false);
     }
   }
 
@@ -1955,103 +1871,31 @@ class _BottomBar extends StatelessWidget {
 }
 
 class _FinalActionsBar extends StatelessWidget {
-  const _FinalActionsBar({
-    required this.busy,
-    required this.onPrevious,
-    required this.onPreview,
-    required this.onSaveDraft,
-    required this.onSubmit,
-  });
-
+  const _FinalActionsBar({required this.busy, required this.onPrevious,
+    required this.onPreview, required this.onSaveDraft, required this.onSubmit});
   final bool busy;
-  final VoidCallback onPrevious;
-  final VoidCallback onPreview;
-  final VoidCallback onSaveDraft;
-  final VoidCallback onSubmit;
-
+  final VoidCallback onPrevious, onPreview, onSaveDraft, onSubmit;
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: AppElevation.floating,
-      color: Theme.of(context).colorScheme.surface,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            20,
-            10,
-            20,
-            16,
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 390;
-              final secondary = <Widget>[
-                Expanded(
-                  child: EbrokerStepButton(
-                    label: 'معاينة',
-                    icon: Icons.visibility_outlined,
-                    style: AppButtonStyle.outlined,
-                    onPressed: busy ? null : onPreview,
-                    expand: true,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s8),
-                Expanded(
-                  child: EbrokerStepButton(
-                    label: 'حفظ مسودة',
-                    icon: Icons.save_outlined,
-                    style: AppButtonStyle.tonal,
-                    loading: busy,
-                    onPressed: busy ? null : onSaveDraft,
-                    expand: true,
-                  ),
-                ),
-              ];
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  EbrokerStepButton(
-                    label: 'إرسال للمراجعة',
-                    icon: Icons.send_outlined,
-                    loading: busy,
-                    onPressed: busy ? null : onSubmit,
-                    expand: true,
-                  ),
-                  const SizedBox(height: AppSpacing.s8),
-                  if (compact) ...[
-                    EbrokerStepButton(
-                      label: 'حفظ مسودة',
-                      icon: Icons.save_outlined,
-                      style: AppButtonStyle.tonal,
-                      loading: busy,
-                      onPressed: busy ? null : onSaveDraft,
-                      expand: true,
-                    ),
-                    const SizedBox(height: AppSpacing.s8),
-                    EbrokerStepButton(
-                      label: 'معاينة',
-                      icon: Icons.visibility_outlined,
-                      style: AppButtonStyle.outlined,
-                      onPressed: busy ? null : onPreview,
-                      expand: true,
-                    ),
-                  ] else
-                    Row(children: secondary),
-                  EbrokerStepButton(
-                    label: 'السابق',
-                    style: AppButtonStyle.text,
-                    onPressed: busy ? null : onPrevious,
-                    expand: true,
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Material(color: Theme.of(context).colorScheme.surface,
+    elevation: AppElevation.floating, child: SafeArea(top: false, child: Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(18, 10, 18, 12),
+      child: Row(children: [
+        Expanded(child: EbrokerStepButton(label: 'إرسال للمراجعة', icon: Icons.send_outlined,
+          loading: busy, onPressed: busy ? null : onSubmit, expand: true)),
+        const SizedBox(width: 8),
+        PopupMenuButton<String>(tooltip: 'خيارات المسودة', enabled: !busy,
+          icon: const EbrokerIcon(Icons.more_horiz, size: 22),
+          onSelected: (value) { switch (value) {
+            case 'save': onSaveDraft(); break;
+            case 'preview': onPreview(); break;
+            case 'previous': onPrevious(); break;
+          } },
+          itemBuilder: (_) => [
+            PopupMenuItem(value: 'save', child: Semantics(label: 'حفظ مسودة', excludeSemantics: true, child: Text('حفظ مسودة'))),
+            PopupMenuItem(value: 'preview', child: Semantics(label: 'معاينة', excludeSemantics: true, child: Text('معاينة'))),
+            PopupMenuItem(value: 'previous', child: Text('السابق')),
+          ]),
+      ]))));
 }
 
 class _SummaryRow extends StatelessWidget {

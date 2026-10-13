@@ -2,6 +2,10 @@
 
 These are product rules, not implementation suggestions. Agents must preserve them unless the product owner explicitly changes them.
 
+## Current October 13 refinement
+
+New Sai configurations are paid by the customer (sale buyer / rental tenant), with the existing rates, zero-rate fallback, internal split and explicit platform-condition acceptance. Immutable historical conversation/financial terms are retained. Advertisers start in the normal marketplace and reach their separate work area explicitly. See `UX_REFINEMENT_ROUND2_AR.md` for dynamic listing scope and the new read-only editor policy contract. Historical planned contract text below does not enable new contract creation.
+
 ## 1. Core marketplace journey
 
 REAL ESTATE is marketplace-first.

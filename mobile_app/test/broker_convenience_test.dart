@@ -156,7 +156,7 @@ void main() {
     final boundary = GlobalKey();
     await _pump(tester, const ListingEditorScreen(), recovery: recovery, boundary: boundary);
     await _capture(tester, boundary, 'convenience-restored-step');
-    expect(find.text('4/5'), findsOneWidget); expect(find.text('125000'), findsOneWidget);
+    expect(find.text('4/4'), findsOneWidget); expect(find.text('125000'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
   testWidgets('customer shortcut applies unread filter and private followup saves through the existing thread', (tester) async {

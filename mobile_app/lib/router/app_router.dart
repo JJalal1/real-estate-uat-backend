@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../features/discovery/presentation/assisted_search_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -50,6 +51,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
+      GoRoute(path: '/smart-search', builder: (context, state) => const AssistedSearchScreen()),
       GoRoute(path: '/brokers', builder: (context, state) => const BrokerDirectoryScreen()),
       GoRoute(path: '/advertisers/:id', builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
@@ -58,7 +60,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/broker/workspace', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerDashboardScreen())),
       GoRoute(path: '/broker/customers', builder: (context, state) => Stage6AuthGate(requireListingEligible: true,
         child: BrokerCustomersScreen(propertyId: int.tryParse(state.uri.queryParameters['property'] ?? ''), initialFilter: state.uri.queryParameters['filter'] ?? 'all'))),
-      GoRoute(path: '/broker/availability', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerAvailabilityScreen())),
+      GoRoute(path: '/broker/availability', builder: (context, state) => Stage6AuthGate(requireListingEligible: true, child: BrokerAvailabilityScreen(initiallyDue: state.uri.queryParameters['due'] == '1'))),
       GoRoute(path: '/broker/finance', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerFinanceScreen())),
       GoRoute(path: '/broker/activity', builder: (context, state) => Stage6AuthGate(child: BrokerActivityScreen(initialTab: state.uri.queryParameters['tab'] == 'viewings' ? 1 : state.uri.queryParameters['tab'] == 'messages' ? 2 : 0, todayOnly: state.uri.queryParameters['today'] == '1'))),
       GoRoute(path: '/broker/deals/:id', builder: (context, state) {

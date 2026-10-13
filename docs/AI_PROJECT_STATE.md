@@ -4,12 +4,13 @@ Last updated: 2026-10-12
 
 ## Active broker UAT work — current authority
 
-The private feature branch is `work/broker-experience-v1`, based on the purchased eBroker design foundation. Broker UX commit `5dcd71856102f82d755522b4d92332e856273267` passed Broker Experience CI run `38202499279`, produced APK 1007, and is live on `real-estate-uat-api-frankfurt` (deploy `dep-db6jtcjl550s73b91phg`). The broker migration, PostgreSQL/PostGIS and private storage readiness passed. Device acceptance remains pending; this workspace cannot issue direct live API smoke requests due to its network policy.
+The private feature branch is `work/broker-experience-v1`. Its completed six-convenience baseline is commit `aa9af22660c641781b43ef024691aa25585f2bbd`, Broker Experience CI 12 (`38314145189`), APK 1012 and the same live Frankfurt UAT deploy (`dep-db6lniivcj2c738g020g`). Handset acceptance for that build is not recorded here as completed.
 
-The product owner has now explicitly requested six conveniences: exact dashboard destinations, automatic local listing recovery, private customer notes/reminders, editable quick replies, a today viewing agenda, and one primary action per operational card. These reuse the existing listing, conversation, booking, notification and eBroker components. New follow-up data is advertiser/account-bound and inaccessible to direct anonymous/authenticated database clients. Automatic recovery stays in app-private Android no-backup storage; saving/submitting the server listing remains explicit.
+The product owner's October 13 second-round UX refinement is now the active work package, documented in `docs/UX_REFINEMENT_ROUND2_AR.md`. It deliberately changes the advertiser's initial page to the marketplace, refines the four-step dynamic listing editor and inline customer-paid commission, quiets unread notifications, and adds a limited editable assisted-search flow using actual public API results. Literal template parity and the older five-step/initial-dashboard decisions are superseded within this authorized scope; the original assets, fonts, dependencies, native code, permissions, review and immutable financial history remain protected.
+
+The latest exact commit, CI results, APK identity and rollout evidence belong to Draft PR 70 and its matching workflow artifacts. A candidate is not accepted on a handset merely because it builds. The supplied Houzi screenshots were reviewed; the named MP4 was not attached and no claim is made that it was watched. See the new task document for manual acceptance and the remaining reference review.
 
 This work does not authorize merging into main or protected reference branches, or creating production/paid resources. Historical phase/environment statements below are retained as history and do not override this active branch, current code or fresh CI evidence.
-
 
 ## Current gate — Phase 4 CLOSED; next work is product-owner priority intake
 

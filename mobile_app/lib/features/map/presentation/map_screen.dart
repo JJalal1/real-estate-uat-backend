@@ -673,7 +673,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   bool _typeUsesRooms(String? type) {
-    return type == 'apartment' || type == 'house' || type == 'villa';
+    return type == 'apartment' || type == 'floor' || type == 'house' || type == 'villa';
   }
 
   void _setQuickPurpose(String? purpose) {
@@ -2473,7 +2473,7 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
   bool _showMore = false;
 
   bool get _showRoomFilters =>
-      _type == 'apartment' || _type == 'house' || _type == 'villa';
+      _type == 'apartment' || _type == 'floor' || _type == 'house' || _type == 'villa';
 
   @override
   void initState() {
@@ -2693,6 +2693,8 @@ class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
                           'منزل', _type == 'house', () => _setType('house')),
                       _choice(
                           'فيلا', _type == 'villa', () => _setType('villa')),
+                      _choice('دور كامل', _type == 'floor', () => _setType('floor')),
+                      _choice('عمارة كاملة', _type == 'building', () => _setType('building')),
                       _choice('أرض', _type == 'land', () => _setType('land')),
                       _choice('محل', _type == 'shop', () => _setType('shop')),
                       _choice(
@@ -2976,6 +2978,10 @@ class _MessageCard extends StatelessWidget {
 
 String _typeLabel(String value) {
   switch (value) {
+    case 'floor':
+      return 'دور كامل';
+    case 'building':
+      return 'عمارة كاملة';
     case 'apartment':
       return 'شقة';
     case 'house':

@@ -132,6 +132,10 @@ jobs:
         run: >-
           php artisan test tests/Feature/BrokerExperienceApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Listing scope, customer commission and private editor contracts on PostgreSQL
+        run: >-
+          php artisan test tests/Feature/UxRefinementApiTest.php
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: PostGIS original overlap contract
         run: >-
           php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php
@@ -183,6 +187,7 @@ jobs:
           flutter test
           test/broker_experience_ui_test.dart
           test/broker_convenience_test.dart
+          test/ux_refinement_test.dart
           test/ui_transplant_v3_home_test.dart
           test/ui_transplant_v3_template_test.dart
           test/app_components_test.dart

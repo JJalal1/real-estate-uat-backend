@@ -495,7 +495,7 @@ class PropertyListingInput {
         'rental_term_months': rentalTermMonths,
       if (purpose == 'rent' && advanceMonths != null)
         'advance_months': advanceMonths,
-      'listing_input_version': 3,
+      'listing_input_version': 4,
       if (areaValue != null) 'area_value': areaValue,
       if (areaUnit != null && areaUnit!.trim().isNotEmpty)
         'area_unit': areaUnit,

@@ -187,10 +187,10 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         );
       case 'advertiser':
         return const _ShellData(pages: [
-          BrokerDashboardScreen(), MyListingsScreen(), BrokerCustomersScreen(), BrokerActivityScreen(), AccountScreen(),
+          MarketplaceHomeScreen(showAdvertiserActions: true), BrokerDashboardScreen(), BrokerCustomersScreen(), BrokerActivityScreen(), AccountScreen(),
         ], items: [
           _NavItemData(label: 'الرئيسية', icon: Icons.home_outlined),
-          _NavItemData(label: 'عقاراتي', icon: Icons.inventory_2_outlined),
+          _NavItemData(label: 'عملي', icon: Icons.work_outline),
           _NavItemData(label: 'العملاء', icon: Icons.people_outline),
           _NavItemData(label: 'نشاطي', icon: Icons.calendar_month_outlined),
           _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),

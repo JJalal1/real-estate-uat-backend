@@ -251,6 +251,29 @@ class PropertyRepository {
     }
   }
 
+  Future<PropertySaiEnvelope> saiForEditor(int propertyId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties/$propertyId/sai-management',
+      options: await _auth.requiredAuthOptions());
+    return PropertySaiEnvelope.fromResponse(response.data);
+  }
+
+  Future<PropertySaiManagement> saiPolicy(String purpose) async {
+    final response = await _dio.get<Map<String, dynamic>>('/listing-sai-policy',
+      queryParameters: {'purpose': purpose}, options: await _auth.requiredAuthOptions());
+    final data = response.data?['data'];
+    if (data is! Map<String, dynamic>) throw StateError('Invalid listing policy.');
+    return PropertySaiManagement.fromJson(data);
+  }
+
+  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1}) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties',
+      queryParameters: {...filters, 'page': page, 'per_page': 20, 'sort': 'latest'});
+    final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
+      .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
+    final meta = response.data?['meta'] as Map? ?? const {};
+    return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
+  }
+
   Future<PropertyDetails> details(int propertyId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/properties/$propertyId',

@@ -43,7 +43,7 @@ class PropertySaiService
 
             $advertiserType = $this->advertiserType($actor);
             $purpose = (string) $locked->purpose;
-            $this->validatePayer($purpose, $payer);
+            $this->validatePayer($purpose, $payer, true);
 
             $sourceMode = 'owner_fixed';
             $requestedRate = null;
@@ -57,7 +57,7 @@ class PropertySaiService
             if ($advertiserType === 'owner') {
                 if ($brokerRate !== null) {
                     throw ValidationException::withMessages([
-                        'broker_sai_rate_percent' => ['المالك لا يستطيع تحديد أو تغيير نسبة السعي. يحدد فقط من يتحمل السعي.'],
+                        'broker_sai_rate_percent' => ['نسبة سعي المالك ثابتة ولا يمكن تغييرها.'],
                     ]);
                 }
             } else {
@@ -230,6 +230,23 @@ class PropertySaiService
         ];
     }
 
+    public function policy(User $advertiser, string $purpose): array
+    {
+        $type = $this->advertiserType($advertiser);
+        return [
+            'configured' => false,
+            'advertiser_type' => $type,
+            'purpose' => $purpose,
+            'payer' => $purpose === 'rent' ? 'tenant' : 'buyer',
+            'payer_label' => $purpose === 'rent' ? 'المستأجر' : 'المشتري',
+            'fixed_rate_percent' => $this->fixedRate($purpose),
+            'broker_max_rate_percent' => $type === 'owner' ? null : $this->brokerMaxRate($purpose),
+            'professional_platform_share_percent' => self::PLATFORM_BROKER_SHARE,
+            'platform_terms_message' => 'للتطبيق نسبة مقدارها '.$this->formatRate(self::PLATFORM_BROKER_SHARE).'% من مبلغ السعي عند إتمام الصفقة.',
+            'requires_configuration' => true,
+        ];
+    }
+
     public function managementData(Property $property, User $advertiser): array
     {
         $term = $this->currentTerm($property);
@@ -237,16 +254,10 @@ class PropertySaiService
         $purpose = (string) $property->purpose;
 
         if (! $term || $term->purpose !== $purpose || $term->advertiser_type !== $type) {
-            return [
-                'configured' => false,
-                'advertiser_type' => $type,
-                'fixed_rate_percent' => $this->fixedRate($purpose),
-                'broker_max_rate_percent' => $type === 'owner' ? null : $this->brokerMaxRate($purpose),
-                'requires_configuration' => true,
-            ];
+            return $this->policy($advertiser, $purpose);
         }
 
-        return [
+        return array_merge($this->policy($advertiser, $purpose), [
             'configured' => true,
             'term_id' => (int) $term->id,
             'version' => (int) $term->version,
@@ -270,7 +281,7 @@ class PropertySaiService
                 : null,
             'public_display_text' => $this->publicData($property)['display_text'] ?? null,
             'created_at' => optional($term->created_at)->toIso8601String(),
-        ];
+        ]);
     }
 
     public function currentTerm(Property $property): ?PropertySaiTerm
@@ -321,15 +332,19 @@ class PropertySaiService
         return $purpose === 'rent' ? self::BROKER_RENT_MAX : self::BROKER_SALE_MAX;
     }
 
-    private function validatePayer(string $purpose, string $payer): void
+    private function validatePayer(string $purpose, string $payer, bool $newConfiguration = false): void
     {
-        $allowed = $purpose === 'rent' ? ['landlord', 'tenant'] : ['seller', 'buyer'];
+        // Old immutable terms remain readable/settleable. Every new version
+        // follows the owner's October 13 customer-paid policy.
+        $allowed = $newConfiguration
+            ? [$purpose === 'rent' ? 'tenant' : 'buyer']
+            : ($purpose === 'rent' ? ['landlord', 'tenant'] : ['seller', 'buyer']);
         if (! in_array($payer, $allowed, true)) {
             throw ValidationException::withMessages([
                 'sai_payer' => [
                     $purpose === 'rent'
-                        ? 'حدد من يتحمل السعي: المؤجر أو المستأجر.'
-                        : 'حدد من يتحمل السعي: البائع أو المشتري.',
+                        ? 'السعي في الشروط الجديدة يتحمله المستأجر.'
+                        : 'السعي في الشروط الجديدة يتحمله المشتري.',
                 ],
             ]);
         }

@@ -12,7 +12,7 @@ const _viewingNotificationTypes = <String>{
 
 String? notificationDestination(AppNotificationItem item) {
   if (item.entityType == 'broker_deal_outcome' && item.entityId != null) return '/broker/deals/${item.entityId}';
-  if (item.type == 'broker_availability_due') return '/broker/availability';
+  if (item.type == 'broker_availability_due') return '/broker/availability?due=1';
   if (item.entityType == 'property_platform_receivable') return '/broker/finance';
   final agreementId = item.agreementId ??
       (item.entityType == 'property_agreement' ? item.entityId : null);
