@@ -124,7 +124,7 @@ void main() {
       await (FontLoader(name)..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))).load();
     }
     final primary = FontLoader('PrimaryFont');
-    for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) primary.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf'));
+    for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) { primary.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf')); }
     await primary.load();
     final root = Platform.environment['FLUTTER_ROOT']!;
     final icons = await File('$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
