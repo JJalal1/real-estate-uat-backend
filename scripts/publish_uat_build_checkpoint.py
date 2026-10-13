@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 import urllib.request
+import urllib.error
+import time
 
 repository = os.environ['GITHUB_REPOSITORY']
 source = os.environ['SOURCE_COMMIT']
@@ -25,8 +27,17 @@ def request(endpoint, payload):
         'X-GitHub-Api-Version': '2022-11-28',
         'Content-Type': 'application/json',
     })
-    with urllib.request.urlopen(req, timeout=120) as response:
-        return json.load(response)
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            message = error.read().decode('utf-8', errors='replace')
+            if error.code not in (403, 429) or 'rate limit' not in message.lower() or attempt == 5:
+                raise
+            pause = min(60, max(5, int(error.headers.get('Retry-After', '30'))))
+            print(f'Private build upload rate limit; retrying in {pause}s.')
+            time.sleep(pause)
 
 
 elements = []
@@ -35,15 +46,15 @@ for path in sorted(Path('dist').glob('*')):
         continue
     content = path.read_bytes()
     # Each ASCII blob remains small enough for the connected GitHub reader.
-    for index, offset in enumerate(range(0, len(content), 180000)):
+    for index, offset in enumerate(range(0, len(content), 384000)):
         name = f'{path.name}.part-{index:04d}.b64'
-        encoded = base64.b64encode(content[offset:offset + 180000]).decode('ascii')
+        encoded = base64.b64encode(content[offset:offset + 384000]).decode('ascii')
         blob = request('/git/blobs', {'content': encoded, 'encoding': 'utf-8'})
         elements.append({'path': name, 'mode': '100644', 'type': 'blob', 'sha': blob['sha']})
 manifest = request('/git/blobs', {'content': json.dumps({
     'source_commit': source, 'run_number': int(run),
     'files': {p.name: p.stat().st_size for p in Path('dist').glob('*') if p.is_file()},
-    'chunk_bytes': 180000,
+    'chunk_bytes': 384000,
 }, indent=2), 'encoding': 'utf-8'})
 elements.append({'path': 'MANIFEST.json', 'mode': '100644', 'type': 'blob', 'sha': manifest['sha']})
 tree = request('/git/trees', {'tree': elements})
