@@ -110,6 +110,17 @@ Artisan::command('uat:cloud-check', function (CloudAssetStorageService $storage)
 })->purpose('Verify Cloud UAT environment without printing secrets.');
 
 Schedule::command('support:escalate-overdue')->hourly();
+Artisan::command('uat:ai-check', function (\App\Services\GeminiClient $client): int {
+    if (! app()->environment('uat', 'staging')) { $this->error('AI connectivity probe is UAT-only.'); return 1; }
+    if (! $client->available()) { $this->warn('Gemini server configuration is unavailable; manual workflows remain available.'); return 1; }
+    try {
+        $result = $client->object('Return the exact JSON probe value ok. No other output.', ['probe' => 'connection'],
+            ['type' => 'object', 'properties' => ['probe' => ['type' => 'string', 'enum' => ['ok']]], 'required' => ['probe']]);
+        if (($result['probe'] ?? null) !== 'ok') { $this->warn('Gemini connectivity probe did not match.'); return 1; }
+        $this->info('Gemini UAT connection probe passed; key remains server-only.');
+        return 0;
+    } catch (\Throwable) { $this->warn('Gemini UAT connection probe unavailable; manual workflows remain available.'); return 1; }
+})->purpose('Check Gemini from UAT without logging keys, prompts, or provider error details.');
 Schedule::command('support:process-contact-followups')->hourly();
 
 \Illuminate\Support\Facades\Artisan::command('broker:refresh-availability', function (): void {

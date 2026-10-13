@@ -54,6 +54,11 @@ class PropertyIdentityService
         }
     }
 
+    public function normalizeFloorForSearch(string $value): string
+    {
+        return $this->floorMarker($value);
+    }
+
     public function validateIdentityInput(array $listing): void
     {
         $type = (string) ($listing['type'] ?? '');

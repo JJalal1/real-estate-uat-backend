@@ -37,6 +37,20 @@ class FinancialPropertyController extends PropertyController
 
     public function index(Request $request): JsonResponse { return $this->enrich(parent::index($request),$request,true); }
     public function nearby(Request $request): JsonResponse { return $this->enrich(parent::nearby($request),$request,true); }
+    public function marketplace(Request $request): JsonResponse
+    {
+        $response = parent::marketplace($request);
+        $body = $response->getData(true);
+        $unique = [];
+        foreach ($body['data']['sections'] as $rows) foreach ($rows as $row) $unique[$row['id']] = $row;
+        $enriched = $this->enrichRows(array_values($unique), true);
+        $byId = array_column($enriched, null, 'id');
+        foreach ($body['data']['sections'] as $key => $rows) {
+            $body['data']['sections'][$key] = array_values(array_filter(array_map(fn ($row) => $byId[$row['id']] ?? null, $rows)));
+        }
+        $response->setData($body);
+        return $response;
+    }
     public function mine(Request $request): JsonResponse { return $this->enrich(parent::mine($request),$request,false); }
 
     public function show(Request $request, Property $property): JsonResponse

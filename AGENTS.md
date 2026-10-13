@@ -11,7 +11,7 @@ Read it before proposing or applying changes.
 - Repository: `JJalal1/real-estate-uat-backend`.
 - Primary branch: `main`.
 - Active private product branch: `work/broker-experience-v1`.
-- Current task: October 13 Wave3 marketplace; read `docs/WAVE3_MARKETPLACE_AR.md`. The product owner explicitly authorized UAT fixture cleanup and the personal/professional distinction. Phase 2–4 statements below are historical.
+- Current task: October 14 Wave3 AI/design addition; read `docs/WAVE3_AI_DESIGN_AR.md` after `docs/WAVE3_MARKETPLACE_AR.md`. The earlier cleanup is complete and must not repeat. The new handoff authorizes server-side Gemini, persistent search, location-aware home, editorial Spotlight foundation and the minimal Android voice-input handler. Phase 2–4 statements below are historical.
 - Current stack: Flutter Android + Laravel API + PostgreSQL/PostGIS + Supabase Storage + Render UAT + GitHub Actions.
 
 ## 2. Source of truth
@@ -52,7 +52,7 @@ Do not change these without explicit product-owner approval:
 - Account verification professional types are `owner`, `broker`, and `office`.
 - Support work uses a shared queue / claim model. First valid claim wins; backend must prevent double claim.
 - Published listings are public; login is not required merely to browse published properties.
-- The product is free from the user's perspective: no paid promotion, featured listings, account upgrades, marketing packages, or paid service tiers in the active user journey.
+- The product is free from the user's perspective: no paid promotion, paid upgrades, marketing packages, or paid service tiers in the active user journey. The October 14 handoff authorizes the editorial Spotlight presentation foundation; plans and prices remain deferred.
 - Legacy payment/service infrastructure may remain dormant if deleting it would create unnecessary migration risk.
 - Viewing requests start from a specific property, not from a generic top-level service.
 - Sensitive storage stays private.

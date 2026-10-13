@@ -1,5 +1,6 @@
 <?php
 use App\Http\Controllers\Api\AccessControlController;
+use App\Http\Controllers\Api\AiAssistantController;
 use App\Http\Controllers\Api\AccountVerificationController;
 use App\Http\Controllers\Api\AdminWorkspaceController;
 use App\Http\Controllers\Api\AuthController;
@@ -64,6 +65,11 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('/properties', [PropertyController::class, 'index']);
+Route::get('/marketplace', [\App\Http\Controllers\Api\FinancialPropertyController::class, 'marketplace']);
+Route::get('/marketplace/locations', [PropertyController::class, 'marketplaceLocations']);
+Route::get('/ai/capabilities', [AiAssistantController::class, 'capabilities']);
+Route::post('/ai/search', [AiAssistantController::class, 'search'])->middleware('throttle:12,1');
+Route::post('/properties/{property}/ask', [AiAssistantController::class, 'question'])->middleware('throttle:12,1');
 Route::get('/properties/nearby', [PropertyController::class, 'nearby']);
 Route::get('/properties/{property}/comments', [CommunityController::class, 'comments']);
 Route::get('/properties/{property}/sai', [PropertySaiController::class, 'show']);
@@ -81,6 +87,8 @@ Route::get('/services/catalog', [ServicePaymentController::class, 'catalog']);
 Route::get('/properties/{property}/services', [ServicePaymentController::class, 'propertyServices']);
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
+    Route::post('/ai/listing-fields', [AiAssistantController::class, 'extract'])->middleware('throttle:8,1');
+    Route::post('/ai/listing-description', [AiAssistantController::class, 'description'])->middleware('throttle:8,1');
     Route::get('/listing-access', [PropertyController::class, 'listingAccess']);
     Route::get('/listing-sai-policy', [PropertySaiController::class, 'policy']);
     Route::get('/properties/{property}/sai-management', [PropertySaiController::class, 'management']);

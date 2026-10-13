@@ -32,5 +32,13 @@ if [ "${UAT_DEMO_SEED_ENABLED:-true}" = "true" ]; then
   esac
 fi
 
+case "${APP_ENV:-production}" in
+  uat|staging)
+    if ! php artisan uat:ai-check; then
+      echo "AI provider is unavailable; manual marketplace workflows remain ready."
+    fi
+    ;;
+esac
+
 php artisan config:cache
 exec apache2-foreground

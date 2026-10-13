@@ -153,6 +153,32 @@ class PropertyController extends Controller
         return response()->json(['data' => $properties]);
     }
 
+    public function marketplace(Request $request): JsonResponse
+    {
+        $v = $request->validate(['type' => ['nullable', Rule::in(self::TYPES)],
+            'governorate' => ['nullable', 'string', 'max:120'],
+            'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180']]);
+        $context = app(\App\Services\MarketplaceContextService::class)->resolve($v);
+        $base = $this->publicQuery();
+        $this->applyFilters($base, ['type' => $v['type'] ?? null, 'governorate' => $context['governorate']]);
+        $sections = [];
+        foreach (['spotlight', 'latest', 'sale', 'rent'] as $section) {
+            $query = clone $base;
+            if ($section === 'spotlight') $query->where('spotlight_until', '>', now());
+            if (in_array($section, ['sale', 'rent'], true)) $query->where('purpose', $section);
+            $sections[$section] = $query->latest('id')->limit(6)->get()->map(fn ($p) => $this->summaryData($p, $request))->values()->all();
+        }
+        $ranking = app(\App\Services\BrokerRankingService::class);
+        $brokers = $ranking->query($context['governorate'])->limit(5)->get()->map(fn ($u) => $ranking->publicData($u))->values();
+        return response()->json(['data' => ['context' => $context, 'sections' => $sections, 'brokers' => $brokers]]);
+    }
+
+    public function marketplaceLocations(): JsonResponse
+    {
+        return response()->json(['data' => app(\App\Services\MarketplaceContextService::class)->locations()]);
+    }
+
     public function show(Request $request, Property $property): JsonResponse
     {
         $user = $this->tokens->authenticate($request, false);
@@ -329,6 +355,13 @@ class PropertyController extends Controller
             'search' => ['nullable', 'string', 'max:120'],
             'currency' => ['nullable', 'string', 'size:3'],
             'max_monthly_rent' => ['nullable', 'numeric', 'min:0'],
+            'min_monthly_rent' => ['nullable', 'numeric', 'min:0'],
+            'governorate' => ['nullable', 'string', 'max:120'],
+            'floor_number' => ['nullable', 'string', 'max:32'],
+            'building_facade' => ['nullable', Rule::in(self::FACADES)],
+            'has_parking' => ['nullable', 'boolean'], 'has_elevator' => ['nullable', 'boolean'],
+            'unit_occupies_entire_floor' => ['nullable', 'boolean'],
+            'spotlight' => ['nullable', 'boolean'],
             'purpose' => ['nullable', Rule::in(self::PURPOSES)],
             'type' => ['nullable', Rule::in(self::TYPES)],
             'min_price' => ['nullable', 'numeric', 'min:0'],
@@ -359,6 +392,7 @@ class PropertyController extends Controller
             'bedrooms' => ['nullable', 'integer', 'min:0', 'max:100'],
             'bathrooms' => ['nullable', 'integer', 'min:0', 'max:100'],
             'has_parking' => ['nullable', 'boolean'],
+            'has_elevator' => ['nullable', 'boolean'],
             'building_facade' => ['nullable', 'string', Rule::in(self::FACADES)],
             'address' => ['nullable', 'string', 'max:255'],
             'building_reference' => ['nullable', 'string', 'max:160'],
@@ -391,7 +425,7 @@ class PropertyController extends Controller
     {
         $allowed = [
             'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
-            'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'building_facade', 'address', 'latitude', 'longitude',
+            'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'has_elevator', 'building_facade', 'address', 'latitude', 'longitude',
             'building_reference', 'unit_number', 'floor_number', 'unit_occupies_entire_floor', 'land_boundary_geojson',
             'contact_phone', 'contact_whatsapp',
             'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note',
@@ -491,6 +525,7 @@ class PropertyController extends Controller
             }
         }
         $wholeFloor = $effectiveType === 'floor' || ($effectiveType === 'apartment' && (bool) ($validated['unit_occupies_entire_floor'] ?? $existing?->unit_occupies_entire_floor ?? false));
+        if (! in_array($effectiveType, ['apartment', 'floor', 'building', 'office'], true)) $validated['has_elevator'] = null;
         $validated['unit_occupies_entire_floor'] = $effectiveType === 'apartment' && $wholeFloor;
         if ($wholeFloor) $validated['unit_number'] = null;
         if ($effectiveType === 'shop' && (int) ($validated['listing_input_version'] ?? 1) >= 4 && !array_key_exists('floor_number', $validated)) $validated['floor_number'] = null;
@@ -589,10 +624,34 @@ class PropertyController extends Controller
     private function applyFilters(Builder $query, array $validated): void
     {
         if (isset($validated['advertiser_id'])) $query->where('user_id', $validated['advertiser_id']);
+        if (! empty($validated['governorate'])) {
+            $name = $validated['governorate'];
+            $aliases = in_array($name, ['صنعاء', 'أمانة العاصمة'], true) ? ['صنعاء', 'أمانة العاصمة'] : [$name];
+            $query->where(function (Builder $regional) use ($aliases): void {
+                $regional->whereHas('geoCell.governorate', fn ($g) => $g->where('is_active', true)->whereIn('name_ar', $aliases))
+                    ->orWhere(function (Builder $legacy) use ($aliases): void {
+                        $legacy->whereNull('geo_cell_id')->where(function (Builder $address) use ($aliases): void {
+                            foreach ($aliases as $name) $address->orWhere('address', DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like', '%'.$name.'%');
+                        });
+                    });
+            });
+        }
+        if (($validated['spotlight'] ?? false)) $query->where('spotlight_until', '>', now());
+        foreach (['has_parking', 'has_elevator', 'building_facade'] as $field) if (isset($validated[$field])) $query->where($field, $validated[$field]);
+        if (isset($validated['floor_number'])) {
+            $floor = $this->identity->normalizeFloorForSearch($validated['floor_number']);
+            $query->where(fn (Builder $q) => $q->where('floor_number', $validated['floor_number'])
+                ->orWhereHas('propertyAsset', fn ($asset) => $asset->where('floor_number', $floor)));
+        }
+        if (array_key_exists('unit_occupies_entire_floor', $validated) && $validated['unit_occupies_entire_floor'] !== null) {
+            if ((bool) $validated['unit_occupies_entire_floor']) $query->where(fn ($q) => $q->where('type', 'floor')->orWhere('unit_occupies_entire_floor', true));
+            else $query->where('type', '<>', 'floor')->where('unit_occupies_entire_floor', false);
+        }
         if (isset($validated['currency'])) $query->where('currency', strtoupper($validated['currency']));
         if (isset($validated['max_monthly_rent'])) {
             $query->where('purpose', 'rent')->where('monthly_rent', '<=', $validated['max_monthly_rent']);
         }
+        if (isset($validated['min_monthly_rent'])) $query->where('purpose', 'rent')->where('monthly_rent', '>=', $validated['min_monthly_rent']);
         $search = trim((string) ($validated['search'] ?? ''));
         if ($search !== '') {
             $query->where(function (Builder $nested) use ($search) {
@@ -827,6 +886,7 @@ class PropertyController extends Controller
             'bedrooms' => $property->bedrooms,
             'bathrooms' => $property->bathrooms,
             'has_parking' => $property->has_parking,
+            'has_elevator' => $property->has_elevator,
             'building_facade' => $property->building_facade,
             'address' => $property->address,
             'latitude' => (float) $property->latitude,
@@ -837,6 +897,10 @@ class PropertyController extends Controller
             'availability_due_at' => $property->availability_due_at?->toIso8601String(),
             'view_count' => (int) $property->view_count,
             'main_image' => $mainImage ? $this->imageUrl($mainImage, $request) : null,
+            'image_urls' => $property->images->take(8)->map(fn ($image) => $this->imageUrl($image, $request))->values(),
+            'image_count' => $property->images->count(),
+            'floor_number' => in_array($property->type, ['apartment', 'floor', 'office', 'shop'], true) ? $property->floor_number : null,
+            'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,
         ];
     }
 

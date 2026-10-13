@@ -1,6 +1,12 @@
 # AI Project State — REAL ESTATE UAT
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
+
+## Wave3 AI/design addition — active work
+
+Read `WAVE3_AI_DESIGN_AR.md`. The earlier marketplace/account/UAT work was delivered as APK 1026 and deployed at `7bcb357095043203415cd5ea20ba4c50e20e77c7`; CI 28 passed. The newly attached complete handoff adds Gemini, persistent text/voice/manual search, regional home sections, editorial Spotlight foundation, card galleries and a simpler professional tool grid. These are not present in APK 1026. Implementation and its new CI/UAT/APK acceptance are in progress; no handset/video acceptance is implied.
+
+The three newly named reference videos are not attached. Five embedded images were reviewed. The existing Render-only `GEMINI_API_KEY` is supplied by the user; verify connection on the server without exposing its value. Professional tools, ownership, review and financial authority remain on Laravel. Earlier UAT cleanup must not repeat. CI permissions remain read-only; the historical automatic Git artifact fallback below is inactive after the final CI hardening.
 
 ## Wave3 marketplace — current authority
 
