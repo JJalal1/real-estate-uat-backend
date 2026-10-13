@@ -85,7 +85,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
             hintText: 'صف لي العقار الذي تبحث عنه…',
             helperText: 'مثال: شقة إيجار في تعز، 3 غرف، أقل من 150 ألف')),
         const SizedBox(height: 8),
-        AppButton(label: 'اقتراح الفلاتر', icon: Icons.auto_awesome_outlined, expand: true, onPressed: _interpret),
+        AppButton(label: 'اقتراح الفلاتر', icon: Icons.auto_awesome_outlined, expand: true,
+          style: filters == null ? AppButtonStyle.filled : AppButtonStyle.text, onPressed: _interpret),
         if (filters != null) ...[
           const SizedBox(height: 24),
           Row(children: [Expanded(child: Text('راجع بحثك', style: theme.textTheme.titleMedium)),
