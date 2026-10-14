@@ -2,19 +2,25 @@
 
 Last updated: 2026-10-14
 
-## Wave3 AI/design addition — active work
+## Wave3 AI/design addition — UAT installer ready
 
-Read `WAVE3_AI_DESIGN_AR.md`. The earlier marketplace/account/UAT work was delivered as APK 1026 and deployed at `7bcb357095043203415cd5ea20ba4c50e20e77c7`; CI 28 passed. The newly attached complete handoff adds Gemini, persistent text/voice/manual search, regional home sections, editorial Spotlight foundation, card galleries and a simpler professional tool grid. These are not present in APK 1026. Implementation and its new CI/UAT/APK acceptance are in progress; no handset/video acceptance is implied.
+Read `WAVE3_AI_DESIGN_AR.md`. The complete October 14 handoff has been implemented: Laravel-only Gemini, persistent text/voice/manual search, regional home sections, editorial Spotlight foundation, card galleries, a responsive professional tool grid, reviewed listing suggestions and public property questions. The earlier marketplace/account/UAT behavior remains. Automated verification and UAT rollout are complete; handset and reference-video acceptance remain open.
 
-The three newly named reference videos are not attached. Five embedded images were reviewed. The existing Render-only `GEMINI_API_KEY` is supplied by the user; verify connection on the server without exposing its value. Professional tools, ownership, review and financial authority remain on Laravel. Earlier UAT cleanup must not repeat. CI permissions remain read-only; the historical automatic Git artifact fallback below is inactive after the final CI hardening.
+The delivered APK is `real-estate-uat-1035.apk`, built from `d6016cb3b9274a36ad728c53c9998aa2bd46e0fc` by successful Broker Experience CI 35 (`38492343240`). SHA-256 is `af8f4d567ca4413282b4433812366412bb5e9ed9ebaf66cd4a474f02910000cc`; size is 49,179,705 bytes. Local checks passed ZIP CRC, CMS signature and all 715 signed payload digests, package/version, three compiled Frankfurt API architectures and five original Manrope fonts. Its development signing certificate differs from APK 1026/1019: save unsent local drafts and uninstall the older app before installing it.
 
-## Wave3 marketplace — current authority
+The deployed backend source is `965702d9751456fa7efd8f2bc74b7d6512072d13`; Broker Experience CI 36 (`38495247339`) passed all five jobs, including the complete Laravel/PostgreSQL/PostGIS and Flutter/APK gates. Only three backend PHP files changed after APK 1035's source; both sources have the identical mobile tree `b05bab2c9e4de7520c2028f15afcf63f91ee99c2`. The fix uses the official generateContent `APPLICATION_JSON` enum and sanitized probe failure codes. The existing Free Frankfurt Render deployment `dep-db7dmeq5b2lc73fi1d40` is live; its actual Gemini connection probe passed at `2026-10-14T01:31:44Z`, with the key retained on the server. Later documentation-only commits do not change this tested application code or the live source.
 
-The current task is `docs/WAVE3_MARKETPLACE_AR.md`: eight basic listing types, whole-floor scope inside apartment details, one personal listing for modern non-professional accounts, and approved broker/office-only work tools. Owner verification and private per-property relationship evidence remain required. The earlier six broker conveniences and customer-paid commission policy are retained.
+Post-rollout Frankfurt data still contains 15 users, 27 properties/photos, 11 deals, 10 ratings and 11 receivables. The one-time design seed adds only six explicit elevator facts and three editorial Spotlight samples. Protected operational users/roles/profiles/documents match their pre-rollout hashes; all 12 immutable-delete guards remain enabled. The daily AI aggregate has RLS and no direct PUBLIC/anon/authenticated grants. Advisors report only intentional deny-all RLS INFO and unused-index INFO.
+
+The three newly named reference videos are not attached. Five embedded images and generated test previews were reviewed; no handset acceptance is claimed. Professional tools, ownership, review and financial authority remain on Laravel. Earlier UAT cleanup must not repeat. CI permissions remain read-only. The installer was transferred through bounded private CI log segments, verified locally and made available; no runner repository write or release publication is enabled. Draft PR 70 contains the final evidence. No merge, Production rollout or paid resource is authorized.
+
+## Earlier Wave3 marketplace — preserved behavior
+
+The earlier completed task `docs/WAVE3_MARKETPLACE_AR.md` defines eight basic listing types, whole-floor scope inside apartment details, one personal listing for modern non-professional accounts, and approved broker/office-only work tools. Owner verification and private per-property relationship evidence remain required. The earlier six broker conveniences and customer-paid commission policy are retained.
 
 Wave3 includes an explicitly authorized, one-shot cleanup of the exact legacy Frankfurt UAT fixture identities followed by 11 fictional marketplace personas and 27 listings. The implementation preserves operational accounts/roles/verification data, verifies a private sanitized backup, restores immutable delete triggers in the same transaction, and refuses Production or another Supabase project. See that task document for the scope and fixture entry phones. A successful seeding marker prevents any repeat cleanup or recreation of legacy accounts.
 
-Draft PR 70 is the evidence index for the latest exact source SHA, green CI, APK, and Frankfurt deployment. Earlier APK 1019 corresponds to second-round baseline `2f05967397e1921fc55927111f57b0445f0c7e45`; it does not contain Wave3. Automated checks do not imply handset acceptance. Artifact-storage quota has a private Git-object APK fallback; required tests remain blocking.
+Draft PR 70 is the evidence index for the latest exact source SHA, green CI, APK, and Frankfurt deployment. Earlier APK 1019 corresponds to second-round baseline `2f05967397e1921fc55927111f57b0445f0c7e45`; it does not contain Wave3. APK 1026 contains the earlier marketplace work but not the AI/design addition. Automated checks do not imply handset acceptance. Artifact-storage quota is handled by bounded private read-only CI log transport after all required tests and APK verification pass.
 
 ## Earlier broker UAT work — history
 
