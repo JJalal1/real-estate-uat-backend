@@ -109,7 +109,7 @@ void main() {
   testWidgets('successful feed survives short tab trips and expires', (tester) async {
     final fake = Wave3MarketplaceFake();
     final container = ProviderContainer(overrides: [marketplaceRepositoryProvider.overrideWithValue(fake)]);
-    addTearDown(container.dispose);
+    try {
     final provider = marketplaceFeedProvider(query);
     final first = container.listen(provider, (_, __) {});
     await container.read(provider.future); first.close(); await tester.pump(Duration.zero);
@@ -120,12 +120,13 @@ void main() {
     final third = container.listen(provider, (_, __) {});
     await container.read(provider.future); expect(fake.queries, hasLength(2));
     third.close();
+    } finally { container.dispose(); await tester.pump(Duration.zero); }
   });
 
   testWidgets('manual refresh, property revisions and different regions invalidate reuse', (tester) async {
     final fake = Wave3MarketplaceFake();
     final container = ProviderContainer(overrides: [marketplaceRepositoryProvider.overrideWithValue(fake)]);
-    addTearDown(container.dispose);
+    try {
     final provider = marketplaceFeedProvider(query);
     final sub = container.listen(provider, (_, __) {});
     await container.read(provider.future);
@@ -139,13 +140,14 @@ void main() {
     expect(fake.queries, hasLength(4)); expect(fake.queries.last.governorate, 'تعز');
     expect(fake.queries.last.type, 'house');
     other.close(); sub.close();
+    } finally { container.dispose(); await tester.pump(Duration.zero); }
   });
 
   testWidgets('leaving an unfinished feed cancels and ignores a late response', (tester) async {
     final answer = Completer<MarketplaceFeed>();
     final fake = Wave3MarketplaceFake(onFeed: (_) => answer.future);
     final container = ProviderContainer(overrides: [marketplaceRepositoryProvider.overrideWithValue(fake)]);
-    addTearDown(container.dispose);
+    try {
     final provider = marketplaceFeedProvider(query);
     final sub = container.listen(provider, (_, __) {});
     final pending = container.read(provider.future);
@@ -154,13 +156,14 @@ void main() {
     expect(fake.cancelTokens.single!.isCancelled, isTrue);
     answer.complete(const MarketplaceFeed(label: 'صنعاء'));
     await tester.pump(Duration.zero); await checked;
+    } finally { container.dispose(); await tester.pump(Duration.zero); }
   });
 
   testWidgets('failed reads are not retained when leaving and returning', (tester) async {
     final fake = Wave3MarketplaceFake(onFeed: (_) async => throw DioException(
       requestOptions: RequestOptions(path: '/marketplace'), type: DioExceptionType.connectionError));
     final container = ProviderContainer(overrides: [marketplaceRepositoryProvider.overrideWithValue(fake)]);
-    addTearDown(container.dispose);
+    try {
     final provider = marketplaceFeedProvider(query);
     final first = container.listen(provider, (_, __) {});
     await expectLater(container.read(provider.future), throwsA(isA<DioException>()));
@@ -168,6 +171,7 @@ void main() {
     final second = container.listen(provider, (_, __) {});
     await expectLater(container.read(provider.future), throwsA(isA<DioException>()));
     expect(fake.queries, hasLength(2)); second.close();
+    } finally { container.dispose(); await tester.pump(Duration.zero); }
   });
 
   testWidgets('failed refresh keeps the last successful cards with a clear warning', (tester) async {
