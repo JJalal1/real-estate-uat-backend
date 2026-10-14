@@ -119,7 +119,7 @@ Artisan::command('uat:ai-check', function (\App\Services\GeminiClient $client): 
         if (($result['probe'] ?? null) !== 'ok') { $this->warn('Gemini connectivity probe did not match.'); return 1; }
         $this->info('Gemini UAT connection probe passed; key remains server-only.');
         return 0;
-    } catch (\Throwable) { $this->warn('Gemini UAT connection probe unavailable; manual workflows remain available.'); return 1; }
+    } catch (\Throwable) { $this->warn('Gemini UAT connection probe unavailable ('.$client->probeFailure().'); manual workflows remain available.'); return 1; }
 })->purpose('Check Gemini from UAT without logging keys, prompts, or provider error details.');
 Schedule::command('support:process-contact-followups')->hourly();
 

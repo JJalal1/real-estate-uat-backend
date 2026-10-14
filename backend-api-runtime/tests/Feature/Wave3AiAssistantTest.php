@@ -31,9 +31,12 @@ class Wave3AiAssistantTest extends TestCase
         // later follow-up. Keep the different responses and all assertions.
         Http::swap(new \Illuminate\Http\Client\Factory());
         Http::preventStrayRequests();
-        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
-            'candidates' => [['content' => ['parts' => [['text' => json_encode($value, JSON_UNESCAPED_UNICODE)]]]]],
-        ])]);
+        Http::fake(['generativelanguage.googleapis.com/*' => function ($request) use ($value) {
+            // generateContent uses a protobuf enum, unlike Interactions' MIME string.
+            $this->assertSame('APPLICATION_JSON', $request['generationConfig']['responseFormat']['text']['mimeType']);
+            $this->assertStringNotContainsString('fixture-server-key', $request->url());
+            return Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode($value, JSON_UNESCAPED_UNICODE)]]]]]]);
+        }]);
     }
 
     public function test_followups_keep_context_add_a_budget_and_remove_only_rooms(): void
