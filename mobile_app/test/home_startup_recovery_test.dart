@@ -87,8 +87,8 @@ void main() {
       retryDelays: const [Duration(seconds: 20)]).get('/marketplace', cancelToken: token);
     final checked = expectLater(pending, throwsA(isA<DioException>()
       .having((e) => e.type, 'type', DioExceptionType.cancel)));
-    await tester.pump(); await reached.future; await tester.pump();
-    token.cancel('Left home'); await tester.pump(); await checked;
+    await tester.pump(Duration.zero); await reached.future; await tester.pump(Duration.zero);
+    token.cancel('Left home'); await tester.pump(Duration.zero); await checked;
     await tester.pump(const Duration(seconds: 30)); expect(calls, 1);
   });
 
@@ -101,8 +101,8 @@ void main() {
       budget: const Duration(seconds: 10)).get('/marketplace', cancelToken: token);
     final checked = expectLater(pending, throwsA(isA<DioException>()
       .having((e) => e.type, 'type', DioExceptionType.receiveTimeout)));
-    await tester.pump(); await tester.pump(const Duration(seconds: 10));
-    await tester.pump(); await checked;
+    await tester.pump(Duration.zero); await tester.pump(const Duration(seconds: 10));
+    await tester.pump(Duration.zero); await checked;
     expect(token.isCancelled, isTrue); expect(calls, 1);
   });
 
@@ -112,11 +112,11 @@ void main() {
     addTearDown(container.dispose);
     final provider = marketplaceFeedProvider(query);
     final first = container.listen(provider, (_, __) {});
-    await container.read(provider.future); first.close(); await tester.pump();
+    await container.read(provider.future); first.close(); await tester.pump(Duration.zero);
     final second = container.listen(provider, (_, __) {});
     await container.read(provider.future); expect(fake.queries, hasLength(1));
-    second.close(); await tester.pump();
-    await tester.pump(const Duration(seconds: 46)); await tester.pump();
+    second.close(); await tester.pump(Duration.zero);
+    await tester.pump(const Duration(seconds: 46)); await tester.pump(Duration.zero);
     final third = container.listen(provider, (_, __) {});
     await container.read(provider.future); expect(fake.queries, hasLength(2));
     third.close();
@@ -129,9 +129,9 @@ void main() {
     final provider = marketplaceFeedProvider(query);
     final sub = container.listen(provider, (_, __) {});
     await container.read(provider.future);
-    container.invalidate(provider); await tester.pump(); await container.read(provider.future);
+    container.invalidate(provider); await tester.pump(Duration.zero); await container.read(provider.future);
     container.read(propertyDataRevisionProvider.notifier).state++;
-    await tester.pump(); await container.read(provider.future);
+    await tester.pump(Duration.zero); await container.read(provider.future);
     final elsewhere = marketplaceFeedProvider((latitude: 13.58, longitude: 44.02,
       governorate: 'تعز', type: 'house', device: false));
     final other = container.listen(elsewhere, (_, __) {});
@@ -150,10 +150,10 @@ void main() {
     final sub = container.listen(provider, (_, __) {});
     final pending = container.read(provider.future);
     final checked = expectLater(pending, throwsA(isA<DioException>()));
-    sub.close(); await tester.pump(); await tester.pump();
+    sub.close(); await tester.pump(Duration.zero); await tester.pump(Duration.zero);
     expect(fake.cancelTokens.single!.isCancelled, isTrue);
     answer.complete(const MarketplaceFeed(label: 'صنعاء'));
-    await tester.pump(); await checked;
+    await tester.pump(Duration.zero); await checked;
   });
 
   testWidgets('failed reads are not retained when leaving and returning', (tester) async {
@@ -164,7 +164,7 @@ void main() {
     final provider = marketplaceFeedProvider(query);
     final first = container.listen(provider, (_, __) {});
     await expectLater(container.read(provider.future), throwsA(isA<DioException>()));
-    first.close(); await tester.pump(); await tester.pump();
+    first.close(); await tester.pump(Duration.zero); await tester.pump(Duration.zero);
     final second = container.listen(provider, (_, __) {});
     await expectLater(container.read(provider.future), throwsA(isA<DioException>()));
     expect(fake.queries, hasLength(2)); second.close();
@@ -202,7 +202,7 @@ void main() {
       marketplaceRepositoryProvider.overrideWithValue(fake),
       homeLocationAttemptedProvider.overrideWith((_) => true),
     ], child: MaterialApp(theme: AppTheme.light, home: const MarketplaceHomeScreen())));
-    await tester.pump(); await tester.pump(const Duration(seconds: 7));
+    await tester.pump(Duration.zero); await tester.pump(const Duration(seconds: 7));
     expect(find.text('الاتصال يستغرق وقتًا أطول. نحاول تحميل العقارات تلقائيًا…'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-ai-send')), findsOneWidget);
     expect(find.text('تعذر تحميل المحتوى'), findsNothing);
@@ -225,7 +225,7 @@ void main() {
       marketplaceRepositoryProvider.overrideWithValue(fake),
       homeLocationAttemptedProvider.overrideWith((_) => true),
     ], child: MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
-    await tester.pump();
+    await tester.pump(Duration.zero);
     final container = ProviderScope.containerOf(tester.element(find.byType(MarketplaceHomeScreen)));
     final pending = container.read(marketplaceFeedProvider((latitude: 15.3694, longitude: 44.1910,
       governorate: null, type: null, device: false)).future);
@@ -234,7 +234,7 @@ void main() {
     expect(find.text('صفحة أخرى'), findsOneWidget);
     expect(fake.cancelTokens.single!.isCancelled, isTrue);
     answer.complete(const MarketplaceFeed(label: 'صنعاء'));
-    await tester.pump(); await checked;
+    await tester.pump(Duration.zero); await checked;
     expect(tester.takeException(), isNull);
   });
 }
