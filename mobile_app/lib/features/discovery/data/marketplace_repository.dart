@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/public_startup_read.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
@@ -37,10 +39,12 @@ class MarketplaceFeed {
 }
 
 class MarketplaceRepository {
-  MarketplaceRepository(this._dio);
-  final Dio _dio;
-  Future<MarketplaceFeed> feed(HomeFeedQuery query) async {
-    final r = await _dio.get<Map<String, dynamic>>('/marketplace', queryParameters: {
+  MarketplaceRepository(Dio dio, {bool? startupRecovery})
+      : _reads = PublicStartupRead(dio,
+          enabled: startupRecovery ?? ApiEnvironmentConfig.isUat);
+  final PublicStartupRead _reads;
+  Future<MarketplaceFeed> feed(HomeFeedQuery query, {CancelToken? cancelToken}) async {
+    final r = await _reads.get('/marketplace', cancelToken: cancelToken, queryParameters: {
       if (query.governorate != null) 'governorate': query.governorate,
       if (query.governorate == null && query.device) ...{'latitude': query.latitude, 'longitude': query.longitude},
       if (query.type != null) 'type': query.type,
@@ -49,8 +53,8 @@ class MarketplaceRepository {
     if (body is! Map) throw StateError('Invalid marketplace response.');
     return MarketplaceFeed.fromJson(Map<String, dynamic>.from(body));
   }
-  Future<List<HomeLocation>> locations() async {
-    final r = await _dio.get<Map<String, dynamic>>('/marketplace/locations');
+  Future<List<HomeLocation>> locations({CancelToken? cancelToken}) async {
+    final r = await _reads.get('/marketplace/locations', cancelToken: cancelToken);
     return brokerRows(r.data?['data']).where((row) => row['latitude'] is num && row['longitude'] is num).map(HomeLocation.fromJson).toList(growable: false);
   }
 }
@@ -58,8 +62,20 @@ class MarketplaceRepository {
 final marketplaceRepositoryProvider = Provider<MarketplaceRepository>((ref) => MarketplaceRepository(ref.watch(dioProvider)));
 final homeLocationProvider = StateProvider<HomeLocation>((ref) => const HomeLocation());
 final homeLocationAttemptedProvider = StateProvider<bool>((ref) => false);
-final homeLocationsProvider = FutureProvider<List<HomeLocation>>((ref) => ref.watch(marketplaceRepositoryProvider).locations());
-final marketplaceFeedProvider = FutureProvider.autoDispose.family<MarketplaceFeed, HomeFeedQuery>((ref, query) {
+final homeLocationsProvider = FutureProvider<List<HomeLocation>>((ref) {
+  final token = CancelToken();
+  ref.onDispose(() => token.cancel('Home locations disposed'));
+  return ref.watch(marketplaceRepositoryProvider).locations(cancelToken: token);
+});
+final marketplaceFeedProvider = FutureProvider.autoDispose.family<MarketplaceFeed, HomeFeedQuery>((ref, query) async {
   ref.watch(propertyDataRevisionProvider);
-  return ref.watch(marketplaceRepositoryProvider).feed(query);
+  final token = CancelToken();
+  ref.onDispose(() => token.cancel('Home feed disposed'));
+  final result = await ref.watch(marketplaceRepositoryProvider).feed(query, cancelToken: token);
+  if (token.isCancelled) throw token.cancelError!;
+  // Preserve only successful public results during short trips to another tab.
+  final link = ref.keepAlive();
+  final expiry = Timer(const Duration(seconds: 45), link.close);
+  ref.onDispose(expiry.cancel);
+  return result;
 });

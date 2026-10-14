@@ -11,7 +11,7 @@ Read it before proposing or applying changes.
 - Repository: `JJalal1/real-estate-uat-backend`.
 - Primary branch: `main`.
 - Active private product branch: `work/broker-experience-v1`.
-- Current task: October 14 evening in-app dictation correction; read `docs/VOICE_IN_APP_AR.md` and the Wave3 AI/design context. The owner rejected the external recognition Activity and explicitly authorized native SpeechRecognizer, microphone permission and an inline Flutter listening/transcript UI. Earlier Wave3 cleanup is complete and must not repeat. Camera/token storage, other permissions, dependencies, assets, backend authorization and paid/Production boundaries remain protected. Phase 2–4 statements below are historical.
+- Current task: October 15 home startup/latency correction; read `docs/HOME_STARTUP_RECOVERY_AR.md`. APK 1039's in-app dictation is complete and must remain. The owner asks to improve a slow/temporarily failing home. Measure before optimizing, bound anonymous retry/cancellation, preserve query and data-revision boundaries and public-only freshness. Earlier Wave3 cleanup must not repeat. Camera/token storage, voice/native permissions, dependencies, assets, backend/finance authorization and paid/Production boundaries remain protected. Phase 2–4 statements below are historical.
 - Current stack: Flutter Android + Laravel API + PostgreSQL/PostGIS + Supabase Storage + Render UAT + GitHub Actions.
 
 ## 2. Source of truth
