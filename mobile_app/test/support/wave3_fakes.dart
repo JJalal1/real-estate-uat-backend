@@ -55,10 +55,12 @@ class Wave3VoiceFake implements VoiceInput {
   VoiceRecording start() {
     calls++;
     final recording = Wave3RecordingFake(); recordings.add(recording);
-    if (autoComplete) scheduleMicrotask(() {
-      recording.emit(const VoiceEvent('ready'));
-      recording.emit(text == null ? const VoiceEvent('cancelled') : VoiceEvent('final', text: text!));
-    });
+    if (autoComplete) {
+      scheduleMicrotask(() {
+        recording.emit(const VoiceEvent('ready'));
+        recording.emit(text == null ? const VoiceEvent('cancelled') : VoiceEvent('final', text: text!));
+      });
+    }
     return recording;
   }
   Future<void> dispose() async { for (final recording in recordings) { await recording.close(); } }
