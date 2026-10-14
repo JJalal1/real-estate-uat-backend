@@ -44,7 +44,8 @@ class UatWave3DesignSeeder extends Seeder
             DB::table('platform_settings')->insert(['key' => self::MARKER, 'value' => json_encode([
                 'seeded_at' => now()->toIso8601String(), 'spotlight_property_ids' => $spotlights, 'elevator_property_ids' => $facts,
                 'scope' => 'fictional UAT presentation only; no plans, prices, reviews, financial or account changes',
-            ], JSON_UNESCAPED_UNICODE), 'created_at' => now(), 'updated_at' => now()]);
+            ], JSON_UNESCAPED_UNICODE), 'label_ar' => 'تجهيز عرض الموجة الثالثة التجريبي',
+                'type' => 'json', 'group' => 'uat', 'is_public' => false, 'created_at' => now(), 'updated_at' => now()]);
         });
     }
 }
