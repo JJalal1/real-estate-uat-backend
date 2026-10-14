@@ -1,0 +1,16 @@
+name: Read-only UAT home startup diagnosis
+on:
+  push:
+    branches: [diagnostics/home-startup-1039]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Measure anonymous health and marketplace reads
+        run: python3 -B scripts/probe_home_startup.py
