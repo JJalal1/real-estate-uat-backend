@@ -39,7 +39,9 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
                     } else {
                         activeId = id
                         result.success(null)
-                        if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
+                        if (!foreground) {
+                            cancel()
+                        } else if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
                             fail("SPEECH_UNAVAILABLE")
                         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
                             activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -64,7 +66,7 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
     }
 
     fun onResume() { foreground = true; if (!permissionPending && activeId != null && recognizer == null) begin() }
-    fun onPause() { foreground = false; if (recognizer != null) cancel() }
+    fun onPause() { foreground = false; if (!permissionPending) cancel() }
 
     private fun begin() {
         val id = activeId ?: return

@@ -46,6 +46,17 @@ Future<void> preview(WidgetTester tester, GlobalKey key, String name) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() async {
+    for (final name in ['sans-serif', 'NotoSansArabic']) {
+      await (FontLoader(name)..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))).load();
+    }
+    final primary = FontLoader('PrimaryFont');
+    for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) { primary.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf')); }
+    await primary.load();
+    final root = Platform.environment['FLUTTER_ROOT']!;
+    final icons = await File('$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
+    await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
+  });
   testWidgets('home listens inline and applies only final budget to existing rental session without navigation', (tester) async {
     tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
@@ -72,7 +83,8 @@ void main() {
     expect(properties.queries.last.filters['min_monthly_rent'], 50000); expect(properties.queries.last.filters['max_monthly_rent'], 100000);
     expect(find.byKey(const ValueKey('home-smart-chip-budget')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-ai-result-11')), findsOneWidget);
-    expect(router.routeInformationProvider.value.uri.path, '/');
+    expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/');
+    expect(find.byType(AssistedSearchScreen), findsNothing);
     voice.latest.emit(const VoiceEvent('final', text: 'طلب مكرر')); await tester.pump(); expect(ai.requests, hasLength(1));
     expect(tester.takeException(), isNull);
   });
@@ -112,7 +124,9 @@ void main() {
     final router = await pumpHome(tester, container); await tester.tap(find.byKey(const ValueKey('home-ai-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); await tester.pump(); router.push('/other'); await tester.pumpAndSettle();
     expect(voice.latest.cancellations, 1); voice.latest.emit(const VoiceEvent('final', text: 'شقة')); await tester.pump();
-    expect(ai.requests, isEmpty); expect(router.routeInformationProvider.value.uri.path, '/other'); expect(tester.takeException(), isNull);
+    expect(ai.requests, isEmpty); expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/other');
+    expect(find.text('صفحة أخرى'), findsOneWidget); expect(find.byKey(const ValueKey('home-ai-voice')).hitTestable(), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   for (final code in ['SPEECH_PERMISSION', 'SPEECH_NO_MATCH', 'SPEECH_NETWORK', 'SPEECH_UNAVAILABLE']) {
@@ -124,7 +138,7 @@ void main() {
       voice.latest.emit(VoiceEvent('error', code: code)); await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('inline-voice-capture')), findsNothing); expect(find.byKey(const ValueKey('home-ai-description')), findsOneWidget);
       expect(ai.requests, isEmpty); expect(session.state.filters.values, currentFilters);
-      expect(router.routeInformationProvider.value.uri.path, '/'); expect(tester.takeException(), isNull);
+      expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/'); expect(tester.takeException(), isNull);
     });
   }
 
