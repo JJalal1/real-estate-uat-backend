@@ -1,0 +1,19 @@
+name: Home build metadata only
+on:
+  push:
+    branches: [review/home-build-43]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Print four verified build metadata fields only
+        env:
+          BUILD_METADATA_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_home_build_metadata.py
