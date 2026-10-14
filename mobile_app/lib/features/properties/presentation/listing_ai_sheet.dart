@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/voice_input.dart';
+import '../../../core/platform/voice_capture_controller.dart';
+import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../discovery/data/ai_repository.dart';
@@ -22,7 +24,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   final _message = TextEditingController(), _description = TextEditingController();
   final _selected = <String>{};
   Map<String, dynamic>? _fields;
-  bool _busy = false, _voiceBusy = false, _hasDescription = false;
+  bool _busy = false, _hasDescription = false;
+  late final VoiceCaptureController _capture;
+  String _voiceDraft = '';
+  bool get _voiceBusy => _capture.active;
   String? _error;
   static const labels = {'title': 'عنوان الإعلان', 'type': 'نوع العقار', 'purpose': 'الغرض', 'price': 'سعر البيع بالريال اليمني',
     'monthly_rent': 'الإيجار الشهري بالريال اليمني', 'area_value': 'المساحة', 'area_unit': 'وحدة المساحة',
@@ -30,7 +35,14 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     'floor_number': 'الدور', 'unit_number': 'رقم الوحدة', 'has_parking': 'موقف السيارة', 'has_elevator': 'المصعد',
     'building_facade': 'واجهة البناء', 'unit_occupies_entire_floor': 'الوحدة تشغل الدور كاملًا', 'tenure_type': 'نوع الملكية'};
   @override
-  void dispose() { _message.dispose(); _description.dispose(); super.dispose(); }
+  void initState() { super.initState(); _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged); }
+  void _voiceChanged() {
+    if (!mounted) return;
+    if (_capture.active && _capture.transcript.isNotEmpty) _message.text = _capture.transcript;
+    setState(() {});
+  }
+  @override
+  void dispose() { _capture.removeListener(_voiceChanged); _capture.dispose(); _message.dispose(); _description.dispose(); super.dispose(); }
 
   Future<void> _request() async {
     if (_busy || _voiceBusy || !widget.description && _message.text.trim().isEmpty) return;
@@ -62,13 +74,13 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   Future<void> _voice() async {
-    setState(() { _voiceBusy = true; _error = null; });
-    try {
-      final text = await ref.read(voiceInputProvider).recognize();
-      if (mounted && text?.trim().isNotEmpty == true) _message.text = text!.trim();
-    } catch (_) { if (mounted) setState(() => _error = 'تعذّر تحويل الصوت إلى نص. اكتب تفاصيل العقار هنا.'); }
-    finally { if (mounted) setState(() => _voiceBusy = false); }
+    if (_busy || _voiceBusy) return;
+    FocusScope.of(context).unfocus(); _voiceDraft = _message.text;
+    setState(() => _error = null);
+    final text = await _capture.start();
+    if (mounted) _message.text = text ?? (_capture.error != null ? _capture.transcript : _voiceDraft);
   }
+  void _cancelVoice() { if (_capture.active) { _capture.cancel(); _message.text = _voiceDraft; } }
 
   String _value(String key, dynamic value) => switch (key) {
     'type' => SmartSearchFilters.types[value] ?? '$value', 'purpose' => value == 'rent' ? 'للإيجار' : 'للبيع',
@@ -86,14 +98,15 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         Text(widget.description ? 'وصف من مواصفاتك' : 'مساعد إضافة العقار', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8), const Text('راجع الاقتراح قبل تطبيقه. يبقى الإعلان مسودة حتى تكمل مراجعته وإرساله.'), const SizedBox(height: 16),
         if (!widget.description) ...[
-          TextField(controller: _message, maxLength: 1500, maxLines: 4, enabled: !_busy,
+          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice)
+          else TextField(controller: _message, maxLength: 1500, maxLines: 4, enabled: !_busy,
             decoration: const InputDecoration(labelText: 'صف العقار', hintText: 'مثال: شقة للإيجار في حدة، ثلاث غرف بالدور الثاني…')),
-          Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _busy || _voiceBusy ? null : _voice,
+          if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _busy ? null : _voice,
             icon: const EbrokerIcon(Icons.mic_none, size: 20), label: Text(_voiceBusy ? 'جار الاستماع…' : 'وصف بالصوت'))),
         ],
         AppButton(label: _busy ? 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : 'اقتراح الحقول',
           onPressed: _busy || _voiceBusy ? null : _request, expand: true),
-        if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: AppInlineMessage(message: _error!, tone: AppStatusTone.warning)),
+        if (_error != null || _capture.error != null) Padding(padding: const EdgeInsets.only(top: 12), child: AppInlineMessage(message: _error ?? _capture.error!, tone: AppStatusTone.warning)),
         if (_fields != null) ...[
           const SizedBox(height: 16), Text(_fields!.isEmpty ? 'لم نجد مواصفات واضحة. يمكنك إكمال الحقول يدويًا.' : 'المواصفات المقترحة', style: Theme.of(context).textTheme.titleMedium),
           for (final entry in _fields!.entries) CheckboxListTile(contentPadding: EdgeInsets.zero, title: Text(labels[entry.key]!),

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/platform/voice_input.dart';
+import '../../../core/platform/voice_capture_controller.dart';
+import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -17,38 +19,50 @@ class AssistedSearchScreen extends ConsumerStatefulWidget {
 
 class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   final _description = TextEditingController();
-  bool _listening = false;
-  String? _voiceError;
+  late final VoiceCaptureController _capture;
+  String _voiceDraft = '';
 
   @override
-  void dispose() { _description.dispose(); super.dispose(); }
+  void initState() {
+    super.initState(); _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
+  }
+  void _voiceChanged() {
+    if (!mounted) return;
+    if (_capture.active && _capture.transcript.isNotEmpty) _description.text = _searchText(_capture.transcript);
+    setState(() {});
+  }
+  String _searchText(String text) => text.length > 1000 ? text.substring(0, 1000) : text;
+
+  @override
+  void dispose() { _capture.removeListener(_voiceChanged); _capture.dispose(); _description.dispose(); super.dispose(); }
 
   Future<void> _send() async {
     final text = _description.text.trim();
-    if (text.isEmpty || ref.read(smartSearchSessionProvider).interpreting) return;
+    if (text.isEmpty || _capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
     FocusScope.of(context).unfocus();
+    _capture.clearError();
     _description.clear();
     await ref.read(smartSearchSessionProvider.notifier).interpret(text);
     if (mounted && ref.read(smartSearchSessionProvider).aiError != null && _description.text.isEmpty) _description.text = text;
   }
 
   Future<void> _voice() async {
-    if (_listening) return;
+    if (_capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
+    FocusScope.of(context).unfocus();
     final revision = ref.read(smartSearchSessionProvider).revision;
-    setState(() { _listening = true; _voiceError = null; });
-    try {
-      final text = await ref.read(voiceInputProvider).recognize();
-      if (!mounted || revision != ref.read(smartSearchSessionProvider).revision) return;
-      if (text != null && text.trim().isNotEmpty) {
-        _description.text = text.length > 1000 ? text.substring(0, 1000) : text;
-        await _send();
-      }
-    } catch (_) {
-      if (mounted) setState(() => _voiceError = 'الإدخال الصوتي غير متاح الآن. يمكنك كتابة طلبك.');
-    } finally { if (mounted) setState(() => _listening = false); }
+    _voiceDraft = _description.text;
+    final text = await _capture.start();
+    if (!mounted) return;
+    if (text == null) {
+      _description.text = _capture.error != null && _capture.transcript.isNotEmpty ? _searchText(_capture.transcript) : _voiceDraft;
+    } else if (revision == ref.read(smartSearchSessionProvider).revision && ModalRoute.of(context)?.isCurrent != false) {
+      _description.text = _searchText(text); await _send();
+    }
   }
+  void _cancelVoice() { if (_capture.active) { _capture.cancel(); _description.text = _voiceDraft; } }
 
   Future<void> _edit({String? focus}) async {
+    if (_capture.active) _cancelVoice();
     final next = await AppBottomSheet.show<SmartSearchFilters>(context,
       builder: (_) => _SearchFilterEditor(initial: ref.read(smartSearchSessionProvider).filters, focus: focus));
     if (next != null && mounted) ref.read(smartSearchSessionProvider.notifier).replaceManually(next);
@@ -57,12 +71,18 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(smartSearchSessionProvider), theme = Theme.of(context);
+    ref.listen<SmartSearchState>(smartSearchSessionProvider, (before, after) {
+      if (_capture.active && before?.revision != after.revision) _cancelVoice();
+    });
+    if (ModalRoute.of(context)?.isCurrent == false && _capture.active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _capture.active) _cancelVoice(); });
+    }
     final controller = ref.read(smartSearchSessionProvider.notifier);
     final chips = state.filters.chips;
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       appBar: AppAppBar(title: 'البحث الذكي', actions: [
         TextButton(key: const ValueKey('smart-search-reset'), onPressed: () {
-          _description.clear(); setState(() => _voiceError = null); controller.reset();
+          _cancelVoice(); _capture.clearError(); _description.clear(); controller.reset();
         }, child: const Text('بدء بحث جديد')),
       ]),
       body: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 28), children: [
@@ -71,22 +91,23 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         const Text('صف ما تبحث عنه، ثم أكمل طلبك أو عدّل أي شرط.'),
         const SizedBox(height: 18),
         AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          TextField(key: const ValueKey('smart-search-description'), controller: _description,
+          if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice)
+          else TextField(key: const ValueKey('smart-search-description'), controller: _description,
             minLines: 2, maxLines: 4, maxLength: 1000, textInputAction: TextInputAction.search,
             onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
               hintText: chips.isEmpty ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
           const SizedBox(height: 8),
-          Row(children: [
+          if (!_capture.active) Row(children: [
             Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: chips.isEmpty ? 'ابحث لي' : 'تحديث البحث',
               icon: Icons.auto_awesome_outlined, loading: state.interpreting,
-              onPressed: state.interpreting || _listening ? null : _send)),
+              onPressed: state.interpreting ? null : _send)),
             const SizedBox(width: 8),
-            IconButton.filledTonal(key: const ValueKey('smart-search-voice'), tooltip: _listening ? 'جار الاستماع' : 'أكمل بحثك بالصوت',
-              onPressed: state.interpreting || _listening ? null : _voice,
-              icon: _listening ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const EbrokerIcon(Icons.mic_none_outlined, size: 22)),
+            IconButton.filledTonal(key: const ValueKey('smart-search-voice'), tooltip: 'أكمل بحثك بالصوت',
+              onPressed: state.interpreting ? null : _voice,
+              icon: const EbrokerIcon(Icons.mic_none_outlined, size: 22)),
           ]),
-          if (_voiceError != null || state.aiError != null) Padding(padding: const EdgeInsets.only(top: 12),
-            child: Text(_voiceError ?? state.aiError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
+          if (_capture.error != null || state.aiError != null) Padding(padding: const EdgeInsets.only(top: 12),
+            child: Text(_capture.error ?? state.aiError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
         ])),
         const SizedBox(height: 18),
         Row(children: [Expanded(child: Text(chips.isEmpty ? 'اختر ما يناسبك' : 'شروط بحثك', style: theme.textTheme.titleMedium)),
@@ -94,7 +115,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         if (chips.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: [for (final chip in chips)
           ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 36), child: InputChip(
             key: ValueKey('smart-chip-${chip.$1}'), label: Text(chip.$2, maxLines: 1, overflow: TextOverflow.ellipsis),
-            onPressed: () => _edit(focus: chip.$1), onDeleted: () => controller.remove(chip.$1), deleteButtonTooltipMessage: 'إزالة ${chip.$2}')),
+            onPressed: () => _edit(focus: chip.$1), onDeleted: () { if (_capture.active) _cancelVoice(); controller.remove(chip.$1); }, deleteButtonTooltipMessage: 'إزالة ${chip.$2}')),
         ]),
         if (state.message.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(state.message, style: theme.textTheme.bodySmall)),
         const SizedBox(height: 10),

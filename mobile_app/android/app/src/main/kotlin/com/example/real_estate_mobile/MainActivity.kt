@@ -24,8 +24,6 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val MEDIA_CHANNEL = "real_estate/media"
         private const val SECURE_CHANNEL = "real_estate/secure_store"
-        private const val SPEECH_CHANNEL = "real_estate/speech"
-        private const val SPEECH_REQUEST = 7421
         private const val PICK_IMAGES_REQUEST = 7419
         private const val TAKE_PHOTO_REQUEST = 7420
         private const val MAX_IMAGES = 12
@@ -37,15 +35,13 @@ class MainActivity : FlutterActivity() {
 
     private var pendingResult: MethodChannel.Result? = null
     private var pendingCameraFile: File? = null
-    private var pendingSpeechResult: MethodChannel.Result? = null
+    private var speechInput: InAppSpeechInput? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SPEECH_CHANNEL)
-            .setMethodCallHandler { call, result ->
-                if (call.method == "recognize") openSpeechInput(result) else result.notImplemented()
-            }
+        speechInput?.dispose()
+        speechInput = InAppSpeechInput(this, flutterEngine.dartExecutor.binaryMessenger)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -208,35 +204,28 @@ class MainActivity : FlutterActivity() {
         when (requestCode) {
             PICK_IMAGES_REQUEST -> handleImagePickerResult(resultCode, data)
             TAKE_PHOTO_REQUEST -> handleCameraResult(resultCode)
-            SPEECH_REQUEST -> {
-                val result = pendingSpeechResult
-                pendingSpeechResult = null
-                val text = if (resultCode == Activity.RESULT_OK) {
-                    data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.take(1500)
-                } else null
-                result?.success(text)
-            }
         }
     }
 
-    private fun openSpeechInput(result: MethodChannel.Result) {
-        if (pendingSpeechResult != null || pendingResult != null) {
-            result.error("SPEECH_BUSY", "Finish the current input first.", null)
-            return
-        }
-        val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "ar-YE")
-            putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "صف العقار أو أكمل شروط بحثك")
-        }
-        pendingSpeechResult = result
-        try {
-            startActivityForResult(intent, SPEECH_REQUEST)
-        } catch (_: Exception) {
-            pendingSpeechResult = null
-            result.error("SPEECH_UNAVAILABLE", "Voice input is unavailable on this device.", null)
-        }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        speechInput?.onPermissionResult(requestCode, grantResults)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        speechInput?.onResume()
+    }
+
+    override fun onPause() {
+        speechInput?.onPause()
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        speechInput?.dispose()
+        speechInput = null
+        super.onDestroy()
     }
 
     private fun handleImagePickerResult(resultCode: Int, data: Intent?) {

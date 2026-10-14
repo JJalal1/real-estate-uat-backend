@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:real_estate_mobile/core/platform/voice_input.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
@@ -44,11 +45,36 @@ class Wave3PropertiesFake implements PropertyRepository {
 }
 
 class Wave3VoiceFake implements VoiceInput {
-  Wave3VoiceFake([this.text = 'خفض السعر إلى مئة ألف']);
+  Wave3VoiceFake({this.text = 'خفض السعر إلى مئة ألف', this.autoComplete = true});
   final String? text;
+  final bool autoComplete;
   int calls = 0;
+  final recordings = <Wave3RecordingFake>[];
+  Wave3RecordingFake get latest => recordings.last;
   @override
-  Future<String?> recognize() async { calls++; return text; }
+  VoiceRecording start() {
+    calls++;
+    final recording = Wave3RecordingFake(); recordings.add(recording);
+    if (autoComplete) scheduleMicrotask(() {
+      recording.emit(const VoiceEvent('ready'));
+      recording.emit(text == null ? const VoiceEvent('cancelled') : VoiceEvent('final', text: text!));
+    });
+    return recording;
+  }
+  Future<void> dispose() async { for (final recording in recordings) { await recording.close(); } }
+}
+
+class Wave3RecordingFake implements VoiceRecording {
+  final _events = StreamController<VoiceEvent>();
+  int cancellations = 0, stops = 0;
+  @override
+  Stream<VoiceEvent> get events => _events.stream;
+  void emit(VoiceEvent event) { if (!_events.isClosed) _events.add(event); }
+  @override
+  Future<void> cancel() async { cancellations++; }
+  @override
+  Future<void> stop() async { stops++; emit(const VoiceEvent('processing')); }
+  Future<void> close() => _events.close();
 }
 
 class Wave3MarketplaceFake implements MarketplaceRepository {

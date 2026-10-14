@@ -4,6 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/platform/voice_input.dart';
+import '../../../core/platform/voice_capture_controller.dart';
+import '../../../core/widgets/inline_voice_capture.dart';
+import '../../../core/widgets/app_components.dart';
+import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
 
@@ -17,34 +21,59 @@ class HomeAiSearchEntry extends ConsumerStatefulWidget {
 
 class _HomeAiSearchEntryState extends ConsumerState<HomeAiSearchEntry> {
   final _text = TextEditingController();
-  bool _listening = false;
-  String? _error;
+  late final VoiceCaptureController _capture;
+  String _voiceDraft = '';
   @override
-  void dispose() { _text.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
+  }
+  void _voiceChanged() {
+    if (!mounted) return;
+    if (_capture.active && _capture.transcript.isNotEmpty) _text.text = _searchText(_capture.transcript);
+    setState(() {});
+  }
+  String _searchText(String text) => text.length > 1000 ? text.substring(0, 1000) : text;
+  @override
+  void dispose() { _capture.removeListener(_voiceChanged); _capture.dispose(); _text.dispose(); super.dispose(); }
 
   void _submit(String text) {
-    if (text.trim().isEmpty || ref.read(smartSearchSessionProvider).interpreting) return;
+    if (text.trim().isEmpty || _capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
     FocusScope.of(context).unfocus();
-    _text.clear();
+    _capture.clearError();
+    _text.text = text.trim();
     ref.read(smartSearchSessionProvider.notifier).startFromHome(location: widget.location, type: widget.type);
     unawaited(ref.read(smartSearchSessionProvider.notifier).interpret(text));
-    context.push('/smart-search');
   }
   Future<void> _voice() async {
+    if (_capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
+    FocusScope.of(context).unfocus();
     final revision = ref.read(smartSearchSessionProvider).revision;
-    setState(() { _listening = true; _error = null; });
-    try {
-      final text = await ref.read(voiceInputProvider).recognize();
-      if (mounted && text != null && text.trim().isNotEmpty && revision == ref.read(smartSearchSessionProvider).revision) {
-        _submit(text.length > 1000 ? text.substring(0, 1000) : text);
-      }
-    } catch (_) { if (mounted) setState(() => _error = 'يمكنك كتابة طلبك؛ الصوت غير متاح الآن.'); }
-    finally { if (mounted) setState(() => _listening = false); }
+    _voiceDraft = _text.text;
+    final text = await _capture.start();
+    if (!mounted) return;
+    if (text == null) {
+      _text.text = _capture.error != null && _capture.transcript.isNotEmpty ? _searchText(_capture.transcript) : _voiceDraft;
+    } else if (revision == ref.read(smartSearchSessionProvider).revision && ModalRoute.of(context)?.isCurrent != false) {
+      _submit(_searchText(text));
+    }
+  }
+  void _cancelVoice() { if (_capture.active) { _capture.cancel(); _text.text = _voiceDraft; } }
+  void _openSearch() {
+    _cancelVoice();
+    ref.read(smartSearchSessionProvider.notifier).startFromHome(location: widget.location, type: widget.type);
+    context.push('/smart-search');
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context), search = ref.watch(smartSearchSessionProvider);
+    ref.listen<SmartSearchState>(smartSearchSessionProvider, (before, after) {
+      if (_capture.active && before?.revision != after.revision) _cancelVoice();
+    });
+    if (ModalRoute.of(context)?.isCurrent == false && _capture.active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _capture.active) _cancelVoice(); });
+    }
     final hasContext = search.filters.chips.isNotEmpty;
     return Container(key: const ValueKey('home-smart-search'), padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: theme.colorScheme.primary.withValues(alpha: .055),
@@ -52,23 +81,43 @@ class _HomeAiSearchEntryState extends ConsumerState<HomeAiSearchEntry> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [EbrokerIcon(Icons.auto_awesome_outlined, size: 20, color: theme.colorScheme.primary), const SizedBox(width: 8),
           Expanded(child: Text(hasContext ? 'أكمل بحثك' : 'مكان يناسبك', style: theme.textTheme.titleMedium)),
-          TextButton(onPressed: () {
-            ref.read(smartSearchSessionProvider.notifier).startFromHome(location: widget.location, type: widget.type);
-            context.push('/smart-search');
-          }, child: Text(hasContext ? 'شروط بحثك' : 'الفلاتر'))]),
-        TextField(key: const ValueKey('home-ai-description'), controller: _text, maxLength: 1000, minLines: 1, maxLines: 3,
+          TextButton(onPressed: _capture.active ? null : _openSearch, child: Text(hasContext ? 'شروط بحثك' : 'الفلاتر'))]),
+        if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice)
+        else TextField(key: const ValueKey('home-ai-description'), controller: _text, maxLength: 1000, minLines: 1, maxLines: 3,
           textInputAction: TextInputAction.search, onSubmitted: _submit,
           decoration: InputDecoration(border: InputBorder.none, counterText: '',
             hintText: hasContext ? 'عدّل السعر أو الغرف… سنحتفظ ببقية شروطك' : 'شقة للإيجار في صنعاء، ثلاث غرف…')),
-        if (hasContext) Padding(padding: const EdgeInsets.only(top: 4, bottom: 8), child: Text(
-          search.filters.chips.take(3).map((chip) => chip.$2).join(' · '), maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall)),
-        Row(children: [
-          Expanded(child: FilledButton.icon(key: const ValueKey('home-ai-send'), onPressed: search.interpreting || _listening ? null : () => _submit(_text.text),
-            icon: const EbrokerIcon(Icons.arrow_back, size: 18), label: Text(hasContext ? 'تحديث البحث' : 'ابحث لي'))),
-          const SizedBox(width: 8), IconButton.filledTonal(key: const ValueKey('home-ai-voice'), tooltip: 'البحث بالصوت', onPressed: search.interpreting || _listening ? null : _voice,
-            icon: _listening ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const EbrokerIcon(Icons.mic_none_outlined, size: 22)),
+        if (hasContext) Padding(padding: const EdgeInsets.only(top: 4, bottom: 8), child: Wrap(spacing: 6, runSpacing: 4, children: [
+          for (final chip in search.filters.chips) ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 68),
+            child: InputChip(key: ValueKey('home-smart-chip-${chip.$1}'), label: Text(chip.$2, maxLines: 1, overflow: TextOverflow.ellipsis),
+              onDeleted: _capture.active || search.interpreting ? null : () => ref.read(smartSearchSessionProvider.notifier).remove(chip.$1))),
+        ])),
+        if (!_capture.active) Row(children: [
+          Expanded(child: FilledButton.icon(key: const ValueKey('home-ai-send'), onPressed: search.interpreting ? null : () => _submit(_text.text),
+            icon: search.interpreting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const EbrokerIcon(Icons.arrow_back, size: 18),
+            label: Text(search.interpreting ? 'نفهم طلبك…' : hasContext ? 'تحديث البحث' : 'ابحث لي'))),
+          const SizedBox(width: 8), IconButton.filledTonal(key: const ValueKey('home-ai-voice'), tooltip: 'البحث بالصوت', onPressed: search.interpreting ? null : _voice,
+            icon: const EbrokerIcon(Icons.mic_none_outlined, size: 22)),
         ]),
-        if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: theme.textTheme.bodySmall)),
+        if (_capture.error != null || search.aiError != null) Padding(padding: const EdgeInsets.only(top: 8),
+          child: Text(_capture.error ?? search.aiError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
+        if (search.started) ...[
+          const SizedBox(height: 16), Text('نتائج بحثك', style: theme.textTheme.titleSmall), const SizedBox(height: 8),
+          if (search.loading) const AppSkeleton(height: 110, radius: 12)
+          else if (search.resultsError != null) AppErrorState(message: search.resultsError!,
+            onRetry: () => ref.read(smartSearchSessionProvider.notifier).search())
+          else if (search.rows.isEmpty) const Text('لا توجد عقارات بهذه الشروط. جرّب تعديل السعر أو المنطقة.')
+          else for (final row in search.rows.take(3)) Padding(padding: const EdgeInsets.only(bottom: 8),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [EbrokerPropertyHorizontalCard(key: ValueKey('home-ai-result-${row.id}'), title: row.title,
+              price: (row.monthlyRent ?? row.price).toStringAsFixed(0), currency: row.currency,
+              imageUrl: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight, location: row.address,
+              categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? 'للإيجار' : 'للبيع',
+              onTap: () { _cancelVoice(); context.push('/properties/${row.id}'); }),
+              if (row.monthlyRent != null) Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency}', style: theme.textTheme.bodySmall),
+              if (row.priceDisplayNote != null) Text(row.priceDisplayNote!, style: theme.textTheme.bodySmall),
+            ])),
+          TextButton(key: const ValueKey('home-ai-all-results'), onPressed: _capture.active ? null : _openSearch, child: const Text('عرض كل النتائج والشروط')),
+        ],
       ]));
   }
 }

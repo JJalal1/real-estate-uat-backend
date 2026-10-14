@@ -2,6 +2,10 @@
 
 Last updated: 2026-10-14
 
+## In-app search dictation — October 14 evening correction
+
+The product owner rejected the external Google recognition Activity in APK 1035. Read `VOICE_IN_APP_AR.md`. The authorized replacement keeps microphone motion, level-responsive waves, partial transcript, finish/cancel and final inference inside the existing AI search surface. Home text/voice searches now update shared session chips and inline real results without automatic navigation. A user may explicitly open all results/filters. No TTS or background capture is added. The new native handler requires microphone permission and recognition-service visibility; camera/token code, dependencies and backend remain unchanged. This correction is in implementation/CI; the installer evidence below belongs to the earlier delivered build until the new gate completes. The Houzi video and newly referenced screenshot are not available in this conversation; motion comparison must not be claimed as complete.
+
 ## Wave3 AI/design addition — UAT installer ready
 
 Read `WAVE3_AI_DESIGN_AR.md`. The complete October 14 handoff has been implemented: Laravel-only Gemini, persistent text/voice/manual search, regional home sections, editorial Spotlight foundation, card galleries, a responsive professional tool grid, reviewed listing suggestions and public property questions. The earlier marketplace/account/UAT behavior remains. Automated verification and UAT rollout are complete; handset and reference-video acceptance remain open.

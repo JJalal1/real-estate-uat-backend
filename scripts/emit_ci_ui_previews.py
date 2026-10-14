@@ -12,7 +12,8 @@ def main():
     if event.get('repository', {}).get('private') is not True:
         raise SystemExit('UI preview transport requires the private repository.')
     selected = ['build/v3-preview/home-top.png', 'build/v3-preview/home-properties.png',
-                'build/broker-preview/dashboard.png', 'build/broker-preview/refinement-smart-filters.png']
+                'build/broker-preview/dashboard.png', 'build/broker-preview/refinement-smart-filters.png',
+                'build/broker-preview/voice-home-listening.png', 'build/broker-preview/voice-home-large-text.png']
     for path in selected:
         file = Path('mobile_app') / path
         if not file.is_file():
