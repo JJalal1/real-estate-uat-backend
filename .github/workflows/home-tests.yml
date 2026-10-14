@@ -1,0 +1,25 @@
+name: Focused home recovery diagnostics
+on:
+  push:
+    branches: [diagnostics/home-tests-41]
+permissions:
+  contents: read
+jobs:
+  home-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve original locked packages
+        working-directory: mobile_app
+        run: flutter pub get
+      - name: Bounded focused recovery diagnostics
+        working-directory: mobile_app
+        run: timeout 180s flutter test test/home_startup_recovery_test.dart --reporter expanded --timeout 20s
