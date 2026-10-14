@@ -1,0 +1,20 @@
+name: Review synthetic in-app voice screens
+on:
+  push:
+    branches: [review/voice-ui-39]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  preview:
+    name: Synthetic listening screens only
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read the two synthetic voice UI previews
+        env:
+          PREVIEW_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_voice_previews.py
