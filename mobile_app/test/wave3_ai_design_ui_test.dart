@@ -43,7 +43,7 @@ void main() {
     await tester.pumpAndSettle();
     final pager = find.byKey(const ValueKey('property-card-gallery'));
     expect(find.byType(PropertyCardGallery), findsOneWidget); expect(find.byKey(const ValueKey('photo-dot-2')), findsNothing);
-    await tester.drag(pager, const Offset(400, 0)); await tester.pumpAndSettle();
+    await tester.drag(pager, Offset(tester.getSize(pager).width * .75, 0)); await tester.pumpAndSettle();
     expect(tester.widget<Container>(find.byKey(const ValueKey('photo-dot-1'))).constraints!.maxWidth, 12);
     expect(opens, 0); await tester.tap(pager); await tester.pumpAndSettle(); expect(opens, 1);
     await tester.tap(find.byKey(const ValueKey('gallery-favorite'))); await tester.pumpAndSettle(); expect(favorites, 1); expect(opens, 1);
@@ -61,8 +61,8 @@ void main() {
     await tester.tap(find.text('المساعد')); await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'أربع غرف ومصعد');
     await tester.tap(find.text('اقتراح الحقول')); await tester.pumpAndSettle(); expect(applied, isNull);
-    final elevator = find.widgetWithText(CheckboxListTile, 'المصعد'); await tester.ensureVisible(elevator); await tester.tap(elevator); await tester.pumpAndSettle();
-    final apply = find.text('تطبيق المواصفات المحددة'); await tester.ensureVisible(apply); await tester.tap(apply); await tester.pumpAndSettle();
+    final elevator = find.widgetWithText(CheckboxListTile, 'المصعد'); await tester.ensureVisible(elevator); await tester.pumpAndSettle(); await tester.tap(elevator); await tester.pumpAndSettle();
+    final apply = find.text('تطبيق المواصفات المحددة'); await tester.ensureVisible(apply); await tester.pumpAndSettle(); await tester.tap(apply); await tester.pumpAndSettle();
     expect(applied, {'bedrooms': 4}); expect(tester.takeException(), isNull);
   });
 

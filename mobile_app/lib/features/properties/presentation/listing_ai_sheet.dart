@@ -34,6 +34,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
 
   Future<void> _request() async {
     if (_busy || _voiceBusy || !widget.description && _message.text.trim().isEmpty) return;
+    FocusScope.of(context).unfocus();
     setState(() { _busy = true; _error = null; });
     try {
       final api = ref.read(aiRepositoryProvider);

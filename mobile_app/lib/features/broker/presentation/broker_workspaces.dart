@@ -95,7 +95,10 @@ class BrokerDashboardScreen extends ConsumerWidget {
               Wrap(spacing: 14, runSpacing: 6, children: [
                 Text('${profile?.activeListings ?? brokerInt(listings['published'])} عقارات نشطة'),
                 Text('${brokerInt(activity['completed_deals'])} صفقات مكتملة مؤكدة'),
-                if (profile != null && profile.ratingCount > 0) Text('${profile.rating.toStringAsFixed(1)} ★ · ${profile.ratingCount} تقييمًا'),
+                if (profile != null && profile.ratingCount > 0) Text.rich(TextSpan(children: [
+                  const WidgetSpan(alignment: PlaceholderAlignment.middle, child: EbrokerIcon(Icons.star_outline, size: 16, color: Colors.amber)),
+                  TextSpan(text: ' ${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييمًا'),
+                ])),
               ]),
             ])), const SizedBox(height: 16),
             Text('يحتاج إجراء منك', style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 8),

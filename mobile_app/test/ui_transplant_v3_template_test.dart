@@ -409,9 +409,9 @@ void main() {
     await _pump(tester, scale: 2.4, user: _user(verified: true, type: 'broker'));
     await tester.tap(find.text('عملي'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('عقارات نشطة'), 250, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('عقارات نشطة'));
+    await tester.tap(find.byKey(const ValueKey('broker-tool-عقاراتي')));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byType(EbrokerPropertyHorizontalCard), 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
@@ -505,9 +505,9 @@ void main() {
       await _capture(tester, key, 'template-home-advertisers');
       await tester.tap(find.text('عملي'));
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.text('عقارات نشطة'), 250, scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('عقارات نشطة'));
+      await tester.tap(find.byKey(const ValueKey('broker-tool-عقاراتي')));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-my-listings');
       router.pop();

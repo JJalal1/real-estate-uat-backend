@@ -117,7 +117,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final communityButton = find.text('التعليقات والتقييم والبلاغات');
-    await tester.scrollUntilVisible(communityButton, 300);
+    await tester.scrollUntilVisible(communityButton, 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.text('0 تعليق ظاهر'), findsOneWidget);
     await tester.tap(communityButton);
@@ -128,7 +128,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(propertyRepository.detailsCalls, greaterThanOrEqualTo(2));
-    await tester.scrollUntilVisible(communityButton, 300);
+    await tester.scrollUntilVisible(communityButton, 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.text('3 تعليق ظاهر'), findsOneWidget);
     expect(tester.takeException(), isNull);
