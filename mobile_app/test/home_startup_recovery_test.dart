@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/network/public_startup_read.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
@@ -173,8 +174,10 @@ void main() {
     var calls = 0;
     final fake = Wave3MarketplaceFake(onFeed: (_) async {
       calls++;
-      if (calls > 1) throw DioException(requestOptions: RequestOptions(path: '/marketplace'),
-        type: DioExceptionType.connectionError);
+      if (calls > 1) {
+        throw DioException(requestOptions: RequestOptions(path: '/marketplace'),
+          type: DioExceptionType.connectionError);
+      }
       return MarketplaceFeed(label: 'صنعاء', sections: {'latest': [wave3Property(11)]});
     });
     await tester.pumpWidget(ProviderScope(overrides: [
@@ -207,6 +210,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('home-property-11')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-loading-message')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pushing another page cancels the hidden home request', (tester) async {
+    final answer = Completer<MarketplaceFeed>();
+    final fake = Wave3MarketplaceFake(onFeed: (_) => answer.future);
+    final router = GoRouter(routes: [
+      GoRoute(path: '/', builder: (_, __) => const MarketplaceHomeScreen()),
+      GoRoute(path: '/other', builder: (_, __) => const Scaffold(body: Text('صفحة أخرى'))),
+    ]);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(ProviderScope(overrides: [
+      marketplaceRepositoryProvider.overrideWithValue(fake),
+      homeLocationAttemptedProvider.overrideWith((_) => true),
+    ], child: MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
+    await tester.pump();
+    final container = ProviderScope.containerOf(tester.element(find.byType(MarketplaceHomeScreen)));
+    final pending = container.read(marketplaceFeedProvider((latitude: 15.3694, longitude: 44.1910,
+      governorate: null, type: null, device: false)).future);
+    final checked = expectLater(pending, throwsA(isA<DioException>()));
+    router.push('/other'); await tester.pumpAndSettle();
+    expect(find.text('صفحة أخرى'), findsOneWidget);
+    expect(fake.cancelTokens.single!.isCancelled, isTrue);
+    answer.complete(const MarketplaceFeed(label: 'صنعاء'));
+    await tester.pump(); await checked;
     expect(tester.takeException(), isNull);
   });
 }

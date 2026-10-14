@@ -6,7 +6,7 @@ Last updated: 2026-10-15
 
 The owner reports slow initial home loading and a temporary-server-error screen in APK 1039. Read `HOME_STARTUP_RECOVERY_AR.md`. Read-only public probe CI `38640113092` measured first health 39.999 s, first marketplace 6.708 s, repeat marketplace 0.960 s and later requests 0.466–0.518 s, all HTTP 200. The reported 5xx was not reproduced; cold startup is consistent with this evidence, not a proven explanation of every failure. Render workspace selection was unanswered, so internal account logs/metrics were not accessed.
 
-The focused `work/home-startup-recovery` change adds bounded UAT recovery only for anonymous home reads, cancellation on disposal, successful public feed retention for 45 s keyed by region/type, existing revision/manual invalidation, and clear slow-load/failed-refresh feedback. No backend, SQL, infrastructure plan, data, voice/session, native permission, dependency or asset change is included. Fifteen new regression cases and the existing complete CI/APK gates are pending. No instant cold-start or handset acceptance is claimed.
+The focused `work/home-startup-recovery` change adds bounded UAT recovery only for anonymous home reads, cancellation on disposal/route departure, successful public feed retention for 45 s keyed by region/type, existing revision/manual invalidation, and clear slow-load/failed-refresh feedback. No backend, SQL, infrastructure plan, data, voice/session, native permission, dependency or asset change is included. Sixteen new regression cases and the existing complete CI/APK gates are pending. No instant cold-start or handset acceptance is claimed.
 
 ## In-app search dictation — October 14 evening correction
 

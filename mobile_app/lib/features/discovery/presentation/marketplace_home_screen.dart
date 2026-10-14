@@ -93,7 +93,9 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context), location = ref.watch(homeLocationProvider);
-    final feed = ref.watch(marketplaceFeedProvider(_query));
+    final active = ModalRoute.of(context)?.isCurrent ?? true;
+    final feed = active ? ref.watch(marketplaceFeedProvider(_query))
+      : const AsyncLoading<MarketplaceFeed>();
     final data = feed.asData?.value;
     final label = data?.label ?? location.label;
     return Scaffold(backgroundColor: EbrokerDesign.page,

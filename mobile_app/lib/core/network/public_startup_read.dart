@@ -70,7 +70,9 @@ class PublicStartupRead {
   bool _transient(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout ||
-        error.type == DioExceptionType.connectionError) return true;
+        error.type == DioExceptionType.connectionError) {
+      return true;
+    }
     return error.type == DioExceptionType.badResponse &&
         const [502, 503, 504].contains(error.response?.statusCode);
   }
