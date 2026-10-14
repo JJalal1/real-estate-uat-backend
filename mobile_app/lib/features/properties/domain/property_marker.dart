@@ -20,6 +20,8 @@ class PropertyMarker {
     this.bathrooms,
     this.address,
     this.mainImage,
+    this.imageUrls = const [],
+    this.isSpotlight = false,
   });
 
   final int id;
@@ -43,6 +45,8 @@ class PropertyMarker {
   final int? bathrooms;
   final String? address;
   final String? mainImage;
+  final List<String> imageUrls;
+  final bool isSpotlight;
 
   factory PropertyMarker.fromJson(Map<String, dynamic> json) {
     final rawPrice = _asDouble(json['price']) ?? 0;
@@ -67,6 +71,8 @@ class PropertyMarker {
       bathrooms: _asInt(json['bathrooms']),
       address: _nullableString(json['address']),
       mainImage: _nullableString(json['main_image']),
+      imageUrls: (json['image_urls'] as List? ?? const []).whereType<String>().toList(growable: false),
+      isSpotlight: json['is_spotlight'] == true,
     );
   }
 }

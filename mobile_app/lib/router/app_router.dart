@@ -30,6 +30,7 @@ import '../features/messages/presentation/conversation_screen.dart';
 import '../features/messages/presentation/messages_screen.dart';
 import '../features/messages/presentation/notifications_screen.dart';
 import '../features/map/presentation/map_screen.dart';
+import '../features/discovery/presentation/marketplace_section_screen.dart';
 import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/favorites_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
@@ -52,6 +53,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
       GoRoute(path: '/smart-search', builder: (context, state) => const AssistedSearchScreen()),
+      GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(
+        section: state.uri.queryParameters['section'] ?? 'latest',
+        governorate: state.uri.queryParameters['governorate'], type: state.uri.queryParameters['type'])),
       GoRoute(path: '/brokers', builder: (context, state) => const BrokerDirectoryScreen()),
       GoRoute(path: '/advertisers/:id', builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
@@ -295,7 +299,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/property-market',
-        builder: (context, state) => const MapScreen(),
+        builder: (context, state) => MapScreen(
+          initialLatitude: double.tryParse(state.uri.queryParameters['lat'] ?? ''),
+          initialLongitude: double.tryParse(state.uri.queryParameters['lon'] ?? ''),
+          initialType: state.uri.queryParameters['type']),
       ),
     ],
   );

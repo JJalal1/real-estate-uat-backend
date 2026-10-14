@@ -9,6 +9,7 @@ use Database\Seeders\UatDemoSeeder;
 use Database\Seeders\UatDemoPropertiesSeeder;
 use Database\Seeders\UatTestAccountsSeeder;
 use Database\Seeders\UatWave3MarketplaceSeeder;
+use Database\Seeders\UatWave3DesignSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -38,6 +39,10 @@ class Wave3UatSeedTest extends TestCase
         $this->assertSame($snapshot, hash('sha256', json_encode(DB::table('users')->whereIn('id', $protectedIds)->orderBy('id')->get())));
         $this->assertDatabaseMissing('users', ['email' => 'uat-regular-1@example.invalid']);
         $this->assertDatabaseCount('users', 15);
+        $this->assertSame(3, DB::table('properties')->whereNotNull('spotlight_until')->count());
+        $this->assertGreaterThan(0, DB::table('properties')->where('has_elevator', true)->count());
+        $designSnapshot = json_encode(DB::table('properties')->orderBy('id')->get(['id', 'has_elevator', 'spotlight_until']));
+        $designMarker = DB::table('platform_settings')->where('key', UatWave3DesignSeeder::MARKER)->value('value');
         $this->assertDatabaseCount('properties', 27);
         $this->assertDatabaseCount('broker_deal_outcomes', 11);
         $this->assertDatabaseCount('property_platform_receivables', 11);
@@ -75,6 +80,8 @@ class Wave3UatSeedTest extends TestCase
         $this->assertDatabaseCount('properties', 27);
         $this->assertDatabaseCount('users', 15);
         $this->assertDatabaseCount('broker_deal_outcomes', 11);
+        $this->assertSame($designSnapshot, json_encode(DB::table('properties')->orderBy('id')->get(['id', 'has_elevator', 'spotlight_until'])));
+        $this->assertSame($designMarker, DB::table('platform_settings')->where('key', UatWave3DesignSeeder::MARKER)->value('value'));
         // Delete protection is restored after the one-time fixture cleanup.
         $this->expectException(\Illuminate\Database\QueryException::class);
         DB::table('listing_reviews')->delete();

@@ -10,6 +10,7 @@ class UatDemoSeeder extends Seeder
     {
         if (config('services.uat_wave3.enabled')) {
             $this->call(UatWave3MarketplaceSeeder::class);
+            $this->call(UatWave3DesignSeeder::class);
             return;
         }
         // Once Wave3 has run, legacy fixture accounts must never be recreated.

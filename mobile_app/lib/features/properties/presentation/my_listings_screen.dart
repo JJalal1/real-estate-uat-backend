@@ -537,7 +537,7 @@ class _ListingCard extends StatelessWidget {
             price: _formatPrice(property.price), currency: property.currency,
             categoryLabel: ebrokerPropertyTypeLabel(property.type),
             purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
-            imageUrl: property.mainImage, location: property.address, onTap: onOpen),
+            imageUrl: property.mainImage, imageUrls: property.imageUrls, isSpotlight: property.isSpotlight, location: property.address, onTap: onOpen),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Wrap(spacing: AppSpacing.s8, runSpacing: AppSpacing.s4, children: [
               AppStatusBadge(label: state.$1, tone: state.$2),

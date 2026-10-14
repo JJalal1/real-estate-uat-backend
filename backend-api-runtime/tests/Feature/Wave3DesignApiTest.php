@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Property;
 use App\Models\PropertyImage;
+use App\Models\AccountVerificationProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -57,6 +58,24 @@ class Wave3DesignApiTest extends TestCase
         DB::table('properties')->where('id', $expired->id)->update(['spotlight_until' => now()->subMinute()]);
         $this->getJson('/api/properties?spotlight=1&governorate=صنعاء')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $valid->id);
         $this->assertNotContains('spotlight_until', (new Property)->getFillable());
+    }
+
+    public function test_home_brokers_are_approved_local_professionals_without_changing_directory_ordering(): void
+    {
+        $professionals = [];
+        foreach (['local' => ['أمانة العاصمة', 'approved'], 'foreign' => ['تعز', 'approved'],
+            'serves_local' => ['عدن', 'approved'], 'pending' => ['صنعاء', 'pending']] as $name => [$governorate, $status]) {
+            $user = User::factory()->create(['account_status' => 'active', 'phone_verified_at' => now()]);
+            AccountVerificationProfile::create(['user_id' => $user->id, 'type' => 'broker', 'status' => $status,
+                'reviewed_at' => $status === 'approved' ? now() : null, 'details' => ['governorate' => $governorate, 'work_areas' => []]]);
+            $professionals[$name] = $user;
+        }
+        $this->listing($professionals['serves_local']);
+        $this->listing($professionals['foreign'], ['status' => 'draft', 'review_status' => 'draft']);
+        $r = $this->getJson('/api/marketplace')->assertOk();
+        $ids = array_column($r->json('data.brokers'), 'id');
+        $this->assertEqualsCanonicalizing([$professionals['local']->id, $professionals['serves_local']->id], $ids);
+        $this->assertContains($professionals['foreign']->id, app(\App\Services\BrokerRankingService::class)->query()->pluck('users.id')->all());
     }
 
     private function listing(User $owner, array $changes = []): Property

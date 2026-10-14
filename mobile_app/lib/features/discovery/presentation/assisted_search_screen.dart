@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/network/api_error_message.dart';
+import '../../../core/platform/voice_input.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
-import '../../properties/data/property_repository.dart';
-import '../../properties/domain/property_details.dart';
-import '../domain/assisted_property_search.dart';
+import '../data/smart_search_session.dart';
+import '../domain/smart_search_filters.dart';
 
 class AssistedSearchScreen extends ConsumerStatefulWidget {
   const AssistedSearchScreen({super.key});
@@ -18,164 +17,213 @@ class AssistedSearchScreen extends ConsumerStatefulWidget {
 
 class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   final _description = TextEditingController();
-  AssistedPropertySearch? _filters;
-  final _rows = <PropertySummary>[];
-  bool _loading = false, _more = false, _searched = false;
-  int _request = 0, _page = 0;
-  String? _error;
+  bool _listening = false;
+  String? _voiceError;
 
   @override
   void dispose() { _description.dispose(); super.dispose(); }
 
-  void _setFilters(AssistedPropertySearch value) {
-    _request++;
-    setState(() { _filters = value; _rows.clear(); _searched = false; _loading = false; _error = null; _more = false; _page = 0; });
-  }
-
-  void _interpret() {
-    if (_description.text.trim().isEmpty) return;
+  Future<void> _send() async {
+    final text = _description.text.trim();
+    if (text.isEmpty || ref.read(smartSearchSessionProvider).interpreting) return;
     FocusScope.of(context).unfocus();
-    _setFilters(AssistedPropertySearch.parse(_description.text));
+    _description.clear();
+    await ref.read(smartSearchSessionProvider.notifier).interpret(text);
+    if (mounted && ref.read(smartSearchSessionProvider).aiError != null && _description.text.isEmpty) _description.text = text;
   }
 
-  Future<void> _edit() async {
-    final next = await AppBottomSheet.show<AssistedPropertySearch>(context,
-      builder: (_) => _SearchFilterEditor(initial: _filters ?? const AssistedPropertySearch()));
-    if (next != null && mounted) _setFilters(next);
-  }
-
-  Future<void> _load({bool more = false}) async {
-    if (_loading || _filters == null) return;
-    final request = ++_request;
-    final page = more ? _page + 1 : 1;
-    setState(() { _loading = true; _error = null; _searched = true; if (!more) _rows.clear(); });
+  Future<void> _voice() async {
+    if (_listening) return;
+    final revision = ref.read(smartSearchSessionProvider).revision;
+    setState(() { _listening = true; _voiceError = null; });
     try {
-      final result = await ref.read(propertyRepositoryProvider).searchListings(_filters!.apiFilters, page: page);
-      if (!mounted || request != _request) return;
-      setState(() {
-        final ids = _rows.map((row) => row.id).toSet();
-        _rows.addAll(result.$1.where((row) => ids.add(row.id)));
-        _page = page; _more = result.$2; _loading = false;
-      });
-    } catch (error) {
-      if (mounted && request == _request) setState(() { _error = friendlyApiError(error); _loading = false; });
-    }
+      final text = await ref.read(voiceInputProvider).recognize();
+      if (!mounted || revision != ref.read(smartSearchSessionProvider).revision) return;
+      if (text != null && text.trim().isNotEmpty) {
+        _description.text = text.length > 1000 ? text.substring(0, 1000) : text;
+        await _send();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _voiceError = 'الإدخال الصوتي غير متاح الآن. يمكنك كتابة طلبك.');
+    } finally { if (mounted) setState(() => _listening = false); }
+  }
+
+  Future<void> _edit({String? focus}) async {
+    final next = await AppBottomSheet.show<SmartSearchFilters>(context,
+      builder: (_) => _SearchFilterEditor(initial: ref.read(smartSearchSessionProvider).filters, focus: focus));
+    if (next != null && mounted) ref.read(smartSearchSessionProvider.notifier).replaceManually(next);
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context), filters = _filters;
-    final chips = <(String, String)>[
-      if (filters?.type != null) ('type', ebrokerPropertyTypeLabel(filters!.type)),
-      if (filters?.purpose != null) ('purpose', filters!.purpose == 'rent' ? 'إيجار' : 'بيع'),
-      if (filters?.place != null) ('place', filters!.place!),
-      if (filters?.minBedrooms != null) ('rooms', '${filters!.minBedrooms} غرف فأكثر'),
-      if (filters?.maxPrice != null) ('price', '${filters!.purpose == 'rent' ? 'شهريًا ' : ''}حتى ${filters.maxPrice!.toStringAsFixed(0)} ريال'),
-    ];
+    final state = ref.watch(smartSearchSessionProvider), theme = Theme.of(context);
+    final controller = ref.read(smartSearchSessionProvider.notifier);
+    final chips = state.filters.chips;
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
-      appBar: const AppAppBar(title: 'البحث الذكي'),
-      body: ListView(padding: const EdgeInsets.all(18), children: [
-        Text('العقار الذي يناسبك', style: theme.textTheme.headlineSmall),
-        const SizedBox(height: 8),
-        Text('صف ما تبحث عنه، ثم راجع الفلاتر المقترحة وعدّلها قبل البحث.', style: theme.textTheme.bodyMedium),
-        const SizedBox(height: 20),
-        TextField(key: const ValueKey('smart-search-description'), controller: _description,
-          maxLines: 3, maxLength: 500, textInputAction: TextInputAction.search,
-          onSubmitted: (_) => _interpret(), decoration: const InputDecoration(
-            hintText: 'صف لي العقار الذي تبحث عنه…',
-            helperText: 'مثال: شقة إيجار في تعز، 3 غرف، أقل من 150 ألف')),
-        const SizedBox(height: 8),
-        AppButton(label: 'اقتراح الفلاتر', icon: Icons.auto_awesome_outlined, expand: true,
-          style: filters == null ? AppButtonStyle.filled : AppButtonStyle.text, onPressed: _interpret),
-        if (filters != null) ...[
-          const SizedBox(height: 24),
-          Row(children: [Expanded(child: Text('راجع بحثك', style: theme.textTheme.titleMedium)),
-            TextButton(onPressed: _edit, child: const Text('تعديل البحث'))]),
-          if (chips.isEmpty) const Text('لم نحدد فلاتر واضحة. عدّل البحث لتحديد ما يناسبك.')
-          else Wrap(spacing: 6, runSpacing: 6, children: [for (final chip in chips)
-            InputChip(label: Text(chip.$2), onPressed: _edit,
-              onDeleted: () => _setFilters(filters.without(chip.$1)), deleteButtonTooltipMessage: 'إزالة ${chip.$2}')]),
-          const SizedBox(height: 12),
-          AppButton(label: 'عرض النتائج', expand: true, loading: _loading, onPressed: _loading ? null : () => _load()),
-        ],
-        if (_searched) ...[
+      appBar: AppAppBar(title: 'البحث الذكي', actions: [
+        TextButton(key: const ValueKey('smart-search-reset'), onPressed: () {
+          _description.clear(); setState(() => _voiceError = null); controller.reset();
+        }, child: const Text('بدء بحث جديد')),
+      ]),
+      body: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 28), children: [
+        Text('مكان يناسبك', style: theme.textTheme.headlineSmall),
+        const SizedBox(height: 6),
+        const Text('صف ما تبحث عنه، ثم أكمل طلبك أو عدّل أي شرط.'),
+        const SizedBox(height: 18),
+        AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          TextField(key: const ValueKey('smart-search-description'), controller: _description,
+            minLines: 2, maxLines: 4, maxLength: 1000, textInputAction: TextInputAction.search,
+            onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
+              hintText: chips.isEmpty ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: chips.isEmpty ? 'ابحث لي' : 'تحديث البحث',
+              icon: Icons.auto_awesome_outlined, loading: state.interpreting,
+              onPressed: state.interpreting || _listening ? null : _send)),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(key: const ValueKey('smart-search-voice'), tooltip: _listening ? 'جار الاستماع' : 'أكمل بحثك بالصوت',
+              onPressed: state.interpreting || _listening ? null : _voice,
+              icon: _listening ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const EbrokerIcon(Icons.mic_none_outlined, size: 22)),
+          ]),
+          if (_voiceError != null || state.aiError != null) Padding(padding: const EdgeInsets.only(top: 12),
+            child: Text(_voiceError ?? state.aiError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
+        ])),
+        const SizedBox(height: 18),
+        Row(children: [Expanded(child: Text(chips.isEmpty ? 'اختر ما يناسبك' : 'شروط بحثك', style: theme.textTheme.titleMedium)),
+          TextButton.icon(key: const ValueKey('smart-search-manual'), onPressed: () => _edit(), icon: const EbrokerIcon(Icons.tune, size: 18), label: const Text('تعديل الفلاتر'))]),
+        if (chips.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: [for (final chip in chips)
+          ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 36), child: InputChip(
+            key: ValueKey('smart-chip-${chip.$1}'), label: Text(chip.$2, maxLines: 1, overflow: TextOverflow.ellipsis),
+            onPressed: () => _edit(focus: chip.$1), onDeleted: () => controller.remove(chip.$1), deleteButtonTooltipMessage: 'إزالة ${chip.$2}'))),
+        ]),
+        if (state.message.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(state.message, style: theme.textTheme.bodySmall)),
+        const SizedBox(height: 10),
+        Wrap(spacing: 6, runSpacing: 6, children: [for (final key in state.filters.suggestions.take(3))
+          ActionChip(label: Text('أضف ${SmartSearchFilters.labels[key] ?? key}'), avatar: const EbrokerIcon(Icons.add, size: 16), onPressed: () => _edit(focus: key)),
+        ]),
+        if (!state.started) ...[
+          const SizedBox(height: 22),
+          const Text('جرّب مثلًا'),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 6, children: [for (final example in const ['شقة للإيجار في صنعاء', 'منزل للبيع', 'أرض في صنعاء'])
+            ActionChip(label: Text(example), onPressed: state.interpreting ? null : () { _description.text = example; _send(); })]),
+        ] else ...[
           const SizedBox(height: 28),
-          Text('النتائج', style: theme.textTheme.titleMedium),
+          Row(children: [Expanded(child: Text('عقارات تناسب بحثك', style: theme.textTheme.titleMedium)),
+            if (state.loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))]),
           const SizedBox(height: 12),
-          if (_loading && _rows.isEmpty) ...[
-            const AppSkeleton(height: 170, radius: 8), const SizedBox(height: 12), const AppSkeleton(height: 170, radius: 8),
-          ] else if (_error != null)
-            AppErrorState(message: _error!, onRetry: () => _load(more: _rows.isNotEmpty))
-          else if (_rows.isEmpty)
-            AppEmptyState(title: 'لا توجد عقارات بهذه الفلاتر', message: 'جرّب توسيع الميزانية أو تعديل الموقع والنوع.',
-              actionLabel: 'تعديل البحث', onAction: _edit),
-          for (final row in _rows) Padding(padding: const EdgeInsets.only(bottom: 14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              EbrokerPropertyHorizontalCard(imageFirst: true, title: row.title, price: row.price.toStringAsFixed(0), currency: row.currency,
-                imageUrl: row.mainImage, location: row.address, categoryLabel: ebrokerPropertyTypeLabel(row.type),
-                purposeLabel: row.purpose == 'rent' ? 'للإيجار' : 'للبيع',
-                onTap: () => context.push('/properties/${row.id}')),
-              if (row.monthlyRent != null) Padding(padding: const EdgeInsets.only(top: 6),
-                child: Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency} قبل السعي', style: theme.textTheme.bodySmall)),
-              if (row.priceDisplayNote != null) Text(row.priceDisplayNote!, style: theme.textTheme.bodySmall),
-            ])),
-          if (_more && _error == null) TextButton(onPressed: _loading ? null : () => _load(more: true), child: const Text('المزيد من العقارات')),
+          if (state.loading && state.rows.isEmpty) ...[
+            const AppSkeleton(height: 170, radius: 12), const SizedBox(height: 12), const AppSkeleton(height: 170, radius: 12),
+          ] else if (state.resultsError != null)
+            AppErrorState(message: state.resultsError!, onRetry: () => controller.search(more: state.rows.isNotEmpty))
+          else if (state.rows.isEmpty)
+            AppEmptyState(title: 'لا توجد عقارات بهذه الشروط', message: 'وسّع الميزانية أو عدّل الموقع والنوع.', actionLabel: 'تعديل الشروط', onAction: () => _edit()),
+          for (final row in state.rows) Padding(padding: const EdgeInsets.only(bottom: 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            EbrokerPropertyHorizontalCard(imageFirst: false, title: row.title, price: row.price.toStringAsFixed(0), currency: row.currency,
+              imageUrl: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight, location: row.address,
+              categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? 'للإيجار' : 'للبيع',
+              onTap: () => context.push('/properties/${row.id}')),
+            if (row.monthlyRent != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency}', style: theme.textTheme.bodySmall)),
+            if (row.priceDisplayNote != null) Text(row.priceDisplayNote!, style: theme.textTheme.bodySmall),
+          ])),
+          if (state.more && state.resultsError == null) TextButton(onPressed: state.loading ? null : () => controller.search(more: true), child: const Text('المزيد من العقارات')),
         ],
-        const SizedBox(height: 24),
       ]),
     ));
   }
 }
 
 class _SearchFilterEditor extends StatefulWidget {
-  const _SearchFilterEditor({required this.initial});
-  final AssistedPropertySearch initial;
+  const _SearchFilterEditor({required this.initial, this.focus});
+  final SmartSearchFilters initial;
+  final String? focus;
   @override
   State<_SearchFilterEditor> createState() => _SearchFilterEditorState();
 }
 
 class _SearchFilterEditorState extends State<_SearchFilterEditor> {
-  late final TextEditingController _place, _rooms, _price;
-  String? _type, _purpose, _error;
+  static const _numbers = ['min_price', 'max_price', 'min_bedrooms', 'min_bathrooms', 'min_area_m2', 'max_area_m2'];
+  late Map<String, dynamic> _values;
+  late Map<String, TextEditingController> _text;
+  String? _error;
   @override
-  void initState() { super.initState(); final initial = widget.initial;
-    _type = initial.type; _purpose = initial.purpose;
-    _place = TextEditingController(text: initial.place ?? '');
-    _rooms = TextEditingController(text: initial.minBedrooms?.toString() ?? '');
-    _price = TextEditingController(text: initial.maxPrice?.toStringAsFixed(0) ?? '');
+  void initState() {
+    super.initState(); _values = Map.of(widget.initial.values);
+    _text = {for (final key in ['search', 'floor_number', ..._numbers]) key: TextEditingController(text: _values[key]?.toString() ?? '')};
   }
   @override
-  void dispose() { _place.dispose(); _rooms.dispose(); _price.dispose(); super.dispose(); }
+  void dispose() { for (final controller in _text.values) { controller.dispose(); } super.dispose(); }
+
+  String _digits(String text) {
+    const digits = {'٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9', '٫': '.', '٬': '', ',': ''};
+    return text.trim().split('').map((char) => digits[char] ?? char).join();
+  }
   void _save() {
-    final rooms = int.tryParse(_rooms.text.trim()), price = double.tryParse(_price.text.trim());
-    if ((_rooms.text.trim().isNotEmpty && (rooms == null || rooms < 0 || rooms > 50)) ||
-        (_price.text.trim().isNotEmpty && (price == null || !price.isFinite || price <= 0))) {
-      setState(() => _error = 'أدخل عدد غرف من 0 إلى 50 وميزانية صحيحة أكبر من صفر.'); return;
+    final next = Map<String, dynamic>.from(_values);
+    for (final entry in _text.entries) {
+      final text = entry.value.text.trim();
+      if (text.isEmpty) { next.remove(entry.key); continue; }
+      if (_numbers.contains(entry.key)) {
+        final value = double.tryParse(_digits(text));
+        final rooms = const ['min_bedrooms', 'min_bathrooms'].contains(entry.key);
+        if (value == null || !value.isFinite || value < 0 || value > (rooms ? 50 : 1000000000000) || (rooms && value != value.roundToDouble())) {
+          setState(() => _error = 'أدخل أرقامًا صحيحة للغرف والمساحة والميزانية.'); return;
+        }
+        next[entry.key] = rooms ? value.toInt() : value;
+      } else { next[entry.key] = text; }
     }
-    Navigator.of(context).pop(AssistedPropertySearch(type: _type, purpose: _purpose,
-      place: _place.text.trim().isEmpty ? null : _place.text.trim(), minBedrooms: rooms, maxPrice: price));
+    for (final pair in const [('min_price', 'max_price'), ('min_area_m2', 'max_area_m2')]) {
+      if (next[pair.$1] is num && next[pair.$2] is num && (next[pair.$1] as num) > (next[pair.$2] as num)) {
+        setState(() => _error = 'الحد الأدنى يجب ألا يتجاوز الحد الأعلى.'); return;
+      }
+    }
+    Navigator.of(context).pop(SmartSearchFilters.fromMap(next));
   }
+
+  Widget _field(String key, String label) => Padding(padding: const EdgeInsets.only(top: 12), child: TextField(
+    key: ValueKey('filter-$key'), controller: _text[key], autofocus: widget.focus == key,
+    maxLength: key == 'search' ? 120 : key == 'floor_number' ? 32 : 24,
+    keyboardType: _numbers.contains(key) ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+    decoration: InputDecoration(labelText: label, counterText: '')));
+  Widget _boolean(String key, String label) => Padding(padding: const EdgeInsets.only(top: 12), child: DropdownButtonFormField<bool>(
+    value: _values[key] as bool?, isExpanded: true, decoration: InputDecoration(labelText: label),
+    items: const [DropdownMenuItem(value: null, child: Text('لا يشترط')), DropdownMenuItem(value: true, child: Text('نعم')), DropdownMenuItem(value: false, child: Text('لا'))],
+    onChanged: (value) => setState(() { if (value == null) { _values.remove(key); } else { _values[key] = value; } })));
+
   @override
-  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
-    child: Padding(padding: EdgeInsets.fromLTRB(18, 18, 18, MediaQuery.viewInsetsOf(context).bottom + 24),
+  Widget build(BuildContext context) {
+    final type = _values['type'], rent = _values['purpose'] == 'rent';
+    return Directionality(textDirection: TextDirection.rtl, child: Padding(
+      padding: EdgeInsets.fromLTRB(18, 18, 18, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('تعديل البحث', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 18),
-        DropdownButtonFormField<String>(value: _purpose, isExpanded: true, decoration: const InputDecoration(labelText: 'الغرض'),
-          items: const [DropdownMenuItem(value: null, child: Text('بيع وإيجار')), DropdownMenuItem(value: 'sale', child: Text('بيع')), DropdownMenuItem(value: 'rent', child: Text('إيجار'))],
-          onChanged: (value) => setState(() => _purpose = value)),
+        Text('شروط البحث', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 18),
+        DropdownButtonFormField<String>(key: const ValueKey('filter-type'), value: _values['type'] as String?, isExpanded: true,
+          decoration: const InputDecoration(labelText: 'نوع العقار'), items: [const DropdownMenuItem(value: null, child: Text('كل الأنواع')),
+            for (final entry in SmartSearchFilters.types.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
+          onChanged: (value) => setState(() { if (value == null) { _values.remove('type'); } else { _values['type'] = value; } })),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(value: _type, isExpanded: true, decoration: const InputDecoration(labelText: 'نوع العقار'),
-          items: [const DropdownMenuItem(value: null, child: Text('كل الأنواع')),
-            for (final type in const ['apartment', 'floor', 'building', 'house', 'villa', 'land', 'shop', 'office', 'farm'])
-              DropdownMenuItem(value: type, child: Text(ebrokerPropertyTypeLabel(type)))], onChanged: (value) => setState(() => _type = value)),
+        DropdownButtonFormField<String>(key: const ValueKey('filter-purpose'), value: _values['purpose'] as String?, isExpanded: true,
+          decoration: const InputDecoration(labelText: 'الغرض'), items: const [DropdownMenuItem(value: null, child: Text('بيع وإيجار')),
+            DropdownMenuItem(value: 'sale', child: Text('بيع')), DropdownMenuItem(value: 'rent', child: Text('إيجار'))],
+          onChanged: (value) => setState(() { if (value == null) { _values.remove('purpose'); } else { _values['purpose'] = value; } })),
+        _field('search', 'المحافظة أو المنطقة'),
+        _field('min_price', rent ? 'من إيجار شهري' : 'أقل سعر'), _field('max_price', rent ? 'حتى إيجار شهري' : 'أعلى سعر'),
         const SizedBox(height: 12),
-        TextField(controller: _place, maxLength: 120, decoration: const InputDecoration(labelText: 'المحافظة أو المنطقة')),
-        const SizedBox(height: 12),
-        TextField(controller: _rooms, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'غرف النوم على الأقل')),
-        const SizedBox(height: 12),
-        TextField(controller: _price, keyboardType: TextInputType.number,
-          decoration: InputDecoration(labelText: _purpose == 'rent' ? 'أقصى إيجار شهري بالريال' : 'أقصى سعر بالريال')),
-        if (_error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
-        const SizedBox(height: 18), AppButton(label: 'تطبيق التعديل', onPressed: _save, expand: true),
+        DropdownButtonFormField<String>(value: _values['currency'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'العملة'),
+          items: const [DropdownMenuItem(value: null, child: Text('ريال يمني للميزانية')), DropdownMenuItem(value: 'YER', child: Text('ريال يمني')),
+            DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
+          onChanged: (value) => setState(() { if (value == null) { _values.remove('currency'); } else { _values['currency'] = value; } })),
+        _field('min_area_m2', 'أقل مساحة بالمتر المربع'), _field('max_area_m2', 'أقصى مساحة بالمتر المربع'),
+        if (type == null || const ['apartment', 'house', 'villa'].contains(type)) ...[_field('min_bedrooms', 'غرف النوم على الأقل'), _field('min_bathrooms', 'دورات المياه على الأقل')],
+        if (const ['apartment', 'office', 'shop'].contains(type)) _field('floor_number', 'الدور'),
+        if (type == 'apartment') _boolean('unit_occupies_entire_floor', 'الوحدة تشغل الدور كاملًا'),
+        if (const ['apartment', 'building', 'office'].contains(type)) _boolean('has_elevator', 'مصعد'),
+        if (!const ['land', 'farm'].contains(type)) ...[_boolean('has_parking', 'موقف'), const SizedBox(height: 12),
+          DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'الواجهة'),
+            items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
+            onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } }))],
+        if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
+        const SizedBox(height: 20), AppButton(label: 'تطبيق الشروط', expand: true, onPressed: _save),
       ]))));
+  }
 }

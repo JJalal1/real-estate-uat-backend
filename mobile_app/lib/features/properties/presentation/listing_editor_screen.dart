@@ -26,6 +26,7 @@ import '../domain/property_sai.dart';
 import 'property_land_boundary_picker_screen.dart';
 import 'property_location_picker_screen.dart';
 import 'listing_sai_section.dart';
+import 'listing_ai_sheet.dart';
 
 class ListingEditorScreen extends ConsumerStatefulWidget {
   const ListingEditorScreen({super.key, this.existingProperty});
@@ -111,6 +112,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   String _areaUnit = 'sqm';
   String? _tenureType;
   String? _parkingChoice;
+  String? _elevatorChoice;
   String? _facade;
   String? _ownershipDocumentType;
   String? _relationshipType;
@@ -151,7 +153,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Map<String, dynamic> _recoverySnapshot() => {
     'editor_version': 5, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted, 'shop_in_building': _shopInBuilding,
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
-    'tenure_type': _tenureType, 'parking': _parkingChoice, 'facade': _facade,
+    'tenure_type': _tenureType, 'parking': _parkingChoice, 'elevator': _elevatorChoice, 'facade': _facade,
     'ownership_document_type': _ownershipDocumentType, 'relationship_type': _relationshipType,
     'latitude': _latitude, 'longitude': _longitude, 'land_boundary': _landBoundaryGeoJson,
     'replace_images': _replaceImages, 'price_display_mode': _priceDisplayMode,
@@ -212,6 +214,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (propertyAreaUnitLabels.containsKey(data['area_unit'])) _areaUnit = data['area_unit'] as String;
       _tenureType = const ['freehold', 'waqf'].contains(data['tenure_type']) ? data['tenure_type'] as String : null;
       _parkingChoice = const ['yes', 'no'].contains(data['parking']) ? data['parking'] as String : null;
+      _elevatorChoice = const ['yes', 'no'].contains(data['elevator']) ? data['elevator'] as String : null;
       _facade = propertyFacadeLabels.containsKey(data['facade']) ? data['facade'] as String : null;
       _ownershipDocumentType = _ownershipDocumentTypes.containsKey(data['ownership_document_type']) ? data['ownership_document_type'] as String : null;
       _relationshipType = _relationshipTypes.containsKey(data['relationship_type']) ? data['relationship_type'] as String : null;
@@ -271,6 +274,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool get _requiresSaleTenure => _purpose == 'sale' && _saleTenureTypes.contains(_type);
   bool get _requiresResidential => _residentialTypes.contains(_type);
   bool get _requiresStructure => _structureTypes.contains(_type);
+  bool get _supportsElevator => const {'apartment', 'building', 'office'}.contains(_type);
   bool get _isUnitType => const {'apartment', 'floor', 'office', 'shop'}.contains(_type);
   bool get _unitNeedsFloor => const {'apartment', 'floor', 'office'}.contains(_type) || (_type == 'shop' && _shopInBuilding);
   bool? get _parkingValue =>
@@ -344,6 +348,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             ? 'yes'
             : 'no';
     _facade = property.buildingFacade;
+    _elevatorChoice = property.hasElevator == null ? null : property.hasElevator! ? 'yes' : 'no';
     final address = PropertyLocationAddress.fromStoredAddress(property.address);
     _governorate.text = address.governorate ?? '';
     _district.text = address.district ?? '';
@@ -524,6 +529,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                       : () => setState(() {
                             if (_type != entry.key) _wholeFloor = false;
                             _type = entry.key;
+                            if (!_supportsElevator) _elevatorChoice = null;
                             if (_type != 'shop') _shopInBuilding = false;
                             if (!_requiresSaleTenure) _tenureType = null;
                             if (!_requiresResidential) {
@@ -575,6 +581,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           enabled: !_busy,
           maxLines: 5,
         ),
+        Wrap(spacing: 8, runSpacing: 4, children: [
+          TextButton.icon(onPressed: _busy ? null : () => _assist(), icon: const EbrokerIcon(Icons.auto_awesome_outlined, size: 18), label: const Text('مساعدة في الحقول')),
+          TextButton.icon(onPressed: _busy ? null : () => _assist(description: true), icon: const EbrokerIcon(Icons.edit_note_outlined, size: 18), label: const Text('إنشاء وصف من المواصفات')),
+        ]),
         const SizedBox(height: 24),
         _listingPhotos(),
       ],
@@ -776,6 +786,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               ),
             ],
           ),
+        ],
+        if (_supportsElevator) ...[
+          const SizedBox(height: AppSpacing.s16),
+          DropdownButtonFormField<String>(value: _elevatorChoice ?? 'unknown', isExpanded: true,
+            decoration: const InputDecoration(labelText: 'المصعد'), items: const [
+              DropdownMenuItem(value: 'unknown', child: Text('غير مذكور')),
+              DropdownMenuItem(value: 'yes', child: Text('يوجد مصعد')),
+              DropdownMenuItem(value: 'no', child: Text('بدون مصعد')),
+            ], onChanged: _busy ? null : (value) => setState(() => _elevatorChoice = value == 'unknown' ? null : value)),
         ],
         if (_requiresStructure) ...[
           const SizedBox(height: AppSpacing.s16),
@@ -1260,6 +1279,65 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return null;
   }
 
+  Map<String, dynamic> _aiFacts() => {
+    'type': _type, 'purpose': _purpose, 'currency': 'YER',
+    if (_title.text.trim().isNotEmpty) 'title': _title.text.trim(),
+    if (_composedAddress.trim().isNotEmpty) 'address': _composedAddress,
+    if (_governorate.text.trim().isNotEmpty) 'governorate': _governorate.text.trim(),
+    if (_district.text.trim().isNotEmpty) 'district': _district.text.trim(),
+    if (_street.text.trim().isNotEmpty) 'street': _street.text.trim(),
+    if (_purpose == 'sale' && (double.tryParse(_price.text) ?? 0) > 0) 'price': double.parse(_price.text),
+    if (_purpose == 'rent' && (double.tryParse(_monthlyRent.text) ?? 0) > 0) 'monthly_rent': double.parse(_monthlyRent.text),
+    if ((double.tryParse(_area.text) ?? 0) > 0) 'area_value': double.parse(_area.text),
+    'area_unit': _areaUnit,
+    if (_requiresResidential && (_optionalInt(_bedrooms) ?? 0) > 0) 'bedrooms': _optionalInt(_bedrooms),
+    if (_requiresResidential && (_optionalInt(_bathrooms) ?? 0) > 0) 'bathrooms': _optionalInt(_bathrooms),
+    if (_requiresStructure && _parkingChoice != null) 'has_parking': _parkingValue,
+    if (_supportsElevator && _elevatorChoice != null) 'has_elevator': _elevatorChoice == 'yes',
+    if (_requiresStructure && _facade != null) 'building_facade': _facade,
+    if (_unitNeedsFloor && _floorNumber.text.trim().isNotEmpty) 'floor_number': _floorNumber.text.trim(),
+    if (_type == 'apartment') 'unit_occupies_entire_floor': _wholeFloor,
+  };
+
+  Future<void> _assist({bool description = false}) async {
+    final result = await AppBottomSheet.show<Map<String, dynamic>>(context, builder: (_) => ListingAiSheet(
+      facts: _aiFacts(), propertyId: _existing?.id ?? _recoveredServerId, description: description));
+    if (!mounted || result == null) return;
+    final oldPurpose = _purpose;
+    setState(() {
+      if (result['description'] is String) _description.text = result['description'] as String;
+      if (_typeLabels.containsKey(result['type'])) _type = result['type'] as String;
+      if (const ['sale', 'rent'].contains(result['purpose'])) _purpose = result['purpose'] as String;
+      for (final entry in <String, TextEditingController>{
+        'title': _title, 'area_value': _area, 'governorate': _governorate, 'district': _district, 'street': _street,
+        if (_purpose == 'sale') 'price': _price,
+        if (_purpose == 'rent') 'monthly_rent': _monthlyRent,
+        if (_requiresResidential) 'bedrooms': _bedrooms,
+        if (_requiresResidential) 'bathrooms': _bathrooms,
+        if (_isUnitType) 'floor_number': _floorNumber,
+        if (_isUnitType) 'unit_number': _unitNumber,
+      }.entries) { if (result[entry.key] != null) entry.value.text = result[entry.key].toString(); }
+      if (propertyAreaUnitLabels.containsKey(result['area_unit'])) _areaUnit = result['area_unit'] as String;
+      if (_requiresSaleTenure && const ['freehold', 'waqf'].contains(result['tenure_type'])) _tenureType = result['tenure_type'] as String;
+      if (_requiresStructure && result['has_parking'] is bool) _parkingChoice = result['has_parking'] == true ? 'yes' : 'no';
+      if (_requiresStructure && propertyFacadeLabels.containsKey(result['building_facade'])) _facade = result['building_facade'] as String;
+      if (_supportsElevator && result['has_elevator'] is bool) _elevatorChoice = result['has_elevator'] == true ? 'yes' : 'no';
+      if (_type == 'apartment' && result['unit_occupies_entire_floor'] is bool) _wholeFloor = result['unit_occupies_entire_floor'] == true;
+      if (_type != 'apartment') _wholeFloor = false;
+      if (_wholeFloor) _unitNumber.clear();
+      if (!_requiresResidential) { _bedrooms.clear(); _bathrooms.clear(); }
+      if (!_requiresStructure) { _parkingChoice = null; _facade = null; }
+      if (!_supportsElevator) _elevatorChoice = null;
+      if (!_requiresSaleTenure) _tenureType = null;
+      if (!_isUnitType) { _floorNumber.clear(); _unitNumber.clear(); _buildingReference.clear(); }
+      if (_type == 'shop' && result.containsKey('floor_number')) _shopInBuilding = true;
+      if (_type != 'land') _landBoundaryGeoJson = null;
+      if (oldPurpose != _purpose) { _saiAccepted = false; _saiTouched = true; }
+    });
+    if (oldPurpose != _purpose) unawaited(_loadSaiPolicy());
+    _message('طُبّق الاقتراح في الحقول. راجع بقية الإعلان قبل إرساله.');
+  }
+
   PropertyListingInput _input() {
     final user = ref.read(authControllerProvider).asData?.value;
     return PropertyListingInput(
@@ -1281,6 +1359,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       bedrooms: _requiresResidential ? _optionalInt(_bedrooms) : null,
       bathrooms: _requiresResidential ? _optionalInt(_bathrooms) : null,
       hasParking: _requiresStructure ? _parkingValue : null,
+      hasElevator: _supportsElevator && _elevatorChoice != null ? _elevatorChoice == 'yes' : null,
       buildingFacade: _requiresStructure ? _facade : null,
       address: _composedAddress,
       buildingReference: _isUnitType ? _buildingReference.text.trim() : null,

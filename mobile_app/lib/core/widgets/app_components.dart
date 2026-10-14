@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../theme/ebroker_design.dart';
 import 'ebroker_widgets.dart';
 import 'ebroker_property_card.dart';
+import 'property_card_gallery.dart';
 
 enum AppButtonStyle { filled, tonal, outlined, text }
 
@@ -678,6 +679,7 @@ class AppPropertyMedia extends StatelessWidget {
     this.height = 190,
     this.badge,
     this.overlay,
+    this.cacheWidth,
     super.key,
   });
 
@@ -685,6 +687,7 @@ class AppPropertyMedia extends StatelessWidget {
   final double height;
   final Widget? badge;
   final Widget? overlay;
+  final int? cacheWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -699,6 +702,7 @@ class AppPropertyMedia extends StatelessWidget {
           else
             Image.network(
               imageUrl!,
+              cacheWidth: cacheWidth,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => const EbrokerPropertyPlaceholder(),
               loadingBuilder: (context, child, progress) {
@@ -789,6 +793,8 @@ class AppPropertyCard extends StatelessWidget {
     required this.currency,
     required this.onTap,
     this.imageUrl,
+    this.imageUrls = const [],
+    this.isSpotlight = false,
     this.location,
     this.facts = const <AppPropertyFact>[],
     this.purposeLabel,
@@ -804,6 +810,8 @@ class AppPropertyCard extends StatelessWidget {
   final String currency;
   final VoidCallback onTap;
   final String? imageUrl;
+  final List<String> imageUrls;
+  final bool isSpotlight;
   final String? location;
   final List<AppPropertyFact> facts;
   final String? purposeLabel;
@@ -816,14 +824,14 @@ class AppPropertyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (horizontal) {
       return EbrokerPropertyHorizontalCard(title: title,
-      price: price, currency: currency, onTap: onTap, imageUrl: imageUrl,
+      price: price, currency: currency, onTap: onTap, imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight,
       location: location, purposeLabel: purposeLabel, categoryLabel: categoryLabel,
       facts: facts, trailing: trailing, unavailable: unavailable);
     }
     return AppSurface(padding: const EdgeInsets.all(8), onTap: onTap,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: BorderRadius.circular(4),
-          child: AppPropertyMedia(imageUrl: imageUrl, height: 132.rh(context), overlay: trailing)),
+          child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, height: 132.rh(context), overlay: trailing)),
         const SizedBox(height: 8),
         Row(children: [EbrokerImage('properties_icon', size: 18, color: EbrokerDesign.textLight),
           const SizedBox(width: 4), Expanded(child: EbrokerText(categoryLabel, size: 12,

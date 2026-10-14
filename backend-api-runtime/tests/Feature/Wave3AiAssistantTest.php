@@ -97,8 +97,13 @@ class Wave3AiAssistantTest extends TestCase
         $this->model(['set' => (object) [], 'remove' => []]);
         $request = ['message' => 'شقة', 'filters' => (object) [], 'revision' => 0];
         $this->postJson('/api/ai/search', $request)->assertOk();
+        \Illuminate\Support\Facades\Cache::flush();
         $this->postJson('/api/ai/search', $request)->assertStatus(429);
         Http::assertSentCount(1);
+        $this->assertDatabaseHas('ai_daily_usage', ['day' => now('UTC')->toDateString(), 'request_count' => 1]);
+        $this->travel(1)->days();
+        $this->postJson('/api/ai/search', $request)->assertOk();
+        Http::assertSentCount(2);
     }
 
     public function test_listing_helper_is_owned_authorized_and_non_mutating(): void

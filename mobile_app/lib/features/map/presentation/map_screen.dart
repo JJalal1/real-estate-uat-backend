@@ -244,7 +244,12 @@ final nearbyPropertiesProvider =
 );
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({this.initialLatitude, this.initialLongitude, this.initialType, super.key});
+  final double? initialLatitude, initialLongitude;
+  final String? initialType;
+  bool get hasInitialLocation => initialLatitude != null && initialLongitude != null &&
+      initialLatitude!.isFinite && initialLongitude!.isFinite &&
+      initialLatitude!.abs() <= 90 && initialLongitude!.abs() <= 180;
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
@@ -297,8 +302,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.hasInitialLocation) _center = LatLng(widget.initialLatitude!, widget.initialLongitude!);
+    if (const ['apartment', 'house', 'villa', 'building', 'land', 'shop', 'office', 'farm'].contains(widget.initialType)) _filterType = widget.initialType;
     unawaited(_restoreDiscoveryHistory());
-    _loadCurrentLocation();
+    if (!widget.hasInitialLocation) _loadCurrentLocation();
   }
 
   @override
@@ -311,6 +318,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Future<void> _restoreDiscoveryHistory() async {
     final history = await _historyStore.load();
     if (!mounted) return;
+    if (widget.hasInitialLocation || widget.initialType != null) {
+      setState(() => _recentSearches = history.recentSearches);
+      return;
+    }
     final filters = history.lastFilters;
     final search = filters['search']?.toString().trim() ?? '';
     setState(() {
@@ -2122,7 +2133,7 @@ class _PropertyResultCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
           price: _formatPrice(property.price), currency: _currencyLabel(property.currency),
-          imageUrl: property.mainImage,
+          imageUrl: property.mainImage, imageUrls: property.imageUrls, isSpotlight: property.isSpotlight,
           location: property.address ?? '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
           categoryLabel: _typeLabel(property.type ?? ''),
           purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',

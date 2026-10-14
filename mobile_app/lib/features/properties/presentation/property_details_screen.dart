@@ -23,6 +23,7 @@ import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
 import 'property_market_context_card.dart';
 import 'property_sai_public_line.dart';
+import 'property_question_section.dart';
 
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
@@ -158,6 +159,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           icon: Icons.local_parking_outlined,
           label: 'موقف سيارة',
         ),
+      if (property.hasElevator != null)
+        AppPropertyFact(icon: Icons.elevator_outlined, label: property.hasElevator! ? 'يوجد مصعد' : 'بدون مصعد'),
       if (property.tenureType != null)
         AppPropertyFact(
           icon: Icons.account_balance_outlined,
@@ -279,6 +282,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
+          if (published && property.availabilityStatus == 'available') ...[
+            const SizedBox(height: AppSpacing.s24), PropertyQuestionSection(propertyId: property.id),
+          ],
           if (published && property.advertiser != null) ...[
             const SizedBox(height: AppSpacing.s24),
             const AppSectionHeader(title: 'المعلن والثقة'),
@@ -309,7 +315,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                   title: item.title,
                       price: _formatPrice(item.price),
                       currency: item.currency,
-                      imageUrl: item.mainImage,
+                      imageUrl: item.mainImage, imageUrls: item.imageUrls, isSpotlight: item.isSpotlight,
                       location: item.address,
                       purposeLabel: _purposeLabel(item.purpose),
                       facts: [

@@ -44,7 +44,7 @@ SQL);
         $this->assertSame([], $unprotected);
         $this->assertFalse((bool) DB::selectOne("SELECT relrowsecurity FROM pg_class WHERE oid = 'spatial_ref_sys'::regclass")->relrowsecurity);
         foreach (['anon', 'authenticated'] as $role) {
-            foreach (['users', 'api_tokens', 'private_messages', 'account_verification_documents', 'support_tasks', 'broker_customer_followups'] as $table) {
+            foreach (['users', 'api_tokens', 'private_messages', 'account_verification_documents', 'support_tasks', 'broker_customer_followups', 'ai_daily_usage'] as $table) {
                 foreach (['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'] as $privilege) {
                     $allowed = DB::selectOne('SELECT has_table_privilege(?, ?, ?) AS allowed', [$role, 'public.'.$table, $privilege]);
                     $this->assertFalse((bool) $allowed->allowed, "$role can $privilege $table");

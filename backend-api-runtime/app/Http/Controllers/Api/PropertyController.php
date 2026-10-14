@@ -170,7 +170,14 @@ class PropertyController extends Controller
             $sections[$section] = $query->latest('id')->limit(6)->get()->map(fn ($p) => $this->summaryData($p, $request))->values()->all();
         }
         $ranking = app(\App\Services\BrokerRankingService::class);
-        $brokers = $ranking->query($context['governorate'])->limit(5)->get()->map(fn ($u) => $ranking->publicData($u))->values();
+        $localNames = $context['governorate'] === 'صنعاء' ? ['صنعاء', 'أمانة العاصمة'] : [$context['governorate']];
+        $localOwnerIds = (clone $base)->select('properties.user_id');
+        $brokers = $ranking->query($context['governorate'])->where(function ($q) use ($context, $localNames, $localOwnerIds): void {
+            $q->whereHas('accountVerificationProfile', fn ($profile) => $profile
+                ->whereIn('details->governorate', $localNames)
+                ->orWhereJsonContains('details->work_areas', $context['governorate']))
+                ->orWhereIn('users.id', $localOwnerIds);
+        })->limit(5)->get()->map(fn ($u) => $ranking->publicData($u))->values();
         return response()->json(['data' => ['context' => $context, 'sections' => $sections, 'brokers' => $brokers]]);
     }
 
@@ -897,7 +904,7 @@ class PropertyController extends Controller
             'availability_due_at' => $property->availability_due_at?->toIso8601String(),
             'view_count' => (int) $property->view_count,
             'main_image' => $mainImage ? $this->imageUrl($mainImage, $request) : null,
-            'image_urls' => $property->images->take(8)->map(fn ($image) => $this->imageUrl($image, $request))->values(),
+            'image_urls' => $property->images->take(12)->map(fn ($image) => $this->imageUrl($image, $request))->values(),
             'image_count' => $property->images->count(),
             'floor_number' => in_array($property->type, ['apartment', 'floor', 'office', 'shop'], true) ? $property->floor_number : null,
             'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,

@@ -134,7 +134,7 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
         AppFilterChip(label: item.$1, selected: _purpose == item.$2, onSelected: (_) { setState(() => _purpose = item.$2); _loadProperties(); })]),
       const SizedBox(height: 8), const Text('اختر عقارًا لبدء التواصل أو طلب معاينته.'), const SizedBox(height: 12),
       for (final property in _properties) Padding(padding: const EdgeInsets.only(bottom: 12), child: EbrokerPropertyHorizontalCard(
-        title: property.title, price: property.price.toStringAsFixed(0), currency: property.currency, imageUrl: property.mainImage,
+        title: property.title, price: property.price.toStringAsFixed(0), currency: property.currency, imageUrl: property.mainImage, imageUrls: property.imageUrls, isSpotlight: property.isSpotlight,
         location: property.address, categoryLabel: ebrokerPropertyTypeLabel(property.type), purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
         onTap: () => context.push('/properties/${property.id}'))),
       if (_loading) const AppLoadingState(),

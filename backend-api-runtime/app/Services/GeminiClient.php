@@ -3,9 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Http\Exceptions\HttpResponseException;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\RateLimiter;
 
 class GeminiClient
 {
@@ -21,15 +20,17 @@ class GeminiClient
         if (! preg_match('/^gemini-[a-z0-9.-]{1,80}$/D', $model)) $this->unavailable();
         $payload = json_encode($input, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         if (strlen($payload) > 16000) $this->unavailable();
-        // Increment a shared daily budget before network work. The lock is not
-        // held during inference; concurrent Apache workers cannot exceed it.
+        // Persist the daily aggregate before network work so deployment/cache
+        // clearing cannot reset the cost guard. Release the lock before HTTP.
         try {
-            $accepted = Cache::lock('gemini:budget:lock', 3)->block(1, function (): bool {
-                $key = 'gemini:budget:'.now()->format('Y-m-d');
-                if (RateLimiter::tooManyAttempts($key, (int) config('gemini.daily_limit'))) return false;
-                RateLimiter::hit($key, 86400);
+            $accepted = DB::transaction(function (): bool {
+                $day = now('UTC')->toDateString();
+                DB::table('ai_daily_usage')->insertOrIgnore(['day' => $day, 'request_count' => 0]);
+                $usage = DB::table('ai_daily_usage')->where('day', $day)->lockForUpdate()->first();
+                if (! $usage || $usage->request_count >= (int) config('gemini.daily_limit')) return false;
+                DB::table('ai_daily_usage')->where('day', $day)->increment('request_count');
                 return true;
-            });
+            }, 3);
         } catch (\Throwable) {
             $accepted = false;
         }

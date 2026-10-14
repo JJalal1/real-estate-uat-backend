@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'support/wave3_fakes.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
@@ -95,7 +97,8 @@ Future<void> _pump(WidgetTester tester, Widget screen, BrokerTestRepository repo
   tester.view.physicalSize = size;
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => BrokerTestAuth(userId)), brokerRepositoryProvider.overrideWithValue(repo),
-    propertyRepositoryProvider.overrideWithValue(_Properties())], child: MaterialApp(theme: AppTheme.light, builder: (context, child) =>
+    propertyRepositoryProvider.overrideWithValue(_Properties()),
+    marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake()), homeLocationAttemptedProvider.overrideWith((_) => true)], child: MaterialApp(theme: AppTheme.light, builder: (context, child) =>
       MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)), child: RepaintBoundary(key: boundary, child: child!)), home: screen)));
   await tester.pumpAndSettle();
 }

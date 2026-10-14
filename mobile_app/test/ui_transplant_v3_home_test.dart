@@ -14,8 +14,9 @@ import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_gate.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
-import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
-import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'support/wave3_fakes.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
 
 final _exampleProperty = PropertyMarker.fromJson({
@@ -99,10 +100,16 @@ Future<GoRouter> _pumpHome(
     ProviderScope(
       overrides: [
         authControllerProvider.overrideWith(() => _TestAuthController(user)),
-        brokerDirectoryProvider.overrideWith((_) async => []),
-        nearbyPropertiesProvider(homeDiscoveryQuery).overrideWith(
-          (_) => load?.call() ?? Future.value([_exampleProperty]),
-        ),
+        homeLocationAttemptedProvider.overrideWith((_) => true),
+        marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake(onFeed: (query) async {
+          final rows = await (load?.call() ?? Future.value([_exampleProperty]));
+          return MarketplaceFeed(label: 'صنعاء', governorate: 'صنعاء', sections: {'latest': rows.map((row) => PropertySummary.fromJson({
+            'id': row.id, 'title': row.title, 'price': row.basePrice ?? row.price, 'display_price': row.price,
+            'currency': row.currency, 'purpose': row.purpose ?? 'sale', 'type': row.type ?? 'house',
+            'address': row.address, 'latitude': row.latitude, 'longitude': row.longitude,
+            'price_display_note': row.priceDisplayNote, 'monthly_rent': row.monthlyRent,
+          })).toList()});
+        })),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light,
@@ -212,11 +219,11 @@ void main() {
   testWidgets('empty home leaves discovery usable', (tester) async {
     final router = await _pumpHome(tester, load: () async => []);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('لا توجد عقارات في هذا النطاق'), 250, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(find.text('لا توجد عقارات في هذه المنطقة الآن'), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
-    expect(find.text('لا توجد عقارات في هذا النطاق'), findsOneWidget);
-    final action = find.text('استكشاف الخريطة');
-    await tester.scrollUntilVisible(action, 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text('لا توجد عقارات في هذه المنطقة الآن'), findsOneWidget);
+    final action = find.byKey(const ValueKey('home-map'));
+    await tester.scrollUntilVisible(action, -300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();

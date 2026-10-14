@@ -133,7 +133,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   title: property.title,
                         price: _formatPrice(property.price),
                         currency: property.currency,
-                        imageUrl: property.mainImage,
+                        imageUrl: property.mainImage, imageUrls: property.imageUrls, isSpotlight: property.isSpotlight,
                         location: property.address,
                         purposeLabel: _purposeLabel(property.purpose),
                         facts: _facts(property),

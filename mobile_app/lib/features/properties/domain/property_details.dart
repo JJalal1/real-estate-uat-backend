@@ -46,10 +46,14 @@ class PropertySummary {
     this.bedrooms,
     this.bathrooms,
     this.hasParking,
+    this.hasElevator,
     this.buildingFacade,
     this.address,
     this.status = 'published',
     this.mainImage,
+    this.imageUrls = const [],
+    this.isSpotlight = false,
+    this.floorNumber,
   });
 
   final int id;
@@ -75,10 +79,14 @@ class PropertySummary {
   final int? bedrooms;
   final int? bathrooms;
   final bool? hasParking;
+  final bool? hasElevator;
   final String? buildingFacade;
   final String? address;
   final String status;
   final String? mainImage;
+  final List<String> imageUrls;
+  final bool isSpotlight;
+  final String? floorNumber;
 
   factory PropertySummary.fromJson(Map<String, dynamic> json) {
     final rawPrice = _asDouble(json['price']) ?? 0;
@@ -105,10 +113,14 @@ class PropertySummary {
       bedrooms: _asInt(json['bedrooms']),
       bathrooms: _asInt(json['bathrooms']),
       hasParking: _asBool(json['has_parking']),
+      hasElevator: _asBool(json['has_elevator']),
       buildingFacade: _nullableString(json['building_facade']),
       address: _nullableString(json['address']),
       status: json['status']?.toString() ?? 'published',
       mainImage: _nullableString(json['main_image']),
+      imageUrls: List.unmodifiable((json['image_urls'] as List? ?? const []).whereType<String>().where((url) => url.isNotEmpty).take(12)),
+      isSpotlight: _asBool(json['is_spotlight']) ?? false,
+      floorNumber: _nullableString(json['floor_number']),
     );
   }
 }
@@ -192,6 +204,7 @@ class PropertyDetails {
     this.bedrooms,
     this.bathrooms,
     this.hasParking,
+    this.hasElevator,
     this.buildingFacade,
     this.address,
     this.buildingReference,
@@ -219,6 +232,7 @@ class PropertyDetails {
     this.advertiser,
     this.commentsCount = 0,
     this.similar = const <PropertySummary>[],
+    this.isSpotlight = false,
   });
 
   final int id;
@@ -245,6 +259,7 @@ class PropertyDetails {
   final int? bedrooms;
   final int? bathrooms;
   final bool? hasParking;
+  final bool? hasElevator;
   final String? buildingFacade;
   final String? address;
   final String? buildingReference;
@@ -278,8 +293,10 @@ class PropertyDetails {
   final int commentsCount;
   final List<PropertyImageItem> images;
   final List<PropertySummary> similar;
+  final bool isSpotlight;
 
   String? get mainImage => images.isEmpty ? null : images.first.url;
+  List<String> get imageUrls => images.map((image) => image.url).take(12).toList(growable: false);
   double get editablePrice => basePrice ?? price;
 
   factory PropertyDetails.fromJson(Map<String, dynamic> json) {
@@ -331,6 +348,7 @@ class PropertyDetails {
       bedrooms: _asInt(json['bedrooms']),
       bathrooms: _asInt(json['bathrooms']),
       hasParking: _asBool(json['has_parking']),
+      hasElevator: _asBool(json['has_elevator']),
       buildingFacade: _nullableString(json['building_facade']),
       address: _nullableString(json['address']),
       buildingReference: _nullableString(json['building_reference']),
@@ -375,6 +393,7 @@ class PropertyDetails {
               0
           : 0,
       images: images,
+      isSpotlight: _asBool(json['is_spotlight']) ?? false,
       similar: similarRows
           .whereType<Map<String, dynamic>>()
           .map(PropertySummary.fromJson)
@@ -405,10 +424,14 @@ class PropertyDetails {
       bedrooms: bedrooms,
       bathrooms: bathrooms,
       hasParking: hasParking,
+      hasElevator: hasElevator,
       buildingFacade: buildingFacade,
       address: address,
       status: status,
       mainImage: mainImage,
+      imageUrls: images.map((image) => image.url).toList(growable: false),
+      isSpotlight: isSpotlight,
+      floorNumber: floorNumber,
     );
   }
 }
@@ -434,6 +457,7 @@ class PropertyListingInput {
     this.bedrooms,
     this.bathrooms,
     this.hasParking,
+    this.hasElevator,
     this.buildingFacade,
     this.address,
     this.buildingReference,
@@ -466,6 +490,7 @@ class PropertyListingInput {
   final int? bedrooms;
   final int? bathrooms;
   final bool? hasParking;
+  final bool? hasElevator;
   final String? buildingFacade;
   final String? address;
   final String? buildingReference;
@@ -509,6 +534,7 @@ class PropertyListingInput {
       if (type != 'land' && bedrooms != null) 'bedrooms': bedrooms,
       if (type != 'land' && bathrooms != null) 'bathrooms': bathrooms,
       if (type != 'land' && hasParking != null) 'has_parking': hasParking,
+      if (const ['apartment', 'building', 'office'].contains(type)) 'has_elevator': hasElevator,
       if (type != 'land' &&
           buildingFacade != null &&
           buildingFacade!.isNotEmpty)

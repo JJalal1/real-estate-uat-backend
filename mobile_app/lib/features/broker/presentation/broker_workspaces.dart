@@ -46,83 +46,91 @@ class BrokerDashboardScreen extends ConsumerWidget {
   const BrokerDashboardScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(brokerWorkspaceProvider);
     final user = ref.watch(authControllerProvider).asData?.value;
-    return BrokerScaffold(
-      appBar: AppAppBar(title: user?.isOffice == true ? 'لوحة المكتب' : user?.isOwner == true ? 'لوحة المعلن' : 'لوحة الدلال', actions: [
-        IconButton(tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'), icon: const EbrokerImage('notification', size: 22)),
-      ]),
-      body: state.when(loading: () => const AppLoadingState(),
-        error: (error, _) => AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(brokerWorkspaceProvider)),
-        data: (data) {
-          final profile = data['broker_profile'] is Map ? BrokerProfile.fromJson(brokerMap(data['broker_profile'])) : null;
-          final listings = brokerMap(data['listings']), activity = brokerMap(data['customer_activity']);
-          final attention = brokerMap(data['needs_attention']), finance = brokerMap(data['financial_summary']);
-          final corrections = brokerRows(attention['correction_listings']).length;
-          final priorities = <({String text, String route, IconData icon})>[
-            if (brokerInt(activity['unread_conversations']) > 0) (text: '${brokerInt(activity['unread_conversations'])} محادثات تحتاج ردك', route: '/broker/customers?filter=unread', icon: Icons.chat_bubble_outline),
-            if (brokerInt(activity['active_viewings']) > 0) (text: '${brokerInt(activity['active_viewings'])} معاينات للمتابعة', route: '/broker/activity?tab=viewings', icon: Icons.event_outlined),
-            if (brokerInt(attention['customer_followups_due']) > 0) (text: '${brokerInt(attention['customer_followups_due'])} عملاء حان موعد متابعتهم', route: '/broker/customers?filter=followup_due', icon: Icons.event_note_outlined),
-            if (corrections > 0) (text: '$corrections إعلانات تحتاج تصحيحًا', route: '/my-listings', icon: Icons.edit_outlined),
-            if (brokerInt(attention['availability_count']) > 0) (text: '${brokerInt(attention['availability_count'])} إعلانات تحتاج تأكيد التوفر', route: '/broker/availability', icon: Icons.update),
-            if (brokerInt(attention['pending_deal_count']) > 0) (text: 'تابع نتائج الصفقات التي تنتظر التأكيد', route: '/broker/activity', icon: Icons.check_circle_outline),
-            if (finance['listing_creation_blocked'] == true) (text: 'لديك مستحق للمنصة يحتاج تسوية', route: '/broker/finance', icon: Icons.account_balance_wallet_outlined),
-          ];
-          return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerWorkspaceProvider); await ref.read(brokerWorkspaceProvider.future); },
-            child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), physics: const AlwaysScrollableScrollPhysics(), children: [
-              BrokerPanel(child: Row(children: [
-                profile?.photoUrl == null ? EbrokerImage('defaultProfileIcon', size: 38, color: Theme.of(context).colorScheme.primary)
-                  : ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(profile!.photoUrl!, width: 44, height: 44, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 38, color: Theme.of(context).colorScheme.primary))), const SizedBox(width: 12),
+    return BrokerScaffold(appBar: AppAppBar(title: user?.isOffice == true ? 'لوحة المكتب' : 'لوحة الدلال', actions: [
+      IconButton(tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'), icon: const EbrokerImage('notification', size: 22)),
+    ]), body: ref.watch(brokerWorkspaceProvider).when(loading: () => const AppLoadingState(),
+      error: (error, _) => AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(brokerWorkspaceProvider)),
+      data: (data) {
+        final profile = data['broker_profile'] is Map ? BrokerProfile.fromJson(brokerMap(data['broker_profile'])) : null;
+        final listings = brokerMap(data['listings']), activity = brokerMap(data['customer_activity']);
+        final attention = brokerMap(data['needs_attention']), finance = brokerMap(data['financial_summary']);
+        final corrections = brokerRows(attention['correction_listings']).length;
+        final priorities = <({String text, String route, IconData icon})>[
+          if (finance['listing_creation_blocked'] == true) (text: 'لديك مستحق للمنصة يحتاج تسوية', route: '/broker/finance', icon: Icons.account_balance_wallet_outlined),
+          if (brokerInt(activity['unread_conversations']) > 0) (text: '${brokerInt(activity['unread_conversations'])} محادثات تحتاج ردك', route: '/broker/customers?filter=unread', icon: Icons.chat_bubble_outline),
+          if (brokerInt(activity['active_viewings']) > 0) (text: '${brokerInt(activity['active_viewings'])} معاينات للمتابعة', route: '/broker/activity?tab=viewings', icon: Icons.event_outlined),
+          if (brokerInt(attention['customer_followups_due']) > 0) (text: '${brokerInt(attention['customer_followups_due'])} عملاء حان موعد متابعتهم', route: '/broker/customers?filter=followup_due', icon: Icons.event_note_outlined),
+          if (corrections > 0) (text: '$corrections إعلانات تحتاج تصحيحًا', route: '/my-listings', icon: Icons.edit_outlined),
+          if (brokerInt(attention['availability_count']) > 0) (text: '${brokerInt(attention['availability_count'])} إعلانات تحتاج تأكيد التوفر', route: '/broker/availability', icon: Icons.update),
+          if (brokerInt(attention['pending_deal_count']) > 0) (text: 'تابع نتائج الصفقات التي تنتظر التأكيد', route: '/broker/activity', icon: Icons.check_circle_outline),
+        ];
+        final tools = <({String label, IconData icon, VoidCallback? action})>[
+          (label: 'عقاراتي', icon: Icons.home_work_outlined, action: () => context.push('/my-listings')),
+          (label: 'إضافة عقار', icon: Icons.add_home_outlined, action: () => context.push('/add-property')),
+          (label: 'العملاء', icon: Icons.people_outline, action: () => context.push('/broker/customers')),
+          (label: 'المعاينات', icon: Icons.event_outlined, action: () => context.push('/broker/activity?tab=viewings')),
+          (label: 'الصفقات', icon: Icons.handshake_outlined, action: () => context.push('/broker/activity')),
+          (label: 'التوفر', icon: Icons.update, action: () => context.push('/broker/availability?due=1')),
+          (label: 'المستحقات', icon: Icons.account_balance_wallet_outlined, action: () => context.push('/broker/finance')),
+          (label: 'الإحصاءات', icon: Icons.bar_chart_outlined, action: () => _statistics(context, profile, listings, activity)),
+          (label: 'ملفي العام', icon: Icons.badge_outlined, action: profile == null ? null : () => context.push('/advertisers/${profile.id}')),
+        ];
+        Widget priority(({String text, String route, IconData icon}) item) => InkWell(onTap: () => context.push(item.route),
+          child: Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [
+            EbrokerIcon(item.icon, size: 19, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 10),
+            Expanded(child: Text(item.text)), const EbrokerIcon(Icons.chevron_left, size: 17),
+          ])));
+        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerWorkspaceProvider); await ref.read(brokerWorkspaceProvider.future); },
+          child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), physics: const AlwaysScrollableScrollPhysics(), children: [
+            BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [ClipOval(child: profile?.photoUrl == null ? const EbrokerImage('defaultProfileIcon', size: 44)
+                : Image.network(profile!.photoUrl!, width: 44, height: 44, fit: BoxFit.cover, cacheWidth: 160,
+                    errorBuilder: (_, __, ___) => const EbrokerImage('defaultProfileIcon', size: 44))), const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(profile?.name ?? user?.name ?? 'مرحبًا بك', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                  Text('${profile?.typeLabel ?? 'معلن'} موثق${profile?.governorate == null ? '' : ' · ${profile!.governorate}'}'),
-                  if (profile != null && profile.ratingCount > 0) Row(children: [const EbrokerIcon(Icons.star_outline, size: 16, color: Colors.amber),
-                    const SizedBox(width: 4), Expanded(child: Text('${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييمًا'))]),
+                  Text(profile?.name ?? user?.name ?? 'مرحبًا بك', style: Theme.of(context).textTheme.titleMedium),
+                  Text('${profile?.typeLabel ?? 'دلال'} موثق${profile?.governorate == null ? '' : ' · ${profile!.governorate}'}', style: Theme.of(context).textTheme.bodySmall),
                 ])),
-                if (profile != null) IconButton(tooltip: 'ملفي العام', onPressed: () => context.push('/advertisers/${profile.id}'), icon: const EbrokerIcon(Icons.open_in_new, size: 20)),
-              ])),
-              const SizedBox(height: 20),
-              Text('يحتاج إجراء منك', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              BrokerPanel(child: priorities.isEmpty ? const Text('أنت متابع كل شيء. لا توجد إجراءات معلقة الآن.') : Column(children: [
-                for (var i = 0; i < priorities.length; i++) ...[
-                  if (i > 0) const Divider(height: 16),
-                  InkWell(onTap: () => context.push(priorities[i].route), child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
-                    EbrokerIcon(priorities[i].icon, size: 20), const SizedBox(width: 10), Expanded(child: Text(priorities[i].text)),
-                    const EbrokerIcon(Icons.chevron_left, size: 18),
-                  ]))),
-                ],
-              ])),
-              const SizedBox(height: 16),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                AppButton(label: 'إضافة عقار', icon: Icons.add, onPressed: () => context.push('/add-property')),
-                TextButton.icon(icon: const EbrokerIcon(Icons.today_outlined, size: 18), label: const Text('معاينات اليوم'), onPressed: () => context.push('/broker/activity?tab=viewings&today=1')),
-                TextButton.icon(icon: const EbrokerIcon(Icons.update, size: 18), label: const Text('تحديث التوفر'), onPressed: () => context.push('/broker/availability?due=1')),
-                TextButton.icon(icon: const EbrokerIcon(Icons.account_balance_wallet_outlined, size: 18), label: const Text('المستحقات'), onPressed: () => context.push('/broker/finance')),
+              ]), const SizedBox(height: 10),
+              Wrap(spacing: 14, runSpacing: 6, children: [
+                Text('${profile?.activeListings ?? brokerInt(listings['published'])} عقارات نشطة'),
+                Text('${brokerInt(activity['completed_deals'])} صفقات مكتملة مؤكدة'),
+                if (profile != null && profile.ratingCount > 0) Text('${profile.rating.toStringAsFixed(1)} ★ · ${profile.ratingCount} تقييمًا'),
               ]),
-              const SizedBox(height: 20),
-              LayoutBuilder(builder: (context, size) {
-                final oneColumn = size.maxWidth < 330 || MediaQuery.textScalerOf(context).scale(14) > 22;
-                final width = oneColumn ? size.maxWidth : (size.maxWidth - 12) / 2;
-                return Wrap(spacing: 12, runSpacing: 12, children: [
-                  for (final metric in <({int count, String label, String route})>[
-                    (count: profile?.activeListings ?? brokerInt(listings['published']), label: 'عقارات نشطة', route: '/my-listings'),
-                    (count: brokerInt(activity['new_customers_this_week']), label: 'عملاء جدد هذا الأسبوع', route: '/broker/customers'),
-                    (count: brokerInt(activity['active_viewings']), label: 'معاينات نشطة', route: '/broker/activity?tab=viewings'),
-                    (count: brokerInt(activity['completed_deals']), label: 'صفقات مكتملة مؤكدة', route: '/broker/activity'),
-                  ]) SizedBox(width: width, child: InkWell(onTap: () => context.push(metric.route), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${metric.count}', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
-                    const SizedBox(height: 4), Text(metric.label),
-                  ])))),
-                ]);
-              }),
-              if (data['best_listing'] is Map && brokerInt(brokerMap(data['best_listing'])['view_count']) > 0) ...[
-                const SizedBox(height: 16), BrokerPanel(child: Text('أكثر إعلان جذب مشاهدة: ${brokerMap(data['best_listing'])['title']}')),
-              ],
-            ]));
-        }),
-    );
+            ])), const SizedBox(height: 16),
+            Text('يحتاج إجراء منك', style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 8),
+            BrokerPanel(child: priorities.isEmpty ? const Text('أنت متابع كل شيء. لا توجد إجراءات معلقة الآن.') : Column(children: [
+              for (final item in priorities.take(3)) priority(item),
+              if (priorities.length > 3) ExpansionTile(tilePadding: EdgeInsets.zero, title: Text('إجراءات أخرى (${priorities.length - 3})'),
+                children: [for (final item in priorities.skip(3)) priority(item)]),
+            ])), const SizedBox(height: 8),
+            Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(icon: const EbrokerIcon(Icons.today_outlined, size: 18),
+              label: const Text('معاينات اليوم'), onPressed: () => context.push('/broker/activity?tab=viewings&today=1'))),
+            const SizedBox(height: 12), Text('أدوات عملك', style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 12),
+            LayoutBuilder(builder: (context, size) {
+              final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+              final columns = scale > 1.7 || size.maxWidth < 290 ? 1 : size.maxWidth < 350 ? 2 : 3;
+              final width = (size.maxWidth - (columns - 1) * 10) / columns;
+              return Wrap(spacing: 10, runSpacing: 10, children: [for (final tool in tools)
+                SizedBox(width: width, child: AppSurface(key: ValueKey('broker-tool-${tool.label}'), onTap: tool.action,
+                  child: Column(children: [EbrokerIcon(tool.icon, size: 27, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(height: 10), Text(tool.label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelLarge)]))),
+              ]);
+            }),
+          ]));
+      }));
+  }
+
+  void _statistics(BuildContext context, BrokerProfile? profile, Map<String, dynamic> listings, Map<String, dynamic> activity) {
+    AppBottomSheet.show<void>(context, builder: (_) => Padding(padding: const EdgeInsets.all(18), child: Column(mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start, children: [Text('إحصاءات عملك', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 12),
+        for (final metric in <({int count, String label})>[
+          (count: profile?.activeListings ?? brokerInt(listings['published']), label: 'عقارات نشطة'),
+          (count: brokerInt(activity['new_customers_this_week']), label: 'عملاء جدد هذا الأسبوع'),
+          (count: brokerInt(activity['active_viewings']), label: 'معاينات نشطة'),
+          (count: brokerInt(activity['completed_deals']), label: 'صفقات مكتملة مؤكدة'),
+        ]) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [Expanded(child: Text(metric.label)), Text('${metric.count}')])),
+      ])));
   }
 }
 

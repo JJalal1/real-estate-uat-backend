@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
+import 'support/wave3_fakes.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/discovery/domain/assisted_property_search.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
@@ -109,6 +111,8 @@ Future<void> _pump(WidgetTester tester, Widget child, {Map<String, dynamic>? sna
     listingRecoveryStoreProvider.overrideWithValue(_Recovery(snapshot)),
     propertyRepositoryProvider.overrideWithValue(properties ?? _Properties()),
     messageRepositoryProvider.overrideWithValue(messages ?? _Messages()),
+    aiRepositoryProvider.overrideWithValue(Wave3AiFake()..onRefine = (message, filters, revision) async => {'revision': revision,
+      'filters': {'type': 'apartment', 'purpose': 'rent', 'search': 'تعز', 'min_bedrooms': 3, 'max_price': 150000}}),
   ], child: router == null ? MaterialApp(theme: AppTheme.light,
     builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
       child: RepaintBoundary(key: boundary, child: child!)), home: child) : MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
@@ -233,15 +237,15 @@ void main() {
     expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 
-  testWidgets('smart search proposes chips before querying and uses the existing public API for results', (tester) async {
+  testWidgets('smart search validates assistant chips and uses the existing public API for actual results', (tester) async {
     final repository = _Properties(), key = GlobalKey();
     await _pump(tester, const AssistedSearchScreen(), properties: repository, boundary: key);
     await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'شقة إيجار في تعز، 3 غرف، أقل من 150 ألف');
-    await tester.tap(find.text('اقتراح الفلاتر')); await tester.pumpAndSettle();
-    expect(repository.lastQuery, isNull); expect(find.text('تعز'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
+    expect(find.text('تعز'), findsOneWidget);
     await _capture(tester, key, 'smart-filters');
-    await tester.ensureVisible(find.text('عرض النتائج')); await tester.pumpAndSettle();
-    await tester.tap(find.text('عرض النتائج')); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('شقة من نتائج الخادم'), 250, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(repository.lastQuery!['max_monthly_rent'], 150000);
     expect(find.text('شقة من نتائج الخادم'), findsOneWidget); expect(tester.takeException(), isNull);
   });

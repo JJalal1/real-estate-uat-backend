@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'support/wave3_fakes.dart';
 import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
@@ -185,6 +187,8 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     brokerThreadDealProvider.overrideWith((_, __) async => null),
     brokerWorkspaceProvider.overrideWith((_) async => {'broker_profile': {'id': 1, 'name': 'حساب عرض تجريبي', 'account_type': 'owner', 'verified': true}, 'listings': {'published': 1}, 'customer_activity': {}, 'needs_attention': {}, 'financial_summary': {}}),
     nearbyPropertiesProvider.overrideWith((ref, query) async => [_property]),
+    homeLocationAttemptedProvider.overrideWith((_) => true),
+    marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake()),
     myListingsProvider.overrideWith((ref) async => [_details(37)]),
     messageRepositoryProvider.overrideWithValue(messages ?? _MessagesFixture()),
     bookingRepositoryProvider.overrideWithValue(bookings ?? _BookingsFixture()),

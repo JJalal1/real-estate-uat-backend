@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/ebroker_design.dart';
 import 'app_components.dart';
 import 'ebroker_widgets.dart';
+import 'property_card_gallery.dart';
 
 // Purchased home/widgets/property_horizontal_card.dart presentation:
 // image, category, title, location, divider, and price with purpose label.
@@ -11,12 +12,15 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   const EbrokerPropertyHorizontalCard({required this.title, required this.price,
     required this.currency, required this.onTap, this.imageUrl, this.location,
     this.purposeLabel, this.categoryLabel = 'عقار', this.facts = const [],
-    this.trailing, this.unavailable = false, this.embedded = false, this.imageFirst = false, super.key});
+    this.trailing, this.unavailable = false, this.embedded = false, this.imageFirst = false,
+    this.imageUrls = const [], this.isSpotlight = false, super.key});
   final String title;
   final String price;
   final String currency;
   final VoidCallback onTap;
   final String? imageUrl;
+  final List<String> imageUrls;
+  final bool isSpotlight;
   final String? location;
   final String? purposeLabel;
   final String categoryLabel;
@@ -33,7 +37,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     if (imageFirst) { return AppSurface(onTap: onTap, padding: EdgeInsets.zero,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-          child: AppPropertyMedia(imageUrl: imageUrl, height: 190.rh(context), overlay: trailing)),
+          child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, height: 190.rh(context), overlay: trailing)),
         Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Wrap(spacing: 12, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [amount, if (purposeLabel != null) EbrokerPurposeLabel(purposeLabel!)]),
           const SizedBox(height: 8), EbrokerText(title, size: 16, weight: FontWeight.w600, maxLines: 2),
@@ -47,7 +51,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     final body = Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(borderRadius: BorderRadius.circular(4),
           child: SizedBox(width: 127.rw(context),
-            child: AppPropertyMedia(imageUrl: imageUrl, height: 116.rh(context), overlay: trailing))),
+            child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, height: 116.rh(context), overlay: trailing))),
         SizedBox(width: 8.rw(context)),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           children: [
