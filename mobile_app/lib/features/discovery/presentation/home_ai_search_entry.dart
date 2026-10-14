@@ -8,7 +8,9 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
 
 class HomeAiSearchEntry extends ConsumerStatefulWidget {
-  const HomeAiSearchEntry({super.key});
+  const HomeAiSearchEntry({this.location = 'صنعاء', this.type, super.key});
+  final String location;
+  final String? type;
   @override
   ConsumerState<HomeAiSearchEntry> createState() => _HomeAiSearchEntryState();
 }
@@ -24,6 +26,7 @@ class _HomeAiSearchEntryState extends ConsumerState<HomeAiSearchEntry> {
     if (text.trim().isEmpty || ref.read(smartSearchSessionProvider).interpreting) return;
     FocusScope.of(context).unfocus();
     _text.clear();
+    ref.read(smartSearchSessionProvider.notifier).startFromHome(location: widget.location, type: widget.type);
     unawaited(ref.read(smartSearchSessionProvider.notifier).interpret(text));
     context.push('/smart-search');
   }
@@ -49,7 +52,10 @@ class _HomeAiSearchEntryState extends ConsumerState<HomeAiSearchEntry> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [EbrokerIcon(Icons.auto_awesome_outlined, size: 20, color: theme.colorScheme.primary), const SizedBox(width: 8),
           Expanded(child: Text(hasContext ? 'أكمل بحثك' : 'مكان يناسبك', style: theme.textTheme.titleMedium)),
-          TextButton(onPressed: () => context.push('/smart-search'), child: Text(hasContext ? 'شروط بحثك' : 'الفلاتر'))]),
+          TextButton(onPressed: () {
+            ref.read(smartSearchSessionProvider.notifier).startFromHome(location: widget.location, type: widget.type);
+            context.push('/smart-search');
+          }, child: Text(hasContext ? 'شروط بحثك' : 'الفلاتر'))]),
         TextField(key: const ValueKey('home-ai-description'), controller: _text, maxLength: 1000, minLines: 1, maxLines: 3,
           textInputAction: TextInputAction.search, onSubmitted: _submit,
           decoration: InputDecoration(border: InputBorder.none, counterText: '',

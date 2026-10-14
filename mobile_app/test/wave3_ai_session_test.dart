@@ -9,6 +9,17 @@ import 'package:real_estate_mobile/features/properties/domain/property_details.d
 import 'support/wave3_fakes.dart';
 
 void main() {
+  test('a fresh home search starts locally without overwriting an ongoing or explicitly reset session', () async {
+    final ai = Wave3AiFake();
+    final session = SmartSearchSession(ai, Wave3PropertiesFake()); addTearDown(session.dispose);
+    session.startFromHome(location: 'تعز', type: 'land');
+    await session.interpret('أقل سعر: مئة ألف');
+    expect(ai.requests.single.filters, {'search': 'تعز', 'type': 'land'});
+    session.startFromHome(location: 'صنعاء', type: 'apartment');
+    expect(session.state.filters.values['search'], 'تعز');
+    session.reset(); session.startFromHome(location: 'صنعاء');
+    expect(session.state.filters.values, isEmpty);
+  });
   test('followup messages add only a budget, remove only rooms, and preserve type, purpose and place', () async {
     final ai = Wave3AiFake(), properties = Wave3PropertiesFake();
     final session = SmartSearchSession(ai, properties); addTearDown(session.dispose);

@@ -9,7 +9,6 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
-import '../../../core/widgets/ebroker_screen_sections.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../map/presentation/map_screen.dart';
@@ -109,7 +108,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           ])),
         ]))), actions: [Padding(padding: const EdgeInsetsDirectional.only(end: 12), child: IconButton(
           tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'), icon: const EbrokerImage('notification', size: 21)))]),
-      body: RefreshIndicator(onRefresh: () async { try { await ref.refresh(marketplaceFeedProvider(_query).future); } catch (_) {} },
+      body: RefreshIndicator(onRefresh: () async { try { ref.invalidate(marketplaceFeedProvider(_query)); await ref.read(marketplaceFeedProvider(_query).future); } catch (_) {} },
         child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
           SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 0), child: Row(children: [
             Expanded(child: Semantics(button: true, label: 'البحث عن عقار', child: GestureDetector(key: const ValueKey('home-search'), onTap: _openMap,
@@ -118,7 +117,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             const SizedBox(width: 8), IconButton.filledTonal(key: const ValueKey('home-map'), tooltip: 'الخريطة', onPressed: _openMap,
               icon: EbrokerImage('propertymap', size: 22, color: theme.colorScheme.primary)),
           ]))),
-          const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.fromLTRB(18, 14, 18, 4), child: HomeAiSearchEntry())),
+          SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
+            child: HomeAiSearchEntry(location: data?.governorate ?? location.governorate ?? 'صنعاء', type: _type))),
           if (widget.showAdvertiserActions) SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18), child: Wrap(spacing: 10, children: [
             TextButton.icon(onPressed: () => context.push('/broker/workspace'), icon: const EbrokerIcon(Icons.work_outline, size: 18), label: const Text('إدارة عملي')),
             TextButton.icon(onPressed: () => context.push('/add-property'), icon: const EbrokerIcon(Icons.add, size: 18), label: const Text('إضافة عقار')),

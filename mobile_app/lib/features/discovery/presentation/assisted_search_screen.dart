@@ -94,7 +94,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         if (chips.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: [for (final chip in chips)
           ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 36), child: InputChip(
             key: ValueKey('smart-chip-${chip.$1}'), label: Text(chip.$2, maxLines: 1, overflow: TextOverflow.ellipsis),
-            onPressed: () => _edit(focus: chip.$1), onDeleted: () => controller.remove(chip.$1), deleteButtonTooltipMessage: 'إزالة ${chip.$2}'))),
+            onPressed: () => _edit(focus: chip.$1), onDeleted: () => controller.remove(chip.$1), deleteButtonTooltipMessage: 'إزالة ${chip.$2}')),
         ]),
         if (state.message.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(state.message, style: theme.textTheme.bodySmall)),
         const SizedBox(height: 10),

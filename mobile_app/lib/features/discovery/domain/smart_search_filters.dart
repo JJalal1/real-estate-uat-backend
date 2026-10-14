@@ -18,8 +18,8 @@ class SmartSearchFilters {
       if (entry.value is! String && entry.value is! num && entry.value is! bool) continue;
       next[entry.key] = entry.value;
       if (const ['has_parking', 'has_elevator', 'unit_occupies_entire_floor'].contains(entry.key)) {
-        if (entry.value == 0 || entry.value == 1) next[entry.key] = entry.value == 1;
-        else if (entry.value is! bool) next.remove(entry.key);
+        if (entry.value == 0 || entry.value == 1) { next[entry.key] = entry.value == 1; }
+        else if (entry.value is! bool) { next.remove(entry.key); }
       }
     }
     if (next['type'] == 'floor') { next['type'] = 'apartment'; next['unit_occupies_entire_floor'] = true; }

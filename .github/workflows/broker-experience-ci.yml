@@ -224,6 +224,7 @@ jobs:
           test/uat_listing_publish_viewing_flow_test.dart
           test/startup_navigation_layout_test.dart
       - name: Upload rendered template screen previews
+        id: ui_preview_artifact
         continue-on-error: true
         if: ${{ !cancelled() && (steps.stage1_ui.conclusion == 'success' || steps.stage1_ui.conclusion == 'failure') }}
         uses: actions/upload-artifact@v4
@@ -234,6 +235,9 @@ jobs:
             mobile_app/build/broker-preview/
           if-no-files-found: error
           retention-days: 14
+      - name: Transport synthetic UI previews after artifact quota failure
+        if: ${{ !cancelled() && steps.ui_preview_artifact.outcome == 'failure' }}
+        run: python3 -B scripts/emit_ci_ui_previews.py
       - name: Full Flutter regression
         id: flutter_regression
         working-directory: mobile_app

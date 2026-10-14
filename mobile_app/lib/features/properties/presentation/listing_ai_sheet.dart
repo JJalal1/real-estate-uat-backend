@@ -97,7 +97,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           const SizedBox(height: 16), Text(_fields!.isEmpty ? 'لم نجد مواصفات واضحة. يمكنك إكمال الحقول يدويًا.' : 'المواصفات المقترحة', style: Theme.of(context).textTheme.titleMedium),
           for (final entry in _fields!.entries) CheckboxListTile(contentPadding: EdgeInsets.zero, title: Text(labels[entry.key]!),
             subtitle: Text(_value(entry.key, entry.value)), value: _selected.contains(entry.key),
-            onChanged: _busy ? null : (value) => setState(() { if (value == true) _selected.add(entry.key); else _selected.remove(entry.key); })),
+            onChanged: _busy ? null : (value) => setState(() { if (value == true) { _selected.add(entry.key); } else { _selected.remove(entry.key); } })),
           const SizedBox(height: 12), AppButton(label: 'تطبيق المواصفات المحددة', expand: true,
             onPressed: _busy || _selected.isEmpty ? null : () => Navigator.of(context).pop({for (final key in _selected) key: _fields![key]})),
         ],

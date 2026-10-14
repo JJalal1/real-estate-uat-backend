@@ -34,6 +34,12 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   final PropertyRepository _properties;
   int _inference = 0, _results = 0;
 
+  void startFromHome({required String location, String? type}) {
+    if (state.revision != 0 || state.started || state.filters.values.isNotEmpty) return;
+    _replace(SmartSearchFilters.fromMap({'search': location, if (type != null) 'type': type}),
+      message: 'تبدأ الشروط من منطقتك المختارة. يمكنك تغيير الموقع أو إزالته.');
+  }
+
   Future<void> interpret(String message) async {
     final text = message.trim();
     if (text.isEmpty || text.length > 1000) return;
