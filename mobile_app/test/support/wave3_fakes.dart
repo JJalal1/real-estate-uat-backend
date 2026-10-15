@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:real_estate_mobile/core/platform/voice_input.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
@@ -83,13 +84,15 @@ class Wave3MarketplaceFake implements MarketplaceRepository {
   Wave3MarketplaceFake({this.onFeed});
   final Future<MarketplaceFeed> Function(HomeFeedQuery)? onFeed;
   final queries = <HomeFeedQuery>[];
+  final cancelTokens = <CancelToken?>[];
   @override
-  Future<MarketplaceFeed> feed(HomeFeedQuery query) async {
+  Future<MarketplaceFeed> feed(HomeFeedQuery query, {CancelToken? cancelToken}) async {
     queries.add(query);
+    cancelTokens.add(cancelToken);
     return onFeed == null ? MarketplaceFeed(label: 'صنعاء', governorate: 'صنعاء', sections: {'latest': [wave3Property(11)]}) : onFeed!(query);
   }
   @override
-  Future<List<HomeLocation>> locations() async => const [HomeLocation(governorate: 'صنعاء', manual: true), HomeLocation(label: 'تعز', governorate: 'تعز', latitude: 13.58, longitude: 44.02, manual: true)];
+  Future<List<HomeLocation>> locations({CancelToken? cancelToken}) async => const [HomeLocation(governorate: 'صنعاء', manual: true), HomeLocation(label: 'تعز', governorate: 'تعز', latitude: 13.58, longitude: 44.02, manual: true)];
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
 }

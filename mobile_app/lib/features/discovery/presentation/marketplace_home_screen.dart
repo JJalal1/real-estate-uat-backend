@@ -93,7 +93,9 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context), location = ref.watch(homeLocationProvider);
-    final feed = ref.watch(marketplaceFeedProvider(_query));
+    final active = ModalRoute.of(context)?.isCurrent ?? true;
+    final feed = active ? ref.watch(marketplaceFeedProvider(_query))
+      : const AsyncLoading<MarketplaceFeed>();
     final data = feed.asData?.value;
     final label = data?.label ?? location.label;
     return Scaffold(backgroundColor: EbrokerDesign.page,
@@ -129,8 +131,16 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               Padding(padding: const EdgeInsetsDirectional.only(end: 6), child: EbrokerCategoryCard(label: category.$1, icon: ebrokerCategoryIcon(category.$2),
                 selected: _type == category.$2, onTap: () => setState(() => _type = category.$2))),
           ]))),
+          if (feed.hasError && feed.hasValue) SliverToBoxAdapter(child: Padding(
+            key: const ValueKey('home-refresh-error'), padding: const EdgeInsets.all(18),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('تعذّر تحديث العقارات الآن. نعرض آخر تحميل ناجح.'),
+              TextButton.icon(onPressed: () => ref.invalidate(marketplaceFeedProvider(_query)),
+                icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
+            ]))),
           feed.when(
-            loading: () => const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(18), child: AppSkeleton(key: ValueKey('home-feed-loading'), height: 270, radius: 12))),
+            skipError: feed.hasValue,
+            loading: () => const SliverToBoxAdapter(child: _HomeFeedLoading()),
             error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(marketplaceFeedProvider(_query)))),
             data: (data) => SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (data.brokers.isNotEmpty) ...[
@@ -167,6 +177,35 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     if (row.monthlyRent != null) Padding(padding: const EdgeInsets.only(top: 5), child: Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency}', style: Theme.of(context).textTheme.bodySmall)),
     if (row.priceDisplayNote != null) Text(row.priceDisplayNote!, style: Theme.of(context).textTheme.bodySmall),
   ]);
+}
+
+class _HomeFeedLoading extends StatefulWidget {
+  const _HomeFeedLoading();
+  @override
+  State<_HomeFeedLoading> createState() => _HomeFeedLoadingState();
+}
+
+class _HomeFeedLoadingState extends State<_HomeFeedLoading> {
+  Timer? _slowTimer;
+  bool _slow = false;
+  @override
+  void initState() {
+    super.initState();
+    _slowTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _slow = true);
+    });
+  }
+  @override
+  void dispose() { _slowTimer?.cancel(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.all(18),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Semantics(liveRegion: true, child: Text(_slow
+        ? 'الاتصال يستغرق وقتًا أطول. نحاول تحميل العقارات تلقائيًا…'
+        : 'جارٍ تحميل العقارات…', key: const ValueKey('home-loading-message'))),
+      const SizedBox(height: 12),
+      const AppSkeleton(key: ValueKey('home-feed-loading'), height: 270, radius: 12),
+    ]));
 }
 
 class _HomeBrokerCard extends StatelessWidget {

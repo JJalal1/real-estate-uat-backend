@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1]
+    branches: [work/broker-experience-v1, work/home-startup-recovery]
   workflow_dispatch:
 permissions:
   contents: read
@@ -217,6 +217,7 @@ jobs:
           test/wave3_ai_session_test.dart
           test/wave3_ai_design_ui_test.dart
           test/in_app_voice_search_test.dart
+          test/home_startup_recovery_test.dart
           test/ui_transplant_v3_home_test.dart
           test/ui_transplant_v3_template_test.dart
           test/app_components_test.dart
