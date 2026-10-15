@@ -215,15 +215,22 @@ class FinancialPropertyController extends PropertyController
         $saiAmount=0.0;$sai=null;$note=null;$displayPrice=(float)$property->price;
         if($term){
             $basis=$property->purpose==='rent'?(float)($property->monthly_rent?:0):(float)$property->price;
-            if($basis>0)$saiAmount=round($basis*((float)$term->sai_rate_percent/100),2);
+            $fixed = ($term->sai_amount_type ?? 'percentage') === 'fixed';
+            if($fixed)$saiAmount=round((float)$term->fixed_sai_amount,2);
+            elseif($basis>0)$saiAmount=round($basis*((float)$term->sai_rate_percent/100),2);
             $buyerPays=in_array($term->payer,['buyer','tenant'],true);
             $displayMode=$property->price_display_mode ?: ($buyerPays?'excludes_sai':null);
             if($buyerPays){
                 if($displayMode==='includes_sai'){$displayPrice=round((float)$property->price+$saiAmount,2);$note='المبلغ شامل السعي';}
                 else $note='المبلغ غير شامل السعي';
             }
-            if ((int) $property->listing_input_version >= 6) { $displayPrice = (float) $property->price; $note = 'السعي '.(float) $term->sai_rate_percent.'%'; }
-            $sai=['rate_percent'=>(float)$term->sai_rate_percent,'payer'=>$term->payer,'amount'=>$saiAmount];
+            if ((int) $property->listing_input_version >= 6) {
+                $displayPrice = (float) $property->price;
+                $note = $fixed ? 'السعي '.$saiAmount.' '.$term->fixed_sai_currency : 'السعي '.(float) $term->sai_rate_percent.'%';
+            }
+            $sai=['rate_percent'=>$fixed?null:(float)$term->sai_rate_percent,'payer'=>$term->payer,'amount'=>$saiAmount,
+                'amount_type'=>$fixed?'fixed':'percentage','fixed_amount'=>$fixed?$saiAmount:null,
+                'currency'=>$fixed?$term->fixed_sai_currency:$property->currency];
         }
         return array_merge($row,[
             'base_price'=>(float)$property->price,'display_price'=>$displayPrice,'price_display_mode'=>$property->price_display_mode ?: (($term&&in_array($term->payer,['buyer','tenant'],true))?'excludes_sai':null),

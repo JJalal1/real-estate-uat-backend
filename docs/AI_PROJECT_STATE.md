@@ -1,12 +1,18 @@
 # AI Project State — REAL ESTATE UAT
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
-## Active Wave4 direct handoff on APK1039
+## Active Wave5 on current APK1049
+
+The owner explicitly selected1049 as the new wave's baseline. Source `db378214ade105a7046a2d1069095070ac76f7a4` remains on UAT and the live Frankfurt service; implementation is isolated on `work/wave5-baseline-1049`. Read `WAVE5_BASELINE_1049_AR.md` for listing input7, inline rental requirements, native immutable fixed-fee Sai and lightweight Home/Account entries to the same search session. Existing manual-stop whole-recording voice and retired viewings remain.
+
+Code preparation is complete; new CI/APK evidence and handset review remain pending. No new UAT merge/deploy, data seed, resource or secrets change has occurred. The baseline1049 has CI49 and live deployment `dep-db8if3u89jmc73dsm750`; the baseline handset/full-video gate remains open. PR73 holds separate Wave4 completion evidence and remains unmerged.
+
+## Retained Wave4 baseline history
 
 The attached October15 handoff explicitly rejects1043 as this wave's base. Work starts at `998f3456d5dd74b493052376cf0091737c1eaf21` (tree `5a256de722eae6819f45d269768964163afcd7e9`) on `work/wave4-baseline-1039`; all locally present baseline blobs were hash-verified before changes. Existing startup retry/cache changes are excluded. Read `WAVE4_BASELINE_1039_AR.md` for the listing version6, optional rental conditions, deferred post-publication Sai consent, whole-recording voice and retirement of the active viewing journey.
 
-Implementation is in progress and not yet accepted. Tests/CI/APK and live UAT deployment must be recorded before delivery. Two named reference MP4s were not attached; seven embedded reference images were reviewed, without a claim that either full video was watched. Handset/motion acceptance remains separate. Historical statements below refer to earlier work and do not override this explicit Wave4 scope.
+Wave4 implementation, CI49, APK1049 and the Frankfurt deployment completed at source `db378214ade105a7046a2d1069095070ac76f7a4`; handset acceptance and full-video comparison remain open. Two named reference MP4s were not attached; seven embedded reference images were reviewed, without a claim that either full video was watched. Handset/motion acceptance remains separate. Historical statements below refer to earlier work and do not override this explicit Wave4 scope.
 
 ## In-app search dictation — October 14 evening correction
 

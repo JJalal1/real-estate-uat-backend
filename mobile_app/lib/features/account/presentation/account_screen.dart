@@ -37,6 +37,11 @@ class AccountScreen extends ConsumerWidget {
               SliverPersistentHeader(pinned: true, delegate: _AccountHeaderDelegate(user: user, scale: MediaQuery.textScalerOf(context).scale(14) / 14)),
               SliverPadding(padding: const EdgeInsetsDirectional.fromSTEB(AppLayout.compactPageGutter, 12, AppLayout.compactPageGutter, AppSpacing.s32),
                 sliver: SliverList.list(children: [
+                AppListRow(key: const ValueKey('account-smart-search'),
+                  title: 'البحث الذكي', subtitle: 'ابحث بالنص أو الصوت وعدّل شروطك بسهولة',
+                  leading: const EbrokerIcon(Icons.auto_awesome_outlined),
+                  onTap: () => context.push('/smart-search')),
+                const SizedBox(height: AppSpacing.s12),
                 if (user == null) ...[
                   AppListRow(title: 'المفضلة', leading: const EbrokerImage('heart'),
                     onTap: () => context.push('/favorites')),

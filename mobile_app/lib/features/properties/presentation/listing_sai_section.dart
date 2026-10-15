@@ -4,50 +4,91 @@ import '../../../core/widgets/app_components.dart';
 import '../domain/property_sai.dart';
 
 class ListingSaiSection extends StatelessWidget {
-  const ListingSaiSection({required this.purpose, required this.policy,
-    required this.rateController, required this.basis, required this.accepted,
-    required this.onChanged, required this.onAcceptanceChanged,
-    required this.onRetry, this.error, this.enabled = true, super.key});
+  const ListingSaiSection({
+    required this.purpose,
+    required this.policy,
+    required this.rateController,
+    required this.basis,
+    required this.accepted,
+    required this.onChanged,
+    required this.onAcceptanceChanged,
+    required this.onRetry,
+    this.amountController,
+    this.amountType = 'percentage',
+    this.onAmountTypeChanged,
+    this.error,
+    this.enabled = true,
+    super.key,
+  });
 
-  final String purpose;
+  final String purpose, amountType;
   final PropertySaiManagement? policy;
   final TextEditingController rateController;
+  final TextEditingController? amountController;
   final double? basis;
   final bool accepted, enabled;
   final VoidCallback onChanged, onRetry;
   final ValueChanged<bool> onAcceptanceChanged;
+  final ValueChanged<String>? onAmountTypeChanged;
   final String? error;
 
   @override
   Widget build(BuildContext context) {
     final current = policy;
     final theme = Theme.of(context);
-    final rate = double.tryParse(rateController.text.trim());
-    final quote = current == null || rate == null || basis == null
-      ? null : PropertySaiQuote.calculate(current, rate, basis!);
-    String amount(double value) => '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} ريال';
+    final fixed = amountType == 'fixed' && current?.isOwner != true;
+    final rate = current != null && current.isOwner ? current.fixedRatePercent
+        : parseSaiNumber(rateController.text);
+    final enteredAmount = fixed ? parseSaiNumber(amountController?.text ?? '') : null;
+    final quote = current == null || basis == null ||
+        (fixed ? enteredAmount == null : rate == null)
+        ? null : PropertySaiQuote.calculate(current, rate ?? 0, basis!, fixedAmount: enteredAmount);
+    final fixedRateText = current?.fixedRatePercent?.toStringAsFixed(0) ?? '—';
+    final maximumText = current?.brokerMaxRatePercent?.toStringAsFixed(0) ?? '—';
+    final basisText = purpose == 'rent' ? 'إيجار الشهر الأول' : 'سعر البيع';
+    final zeroText = fixed ? '0' : '0%';
+    String amount(double value) =>
+        '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} ريال';
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Divider(height: 32),
       Text('السعي', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
       const SizedBox(height: 6),
-      Text(purpose == 'rent' ? 'يتحمله المستأجر، ويُحسب على إيجار شهر واحد.' : 'يتحمله المشتري، ويُحسب على سعر البيع.',
-        style: theme.textTheme.bodySmall),
+      Text(purpose == 'rent' ? 'يتحمله المستأجر.' : 'يتحمله المشتري.',
+          style: theme.textTheme.bodySmall),
       const SizedBox(height: 14),
       if (current == null)
         error == null ? const AppSkeleton(height: 52, radius: 6)
-        : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(error!, style: TextStyle(color: theme.colorScheme.error)),
-            TextButton(onPressed: enabled ? onRetry : null, child: const Text('إعادة تحميل سياسة السعي')),
-          ])
+          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(error!, style: TextStyle(color: theme.colorScheme.error)),
+              TextButton(onPressed: enabled ? onRetry : null,
+                  child: const Text('إعادة تحميل سياسة السعي')),
+            ])
       else ...[
         if (current.isOwner)
-          Text('النسبة الثابتة ${current.fixedRatePercent?.toStringAsFixed(0) ?? '—'}%')
-        else
-          TextField(key: const ValueKey('listing-sai-rate'), controller: rateController,
-            enabled: enabled, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(labelText: 'نسبة السعي %',
-              helperText: 'من 0 إلى ${current.brokerMaxRatePercent?.toStringAsFixed(0) ?? '—'}%'),
-            onChanged: (_) => onChanged()),
+          Text('النسبة الثابتة $fixedRateText%')
+        else ...[
+          Wrap(spacing: 8, runSpacing: 6, children: [
+            ChoiceChip(key: const ValueKey('listing-sai-percentage'),
+              label: const Text('نسبة مئوية %'), selected: !fixed,
+              onSelected: !enabled ? null : (_) => onAmountTypeChanged?.call('percentage')),
+            ChoiceChip(key: const ValueKey('listing-sai-fixed'),
+              label: const Text('مبلغ ثابت'), selected: fixed,
+              onSelected: !enabled ? null : (_) => onAmountTypeChanged?.call('fixed')),
+          ]),
+          const SizedBox(height: 12),
+          if (fixed)
+            TextField(key: const ValueKey('listing-sai-amount'), controller: amountController,
+              enabled: enabled, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'مبلغ السعي بالريال اليمني', hintText: '0'),
+              onChanged: (_) => onChanged())
+          else
+            TextField(key: const ValueKey('listing-sai-rate'), controller: rateController,
+              enabled: enabled, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: 'نسبة السعي %', hintText: '0',
+                helperText: 'من 0 إلى $maximumText% من $basisText'),
+              onChanged: (_) => onChanged()),
+        ],
         if (quote != null) ...[
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 4, children: [
@@ -56,13 +97,11 @@ class ListingSaiSection extends StatelessWidget {
               style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.primary)),
           ]),
         ],
-        if (!current.isOwner && rate == 0) ...[
+        if (!current.isOwner && (fixed ? enteredAmount == 0 : rate == 0)) ...[
           const SizedBox(height: 8),
-          Text('اختيار 0% يفعّل السعي الثابت ${current.fixedRatePercent?.toStringAsFixed(0) ?? '—'}% تلقائيًا.',
-            style: theme.textTheme.bodySmall),
+          Text('اختيار $zeroText يفعّل السعي الثابت $fixedRateText% تلقائيًا.',
+              style: theme.textTheme.bodySmall),
         ],
-        const SizedBox(height: 6),
-        Text('المبالغ تقديرية حسب السعر؛ التسوية تُحسب عند تأكيد نتيجة الصفقة.', style: theme.textTheme.bodySmall),
       ],
     ]);
   }

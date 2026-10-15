@@ -15,7 +15,9 @@ def main():
                 'build/broker-preview/dashboard.png', 'build/broker-preview/refinement-smart-filters.png',
                 'build/broker-preview/voice-home-listening.png', 'build/broker-preview/voice-home-large-text.png',
                 'build/broker-preview/refinement-inline-sai.png', 'build/broker-preview/refinement-wave4-specifications.png',
-                'build/broker-preview/refinement-wave4-specifications-content.png', 'build/broker-preview/wave4-customer-management.png']
+                'build/broker-preview/refinement-wave4-specifications-content.png', 'build/broker-preview/wave4-customer-management.png',
+                'build/broker-preview/wave5-home.png', 'build/broker-preview/wave5-home-large.png',
+                'build/broker-preview/wave5-rental-conditions.png']
     for path in selected:
         file = Path('mobile_app') / path
         if not file.is_file():

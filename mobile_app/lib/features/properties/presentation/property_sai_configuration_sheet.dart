@@ -49,6 +49,8 @@ class _SaiConfigurationBody extends StatefulWidget {
 
 class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
   late final TextEditingController _rateController;
+  late final TextEditingController _amountController;
+  String _amountType = 'percentage';
   String? _payer;
   bool _busy = false;
   String? _error;
@@ -61,27 +63,40 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
   double get fixedRate => management.fixedRatePercent ?? (isSale ? 1 : 20);
   double get maxProfessionalRate =>
       management.brokerMaxRatePercent ?? (isSale ? 5 : 100);
-  double get enteredRate => double.tryParse(_rateController.text.trim()) ?? 0;
+  double get enteredRate => parseSaiNumber(_rateController.text) ?? double.nan;
+  double get enteredAmount => parseSaiNumber(_amountController.text) ?? double.nan;
+  bool get fixed => !isOwner && _amountType == 'fixed';
+  bool get custom => fixed ? enteredAmount.isFinite && enteredAmount > 0
+      : enteredRate.isFinite && enteredRate > 0 && enteredRate <= maxProfessionalRate;
 
   @override
   void initState() {
     super.initState();
     final currentRequested = management.requestedBrokerRatePercent;
     _rateController = TextEditingController(
-      text: currentRequested == null ? '0' : _formatRate(currentRequested),
+      text: currentRequested == null ? '' : _formatRate(currentRequested),
     );
+    _amountController = TextEditingController(text: management.fixedAmount?.toString() ?? '');
+    _amountType = management.amountType;
     _payer = isSale ? 'buyer' : 'tenant';
   }
 
   @override
   void dispose() {
     _rateController.dispose();
+    _amountController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final effective = isOwner || enteredRate == 0 ? fixedRate : enteredRate;
+    final active = fixed ? enteredAmount : enteredRate;
+    final effective = isOwner || active == 0 ? fixedRate : active;
+    final payerLabel = isSale ? 'المشتري' : 'المستأجر';
+    final display = fixed && active.isFinite && active > 0
+        ? 'السعي ${_formatRate(active)} ${management.fixedCurrency ?? 'YER'}'
+        : fixed && !active.isFinite ? 'حدد مبلغ السعي'
+        : 'السعي ${effective.isFinite ? _formatRate(effective) : '—'}% يتحمله $payerLabel';
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -112,20 +127,28 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
                   tone: AppStatusTone.info,
                 )
               else ...[
+                Wrap(spacing: 8, runSpacing: 6, children: [
+                  ChoiceChip(label: const Text('نسبة مئوية %'), selected: !fixed,
+                    onSelected: _busy ? null : (_) => setState(() => _amountType = 'percentage')),
+                  ChoiceChip(label: const Text('مبلغ ثابت'), selected: fixed,
+                    onSelected: _busy ? null : (_) => setState(() => _amountType = 'fixed')),
+                ]),
+                const SizedBox(height: AppSpacing.s12),
                 TextField(
-                  controller: _rateController,
+                  controller: fixed ? _amountController : _rateController,
                   enabled: !_busy,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
-                    labelText: 'نسبة السعي %',
-                    helperText: isSale
+                    labelText: fixed ? 'مبلغ السعي بالريال اليمني' : 'نسبة السعي %',
+                    hintText: '0',
+                    helperText: fixed ? 'مبلغ ثابت لا يتغير بتغير سعر إتمام الصفقة.' : isSale
                         ? 'المسموح من 0% إلى 5%.'
                         : 'المسموح من 0% إلى 100% من إيجار الشهر الأول.',
                   ),
                   onChanged: (_) => setState(() => _error = null),
                 ),
                 const SizedBox(height: AppSpacing.s12),
-                if (enteredRate == 0)
+                if ((fixed ? enteredAmount : enteredRate) == 0)
                   AppInlineMessage(
                     title: 'سعي الدلال/المكتب 0%',
                     message: isSale
@@ -133,21 +156,21 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
                         : 'سيُفعّل تلقائياً السعي الثابت 20% من إيجار الشهر الأول، وليس صفقة بدون سعي.',
                     tone: AppStatusTone.info,
                   )
-                else if (enteredRate > 0 && enteredRate <= maxProfessionalRate)
+                else if (custom)
                   const AppInlineMessage(
                     message: 'للتطبيق نسبة مقدارها 20% من مبلغ السعي عند إتمام الصفقة.',
                     tone: AppStatusTone.warning,
                   ),
               ],
               const SizedBox(height: AppSpacing.s16),
-              Text('السعي ${_formatRate(effective)}% يتحمله ${isSale ? 'المشتري' : 'المستأجر'}',
+              Text(display,
                 style: Theme.of(context).textTheme.bodyMedium),
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.s8),
                 AppInlineMessage(message: _error!, tone: AppStatusTone.error),
               ],
               const SizedBox(height: AppSpacing.s20),
-              if (!isOwner && enteredRate > 0 && enteredRate <= maxProfessionalRate)
+              if (!isOwner && custom)
                 Row(
                   children: [
                     Expanded(
@@ -199,9 +222,10 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
     }
 
     final rate = enteredRate;
-    if (!isOwner && (rate < 0 || rate > maxProfessionalRate)) {
+    if (!isOwner && (fixed ? !enteredAmount.isFinite || enteredAmount < 0
+        : !rate.isFinite || rate < 0 || rate > maxProfessionalRate)) {
       setState(() {
-        _error = isSale
+        _error = fixed ? 'أدخل مبلغ سعي صحيحًا أكبر من أو يساوي صفرًا.' : isSale
             ? 'نسبة السعي في البيع يجب أن تكون بين 0% و5%.'
             : 'نسبة السعي في الإيجار يجب أن تكون بين 0% و100% من إيجار الشهر الأول.';
       });
@@ -216,7 +240,9 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
       final result = await widget.repository.configureSai(
         widget.propertyId,
         payer: payer,
-        brokerRatePercent: isOwner ? null : rate,
+        brokerRatePercent: isOwner || fixed ? null : rate,
+        amountType: fixed ? 'fixed' : 'percentage',
+        fixedAmount: fixed ? enteredAmount : null,
         platformTermsDecision: decision,
       );
       if (!mounted) return;

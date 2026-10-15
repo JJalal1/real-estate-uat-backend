@@ -58,6 +58,8 @@ class PropertySaiController extends Controller
         $validated = $request->validate([
             'sai_payer' => ['sometimes', 'string', Rule::in(['seller', 'buyer', 'landlord', 'tenant'])],
             'broker_sai_rate_percent' => ['nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
+            'sai_amount_type' => ['sometimes', Rule::in(['percentage', 'fixed'])],
+            'fixed_sai_amount' => ['nullable', 'required_if:sai_amount_type,fixed', 'prohibited_unless:sai_amount_type,fixed', 'numeric', 'min:0', 'max:999999999999.99', 'decimal:0,2'],
             'defer_platform_terms' => ['sometimes', 'boolean'],
             'platform_terms_decision' => ['nullable', 'string', Rule::in(['accept', 'reject'])],
         ]);
@@ -75,6 +77,8 @@ class PropertySaiController extends Controller
             isset($validated['platform_terms_decision']) ? (string) $validated['platform_terms_decision'] : null,
             $request,
             $request->boolean('defer_platform_terms'),
+            (string) ($validated['sai_amount_type'] ?? 'percentage'),
+            isset($validated['fixed_sai_amount']) ? (float) $validated['fixed_sai_amount'] : null,
         );
 
         $fresh = $property->fresh(['user.accountVerificationProfile']);

@@ -16,9 +16,15 @@ class PropertyIdentityService
     private const UNIT_TYPES = ['apartment', 'floor', 'office', 'shop'];
     private const CHECKABLE_STATES = ['submitted', 'under_review', 'approved'];
 
-    public function resolveOrCreateAsset(User $actor, array $listing): PropertyAsset
+    public function resolveOrCreateAsset(User $actor, array $listing, ?PropertyAsset $previous = null): PropertyAsset
     {
         $identity = $this->identityData($listing);
+        if ($previous && $identity['identity_kind'] === 'unit' && $identity['unit_identity_key'] === null
+            && $previous->identity_kind === 'unit' && $previous->unit_identity_key === null
+            && $previous->building_identity_key === $identity['building_identity_key']
+            && $previous->floor_number === $identity['floor_number']) {
+            return $previous;
+        }
         $existing = $this->findExactAsset($identity);
         if ($existing) return $existing;
 
@@ -80,7 +86,8 @@ class PropertyIdentityService
                 && $this->unitMarker((string) ($listing['floor_number'] ?? '')) === '') {
                 $errors['floor_number'][] = 'حدد أي دور يعرضه الإعلان.';
             }
-            if ($type !== 'floor' && !($type === 'apartment' && (bool) ($listing['unit_occupies_entire_floor'] ?? false)) && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '') {
+            if ($type !== 'floor' && !($type === 'apartment' && (bool) ($listing['unit_occupies_entire_floor'] ?? false))
+                && ! $this->allowsUnspecifiedRentalUnit($listing) && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '') {
                 $errors['unit_number'][] = 'حدد رقم الوحدة أو موضعها داخل الدور حتى نميزها عن غيرها.';
             }
             if (trim((string) ($listing['address'] ?? '')) === '') {
@@ -186,6 +193,13 @@ class PropertyIdentityService
             throw new ConflictHttpException('هذا العقار أو هذه الوحدة مسجلة بالفعل على المنصة ولا يمكن إنشاء إعلان آخر لها.');
         }
         if ($result['decision'] === 'possible_duplicate' && empty($listing->duplicate_self_verification)) {
+            if ($this->allowsUnspecifiedRentalUnit($listing->getAttributes())
+                && in_array('unit_identity_incomplete', $result['signals'] ?? [], true)) {
+                // Missing a position is allowed, but it requires an auditable
+                // human identity decision rather than an invented unit number.
+                $listing->forceFill(['duplicate_check_status' => 'needs_support'])->save();
+                return array_merge($result, ['status' => 'needs_support']);
+            }
             throw ValidationException::withMessages([
                 'duplicate_self_verification' => ['وجدنا عقاراً مشابهاً جداً بالقرب من هذا الموقع. أكد أنه عقار مختلف وأدخل سبب الاختلاف قبل الإرسال.'],
             ]);
@@ -435,9 +449,12 @@ class PropertyIdentityService
 
     private function finishEvaluation(Property $listing, ?User $actor, array $result, bool $persist): array
     {
+        $needsSupport = ! empty($listing->duplicate_self_verification)
+            || ($this->allowsUnspecifiedRentalUnit($listing->getAttributes())
+                && in_array('unit_identity_incomplete', $result['signals'] ?? [], true));
         $result['status'] = match ($result['decision']) {
             'confirmed_duplicate' => 'confirmed_duplicate',
-            'possible_duplicate' => empty($listing->duplicate_self_verification) ? 'self_verification_required' : 'needs_support',
+            'possible_duplicate' => $needsSupport ? 'needs_support' : 'self_verification_required',
             default => 'distinct',
         };
         $result['message'] = match ($result['status']) {
@@ -446,6 +463,9 @@ class PropertyIdentityService
             'needs_support' => 'بقيت حالة تشابه غير محسومة وستذهب للمراجعة الاستثنائية.',
             default => 'لم نجد تكراراً يمنع النشر.',
         };
+        if ($this->allowsUnspecifiedRentalUnit($listing->getAttributes()) && $result['status'] === 'needs_support') {
+            $result['message'] = 'سيُراجع فريق الدعم هوية الوحدة وموضعها قبل اعتماد الإعلان.';
+        }
         if (! $persist) return $result;
 
         $listing->forceFill([
@@ -502,11 +522,16 @@ class PropertyIdentityService
             ? $address.'|'.$buildingReference
             : 'v4|'.$address.'|'.number_format((float) $listing['latitude'], 5, '.', '').'|'.number_format((float) $listing['longitude'], 5, '.', '')) : null;
         $unitKey = $kind === 'unit' ? hash('sha256', ($floorNumber ?? '').'|'.$unitNumber) : null;
+        if ($this->allowsUnspecifiedRentalUnit($listing) && ! $wholeFloor) {
+            $unitKey = null;
+        }
         $boundary = $kind === 'land' ? $this->normalizeBoundary($listing['land_boundary_geojson'] ?? null) : null;
         $boundaryJson = $boundary ? json_encode($boundary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
         $boundaryHash = $boundaryJson ? hash('sha256', $boundaryJson) : null;
         $identityHash = match ($kind) {
-            'unit' => hash('sha256', 'v2|unit|'.$buildingKey.'|'.$unitKey),
+            'unit' => $unitKey === null
+                ? hash('sha256', 'v7|unresolved-unit|'.Str::uuid())
+                : hash('sha256', 'v2|unit|'.$buildingKey.'|'.$unitKey),
             'land' => hash('sha256', 'v2|land|'.($boundaryHash ?: $this->pointIdentity($listing, $address))),
             default => hash('sha256', 'v2|standalone|'.$this->pointIdentity($listing, $address)),
         };
@@ -527,12 +552,21 @@ class PropertyIdentityService
     private function findExactAsset(array $identity): ?PropertyAsset
     {
         if ($identity['identity_kind'] === 'unit') {
+            if ($identity['unit_identity_key'] === null) return null;
             return PropertyAsset::query()->where('status', 'active')->where('building_identity_key', $identity['building_identity_key'])->where('unit_identity_key', $identity['unit_identity_key'])->first();
         }
         if ($identity['identity_kind'] === 'land' && $identity['land_boundary_hash']) {
             return PropertyAsset::query()->where('status', 'active')->where('land_boundary_hash', $identity['land_boundary_hash'])->first();
         }
         return PropertyAsset::query()->where('status', 'active')->where('identity_hash', $identity['identity_hash'])->first();
+    }
+
+    private function allowsUnspecifiedRentalUnit(array $listing): bool
+    {
+        return (int) ($listing['listing_input_version'] ?? 1) >= 7
+            && ($listing['type'] ?? '') === 'apartment' && ($listing['purpose'] ?? '') === 'rent'
+            && ! ($listing['unit_occupies_entire_floor'] ?? false)
+            && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '';
     }
 
     private function normalizeBoundary(mixed $value): ?array

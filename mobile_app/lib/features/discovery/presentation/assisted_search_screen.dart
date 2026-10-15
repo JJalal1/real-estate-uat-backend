@@ -143,12 +143,12 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           else if (state.rows.isEmpty)
             AppEmptyState(title: 'لا توجد عقارات بهذه الشروط', message: 'وسّع الميزانية أو عدّل الموقع والنوع.', actionLabel: 'تعديل الشروط', onAction: () => _edit()),
           for (final row in state.rows) Padding(padding: const EdgeInsets.only(bottom: 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            EbrokerPropertyHorizontalCard(imageFirst: false, title: row.title, price: (row.monthlyRent ?? row.price).toStringAsFixed(0), currency: row.currency,
+            EbrokerPropertyHorizontalCard(key: ValueKey('smart-search-result-${row.id}'), imageFirst: false, title: row.title, price: (row.monthlyRent ?? row.price).toStringAsFixed(0), currency: row.currency,
               imageUrl: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight, location: row.address,
               facts: [if (row.bedrooms != null) AppPropertyFact(icon: Icons.bed_outlined, label: '${row.bedrooms} غرف'), if (row.areaM2 != null) AppPropertyFact(icon: Icons.square_foot, label: '${row.areaM2} م²'), if (row.floorNumber != null) AppPropertyFact(icon: Icons.layers_outlined, label: row.floorNumber!)],
               categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? (row.monthlyRent == null ? 'للإيجار' : 'إيجار شهري') : 'للبيع',
               onTap: () => context.push('/properties/${row.id}')),
-            if (row.priceDisplayNote != null && (row.monthlyRent == null || row.priceDisplayNote!.contains('%'))) Text(row.priceDisplayNote!, style: theme.textTheme.bodySmall),
+            if (row.priceDisplayNote != null && (row.monthlyRent == null || row.priceDisplayNote!.contains('السعي'))) Text(row.priceDisplayNote!, style: theme.textTheme.bodySmall),
           ])),
           if (state.more && state.resultsError == null) TextButton(onPressed: state.loading ? null : () => controller.search(more: true), child: const Text('المزيد من العقارات')),
         ],

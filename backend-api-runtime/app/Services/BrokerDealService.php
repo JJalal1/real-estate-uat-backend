@@ -42,6 +42,9 @@ class BrokerDealService
             $existing = BrokerDealOutcome::query()->where('message_thread_id',$thread->id)->first();
             if ($existing) return $existing;
             $frozenTerm = $thread->sai_term_id ? PropertySaiTerm::query()->find($thread->sai_term_id) : null;
+            if ($frozenTerm?->sai_amount_type === 'fixed' && $frozenTerm->fixed_sai_currency !== $property->currency) {
+                throw new ConflictHttpException('عملة الصفقة لا تطابق عملة مبلغ السعي المحفوظ لهذه المحادثة.');
+            }
             if ($frozenTerm && $frozenTerm->platform_terms_status === 'pending' && ! $this->sai->hasPlatformConsent($frozenTerm)) {
                 throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
                     'message'=>'راجع إقرار السعي المحفوظ لهذه المحادثة قبل تسجيل إتمام الصفقة.', 'code'=>'sai_consent_required',
@@ -159,7 +162,9 @@ class BrokerDealService
             'base_amount'=>$outcome->basis_amount,'monthly_basis_amount'=>$outcome->transaction_type === 'rent' ? $outcome->basis_amount : null,
             'sai_payer'=>$sai->payer,'sai_total_amount'=>$amounts['total_sai'],'platform_share_amount'=>$amounts['platform_share'],
             'advertiser_sai_share_amount'=>$amounts['broker_share'],'snapshot'=>array_merge($outcome->snapshot,
-                ['deal_reference'=>$outcome->reference,'sai_term_id'=>$sai->id,'sai_version'=>$sai->version]),'frozen_at'=>now(),
+                ['deal_reference'=>$outcome->reference,'sai_term_id'=>$sai->id,'sai_version'=>$sai->version,
+                    'sai_amount_type'=>$sai->sai_amount_type,'fixed_sai_amount'=>$sai->fixed_sai_amount,
+                    'fixed_sai_currency'=>$sai->fixed_sai_currency]),'frozen_at'=>now(),
         ]);
         if ($amounts['platform_share'] <= 0) return;
         $due = PropertyPlatformReceivable::query()->create([

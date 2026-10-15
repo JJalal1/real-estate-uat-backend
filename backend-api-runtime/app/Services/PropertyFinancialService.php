@@ -90,6 +90,9 @@ class PropertyFinancialService
                     'agreement_reference'=>$locked->reference,
                     'sai_term_id'=>(int) $settlement->sai_term_id,
                     'sai_rate_percent'=>(float) $settlement->sai_rate_percent,
+                    'sai_amount_type'=>$term->sai_amount_type ?? 'percentage',
+                    'fixed_sai_amount'=>$term->fixed_sai_amount ?? null,
+                    'fixed_sai_currency'=>$term->fixed_sai_currency ?? null,
                     'calculation_basis'=>$settlement->calculation_basis,
                 ],
                 'frozen_at'=>now(),
@@ -322,6 +325,10 @@ class PropertyFinancialService
         $rate = rtrim(rtrim(number_format((float) $term->platform_share_percent, 2, '.', ''), '0'), '.');
         $sai = rtrim(rtrim(number_format((float) $term->sai_rate_percent, 2, '.', ''), '0'), '.');
         $basis = $term->purpose === 'rent' ? 'إيجار الشهر الأول' : 'قيمة البيع النهائية';
+        if (($term->sai_amount_type ?? 'percentage') === 'fixed') {
+            $amount = rtrim(rtrim(number_format((float) $term->fixed_sai_amount, 2, '.', ''), '0'), '.');
+            return 'السعي المحفوظ: مبلغ ثابت '.$amount.' '.$term->fixed_sai_currency.'. ألتزم بسداد مستحق المنصة ('.$rate.'% من مبلغ السعي) عند إتمام صفقة جاءت من عميل عبر المنصة. يظهر المستحق في التسوية عند إتمام الصفقة.';
+        }
         return 'السعي المحفوظ: '.$sai.'% من '.$basis.'. ألتزم بسداد مستحق المنصة ('.$rate.'% من مبلغ السعي) عند إتمام صفقة جاءت من عميل عبر المنصة. يظهر المستحق في التسوية عند إتمام الصفقة.';
     }
 
