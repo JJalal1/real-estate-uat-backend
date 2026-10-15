@@ -6,7 +6,7 @@ import 'package:real_estate_mobile/core/widgets/app_components.dart';
 
 const _roleLabels = <String, List<String>>{
   'anonymous': ['العقارات', 'حسابي'],
-  'regular': ['العقارات', 'الرسائل', 'المعاينات', 'حسابي'],
+  'regular': ['العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'],
   'advertiser': ['الرئيسية', 'عملي', 'العملاء', 'نشاطي', 'حسابي'],
   'agent': ['لوحة الدعم', 'الوارد', 'مهامي', 'الرسائل', 'حسابي'],
   'manager': ['لوحة الدعم', 'الأعمال', 'الفريق', 'حسابي'],

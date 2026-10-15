@@ -137,6 +137,7 @@ void main() {
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
     await tester.pumpAndSettle();
     expect(find.textContaining('معاينات للمتابعة'), findsNothing);
+    await tester.tap(find.textContaining('إجراءات أخرى')); await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('تابع نتائج الصفقات التي تنتظر التأكيد')); await tester.pumpAndSettle();
     await tester.tap(find.text('تابع نتائج الصفقات التي تنتظر التأكيد').hitTestable()); await tester.pumpAndSettle();
     expect(find.text('selected:null'), findsOneWidget);

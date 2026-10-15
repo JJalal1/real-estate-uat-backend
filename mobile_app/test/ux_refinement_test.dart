@@ -198,8 +198,10 @@ void main() {
 
   testWidgets('rental apartment area is optional but photos gate leaving the specifications step', (tester) async {
     final recovery = _snapshot(type: 'apartment')..['purpose'] = 'rent';
-    (recovery['fields'] as Map).addAll({'area': '', 'monthly_rent': '100000'});
-    await _pump(tester, const ListingEditorScreen(), snapshot: recovery);
+    (recovery['fields'] as Map<String, String>).addAll({'area': '', 'monthly_rent': '100000'});
+    final boundary = GlobalKey();
+    await _pump(tester, const ListingEditorScreen(), snapshot: recovery, boundary: boundary);
+    await _capture(tester, boundary, 'wave4-specifications');
     expect(find.text('المساحة (اختياري)'), findsOneWidget);
     expect(find.text('أي دور؟ *'), findsOneWidget);
     expect(find.text('الوحدة تشغل الدور كاملًا'), findsNothing);
@@ -210,6 +212,7 @@ void main() {
     await tester.scrollUntilVisible(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), 350, scrollable: find.byType(Scrollable).first);
     expect(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), findsOneWidget);
     expect(find.text('إنشاء وصف مقترح'), findsOneWidget);
+    await _capture(tester, boundary, 'wave4-specifications-content');
     expect(tester.takeException(), isNull);
   });
 

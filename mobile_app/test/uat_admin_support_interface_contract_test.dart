@@ -8,12 +8,12 @@ void main() {
       'lib/features/admin/presentation/admin_dashboard_screen.dart',
     ).readAsString();
 
+    expect(source, isNot(contains('الحجوزات والمعاينات')));
     for (final label in const [
       'المستخدمون والأدوار والصلاحيات',
       'الإعلانات والمراجعة',
       'الخريطة والمناطق',
       'الدعم والبلاغات',
-      'الحجوزات والمعاينات',
       'الخدمات والمدفوعات',
       'سجل العمليات',
       'الإعدادات',

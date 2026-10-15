@@ -42,7 +42,13 @@ class BrokerDealService
             $existing = BrokerDealOutcome::query()->where('message_thread_id',$thread->id)->first();
             if ($existing) return $existing;
             $frozenTerm = $thread->sai_term_id ? PropertySaiTerm::query()->find($thread->sai_term_id) : null;
-            if ($frozenTerm) $this->sai->assertSettlementConsent($frozenTerm);
+            if ($frozenTerm && $frozenTerm->platform_terms_status === 'pending' && ! $this->sai->hasPlatformConsent($frozenTerm)) {
+                throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+                    'message'=>'راجع إقرار السعي المحفوظ لهذه المحادثة قبل تسجيل إتمام الصفقة.', 'code'=>'sai_consent_required',
+                    'data'=>['property_id'=>(int)$property->id,'sai_term_id'=>(int)$frozenTerm->id,
+                        'text'=>$this->finance->attestationText($property,$frozenTerm)],
+                ],409));
+            }
             $basis = $amount ?? ($property->purpose === 'rent' ? (float) ($property->monthly_rent ?: $property->price) : (float) $property->price);
             abort_unless($basis > 0, 422);
             $state = $property->purpose === 'rent' ? 'rented' : 'sold';

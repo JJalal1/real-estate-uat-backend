@@ -218,6 +218,7 @@ jobs:
           test/wave3_ai_session_test.dart
           test/wave3_ai_design_ui_test.dart
           test/wave4_listing_ui_test.dart
+          test/wave4_sai_consent_test.dart
           test/in_app_voice_search_test.dart
           test/ui_transplant_v3_home_test.dart
           test/ui_transplant_v3_template_test.dart

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,6 +7,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../community/data/community_repository.dart';
 import '../../financial/presentation/receivable_payment_screen.dart';
+import '../../financial/data/financial_repository.dart';
 import '../../messages/domain/message_models.dart';
 import '../../messages/presentation/messages_screen.dart';
 import '../data/broker_repository.dart';
@@ -35,11 +37,32 @@ Future<void> reportBrokerDeal(BuildContext context, WidgetRef ref, int threadId)
   ));
   if (amount == null || !context.mounted) return;
   try {
-    final deal = await ref.read(brokerRepositoryProvider).reportDeal(threadId, amount: amount < 0 ? null : amount);
+    final deal = await _reportWithSaiConsent(context, ref, threadId, amount < 0 ? null : amount);
+    if (deal == null || !context.mounted) return;
     refreshBrokerData(ref);
     if (context.mounted) await context.push('/broker/deals/${deal.id}');
   } catch (error) {
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+  }
+}
+
+Future<BrokerDeal?> _reportWithSaiConsent(BuildContext context, WidgetRef ref, int threadId, double? amount) async {
+  final repository = ref.read(brokerRepositoryProvider);
+  try { return await repository.reportDeal(threadId, amount: amount); }
+  on DioException catch (error) {
+    final body = error.response?.data;
+    if (error.response?.statusCode != 409 || body is! Map || body['code'] != 'sai_consent_required') rethrow;
+    final data = body['data'];
+    if (data is! Map || data['property_id'] is! int || data['sai_term_id'] is! int || data['text'] is! String || !context.mounted) rethrow;
+    final accepted = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
+      title: const Text('إقرار السعي لهذه المحادثة'),
+      content: SingleChildScrollView(child: Text(data['text'] as String)),
+      actions: [TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('ليس الآن')),
+        AppButton(label: 'أوافق وأتابع', onPressed: () => Navigator.pop(dialog, true))],
+    ));
+    if (accepted != true || !context.mounted) return null;
+    await ref.read(financialRepositoryProvider).attestSai(data['property_id'] as int, saiTermId: data['sai_term_id'] as int);
+    return repository.reportDeal(threadId, amount: amount);
   }
 }
 

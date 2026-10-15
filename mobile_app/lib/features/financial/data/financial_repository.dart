@@ -145,10 +145,10 @@ class FinancialRepository {
     return _data(response.data);
   }
 
-  Future<void> attestSai(int propertyId) async {
+  Future<void> attestSai(int propertyId, {int? saiTermId}) async {
     await _dio.post<void>(
       '/properties/$propertyId/sai-attestation',
-      data: const <String, dynamic>{'accepted': true},
+      data: <String, dynamic>{'accepted': true, if (saiTermId != null) 'sai_term_id': saiTermId},
       options: await _auth.requiredAuthOptions(),
     );
     _bump();

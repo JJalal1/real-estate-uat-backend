@@ -85,6 +85,42 @@ class Wave4ListingJourneyTest extends TestCase
         $this->assertSame($frozen,$term->fresh()->getRawOriginal());
     }
 
+    public function test_old_customer_can_complete_under_frozen_pending_terms_after_the_listing_rate_changes(): void
+    {
+        [$broker,$headers]=$this->actor('frozen-rate','broker');
+        [$customer,$customerHeaders]=$this->actor('frozen-customer');
+        [, $outsiderHeaders]=$this->actor('frozen-outsider');
+        $id=(int)$this->withHeaders($headers)->post('/api/properties',$this->payload())->assertCreated()->json('data.id');
+        $this->withHeaders($headers)->putJson("/api/properties/$id/sai",['broker_sai_rate_percent'=>50,'defer_platform_terms'=>true])->assertOk();
+        Property::findOrFail($id)->forceFill(['status'=>'published','review_status'=>'approved','published_at'=>now()])->save();
+        $old=PropertySaiTerm::findOrFail(Property::findOrFail($id)->current_sai_term_id);
+        $oldRaw=$old->getRawOriginal();
+        $thread=(int)$this->withHeaders($customerHeaders)->postJson("/api/properties/$id/conversation")->assertCreated()->json('data.id');
+        $this->withHeaders($headers)->postJson("/api/properties/$id",['monthly_rent'=>120000])->assertOk();
+        $this->withHeaders($headers)->putJson("/api/properties/$id/sai",['broker_sai_rate_percent'=>60,'defer_platform_terms'=>true])->assertOk();
+        Property::findOrFail($id)->forceFill(['status'=>'published','review_status'=>'approved','published_at'=>now()])->save();
+        $current=PropertySaiTerm::findOrFail(Property::findOrFail($id)->current_sai_term_id);
+        $this->assertNotSame($old->id,$current->id);
+        $this->withHeaders($headers)->postJson("/api/properties/$id/sai-attestation",['accepted'=>true])->assertOk();
+        $challenge=$this->withHeaders($headers)->postJson("/api/broker/customers/$thread/completed-deal",['basis_amount'=>110000])
+            ->assertConflict()->assertJsonPath('code','sai_consent_required')->assertJsonPath('data.sai_term_id',$old->id);
+        $this->assertStringContainsString('50%',$challenge->json('data.text'));
+        $this->assertStringNotContainsString('60%',$challenge->json('data.text'));
+        $this->assertDatabaseCount('broker_deal_outcomes',0);
+        $this->assertDatabaseHas('properties',['id'=>$id,'availability_status'=>'available']);
+        $this->withHeaders($outsiderHeaders)->postJson("/api/properties/$id/sai-attestation",['accepted'=>true,'sai_term_id'=>$old->id])->assertForbidden();
+        $this->withHeaders($headers)->postJson("/api/properties/$id/sai-attestation",['accepted'=>true,'sai_term_id'=>$old->id])->assertOk();
+        $this->assertDatabaseHas('property_sai_attestations',['sai_term_id'=>$old->id,'user_id'=>$broker->id,'text_snapshot'=>$challenge->json('data.text')]);
+        $this->assertSame($oldRaw,$old->fresh()->getRawOriginal());
+        $deal=(int)$this->withHeaders($headers)->postJson("/api/broker/customers/$thread/completed-deal",['basis_amount'=>110000])->assertCreated()->json('data.id');
+        $this->withHeaders($customerHeaders)->postJson("/api/broker/deals/$deal/decision",['confirmed'=>true])->assertOk();
+        $this->assertDatabaseHas('property_deal_financial_terms',['broker_deal_outcome_id'=>$deal,'sai_total_amount'=>55000,
+            'platform_share_amount'=>11000,'advertiser_sai_share_amount'=>44000]);
+        $this->assertDatabaseHas('message_threads',['id'=>$thread,'sai_term_id'=>$old->id]);
+        $this->assertDatabaseHas('properties',['id'=>$id,'current_sai_term_id'=>$current->id]);
+        $this->assertSame($oldRaw,$old->fresh()->getRawOriginal());
+    }
+
     public function test_sale_apartment_requires_area_and_floor_and_cannot_create_new_whole_floor_identity(): void
     {
         [, $headers]=$this->actor('sale','broker');

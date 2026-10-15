@@ -196,8 +196,8 @@ class PropertyFinancialController extends Controller
     public function attestSai(Request $request, Property $property): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $request->validate(['accepted'=>['required','accepted']]);
-        $this->finance->attestSai($property,$user,$request);
+        $request->validate(['accepted'=>['required','accepted'],'sai_term_id'=>['nullable','integer','min:1']]);
+        $this->finance->attestSai($property,$user,$request,$request->integer('sai_term_id') ?: null);
         return response()->json(['message'=>'تم تسجيل إقرار السعي.']);
     }
 

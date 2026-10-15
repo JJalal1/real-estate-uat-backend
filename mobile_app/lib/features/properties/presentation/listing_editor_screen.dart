@@ -1123,7 +1123,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     setState(() => _step++);
   }
 
-  String? _validationMessageForStep(int step) {
+  String? _validationMessageForStep(int step, {bool requireImages = true}) {
     if (step == 0) {
       if (_title.text.trim().length < 4) {
         return 'اكتب عنواناً واضحاً من 4 أحرف على الأقل.';
@@ -1146,12 +1146,16 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final areaValue = double.tryParse(_area.text.trim());
       if ((!_optionalArea || _area.text.trim().isNotEmpty) && (areaValue == null || areaValue <= 0)) return 'أدخل مساحة صحيحة أكبر من صفر.';
       final images = (_replaceImages ? 0 : (_existing?.images.length ?? 0)) + _imagePaths.length;
-      if (images == 0) return 'أضف صورًا حقيقية للعقار قبل المتابعة.';
+      if (requireImages && images == 0) return 'أضف صورًا حقيقية للعقار قبل المتابعة.';
       if (_purpose == 'rent') {
+        int? advance, duration;
         for (final condition in _rentalConditions) {
           if (const ['advance', 'duration'].contains(condition['kind']) && (condition['months'] is! int || (condition['months'] as int) < 1 || (condition['months'] as int) > 24)) return 'أكمل عدد الأشهر للشرط المحدد (من 1 إلى 24).';
           if (condition['kind'] == 'special' && (condition['text']?.toString().trim().isEmpty ?? true)) return 'اكتب الشرط الخاص أو احذفه.';
+          if (condition['kind'] == 'advance') advance = condition['months'] as int;
+          if (condition['kind'] == 'duration') duration = condition['months'] as int;
         }
+        if (advance != null && duration != null && advance > duration) return 'أشهر المقدم لا يمكن أن تتجاوز مدة العقد المحددة.';
       }
       if (_isUnitType) {
         if (!_wholeFloor && _unitNumber.text.trim().isEmpty) {
@@ -1188,7 +1192,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   String? _validateCore() {
     for (var step = 0; step <= 3; step++) {
-      final message = _validationMessageForStep(step);
+      final message = _validationMessageForStep(step, requireImages: false);
       if (message != null) return message;
     }
     return null;

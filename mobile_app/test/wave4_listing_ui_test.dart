@@ -16,7 +16,7 @@ void main() {
     expect(find.byType(TextFormField), findsNWidgets(2));
     expect(find.text('مدة العقد بالأشهر'), findsNothing);
     expect(find.text('ضمانة تجارية مطلوبة'), findsNothing);
-    await tester.enterText(find.byKey(const ValueKey('rent-advance-0')), '2');
+    await tester.enterText(find.byKey(const ValueKey('rent-advance-0')), '٢');
     await tester.enterText(find.byKey(const ValueKey('rent-special-1')), 'لا يسمح بالتأجير من الباطن');
     expect(value, [{'kind': 'advance', 'months': 2}, {'kind': 'special', 'text': 'لا يسمح بالتأجير من الباطن'}]);
     await tester.ensureVisible(find.text('إضافة شرط خاص آخر'));
