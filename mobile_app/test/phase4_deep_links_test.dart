@@ -9,11 +9,11 @@ void main() {
     expect(internalLocationForAppLink(link), '/messages/91');
   });
 
-  test('Phase 4 viewing deep link opens the exact booking target', () {
+  test('legacy viewing link redirects to messages after retirement', () {
     final link = viewingBookingAppDeepLink(44);
 
     expect(link.toString(), 'realestate://app/bookings/44');
-    expect(internalLocationForAppLink(link), '/bookings?booking=44');
+    expect(internalLocationForAppLink(link), '/messages');
   });
 
   test('Phase 4 links reject invalid ids and foreign routes', () {

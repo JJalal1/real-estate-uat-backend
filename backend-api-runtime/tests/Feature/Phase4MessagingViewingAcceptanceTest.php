@@ -234,7 +234,7 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
             'target_title_snapshot'=>$property->title,'requester_user_id'=>$buyer->id,'requester_name_snapshot'=>$buyer->name,
             'host_user_id'=>$owner->id,'host_name_snapshot'=>$owner->name,'starts_at'=>now()->subHours(2),'ends_at'=>now()->subHour(),
             'timezone'=>'UTC','status'=>'completed','completed_at'=>now()]);
-        $before=$booking->getRawOriginal();
+        $before=$booking->fresh()->getRawOriginal();
         foreach ([$ownerHeaders,$buyerHeaders] as $headers) foreach (['confirm','decline','cancel','reschedule','complete'] as $action) {
             $this->withHeaders($headers)->postJson("/api/bookings/{$booking->id}/$action",$this->window(6,12))->assertStatus(410);
         }

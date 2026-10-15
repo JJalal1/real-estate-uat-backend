@@ -143,8 +143,9 @@ class _BookingsFixture implements BookingRepository {
   _BookingsFixture({this.items = const []});
   final List<ViewingBooking> items;
   final confirmed = <int>[];
+  int reads = 0;
   @override
-  Future<List<ViewingBooking>> mine({DateTime? from, DateTime? before}) async => items;
+  Future<List<ViewingBooking>> mine({DateTime? from, DateTime? before}) async { reads++; return items; }
   @override
   Future<ViewingBooking> confirm(int bookingId, {String? note}) async {
     confirmed.add(bookingId);
@@ -474,20 +475,14 @@ void main() {
   });
 
   for (final allowed in [false, true]) {
-    testWidgets('linked viewing action follows server permission canConfirm=$allowed', (tester) async {
+    testWidgets('conversation ignores legacy viewing data and actions canConfirm=$allowed', (tester) async {
       final bookings = _BookingsFixture(items: [_booking(threadId: 20, id: 41), _booking(canConfirm: allowed)]);
       await _pump(tester, initial: '/messages/19', bookings: bookings);
-      expect(find.text('طلب معاينة مرتبط بهذه المحادثة'), findsOneWidget);
-      expect(find.text('تأكيد الموعد'), allowed ? findsOneWidget : findsNothing);
-      if (allowed) {
-        await tester.ensureVisible(find.text('تأكيد الموعد'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('تأكيد الموعد'));
-        await tester.pumpAndSettle();
-        expect(bookings.confirmed, [42]);
-      } else {
-        expect(bookings.confirmed, isEmpty);
-      }
+      expect(find.text('طلب معاينة مرتبط بهذه المحادثة'), findsNothing);
+      expect(find.text('تأكيد الموعد'), findsNothing);
+      expect(bookings.reads, 0);
+      expect(bookings.confirmed, isEmpty);
+      expect(find.byType(TextField), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

@@ -3,7 +3,7 @@ import 'package:real_estate_mobile/features/messages/domain/message_models.dart'
 import 'package:real_estate_mobile/features/messages/domain/notification_destination.dart';
 
 void main() {
-  test('viewing notification prefers the exact booking over its conversation', () {
+  test('legacy viewing notification keeps its ordinary conversation', () {
     final item = AppNotificationItem(
       id: 1,
       type: 'booking_confirmed',
@@ -17,7 +17,7 @@ void main() {
       },
     );
 
-    expect(notificationDestination(item), '/bookings?booking=44');
+    expect(notificationDestination(item), '/messages/91');
   });
 
   test('message notification opens the exact conversation', () {
@@ -34,7 +34,7 @@ void main() {
     expect(notificationDestination(item), '/messages/91');
   });
 
-  test('direct viewing entity falls back to the exact booking route', () {
+  test('legacy viewing entity without a thread falls back to messages', () {
     final item = AppNotificationItem(
       id: 3,
       type: 'viewing_requested',
@@ -44,6 +44,6 @@ void main() {
       entityId: 44,
     );
 
-    expect(notificationDestination(item), '/bookings?booking=44');
+    expect(notificationDestination(item), '/messages');
   });
 }

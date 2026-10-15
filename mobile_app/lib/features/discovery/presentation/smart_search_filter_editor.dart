@@ -49,12 +49,16 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
     Navigator.of(context).pop(SmartSearchFilters.fromMap(next));
   }
 
-  Widget _field(String key, String label) => Padding(padding: const EdgeInsets.only(top: 12), child: TextField(
+  bool _visible(String key) => widget.focus == null || widget.focus == key ||
+    (const ['budget', 'min_price', 'max_price'].contains(widget.focus) && const ['min_price', 'max_price', 'currency'].contains(key)) ||
+    (const ['min_area_m2', 'max_area_m2'].contains(widget.focus) && const ['min_area_m2', 'max_area_m2'].contains(key));
+
+  Widget _field(String key, String label) => !_visible(key) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: TextField(
     key: ValueKey('filter-$key'), controller: _text[key], autofocus: widget.focus == key,
     maxLength: key == 'search' ? 120 : key == 'floor_number' ? 32 : 24,
     keyboardType: _numbers.contains(key) ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
     decoration: InputDecoration(labelText: label, counterText: '')));
-  Widget _boolean(String key, String label) => Padding(padding: const EdgeInsets.only(top: 12), child: DropdownButtonFormField<bool>(
+  Widget _boolean(String key, String label) => !_visible(key) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: DropdownButtonFormField<bool>(
     value: _values[key] as bool?, isExpanded: true, decoration: InputDecoration(labelText: label),
     items: const [DropdownMenuItem(value: null, child: Text('لا يشترط')), DropdownMenuItem(value: true, child: Text('نعم')), DropdownMenuItem(value: false, child: Text('لا'))],
     onChanged: (value) => setState(() { if (value == null) { _values.remove(key); } else { _values[key] = value; } })));
@@ -66,19 +70,19 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
       padding: EdgeInsets.fromLTRB(18, 18, 18, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('شروط البحث', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 18),
-        DropdownButtonFormField<String>(key: const ValueKey('filter-type'), value: _values['type'] as String?, isExpanded: true,
+        if (_visible('type')) DropdownButtonFormField<String>(key: const ValueKey('filter-type'), value: _values['type'] as String?, isExpanded: true,
           decoration: const InputDecoration(labelText: 'نوع العقار'), items: [const DropdownMenuItem(value: null, child: Text('كل الأنواع')),
             for (final entry in SmartSearchFilters.types.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
           onChanged: (value) => setState(() { if (value == null) { _values.remove('type'); } else { _values['type'] = value; } })),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(key: const ValueKey('filter-purpose'), value: _values['purpose'] as String?, isExpanded: true,
+        if (_visible('purpose')) DropdownButtonFormField<String>(key: const ValueKey('filter-purpose'), value: _values['purpose'] as String?, isExpanded: true,
           decoration: const InputDecoration(labelText: 'الغرض'), items: const [DropdownMenuItem(value: null, child: Text('بيع وإيجار')),
             DropdownMenuItem(value: 'sale', child: Text('بيع')), DropdownMenuItem(value: 'rent', child: Text('إيجار'))],
           onChanged: (value) => setState(() { if (value == null) { _values.remove('purpose'); } else { _values['purpose'] = value; } })),
         _field('search', 'المحافظة أو المنطقة'),
         _field('min_price', rent ? 'من إيجار شهري' : 'أقل سعر'), _field('max_price', rent ? 'حتى إيجار شهري' : 'أعلى سعر'),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(value: _values['currency'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'العملة'),
+        if (_visible('currency')) DropdownButtonFormField<String>(value: _values['currency'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'العملة'),
           items: const [DropdownMenuItem(value: null, child: Text('ريال يمني للميزانية')), DropdownMenuItem(value: 'YER', child: Text('ريال يمني')),
             DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
           onChanged: (value) => setState(() { if (value == null) { _values.remove('currency'); } else { _values['currency'] = value; } })),
@@ -87,11 +91,11 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
         if (const ['apartment', 'office', 'shop'].contains(type)) _field('floor_number', 'الدور'),
         if (type == 'apartment') _boolean('unit_occupies_entire_floor', 'الوحدة تشغل الدور كاملًا'),
         if (const ['apartment', 'building', 'office'].contains(type)) _boolean('has_elevator', 'مصعد'),
-        if (type == 'land') DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'واجهة الأرض'),
+        if (type == 'land' && _visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'واجهة الأرض'),
           items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
           onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } })),
         if (!const ['land', 'farm'].contains(type)) ...[_boolean('has_parking', 'موقف'), const SizedBox(height: 12),
-          DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'الواجهة'),
+          if (_visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'الواجهة'),
             items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
             onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } }))],
         if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),

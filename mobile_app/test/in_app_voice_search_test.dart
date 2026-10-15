@@ -92,6 +92,29 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('budget chip edits only budget and manual chip removal keeps the same home session', (tester) async {
+    final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake(), properties = Wave3PropertiesFake();
+    final container = searchContainer(voice, ai, properties); addTearDown(container.dispose); addTearDown(voice.dispose);
+    final session = container.read(smartSearchSessionProvider.notifier);
+    session.replaceManually(SmartSearchFilters.fromMap({...currentFilters, 'min_price': 50000, 'max_price': 100000}));
+    await pumpHome(tester, container);
+    await tester.tap(find.byKey(const ValueKey('home-smart-chip-budget'))); await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('filter-search')), findsNothing);
+    expect(find.byKey(const ValueKey('filter-min_bedrooms')), findsNothing);
+    await tester.enterText(find.byKey(const ValueKey('filter-max_price')), '١٢٠٠٠٠');
+    await tester.ensureVisible(find.text('تطبيق الشروط')); await tester.tap(find.text('تطبيق الشروط')); await tester.pumpAndSettle();
+    expect(session.state.filters.values, {...currentFilters, 'min_price': 50000, 'max_price': 120000.0});
+    final rooms = tester.widget<InputChip>(find.byKey(const ValueKey('home-smart-chip-min_bedrooms')));
+    rooms.onDeleted!(); await tester.pumpAndSettle();
+    expect(session.state.filters.values['search'], 'صنعاء');
+    expect(session.state.filters.values['purpose'], 'rent');
+    expect(session.state.filters.values['type'], 'apartment');
+    expect(session.state.filters.values['max_price'], 120000);
+    expect(session.state.filters.values.containsKey('min_bedrooms'), isFalse);
+    expect(properties.queries.last.filters['max_monthly_rent'], 120000);
+    expect(ai.requests, isEmpty); expect(tester.takeException(), isNull);
+  });
+
   testWidgets('cancel discards partial and late final, restores draft and keeps previous filters', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake();
     final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);

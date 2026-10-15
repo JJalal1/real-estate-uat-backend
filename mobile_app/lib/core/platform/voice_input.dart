@@ -71,14 +71,16 @@ class _NativeVoiceRecording implements VoiceRecording {
     if (_ended || _transcribing || !_stopping) return;
     _transcribing = true;
     _events.add(const VoiceEvent('processing'));
+    VoiceEvent outcome;
     try {
       if (_transcribe == null) throw StateError('Transcription not configured');
       final text = (await _transcribe!(path, _cancelToken)).trim();
-      if (!_ended) _finish(text.isEmpty ? const VoiceEvent('error', code: 'SPEECH_NO_MATCH') : VoiceEvent('final', text: text));
+      outcome = text.isEmpty ? const VoiceEvent('error', code: 'SPEECH_NO_MATCH') : VoiceEvent('final', text: text);
     } on DioException catch (error) {
-      if (!_ended) _finish(VoiceEvent('error', code: error.response?.statusCode == 413 ? 'SPEECH_TOO_LARGE' : 'SPEECH_NETWORK'));
-    } catch (_) { if (!_ended) _finish(const VoiceEvent('error', code: 'SPEECH_UNAVAILABLE')); }
+      outcome = VoiceEvent('error', code: error.response?.statusCode == 413 ? 'SPEECH_TOO_LARGE' : 'SPEECH_NETWORK');
+    } catch (_) { outcome = const VoiceEvent('error', code: 'SPEECH_UNAVAILABLE'); }
     finally { try { await _channel.invokeMethod<void>('release', {'id': _id}); } catch (_) {} }
+    if (!_ended) _finish(outcome);
   }
 
   void _finish(VoiceEvent event) {

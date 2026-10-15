@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('Listing publish and viewing flow source guards', () {
+  group('Listing publish and ordinary conversation flow source guards', () {
     test('Phase 2 editor preserves explicit parking serialization', () async {
       final editor = await File(
         'lib/features/properties/presentation/listing_editor_screen.dart',
@@ -53,7 +53,7 @@ void main() {
       expect(listings, isNot(contains('uploadProofDocuments')));
     });
 
-    test('property conversation entry preserves its linked viewing actions', () async {
+    test('property conversation remains available while independent viewing actions retire', () async {
       final details = await File(
         'lib/features/properties/presentation/property_details_screen.dart',
       ).readAsString();
@@ -63,10 +63,11 @@ void main() {
 
       expect(details, contains('startForProperty(property.id)'));
       expect(details, contains("context.push('/messages/\${thread.id}')"));
-      expect(conversation, contains('booking.messageThreadId == widget.threadId'));
-      expect(conversation, contains('طلب معاينة مرتبط بهذه المحادثة'));
-      expect(conversation, contains("_bookingAction('confirm')"));
-      expect(conversation, contains("_bookingAction('reschedule')"));
+      expect(conversation, contains('BrokerConversationTools'));
+      expect(conversation, isNot(contains('bookingRepositoryProvider')));
+      expect(conversation, isNot(contains('طلب معاينة مرتبط بهذه المحادثة')));
+      expect(conversation, isNot(contains('_bookingAction')));
+      expect(conversation, contains('تنسيق زيارة العقار'));
     });
   });
 }

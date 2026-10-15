@@ -41,7 +41,7 @@ class Stage13BookingsApiTest extends TestCase
         [, $outsiderHeaders]=$this->user('s13-outsider2@example.test','+967750000006');
         $property=$this->property($owner,'Legacy history');
         $booking=$this->legacyBooking($owner,$first,$property);
-        $before=$booking->getRawOriginal();
+        $before=$booking->fresh()->getRawOriginal();
         foreach ([$ownerHeaders,$firstHeaders,$outsiderHeaders] as $headers) {
             $this->withHeaders($headers)->getJson("/api/bookings/{$booking->id}")->assertStatus(410);
             foreach (['confirm','decline','cancel','reschedule','complete'] as $action) {

@@ -12,7 +12,8 @@ import 'package:real_estate_mobile/core/widgets/ebroker_card_actions.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/bookings/data/booking_repository.dart';
 import 'package:real_estate_mobile/features/bookings/domain/booking_models.dart';
-import 'package:real_estate_mobile/features/bookings/presentation/bookings_screen.dart';
+import 'package:real_estate_mobile/features/broker/presentation/broker_activity.dart';
+import 'package:real_estate_mobile/features/messages/domain/message_models.dart';
 import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
@@ -135,9 +136,10 @@ void main() {
     await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => BrokerTestAuth(1)), brokerRepositoryProvider.overrideWithValue(BrokerTestRepository())],
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.textContaining('معاينات للمتابعة')); await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('معاينات للمتابعة').hitTestable()); await tester.pumpAndSettle();
-    expect(find.text('selected:viewings'), findsOneWidget);
+    expect(find.textContaining('معاينات للمتابعة'), findsNothing);
+    await tester.ensureVisible(find.text('تابع نتائج الصفقات التي تنتظر التأكيد')); await tester.pumpAndSettle();
+    await tester.tap(find.text('تابع نتائج الصفقات التي تنتظر التأكيد').hitTestable()); await tester.pumpAndSettle();
+    expect(find.text('selected:null'), findsOneWidget);
     router.pop(); await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.textContaining('محادثات تحتاج ردك').hitTestable(), -150, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
@@ -174,15 +176,23 @@ void main() {
     expect(repo.savedNote, 'يفضل موعد العصر'); expect(repo.savedDate, isNotNull); expect(repo.savedDate!.hour, 9);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('today agenda requests day boundaries and sorts only today appointments', (tester) async {
-    final bookings = _Bookings(); final boundary = GlobalKey();
-    await _pump(tester, const BookingsScreen(initiallyToday: true), bookings: bookings, boundary: boundary);
-    await _capture(tester, boundary, 'convenience-today-viewings');
-    expect(bookings.requestedFrom!.hour, 0); expect(bookings.requestedBefore!.difference(bookings.requestedFrom!).inHours, 24);
-    expect(find.text('معاينة الغد'), findsNothing);
-    expect(tester.getTopLeft(find.text('المعاينة المبكرة')).dy, lessThan(tester.getTopLeft(find.text('المعاينة المتأخرة')).dy));
-    await tester.tap(find.byTooltip('خيارات البطاقة').first); await tester.pumpAndSettle();
-    expect(find.text('موقع العقار'), findsOneWidget); expect(find.text('فتح محادثة المعاينة'), findsOneWidget);
+  testWidgets('customer management stays a small action until its sheet opens and never loads bookings', (tester) async {
+    final bookings = _Bookings(), boundary = GlobalKey();
+    const thread = MessageThreadSummary(id: 19, otherUserId: 2, otherUserName: 'عميل الاختبار', unreadCount: 0,
+      propertyId: 11, propertyTitle: 'شقة الاختبار', propertyStatus: 'published', canManageCustomer: true);
+    await _pump(tester, const Scaffold(body: Column(children: [Text('المحادثة هي الأساس'), BrokerConversationTools(thread: thread)])),
+      bookings: bookings, boundary: boundary);
+    expect(find.text('ملاحظة وتذكير'), findsNothing);
+    expect(find.text('متابعة العميل'), findsNothing);
+    expect(tester.getSize(find.byKey(const ValueKey('conversation-manage-customer'))).height, lessThan(60));
+    expect(bookings.requestedFrom, isNull); expect(bookings.requestedBefore, isNull);
+    await tester.tap(find.byKey(const ValueKey('conversation-manage-customer'))); await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.text('ملاحظة وتذكير'), findsOneWidget);
+    expect(find.text('متابعة العميل'), findsOneWidget);
+    expect(find.text('عرض نتيجة الصفقة'), findsOneWidget);
+    expect(find.text('تأكيد الموعد'), findsNothing);
+    await _capture(tester, boundary, 'wave4-customer-management');
     expect(tester.takeException(), isNull);
   });
   testWidgets('card secondary actions stay reachable with enlarged Arabic text', (tester) async {
