@@ -26,6 +26,7 @@ void main() {
     await tester.tap(find.byTooltip('حذف الشرط').first); await tester.pumpAndSettle();
     expect(value.map((row) => row['kind']), ['special', 'special']);
     expect(value.first['text'], 'لا يسمح بالتأجير من الباطن');
+    expect(tester.widget<TextFormField>(find.byKey(const ValueKey('rent-special-0'))).initialValue, 'لا يسمح بالتأجير من الباطن');
     expect(find.text('عدد أشهر المقدم'), findsNothing);
     expect(tester.takeException(), isNull);
   });

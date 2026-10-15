@@ -210,6 +210,7 @@ void main() {
     expect(find.text('3/4'), findsOneWidget);
     expect(find.text('4/4'), findsNothing);
     await tester.scrollUntilVisible(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), 350, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), findsOneWidget);
     expect(find.text('إنشاء وصف مقترح'), findsOneWidget);
     await _capture(tester, boundary, 'wave4-specifications-content');
