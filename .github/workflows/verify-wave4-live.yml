@@ -1,0 +1,44 @@
+name: Verify deployed Wave4 1049 public API
+on:
+  push:
+    branches: [verification/wave4-1049-live]
+permissions: {}
+jobs:
+  smoke:
+    name: Public Wave4 post-deployment checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check health discovery AI capability and voice validation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, time, urllib.request, urllib.error
+          root='https://real-estate-uat-api-frankfurt.onrender.com/api'
+          results=[]
+          def request(path, body=None, expected=200):
+              started=time.monotonic()
+              headers={'Accept':'application/json','User-Agent':'RealEstate-Wave4-UAT-Verification/1049'}
+              data=None if body is None else json.dumps(body).encode()
+              if data is not None: headers['Content-Type']='application/json'
+              req=urllib.request.Request(root+path,data=data,headers=headers)
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as response:
+                      status=response.status
+                      value=json.load(response)
+              except urllib.error.HTTPError as error:
+                  status=error.code
+                  value=json.load(error)
+              assert status==expected, 'Unexpected HTTP status for '+path+': '+str(status)
+              results.append({'path':path,'status':status,'elapsed_ms':round((time.monotonic()-started)*1000)})
+              return value
+          health=request('/health')
+          assert health['status']=='ok' and health['database'] is True and health['postgis'] is True
+          capability=request('/ai/capabilities')['data']
+          assert capability['available'] is True and capability['manual_filters_available'] is True
+          listings=request('/properties?page=1&per_page=1')
+          assert isinstance(listings.get('data'),list) and len(listings['data'])>0
+          invalid_audio=request('/ai/transcribe',{},422)
+          assert 'audio' in invalid_audio.get('errors',{})
+          print('WAVE4_LIVE_SMOKE '+json.dumps({'passed':True,'expected_deployment_source':'db378214ade105a7046a2d1069095070ac76f7a4','checks':results,'database':True,'postgis':True,'ai_available':True,'voice_route_validation':True},sort_keys=True))
+          PY
