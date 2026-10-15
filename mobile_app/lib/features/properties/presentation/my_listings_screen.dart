@@ -579,7 +579,7 @@ class _ListingCard extends StatelessWidget {
           const Divider(height: 1),
           if (property.status == 'published') Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Wrap(spacing: 12, runSpacing: 6, children: [
             Text('المشاهدات: ${property.viewCount}'), Text('المفضلة: ${property.favoriteCount}'),
-            Text('المحادثات: ${property.conversationCount}'), Text('المعاينات: ${property.viewingCount}'),
+            Text('المحادثات: ${property.conversationCount}'),
           ])),
           Padding(
             padding: const EdgeInsetsDirectional.all(AppSpacing.s8),

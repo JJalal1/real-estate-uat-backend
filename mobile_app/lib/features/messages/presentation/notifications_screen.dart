@@ -269,9 +269,6 @@ class _NotificationSkeleton extends StatelessWidget {
   if (type == 'message_received') {
     return (Icons.chat_bubble_outline, 'رسائل', AppStatusTone.info);
   }
-  if (type.startsWith('booking_')) {
-    return (Icons.calendar_month_outlined, 'معاينة', AppStatusTone.info);
-  }
   if (type.startsWith('agreement_') || type.startsWith('rental_contract_')) {
     return (Icons.handshake_outlined, 'اتفاق', AppStatusTone.success);
   }

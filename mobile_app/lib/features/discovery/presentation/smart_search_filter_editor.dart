@@ -3,7 +3,7 @@ import '../../../core/widgets/app_components.dart';
 import '../domain/smart_search_filters.dart';
 
 class SmartSearchFilterEditor extends StatefulWidget {
-  const SmartSearchFilterEditor({required this.initial, this.focus});
+  const SmartSearchFilterEditor({required this.initial, this.focus, super.key});
   final SmartSearchFilters initial;
   final String? focus;
   @override

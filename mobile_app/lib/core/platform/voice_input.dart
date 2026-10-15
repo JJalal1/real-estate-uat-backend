@@ -74,7 +74,7 @@ class _NativeVoiceRecording implements VoiceRecording {
     VoiceEvent outcome;
     try {
       if (_transcribe == null) throw StateError('Transcription not configured');
-      final text = (await _transcribe!(path, _cancelToken)).trim();
+      final text = (await _transcribe(path, _cancelToken)).trim();
       outcome = text.isEmpty ? const VoiceEvent('error', code: 'SPEECH_NO_MATCH') : VoiceEvent('final', text: text);
     } on DioException catch (error) {
       outcome = VoiceEvent('error', code: error.response?.statusCode == 413 ? 'SPEECH_TOO_LARGE' : 'SPEECH_NETWORK');
