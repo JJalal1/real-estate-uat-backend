@@ -10,6 +10,7 @@ import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
 import '../domain/smart_search_filters.dart';
+import 'smart_search_filter_editor.dart';
 
 class AssistedSearchScreen extends ConsumerStatefulWidget {
   const AssistedSearchScreen({super.key});
@@ -31,7 +32,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     if (_capture.active && _capture.transcript.isNotEmpty) _description.text = _searchText(_capture.transcript);
     setState(() {});
   }
-  String _searchText(String text) => text.length > 1000 ? text.substring(0, 1000) : text;
+  String _searchText(String text) => text;
 
   @override
   void dispose() { _capture.removeListener(_voiceChanged); _capture.dispose(); _description.dispose(); super.dispose(); }
@@ -64,7 +65,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   Future<void> _edit({String? focus}) async {
     if (_capture.active) _cancelVoice();
     final next = await AppBottomSheet.show<SmartSearchFilters>(context,
-      builder: (_) => _SearchFilterEditor(initial: ref.read(smartSearchSessionProvider).filters, focus: focus));
+      builder: (_) => SmartSearchFilterEditor(initial: ref.read(smartSearchSessionProvider).filters, focus: focus));
     if (next != null && mounted) ref.read(smartSearchSessionProvider.notifier).replaceManually(next);
   }
 
@@ -93,9 +94,11 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice)
           else TextField(key: const ValueKey('smart-search-description'), controller: _description,
-            minLines: 2, maxLines: 4, maxLength: 1000, textInputAction: TextInputAction.search,
+            minLines: 2, maxLines: 4, maxLength: 5000, textInputAction: TextInputAction.search,
             onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
               hintText: chips.isEmpty ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
+          if (!_capture.active && state.lastRequest.isNotEmpty) ExpansionTile(tilePadding: EdgeInsets.zero,
+            title: const Text('آخر طلب في هذه الجلسة'), children: [SelectableText(state.lastRequest)]),
           const SizedBox(height: 8),
           if (!_capture.active) Row(children: [
             Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: chips.isEmpty ? 'ابحث لي' : 'تحديث البحث',
@@ -108,8 +111,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           ]),
           if (_capture.error != null || state.aiError != null) Padding(padding: const EdgeInsets.only(top: 12),
             child: Text(_capture.error ?? state.aiError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
-        ])),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         Row(children: [Expanded(child: Text(chips.isEmpty ? 'اختر ما يناسبك' : 'شروط بحثك', style: theme.textTheme.titleMedium)),
           TextButton.icon(key: const ValueKey('smart-search-manual'), onPressed: () => _edit(), icon: const EbrokerIcon(Icons.tune, size: 18), label: const Text('تعديل الفلاتر'))]),
         if (chips.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: [for (final chip in chips)
@@ -122,6 +124,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         Wrap(spacing: 6, runSpacing: 6, children: [for (final key in state.filters.suggestions.take(3))
           ActionChip(label: Text('أضف ${SmartSearchFilters.labels[key] ?? key}'), avatar: const EbrokerIcon(Icons.add, size: 16), onPressed: () => _edit(focus: key)),
         ]),
+        ])),
         if (!state.started) ...[
           const SizedBox(height: 22),
           const Text('جرّب مثلًا'),
@@ -142,6 +145,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           for (final row in state.rows) Padding(padding: const EdgeInsets.only(bottom: 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             EbrokerPropertyHorizontalCard(imageFirst: false, title: row.title, price: row.price.toStringAsFixed(0), currency: row.currency,
               imageUrl: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight, location: row.address,
+              facts: [if (row.bedrooms != null) AppPropertyFact(icon: Icons.bed_outlined, label: '${row.bedrooms} غرف'), if (row.areaM2 != null) AppPropertyFact(icon: Icons.square_foot, label: '${row.areaM2} م²'), if (row.floorNumber != null) AppPropertyFact(icon: Icons.layers_outlined, label: row.floorNumber!)],
               categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? 'للإيجار' : 'للبيع',
               onTap: () => context.push('/properties/${row.id}')),
             if (row.monthlyRent != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency}', style: theme.textTheme.bodySmall)),
@@ -151,100 +155,5 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         ],
       ]),
     ));
-  }
-}
-
-class _SearchFilterEditor extends StatefulWidget {
-  const _SearchFilterEditor({required this.initial, this.focus});
-  final SmartSearchFilters initial;
-  final String? focus;
-  @override
-  State<_SearchFilterEditor> createState() => _SearchFilterEditorState();
-}
-
-class _SearchFilterEditorState extends State<_SearchFilterEditor> {
-  static const _numbers = ['min_price', 'max_price', 'min_bedrooms', 'min_bathrooms', 'min_area_m2', 'max_area_m2'];
-  late Map<String, dynamic> _values;
-  late Map<String, TextEditingController> _text;
-  String? _error;
-  @override
-  void initState() {
-    super.initState(); _values = Map.of(widget.initial.values);
-    _text = {for (final key in ['search', 'floor_number', ..._numbers]) key: TextEditingController(text: _values[key]?.toString() ?? '')};
-  }
-  @override
-  void dispose() { for (final controller in _text.values) { controller.dispose(); } super.dispose(); }
-
-  String _digits(String text) {
-    const digits = {'٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9', '٫': '.', '٬': '', ',': ''};
-    return text.trim().split('').map((char) => digits[char] ?? char).join();
-  }
-  void _save() {
-    final next = Map<String, dynamic>.from(_values);
-    for (final entry in _text.entries) {
-      final text = entry.value.text.trim();
-      if (text.isEmpty) { next.remove(entry.key); continue; }
-      if (_numbers.contains(entry.key)) {
-        final value = double.tryParse(_digits(text));
-        final rooms = const ['min_bedrooms', 'min_bathrooms'].contains(entry.key);
-        if (value == null || !value.isFinite || value < 0 || value > (rooms ? 50 : 1000000000000) || (rooms && value != value.roundToDouble())) {
-          setState(() => _error = 'أدخل أرقامًا صحيحة للغرف والمساحة والميزانية.'); return;
-        }
-        next[entry.key] = rooms ? value.toInt() : value;
-      } else { next[entry.key] = text; }
-    }
-    for (final pair in const [('min_price', 'max_price'), ('min_area_m2', 'max_area_m2')]) {
-      if (next[pair.$1] is num && next[pair.$2] is num && (next[pair.$1] as num) > (next[pair.$2] as num)) {
-        setState(() => _error = 'الحد الأدنى يجب ألا يتجاوز الحد الأعلى.'); return;
-      }
-    }
-    Navigator.of(context).pop(SmartSearchFilters.fromMap(next));
-  }
-
-  Widget _field(String key, String label) => Padding(padding: const EdgeInsets.only(top: 12), child: TextField(
-    key: ValueKey('filter-$key'), controller: _text[key], autofocus: widget.focus == key,
-    maxLength: key == 'search' ? 120 : key == 'floor_number' ? 32 : 24,
-    keyboardType: _numbers.contains(key) ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-    decoration: InputDecoration(labelText: label, counterText: '')));
-  Widget _boolean(String key, String label) => Padding(padding: const EdgeInsets.only(top: 12), child: DropdownButtonFormField<bool>(
-    value: _values[key] as bool?, isExpanded: true, decoration: InputDecoration(labelText: label),
-    items: const [DropdownMenuItem(value: null, child: Text('لا يشترط')), DropdownMenuItem(value: true, child: Text('نعم')), DropdownMenuItem(value: false, child: Text('لا'))],
-    onChanged: (value) => setState(() { if (value == null) { _values.remove(key); } else { _values[key] = value; } })));
-
-  @override
-  Widget build(BuildContext context) {
-    final type = _values['type'], rent = _values['purpose'] == 'rent';
-    return Directionality(textDirection: TextDirection.rtl, child: Padding(
-      padding: EdgeInsets.fromLTRB(18, 18, 18, MediaQuery.viewInsetsOf(context).bottom + 24),
-      child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('شروط البحث', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 18),
-        DropdownButtonFormField<String>(key: const ValueKey('filter-type'), value: _values['type'] as String?, isExpanded: true,
-          decoration: const InputDecoration(labelText: 'نوع العقار'), items: [const DropdownMenuItem(value: null, child: Text('كل الأنواع')),
-            for (final entry in SmartSearchFilters.types.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
-          onChanged: (value) => setState(() { if (value == null) { _values.remove('type'); } else { _values['type'] = value; } })),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(key: const ValueKey('filter-purpose'), value: _values['purpose'] as String?, isExpanded: true,
-          decoration: const InputDecoration(labelText: 'الغرض'), items: const [DropdownMenuItem(value: null, child: Text('بيع وإيجار')),
-            DropdownMenuItem(value: 'sale', child: Text('بيع')), DropdownMenuItem(value: 'rent', child: Text('إيجار'))],
-          onChanged: (value) => setState(() { if (value == null) { _values.remove('purpose'); } else { _values['purpose'] = value; } })),
-        _field('search', 'المحافظة أو المنطقة'),
-        _field('min_price', rent ? 'من إيجار شهري' : 'أقل سعر'), _field('max_price', rent ? 'حتى إيجار شهري' : 'أعلى سعر'),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(value: _values['currency'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'العملة'),
-          items: const [DropdownMenuItem(value: null, child: Text('ريال يمني للميزانية')), DropdownMenuItem(value: 'YER', child: Text('ريال يمني')),
-            DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
-          onChanged: (value) => setState(() { if (value == null) { _values.remove('currency'); } else { _values['currency'] = value; } })),
-        _field('min_area_m2', 'أقل مساحة بالمتر المربع'), _field('max_area_m2', 'أقصى مساحة بالمتر المربع'),
-        if (type == null || const ['apartment', 'house', 'villa'].contains(type)) ...[_field('min_bedrooms', 'غرف النوم على الأقل'), _field('min_bathrooms', 'دورات المياه على الأقل')],
-        if (const ['apartment', 'office', 'shop'].contains(type)) _field('floor_number', 'الدور'),
-        if (type == 'apartment') _boolean('unit_occupies_entire_floor', 'الوحدة تشغل الدور كاملًا'),
-        if (const ['apartment', 'building', 'office'].contains(type)) _boolean('has_elevator', 'مصعد'),
-        if (!const ['land', 'farm'].contains(type)) ...[_boolean('has_parking', 'موقف'), const SizedBox(height: 12),
-          DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'الواجهة'),
-            items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
-            onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } }))],
-        if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
-        const SizedBox(height: 20), AppButton(label: 'تطبيق الشروط', expand: true, onPressed: _save),
-      ]))));
   }
 }

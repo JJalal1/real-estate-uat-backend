@@ -185,6 +185,7 @@ class PropertyDetails {
     this.basePrice,
     this.priceDisplayMode,
     this.priceDisplayNote,
+    this.rentalConditions = const [],
     this.monthlyRent,
     this.rentalTermMonths,
     this.advanceMonths,
@@ -197,6 +198,7 @@ class PropertyDetails {
     this.conversationCount = 0,
     this.viewingCount = 0,
     this.saiAttestationRequired = false,
+    this.saiAttestationText,
     this.description,
     this.areaM2,
     this.areaValue,
@@ -247,11 +249,13 @@ class PropertyDetails {
   final double? basePrice;
   final String? priceDisplayMode;
   final String? priceDisplayNote;
+  final List<Map<String, dynamic>> rentalConditions;
   final double? monthlyRent;
   final int? rentalTermMonths;
   final int? advanceMonths;
   final bool financialHold;
   final bool saiAttestationRequired;
+  final String? saiAttestationText;
   final String currency;
   final int? areaM2;
   final double? areaValue;
@@ -327,6 +331,7 @@ class PropertyDetails {
       basePrice: _asDouble(json['base_price']) ?? rawPrice,
       priceDisplayMode: _nullableString(json['price_display_mode']),
       priceDisplayNote: _nullableString(json['price_display_note']),
+      rentalConditions: (json['rental_conditions'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(),
       monthlyRent: _asDouble(json['monthly_rent']),
       rentalTermMonths: _asInt(json['rental_term_months']),
       advanceMonths: _asInt(json['advance_months']),
@@ -340,6 +345,7 @@ class PropertyDetails {
       viewingCount: _asInt(json['viewing_count']) ?? 0,
       saiAttestationRequired:
           _asBool(json['sai_attestation_required']) ?? false,
+      saiAttestationText: _nullableString(json['sai_attestation_text']),
       currency: json['currency']?.toString() ?? 'YER',
       areaM2: _asInt(json['area_m2']),
       areaValue: _asDouble(json['area_value']) ?? _asDouble(json['area_m2']),
@@ -438,6 +444,8 @@ class PropertyDetails {
 
 class PropertyListingInput {
   const PropertyListingInput({
+    this.inputVersion = 5,
+    this.rentalConditions = const [],
     required this.title,
     required this.purpose,
     required this.type,
@@ -473,6 +481,8 @@ class PropertyListingInput {
     this.ownerRelationshipNote,
   });
 
+  final int inputVersion;
+  final List<Map<String, dynamic>> rentalConditions;
   final String title;
   final String? description;
   final String purpose;
@@ -525,7 +535,9 @@ class PropertyListingInput {
         'rental_term_months': rentalTermMonths,
       if (purpose == 'rent' && advanceMonths != null)
         'advance_months': advanceMonths,
-      'listing_input_version': 5,
+      'listing_input_version': inputVersion,
+      if (inputVersion >= 6) 'rental_conditions': jsonEncode(purpose == 'rent' ? rentalConditions : []),
+      if (inputVersion >= 6 && areaValue == null && areaM2 == null) ...{'area_value': null, 'area_unit': null},
       'unit_occupies_entire_floor': type == 'apartment' && unitOccupiesEntireFloor,
       if (areaValue != null) 'area_value': areaValue,
       if (areaUnit != null && areaUnit!.trim().isNotEmpty)

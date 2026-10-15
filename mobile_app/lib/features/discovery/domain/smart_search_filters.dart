@@ -28,7 +28,7 @@ class SmartSearchFilters {
     if (type != null && !const ['apartment', 'office', 'shop'].contains(type)) next.remove('floor_number');
     if (type != null && type != 'apartment') next.remove('unit_occupies_entire_floor');
     if (type != null && !const ['apartment', 'building', 'office'].contains(type)) next.remove('has_elevator');
-    if (const ['land', 'farm'].contains(type)) { next.remove('has_parking'); next.remove('building_facade'); }
+    if (const ['land', 'farm'].contains(type)) { next.remove('has_parking'); if (type == 'farm') next.remove('building_facade'); }
     return SmartSearchFilters(Map.unmodifiable(next));
   }
 
@@ -54,7 +54,8 @@ class SmartSearchFilters {
     final keys = switch (values['type']) {
       'apartment' => ['min_bedrooms', 'floor_number', 'has_elevator', 'has_parking'],
       'house' || 'villa' => ['min_bedrooms', 'min_area_m2', 'has_parking'],
-      'land' || 'farm' => ['min_area_m2', 'max_area_m2', 'search'],
+      'land' => ['min_area_m2', 'building_facade', 'max_area_m2', 'search'],
+      'farm' => ['min_area_m2', 'max_area_m2', 'search'],
       'office' || 'shop' => ['min_area_m2', 'floor_number', 'building_facade'],
       _ => ['type', 'purpose', 'search', 'budget'],
     };

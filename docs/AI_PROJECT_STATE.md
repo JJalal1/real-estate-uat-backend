@@ -1,6 +1,12 @@
 # AI Project State — REAL ESTATE UAT
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
+
+## Active Wave4 direct handoff on APK1039
+
+The attached October15 handoff explicitly rejects1043 as this wave's base. Work starts at `998f3456d5dd74b493052376cf0091737c1eaf21` (tree `5a256de722eae6819f45d269768964163afcd7e9`) on `work/wave4-baseline-1039`; all locally present baseline blobs were hash-verified before changes. Existing startup retry/cache changes are excluded. Read `WAVE4_BASELINE_1039_AR.md` for the listing version6, optional rental conditions, deferred post-publication Sai consent, whole-recording voice and retirement of the active viewing journey.
+
+Implementation is in progress and not yet accepted. Tests/CI/APK and live UAT deployment must be recorded before delivery. Two named reference MP4s were not attached; seven embedded reference images were reviewed, without a claim that either full video was watched. Handset/motion acceptance remains separate. Historical statements below refer to earlier work and do not override this explicit Wave4 scope.
 
 ## In-app search dictation — October 14 evening correction
 

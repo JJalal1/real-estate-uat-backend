@@ -118,12 +118,6 @@ class _SummaryGrid extends StatelessWidget {
         visible: _can('support.handle_reports')
       ),
       (
-        label: 'طلبات معاينة تنتظر الإجراء',
-        value: summary.bookingsRequested,
-        icon: Icons.event_available_outlined,
-        visible: _can('bookings.manage')
-      ),
-      (
         label: 'طلبات توثيق الحسابات',
         value: summary.accountVerificationsPending,
         icon: Icons.verified_user_outlined,
@@ -219,13 +213,6 @@ class _AdminMenu extends StatelessWidget {
         icon: Icons.support_agent_outlined,
         route: '/support/workspace',
         visible: _can('support.handle_reports')
-      ),
-      (
-        title: 'الحجوزات والمعاينات',
-        subtitle: 'متابعة طلبات المعاينة والتأكيد والرفض وإعادة الجدولة.',
-        icon: Icons.event_available_outlined,
-        route: '/bookings',
-        visible: _can('bookings.manage')
       ),
       (
         title: 'الخدمات والمدفوعات',

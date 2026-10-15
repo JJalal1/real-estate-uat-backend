@@ -10,6 +10,8 @@ import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
+import '../domain/smart_search_filters.dart';
+import 'smart_search_filter_editor.dart';
 
 class HomeAiSearchEntry extends ConsumerStatefulWidget {
   const HomeAiSearchEntry({this.location = 'صنعاء', this.type, super.key});
@@ -33,7 +35,7 @@ class _HomeAiSearchEntryState extends ConsumerState<HomeAiSearchEntry> {
     if (_capture.active && _capture.transcript.isNotEmpty) _text.text = _searchText(_capture.transcript);
     setState(() {});
   }
-  String _searchText(String text) => text.length > 1000 ? text.substring(0, 1000) : text;
+  String _searchText(String text) => text;
   @override
   void dispose() { _capture.removeListener(_voiceChanged); _capture.dispose(); _text.dispose(); super.dispose(); }
 
@@ -59,6 +61,12 @@ class _HomeAiSearchEntryState extends ConsumerState<HomeAiSearchEntry> {
     }
   }
   void _cancelVoice() { if (_capture.active) { _capture.cancel(); _text.text = _voiceDraft; } }
+  Future<void> _edit({String? focus}) async {
+    _cancelVoice();
+    final next = await AppBottomSheet.show<SmartSearchFilters>(context,
+      builder: (_) => SmartSearchFilterEditor(initial: ref.read(smartSearchSessionProvider).filters, focus: focus));
+    if (mounted && next != null) ref.read(smartSearchSessionProvider.notifier).replaceManually(next);
+  }
   void _openSearch() {
     _cancelVoice();
     ref.read(smartSearchSessionProvider.notifier).startFromHome(location: widget.location, type: widget.type);
@@ -81,17 +89,23 @@ class _HomeAiSearchEntryState extends ConsumerState<HomeAiSearchEntry> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [EbrokerIcon(Icons.auto_awesome_outlined, size: 20, color: theme.colorScheme.primary), const SizedBox(width: 8),
           Expanded(child: Text(hasContext ? 'أكمل بحثك' : 'مكان يناسبك', style: theme.textTheme.titleMedium)),
-          TextButton(onPressed: _capture.active ? null : _openSearch, child: Text(hasContext ? 'شروط بحثك' : 'الفلاتر'))]),
+          TextButton(onPressed: search.interpreting ? null : () => _edit(), child: const Text('تعديل الفلاتر'))]),
         if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice)
-        else TextField(key: const ValueKey('home-ai-description'), controller: _text, maxLength: 1000, minLines: 1, maxLines: 3,
+        else TextField(key: const ValueKey('home-ai-description'), controller: _text, maxLength: 5000, minLines: 1, maxLines: 3,
           textInputAction: TextInputAction.search, onSubmitted: _submit,
           decoration: InputDecoration(border: InputBorder.none, counterText: '',
             hintText: hasContext ? 'عدّل السعر أو الغرف… سنحتفظ ببقية شروطك' : 'شقة للإيجار في صنعاء، ثلاث غرف…')),
         if (hasContext) Padding(padding: const EdgeInsets.only(top: 4, bottom: 8), child: Wrap(spacing: 6, runSpacing: 4, children: [
           for (final chip in search.filters.chips) ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 68),
             child: InputChip(key: ValueKey('home-smart-chip-${chip.$1}'), label: Text(chip.$2, maxLines: 1, overflow: TextOverflow.ellipsis),
+              onPressed: search.interpreting ? null : () => _edit(focus: chip.$1),
               onDeleted: _capture.active || search.interpreting ? null : () => ref.read(smartSearchSessionProvider.notifier).remove(chip.$1))),
         ])),
+        if (!_capture.active) Wrap(spacing: 6, runSpacing: 4, children: [
+          for (final key in search.filters.suggestions.take(3)) ActionChip(label: Text('أضف ${SmartSearchFilters.labels[key] ?? key}'),
+            avatar: const EbrokerIcon(Icons.add, size: 16), onPressed: search.interpreting ? null : () => _edit(focus: key)),
+          if (hasContext || search.started) ActionChip(label: const Text('بحث جديد'), onPressed: () { _cancelVoice(); _text.clear(); ref.read(smartSearchSessionProvider.notifier).reset(); }),
+        ]),
         if (!_capture.active) Row(children: [
           Expanded(child: FilledButton.icon(key: const ValueKey('home-ai-send'), onPressed: search.interpreting ? null : () => _submit(_text.text),
             icon: search.interpreting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const EbrokerIcon(Icons.arrow_back, size: 18),
@@ -111,6 +125,7 @@ class _HomeAiSearchEntryState extends ConsumerState<HomeAiSearchEntry> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [EbrokerPropertyHorizontalCard(key: ValueKey('home-ai-result-${row.id}'), title: row.title,
               price: (row.monthlyRent ?? row.price).toStringAsFixed(0), currency: row.currency,
               imageUrl: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight, location: row.address,
+              facts: [if (row.bedrooms != null) AppPropertyFact(icon: Icons.bed_outlined, label: '${row.bedrooms} غرف'), if (row.areaM2 != null) AppPropertyFact(icon: Icons.square_foot, label: '${row.areaM2} م²'), if (row.floorNumber != null) AppPropertyFact(icon: Icons.layers_outlined, label: row.floorNumber!)],
               categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? 'للإيجار' : 'للبيع',
               onTap: () { _cancelVoice(); context.push('/properties/${row.id}'); }),
               if (row.monthlyRent != null) Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency}', style: theme.textTheme.bodySmall),

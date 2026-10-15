@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039]
   workflow_dispatch:
 permissions:
   contents: read
@@ -132,6 +132,7 @@ jobs:
       - name: Broker ownership, followup and UTC date range on PostgreSQL
         run: >-
           php artisan test tests/Feature/BrokerExperienceApiTest.php
+          tests/Feature/Wave4ListingJourneyTest.php tests/Feature/Wave4VoiceContractTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Listing scope, customer commission and private editor contracts on PostgreSQL
         run: >-
@@ -216,6 +217,7 @@ jobs:
           test/wave3_personal_listing_test.dart
           test/wave3_ai_session_test.dart
           test/wave3_ai_design_ui_test.dart
+          test/wave4_listing_ui_test.dart
           test/in_app_voice_search_test.dart
           test/ui_transplant_v3_home_test.dart
           test/ui_transplant_v3_template_test.dart

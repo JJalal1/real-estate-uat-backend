@@ -8,8 +8,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../agreements/data/agreement_repository.dart';
 import '../../agreements/domain/agreement_models.dart';
-import '../../bookings/data/booking_repository.dart';
-import '../../bookings/domain/booking_models.dart';
 import '../../messages/data/message_repository.dart';
 import '../../messages/domain/message_models.dart';
 import '../../properties/data/favorites_repository.dart';
@@ -19,14 +17,12 @@ final propertyJourneyProvider = FutureProvider.autoDispose<_JourneyData>((ref) a
   final values = await Future.wait<dynamic>([
     ref.read(favoritesRepositoryProvider).favorites(),
     ref.read(messageRepositoryProvider).threads(),
-    ref.read(bookingRepositoryProvider).mine(),
     ref.read(agreementRepositoryProvider).mine(),
   ]);
   return _JourneyData(
     favorites: values[0] as List<PropertyMarker>,
     threads: values[1] as List<MessageThreadSummary>,
-    bookings: values[2] as List<ViewingBooking>,
-    agreements: values[3] as List<PropertyAgreement>,
+    agreements: values[2] as List<PropertyAgreement>,
   );
 });
 
@@ -114,7 +110,7 @@ class _JourneyContent extends StatelessWidget {
         const SizedBox(height: AppSpacing.s24),
         const AppSectionHeader(
           title: 'نظرة سريعة',
-          subtitle: 'كل ما يخص رحلة البحث والتواصل والمعاينة والاتفاق في مكان واحد.',
+          subtitle: 'كل ما يخص رحلة البحث والتواصل والاتفاق في مكان واحد.',
         ),
         const SizedBox(height: AppSpacing.s12),
         GridView.count(
@@ -139,13 +135,6 @@ class _JourneyContent extends StatelessWidget {
               onTap: () => context.push('/messages'),
             ),
             _MetricCard(
-              icon: Icons.calendar_month_outlined,
-              label: 'المعاينات النشطة',
-              value: data.activeBookings.length,
-              badge: data.needsBookingAction == 0 ? null : '${data.needsBookingAction} تحتاج إجراء',
-              onTap: () => context.push('/bookings'),
-            ),
-            _MetricCard(
               icon: Icons.handshake_outlined,
               label: 'الاتفاقات',
               value: data.agreements.length,
@@ -154,39 +143,6 @@ class _JourneyContent extends StatelessWidget {
             ),
           ],
         ),
-        if (data.activeBookings.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.s24),
-          const AppSectionHeader(title: 'المعاينات القادمة'),
-          const SizedBox(height: AppSpacing.s8),
-          ...data.activeBookings.take(3).map((booking) => Padding(
-                padding: const EdgeInsetsDirectional.only(bottom: AppSpacing.s8),
-                child: AppSurface(
-                  onTap: () => context.push('/bookings?booking=${booking.id}'),
-                  child: Row(
-                    children: [
-                      const EbrokerIcon(Icons.event_available_outlined),
-                      const SizedBox(width: AppSpacing.s12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(booking.targetTitle, style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: AppSpacing.s4),
-                            Text(_bookingDate(booking.startsAt)),
-                          ],
-                        ),
-                      ),
-                      AppStatusBadge(
-                        label: booking.statusLabel,
-                        tone: booking.canConfirm || booking.canAcceptReschedule
-                            ? AppStatusTone.warning
-                            : AppStatusTone.info,
-                      ),
-                    ],
-                  ),
-                ),
-              )),
-        ],
         if (data.agreements.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.s24),
           const AppSectionHeader(title: 'آخر الاتفاقات'),
@@ -220,17 +176,6 @@ class _JourneyContent extends StatelessWidget {
         tone: AppStatusTone.warning,
       );
     }
-    final booking = data.activeBookings.where((item) => item.canConfirm || item.canAcceptReschedule).firstOrNull;
-    if (booking != null) {
-      return _NextAction(
-        title: booking.canAcceptReschedule ? 'وافق على الموعد الجديد' : 'أكد موعد المعاينة',
-        subtitle: booking.targetTitle,
-        icon: Icons.event_available_outlined,
-        route: '/bookings?booking=${booking.id}',
-        actionLabel: 'فتح المعاينة',
-        tone: AppStatusTone.warning,
-      );
-    }
     final unread = data.threads.where((item) => item.unreadCount > 0).firstOrNull;
     if (unread != null) {
       return _NextAction(
@@ -252,7 +197,7 @@ class _JourneyContent extends StatelessWidget {
     }
     return const _NextAction(
       title: 'ابدأ بحفظ العقارات المناسبة',
-      subtitle: 'احفظ ما يعجبك أثناء البحث، وبعدها تابع المحادثات والمعاينات والاتفاق من هنا.',
+      subtitle: 'احفظ ما يعجبك أثناء البحث، وبعدها تابع المحادثات والاتفاق من هنا.',
       icon: Icons.travel_explore_outlined,
     );
   }
@@ -304,22 +249,14 @@ class _JourneyData {
   const _JourneyData({
     required this.favorites,
     required this.threads,
-    required this.bookings,
     required this.agreements,
   });
 
   final List<PropertyMarker> favorites;
   final List<MessageThreadSummary> threads;
-  final List<ViewingBooking> bookings;
   final List<PropertyAgreement> agreements;
 
   int get unreadMessages => threads.fold(0, (sum, item) => sum + item.unreadCount);
-  List<ViewingBooking> get activeBookings {
-    final rows = bookings.where((item) => item.isActive).toList()
-      ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
-    return rows;
-  }
-  int get needsBookingAction => activeBookings.where((item) => item.canConfirm || item.canAcceptReschedule).length;
   int get acceptableAgreements => agreements.where((item) => item.canAccept).length;
 }
 
@@ -357,10 +294,6 @@ class _JourneySkeleton extends StatelessWidget {
   }
 }
 
-String _bookingDate(DateTime value) {
-  final local = value.toLocal();
-  return '${local.year}/${local.month.toString().padLeft(2, '0')}/${local.day.toString().padLeft(2, '0')} • ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-}
 
 String _formatPrice(double value) => value.toStringAsFixed(0).replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),

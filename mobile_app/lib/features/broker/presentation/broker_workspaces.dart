@@ -59,7 +59,6 @@ class BrokerDashboardScreen extends ConsumerWidget {
         final priorities = <({String text, String route, IconData icon})>[
           if (finance['listing_creation_blocked'] == true) (text: 'لديك مستحق للمنصة يحتاج تسوية', route: '/broker/finance', icon: Icons.account_balance_wallet_outlined),
           if (brokerInt(activity['unread_conversations']) > 0) (text: '${brokerInt(activity['unread_conversations'])} محادثات تحتاج ردك', route: '/broker/customers?filter=unread', icon: Icons.chat_bubble_outline),
-          if (brokerInt(activity['active_viewings']) > 0) (text: '${brokerInt(activity['active_viewings'])} معاينات للمتابعة', route: '/broker/activity?tab=viewings', icon: Icons.event_outlined),
           if (brokerInt(attention['customer_followups_due']) > 0) (text: '${brokerInt(attention['customer_followups_due'])} عملاء حان موعد متابعتهم', route: '/broker/customers?filter=followup_due', icon: Icons.event_note_outlined),
           if (corrections > 0) (text: '$corrections إعلانات تحتاج تصحيحًا', route: '/my-listings', icon: Icons.edit_outlined),
           if (brokerInt(attention['availability_count']) > 0) (text: '${brokerInt(attention['availability_count'])} إعلانات تحتاج تأكيد التوفر', route: '/broker/availability', icon: Icons.update),
@@ -69,7 +68,6 @@ class BrokerDashboardScreen extends ConsumerWidget {
           (label: 'عقاراتي', icon: Icons.home_work_outlined, action: () => context.push('/my-listings')),
           (label: 'إضافة عقار', icon: Icons.add_home_outlined, action: () => context.push('/add-property')),
           (label: 'العملاء', icon: Icons.people_outline, action: () => context.push('/broker/customers')),
-          (label: 'المعاينات', icon: Icons.event_outlined, action: () => context.push('/broker/activity?tab=viewings')),
           (label: 'الصفقات', icon: Icons.handshake_outlined, action: () => context.push('/broker/activity')),
           (label: 'التوفر', icon: Icons.update, action: () => context.push('/broker/availability?due=1')),
           (label: 'المستحقات', icon: Icons.account_balance_wallet_outlined, action: () => context.push('/broker/finance')),
@@ -107,8 +105,6 @@ class BrokerDashboardScreen extends ConsumerWidget {
               if (priorities.length > 3) ExpansionTile(tilePadding: EdgeInsets.zero, title: Text('إجراءات أخرى (${priorities.length - 3})'),
                 children: [for (final item in priorities.skip(3)) priority(item)]),
             ])), const SizedBox(height: 8),
-            Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(icon: const EbrokerIcon(Icons.today_outlined, size: 18),
-              label: const Text('معاينات اليوم'), onPressed: () => context.push('/broker/activity?tab=viewings&today=1'))),
             const SizedBox(height: 12), Text('أدوات عملك', style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 12),
             LayoutBuilder(builder: (context, size) {
               final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
@@ -130,7 +126,6 @@ class BrokerDashboardScreen extends ConsumerWidget {
         for (final metric in <({int count, String label})>[
           (count: profile?.activeListings ?? brokerInt(listings['published']), label: 'عقارات نشطة'),
           (count: brokerInt(activity['new_customers_this_week']), label: 'عملاء جدد هذا الأسبوع'),
-          (count: brokerInt(activity['active_viewings']), label: 'معاينات نشطة'),
           (count: brokerInt(activity['completed_deals']), label: 'صفقات مكتملة مؤكدة'),
         ]) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [Expanded(child: Text(metric.label)), Text('${metric.count}')])),
       ])));

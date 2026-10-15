@@ -32,7 +32,7 @@ class _InlineVoiceCaptureState extends State<InlineVoiceCapture> with SingleTick
     final listening = capture.phase == VoicePhase.listening;
     final label = switch (capture.phase) {
       VoicePhase.preparing => 'نجهّز الميكروفون…',
-      VoicePhase.processing => 'نجهّز النص…',
+      VoicePhase.processing => 'نفرّغ التسجيل كاملًا…',
       _ => 'نستمع إليك الآن',
     };
     return Column(key: const ValueKey('inline-voice-capture'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -57,13 +57,13 @@ class _InlineVoiceCaptureState extends State<InlineVoiceCapture> with SingleTick
       const SizedBox(height: 8),
       Container(key: const ValueKey('voice-transcript'), padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: theme.colorScheme.surface, borderRadius: BorderRadius.circular(10)),
-        child: Text(capture.transcript.isEmpty ? 'قل ما تريد إضافته إلى بحثك…' : capture.transcript,
-          maxLines: 5, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium)),
+        child: Text(capture.transcript.isEmpty ? 'تحدث براحتك، ثم اضغط إنهاء التسجيل.' : capture.transcript,
+          style: theme.textTheme.bodyMedium)),
       const SizedBox(height: 8),
       Wrap(spacing: 12, alignment: WrapAlignment.end, children: [
         TextButton.icon(key: const ValueKey('voice-cancel'), onPressed: widget.onCancel,
           icon: const EbrokerIcon(Icons.close, size: 18), label: const Text('إلغاء')),
-        if (listening) TextButton(key: const ValueKey('voice-finish'), onPressed: capture.stop, child: const Text('إنهاء الكلام')),
+        if (listening) TextButton(key: const ValueKey('voice-finish'), onPressed: capture.stop, child: const Text('إنهاء التسجيل')),
       ]),
     ]);
   }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -43,6 +44,7 @@ class _Properties implements PropertyRepository {
   Map<String, dynamic>? lastInput, lastQuery;
   String? payer;
   double? rate;
+  bool deferred = false;
   @override
   Future<PropertySaiManagement> saiPolicy(String purpose) async => purpose == 'sale' ? _policy :
     const PropertySaiManagement(configured: false, advertiserType: 'broker', fixedRatePercent: 20,
@@ -67,9 +69,11 @@ class _Properties implements PropertyRepository {
       writes.add('draft');
       final input = invocation.positionalArguments.last as PropertyListingInput;
       lastInput = input.toMap();
-      return Future<PropertyDetails>.value(PropertyDetails.fromJson({'id': 500, ...lastInput!, 'status': 'draft', 'review_status': 'draft', 'images': []}));
+      return Future<PropertyDetails>.value(PropertyDetails.fromJson({'id': 500, ...lastInput!, 'status': 'draft', 'review_status': 'draft', 'images': [],
+        'rental_conditions': jsonDecode(lastInput!['rental_conditions'] as String)}));
     }
     if (invocation.memberName == #configureSai) {
+      deferred = invocation.namedArguments[#deferPlatformTerms] == true;
       writes.add('sai'); payer = invocation.namedArguments[#payer] as String?;
       rate = invocation.namedArguments[#brokerRatePercent] as double?;
       return Future<PropertySaiEnvelope>.value(const PropertySaiEnvelope(management: _policy));
@@ -166,7 +170,7 @@ void main() {
     expect(PropertySaiQuote.calculate(alternate, double.nan, 10000000), isNull);
   });
 
-  for (final type in ['floor', 'building', 'house', 'apartment', 'shop']) {
+  for (final type in ['building', 'house', 'apartment', 'shop']) {
     testWidgets('$type asks only meaningful unit and floor questions', (tester) async {
       final key = GlobalKey();
       await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(type: type), boundary: key);
@@ -182,17 +186,30 @@ void main() {
     });
   }
 
-  testWidgets('whole floor is a contextual apartment option and preserves recovery', (tester) async {
-    final store = _Recovery(_snapshot(type: 'apartment'));
-    await _pump(tester, const ListingEditorScreen(), snapshot: store.snapshot);
-    expect(find.text('الوحدة تشغل الدور كاملًا'), findsOneWidget);
+  testWidgets('new apartment removes whole-floor choice even from an old local recovery', (tester) async {
+    final recovery = _snapshot(type: 'apartment')..['unit_occupies_entire_floor'] = true;
+    await _pump(tester, const ListingEditorScreen(), snapshot: recovery);
+    expect(find.text('الوحدة تشغل الدور كاملًا'), findsNothing);
+    expect(find.byKey(const ValueKey('unit-whole-floor')), findsNothing);
     expect(find.text('رقم الشقة أو موضعها داخل الدور *'), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const ValueKey('unit-whole-floor')));
-    await tester.tap(find.byKey(const ValueKey('unit-whole-floor')));
-    await tester.pumpAndSettle();
-    expect(find.text('رقم الشقة أو موضعها داخل الدور *'), findsNothing);
     expect(find.text('أي دور؟ *'), findsOneWidget);
-    expect(find.text('دور كامل'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('rental apartment area is optional but photos gate leaving the specifications step', (tester) async {
+    final recovery = _snapshot(type: 'apartment')..['purpose'] = 'rent';
+    (recovery['fields'] as Map).addAll({'area': '', 'monthly_rent': '100000'});
+    await _pump(tester, const ListingEditorScreen(), snapshot: recovery);
+    expect(find.text('المساحة (اختياري)'), findsOneWidget);
+    expect(find.text('أي دور؟ *'), findsOneWidget);
+    expect(find.text('الوحدة تشغل الدور كاملًا'), findsNothing);
+    await tester.ensureVisible(find.text('التالي')); await tester.tap(find.text('التالي')); await tester.pumpAndSettle();
+    expect(find.text('أضف صورًا حقيقية للعقار قبل المتابعة.'), findsOneWidget);
+    expect(find.text('3/4'), findsOneWidget);
+    expect(find.text('4/4'), findsNothing);
+    await tester.scrollUntilVisible(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), 350, scrollable: find.byType(Scrollable).first);
+    expect(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), findsOneWidget);
+    expect(find.text('إنشاء وصف مقترح'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -202,7 +219,13 @@ void main() {
     expect(find.text('4/4'), findsOneWidget); expect(find.text('من يتحمل السعي؟'), findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-total'))); await tester.pumpAndSettle();
     expect(find.text('200000 ريال'), findsOneWidget);
-    expect(find.textContaining('صافي السعي: 160000 ريال'), findsOneWidget);
+    expect(find.textContaining('صافي السعي'), findsNothing);
+    expect(find.textContaining('مستحق المنصة'), findsNothing);
+    expect(find.text('طريقة عرض السعر للباحث'), findsNothing);
+    expect(find.text('أشهر المقدم'), findsNothing);
+    expect(find.text('مدة التأجير بالأشهر'), findsNothing);
+    expect(find.byType(CheckboxListTile), findsNothing);
+    expect(find.text('السابق').hitTestable(), findsOneWidget);
     await _capture(tester, key, 'inline-sai');
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('معاينة')); await tester.pumpAndSettle();
@@ -210,7 +233,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('explicit draft save carries v5 fields and customer-paid commission, without submission', (tester) async {
+  testWidgets('explicit draft save carries v6 fields and customer-paid commission, without submission', (tester) async {
     final repository = _Properties();
     final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const ListingEditorScreen()),
       GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing')))]);
@@ -218,7 +241,9 @@ void main() {
     await _pump(tester, const SizedBox(), snapshot: _snapshot(step: 3), properties: repository, router: router);
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
-    expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 5);
+    expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 6);
+    expect(jsonDecode(repository.lastInput!['rental_conditions'] as String), isEmpty);
+    expect(repository.deferred, isTrue);
     expect(repository.payer, 'buyer'); expect(repository.rate, 2);
     expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
   });

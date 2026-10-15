@@ -42,6 +42,8 @@ class PropertySaiSettlementService
                 throw new ConflictHttpException('نسخة شروط السعي المجمدة لا تطابق العقار أو نوع الاتفاق.');
             }
 
+            $this->sai->assertSettlementConsent($term);
+
             $revision = DB::table('property_agreement_revisions')->where('property_agreement_id', $lockedAgreement->id)
                 ->orderByDesc('revision_number')->lockForUpdate()->first();
             if (! $revision) throw new ConflictHttpException('لا يمكن حساب السعي بدون نسخة اتفاق نهائية.');

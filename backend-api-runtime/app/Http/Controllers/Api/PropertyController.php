@@ -295,6 +295,7 @@ class PropertyController extends Controller
             $wasPublished=$property->status==='published';$property->fill($this->listingPayload($validated,true));
             $cell=$this->regions->assertListingAllowed($user,(float)$property->latitude,(float)$property->longitude);$property->geo_cell_id=$cell?->id;
             $identity=array_merge(['purpose'=>$property->purpose,'type'=>$property->type,'latitude'=>$property->latitude,'longitude'=>$property->longitude,'area_m2'=>$property->area_m2,'bedrooms'=>$property->bedrooms,'bathrooms'=>$property->bathrooms,'address'=>$property->address],$validated);
+            if ((int) $property->listing_input_version >= 6) $identity = array_merge($this->listingState($property), $validated);
             $asset=$this->identity->resolveOrCreateAsset($user,$identity);$property->property_asset_id=$asset->id;
             $property->status='draft';$property->review_status='draft';$property->submitted_at=null;$property->reviewed_at=null;$property->last_review_reason=null;if($wasPublished)$property->published_at=null;$property->save();$this->syncLocation($property);
             if($replaceImages)$property->images()->delete();if($request->hasFile('images'))$this->storeImages($request,$property,$property->images()->count(),$storedPublic);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
@@ -392,7 +393,8 @@ class PropertyController extends Controller
             'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
             'currency' => ['sometimes', 'string', 'size:3'],
-            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4, 5])],
+            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4, 5, 6])],
+            'rental_conditions' => ['nullable'],
             'area_m2' => ['nullable', 'integer', 'min:1', 'max:10000000'],
             'area_value' => ['nullable', 'numeric', 'gt:0', 'max:10000000'],
             'area_unit' => ['nullable', 'string', Rule::in(array_keys(self::AREA_UNITS))],
@@ -431,7 +433,7 @@ class PropertyController extends Controller
     private function listingPayload(array $validated, bool $partial): array
     {
         $allowed = [
-            'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
+            'listing_input_version', 'rental_conditions', 'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
             'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'has_elevator', 'building_facade', 'address', 'latitude', 'longitude',
             'building_reference', 'unit_number', 'floor_number', 'unit_occupies_entire_floor', 'land_boundary_geojson',
             'contact_phone', 'contact_whatsapp',
@@ -471,10 +473,32 @@ class PropertyController extends Controller
 
     private function normalizeListingFields(array $validated, ?Property $existing, bool $partial): array
     {
+        $purpose = (string) ($validated['purpose'] ?? $existing?->purpose ?? '');
+        $type = (string) ($validated['type'] ?? $existing?->type ?? '');
+        $version = (int) ($validated['listing_input_version'] ?? $existing?->listing_input_version ?? 1);
+        if ($partial && $existing && $version >= 6) {
+            $state = $this->listingState($existing);
+            foreach (['listing_input_version','type','building_reference','unit_number','floor_number','land_boundary_geojson'] as $key) {
+                if (! array_key_exists($key, $validated)) $validated[$key] = $state[$key];
+            }
+        }
+        if (array_key_exists('rental_conditions', $validated)) {
+            $conditions = app(\App\Services\RentalConditionService::class)->normalize($validated['rental_conditions'] ?? []);
+            if ($purpose !== 'rent' && $conditions !== []) throw ValidationException::withMessages(['rental_conditions' => ['شروط الإيجار متاحة لإعلانات الإيجار فقط.']]);
+            $validated['rental_conditions'] = $conditions;
+        } elseif ($purpose !== 'rent') $validated['rental_conditions'] = [];
+        if ($version >= 6 && ($type === 'floor' || ($type === 'apartment' && ($validated['unit_occupies_entire_floor'] ?? false)))
+            && ! ($existing && ($existing->type === 'floor' || $existing->unit_occupies_entire_floor))) {
+            throw ValidationException::withMessages(['unit_occupies_entire_floor' => ['حدد الشقة برقمها أو موضعها؛ نطاق الدور القديم محفوظ للإعلانات السابقة فقط.']]);
+        }
+        if ($version >= 6 && $purpose === 'rent' && $type === 'apartment' && array_key_exists('area_value', $validated) && $validated['area_value'] === null) {
+            $validated['area_value'] = null; $validated['area_m2'] = null; $validated['area_unit'] = null;
+            $withoutArea = true;
+        } else $withoutArea = false;
         $hasAreaInput = array_key_exists('area_value', $validated) || array_key_exists('area_unit', $validated);
         $hasLegacyArea = array_key_exists('area_m2', $validated);
 
-        if ($hasAreaInput) {
+        if ($hasAreaInput && ! $withoutArea) {
             $areaValue = array_key_exists('area_value', $validated)
                 ? (float) $validated['area_value']
                 : (float) ($existing?->area_value ?? $existing?->area_m2 ?? 0);
@@ -491,7 +515,7 @@ class PropertyController extends Controller
             $validated['area_value'] = round($areaValue, 2);
             $validated['area_unit'] = $areaUnit;
             $validated['area_m2'] = max(1, (int) round($areaValue * self::AREA_UNITS[$areaUnit]));
-        } elseif ($hasLegacyArea) {
+        } elseif ($hasLegacyArea && ! $withoutArea) {
             $validated['area_value'] = (float) $validated['area_m2'];
             $validated['area_unit'] = 'sqm';
         } elseif (! $partial && (($validated['listing_input_version'] ?? 1) === 2)) {
@@ -510,7 +534,7 @@ class PropertyController extends Controller
             $validated['bedrooms'] = null;
             $validated['bathrooms'] = null;
             $validated['has_parking'] = null;
-            $validated['building_facade'] = null;
+            $validated['building_facade'] = $version >= 6 ? ($validated['building_facade'] ?? $existing?->building_facade) : null;
             $validated['building_reference'] = null;
             $validated['unit_number'] = null;
             $validated['floor_number'] = null;
@@ -528,7 +552,8 @@ class PropertyController extends Controller
                 $validated['bedrooms'] = null; $validated['bathrooms'] = null;
             }
             if (! in_array($effectiveType, self::STRUCTURE_TYPES, true)) {
-                $validated['has_parking'] = null; $validated['building_facade'] = null;
+                $validated['has_parking'] = null;
+                if (! ($version >= 6 && $effectiveType === 'land')) $validated['building_facade'] = null;
             }
         }
         $wholeFloor = $effectiveType === 'floor' || ($effectiveType === 'apartment' && (bool) ($validated['unit_occupies_entire_floor'] ?? $existing?->unit_occupies_entire_floor ?? false));
@@ -541,7 +566,7 @@ class PropertyController extends Controller
 
     private function assertV2ListingCompleteness(array $listing): void
     {
-        if (! in_array((int) ($listing['listing_input_version'] ?? 1), [2, 4, 5], true)) {
+        if (! in_array((int) ($listing['listing_input_version'] ?? 1), [2, 4, 5, 6], true)) {
             return;
         }
 
@@ -549,7 +574,8 @@ class PropertyController extends Controller
         if (trim((string) ($listing['address'] ?? '')) === '') {
             $errors['address'][] = 'Address is required for listing input version 2.';
         }
-        if (! isset($listing['area_value']) || (float) $listing['area_value'] <= 0 || empty($listing['area_unit'])) {
+        $optionalArea = (int) ($listing['listing_input_version'] ?? 1) >= 6 && ($listing['type'] ?? '') === 'apartment' && ($listing['purpose'] ?? '') === 'rent';
+        if (! $optionalArea && (! isset($listing['area_value']) || (float) $listing['area_value'] <= 0 || empty($listing['area_unit']))) {
             $errors['area_value'][] = 'Area value and unit are required.';
         }
         if (! isset($listing['price']) || (float) $listing['price'] <= 0) {
@@ -589,9 +615,10 @@ class PropertyController extends Controller
     private function listingState(Property $property): array
     {
         return [
-            'listing_input_version' => 1,
+            'listing_input_version' => $property->listing_input_version ?? 1,
             'title' => $property->title,
             'description' => $property->description,
+            'rental_conditions' => $property->rental_conditions ?? [],
             'purpose' => $property->purpose,
             'type' => $property->type,
             'unit_occupies_entire_floor' => $property->type === 'floor' || (bool) $property->unit_occupies_entire_floor,
@@ -916,6 +943,7 @@ class PropertyController extends Controller
         $property->loadMissing(['images', 'documents']);
         return array_merge($this->summaryData($property, $request), [
             'description' => $property->description,
+            'rental_conditions' => $property->rental_conditions ?? [],
             'contact_phone' => $property->contact_phone,
             'contact_whatsapp' => $property->contact_whatsapp,
             'review_status' => $property->review_status,
@@ -965,6 +993,7 @@ class PropertyController extends Controller
 
         $data = array_merge($this->summaryData($property, $request), [
             'description' => $property->description,
+            'rental_conditions' => $property->rental_conditions ?? [],
             'advertiser' => array_merge([
                 'id'=>(int)$property->user_id,
                 'name'=>$this->advertiserDisplayName($property->user),

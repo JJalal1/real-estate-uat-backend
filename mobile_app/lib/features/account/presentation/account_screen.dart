@@ -177,11 +177,6 @@ class AccountScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.s8),
                     _AccountGroup(
                       rows: [
-                        _AccountRow(
-                          'المعاينات',
-                          Icons.event_available_outlined,
-                          () => context.push('/bookings'),
-                        ),
                         if (user.hasVerifiedProfessionalProfile) _AccountRow(
                           'نتائج الصفقات',
                           Icons.check_circle_outline,

@@ -128,7 +128,7 @@ class _ServicesHub extends StatelessWidget {
         const AppSectionHeader(
           title: 'أدوات الباحث',
           subtitle:
-              'من البحث إلى المعاينة والاتفاق، بدون ما تضيع الخطوة التالية.',
+              'من البحث إلى المراسلة والاتفاق، بدون ما تضيع الخطوة التالية.',
         ),
         const SizedBox(height: AppSpacing.s8),
         AppSurface(
@@ -138,7 +138,7 @@ class _ServicesHub extends StatelessWidget {
               AppListRow(
                 title: 'رحلتي العقارية',
                 subtitle:
-                    'المحفوظات والرسائل والمعاينات والاتفاقات مع الخطوة التالية.',
+                    'المحفوظات والرسائل والاتفاقات مع الخطوة التالية.',
                 leading: const EbrokerIcon(Icons.route_outlined),
                 trailing: const AppStatusBadge(
                   label: 'متاح الآن',
@@ -230,7 +230,7 @@ class _ServicesHub extends StatelessWidget {
                 AppListRow(
                   title: 'لوحة عملي',
                   subtitle:
-                      'نشاط العملاء، المعاينات، الاتفاقات والإعلانات التي تحتاج إجراء.',
+                      'نشاط العملاء، الرسائل، الاتفاقات والإعلانات التي تحتاج إجراء.',
                   leading: const EbrokerIcon(Icons.space_dashboard_outlined),
                   trailing: const AppStatusBadge(
                     label: 'متاح الآن',

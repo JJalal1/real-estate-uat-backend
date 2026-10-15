@@ -2,7 +2,15 @@
 
 These are product rules, not implementation suggestions. Agents must preserve them unless the product owner explicitly changes them.
 
-## Current October 13 refinement
+## Current October15 Wave4 changes
+
+Wave4 starts from APK1039. The active viewing/booking UI, endpoints and notifications are retired; parties coordinate visits using ordinary property-linked messages. Historical bookings/events/messages and all immutable financial history stay intact; no replacement calendar is authorized.
+
+Listing input6 moves mandatory photos and editable fact-grounded description to specifications, removes new whole-floor selection, makes area optional for rental apartments, and stores only selected optional rental requirements. Existing whole-floor identity is preserved read-only for legacy listings. Step4 shows rate/total and visible Previous, without display-mode choice, split or consent checkbox. Public price/rate are automatic. Existing rates, monthly commission basis and customer payer remain. New pending custom terms may enter review, but settlement requires the existing explicit post-publication attestation tied to the immutable term. No implicit acceptance is created.
+
+Voice capture ends by the user's stop action, not silence. The complete temporary clip is transcribed on Laravel with the existing server-only Gemini configuration. Text, voice and chips update one search state; resource-limit/error paths never execute a partial request. No TTS or background recording is authorized.
+
+## Earlier October13 refinement
 
 New Sai configurations are paid by the customer (sale buyer / rental tenant), with the existing rates, zero-rate fallback, internal split and explicit platform-condition acceptance. Immutable historical conversation/financial terms are retained. Advertisers start in the normal marketplace and reach their separate work area explicitly. See `UX_REFINEMENT_ROUND2_AR.md` for dynamic listing scope and the new read-only editor policy contract. Historical planned contract text below does not enable new contract creation.
 

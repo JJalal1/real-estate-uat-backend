@@ -55,21 +55,12 @@ class ListingSaiSection extends StatelessWidget {
             Text(amount(quote.total), key: const ValueKey('listing-sai-total'),
               style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.primary)),
           ]),
-          const SizedBox(height: 4),
-          Text(current.isOwner ? 'مستحق المنصة: ${amount(quote.platform)}'
-              : 'صافي السعي: ${amount(quote.net)} · مستحق المنصة: ${amount(quote.platform)}',
-            key: const ValueKey('listing-sai-net'), style: theme.textTheme.bodySmall),
         ],
         if (!current.isOwner && rate == 0) ...[
           const SizedBox(height: 8),
-          Text('اختيار 0% يفعّل السعي الثابت ${current.fixedRatePercent?.toStringAsFixed(0) ?? '—'}% للمنصة؛ صافي سعيك صفر.',
+          Text('اختيار 0% يفعّل السعي الثابت ${current.fixedRatePercent?.toStringAsFixed(0) ?? '—'}% تلقائيًا.',
             style: theme.textTheme.bodySmall),
         ],
-        if (!current.isOwner && rate != null && rate > 0)
-          CheckboxListTile(key: const ValueKey('listing-sai-acceptance'),
-            contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading,
-            value: accepted, onChanged: enabled ? (value) => onAcceptanceChanged(value == true) : null,
-            title: Text(current.platformTermsMessage ?? 'أوافق على مستحق المنصة الموضح.', style: theme.textTheme.bodySmall)),
         const SizedBox(height: 6),
         Text('المبالغ تقديرية حسب السعر؛ التسوية تُحسب عند تأكيد نتيجة الصفقة.', style: theme.textTheme.bodySmall),
       ],

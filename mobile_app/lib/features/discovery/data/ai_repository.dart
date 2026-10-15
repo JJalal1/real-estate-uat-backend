@@ -29,5 +29,8 @@ class AiRepository {
   Future<Map<String, dynamic>> description(Map<String, dynamic> facts, {int? propertyId}) =>
     _post('/ai/listing-description', {'facts': facts, if (propertyId != null) 'property_id': propertyId}, private: true);
 
+  Future<Map<String, dynamic>> rentalConditions(List<Map<String, dynamic>> conditions, {int? propertyId}) =>
+    _post('/ai/rental-conditions', {'rental_conditions': conditions, if (propertyId != null) 'property_id': propertyId}, private: true);
+
   Future<Map<String, dynamic>> question(int id, String question) => _post('/properties/$id/ask', {'question': question.trim()});
 }

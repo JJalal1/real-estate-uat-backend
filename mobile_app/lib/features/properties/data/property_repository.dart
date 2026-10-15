@@ -295,11 +295,13 @@ class PropertyRepository {
     required String payer,
     double? brokerRatePercent,
     String? platformTermsDecision,
+    bool deferPlatformTerms = false,
   }) async {
     final response = await _dio.put<Map<String, dynamic>>(
       '/properties/$propertyId/sai',
       data: <String, dynamic>{
         'sai_payer': payer,
+        if (deferPlatformTerms) 'defer_platform_terms': true,
         if (brokerRatePercent != null)
           'broker_sai_rate_percent': brokerRatePercent,
         if (platformTermsDecision != null)

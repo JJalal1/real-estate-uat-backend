@@ -193,63 +193,52 @@ class Phase4MessagingViewingAcceptanceTest extends TestCase
 
         $property->forceFill(['status'=>'draft'])->save();
         $this->withHeaders($buyerHeaders)->postJson("/api/properties/{$property->id}/conversation")->assertNotFound();
-        $this->withHeaders($buyerHeaders)->postJson("/api/properties/{$property->id}/viewings",$this->window(2,10))->assertNotFound();
+        $this->withHeaders($buyerHeaders)->postJson("/api/properties/{$property->id}/viewings",$this->window(2,10))->assertStatus(410);
         $this->withHeaders($buyerHeaders)->getJson("/api/messages/threads/$threadId")->assertOk()->assertJsonPath('data.thread.property_status','draft');
         $this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/messages",['body'=>'السجل يبقى قابلاً للمراسلة','client_message_id'=>'p4-after-unpublish'])->assertCreated();
     }
 
-    public function test_host_reschedule_requires_requester_acceptance_and_cannot_be_self_confirmed_by_host(): void
+    public function test_visit_is_coordinated_as_a_normal_private_message_without_booking_state(): void
     {
         [$owner,$ownerHeaders]=$this->user('p4-owner3@example.test','+967760000006');
-        [, $buyerHeaders]=$this->user('p4-buyer3@example.test','+967760000007');
-        $property=$this->property($owner,'Phase 4 reschedule');
-        $bookingId=(int)$this->withHeaders($buyerHeaders)->postJson("/api/properties/{$property->id}/viewings",$this->window(3,11))->assertCreated()->json('data.id');
-
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/reschedule",$this->window(4,14)+['note'=>'هذا الوقت أنسب'])->assertOk()
-            ->assertJsonPath('data.status','requested')
-            ->assertJsonPath('data.awaiting_requester_confirmation',true)
-            ->assertJsonPath('data.can_confirm',false)
-            ->assertJsonPath('data.can_decline',false);
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertConflict();
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/decline",['note'=>'لن أستطيع'])->assertConflict();
-
-        $this->withHeaders($buyerHeaders)->getJson("/api/bookings/$bookingId")->assertOk()->assertJsonPath('data.can_accept_reschedule',true);
-        $this->withHeaders($buyerHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertOk()->assertJsonPath('data.status','confirmed');
-        $this->assertDatabaseHas('viewing_booking_events',['viewing_booking_id'=>$bookingId,'event'=>'reschedule_accepted','to_status'=>'confirmed']);
-        $this->assertDatabaseHas('user_notifications',['user_id'=>$owner->id,'type'=>'booking_reschedule_accepted']);
+        [$buyer,$buyerHeaders]=$this->user('p4-buyer3@example.test','+967760000007');
+        [, $otherHeaders]=$this->user('p4-visit-outsider@example.test','+967760000014');
+        $property=$this->property($owner,'Message visit');
+        $thread=(int)$this->withHeaders($buyerHeaders)->postJson("/api/properties/{$property->id}/conversation")->assertCreated()->json('data.id');
+        $this->withHeaders($ownerHeaders)->postJson("/api/messages/threads/$thread/messages",['body'=>'متى يناسبك زيارة العقار؟','client_message_id'=>'visit-message-1'])->assertCreated();
+        $this->withHeaders($buyerHeaders)->getJson("/api/messages/threads/$thread")->assertOk()->assertJsonFragment(['body'=>'متى يناسبك زيارة العقار؟']);
+        $this->withHeaders($otherHeaders)->getJson("/api/messages/threads/$thread")->assertNotFound();
+        $this->assertDatabaseCount('viewing_bookings',0);
+        $this->assertDatabaseCount('viewing_booking_events',0);
+        $this->assertDatabaseHas('private_messages',['thread_id'=>$thread,'sender_user_id'=>$owner->id,'body'=>'متى يناسبك زيارة العقار؟']);
+        $this->assertDatabaseHas('user_notifications',['user_id'=>$buyer->id,'type'=>'message_received']);
     }
 
-    public function test_unassigned_development_reschedule_acceptance_assigns_the_proposing_manager_as_host(): void
+    public function test_development_visit_cannot_reintroduce_a_booking_or_host_assignment(): void
     {
         [$manager,$managerHeaders]=$this->user('p4-manager@example.test','+967760000012',['regions_manager']);
         [, $buyerHeaders]=$this->user('p4-unit-buyer@example.test','+967760000013');
         $unit=$this->developmentUnit($manager);
-        $bookingId=(int)$this->withHeaders($buyerHeaders)->postJson("/api/development-units/{$unit->id}/viewings",$this->window(7,10))->assertCreated()->json('data.id');
-
-        ViewingBooking::query()->whereKey($bookingId)->update(['host_user_id'=>null,'host_name_snapshot'=>null]);
-        $this->withHeaders($managerHeaders)->postJson("/api/bookings/$bookingId/reschedule",$this->window(8,12)+['note'=>'موعد بديل'])->assertOk()
-            ->assertJsonPath('data.awaiting_requester_confirmation',true)
-            ->assertJsonPath('data.host_user_id',null);
-        $this->withHeaders($buyerHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertOk()
-            ->assertJsonPath('data.status','confirmed')
-            ->assertJsonPath('data.host_user_id',$manager->id);
-        $this->assertDatabaseHas('viewing_bookings',['id'=>$bookingId,'host_user_id'=>$manager->id,'status'=>'confirmed']);
+        $this->withHeaders($buyerHeaders)->postJson("/api/development-units/{$unit->id}/viewings",$this->window(7,10))->assertStatus(410);
+        $this->withHeaders($managerHeaders)->getJson('/api/bookings/managed')->assertStatus(410);
+        $this->assertDatabaseCount('viewing_bookings',0);
+        $this->assertDatabaseCount('viewing_booking_events',0);
     }
 
-    public function test_terminal_viewing_state_cannot_be_reopened_or_mutated(): void
+    public function test_legacy_terminal_booking_cannot_be_reopened_or_mutated_after_retirement(): void
     {
         [$owner,$ownerHeaders]=$this->user('p4-owner4@example.test','+967760000008');
-        [, $buyerHeaders]=$this->user('p4-buyer4@example.test','+967760000009');
-        $property=$this->property($owner,'Phase 4 terminal');
-        $bookingId=(int)$this->withHeaders($buyerHeaders)->postJson("/api/properties/{$property->id}/viewings",$this->window(5,9))->assertCreated()->json('data.id');
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertOk();
-        ViewingBooking::query()->whereKey($bookingId)->update(['starts_at'=>now()->subHours(2),'ends_at'=>now()->subHour()]);
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/complete")->assertOk()->assertJsonPath('data.status','completed');
-
-        $this->withHeaders($buyerHeaders)->postJson("/api/bookings/$bookingId/cancel",['reason'=>'too late'])->assertConflict();
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/decline",['note'=>'too late'])->assertConflict();
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/reschedule",$this->window(6,12))->assertConflict();
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertConflict();
+        [$buyer,$buyerHeaders]=$this->user('p4-buyer4@example.test','+967760000009');
+        $property=$this->property($owner,'Legacy terminal');
+        $booking=ViewingBooking::query()->create(['reference'=>'P4-LEGACY','target_type'=>'property','target_id'=>$property->id,
+            'target_title_snapshot'=>$property->title,'requester_user_id'=>$buyer->id,'requester_name_snapshot'=>$buyer->name,
+            'host_user_id'=>$owner->id,'host_name_snapshot'=>$owner->name,'starts_at'=>now()->subHours(2),'ends_at'=>now()->subHour(),
+            'timezone'=>'UTC','status'=>'completed','completed_at'=>now()]);
+        $before=$booking->getRawOriginal();
+        foreach ([$ownerHeaders,$buyerHeaders] as $headers) foreach (['confirm','decline','cancel','reschedule','complete'] as $action) {
+            $this->withHeaders($headers)->postJson("/api/bookings/{$booking->id}/$action",$this->window(6,12))->assertStatus(410);
+        }
+        $this->assertSame($before,$booking->fresh()->getRawOriginal());
     }
 
     private function user(string $email,string $phone,array $roles=[]): array

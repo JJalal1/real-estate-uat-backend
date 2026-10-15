@@ -282,6 +282,14 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
+          if (property.purpose == 'rent' && property.rentalConditions.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s24),
+            EbrokerSectionPanel(title: 'شروط الإيجار', child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [for (final c in property.rentalConditions) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(switch (c['kind']) {
+                'advance' => 'مقدم إيجار: ${c['months']} أشهر', 'duration' => 'مدة العقد: ${c['months']} أشهر',
+                'guarantor' => 'ضمانة تجارية مطلوبة', 'deposit' => 'تأمين مطلوب', 'special' => c['text']?.toString() ?? '', _ => '',
+              }))])),
+          ],
           if (published && property.availabilityStatus == 'available') ...[
             const SizedBox(height: AppSpacing.s24), PropertyQuestionSection(propertyId: property.id),
           ],
@@ -718,7 +726,7 @@ class _AdvertiserCard extends StatelessWidget {
           Text(
             verified
                 ? 'تم التحقق من صفة المعلن داخل المنصة. إشارات الثقة أدناه مبنية على بيانات تحقق فعلية وليست شارات دعائية.'
-                : 'لم يكتمل توثيق هذا المعلن داخل المنصة. استخدم المراسلة والمعاينة داخل التطبيق قبل اتخاذ أي قرار.',
+                : 'لم يكتمل توثيق هذا المعلن داخل المنصة. استخدم المراسلة داخل التطبيق وناقش تفاصيل العقار مع المعلن قبل اتخاذ أي قرار.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),

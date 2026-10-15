@@ -30,12 +30,7 @@ String? notificationDestination(AppNotificationItem item) {
     return '/rental-contracts/$contractId';
   }
 
-  final bookingId = item.bookingId ??
-      (item.entityType == 'viewing_booking' ? item.entityId : null);
-  if (bookingId != null && _viewingNotificationTypes.contains(item.type)) {
-    return '/bookings?booking=$bookingId';
-  }
-
+  final retiredViewing = item.entityType == 'viewing_booking' || _viewingNotificationTypes.contains(item.type);
   final threadId = item.messageThreadId ??
       (item.entityType == 'message_thread' ? item.entityId : null);
   if (threadId != null) {
@@ -48,9 +43,7 @@ String? notificationDestination(AppNotificationItem item) {
   if (contractId != null) {
     return '/rental-contracts/$contractId';
   }
-  if (bookingId != null) {
-    return '/bookings?booking=$bookingId';
-  }
+  if (retiredViewing) return '/messages';
   if (item.entityType == 'account_verification_profile' ||
       item.entityType == 'account_verification') {
     return '/account-verification';

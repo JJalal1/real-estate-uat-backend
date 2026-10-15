@@ -288,19 +288,19 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     WidgetRef ref,
     PropertyDetails item,
   ) async {
-    const oath =
-        'أقسم بالله أنني إذا تمت الصفقة عن طريق المنصة فسأقوم بسداد مستحقات المنصة من السعي حسب الشروط التي وافقت عليها عند نشر الإعلان.';
+    final oath = item.saiAttestationText ??
+        'ألتزم بسداد مستحق المنصة من السعي عند إتمام صفقة جاءت من عميل عبر المنصة، وفق نسبة المنصة الموضحة.';
     final confirmed = await AppDialog.show<bool>(
           context,
           title: 'إقرار السعي للإعلان المنشور',
-          content: const Text(oath),
+          content: Text(oath),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('ليس الآن')),
             EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('أقسم بذلك')),
+                child: const Text('أوافق على الإقرار')),
           ],
         ) ??
         false;

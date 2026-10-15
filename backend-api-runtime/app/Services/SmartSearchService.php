@@ -39,7 +39,8 @@ class SmartSearchService
         if ($type !== null && ! in_array($type, ['apartment', 'office', 'shop'], true)) unset($value['floor_number']);
         if ($type !== null && $type !== 'apartment') unset($value['unit_occupies_entire_floor']);
         if ($type !== null && ! in_array($type, ['apartment', 'building', 'office'], true)) unset($value['has_elevator']);
-        if (in_array($type, ['land', 'farm'], true)) unset($value['has_parking'], $value['building_facade']);
+        if (in_array($type, ['land', 'farm'], true)) unset($value['has_parking']);
+        if ($type === 'farm') unset($value['building_facade']);
         return $value;
     }
 
@@ -83,7 +84,8 @@ class SmartSearchService
         $keys = match ($type) {
             'apartment' => ['min_bedrooms', 'floor_number', 'has_elevator', 'has_parking'],
             'house', 'villa' => ['min_bedrooms', 'min_area_m2', 'has_parking'],
-            'land', 'farm' => ['min_area_m2', 'max_area_m2', 'search'],
+            'land' => ['min_area_m2', 'building_facade', 'max_area_m2', 'search'],
+            'farm' => ['min_area_m2', 'max_area_m2', 'search'],
             'shop', 'office' => ['min_area_m2', 'floor_number', 'building_facade'],
             default => ['type', 'purpose', 'search', 'max_price'],
         };

@@ -15,7 +15,7 @@ class Property extends Model
 
     protected $fillable = [
         'user_id', 'property_asset_id', 'current_sai_term_id', 'geo_cell_id', 'owner_key', 'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
-        'price_display_mode', 'monthly_rent', 'rental_term_months', 'advance_months', 'financial_hold_at', 'financial_hold_reason',
+        'listing_input_version', 'rental_conditions', 'price_display_mode', 'monthly_rent', 'rental_term_months', 'advance_months', 'financial_hold_at', 'financial_hold_reason',
         'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'has_elevator', 'building_facade', 'address', 'latitude', 'longitude', 'status',
         'building_reference', 'unit_number', 'floor_number', 'unit_occupies_entire_floor', 'land_boundary_geojson',
         'duplicate_check_status', 'duplicate_check_score', 'duplicate_check_metadata', 'duplicate_self_verification', 'duplicate_checked_at',
@@ -23,6 +23,7 @@ class Property extends Model
     ];
 
     protected $casts = [
+        'listing_input_version' => 'integer', 'rental_conditions' => 'array',
         'has_elevator' => 'boolean', 'spotlight_until' => 'datetime',
         'price' => 'float', 'monthly_rent'=>'float', 'rental_term_months'=>'integer', 'advance_months'=>'integer',
         'latitude' => 'float', 'longitude' => 'float', 'area_m2' => 'integer', 'area_value' => 'float',

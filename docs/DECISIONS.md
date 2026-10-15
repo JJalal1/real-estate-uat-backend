@@ -165,3 +165,12 @@ The October 13 Wave3 handoff supersedes standalone whole-floor selection and own
 ## D-W3-UAT — One-shot fixture replacement, operational preservation
 
 The owner authorized replacing old UAT marketplace fixtures only. Match exact legacy email/phone pairs, exclude any operational role/direct privilege/platform owner, back up sanitized scoped rows privately, and verify protected account snapshots. No global truncate, FK disabling or RLS change. Only scoped immutable DELETE guards are removed/recreated within the enclosing transaction; ordinary UPDATE/history guards stay active. An unforeseen financial/contract history stops cleanup. No reset endpoint or repeated cleanup on deploy.
+
+
+## D-W4 — Explicit1039 base and focused product corrections
+
+The October15 handoff mandates source998f3456 as base and excludes1043's home startup/cache changes. It supersedes active viewing-journey requirements: no booking UI/API or viewing notifications, no alternative calendar; retain historical records and normal participant-only messages. Broker management moves into a secondary sheet.
+
+New listing input6 stores optional selected rental conditions and defers platform consent to the existing post-publication Sai attestation. No financial version is edited or automatically accepted; pending custom terms must be explicitly attested before settlement. Existing rates, payer, monthly basis and accepted historical snapshots are unchanged. Public price+rate presentation is automatic. Whole-floor selection is removed while legacy identity stays read-only.
+
+Recording is foreground-only and manually stopped; full-clip transcription uses Laravel's existing Gemini guard, never a Google recognition Activity or silence endpointing. No partial or provider-truncated transcript may execute. The full-reference-video and handset gates remain outstanding until the two source videos are supplied and actual motion is reviewed.

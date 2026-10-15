@@ -54,11 +54,10 @@ class Wave3VoiceFake implements VoiceInput {
   @override
   VoiceRecording start() {
     calls++;
-    final recording = Wave3RecordingFake(); recordings.add(recording);
+    final recording = Wave3RecordingFake(text: text, autoComplete: autoComplete); recordings.add(recording);
     if (autoComplete) {
       scheduleMicrotask(() {
         recording.emit(const VoiceEvent('ready'));
-        recording.emit(text == null ? const VoiceEvent('cancelled') : VoiceEvent('final', text: text!));
       });
     }
     return recording;
@@ -67,6 +66,9 @@ class Wave3VoiceFake implements VoiceInput {
 }
 
 class Wave3RecordingFake implements VoiceRecording {
+  Wave3RecordingFake({this.text, this.autoComplete = false});
+  final String? text;
+  final bool autoComplete;
   final _events = StreamController<VoiceEvent>();
   int cancellations = 0, stops = 0;
   @override
@@ -75,7 +77,10 @@ class Wave3RecordingFake implements VoiceRecording {
   @override
   Future<void> cancel() async { cancellations++; }
   @override
-  Future<void> stop() async { stops++; emit(const VoiceEvent('processing')); }
+  Future<void> stop() async {
+    stops++; emit(const VoiceEvent('processing'));
+    if (autoComplete) scheduleMicrotask(() => emit(text == null ? const VoiceEvent('cancelled') : VoiceEvent('final', text: text!)));
+  }
   Future<void> close() => _events.close();
 }
 

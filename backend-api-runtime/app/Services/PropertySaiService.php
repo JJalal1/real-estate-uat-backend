@@ -29,18 +29,22 @@ class PropertySaiService
         ?float $brokerRate,
         ?string $platformTermsDecision,
         Request $request,
+        bool $deferPlatformTerms = false,
     ): PropertySaiTerm {
         if ((int) $property->user_id !== (int) $actor->id) {
             abort(403, 'Only the listing advertiser can configure sai terms.');
         }
 
-        return DB::transaction(function () use ($actor, $property, $payer, $brokerRate, $platformTermsDecision, $request): PropertySaiTerm {
+        return DB::transaction(function () use ($actor, $property, $payer, $brokerRate, $platformTermsDecision, $request, $deferPlatformTerms): PropertySaiTerm {
             $locked = Property::query()->whereKey($property->id)->lockForUpdate()->firstOrFail();
             if ($locked->status === 'published'
                 || in_array($locked->review_status, ['submitted', 'under_review', 'rejected_blocked'], true)) {
                 throw new ConflictHttpException('عدّل الإعلان أولاً ليعود إلى المسودة، ثم أكد شروط السعي وأرسله للمراجعة من جديد.');
             }
 
+            if ($deferPlatformTerms && ((int) $locked->listing_input_version < 6 || $platformTermsDecision !== null)) {
+                throw ValidationException::withMessages(['defer_platform_terms' => ['تأجيل الإقرار متاح لمسودة النموذج الجديد دون قرار قبول أو رفض مسبق.']]);
+            }
             $advertiserType = $this->advertiserType($actor);
             $purpose = (string) $locked->purpose;
             $this->validatePayer($purpose, $payer, true);
@@ -85,12 +89,12 @@ class PropertySaiService
                     $platformShare = self::PLATFORM_BROKER_SHARE;
                     $brokerShare = self::BROKER_NET_SHARE;
 
-                    if (! in_array($platformTermsDecision, ['accept', 'reject'], true)) {
+                    if (! $deferPlatformTerms && ! in_array($platformTermsDecision, ['accept', 'reject'], true)) {
                         throw ValidationException::withMessages([
                             'platform_terms_decision' => ['يجب قبول أو رفض شرط نسبة التطبيق قبل المتابعة.'],
                         ]);
                     }
-                    $termsStatus = $platformTermsDecision === 'accept' ? 'accepted' : 'rejected';
+                    $termsStatus = $deferPlatformTerms ? 'pending' : ($platformTermsDecision === 'accept' ? 'accepted' : 'rejected');
                     $acceptedAt = $termsStatus === 'accepted' ? now() : null;
                     $rejectedAt = $termsStatus === 'rejected' ? now() : null;
                 } else {
@@ -195,7 +199,7 @@ class PropertySaiService
                 || abs((float) $term->sai_rate_percent - $requested) > 0.001
                 || (float) $term->platform_share_percent !== self::PLATFORM_BROKER_SHARE
                 || (float) $term->broker_share_percent !== self::BROKER_NET_SHARE
-                || $term->platform_terms_status !== 'accepted') {
+                || ! in_array($term->platform_terms_status, ['accepted', 'pending'], true)) {
                 throw new ConflictHttpException('يجب قبول شرط نسبة التطبيق من مبلغ السعي قبل نشر الإعلان.');
             }
             return $term;
@@ -273,9 +277,9 @@ class PropertySaiService
             'calculation_basis' => $term->calculation_basis,
             'platform_share_percent' => (float) $term->platform_share_percent,
             'broker_share_percent' => (float) $term->broker_share_percent,
-            'platform_terms_status' => $term->platform_terms_status,
+            'platform_terms_status' => $this->hasPlatformConsent($term) ? 'accepted' : $term->platform_terms_status,
             'requires_platform_terms_acceptance' => $term->source_mode === 'broker_custom'
-                && $term->platform_terms_status !== 'accepted',
+                && ! $this->hasPlatformConsent($term),
             'platform_terms_message' => $term->source_mode === 'broker_custom'
                 ? 'للتطبيق نسبة مقدارها 20% من مبلغ السعي عند إتمام الصفقة.'
                 : null,
@@ -290,6 +294,21 @@ class PropertySaiService
             return null;
         }
         return PropertySaiTerm::query()->find($property->current_sai_term_id);
+    }
+
+    public function hasPlatformConsent(PropertySaiTerm $term): bool
+    {
+        if ($term->platform_terms_status === 'accepted') return true;
+        return $term->platform_terms_status === 'pending'
+            && DB::table('property_sai_attestations')->where('property_id', $term->property_id)
+                ->where('sai_term_id', $term->id)->where('user_id', $term->created_by_user_id)->exists();
+    }
+
+    public function assertSettlementConsent(PropertySaiTerm $term): void
+    {
+        if ($term->platform_terms_status === 'pending' && ! $this->hasPlatformConsent($term)) {
+            throw new ConflictHttpException('أكمل إقرار مستحق المنصة في إعلاناتي قبل تسجيل إتمام الصفقة. لا نغيّر شروط المحادثة المحفوظة.');
+        }
     }
 
     public function calculateSaiAmount(PropertySaiTerm $term, float $basisAmount): array

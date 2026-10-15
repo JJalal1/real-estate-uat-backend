@@ -17,6 +17,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   Completer<String?>? _completion;
   bool _disposed = false;
   int _generation = 0;
+  bool _stopRequested = false;
   bool get active => phase != VoicePhase.idle;
 
   Future<String?> start() {
@@ -24,6 +25,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     final generation = ++_generation;
     final completion = Completer<String?>();
     _completion = completion;
+    _stopRequested = false;
     phase = VoicePhase.preparing; transcript = ''; error = null; level = 0;
     notifyListeners();
     try {
@@ -33,10 +35,12 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
         switch (event.type) {
           case 'ready': if (phase != VoicePhase.processing) phase = VoicePhase.listening;
           case 'level': if (phase == VoicePhase.listening) level = event.level.clamp(0, 1).toDouble();
-          case 'partial': transcript = _bounded(event.text);
-          case 'processing': phase = VoicePhase.processing; level = 0;
+          case 'partial': return;
+          case 'processing': if (!_stopRequested) return; phase = VoicePhase.processing; level = 0;
           case 'final':
-            transcript = _bounded(event.text);
+            if (!_stopRequested) return;
+            transcript = event.text.trim();
+            if (transcript.length > 5000) { error = _message('SPEECH_TOO_LONG'); _finish(null); return; }
             _finish(transcript.isEmpty ? null : transcript); return;
           case 'error': error = _message(event.code); _finish(null); return;
           case 'cancelled': transcript = ''; _finish(null); return;
@@ -44,20 +48,15 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
         notifyListeners();
       }, onError: (_) { if (generation == _generation && active) { error = _message(''); _finish(null); } },
       onDone: () { if (generation == _generation && active) { error = _message(''); _finish(null); } });
-      _timeout = Timer(const Duration(seconds: 45), () {
-        if (generation != _generation || !active) return;
-        error = 'انتهى وقت الاستماع. اضغط المايك للمحاولة مرة أخرى.';
-        final recording = _recording; _finish(null); unawaited(recording?.cancel() ?? Future.value());
-      });
     } catch (_) { error = _message(''); _finish(null); }
     return completion.future;
   }
 
-  String _bounded(String text) { final value = text.trim(); return value.length > 1500 ? value.substring(0, 1500) : value; }
   String _message(String code) => switch (code) {
     'SPEECH_PERMISSION' => 'اسمح باستخدام الميكروفون من إعدادات التطبيق، أو اكتب طلبك هنا.',
     'SPEECH_NO_MATCH' => 'لم نلتقط كلامًا واضحًا. حاول مرة أخرى أو اكتب طلبك.',
     'SPEECH_NETWORK' => 'تعذّر تفريغ الصوت. تحقق من الاتصال أو اكتب طلبك.',
+    'SPEECH_TOO_LARGE' || 'SPEECH_TOO_LONG' => 'التسجيل أطول من الحد الذي يمكن معالجته. لم ننفذ جزءًا منه؛ اختصر الطلب وأعد التسجيل.',
     'SPEECH_BUSY' => 'الميكروفون مشغول الآن. حاول مرة أخرى بعد قليل.',
     _ => 'الصوت غير متاح الآن. يمكنك كتابة طلبك هنا.',
   };
@@ -80,7 +79,18 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     unawaited(recording?.cancel() ?? Future.value());
   }
 
-  void stop() { if (phase == VoicePhase.listening) unawaited(_recording?.stop() ?? Future.value()); }
+  void stop() {
+    if (phase != VoicePhase.listening || _stopRequested) return;
+    _stopRequested = true;
+    phase = VoicePhase.processing; level = 0;
+    _timeout = Timer(const Duration(minutes: 3), () {
+      if (!active) return;
+      error = 'تعذّر إكمال تفريغ التسجيل. لم نغير بحثك؛ حاول مرة أخرى.';
+      final recording = _recording; _finish(null); unawaited(recording?.cancel() ?? Future.value());
+    });
+    notifyListeners();
+    unawaited(_recording?.stop() ?? Future.value());
+  }
   void clearError() { error = null; if (!_disposed) notifyListeners(); }
 
   @override

@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:async';
+import 'package:dio/dio.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -72,11 +74,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 180));
     expect(find.text('نستمع إليك الآن'), findsOneWidget);
     expect(find.descendant(of: find.byKey(const ValueKey('home-smart-search')), matching: find.byKey(const ValueKey('voice-transcript'))), findsOneWidget);
-    expect(find.text('خلي السعر من خمسين'), findsOneWidget); expect(find.byKey(const ValueKey('voice-wave')), findsOneWidget);
+    expect(find.text('خلي السعر من خمسين'), findsNothing); expect(voice.latest.stops, 0); expect(find.byKey(const ValueKey('voice-wave')), findsOneWidget);
     expect(find.byType(Dialog), findsNothing); expect(ai.requests, isEmpty);
     expect(session.state.filters.values, currentFilters);
     await preview(tester, boundary, 'voice-home-listening');
-    voice.latest.emit(const VoiceEvent('processing')); await tester.pump(); expect(find.text('نجهّز النص…'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('voice-finish'))); await tester.pump();
+    expect(voice.latest.stops, 1); expect(find.text('نفرّغ التسجيل كاملًا…'), findsOneWidget);
     voice.latest.emit(const VoiceEvent('final', text: 'خلي السعر من خمسين إلى مئة ألف')); await tester.pumpAndSettle();
     expect(ai.requests.single.filters, currentFilters);
     expect(session.state.filters.values, {...currentFilters, 'min_price': 50000, 'max_price': 100000});
@@ -168,36 +171,51 @@ void main() {
     expect(voice.latest.cancellations, 1); expect(session.state.filters.values, isEmpty); expect(ai.requests, isEmpty); expect(tester.takeException(), isNull);
   });
 
-  testWidgets('native bridge uses start events and ignores another or cancelled recording ID', (tester) async {
+  testWidgets('native bridge transcribes one complete clip only after manual stop, isolates IDs and cancels upload', (tester) async {
     const channel = MethodChannel('real_estate/speech'); final commands = <MethodCall>[];
+    final transcriptions = <Completer<String>>[], tokens = <CancelToken>[], paths = <String>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async { commands.add(call); return null; });
     addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
-    final capture = VoiceCaptureController(SystemVoiceInput()); addTearDown(capture.dispose);
-    final completion = capture.start(); await tester.pump(); final id = (commands.single.arguments as Map)['id'] as int;
-    Future<void> event(int eventId, String type, {String text = ''}) async {
+    final capture = VoiceCaptureController(SystemVoiceInput(transcribe: (path, token) {
+      paths.add(path); tokens.add(token); final next = Completer<String>(); transcriptions.add(next); return next.future;
+    }));
+    addTearDown(capture.dispose);
+    Future<void> event(int id, String type, {String path = ''}) async {
       await tester.binding.defaultBinaryMessenger.handlePlatformMessage(channel.name,
-        const StandardMethodCodec().encodeMethodCall(MethodCall('event', {'id': eventId, 'type': type, 'text': text})), null);
+        const StandardMethodCodec().encodeMethodCall(MethodCall('event', {'id': id, 'type': type, 'path': path})), null);
       await tester.pump();
     }
-    await event(id, 'ready'); expect(capture.phase, VoicePhase.listening);
-    await event(id + 1, 'final', text: 'خاطئ'); expect(capture.active, true);
-    await event(id, 'partial', text: 'سعر أقل'); expect(capture.transcript, 'سعر أقل');
-    capture.stop(); await tester.pump(); expect(commands.last.method, 'stop');
-    capture.cancel(); await tester.pump(); expect(await completion, isNull); expect(commands.last.method, 'cancel');
-    await event(id, 'final', text: 'متأخر'); expect(capture.transcript, isEmpty);
+    final first = capture.start(); await tester.pump(); final id = (commands.last.arguments as Map)['id'] as int;
+    await event(id, 'ready');
+    await event(id, 'recorded', path: 'premature'); expect(paths, isEmpty);
+    capture.stop(); capture.stop(); await tester.pump();
+    expect(commands.where((c) => c.method == 'stop'), hasLength(1));
+    await event(id + 1, 'recorded', path: 'wrong-id'); expect(paths, isEmpty);
+    await event(id, 'recorded', path: 'whole-first.m4a');
+    await event(id, 'recorded', path: 'duplicate'); expect(paths, ['whole-first.m4a']);
+    capture.cancel(); await tester.pump(); expect(await first, isNull); expect(tokens.single.isCancelled, true);
+    transcriptions.first.complete('نتيجة متأخرة'); await tester.pump(); expect(capture.transcript, isEmpty);
     final next = capture.start(); await tester.pump(); final nextId = (commands.last.arguments as Map)['id'] as int;
-    await event(id, 'final', text: 'قديم'); expect(capture.active, true);
-    await event(nextId, 'final', text: 'السعر مئة ألف'); expect(await next, 'السعر مئة ألف');
-    expect(commands.map((call) => call.method), ['start', 'stop', 'cancel', 'start']);
+    await event(nextId, 'ready'); capture.stop(); await tester.pump();
+    await event(id, 'recorded', path: 'old'); expect(paths, hasLength(1));
+    await event(nextId, 'recorded', path: 'whole-second.m4a');
+    transcriptions.last.complete('خلي السعر من خمسين إلى مئة ألف بعد هذا التوقف'); await tester.pump();
+    expect(await next, 'خلي السعر من خمسين إلى مئة ألف بعد هذا التوقف');
+    expect(paths, ['whole-first.m4a', 'whole-second.m4a']);
+    expect(commands.last.method, 'release');
   });
 
-  testWidgets('backgrounding and watchdog stop listening without a partial AI submission', (tester) async {
+  testWidgets('silence beyond old watchdog keeps listening; background cancels and only post-stop processing expires', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false); addTearDown(voice.dispose);
     final capture = VoiceCaptureController(voice); addTearDown(capture.dispose);
     final first = capture.start(); voice.latest.emit(const VoiceEvent('ready')); await tester.pump();
-    voice.latest.emit(const VoiceEvent('partial', text: 'شقة')); await tester.pump();
-    capture.didChangeAppLifecycleState(AppLifecycleState.paused); await tester.pump(); expect(await first, isNull); expect(voice.latest.cancellations, 1);
-    final second = capture.start(); voice.latest.emit(const VoiceEvent('ready')); await tester.pump(const Duration(seconds: 46));
-    expect(await second, isNull); expect(voice.latest.cancellations, 1); expect(capture.error, contains('انتهى وقت'));
+    voice.latest.emit(const VoiceEvent('partial', text: 'جزء ناقص')); await tester.pump();
+    await tester.pump(const Duration(minutes: 2)); expect(capture.phase, VoicePhase.listening);
+    expect(capture.transcript, isEmpty); expect(voice.latest.stops, 0);
+    capture.didChangeAppLifecycleState(AppLifecycleState.paused); await tester.pump();
+    expect(await first, isNull); expect(voice.latest.cancellations, 1);
+    final second = capture.start(); voice.latest.emit(const VoiceEvent('ready')); await tester.pump();
+    capture.stop(); await tester.pump(const Duration(minutes: 3, seconds: 1));
+    expect(await second, isNull); expect(voice.latest.cancellations, 1); expect(capture.error, contains('لم نغير بحثك'));
   });
 }

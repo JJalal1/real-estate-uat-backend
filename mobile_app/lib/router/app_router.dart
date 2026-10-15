@@ -21,7 +21,6 @@ import '../features/agreements/presentation/agreement_detail_screen.dart';
 import '../features/agreements/presentation/agreements_screen.dart';
 import '../features/agreements/presentation/rental_contract_detail_screen.dart';
 import '../features/app_shell/presentation/app_shell_screen.dart';
-import '../features/bookings/presentation/bookings_screen.dart';
 import '../features/broker/presentation/broker_workspaces.dart';
 import '../features/broker/presentation/broker_activity.dart';
 import '../features/broker/presentation/broker_directory.dart';
@@ -66,7 +65,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         child: BrokerCustomersScreen(propertyId: int.tryParse(state.uri.queryParameters['property'] ?? ''), initialFilter: state.uri.queryParameters['filter'] ?? 'all'))),
       GoRoute(path: '/broker/availability', builder: (context, state) => Stage6AuthGate(requireListingEligible: true, child: BrokerAvailabilityScreen(initiallyDue: state.uri.queryParameters['due'] == '1'))),
       GoRoute(path: '/broker/finance', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerFinanceScreen())),
-      GoRoute(path: '/broker/activity', builder: (context, state) => Stage6AuthGate(requireProfessional: true, child: BrokerActivityScreen(initialTab: state.uri.queryParameters['tab'] == 'viewings' ? 1 : state.uri.queryParameters['tab'] == 'messages' ? 2 : 0, todayOnly: state.uri.queryParameters['today'] == '1'))),
+      GoRoute(path: '/broker/activity', builder: (context, state) => Stage6AuthGate(requireProfessional: true, child: BrokerActivityScreen(initialTab: state.uri.queryParameters['tab'] == 'messages' ? 1 : 0, todayOnly: state.uri.queryParameters['today'] == '1'))),
       GoRoute(path: '/broker/deals/:id', builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
         return id > 0 ? Stage6AuthGate(child: BrokerDealScreen(id: id)) : const _RouteErrorScreen();
@@ -215,15 +214,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             const Stage6AuthGate(child: ConversationReportsScreen()),
       ),
-      GoRoute(
-        path: '/bookings',
-        builder: (context, state) => Stage6AuthGate(
-          child: BookingsScreen(
-            initialBookingId:
-                int.tryParse(state.uri.queryParameters['booking'] ?? ''),
-          ),
-        ),
-      ),
+      GoRoute(path: '/bookings', redirect: (_, __) => '/messages'),
       GoRoute(
         path: '/services',
         builder: (context, state) =>

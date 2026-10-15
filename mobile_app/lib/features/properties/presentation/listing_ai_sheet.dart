@@ -33,7 +33,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     'monthly_rent': 'الإيجار الشهري بالريال اليمني', 'area_value': 'المساحة', 'area_unit': 'وحدة المساحة',
     'bedrooms': 'غرف النوم', 'bathrooms': 'الحمامات', 'governorate': 'المحافظة', 'district': 'الحي', 'street': 'الشارع',
     'floor_number': 'الدور', 'unit_number': 'رقم الوحدة', 'has_parking': 'موقف السيارة', 'has_elevator': 'المصعد',
-    'building_facade': 'واجهة البناء', 'unit_occupies_entire_floor': 'الوحدة تشغل الدور كاملًا', 'tenure_type': 'نوع الملكية'};
+    'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية'};
   @override
   void initState() { super.initState(); _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged); }
   void _voiceChanged() {

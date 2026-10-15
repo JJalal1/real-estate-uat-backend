@@ -11,7 +11,7 @@ Read it before proposing or applying changes.
 - Repository: `JJalal1/real-estate-uat-backend`.
 - Primary branch: `main`.
 - Active private product branch: `work/broker-experience-v1`.
-- Current task: October 14 evening in-app dictation correction; read `docs/VOICE_IN_APP_AR.md` and the Wave3 AI/design context. The owner rejected the external recognition Activity and explicitly authorized native SpeechRecognizer, microphone permission and an inline Flutter listening/transcript UI. Earlier Wave3 cleanup is complete and must not repeat. Camera/token storage, other permissions, dependencies, assets, backend authorization and paid/Production boundaries remain protected. Phase 2–4 statements below are historical.
+- Current task: Wave4 direct-execution handoff, pinned to APK1039 source `998f3456d5dd74b493052376cf0091737c1eaf21`; branch `work/wave4-baseline-1039`. Read `docs/WAVE4_BASELINE_1039_AR.md`. Do not import APK1043 startup retry/cache changes. The owner explicitly retires the viewing/booking journey and notifications in favor of ordinary messages, moves photos/description/optional rental conditions to step3, simplifies step4, and requires manual-stop whole-recording voice with persistent search context. New Sai consent uses the existing post-publication attestation; immutable financial terms/history and rates remain protected. Camera/token storage, account permissions, assets/dependencies, UAT-only and paid/Production boundaries remain. Earlier phase/whole-floor/viewing requirements below are historical where this explicit scope supersedes them.
 - Current stack: Flutter Android + Laravel API + PostgreSQL/PostGIS + Supabase Storage + Render UAT + GitHub Actions.
 
 ## 2. Source of truth

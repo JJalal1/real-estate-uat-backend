@@ -68,6 +68,7 @@ Route::get('/properties', [PropertyController::class, 'index']);
 Route::get('/marketplace', [\App\Http\Controllers\Api\FinancialPropertyController::class, 'marketplace']);
 Route::get('/marketplace/locations', [PropertyController::class, 'marketplaceLocations']);
 Route::get('/ai/capabilities', [AiAssistantController::class, 'capabilities']);
+Route::post('/ai/transcribe', [AiAssistantController::class, 'transcribe'])->middleware('throttle:6,1');
 Route::post('/ai/search', [AiAssistantController::class, 'search'])->middleware('throttle:12,1');
 Route::post('/properties/{property}/ask', [AiAssistantController::class, 'question'])->middleware('throttle:12,1');
 Route::get('/properties/nearby', [PropertyController::class, 'nearby']);
@@ -88,6 +89,7 @@ Route::get('/properties/{property}/services', [ServicePaymentController::class, 
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/ai/listing-fields', [AiAssistantController::class, 'extract'])->middleware('throttle:8,1');
+    Route::post('/ai/rental-conditions', [AiAssistantController::class, 'rentalConditions'])->middleware('throttle:8,1');
     Route::post('/ai/listing-description', [AiAssistantController::class, 'description'])->middleware('throttle:8,1');
     Route::get('/listing-access', [PropertyController::class, 'listingAccess']);
     Route::get('/listing-sai-policy', [PropertySaiController::class, 'policy']);
@@ -150,16 +152,16 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::post('/orders/{order}/refund', [ServicePaymentController::class, 'refund'])->middleware('permission:payments.manage');
     });
 
-    Route::get('/bookings/mine', [BookingController::class, 'mine']);
-    Route::get('/bookings/managed', [BookingController::class, 'managed']);
-    Route::get('/bookings/{booking}', [BookingController::class, 'show']);
-    Route::post('/properties/{property}/viewings', [BookingController::class, 'requestForProperty']);
-    Route::post('/development-units/{unit}/viewings', [BookingController::class, 'requestForUnit']);
-    Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm']);
-    Route::post('/bookings/{booking}/decline', [BookingController::class, 'decline']);
-    Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
-    Route::post('/bookings/{booking}/reschedule', [BookingController::class, 'reschedule']);
-    Route::post('/bookings/{booking}/complete', [BookingController::class, 'complete']);
+    Route::get('/bookings/mine', [BookingController::class, 'mine'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
+    Route::get('/bookings/managed', [BookingController::class, 'managed'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
+    Route::get('/bookings/{booking}', [BookingController::class, 'show'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
+    Route::post('/properties/{property}/viewings', [BookingController::class, 'requestForProperty'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
+    Route::post('/development-units/{unit}/viewings', [BookingController::class, 'requestForUnit'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
+    Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
+    Route::post('/bookings/{booking}/decline', [BookingController::class, 'decline'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
+    Route::post('/bookings/{booking}/cancel', [BookingController::class, 'cancel'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
+    Route::post('/bookings/{booking}/reschedule', [BookingController::class, 'reschedule'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
+    Route::post('/bookings/{booking}/complete', [BookingController::class, 'complete'])->middleware(\App\Http\Middleware\RetiredViewingFeature::class);
 
     Route::get('/messages/threads', [MessagingController::class, 'threads']);
     Route::post('/properties/{property}/conversation', [MessagingController::class, 'startForProperty']);

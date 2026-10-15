@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../bookings/presentation/booking_request_sheet.dart';
 import '../data/development_repository.dart';
 import '../domain/development_models.dart';
 
@@ -71,14 +70,7 @@ class DevelopmentDetailsScreen extends ConsumerWidget {
                         padding: EdgeInsets.all(16),
                         child: Text('لا توجد وحدات معروضة حالياً.')))
               else
-                ...details.units.map((unit) => _UnitCard(
-                    unit: unit,
-                    onRequest: unit.status == 'available'
-                        ? () => BookingRequestSheet.showForDevelopmentUnit(
-                            context,
-                            unitId: unit.id,
-                            title: '${p.name} - ${unit.title}')
-                        : null)),
+                ...details.units.map((unit) => _UnitCard(unit: unit)),
             ]);
           },
         ),
@@ -88,9 +80,8 @@ class DevelopmentDetailsScreen extends ConsumerWidget {
 }
 
 class _UnitCard extends StatelessWidget {
-  const _UnitCard({required this.unit, this.onRequest});
+  const _UnitCard({required this.unit});
   final DevelopmentUnitItem unit;
-  final VoidCallback? onRequest;
   @override
   Widget build(BuildContext context) {
     final price = unit.price == null
@@ -116,13 +107,7 @@ class _UnitCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(unit.description!)
               ],
-              if (onRequest != null) ...[
-                const SizedBox(height: 10),
-                EbrokerFilledButton.tonalIcon(
-                    onPressed: onRequest,
-                    icon: const EbrokerIcon(Icons.event_available_outlined),
-                    label: const Text('طلب معاينة هذه الوحدة'))
-              ],
+
             ])));
   }
 

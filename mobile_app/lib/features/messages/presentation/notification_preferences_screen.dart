@@ -65,16 +65,6 @@ class _NotificationPreferencesScreenState
                 ),
                 const SizedBox(height: AppSpacing.s10),
                 _PreferenceCard(
-                  icon: Icons.calendar_month_outlined,
-                  title: 'المعاينات',
-                  subtitle: 'تأكيد، تغيير، رفض أو تحديث موعد المعاينة.',
-                  value: value.viewings,
-                  onChanged: (enabled) => _change(
-                    value.copyWith(viewings: enabled),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s10),
-                _PreferenceCard(
                   icon: Icons.home_work_outlined,
                   title: 'نشاط إعلاناتي',
                   subtitle: 'تحديثات ومراجعات مرتبطة بإعلاناتك العقارية.',

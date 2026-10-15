@@ -294,7 +294,7 @@ class BrokerExperienceApiTest extends TestCase
         $this->withHeaders($bh)->getJson('/api/broker/customers?filter=all')->assertJsonCount(1,'data');
     }
 
-    public function test_today_viewing_range_is_private_uses_utc_boundaries_and_returns_public_map_coordinates(): void
+    public function test_retired_broker_viewing_lists_preserve_both_legacy_rows_without_exposing_them(): void
     {
         [$broker,$bh]=$this->actor('daily-viewings',true);
         [$customer,$ch]=$this->actor('daily-viewings-customer');
@@ -306,13 +306,13 @@ class BrokerExperienceApiTest extends TestCase
                 'starts_at'=>$date,'ends_at'=>$date->copy()->addHour(),'timezone'=>'Asia/Aden','status'=>'confirmed']);
         }
         $query=http_build_query(['starts_from'=>now()->startOfDay()->toIso8601String(),'starts_before'=>now()->addDay()->startOfDay()->toIso8601String()]);
-        $this->withHeaders($bh)->getJson('/api/bookings/mine?'.$query)->assertOk()->assertJsonCount(1,'data')->assertJsonPath('data.0.reference','DAILY-today')->assertJsonPath('data.0.target_latitude',15.35);
-        $this->withHeaders($oh)->getJson('/api/bookings/mine?'.$query)->assertOk()->assertJsonCount(0,'data');
-        $this->withHeaders($bh)->getJson('/api/bookings/mine')->assertJsonCount(2,'data');
-        $this->withHeaders($bh)->getJson('/api/bookings/mine?'.http_build_query(['starts_from'=>now()->toIso8601String()]))->assertUnprocessable();
-        $this->withHeaders($bh)->getJson('/api/bookings/mine?'.http_build_query(['starts_from'=>now()->toIso8601String(),'starts_before'=>now()->addDays(40)->toIso8601String()]))->assertUnprocessable();
-        $property->forceFill(['availability_status'=>'paused'])->saveQuietly();
-        $this->withHeaders($bh)->getJson('/api/bookings/mine?'.$query)->assertOk()->assertJsonPath('data.0.target_latitude',null);
+        foreach ([$bh,$ch,$oh] as $headers) {
+            $this->withHeaders($headers)->getJson('/api/bookings/mine?'.$query)->assertStatus(410);
+            $this->withHeaders($headers)->getJson('/api/bookings/mine')->assertStatus(410);
+        }
+        $this->assertDatabaseCount('viewing_bookings',2);
+        $this->assertDatabaseHas('viewing_bookings',['reference'=>'DAILY-today','status'=>'confirmed']);
+        $this->assertDatabaseHas('viewing_bookings',['reference'=>'DAILY-next-day','status'=>'confirmed']);
     }
 
     private function actor(string $key, bool $professional=false, string $governorate='صنعاء'): array

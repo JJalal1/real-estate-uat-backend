@@ -41,6 +41,8 @@ class BrokerDealService
                 && $thread->participants()->where('user_id',$customerId)->exists(), 409);
             $existing = BrokerDealOutcome::query()->where('message_thread_id',$thread->id)->first();
             if ($existing) return $existing;
+            $frozenTerm = $thread->sai_term_id ? PropertySaiTerm::query()->find($thread->sai_term_id) : null;
+            if ($frozenTerm) $this->sai->assertSettlementConsent($frozenTerm);
             $basis = $amount ?? ($property->purpose === 'rent' ? (float) ($property->monthly_rent ?: $property->price) : (float) $property->price);
             abort_unless($basis > 0, 422);
             $state = $property->purpose === 'rent' ? 'rented' : 'sold';
@@ -142,6 +144,7 @@ class BrokerDealService
         if ((int)$sai->property_id !== (int)$outcome->property_id || $sai->purpose !== $outcome->transaction_type) {
             throw new ConflictHttpException('نسخة شروط السعي المحفوظة لا تطابق العقار.');
         }
+        $this->sai->assertSettlementConsent($sai);
         $amounts = $this->sai->calculateSaiAmount($sai, (float)$outcome->basis_amount);
         $term = PropertyDealFinancialTerm::query()->create([
             'broker_deal_outcome_id'=>$outcome->id,'property_agreement_id'=>null,'property_agreement_revision_id'=>null,

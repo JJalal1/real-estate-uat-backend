@@ -10,20 +10,20 @@ import 'ai_repository.dart';
 class SmartSearchState {
   const SmartSearchState({this.filters = const SmartSearchFilters(), this.rows = const [], this.revision = 0,
     this.page = 0, this.more = false, this.interpreting = false, this.loading = false, this.started = false,
-    this.message = '', this.aiError, this.resultsError});
+    this.message = '', this.lastRequest = '', this.aiError, this.resultsError});
   final SmartSearchFilters filters;
   final List<PropertySummary> rows;
   final int revision, page;
   final bool more, interpreting, loading, started;
-  final String message;
+  final String message, lastRequest;
   final String? aiError, resultsError;
 
   SmartSearchState copyWith({SmartSearchFilters? filters, List<PropertySummary>? rows, int? revision, int? page,
-    bool? more, bool? interpreting, bool? loading, bool? started, String? message, String? aiError,
+    bool? more, bool? interpreting, bool? loading, bool? started, String? message, String? lastRequest, String? aiError,
     String? resultsError, bool clearAiError = false, bool clearResultsError = false}) => SmartSearchState(
       filters: filters ?? this.filters, rows: rows ?? this.rows, revision: revision ?? this.revision,
       page: page ?? this.page, more: more ?? this.more, interpreting: interpreting ?? this.interpreting,
-      loading: loading ?? this.loading, started: started ?? this.started, message: message ?? this.message,
+      loading: loading ?? this.loading, started: started ?? this.started, message: message ?? this.message, lastRequest: lastRequest ?? this.lastRequest,
       aiError: clearAiError ? null : aiError ?? this.aiError,
       resultsError: clearResultsError ? null : resultsError ?? this.resultsError);
 }
@@ -42,10 +42,10 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 
   Future<void> interpret(String message) async {
     final text = message.trim();
-    if (text.isEmpty || text.length > 1000) return;
+    if (text.isEmpty || text.length > 5000) return;
     final request = ++_inference, revision = state.revision;
     final filters = state.filters;
-    state = state.copyWith(interpreting: true, clearAiError: true);
+    state = state.copyWith(interpreting: true, clearAiError: true, lastRequest: text);
     try {
       final result = await _ai.refine(text, filters.values, revision);
       if (!mounted || request != _inference || revision != state.revision) return;
@@ -60,7 +60,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 
   void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.'}) {
     _inference++; _results++;
-    state = SmartSearchState(filters: filters, revision: state.revision + 1, message: message);
+    state = SmartSearchState(filters: filters, revision: state.revision + 1, message: message, lastRequest: state.lastRequest);
   }
 
   void replaceManually(SmartSearchFilters filters) {

@@ -70,7 +70,7 @@ String? internalLocationForAppLink(Uri uri) {
       return '/messages/$id';
     }
     if (segments.first == 'bookings') {
-      return '/bookings?booking=$id';
+      return '/messages';
     }
     if (segments.first == 'agreements') {
       return '/agreements/$id';
