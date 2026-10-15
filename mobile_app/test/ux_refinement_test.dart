@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_property_card.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'support/wave3_fakes.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
@@ -276,6 +277,9 @@ void main() {
     await tester.scrollUntilVisible(find.text('شقة من نتائج الخادم'), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(repository.lastQuery!['max_monthly_rent'], 150000);
+    final resultCard = tester.widget<EbrokerPropertyHorizontalCard>(find.byType(EbrokerPropertyHorizontalCard));
+    expect(resultCard.price, '100000');
+    expect(resultCard.purposeLabel, 'إيجار شهري');
     expect(find.text('شقة من نتائج الخادم'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 

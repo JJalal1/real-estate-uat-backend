@@ -23,7 +23,8 @@ void main() {
     expect(source, contains('يحتاج إجراء منك'));
     expect(source, contains('brokerWorkspaceProvider'));
     expect(source, contains('unread_conversations'));
-    expect(source, contains('active_viewings'));
+    expect(source, isNot(contains('active_viewings')));
+    expect(source, contains('customer_followups_due'));
     expect(source, contains('correction_listings'));
     expect(source, contains('availability_count'));
     expect(source, contains('pending_deal_count'));
