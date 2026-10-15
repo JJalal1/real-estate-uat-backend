@@ -1,0 +1,21 @@
+name: Private Wave4 1049 verification metadata
+on:
+  push:
+    branches: [delivery/wave4-49-evidence]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evidence:
+    name: Verify Wave4 1049 metadata only
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read bounded tested build metadata without APK data
+        env:
+          APK_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_wave4_evidence.py
