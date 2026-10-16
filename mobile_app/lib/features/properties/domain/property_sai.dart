@@ -170,7 +170,9 @@ class PropertySaiQuote {
     if (rate == null || share == null || share < 0 || share > 100) return null;
     if (!policy.isOwner && (policy.brokerMaxRatePercent == null ||
         (fixed ? amount > (basis * policy.brokerMaxRatePercent!).round() / 100
-          : requestedRate > policy.brokerMaxRatePercent!))) return null;
+          : requestedRate > policy.brokerMaxRatePercent!))) {
+      return null;
+    }
     double money(double value) => (value * 100).round() / 100;
     final total = fixed && !fallback ? money(amount) : money(basis * rate / 100);
     final platform = money(total * share / 100);
