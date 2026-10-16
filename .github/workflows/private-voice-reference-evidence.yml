@@ -1,0 +1,39 @@
+name: Private voice reference build evidence
+on:
+  push:
+    branches: [delivery/voice-reference-63-evidence]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evidence:
+    name: Verify voice reference APK1063 metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read bounded tested build metadata
+        env:
+          APK_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_voice_reference_evidence.py
+  preview:
+    name: Preview ${{ matrix.file }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        file: [voice-home-listening.png, voice-home-large-text.png, assistant-voice-inline-1.0.png, assistant-voice-inline-2.4.png, assistant-voice-controls-2.4.png]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read one bounded synthetic preview
+        env:
+          APK_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_voice_reference_evidence.py --preview '${{ matrix.file }}'
