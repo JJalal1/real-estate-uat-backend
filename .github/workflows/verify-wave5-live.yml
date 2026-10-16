@@ -1,0 +1,71 @@
+name: Verify deployed Wave5 1052 public API
+on:
+  push:
+    branches: [verification/wave5-1052-live]
+permissions: {}
+jobs:
+  smoke:
+    name: Public Wave5 post-deployment checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check health discovery native Sai contract and voice validation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, time, urllib.request, urllib.error
+          root='https://real-estate-uat-api-frankfurt.onrender.com/api'
+          results=[]
+          def request(path, body=None, expected=200):
+              started=time.monotonic()
+              headers={'Accept':'application/json','User-Agent':'RealEstate-Wave5-UAT-Verification/1052'}
+              data=None if body is None else json.dumps(body).encode()
+              if data is not None: headers['Content-Type']='application/json'
+              req=urllib.request.Request(root+path,data=data,headers=headers)
+              try:
+                  with urllib.request.urlopen(req,timeout=40) as response:
+                      status=response.status
+                      value=json.load(response)
+              except urllib.error.HTTPError as error:
+                  status=error.code
+                  value=json.load(error)
+              if expected is not None: assert status==expected, 'Unexpected HTTP status for '+path+': '+str(status)
+              results.append({'path':path,'status':status,'elapsed_ms':round((time.monotonic()-started)*1000)})
+              return value
+          health=request('/health')
+          assert health['status']=='ok' and health['database'] is True and health['postgis'] is True
+          capability=request('/ai/capabilities')['data']
+          assert capability['available'] is True and capability['manual_filters_available'] is True
+          listings=request('/properties?page=1&per_page=1')
+          assert isinstance(listings.get('data'),list) and len(listings['data'])>0
+          property_id=int(listings['data'][0]['id'])
+          detail=request('/properties/'+str(property_id))
+          assert int(detail['data']['id'])==property_id
+          sai_payload=request('/properties/'+str(property_id)+'/sai')['data']
+          assert 'sai_management' not in sai_payload
+          sai=sai_payload['sai']
+          assert sai['amount_type'] in ('percentage','fixed')
+          if sai['amount_type']=='percentage':
+              assert sai['rate_percent'] is not None and sai['fixed_amount'] is None and sai['currency'] is None
+          else:
+              assert float(sai['fixed_amount'])>0 and sai['rate_percent'] is None and len(sai['currency'])==3
+          invalid_audio=request('/ai/transcribe',{},422)
+          assert 'audio' in invalid_audio.get('errors',{})
+          print('WAVE5_LIVE_SMOKE '+json.dumps({'passed':True,'expected_deployment_source':'c309fa5d2a52a5010850478e551711e60077076b','tested_apk_source':'10ee06afea31c50f3f914d9788de4873bde3db0c','apk_version':1052,'checks':results,'database':True,'postgis':True,'ai_available':True,'native_sai_contract':True,'voice_route_validation':True},sort_keys=True))
+          ai_available=False
+          for attempt in range(2):
+              result=request('/ai/search',{'message':'أبق شروط البحث الحالية كما هي','filters':{'search':'صنعاء','type':'apartment','purpose':'rent'},'revision':1052},None)
+              status=results[-1]['status']
+              if status==200:
+                  refined=result['data']
+                  assert refined['revision']==1052 and isinstance(refined['filters'],dict)
+                  assert refined['filters'].get('type')=='apartment' and refined['filters'].get('purpose')=='rent'
+                  ai_available=True
+                  break
+              if status==503 and attempt==0:
+                  time.sleep(5)
+                  continue
+              break
+          print('WAVE5_AI_PROVIDER '+json.dumps({'available':ai_available,'checks':[r for r in results if r['path']=='/ai/search']},sort_keys=True))
+          assert ai_available, 'Live AI provider did not return a usable response; inspect current provider status.'
+          PY
