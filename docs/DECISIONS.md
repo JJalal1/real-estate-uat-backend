@@ -6,6 +6,8 @@ This file records product/engineering decisions that AI agents must not silently
 
 Owner delegation authorizes a focused draft-preparation helper on1052. Reuse the current listing editor, voice recording, authorization and support review. Fact-bound server composition and review prevent deselected proposals from leaking into copy. A single transient-provider retry shares the original deadline and charges the persistent UTC budget on every attempt. Labeled literal-text organization keeps this new entry useful during provider failure without claiming AI success. No new schema, providers, keys, automatic publication or sending.
 
+The owner explicitly approved PR76 merge and the existing-UAT deployment on October16 at15:42 Asia/Aden. APK1058/CI58 and the merged tree match exactly. Live health/auth boundaries passed; real AI search failed once near25s then passed in12.8s, so availability remains a measured variable rather than a guarantee. See `BROKER_AI_1058_DEPLOYMENT_AR.md`.
+
 ## D-W5 — October16 current1049 and focused refinement
 
 The owner selected current1049 over the1039 label in the new handoff. Work starts at `db378214ade105a7046a2d1069095070ac76f7a4` and retains Wave4. `WAVE5_BASELINE_1049_AR.md` defines listing input7, optional rental unit position with support identity review, inline rental chips, immutable native fixed Sai with unchanged owner/fallback/split policies, and lightweight Home/Account entries to existing smart search. No Production, paid resource, cleanup, active viewing journey or1043 startup import is authorized.
