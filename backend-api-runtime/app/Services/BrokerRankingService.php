@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class BrokerRankingService
 {
-    public function query(?string $governorate = null, bool $brokersOnly = true): Builder
+    public function query(?string $governorate = null, bool $brokersOnly = true, bool $includePublicIndividuals = false): Builder
     {
         $ratings = DB::table('advertiser_ratings as rating')
             ->join('broker_deal_outcomes as result','result.id','=','rating.broker_deal_outcome_id')
@@ -35,8 +35,11 @@ class BrokerRankingService
             ->whereNull('financial_hold_at')->groupBy('user_id')->selectRaw('user_id, COUNT(*) AS active_listings')
             ->selectRaw('SUM(CASE WHEN availability_confirmed_at >= ? OR published_at >= ? THEN 1 ELSE 0 END) AS recent_activity', [now()->subDays(30),now()->subDays(30)]);
         $query = User::query()->where('users.account_status','active')->whereNotNull('users.phone_verified_at')
-            ->whereHas('accountVerificationProfile',fn ($q) => $q->where('status','approved')->whereNotNull('reviewed_at')
-                ->whereIn('type',$brokersOnly ? [AccountVerificationProfile::TYPE_BROKER,AccountVerificationProfile::TYPE_OFFICE] : [AccountVerificationProfile::TYPE_OWNER,AccountVerificationProfile::TYPE_BROKER,AccountVerificationProfile::TYPE_OFFICE]))
+            ->where(function ($eligible) use ($brokersOnly, $includePublicIndividuals): void {
+                $eligible->whereHas('accountVerificationProfile', fn ($q) => $q->where('status','approved')->whereNotNull('reviewed_at')
+                    ->whereIn('type', $brokersOnly ? [AccountVerificationProfile::TYPE_BROKER,AccountVerificationProfile::TYPE_OFFICE] : [AccountVerificationProfile::TYPE_OWNER,AccountVerificationProfile::TYPE_BROKER,AccountVerificationProfile::TYPE_OFFICE]));
+                if ($includePublicIndividuals) $eligible->orWhereIn('users.id', app(PropertyDiscoveryFilterService::class)->publicQuery()->select('properties.user_id'));
+            })
             ->leftJoinSub($ratings,'customer_rating',fn ($join) => $join->on('customer_rating.advertiser_user_id','=','users.id'))
             ->leftJoinSub($deals,'completed_result',fn ($join) => $join->on('completed_result.advertiser_user_id','=','users.id'))
             ->leftJoinSub($listings,'active_property',fn ($join) => $join->on('active_property.user_id','=','users.id'))
@@ -62,13 +65,14 @@ class BrokerRankingService
     public function publicData(User $user): array
     {
         $profile = $user->accountVerificationProfile;
-        $details = $profile?->details ?? [];
+        $approved = $profile?->isApproved() && $profile?->reviewed_at !== null;
+        $details = $approved ? ($profile->details ?? []) : [];
         return [
-            'id'=>(int)$user->id,'name'=>$profile?->type === 'office' ? ($details['office_name'] ?? $user->name) : $user->name,
-            'account_type'=>$profile?->type ?? 'broker','verified'=>$profile?->isApproved() ?? false,
+            'id'=>(int)$user->id,'name'=>$approved && $profile?->type === 'office' ? ($details['office_name'] ?? $user->name) : $user->name,
+            'account_type'=>$approved ? $profile->type : 'individual','verified'=>(bool)$approved,
             'governorate'=>$details['governorate'] ?? null,'work_areas'=>$details['work_areas'] ?? [],
             'specializations'=>$details['specialties'] ?? [],'bio'=>$user->public_professional_bio,
-            'photo_url'=>$user->public_professional_photo_path ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16) : null,
+            'photo_url'=>$approved && $user->public_professional_photo_path ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16) : null,
             'rating_average'=>round((float)($user->rating_average ?? 0),2),'rating_count'=>(int)($user->rating_count ?? 0),
             'completed_deals'=>(int)($user->completed_deals ?? 0),'active_listings'=>(int)($user->active_listings ?? 0),
             'joined_at'=>$user->created_at?->toDateString(),

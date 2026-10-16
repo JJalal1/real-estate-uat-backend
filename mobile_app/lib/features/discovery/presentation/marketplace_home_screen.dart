@@ -16,6 +16,9 @@ import '../../properties/domain/property_details.dart';
 import '../../properties/presentation/property_details_screen.dart';
 import '../data/marketplace_repository.dart';
 import 'home_ai_search_entry.dart';
+import 'smart_search_assistant.dart';
+import '../../properties/presentation/property_compare_actions.dart';
+import '../data/smart_search_session.dart';
 
 const homeDiscoveryQuery = NearbyQuery(center: LatLng(15.3694, 44.1910));
 
@@ -108,7 +111,10 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           ])),
         ]))), actions: [Padding(padding: const EdgeInsetsDirectional.only(end: 12), child: IconButton(
           tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'), icon: const EbrokerImage('notification', size: 21)))]),
-      body: RefreshIndicator(onRefresh: () async { try { ref.invalidate(marketplaceFeedProvider(_query)); await ref.read(marketplaceFeedProvider(_query).future); } catch (_) {} },
+      body: SmartSearchAssistantLayer(onPressed: () {
+        ref.read(smartSearchSessionProvider.notifier).startFromHome(location: data?.governorate ?? location.governorate ?? 'صنعاء', type: _type);
+        context.push('/smart-search');
+      }, child: RefreshIndicator(onRefresh: () async { try { ref.invalidate(marketplaceFeedProvider(_query)); await ref.read(marketplaceFeedProvider(_query).future); } catch (_) {} },
         child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
           SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 0), child: Row(children: [
             Expanded(child: Semantics(button: true, label: 'البحث عن عقار', child: GestureDetector(key: const ValueKey('home-search'), onTap: _openMap,
@@ -158,8 +164,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                 actionLabel: 'تغيير المنطقة', onAction: _chooseLocation),
             ])),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 32)),
-        ])),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ]))),
     );
   }
 
@@ -170,6 +176,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       onTap: () => context.push('/properties/${row.id}')),
     if (row.monthlyRent != null) Padding(padding: const EdgeInsets.only(top: 5), child: Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency}', style: Theme.of(context).textTheme.bodySmall)),
     if (row.priceDisplayNote != null) Text(row.priceDisplayNote!, style: Theme.of(context).textTheme.bodySmall),
+    PropertyCompareAction(propertyId: row.id, enabled: row.status == 'published'),
   ]);
 }
 

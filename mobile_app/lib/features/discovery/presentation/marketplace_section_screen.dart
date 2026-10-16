@@ -8,6 +8,8 @@ import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
+import '../../properties/presentation/property_compare_actions.dart';
+import 'smart_search_assistant.dart';
 
 class MarketplaceSectionScreen extends ConsumerStatefulWidget {
   const MarketplaceSectionScreen({this.section = 'latest', this.governorate, this.type, super.key});
@@ -49,7 +51,7 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
   Widget build(BuildContext context) {
     final title = switch (widget.section) { 'spotlight' => 'عقارات مميزة', 'sale' => 'عقارات للبيع', 'rent' => 'عقارات للإيجار', _ => 'أحدث العقارات' };
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(appBar: AppAppBar(title: title),
-      body: RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(18), physics: const AlwaysScrollableScrollPhysics(), children: [
+      body: SmartSearchAssistantLayer(child: RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.fromLTRB(18, 18, 18, 110), physics: const AlwaysScrollableScrollPhysics(), children: [
         if (widget.governorate != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(widget.governorate!)),
         if (_busy && _rows.isEmpty) const AppSkeleton(height: 190, radius: 12)
         else if (_error != null) AppErrorState(message: _error!, onRetry: () => _load(more: _rows.isNotEmpty))
@@ -59,10 +61,11 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
             imageUrl: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight,
             location: row.address, categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? 'للإيجار' : 'للبيع',
             onTap: () => context.push('/properties/${row.id}')),
+          PropertyCompareAction(propertyId: row.id, enabled: row.status == 'published'),
           if (row.monthlyRent != null) Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency}', style: Theme.of(context).textTheme.bodySmall),
           if (row.priceDisplayNote != null) Text(row.priceDisplayNote!, style: Theme.of(context).textTheme.bodySmall),
         ])),
         if (_more && _error == null) TextButton(onPressed: _busy ? null : () => _load(more: true), child: const Text('المزيد من العقارات')),
-      ]))));
+      ])))));
   }
 }

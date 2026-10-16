@@ -56,7 +56,7 @@ class BrokerTestRepository implements BrokerRepository {
   @override
   Future<BrokerProfile> profile(int id) async => exampleBroker;
   @override
-  Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15}) async => BrokerPage(items: [exampleBroker], page: 1, lastPage: 1);
+  Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15, bool regionOnly = false, String? search, String? specialty, String? accountType, double? minRating}) async => BrokerPage(items: [exampleBroker], page: 1, lastPage: 1);
   @override
   Future<List<BrokerAvailability>> availability() async => [
     BrokerAvailability(id: 11, title: 'شقة حدة', purpose: 'sale', status: 'available', needsConfirmation: true),

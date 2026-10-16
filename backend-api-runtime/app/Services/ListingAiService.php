@@ -88,6 +88,7 @@ class ListingAiService
         $result = $this->gemini->object(
             'Arrange the supplied Arabic property facts into a professional, clear listing description. '
             .'Return fact_order with each useful fact key once, beginning with title/type/purpose/address as available. '
+            .'The server writes one natural Arabic paragraph of up to four connected sentences, never field labels or repeated type/purpose. '
             .'Do not produce new text, specifications, assurances or investment promises. Select direct or invitation for the introductory tone.',
             ['verified_facts' => $sentences], ['type' => 'object', 'additionalProperties' => false, 'properties' => [
                 'fact_order' => ['type' => 'array', 'minItems' => 1, 'maxItems' => count($sentences), 'items' => ['type' => 'string', 'enum' => array_keys($sentences)]],
@@ -99,10 +100,7 @@ class ListingAiService
                 'fact_order.*' => [Rule::in(array_keys($sentences)), 'distinct'], 'tone' => ['required', Rule::in(['direct', 'invitation'])]])->validate();
             if (array_diff(array_keys($result), ['fact_order', 'tone']) !== []) $this->gemini->unavailable();
         } catch (ValidationException) { $this->gemini->unavailable(); }
-        $order = array_values(array_unique(array_merge($result['fact_order'], array_keys($sentences))));
-        $text = implode('، ', array_map(fn ($key) => $sentences[$key], $order)).'.';
-        if ($result['tone'] === 'invitation') $text = 'تعرّف على هذا العقار: '.$text;
-        return ['description' => $text, 'requires_review' => true, 'fact_keys' => $order];
+        return app(ListingDescriptionComposer::class)->compose($facts, $result['tone'] === 'invitation');
     }
 
     public function question(Property $property, string $question): array
@@ -160,14 +158,7 @@ class ListingAiService
             if ($place !== '') $title .= ' في '.$place;
             $title = mb_substr($title, 0, 160);
         }
-        // Include the explicitly entered location components without inventing
-        // coordinates, a building reference or a unit identity.
-        $location = array_filter(array_map(fn ($key) => trim((string) ($facts[$key] ?? '')), ['governorate', 'district', 'street']));
-        if ($location !== []) $facts['address'] = implode('، ', array_unique($location));
-        unset($facts['title']);
-        $sentences = $this->sentences($facts);
-        return ['title' => $title, 'description' => implode('، ', array_values($sentences)).($sentences ? '.' : ''),
-            'fact_keys' => array_keys($sentences), 'requires_review' => true];
+        return ['title' => $title] + app(ListingDescriptionComposer::class)->compose($facts);
     }
 
     private function sentences(array $facts): array

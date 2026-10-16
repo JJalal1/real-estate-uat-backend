@@ -132,8 +132,10 @@ class Wave3AiAssistantTest extends TestCase
         $this->model(['fact_order' => ['type', 'purpose', 'area_value', 'bedrooms'], 'tone' => 'direct']);
         $r = $this->withHeaders($headers)->postJson('/api/ai/listing-description', ['facts' => ['type' => 'apartment', 'purpose' => 'sale',
             'area_value' => 150, 'area_unit' => 'sqm', 'bedrooms' => 3]])->assertOk()->assertJsonPath('data.requires_review', true);
-        $this->assertStringContainsString('المساحة: 150 م²', $r->json('data.description'));
-        $this->assertStringContainsString('غرف النوم: 3', $r->json('data.description'));
+        $this->assertStringContainsString('تبلغ مساحتها 150 م²', $r->json('data.description'));
+        $this->assertStringContainsString('3 غرف نوم', $r->json('data.description'));
+        $this->assertStringNotContainsString('غرف النوم:', $r->json('data.description'));
+        $this->assertStringNotContainsString('تعرّف على هذا العقار', $r->json('data.description'));
         $this->assertStringNotContainsString('مصعد', $r->json('data.description'));
         $this->assertDatabaseCount('properties', 0);
     }
