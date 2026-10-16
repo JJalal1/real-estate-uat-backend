@@ -26,6 +26,14 @@ class AiRepository {
   Future<Map<String, dynamic>> listingFields(String message, Map<String, dynamic> facts, {int? propertyId}) =>
     _post('/ai/listing-fields', {'message': message.trim(), 'facts': facts, if (propertyId != null) 'property_id': propertyId}, private: true);
 
+  Future<Map<String, dynamic>> prepareListing(String message, Map<String, dynamic> facts, {int? propertyId}) =>
+    _post('/ai/listing-draft', {'mode': 'prepare', 'message': message.trim(), 'facts': facts,
+      if (propertyId != null) 'property_id': propertyId}, private: true);
+
+  Future<Map<String, dynamic>> listingCopy(Map<String, dynamic> facts, {int? propertyId}) =>
+    _post('/ai/listing-draft', {'mode': 'copy', 'facts': facts,
+      if (propertyId != null) 'property_id': propertyId}, private: true);
+
   Future<Map<String, dynamic>> description(Map<String, dynamic> facts, {int? propertyId}) =>
     _post('/ai/listing-description', {'facts': facts, if (propertyId != null) 'property_id': propertyId}, private: true);
 

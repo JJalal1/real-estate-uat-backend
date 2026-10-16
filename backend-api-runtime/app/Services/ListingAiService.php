@@ -58,6 +58,7 @@ class ListingAiService
             .'Do not add description or financial commission fields. A whole floor is apartment + unit_occupies_entire_floor true. '
             .'price is the sale price; a monthly rental amount belongs in monthly_rent. Local amounts in ريال mean YER unless another currency is explicit. '
             .'Do not infer a floor or apartment number for a whole building, house, villa, land or farm. '
+            .'Prefer governorate, district and street components when explicitly named; never invent a missing address component. '
             .'String fields contain text, numeric fields actual JSON numbers, boolean fields actual JSON booleans. Unclear facts are omitted.',
             ['message' => $message, 'current_facts' => (object) $current], $schema,
         );
@@ -134,6 +135,41 @@ class ListingAiService
         if ($quote !== '' && mb_strpos($description, $quote) !== false) $answer[] = $quote;
         return ['answer' => $answer ? implode('، ', $answer) : 'هذه المعلومة غير مذكورة في الإعلان. يمكنك سؤال المعلن من المحادثة.',
             'source' => 'listing', 'property_id' => $property->id, 'not_mentioned' => $answer === []];
+    }
+
+    /** Copy is composed on the server from the facts the advertiser selected. */
+    public function draftCopy(array $facts): array
+    {
+        $facts = $this->facts($facts);
+        $type = $facts['type'] ?? null;
+        $purpose = $facts['purpose'] ?? null;
+        if ($type !== null && ! in_array($type, ['apartment', 'office', 'shop'], true)) {
+            unset($facts['floor_number'], $facts['unit_number']);
+        }
+        if ($type !== null && ! in_array($type, ['apartment', 'house', 'villa'], true)) {
+            unset($facts['bedrooms'], $facts['bathrooms']);
+        }
+        if ($type === 'apartment' && $purpose === 'rent') {
+            unset($facts['area_value'], $facts['area_unit'], $facts['has_elevator']);
+        }
+        $title = trim((string) ($facts['title'] ?? ''));
+        if ($title === '') {
+            $title = self::TYPES[$type] ?? 'عقار';
+            if (in_array($purpose, ['sale', 'rent'], true)) $title .= $purpose === 'rent' ? ' للإيجار' : ' للبيع';
+            $place = trim((string) ($facts['district'] ?? $facts['governorate'] ?? $facts['address'] ?? ''));
+            if ($place !== '') $title .= ' في '.$place;
+            $title = mb_substr($title, 0, 160);
+        }
+        // Include the explicitly entered location components without inventing
+        // coordinates, a building reference or a unit identity.
+        if (empty($facts['address'])) {
+            $location = array_filter(array_map(fn ($key) => trim((string) ($facts[$key] ?? '')), ['governorate', 'district', 'street']));
+            if ($location !== []) $facts['address'] = implode('، ', array_unique($location));
+        }
+        unset($facts['title']);
+        $sentences = $this->sentences($facts);
+        return ['title' => $title, 'description' => implode('، ', array_values($sentences)).($sentences ? '.' : ''),
+            'fact_keys' => array_keys($sentences), 'requires_review' => true];
     }
 
     private function sentences(array $facts): array
