@@ -2,9 +2,17 @@
 
 Last updated: 2026-10-16
 
-## Broker draft assistant — implementation candidate
+## Broker draft assistant deployed — APK1058
 
-The owner delegated choosing and implementing broker AI assistance after1052. The candidate starts atfe1573e on `work/broker-ai-assistant-v1`. See `BROKER_AI_ASSISTANT_AR.md` for reviewed text/voice preparation, no-model recomposition after field deselection, local brief recovery, completion navigation, explicit copy, bounded cost-accounted retry and clearly labeled literal-text fallback. No property or financial write occurs in the assistant endpoint. CI/APK/deployment acceptance must be recorded after verification. The prior provider503 is not evidence of a fix.
+PR76 source `2b955f18ea15946d462c1a3c111cda525e724377` passed all five CI58 jobs (`38844830294`) with178 selected and313 full Flutter tests. The owner approved the exact merge/UAT deployment on October16 at15:42 Asia/Aden. PR76 merged as `ddedbf4992ec93eb5da2c1ee574267a475de369e`; its complete tree equals the tested tree `5dc682e6afa2f58a8faa9478741a4323fde250c2`. The existing free Frankfurt deploy `dep-db91o6ei0phs739ci6eg` is live since2026-10-16T12:45:26Z. Read `BROKER_AI_1058_DEPLOYMENT_AR.md` for evidence and `BROKER_AI_ASSISTANT_AR.md` for behavior.
+
+The editor now prepares reviewable fields/title/description together, requires copy recomposition after field deselection, preserves the raw brief in scoped local recovery, guides completion using existing requirements, and explicitly copies public ad text. The assistant never writes/publishes properties or modifies financial terms. One transient5xx retry shares the existing deadline and charges each attempt to the persistent UTC budget. Labeled literal-text organization is available in the new draft preparation path when AI is unavailable. No schema, provider/key, Production or paid-resource change occurred.
+
+APK1058 is saved as `real-estate-uat-1058.apk`:49,234,167bytes, SHA256 `94e6af6537f4846c3dc66a18d35f9929f59beab93901ffd8804dfaffc01ee3ae`. ZIP/CMS,715 signed payloads, manifest/version, three Frankfurt API libraries and five original fonts passed locally. The development certificate differs from1052; preserve unsent drafts before uninstalling if the device refuses a direct update. Four corrected Arabic previews, including scale2.4, were hash-verified and inspected.
+
+Live public health/database/PostGIS, property discovery/detail/Sai, both new unauthenticated draft modes401, and invalid audio422 passed. Startup Gemini probe passed. Real search in run38902886782 first returned503 after25.519s; the single verification retry passed with200 in12.810s while retaining the search context. Record both outcomes: provider latency is variable, not established as consistently healthy. The new draft fallback does not imply Gemini success. Authenticated listing preparation is covered by CI; physical handset/microphone, real voice transcription and multi-device publication acceptance remain open.
+
+Application subtrees: mobile `16116c3c81c75feffae6ed22925c5d7c8a5a44f6`, backend `67e01f4d14ef9dedc553147dd90d2319a48443b3`. Documentation-only follow-ups retain both;1058 remains the accepted installer for this code.
 
 ## Wave5 deployed — APK1052, baseline1049
 
@@ -16,7 +24,7 @@ The native fixed-amount migration applied successfully. All27 prior Sai terms an
 
 Public post-deployment health/database/PostGIS, discovery/detail, the new public Sai contract and invalid voice-upload validation passed. Live verification run `38838575751` is intentionally failed: the real AI search returned503 twice, matching startup diagnostic `provider_http_503`. The capabilities endpoint describes configuration availability; it does not prove current provider success. Gemini client/model/key configuration was not changed by Wave5. Manual browsing/search/filtering remains available; do not claim the AI-provider or handset gate has passed. Seven synthetic UI previews passed visual inspection, but handset/motion acceptance and comparison with the four unavailable full MP4s remain open. PR73 remains separate historical Wave4 documentation.
 
-Read `WAVE5_BASELINE_1049_AR.md` for listing input7, inline rental requirements, native immutable fixed-fee Sai and lightweight Home/Account entries to the existing search session. Manual-stop whole-recording voice and retired viewings remain. Documentation-only follow-ups preserve both application subtrees; APK1052 remains the verified installer.
+Read `WAVE5_BASELINE_1049_AR.md` for listing input7, inline rental requirements, native immutable fixed-fee Sai and lightweight Home/Account entries to the existing search session. Manual-stop whole-recording voice and retired viewings remain. Documentation-only Wave5 follow-ups preserved both application subtrees; the newer1058 state above supersedes that installer.
 
 ## Retained Wave4 baseline history
 
