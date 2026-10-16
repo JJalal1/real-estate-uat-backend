@@ -30,12 +30,14 @@ class PropertySaiService
         ?string $platformTermsDecision,
         Request $request,
         bool $deferPlatformTerms = false,
+        string $amountType = 'percentage',
+        ?float $fixedAmount = null,
     ): PropertySaiTerm {
         if ((int) $property->user_id !== (int) $actor->id) {
             abort(403, 'Only the listing advertiser can configure sai terms.');
         }
 
-        return DB::transaction(function () use ($actor, $property, $payer, $brokerRate, $platformTermsDecision, $request, $deferPlatformTerms): PropertySaiTerm {
+        return DB::transaction(function () use ($actor, $property, $payer, $brokerRate, $platformTermsDecision, $request, $deferPlatformTerms, $amountType, $fixedAmount): PropertySaiTerm {
             $locked = Property::query()->whereKey($property->id)->lockForUpdate()->firstOrFail();
             if ($locked->status === 'published'
                 || in_array($locked->review_status, ['submitted', 'under_review', 'rejected_blocked'], true)) {
@@ -48,6 +50,11 @@ class PropertySaiService
             $advertiserType = $this->advertiserType($actor);
             $purpose = (string) $locked->purpose;
             $this->validatePayer($purpose, $payer, true);
+            if (! in_array($amountType, ['percentage', 'fixed'], true)
+                || ($amountType === 'fixed' && $brokerRate !== null)
+                || ($amountType === 'percentage' && $fixedAmount !== null)) {
+                throw ValidationException::withMessages(['sai_amount_type' => ['اختر نسبة مئوية أو مبلغًا ثابتًا دون الجمع بينهما.']]);
+            }
 
             $sourceMode = 'owner_fixed';
             $requestedRate = null;
@@ -57,22 +64,25 @@ class PropertySaiService
             $termsStatus = 'not_required';
             $acceptedAt = null;
             $rejectedAt = null;
+            $storedAmountType = 'percentage';
+            $storedFixedAmount = null;
+            $fixedCurrency = null;
 
             if ($advertiserType === 'owner') {
-                if ($brokerRate !== null) {
+                if ($brokerRate !== null || $amountType === 'fixed') {
                     throw ValidationException::withMessages([
                         'broker_sai_rate_percent' => ['نسبة سعي المالك ثابتة ولا يمكن تغييرها.'],
                     ]);
                 }
             } else {
-                if ($brokerRate === null) {
+                if ($amountType === 'percentage' && $brokerRate === null) {
                     throw ValidationException::withMessages([
                         'broker_sai_rate_percent' => ['حدد نسبة السعي للدلال/المكتب من صفر وحتى الحد المسموح.'],
                     ]);
                 }
 
                 $max = $this->brokerMaxRate($purpose);
-                if ($brokerRate < 0 || $brokerRate > $max) {
+                if ($amountType === 'percentage' && (! is_finite($brokerRate) || $brokerRate < 0 || $brokerRate > $max)) {
                     throw ValidationException::withMessages([
                         'broker_sai_rate_percent' => [
                             $purpose === 'sale'
@@ -82,10 +92,20 @@ class PropertySaiService
                     ]);
                 }
 
-                $requestedRate = round($brokerRate, 2);
-                if ($requestedRate > 0) {
+                if ($amountType === 'fixed' && ($fixedAmount === null || ! is_finite($fixedAmount)
+                    || $fixedAmount < 0 || $fixedAmount > $this->fixedAmountLimit($locked))) {
+                    throw ValidationException::withMessages(['fixed_sai_amount' => ['أدخل مبلغ سعي صحيحًا ضمن الحد المسموح من سعر العقار أو إيجار الشهر الأول.']]);
+                }
+                $requestedRate = $amountType === 'fixed' ? null : round($brokerRate, 2);
+                $custom = $amountType === 'fixed' ? round($fixedAmount, 2) > 0 : $requestedRate > 0;
+                if ($custom) {
                     $sourceMode = 'broker_custom';
-                    $effectiveRate = $requestedRate;
+                    $effectiveRate = $amountType === 'fixed' ? 0.0 : $requestedRate;
+                    if ($amountType === 'fixed') {
+                        $storedAmountType = 'fixed';
+                        $storedFixedAmount = round($fixedAmount, 2);
+                        $fixedCurrency = (string) $locked->currency;
+                    }
                     $platformShare = self::PLATFORM_BROKER_SHARE;
                     $brokerShare = self::BROKER_NET_SHARE;
 
@@ -101,6 +121,7 @@ class PropertySaiService
                     // 0% means no broker/office sai. It never means a free
                     // transaction: the fixed platform sai becomes effective.
                     $sourceMode = 'platform_fallback';
+                    $requestedRate = 0.0;
                     $effectiveRate = $this->fixedRate($purpose);
                     $platformShare = 100.0;
                     $brokerShare = 0.0;
@@ -119,6 +140,9 @@ class PropertySaiService
                 'source_mode' => $sourceMode,
                 'requested_broker_rate_percent' => $requestedRate,
                 'sai_rate_percent' => round($effectiveRate, 2),
+                'sai_amount_type' => $storedAmountType,
+                'fixed_sai_amount' => $storedFixedAmount,
+                'fixed_sai_currency' => $fixedCurrency,
                 'payer' => $payer,
                 'calculation_basis' => $basis,
                 'platform_share_percent' => $platformShare,
@@ -150,6 +174,8 @@ class PropertySaiService
                     'purpose' => $purpose,
                     'source_mode' => $sourceMode,
                     'sai_rate_percent' => (float) $term->sai_rate_percent,
+                    'sai_amount_type' => $storedAmountType,
+                    'fixed_sai_amount' => $storedFixedAmount,
                     'payer' => $payer,
                     'platform_terms_status' => $termsStatus,
                 ],
@@ -181,10 +207,23 @@ class PropertySaiService
 
         if ($advertiserType === 'owner') {
             if ($term->source_mode !== 'owner_fixed'
+                || $term->sai_amount_type !== 'percentage'
                 || abs((float) $term->sai_rate_percent - $fixed) > 0.001
                 || (float) $term->platform_share_percent !== 100.0
                 || (float) $term->broker_share_percent !== 0.0) {
                 throw new ConflictHttpException('شروط سعي المالك غير مطابقة للسياسة المعتمدة. أعد تحديد من يتحمل السعي.');
+            }
+            return $term;
+        }
+
+        if ($term->sai_amount_type === 'fixed') {
+            if ($term->source_mode !== 'broker_custom' || (float) $term->fixed_sai_amount <= 0
+                || (float) $term->fixed_sai_amount > $this->fixedAmountLimit($property)
+                || $term->fixed_sai_currency !== $property->currency
+                || (float) $term->platform_share_percent !== self::PLATFORM_BROKER_SHARE
+                || (float) $term->broker_share_percent !== self::BROKER_NET_SHARE
+                || ! in_array($term->platform_terms_status, ['accepted', 'pending'], true)) {
+                throw new ConflictHttpException('راجع مبلغ السعي الثابت وعملته وحدوده قبل إرسال الإعلان.');
             }
             return $term;
         }
@@ -226,11 +265,16 @@ class PropertySaiService
         $label = $this->payerLabel($term->purpose, $term->payer);
 
         return [
-            'rate_percent' => $rate,
+            'rate_percent' => $term->sai_amount_type === 'fixed' ? null : $rate,
+            'amount_type' => $term->sai_amount_type,
+            'fixed_amount' => $term->fixed_sai_amount,
+            'currency' => $term->fixed_sai_currency,
             'payer' => $term->payer,
             'payer_label' => $label,
             'calculation_basis' => $term->calculation_basis,
-            'display_text' => 'السعي '.$this->formatRate($rate).'% - يتحملها '.$label,
+            'display_text' => $term->sai_amount_type === 'fixed'
+                ? 'السعي '.$this->formatRate((float) $term->fixed_sai_amount).' '.$term->fixed_sai_currency.' - يتحمله '.$label
+                : 'السعي '.$this->formatRate($rate).'% - يتحملها '.$label,
         ];
     }
 
@@ -248,6 +292,7 @@ class PropertySaiService
             'professional_platform_share_percent' => self::PLATFORM_BROKER_SHARE,
             'platform_terms_message' => 'للتطبيق نسبة مقدارها '.$this->formatRate(self::PLATFORM_BROKER_SHARE).'% من مبلغ السعي عند إتمام الصفقة.',
             'requires_configuration' => true,
+            'amount_types' => $type === 'owner' ? ['percentage'] : ['percentage', 'fixed'],
         ];
     }
 
@@ -272,6 +317,9 @@ class PropertySaiService
                 ? (float) $term->requested_broker_rate_percent
                 : null,
             'sai_rate_percent' => (float) $term->sai_rate_percent,
+            'sai_amount_type' => $term->sai_amount_type,
+            'fixed_sai_amount' => $term->fixed_sai_amount,
+            'fixed_sai_currency' => $term->fixed_sai_currency,
             'payer' => $term->payer,
             'payer_label' => $this->payerLabel($term->purpose, $term->payer),
             'calculation_basis' => $term->calculation_basis,
@@ -313,10 +361,12 @@ class PropertySaiService
 
     public function calculateSaiAmount(PropertySaiTerm $term, float $basisAmount): array
     {
-        if ($basisAmount < 0) {
+        if (! is_finite($basisAmount) || $basisAmount < 0) {
             throw ValidationException::withMessages(['amount' => ['Amount must not be negative.']]);
         }
-        $total = round($basisAmount * ((float) $term->sai_rate_percent / 100), 2);
+        $total = $term->sai_amount_type === 'fixed'
+            ? round((float) $term->fixed_sai_amount, 2)
+            : round($basisAmount * ((float) $term->sai_rate_percent / 100), 2);
         $platform = round($total * ((float) $term->platform_share_percent / 100), 2);
         return [
             'total_sai' => $total,
@@ -344,6 +394,14 @@ class PropertySaiService
     public function fixedRate(string $purpose): float
     {
         return $purpose === 'rent' ? self::OWNER_RENT_RATE : self::OWNER_SALE_RATE;
+    }
+
+    private function fixedAmountLimit(Property $property): float
+    {
+        $basis = $property->purpose === 'rent'
+            ? (float) ($property->monthly_rent ?? 0)
+            : (float) $property->price;
+        return round($basis * $this->brokerMaxRate((string) $property->purpose) / 100, 2);
     }
 
     public function brokerMaxRate(string $purpose): float
@@ -388,12 +446,12 @@ class PropertySaiService
     private function equivalent(PropertySaiTerm $current, array $candidate): bool
     {
         foreach ([
-            'advertiser_type', 'purpose', 'source_mode', 'payer', 'calculation_basis', 'platform_terms_status',
+            'advertiser_type', 'purpose', 'source_mode', 'payer', 'calculation_basis', 'platform_terms_status', 'sai_amount_type', 'fixed_sai_currency',
         ] as $key) {
             if ((string) $current->{$key} !== (string) $candidate[$key]) return false;
         }
         foreach ([
-            'requested_broker_rate_percent', 'sai_rate_percent', 'platform_share_percent', 'broker_share_percent',
+            'requested_broker_rate_percent', 'sai_rate_percent', 'platform_share_percent', 'broker_share_percent', 'fixed_sai_amount',
         ] as $key) {
             $a = $current->{$key};
             $b = $candidate[$key];

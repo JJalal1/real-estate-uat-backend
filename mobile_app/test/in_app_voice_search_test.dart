@@ -16,10 +16,21 @@ import 'package:real_estate_mobile/features/discovery/data/smart_search_session.
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/home_ai_search_entry.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
+import 'package:real_estate_mobile/features/account/presentation/account_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/rental_conditions_editor.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'support/wave3_fakes.dart';
 
 const currentFilters = {'type': 'apartment', 'purpose': 'rent', 'search': 'صنعاء', 'min_bedrooms': 3};
+
+class _AnonymousAuth extends AuthController {
+  @override
+  Future<AuthUser?> build() async => null;
+}
 
 ProviderContainer searchContainer(Wave3VoiceFake voice, Wave3AiFake ai, Wave3PropertiesFake properties) => ProviderContainer(overrides: [
   voiceInputProvider.overrideWithValue(voice), aiRepositoryProvider.overrideWithValue(ai), propertyRepositoryProvider.overrideWithValue(properties),
@@ -33,7 +44,12 @@ Future<GoRouter> pumpHome(WidgetTester tester, ProviderContainer container, {Glo
   await tester.pumpWidget(UncontrolledProviderScope(container: container, child: MaterialApp.router(theme: AppTheme.light, routerConfig: router,
     builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale), disableAnimations: reducedMotion),
       child: Directionality(textDirection: TextDirection.rtl, child: RepaintBoundary(key: boundary, child: child!))))));
-  await tester.pumpAndSettle(); return router;
+  await tester.pumpAndSettle();
+  expect(find.byType(TextField), findsNothing);
+  expect(find.text('بحث ذكي'), findsOneWidget);
+  await tester.tap(find.byKey(const ValueKey('home-smart-search')));
+  await tester.pumpAndSettle();
+  return router;
 }
 
 Future<void> preview(WidgetTester tester, GlobalKey key, String name) async {
@@ -59,7 +75,7 @@ void main() {
     final icons = await File('$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
     await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   });
-  testWidgets('home listens inline and applies only final budget to existing rental session without navigation', (tester) async {
+  testWidgets('lightweight home opens the existing search and final voice edits retain the rental context', (tester) async {
     tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake(), properties = Wave3PropertiesFake();
@@ -67,13 +83,13 @@ void main() {
     final session = container.read(smartSearchSessionProvider.notifier); session.replaceManually(SmartSearchFilters.fromMap(currentFilters));
     ai.onRefine = (text, filters, revision) async => {'revision': revision, 'filters': {...filters, 'min_price': 50000, 'max_price': 100000}};
     final boundary = GlobalKey(); final router = await pumpHome(tester, container, boundary: boundary);
-    await tester.tap(find.byKey(const ValueKey('home-ai-voice'))); await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     expect(find.text('نجهّز الميكروفون…'), findsOneWidget);
     voice.latest.emit(const VoiceEvent('ready')); voice.latest.emit(const VoiceEvent('level', level: .8));
     voice.latest.emit(const VoiceEvent('partial', text: 'خلي السعر من خمسين'));
     await tester.pump(const Duration(milliseconds: 180));
     expect(find.text('نستمع إليك الآن'), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const ValueKey('home-smart-search')), matching: find.byKey(const ValueKey('voice-transcript'))), findsOneWidget);
+    expect(find.descendant(of: find.byType(AssistedSearchScreen), matching: find.byKey(const ValueKey('voice-transcript'))), findsOneWidget);
     expect(find.text('خلي السعر من خمسين'), findsNothing); expect(voice.latest.stops, 0); expect(find.byKey(const ValueKey('voice-wave')), findsOneWidget);
     expect(find.byType(Dialog), findsNothing); expect(ai.requests, isEmpty);
     expect(session.state.filters.values, currentFilters);
@@ -84,27 +100,27 @@ void main() {
     expect(ai.requests.single.filters, currentFilters);
     expect(session.state.filters.values, {...currentFilters, 'min_price': 50000, 'max_price': 100000});
     expect(properties.queries.last.filters['min_monthly_rent'], 50000); expect(properties.queries.last.filters['max_monthly_rent'], 100000);
-    expect(find.byKey(const ValueKey('home-smart-chip-budget')), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-ai-result-11')), findsOneWidget);
-    expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/');
-    expect(find.byType(AssistedSearchScreen), findsNothing);
+    expect(find.byKey(const ValueKey('smart-chip-budget')), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
+    expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/smart-search');
+    expect(find.byType(AssistedSearchScreen), findsOneWidget);
     voice.latest.emit(const VoiceEvent('final', text: 'طلب مكرر')); await tester.pump(); expect(ai.requests, hasLength(1));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('budget chip edits only budget and manual chip removal keeps the same home session', (tester) async {
+  testWidgets('budget chip edits only budget and manual chip removal keeps the same search session', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake(), properties = Wave3PropertiesFake();
     final container = searchContainer(voice, ai, properties); addTearDown(container.dispose); addTearDown(voice.dispose);
     final session = container.read(smartSearchSessionProvider.notifier);
     session.replaceManually(SmartSearchFilters.fromMap({...currentFilters, 'min_price': 50000, 'max_price': 100000}));
     await pumpHome(tester, container);
-    await tester.tap(find.byKey(const ValueKey('home-smart-chip-budget'))); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('smart-chip-budget'))); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('filter-search')), findsNothing);
     expect(find.byKey(const ValueKey('filter-min_bedrooms')), findsNothing);
     await tester.enterText(find.byKey(const ValueKey('filter-max_price')), '١٢٠٠٠٠');
     await tester.ensureVisible(find.text('تطبيق الشروط')); await tester.tap(find.text('تطبيق الشروط')); await tester.pumpAndSettle();
     expect(session.state.filters.values, {...currentFilters, 'min_price': 50000, 'max_price': 120000.0});
-    final rooms = tester.widget<InputChip>(find.byKey(const ValueKey('home-smart-chip-min_bedrooms')));
+    final rooms = tester.widget<InputChip>(find.byKey(const ValueKey('smart-chip-min_bedrooms')));
     rooms.onDeleted!(); await tester.pumpAndSettle();
     expect(session.state.filters.values['search'], 'صنعاء');
     expect(session.state.filters.values['purpose'], 'rent');
@@ -119,14 +135,14 @@ void main() {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake();
     final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);
     final session = container.read(smartSearchSessionProvider.notifier); session.replaceManually(SmartSearchFilters.fromMap(currentFilters));
-    await pumpHome(tester, container); await tester.enterText(find.byKey(const ValueKey('home-ai-description')), 'مسودة مكتوبة');
-    await tester.tap(find.byKey(const ValueKey('home-ai-voice'))); await tester.pump();
+    await pumpHome(tester, container); await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'مسودة مكتوبة');
+    await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     final old = voice.latest; old.emit(const VoiceEvent('ready')); old.emit(const VoiceEvent('partial', text: 'غير المكان')); await tester.pump();
     await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
     old.emit(const VoiceEvent('final', text: 'غير المكان')); await tester.pump();
     expect(old.cancellations, 1); expect(ai.requests, isEmpty); expect(session.state.filters.values, currentFilters);
-    expect(tester.widget<TextField>(find.byKey(const ValueKey('home-ai-description'))).controller!.text, 'مسودة مكتوبة');
-    await tester.tap(find.byKey(const ValueKey('home-ai-voice'))); await tester.pump();
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('smart-search-description'))).controller!.text, 'مسودة مكتوبة');
+    await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); old.emit(const VoiceEvent('final', text: 'قديم')); await tester.pump();
     expect(find.text('قديم'), findsNothing); await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -135,7 +151,7 @@ void main() {
   testWidgets('manual revision cancels capture and a late transcript cannot replace it', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake();
     final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);
-    await pumpHome(tester, container); await tester.tap(find.byKey(const ValueKey('home-ai-voice'))); await tester.pump();
+    await pumpHome(tester, container); await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); await tester.pump();
     final session = container.read(smartSearchSessionProvider.notifier);
     session.replaceManually(SmartSearchFilters.fromMap({'type': 'land', 'search': 'تعز'})); await tester.pumpAndSettle();
@@ -144,27 +160,27 @@ void main() {
     expect(session.state.filters.values, {'type': 'land', 'search': 'تعز'}); expect(tester.takeException(), isNull);
   });
 
-  testWidgets('leaving home cancels microphone and never submits a delayed final', (tester) async {
+  testWidgets('leaving smart search cancels microphone and never submits a delayed final', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake();
     final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);
-    final router = await pumpHome(tester, container); await tester.tap(find.byKey(const ValueKey('home-ai-voice'))); await tester.pump();
+    final router = await pumpHome(tester, container); await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); await tester.pump(); router.push('/other'); await tester.pumpAndSettle();
     expect(voice.latest.cancellations, 1); voice.latest.emit(const VoiceEvent('final', text: 'شقة')); await tester.pump();
     expect(ai.requests, isEmpty); expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/other');
-    expect(find.text('صفحة أخرى'), findsOneWidget); expect(find.byKey(const ValueKey('home-ai-voice')).hitTestable(), findsNothing);
+    expect(find.text('صفحة أخرى'), findsOneWidget); expect(find.byKey(const ValueKey('smart-search-voice')).hitTestable(), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
   for (final code in ['SPEECH_PERMISSION', 'SPEECH_NO_MATCH', 'SPEECH_NETWORK', 'SPEECH_UNAVAILABLE']) {
-    testWidgets('$code returns to editable home search without executing or clearing context', (tester) async {
+    testWidgets('$code returns to editable smart search without executing or clearing context', (tester) async {
       final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake();
       final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);
       final session = container.read(smartSearchSessionProvider.notifier); session.replaceManually(SmartSearchFilters.fromMap(currentFilters));
-      final router = await pumpHome(tester, container); await tester.tap(find.byKey(const ValueKey('home-ai-voice'))); await tester.pump();
+      final router = await pumpHome(tester, container); await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
       voice.latest.emit(VoiceEvent('error', code: code)); await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('inline-voice-capture')), findsNothing); expect(find.byKey(const ValueKey('home-ai-description')), findsOneWidget);
+      expect(find.byKey(const ValueKey('inline-voice-capture')), findsNothing); expect(find.byKey(const ValueKey('smart-search-description')), findsOneWidget);
       expect(ai.requests, isEmpty); expect(session.state.filters.values, currentFilters);
-      expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/'); expect(tester.takeException(), isNull);
+      expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/smart-search'); expect(tester.takeException(), isNull);
     });
   }
 
@@ -174,7 +190,7 @@ void main() {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake();
     final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);
     final boundary = GlobalKey(); await pumpHome(tester, container, boundary: boundary, scale: 1.8, reducedMotion: true);
-    await tester.tap(find.byKey(const ValueKey('home-ai-voice'))); await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); voice.latest.emit(const VoiceEvent('partial', text: 'شقة للإيجار في صنعاء، ثلاث غرف، السعر من خمسين إلى مئة ألف'));
     await tester.pumpAndSettle(); expect(tester.takeException(), isNull);
     await preview(tester, boundary, 'voice-home-large-text');
@@ -187,11 +203,78 @@ void main() {
     final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);
     final session = container.read(smartSearchSessionProvider.notifier); session.replaceManually(SmartSearchFilters.fromMap(currentFilters));
     await tester.pumpWidget(UncontrolledProviderScope(container: container, child: MaterialApp(theme: AppTheme.light, home: const AssistedSearchScreen())));
-    await tester.pumpAndSettle(); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
+    await tester.pumpAndSettle(); await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); await tester.pump();
     await tester.tap(find.byKey(const ValueKey('smart-search-reset'))); await tester.pumpAndSettle();
     voice.latest.emit(const VoiceEvent('final', text: 'قديم')); await tester.pump();
     expect(voice.latest.cancellations, 1); expect(session.state.filters.values, isEmpty); expect(ai.requests, isEmpty); expect(tester.takeException(), isNull);
+  });
+
+  for (final scale in [1.0, 1.8]) {
+    testWidgets('lightweight home and account reopen one search session at scale $scale', (tester) async {
+      tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+      final voice = Wave3VoiceFake(), ai = Wave3AiFake(), properties = Wave3PropertiesFake();
+      addTearDown(voice.dispose);
+      final feed = Wave3MarketplaceFake(onFeed: (q) async => MarketplaceFeed(label: 'صنعاء',
+        governorate: 'صنعاء', sections: {'latest': [wave3Property(11)]}));
+      final boundary = GlobalKey();
+      final container = ProviderContainer(overrides: [
+        voiceInputProvider.overrideWithValue(voice), aiRepositoryProvider.overrideWithValue(ai),
+        propertyRepositoryProvider.overrideWithValue(properties), marketplaceRepositoryProvider.overrideWithValue(feed),
+        homeLocationAttemptedProvider.overrideWith((_) => true),
+        authControllerProvider.overrideWith(_AnonymousAuth.new),
+      ]);
+      addTearDown(container.dispose);
+      final router = GoRouter(routes: [
+        GoRoute(path: '/', builder: (_, __) => const MarketplaceHomeScreen()),
+        GoRoute(path: '/smart-search', builder: (_, __) => const AssistedSearchScreen()),
+        GoRoute(path: '/account', builder: (_, __) => const AccountScreen()),
+      ]);
+      addTearDown(router.dispose);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container,
+        child: MaterialApp.router(theme: AppTheme.light, routerConfig: router,
+          builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+            child: Directionality(textDirection: TextDirection.rtl, child: RepaintBoundary(key: boundary, child: child!))))));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('home-ai-description')), findsNothing);
+      expect(find.byKey(const ValueKey('home-ai-voice')), findsNothing);
+      expect(find.text('بحث ذكي'), findsOneWidget);
+      expect(tester.getSize(find.byKey(const ValueKey('home-smart-search'))).height, lessThan(100));
+      await preview(tester, boundary, scale == 1 ? 'wave5-home' : 'wave5-home-large');
+      await tester.tap(find.byKey(const ValueKey('home-smart-search'))); await tester.pumpAndSettle();
+      expect(find.byType(AssistedSearchScreen), findsOneWidget);
+      final filters = {...currentFilters, 'max_price': 125000};
+      container.read(smartSearchSessionProvider.notifier).replaceManually(SmartSearchFilters.fromMap(filters));
+      await tester.pumpAndSettle();
+      router.pop(); await tester.pumpAndSettle();
+      router.push('/account'); await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('account-smart-search')));
+      await tester.tap(find.byKey(const ValueKey('account-smart-search'))); await tester.pumpAndSettle();
+      expect(find.byType(AssistedSearchScreen), findsOneWidget);
+      expect(container.read(smartSearchSessionProvider).filters.values, filters);
+      expect(ai.requests, isEmpty); expect(voice.calls, 0); expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('selected rental condition chips render inline with real Arabic fonts', (tester) async {
+    tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    final boundary = GlobalKey();
+    var value = <Map<String, dynamic>>[
+      {'kind': 'advance', 'months': 2}, {'kind': 'guarantor'}, {'kind': 'deposit'},
+      {'kind': 'duration', 'months': 12}, {'kind': 'special', 'text': 'المحافظة على نظافة العقار'},
+    ];
+    await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Directionality(textDirection: TextDirection.rtl,
+      child: RepaintBoundary(key: boundary, child: Scaffold(appBar: AppBar(title: const Text('شروط الإيجار')),
+        body: StatefulBuilder(builder: (context, update) => ListView(padding: const EdgeInsets.all(18), children: [
+          RentalConditionsEditor(value: value, onChanged: (next) => update(() => value = next)),
+        ])))))));
+    await tester.pumpAndSettle();
+    expect(find.byType(FilterChip), findsNWidgets(5));
+    expect(find.byType(CheckboxListTile), findsNothing);
+    await preview(tester, boundary, 'wave5-rental-conditions');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('native bridge transcribes one complete clip only after manual stop, isolates IDs and cancels upload', (tester) async {

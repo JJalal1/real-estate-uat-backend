@@ -2,7 +2,13 @@
 
 These are product rules, not implementation suggestions. Agents must preserve them unless the product owner explicitly changes them.
 
-## Current October15 Wave4 changes
+## Current October16 Wave5 on1049
+
+The owner confirmed current1049. Listing input7 hides rental-apartment area/elevator and makes position optional; known historical identity/facts remain. Unspecified units require an auditable support identity decision rather than an invented unit or shared whole-floor asset. Rental conditions use inline chips and reveal only selected details.
+
+Professional Sai supports percentage or native fixed amounts. Owner rates, zero fallback, payer and internal split remain. Fixed fees are bounded at configuration/review by the equivalent current percentage ceiling and frozen in their original currency; final deal-price changes do not recalculate the fee. Mixed inputs and currency mismatches are rejected. Explicit consent and customer-confirmed outcomes remain mandatory. Home and Account open the existing smart-search session through lightweight entries; no full AI block remains on Home.
+
+## Earlier October15 Wave4 changes
 
 Wave4 starts from APK1039. The active viewing/booking UI, endpoints and notifications are retired; parties coordinate visits using ordinary property-linked messages. Historical bookings/events/messages and all immutable financial history stay intact; no replacement calendar is authorized.
 

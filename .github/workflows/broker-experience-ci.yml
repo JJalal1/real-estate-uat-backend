@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049]
   workflow_dispatch:
 permissions:
   contents: read
@@ -133,6 +133,7 @@ jobs:
         run: >-
           php artisan test tests/Feature/BrokerExperienceApiTest.php
           tests/Feature/Wave4ListingJourneyTest.php tests/Feature/Wave4VoiceContractTest.php
+          tests/Feature/Wave5ListingRefinementTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Listing scope, customer commission and private editor contracts on PostgreSQL
         run: >-

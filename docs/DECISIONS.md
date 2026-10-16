@@ -2,6 +2,10 @@
 
 This file records product/engineering decisions that AI agents must not silently reverse.
 
+## D-W5 — October16 current1049 and focused refinement
+
+The owner selected current1049 over the1039 label in the new handoff. Work starts at `db378214ade105a7046a2d1069095070ac76f7a4` and retains Wave4. `WAVE5_BASELINE_1049_AR.md` defines listing input7, optional rental unit position with support identity review, inline rental chips, immutable native fixed Sai with unchanged owner/fallback/split policies, and lightweight Home/Account entries to existing smart search. No Production, paid resource, cleanup, active viewing journey or1043 startup import is authorized.
+
 ## D-001 — UAT first, no Production yet
 
 Current work targets UAT/staging. Production infrastructure, Production database, Play Store release, real payment data, and real customer identity data are out of scope until explicitly approved.

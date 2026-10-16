@@ -127,7 +127,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   List<String> _imagePaths = <String>[];
   String? _ownershipProofPath;
   PropertyDetails? _workingDraft;
-  final _saiRate = TextEditingController(text: '0');
+  final _saiRate = TextEditingController();
+  final _saiAmount = TextEditingController();
+  String _saiAmountType = 'percentage';
   PropertySaiManagement? _saiPolicy;
   String? _saiPolicyError;
   bool _saiAccepted = false, _saiTouched = false, _hasRecoveredSai = false;
@@ -145,6 +147,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Map<String, TextEditingController> get _recoveryFields => {
     'broker_sai_rate_percent': _saiRate,
+    'fixed_sai_amount': _saiAmount,
     'title': _title, 'description': _description, 'price': _price, 'monthly_rent': _monthlyRent,
     'rental_term_months': _rentalTermMonths, 'advance_months': _advanceMonths, 'area': _area,
     'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'district': _district,
@@ -154,7 +157,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
-    'editor_version': 6, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted, 'shop_in_building': _shopInBuilding,
+    'editor_version': 7, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted, 'shop_in_building': _shopInBuilding,
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
     'tenure_type': _tenureType, 'parking': _parkingChoice, 'elevator': _elevatorChoice, 'facade': _facade,
     'ownership_document_type': _ownershipDocumentType, 'relationship_type': _relationshipType,
@@ -205,7 +208,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final fields = data['fields'];
       if (fields is Map) {
         for (final entry in _recoveryFields.entries) {
-          if (entry.key == 'broker_sai_rate_percent' && data['sai_touched'] != true) continue;
+          if (const ['broker_sai_rate_percent', 'fixed_sai_amount'].contains(entry.key) && data['sai_touched'] != true) continue;
           final text = fields[entry.key]; if (text is String) entry.value.text = text;
         }
       }
@@ -237,6 +240,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (widget.existingProperty == null && serverId is int && serverId > 0) _recoveredServerId = serverId;
       _hasRecoveredSai = data['sai_touched'] == true && fields is Map && fields.containsKey('broker_sai_rate_percent');
       _saiTouched = _hasRecoveredSai;
+      if (const ['percentage', 'fixed'].contains(data['sai_amount_type'])) _saiAmountType = data['sai_amount_type'] as String;
       if (_hasRecoveredSai) _saiAccepted = data['sai_terms_accepted'] == true;
       _shopInBuilding = data['shop_in_building'] == true || _floorNumber.text.isNotEmpty;
       _recoverySaved = true;
@@ -262,12 +266,24 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool get _startedAsEditing => widget.existingProperty != null;
   bool get _isEditing => _existing != null;
   bool get _isSaiReady => _inlineSaiValidation == null;
-  double get _enteredSaiRate => double.tryParse(_saiRate.text.trim()) ?? double.nan;
+  double get _enteredSaiRate => parseSaiNumber(_saiRate.text) ?? double.nan;
+  double get _enteredSaiAmount => parseSaiNumber(_saiAmount.text) ?? double.nan;
+  bool get _fixedSai => _saiAmountType == 'fixed' && _saiPolicy?.isOwner != true;
+  double get _activeSaiValue => _fixedSai ? _enteredSaiAmount : _enteredSaiRate;
   String? get _inlineSaiValidation {
     final policy = _saiPolicy;
     if (policy == null) return 'تعذر تحميل سياسة السعي. أعد تحميلها قبل الإرسال.';
     if (policy.isOwner) return null;
     if (_isEditing && !_existingSaiLoaded && !_saiTouched && !_hasRecoveredSai) return 'انتظر تحميل السعي الحالي أو حدد النسبة بنفسك.';
+    if (_fixedSai) {
+      final amount = _enteredSaiAmount, basis = _effectivePrice;
+      final maximum = basis == null ? null : (basis * (policy.brokerMaxRatePercent ?? -1)).round() / 100;
+      if (!amount.isFinite || amount < 0 || maximum == null || amount > maximum ||
+          (amount * 100 - (amount * 100).round()).abs() > .000001) {
+        return 'أدخل مبلغ سعي صحيحًا ضمن الحد المسموح وبدقتين عشريتين على الأكثر.';
+      }
+      return null;
+    }
     final rate = _enteredSaiRate, maximum = policy.brokerMaxRatePercent;
     if (!rate.isFinite || rate < 0 || maximum == null || rate > maximum || (rate * 100 - (rate * 100).round()).abs() > .000001) {
       return 'أدخل نسبة سعي صحيحة ضمن الحد المسموح وبدقتين عشريتين على الأكثر.';
@@ -277,6 +293,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   String get _saiDisplayText {
     final policy = _saiPolicy;
     if (policy == null) return 'سياسة السعي غير محملة';
+    if (_fixedSai && _enteredSaiAmount.isFinite && _enteredSaiAmount > 0) {
+      return 'السعي ${_enteredSaiAmount.toStringAsFixed(2)} ريال · يتحمله ${_purpose == 'rent' ? 'المستأجر' : 'المشتري'}';
+    }
     final rate = policy.isOwner || _enteredSaiRate == 0 ? policy.fixedRatePercent : _enteredSaiRate;
     return 'السعي ${rate ?? '—'}% · يتحمله ${_purpose == 'rent' ? 'المستأجر' : 'المشتري'}';
   }
@@ -284,12 +303,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool get _requiresResidential => _residentialTypes.contains(_type);
   bool get _supportsFacade => _requiresStructure || _type == 'land';
   bool get _requiresStructure => _structureTypes.contains(_type);
-  bool get _supportsElevator => const {'apartment', 'building', 'office'}.contains(_type);
+  bool get _supportsElevator => !_isRentalApartment && const {'apartment', 'building', 'office'}.contains(_type);
   bool get _isUnitType => const {'apartment', 'floor', 'office', 'shop'}.contains(_type);
   bool get _unitNeedsFloor => const {'apartment', 'floor', 'office'}.contains(_type) || (_type == 'shop' && _shopInBuilding);
   bool? get _parkingValue =>
       _parkingChoice == null ? null : _parkingChoice == 'yes';
-  bool get _optionalArea => _type == 'apartment' && _purpose == 'rent';
+  bool get _isRentalApartment => _type == 'apartment' && _purpose == 'rent';
+  bool get _optionalArea => _isRentalApartment;
+  bool get _preserveRentalFacts => const ['apartment', 'floor'].contains(_existing?.type) && _existing?.purpose == 'rent';
   double? get _effectivePrice {
     if (_purpose == 'rent') {
       final monthly = double.tryParse(_monthlyRent.text.trim());
@@ -395,6 +416,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     );
     for (final controller in <TextEditingController>[
       _saiRate,
+      _saiAmount,
       _title,
       _description,
       _price,
@@ -718,12 +740,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           if (!_wholeFloor) ...[
             const SizedBox(height: 12),
             AppTextField(controller: _unitNumber,
-              label: _type == 'shop' ? 'اسم أو رقم المحل أو موضعه *' : _type == 'apartment' ? 'رقم الشقة أو موضعها داخل الدور *' : 'رقم المكتب أو موضعه *',
+              label: _type == 'shop' ? 'اسم أو رقم المحل أو موضعه *' : _isRentalApartment ? 'موضع الشقة داخل الدور (اختياري)' : _type == 'apartment' ? 'رقم الشقة أو موضعها داخل الدور *' : 'رقم المكتب أو موضعه *',
               hint: _type == 'shop' ? 'مثال: المحل الأمامي بجوار المدخل' : 'مثال: 7 أو شمالية أو أمامية', enabled: !_busy),
           ],
         ],
         const SizedBox(height: AppSpacing.s16),
-        Row(
+        if (!_isRentalApartment) Row(
           children: [
             Expanded(
               flex: 2,
@@ -765,6 +787,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 child: AppTextField(
                   controller: _bedrooms,
                   label: 'غرف النوم *',
+                  hint: 'مثال: 3',
                   keyboardType: TextInputType.number,
                   enabled: !_busy,
                 ),
@@ -774,6 +797,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 child: AppTextField(
                   controller: _bathrooms,
                   label: 'الحمامات *',
+                  hint: 'مثال: 2',
                   keyboardType: TextInputType.number,
                   enabled: !_busy,
                 ),
@@ -826,7 +850,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         AppTextField(controller: _description, label: 'وصف العقار',
           hint: 'اكتب ما يميز العقار أو استخدم وصفًا مقترحًا من مواصفاتك.', enabled: !_busy, maxLines: 5),
         TextButton.icon(onPressed: _busy ? null : () => _assist(description: true),
-          icon: const EbrokerIcon(Icons.edit_note_outlined, size: 18), label: const Text('إنشاء وصف مقترح')),
+          icon: const EbrokerIcon(Icons.edit_note_outlined, size: 18), label: const Text('إنشاء وصف بالذكاء الاصطناعي')),
         if (_purpose == 'rent') RentalConditionsEditor(value: _rentalConditions, enabled: !_busy, onPolish: _polishRentalConditions,
           onChanged: (value) => setState(() => _rentalConditions = value)),
       ],
@@ -850,6 +874,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           AppTextField(
             controller: _price,
             label: 'سعر البيع بالريال اليمني *',
+            hint: '0',
             helperText: amountWords.isEmpty ? null : amountWords,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             enabled: !_busy,
@@ -858,12 +883,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           AppTextField(
             controller: _monthlyRent,
             label: 'الإيجار الشهري بالريال اليمني *',
+            hint: '0',
             helperText: amountWords.isEmpty ? null : amountWords,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             enabled: !_busy,
           ),
         ],
         ListingSaiSection(purpose: _purpose, policy: _saiPolicy, rateController: _saiRate,
+          amountController: _saiAmount, amountType: _saiAmountType,
+          onAmountTypeChanged: (value) => setState(() { _saiAmountType = value; _saiTouched = true; }),
           basis: _purpose == 'rent' ? double.tryParse(_monthlyRent.text.trim()) : _effectivePrice,
           accepted: _saiAccepted, error: _saiPolicyError, enabled: !_busy,
           onRetry: () => unawaited(_loadSaiPolicy()),
@@ -1083,16 +1111,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_step < 3) {
       return _BottomBar(
         children: [
-          if (_step > 0)
             Expanded(
               child: EbrokerStepButton(
                 label: 'السابق',
                 style: AppButtonStyle.outlined,
-                onPressed: _busy ? null : () => setState(() => _step--),
+                onPressed: _busy ? null : () {
+                  if (_step > 0) { setState(() => _step--); } else { Navigator.of(context).maybePop(); }
+                },
                 expand: true,
               ),
             ),
-          if (_step > 0) const SizedBox(width: AppSpacing.s8),
+          const SizedBox(width: AppSpacing.s8),
           Expanded(
             flex: 2,
             child: EbrokerStepButton(
@@ -1144,7 +1173,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
     if (step == 2) {
       final areaValue = double.tryParse(_area.text.trim());
-      if ((!_optionalArea || _area.text.trim().isNotEmpty) && (areaValue == null || areaValue <= 0)) return 'أدخل مساحة صحيحة أكبر من صفر.';
+      if (!_isRentalApartment && (areaValue == null || areaValue <= 0)) return 'أدخل مساحة صحيحة أكبر من صفر.';
       final images = (_replaceImages ? 0 : (_existing?.images.length ?? 0)) + _imagePaths.length;
       if (requireImages && images == 0) return 'أضف صورًا حقيقية للعقار قبل المتابعة.';
       if (_purpose == 'rent') {
@@ -1158,7 +1187,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (advance != null && duration != null && advance > duration) return 'أشهر المقدم لا يمكن أن تتجاوز مدة العقد المحددة.';
       }
       if (_isUnitType) {
-        if (!_wholeFloor && _unitNumber.text.trim().isEmpty) {
+        if (!_wholeFloor && !_isRentalApartment && _unitNumber.text.trim().isEmpty) {
           return 'أدخل رقم الوحدة أو موضعها لتمييزها عن غيرها.';
         }
         if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) {
@@ -1248,8 +1277,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_street.text.trim().isNotEmpty) 'street': _street.text.trim(),
     if (_purpose == 'sale' && (double.tryParse(_price.text) ?? 0) > 0) 'price': double.parse(_price.text),
     if (_purpose == 'rent' && (double.tryParse(_monthlyRent.text) ?? 0) > 0) 'monthly_rent': double.parse(_monthlyRent.text),
-    if ((double.tryParse(_area.text) ?? 0) > 0) 'area_value': double.parse(_area.text),
-    'area_unit': _areaUnit,
+    if (!_isRentalApartment && (double.tryParse(_area.text) ?? 0) > 0) 'area_value': double.parse(_area.text),
+    if (!_isRentalApartment) 'area_unit': _areaUnit,
     if (_requiresResidential && (_optionalInt(_bedrooms) ?? 0) > 0) 'bedrooms': _optionalInt(_bedrooms),
     if (_requiresResidential && (_optionalInt(_bathrooms) ?? 0) > 0) 'bathrooms': _optionalInt(_bathrooms),
     if (_requiresStructure && _parkingChoice != null) 'has_parking': _parkingValue,
@@ -1269,7 +1298,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_typeLabels.containsKey(result['type'])) _type = result['type'] as String;
       if (const ['sale', 'rent'].contains(result['purpose'])) _purpose = result['purpose'] as String;
       for (final entry in <String, TextEditingController>{
-        'title': _title, 'area_value': _area, 'governorate': _governorate, 'district': _district, 'street': _street,
+        'title': _title, if (!_isRentalApartment) 'area_value': _area, 'governorate': _governorate, 'district': _district, 'street': _street,
         if (_purpose == 'sale') 'price': _price,
         if (_purpose == 'rent') 'monthly_rent': _monthlyRent,
         if (_requiresResidential) 'bedrooms': _bedrooms,
@@ -1317,7 +1346,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   PropertyListingInput _input() {
     final user = ref.read(authControllerProvider).asData?.value;
     return PropertyListingInput(
-      inputVersion: 6,
+      inputVersion: 7,
       rentalConditions: _purpose == 'rent' ? _rentalConditions : const [],
       title: _title.text.trim(),
       description: _description.text.trim(),
@@ -1332,12 +1361,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           null,
       advanceMonths:
           null,
-      areaValue: double.tryParse(_area.text.trim()),
-      areaUnit: _area.text.trim().isEmpty ? null : _areaUnit,
+      areaValue: _isRentalApartment ? (_preserveRentalFacts ? _existing?.areaValue ?? _existing?.areaM2?.toDouble() : null) : double.tryParse(_area.text.trim()),
+      areaUnit: _isRentalApartment ? (_preserveRentalFacts ? _existing?.areaUnit : null) : _area.text.trim().isEmpty ? null : _areaUnit,
       bedrooms: _requiresResidential ? _optionalInt(_bedrooms) : null,
       bathrooms: _requiresResidential ? _optionalInt(_bathrooms) : null,
       hasParking: _requiresStructure ? _parkingValue : null,
-      hasElevator: _supportsElevator && _elevatorChoice != null ? _elevatorChoice == 'yes' : null,
+      hasElevator: _isRentalApartment ? (_preserveRentalFacts ? _existing?.hasElevator : null) : _supportsElevator && _elevatorChoice != null ? _elevatorChoice == 'yes' : null,
       buildingFacade: _supportsFacade ? _facade : null,
       address: _composedAddress,
       buildingReference: _isUnitType ? _buildingReference.text.trim() : null,
@@ -1417,12 +1446,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       // These writes follow the explicit Save/Submit action. Neither editing
       // the percentage nor displaying a preview mutates a server listing.
       final policy = _saiPolicy;
-      if (policy != null && (policy.isOwner || ((_existingSaiLoaded || _saiTouched || _hasRecoveredSai || !_startedAsEditing) && _enteredSaiRate.isFinite && _enteredSaiRate >= 0 && _enteredSaiRate <= (policy.brokerMaxRatePercent ?? -1)))) {
+      if (policy != null && (policy.isOwner || ((_existingSaiLoaded || _saiTouched || _hasRecoveredSai || !_startedAsEditing) && _isSaiReady))) {
         try {
           await repository.configureSai(draft.id,
             payer: _purpose == 'rent' ? 'tenant' : 'buyer',
-            brokerRatePercent: policy.isOwner ? null : _enteredSaiRate,
-            deferPlatformTerms: !policy.isOwner && _enteredSaiRate > 0);
+            brokerRatePercent: policy.isOwner || _fixedSai ? null : _enteredSaiRate,
+            amountType: _fixedSai ? 'fixed' : 'percentage',
+            fixedAmount: _fixedSai ? _enteredSaiAmount : null,
+            deferPlatformTerms: !policy.isOwner && _activeSaiValue > 0);
           ref.read(propertyDataRevisionProvider.notifier).state++;
         } catch (error) {
           if (mounted) _message('حُفظت المسودة، لكن تعذر حفظ السعي: ${friendlyApiError(error)}');
@@ -1543,7 +1574,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                     label: 'الغرض',
                     value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
                 _SummaryRow(label: 'النوع', value: _typeLabels[_type] ?? _type),
-                if (_area.text.trim().isNotEmpty) _SummaryRow(
+                if (!_isRentalApartment && _area.text.trim().isNotEmpty) _SummaryRow(
                     label: 'المساحة',
                     value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
                 _SummaryRow(label: 'السعي', value: _saiDisplayText),
@@ -1602,7 +1633,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         _existingSaiLoaded = true;
         final management = envelope.management;
         if (management != null && management.purpose == _purpose && !_saiTouched && !_hasRecoveredSai) {
-          _saiRate.text = (management.requestedBrokerRatePercent ?? 0).toString();
+          _saiAmountType = management.amountType;
+          _saiAmount.text = management.fixedAmount?.toString() ?? '';
+          _saiRate.text = management.requestedBrokerRatePercent?.toString() ?? '';
           _saiAccepted = management.platformTermsStatus == 'accepted';
         }
       }); }
@@ -1621,6 +1654,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _message(
           'هذا العقار أو هذه الوحدة مسجلة بالفعل على المنصة ولا يمكن إنشاء إعلان آخر لها.');
       return false;
+    }
+    if (_isRentalApartment && !_wholeFloor && _unitNumber.text.trim().isEmpty) {
+      return true; // The server routes an unspecified unit to support identity review.
     }
     final answer = await _duplicateSelfVerificationDialog();
     if (answer == null || !mounted) return false;

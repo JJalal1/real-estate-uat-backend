@@ -117,8 +117,12 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             const SizedBox(width: 8), IconButton.filledTonal(key: const ValueKey('home-map'), tooltip: 'الخريطة', onPressed: _openMap,
               icon: EbrokerImage('propertymap', size: 22, color: theme.colorScheme.primary)),
           ]))),
-          SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
-            child: HomeAiSearchEntry(location: data?.governorate ?? location.governorate ?? 'صنعاء', type: _type))),
+          SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 10, 18, 4),
+            child: Row(children: [
+              HomeAiSearchEntry(location: data?.governorate ?? location.governorate ?? 'صنعاء', type: _type),
+              const SizedBox(width: 10),
+              Expanded(child: Text('صف ما تحتاجه بالنص أو الصوت', style: theme.textTheme.bodySmall)),
+            ]))),
           if (widget.showAdvertiserActions) SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18), child: Wrap(spacing: 10, children: [
             TextButton.icon(onPressed: () => context.push('/broker/workspace'), icon: const EbrokerIcon(Icons.work_outline, size: 18), label: const Text('إدارة عملي')),
             TextButton.icon(onPressed: () => context.push('/add-property'), icon: const EbrokerIcon(Icons.add, size: 18), label: const Text('إضافة عقار')),

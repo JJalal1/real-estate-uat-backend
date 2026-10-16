@@ -296,7 +296,7 @@ class PropertyController extends Controller
             $cell=$this->regions->assertListingAllowed($user,(float)$property->latitude,(float)$property->longitude);$property->geo_cell_id=$cell?->id;
             $identity=array_merge(['purpose'=>$property->purpose,'type'=>$property->type,'latitude'=>$property->latitude,'longitude'=>$property->longitude,'area_m2'=>$property->area_m2,'bedrooms'=>$property->bedrooms,'bathrooms'=>$property->bathrooms,'address'=>$property->address],$validated);
             if ((int) $property->listing_input_version >= 6) $identity = array_merge($this->listingState($property), $validated);
-            $asset=$this->identity->resolveOrCreateAsset($user,$identity);$property->property_asset_id=$asset->id;
+            $asset=$this->identity->resolveOrCreateAsset($user,$identity,$property->propertyAsset);$property->property_asset_id=$asset->id;
             $property->status='draft';$property->review_status='draft';$property->submitted_at=null;$property->reviewed_at=null;$property->last_review_reason=null;if($wasPublished)$property->published_at=null;$property->save();$this->syncLocation($property);
             if($replaceImages)$property->images()->delete();if($request->hasFile('images'))$this->storeImages($request,$property,$property->images()->count(),$storedPublic);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
             $this->audit->record($user,$wasPublished?'listing.published_edit_moved_to_draft':'listing.updated',$property,['changed_fields'=>array_values(array_keys($validated)),'replace_images'=>$replaceImages,'property_asset_id'=>$asset->id],$request,$user->id);
@@ -393,7 +393,7 @@ class PropertyController extends Controller
             'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
             'currency' => ['sometimes', 'string', 'size:3'],
-            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4, 5, 6])],
+            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4, 5, 6, 7])],
             'rental_conditions' => ['nullable'],
             'area_m2' => ['nullable', 'integer', 'min:1', 'max:10000000'],
             'area_value' => ['nullable', 'numeric', 'gt:0', 'max:10000000'],
@@ -482,6 +482,12 @@ class PropertyController extends Controller
                 if (! array_key_exists($key, $validated)) $validated[$key] = $state[$key];
             }
         }
+        // An optional position field must not erase a known historical unit.
+        if ($version >= 7 && $purpose === 'rent' && $type === 'apartment'
+            && $existing?->type === 'apartment' && trim((string) $existing?->unit_number) !== ''
+            && trim((string) ($validated['unit_number'] ?? '')) === '') {
+            $validated['unit_number'] = $existing->unit_number;
+        }
         if (array_key_exists('rental_conditions', $validated)) {
             $conditions = app(\App\Services\RentalConditionService::class)->normalize($validated['rental_conditions'] ?? []);
             if ($purpose !== 'rent' && $conditions !== []) throw ValidationException::withMessages(['rental_conditions' => ['شروط الإيجار متاحة لإعلانات الإيجار فقط.']]);
@@ -566,7 +572,7 @@ class PropertyController extends Controller
 
     private function assertV2ListingCompleteness(array $listing): void
     {
-        if (! in_array((int) ($listing['listing_input_version'] ?? 1), [2, 4, 5, 6], true)) {
+        if (! in_array((int) ($listing['listing_input_version'] ?? 1), [2, 4, 5, 6, 7], true)) {
             return;
         }
 

@@ -5,6 +5,9 @@ class PropertySai {
     required this.payerLabel,
     required this.calculationBasis,
     required this.displayText,
+    this.amountType = 'percentage',
+    this.fixedAmount,
+    this.currency,
   });
 
   final double ratePercent;
@@ -12,6 +15,9 @@ class PropertySai {
   final String payerLabel;
   final String calculationBasis;
   final String displayText;
+  final String amountType;
+  final double? fixedAmount;
+  final String? currency;
 
   factory PropertySai.fromJson(Map<String, dynamic> json) {
     return PropertySai(
@@ -20,6 +26,9 @@ class PropertySai {
       payerLabel: json['payer_label']?.toString() ?? '',
       calculationBasis: json['calculation_basis']?.toString() ?? '',
       displayText: json['display_text']?.toString() ?? '',
+      amountType: json['amount_type']?.toString() ?? 'percentage',
+      fixedAmount: _asDoubleOrNull(json['fixed_amount']),
+      currency: _textOrNull(json['currency']),
     );
   }
 }
@@ -46,6 +55,9 @@ class PropertySaiManagement {
     this.fixedRatePercent,
     this.brokerMaxRatePercent,
     this.professionalPlatformSharePercent,
+    this.amountType = 'percentage',
+    this.fixedAmount,
+    this.fixedCurrency,
   });
 
   final bool configured;
@@ -68,6 +80,9 @@ class PropertySaiManagement {
   final double? fixedRatePercent;
   final double? brokerMaxRatePercent;
   final double? professionalPlatformSharePercent;
+  final String amountType;
+  final double? fixedAmount;
+  final String? fixedCurrency;
 
   bool get isOwner => advertiserType == 'owner';
   bool get isProfessional => advertiserType == 'broker' || advertiserType == 'office';
@@ -94,6 +109,9 @@ class PropertySaiManagement {
       fixedRatePercent: _asDoubleOrNull(json['fixed_rate_percent']),
       brokerMaxRatePercent: _asDoubleOrNull(json['broker_max_rate_percent']),
       professionalPlatformSharePercent: _asDoubleOrNull(json['professional_platform_share_percent']),
+      amountType: json['sai_amount_type']?.toString() ?? 'percentage',
+      fixedAmount: _asDoubleOrNull(json['fixed_sai_amount']),
+      fixedCurrency: _textOrNull(json['fixed_sai_currency']),
     );
   }
 }
@@ -141,16 +159,32 @@ class PropertySaiQuote {
   const PropertySaiQuote(this.rate, this.total, this.platform, this.net, this.fallback);
   final double rate, total, platform, net;
   final bool fallback;
-  static PropertySaiQuote? calculate(PropertySaiManagement policy, double requestedRate, double basis) {
-    if (!requestedRate.isFinite || !basis.isFinite || basis <= 0 || requestedRate < 0) return null;
-    final fallback = policy.isOwner || requestedRate == 0;
+  static PropertySaiQuote? calculate(PropertySaiManagement policy, double requestedRate, double basis, {double? fixedAmount}) {
+    final fixed = fixedAmount != null && !policy.isOwner;
+    final amount = fixedAmount ?? 0;
+    if (!basis.isFinite || basis <= 0) return null;
+    if (fixed ? !amount.isFinite || amount < 0 : !requestedRate.isFinite || requestedRate < 0) return null;
+    final fallback = policy.isOwner || (fixed ? amount == 0 : requestedRate == 0);
     final rate = fallback ? policy.fixedRatePercent : requestedRate;
     final share = fallback ? 100.0 : policy.professionalPlatformSharePercent;
     if (rate == null || share == null || share < 0 || share > 100) return null;
-    if (!policy.isOwner && (policy.brokerMaxRatePercent == null || requestedRate > policy.brokerMaxRatePercent!)) return null;
+    if (!policy.isOwner && (policy.brokerMaxRatePercent == null ||
+        (fixed ? amount > (basis * policy.brokerMaxRatePercent!).round() / 100
+          : requestedRate > policy.brokerMaxRatePercent!))) {
+      return null;
+    }
     double money(double value) => (value * 100).round() / 100;
-    final total = money(basis * rate / 100);
+    final total = fixed && !fallback ? money(amount) : money(basis * rate / 100);
     final platform = money(total * share / 100);
     return PropertySaiQuote(rate, total, platform, money(total - platform), fallback);
   }
+}
+
+double? parseSaiNumber(String text) {
+  var value = text.trim().replaceAll('٫', '.').replaceAll('٬', '').replaceAll(',', '');
+  const arabic = '٠١٢٣٤٥٦٧٨٩', persian = '۰۱۲۳۴۵۶۷۸۹';
+  for (var i = 0; i < 10; i++) {
+    value = value.replaceAll(arabic[i], '$i').replaceAll(persian[i], '$i');
+  }
+  return double.tryParse(value);
 }

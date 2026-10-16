@@ -9,19 +9,21 @@ void main() {
       SingleChildScrollView(child: RentalConditionsEditor(value: value,
         onChanged: (next) => update(() => value = next)))))));
     expect(find.byType(TextFormField), findsNothing);
-    expect(find.text('أضف ما تحتاجه فقط؛ يمكنك المتابعة دون شروط.'), findsOneWidget);
-    await tester.tap(find.text('إضافة شروط اختيارية')); await tester.pumpAndSettle();
-    await tester.tap(find.text('مقدم إيجار')); await tester.tap(find.text('شرط خاص'));
-    await tester.tap(find.text('استخدام الشروط المحددة')); await tester.pumpAndSettle();
-    expect(find.byType(TextFormField), findsNWidgets(2));
+    expect(find.byType(FilterChip), findsNWidgets(5));
+    expect(find.byType(CheckboxListTile), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('rent-condition-advance'))); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('rent-condition-special'))); await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.byType(TextFormField), findsOneWidget);
     expect(find.text('مدة العقد بالأشهر'), findsNothing);
     expect(find.text('ضمانة تجارية مطلوبة'), findsNothing);
-    await tester.enterText(find.byKey(const ValueKey('rent-advance-0')), '٢');
+    await tester.tap(find.byKey(const ValueKey('rent-advance-0'))); await tester.pumpAndSettle();
+    await tester.tap(find.text('شهران').last); await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('rent-special-1')), 'لا يسمح بالتأجير من الباطن');
     expect(value, [{'kind': 'advance', 'months': 2}, {'kind': 'special', 'text': 'لا يسمح بالتأجير من الباطن'}]);
     await tester.ensureVisible(find.text('إضافة شرط خاص آخر'));
     await tester.tap(find.text('إضافة شرط خاص آخر')); await tester.pumpAndSettle();
-    expect(find.byType(TextFormField), findsNWidgets(3));
+    expect(find.byType(TextFormField), findsNWidgets(2));
     await tester.ensureVisible(find.byTooltip('حذف الشرط').first);
     await tester.tap(find.byTooltip('حذف الشرط').first); await tester.pumpAndSettle();
     expect(value.map((row) => row['kind']), ['special', 'special']);
