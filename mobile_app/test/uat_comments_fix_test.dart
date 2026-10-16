@@ -118,7 +118,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final communityButton = find.text('التعليقات والتقييم والبلاغات');
+    final communityButton = find.text('التعليقات والتقييمات');
     final trustDetails = find.text('التوثيق والتقييم');
     await tester.scrollUntilVisible(trustDetails, 300, scrollable: find.byType(Scrollable).first);
     await Scrollable.ensureVisible(tester.element(trustDetails), alignment: .5);

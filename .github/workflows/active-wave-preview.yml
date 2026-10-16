@@ -5,7 +5,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: active-wave-ui-preflight
+  group: active-wave-preview-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   flutter:
