@@ -39,6 +39,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        ContactActions(this, flutterEngine.dartExecutor.binaryMessenger)
 
         speechInput?.dispose()
         speechInput = InAppSpeechInput(this, flutterEngine.dartExecutor.binaryMessenger)

@@ -10,6 +10,10 @@ import '../data/saved_search_repository.dart';
 import '../domain/property_marker.dart';
 import '../domain/saved_property_search.dart';
 import 'saved_search_builder_screen.dart';
+import 'property_compare_actions.dart';
+import '../../discovery/data/smart_search_session.dart';
+import '../../discovery/domain/smart_search_filters.dart';
+import '../../discovery/presentation/smart_search_assistant.dart';
 
 class SavedSearchesScreen extends ConsumerWidget {
   const SavedSearchesScreen({super.key});
@@ -155,37 +159,9 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
     );
   }
 
-  List<Widget> _filterBadges(Map<String, dynamic> filters) {
-    final badges = <Widget>[];
-    final purpose = filters['purpose']?.toString();
-    if (purpose != null) {
-      badges.add(AppStatusBadge(label: purpose == 'rent' ? 'إيجار' : 'بيع'));
-    }
-    final type = filters['type']?.toString();
-    if (type != null) badges.add(AppStatusBadge(label: _typeLabel(type)));
-    if (filters['min_price'] != null) {
-      badges.add(AppStatusBadge(label: 'من ${_compact(filters['min_price'])}'));
-    }
-    if (filters['max_price'] != null) {
-      badges.add(AppStatusBadge(label: 'حتى ${_compact(filters['max_price'])}'));
-    }
-    if (filters['min_bedrooms'] != null) {
-      badges.add(AppStatusBadge(label: '${filters['min_bedrooms']}+ غرف'));
-    }
-    if (filters['min_bathrooms'] != null) {
-      badges.add(AppStatusBadge(label: '${filters['min_bathrooms']}+ حمام'));
-    }
-    if (filters['min_area_m2'] != null) {
-      badges.add(AppStatusBadge(label: '${_compact(filters['min_area_m2'])}+ م²'));
-    }
-    if (filters['search']?.toString().trim().isNotEmpty == true) {
-      badges.add(AppStatusBadge(label: '«${filters['search']}»'));
-    }
-    if (filters['latitude'] != null || filters['south'] != null) {
-      badges.add(const AppStatusBadge(label: 'موقع محفوظ'));
-    }
-    return badges.take(6).toList(growable: false);
-  }
+  List<Widget> _filterBadges(Map<String, dynamic> filters) => [
+    for (final chip in SmartSearchFilters.fromApiFilters(filters).chips) AppStatusBadge(label: chip.$2),
+  ];
 
   Future<void> _handleMenu(String value) async {
     if (_busy) return;
@@ -247,7 +223,10 @@ class SavedSearchResultsScreen extends ConsumerWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppAppBar(title: search.name),
-        body: FutureBuilder<List<PropertyMarker>>(
+        body: SmartSearchAssistantLayer(onPressed: () {
+          ref.read(smartSearchSessionProvider.notifier).replaceManually(SmartSearchFilters.fromApiFilters(search.filters));
+          context.push('/smart-search');
+        }, child: FutureBuilder<List<PropertyMarker>>(
           future: ref.read(savedSearchRepositoryProvider).results(search),
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
@@ -273,18 +252,20 @@ class SavedSearchResultsScreen extends ConsumerWidget {
                 AppLayout.compactPageGutter,
                 AppSpacing.s16,
                 AppLayout.compactPageGutter,
-                AppSpacing.s40,
+                110,
               ),
               itemCount: items.length,
               separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
               itemBuilder: (context, index) {
                 final item = items[index];
-                return AppPropertyCard(
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [AppPropertyCard(
                   categoryLabel: ebrokerPropertyTypeLabel(item.type),
                   title: item.title,
                   price: _formatPrice(item.price),
                   currency: item.currency,
                   imageUrl: item.mainImage,
+                  imageUrls: item.imageUrls,
+                  isSpotlight: item.isSpotlight,
                   location: item.address,
                   purposeLabel: item.purpose == 'rent' ? 'للإيجار' : 'للبيع',
                   facts: [
@@ -296,11 +277,11 @@ class SavedSearchResultsScreen extends ConsumerWidget {
                       AppPropertyFact(icon: Icons.bathtub_outlined, label: '${item.bathrooms} حمام'),
                   ],
                   onTap: () => context.push('/properties/${item.id}'),
-                );
+                ), PropertyCompareAction(propertyId: item.id)]);
               },
             );
           },
-        ),
+        )),
       ),
     );
   }
@@ -318,25 +299,6 @@ class _SavedSearchSkeleton extends StatelessWidget {
       itemBuilder: (_, __) => const AppSkeleton(height: 144),
     );
   }
-}
-
-String _typeLabel(String type) => switch (type) {
-      'apartment' => 'شقة',
-      'house' => 'منزل',
-      'villa' => 'فيلا',
-      'land' => 'أرض',
-      'shop' => 'محل',
-      'office' => 'مكتب',
-      'farm' => 'مزرعة',
-      _ => type,
-    };
-
-String _compact(dynamic value) {
-  final number = value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
-  if (number >= 1000000000) return '${(number / 1000000000).toStringAsFixed(number % 1000000000 == 0 ? 0 : 1)} مليار';
-  if (number >= 1000000) return '${(number / 1000000).toStringAsFixed(number % 1000000 == 0 ? 0 : 1)} مليون';
-  if (number >= 1000) return '${(number / 1000).toStringAsFixed(number % 1000 == 0 ? 0 : 1)} ألف';
-  return number.toStringAsFixed(0);
 }
 
 String _formatPrice(double value) => value.toStringAsFixed(0).replaceAllMapped(

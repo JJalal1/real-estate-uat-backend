@@ -69,7 +69,7 @@ class BrokerListingAssistantTest extends TestCase
             ->assertJsonPath('data.source', 'ai')->assertJsonPath('data.requires_review', true)
             ->assertJsonPath('data.fields.bedrooms', 4)->assertJsonPath('data.fields.has_parking', false)
             ->assertJsonMissingPath('data.fields.title')->assertJsonPath('data.copy.title', 'شقة للبيع في حدة');
-        $this->assertStringContainsString('غرف النوم: 4', $r->json('data.copy.description'));
+        $this->assertStringContainsString('4 غرف نوم', $r->json('data.copy.description'));
         $this->assertStringContainsString('لا يوجد موقف', $r->json('data.copy.description'));
         $this->assertStringNotContainsString('مصعد', $r->json('data.copy.description'));
         $this->assertDatabaseHas('properties', ['id' => $property->id, 'title' => 'عنوان محفوظ', 'status' => 'draft', 'review_status' => 'draft']);
@@ -85,7 +85,7 @@ class BrokerListingAssistantTest extends TestCase
             ->assertOk()->assertJsonPath('data.source', 'facts')->assertJsonPath('data.copy.title', 'عنواني المحفوظ');
         $this->assertStringNotContainsString('مصعد', $r->json('data.copy.description'));
         $this->assertStringNotContainsString('موقف', $r->json('data.copy.description'));
-        $this->assertStringContainsString('غرف النوم: 3', $r->json('data.copy.description'));
+        $this->assertStringContainsString('3 غرف نوم', $r->json('data.copy.description'));
         $this->assertDatabaseCount('properties', 0);
         Http::assertNothingSent();
     }

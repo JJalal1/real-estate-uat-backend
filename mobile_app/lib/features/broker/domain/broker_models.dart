@@ -14,9 +14,9 @@ class BrokerProfile {
   final int ratingCount, completedDeals, activeListings;
   final String? governorate, bio, photoUrl, joinedAt;
   final List<String> workAreas, specializations;
-  String get typeLabel => type == 'office' ? 'مكتب عقاري' : type == 'owner' ? 'مالك' : 'دلال';
+  String get typeLabel => type == 'office' ? 'مكتب عقاري' : type == 'owner' ? 'مالك' : type == 'broker' ? 'دلال' : 'معلن';
   factory BrokerProfile.fromJson(Map<String, dynamic> j) => BrokerProfile(id: brokerInt(j['id']), name: '${j['name'] ?? 'معلن'}',
-    type: '${j['account_type'] ?? 'broker'}', verified: j['verified'] == true, rating: brokerNumber(j['rating_average']),
+    type: '${j['account_type'] ?? 'individual'}', verified: j['verified'] == true, rating: brokerNumber(j['rating_average']),
     ratingCount: brokerInt(j['rating_count']), completedDeals: brokerInt(j['completed_deals']), activeListings: brokerInt(j['active_listings']),
     governorate: j['governorate']?.toString(), bio: j['bio']?.toString(), photoUrl: j['photo_url']?.toString(), joinedAt: j['joined_at']?.toString(),
     workAreas: (j['work_areas'] as List? ?? const []).map((v) => '$v').toList(),

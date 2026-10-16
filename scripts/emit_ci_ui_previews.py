@@ -21,7 +21,10 @@ def main():
                 'build/broker-preview/assistant-completion.png', 'build/broker-preview/assistant-review-1.0.png',
                 'build/broker-preview/assistant-copy-1.0.png', 'build/broker-preview/assistant-copy-2.4.png',
                 'build/broker-preview/assistant-voice-inline-1.0.png', 'build/broker-preview/assistant-voice-inline-2.4.png',
-                'build/broker-preview/assistant-voice-controls-2.4.png']
+                'build/broker-preview/assistant-voice-controls-2.4.png',
+                *[f'build/broker-preview/active-wave-{screen}-{scale}.png'
+                  for screen in ['compare', 'details', 'advertiser', 'save', 'directory']
+                  for scale in ['1.0', '2.4']]]
     for path in selected:
         file = Path('mobile_app') / path
         if not file.is_file():

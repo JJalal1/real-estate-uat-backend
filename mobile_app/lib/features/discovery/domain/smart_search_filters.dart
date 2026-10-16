@@ -2,7 +2,8 @@ class SmartSearchFilters {
   const SmartSearchFilters([this.values = const {}]);
   final Map<String, dynamic> values;
 
-  static const fields = {'type', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
+  static const mapFields = {'area_polygon', 'latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east'};
+  static const fields = {'governorate', 'advertiser_id', 'spotlight', 'type', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
     'min_bedrooms', 'min_bathrooms', 'floor_number', 'has_parking', 'has_elevator', 'building_facade', 'unit_occupies_entire_floor'};
   static const types = {'apartment': 'شقة', 'house': 'منزل', 'villa': 'فيلا', 'building': 'عمارة', 'land': 'أرض', 'farm': 'مزرعة', 'shop': 'محل', 'office': 'مكتب'};
   static const facades = {'north': 'شمالية', 'south': 'جنوبية', 'east': 'شرقية', 'west': 'غربية', 'northeast': 'شمالية شرقية',
@@ -14,10 +15,10 @@ class SmartSearchFilters {
   factory SmartSearchFilters.fromMap(Map<String, dynamic> source) {
     final next = <String, dynamic>{};
     for (final entry in source.entries) {
-      if (!fields.contains(entry.key) || entry.value == null || entry.value == '') continue;
+      if ((!fields.contains(entry.key) && !mapFields.contains(entry.key)) || entry.value == null || entry.value == '') continue;
       if (entry.value is! String && entry.value is! num && entry.value is! bool) continue;
       next[entry.key] = entry.value;
-      if (const ['has_parking', 'has_elevator', 'unit_occupies_entire_floor'].contains(entry.key)) {
+      if (const ['has_parking', 'has_elevator', 'unit_occupies_entire_floor', 'spotlight'].contains(entry.key)) {
         if (entry.value == 0 || entry.value == 1) { next[entry.key] = entry.value == 1; }
         else if (entry.value is! bool) { next.remove(entry.key); }
       }
@@ -32,9 +33,21 @@ class SmartSearchFilters {
     return SmartSearchFilters(Map.unmodifiable(next));
   }
 
+  factory SmartSearchFilters.fromApiFilters(Map<String, dynamic> source) {
+    final values = Map<String, dynamic>.from(source);
+    if (values['purpose'] == 'rent') {
+      if (values.containsKey('min_monthly_rent')) values['min_price'] = values.remove('min_monthly_rent');
+      if (values.containsKey('max_monthly_rent')) values['max_price'] = values.remove('max_monthly_rent');
+    }
+    return SmartSearchFilters.fromMap(values);
+  }
+
+  bool get hasMapArea => mapFields.any(values.containsKey);
+
   SmartSearchFilters without(String key) {
     final next = Map<String, dynamic>.from(values);
     if (key == 'budget') { next.remove('min_price'); next.remove('max_price'); }
+    else if (key == 'map_area') { for (final field in mapFields) { next.remove(field); } }
     else { next.remove(key); }
     return SmartSearchFilters.fromMap(next);
   }
@@ -69,8 +82,11 @@ class SmartSearchFilters {
     final result = <(String, String)>[];
     for (final entry in values.entries) {
       final key = entry.key, value = entry.value;
-      if (const ['min_price', 'max_price'].contains(key)) continue;
+      if (const ['min_price', 'max_price'].contains(key) || mapFields.contains(key)) continue;
       final text = switch (key) {
+        'governorate' => 'المحافظة: $value',
+        'advertiser_id' => 'إعلانات معلن محدد',
+        'spotlight' => value == true || value == 1 ? 'العقارات المميزة' : 'بدون اشتراط التمييز',
         'type' => types[value] ?? value.toString(),
         'purpose' => value == 'rent' ? 'للإيجار' : 'للبيع',
         'search' => value.toString(),
@@ -88,6 +104,7 @@ class SmartSearchFilters {
       };
       result.add((key, text));
     }
+    if (hasMapArea) result.add(('map_area', 'نطاق محدد على الخريطة'));
     final low = values['min_price'], high = values['max_price'];
     if (low != null || high != null) {
       final range = low != null && high != null ? '${_number(low)}–${_number(high)}' : low != null ? 'من ${_number(low)}' : 'حتى ${_number(high)}';

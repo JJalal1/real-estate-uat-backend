@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2]
   workflow_dispatch:
 permissions:
   contents: read
@@ -152,6 +152,11 @@ jobs:
         run: >-
           php artisan test tests/Feature/Wave3AiAssistantTest.php tests/Feature/BrokerListingAssistantTest.php tests/Feature/Wave3DesignApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Exact discovery, saved alerts, public profiles and authorized contact on PostgreSQL
+        run: >-
+          php artisan test tests/Feature/ActiveWaveDiscoveryTest.php tests/Feature/ActiveWavePublicationAlertTest.php
+          tests/Feature/ProductExperienceSavedSearchTest.php tests/Feature/NotificationPreferenceTest.php
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   runtime:
     name: UAT Docker PNG runtime
@@ -219,6 +224,7 @@ jobs:
           test/wave3_ai_session_test.dart
           test/wave3_ai_design_ui_test.dart
           test/broker_listing_assistant_test.dart
+          test/active_wave_discovery_test.dart
           test/wave4_listing_ui_test.dart
           test/wave4_sai_consent_test.dart
           test/in_app_voice_search_test.dart

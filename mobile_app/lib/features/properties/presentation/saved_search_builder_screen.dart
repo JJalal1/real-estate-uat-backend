@@ -6,17 +6,20 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/saved_search_repository.dart';
+import '../../discovery/domain/smart_search_filters.dart';
 import '../domain/saved_property_search.dart';
 
 class SavedSearchBuilderScreen extends ConsumerStatefulWidget {
   const SavedSearchBuilderScreen({
     this.initialFilters = const <String, dynamic>{},
     this.existingSearch,
+    this.fixedFilters = false,
     super.key,
   });
 
   final Map<String, dynamic> initialFilters;
   final SavedPropertySearch? existingSearch;
+  final bool fixedFilters;
 
   @override
   ConsumerState<SavedSearchBuilderScreen> createState() =>
@@ -36,6 +39,8 @@ class _SavedSearchBuilderScreenState
   late Map<String, dynamic> _baseFilters;
   String? _purpose;
   String? _type;
+  String? _currency;
+  bool _monthlyBudget = false;
   String _frequency = 'instant';
   bool _saving = false;
 
@@ -48,9 +53,11 @@ class _SavedSearchBuilderScreenState
     _baseFilters = Map<String, dynamic>.from(filters);
     _purpose = _nullable(filters['purpose']);
     _type = _nullable(filters['type']);
+    _currency = _nullable(filters['currency']);
+    _monthlyBudget = filters.containsKey('min_monthly_rent') || filters.containsKey('max_monthly_rent');
     _keywords = TextEditingController(text: _nullable(filters['search']) ?? '');
-    _minPrice = TextEditingController(text: _numberText(filters['min_price']));
-    _maxPrice = TextEditingController(text: _numberText(filters['max_price']));
+    _minPrice = TextEditingController(text: _numberText(filters['min_monthly_rent'] ?? filters['min_price']));
+    _maxPrice = TextEditingController(text: _numberText(filters['max_monthly_rent'] ?? filters['max_price']));
     _minBedrooms =
         TextEditingController(text: _numberText(filters['min_bedrooms']));
     _minBathrooms =
@@ -123,6 +130,13 @@ class _SavedSearchBuilderScreenState
               ),
             ),
             const SizedBox(height: AppSpacing.s12),
+            if (widget.fixedFilters) ...[
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final chip in SmartSearchFilters.fromApiFilters(_baseFilters).chips) Chip(label: Text(chip.$2)),
+              ]),
+              const SizedBox(height: 8),
+              const Text('سيُحفظ البحث بهذه الشروط نفسها. يمكنك تعديلها من شاشة البحث قبل الحفظ.'),
+            ] else ...[
             EbrokerSegmentedButton<String>(
               segments: const [
                 ButtonSegment(
@@ -139,7 +153,7 @@ class _SavedSearchBuilderScreenState
               selected: _purpose == null ? const <String>{} : {_purpose!},
               emptySelectionAllowed: true,
               onSelectionChanged: (value) =>
-                  setState(() => _purpose = value.isEmpty ? null : value.first),
+                  setState(() { _purpose = value.isEmpty ? null : value.first; _monthlyBudget = _purpose == 'rent'; }),
             ),
             const SizedBox(height: AppSpacing.s12),
             DropdownButtonFormField<String>(
@@ -149,6 +163,8 @@ class _SavedSearchBuilderScreenState
                 DropdownMenuItem(value: 'apartment', child: Text('شقة')),
                 DropdownMenuItem(value: 'house', child: Text('منزل')),
                 DropdownMenuItem(value: 'villa', child: Text('فيلا')),
+                DropdownMenuItem(value: 'building', child: Text('عمارة')),
+                DropdownMenuItem(value: 'floor', child: Text('دور كامل')),
                 DropdownMenuItem(value: 'land', child: Text('أرض')),
                 DropdownMenuItem(value: 'shop', child: Text('محل')),
                 DropdownMenuItem(value: 'office', child: Text('مكتب')),
@@ -166,8 +182,13 @@ class _SavedSearchBuilderScreenState
               ),
             ),
             const SizedBox(height: AppSpacing.s20),
+            DropdownButtonFormField<String>(value: _currency, isExpanded: true, decoration: const InputDecoration(labelText: 'العملة'),
+              items: const [DropdownMenuItem(value: null, child: Text('كل العملات')), DropdownMenuItem(value: 'YER', child: Text('ريال يمني')),
+                DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
+              onChanged: (value) => setState(() => _currency = value)),
+            const SizedBox(height: 12),
             const AppSectionHeader(
-              title: 'السعر',
+              title: 'الميزانية',
               subtitle: 'اترك أي خانة فارغة إذا ما تبغى تحددها.',
             ),
             const SizedBox(height: AppSpacing.s8),
@@ -177,9 +198,8 @@ class _SavedSearchBuilderScreenState
                   child: TextField(
                     controller: _minPrice,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'أقل سعر',
-                      suffixText: 'ريال',
+                    decoration: InputDecoration(
+                      labelText: _monthlyBudget ? 'أقل إيجار شهري' : 'أقل سعر',
                     ),
                   ),
                 ),
@@ -188,9 +208,8 @@ class _SavedSearchBuilderScreenState
                   child: TextField(
                     controller: _maxPrice,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'أعلى سعر',
-                      suffixText: 'ريال',
+                    decoration: InputDecoration(
+                      labelText: _monthlyBudget ? 'أعلى إيجار شهري' : 'أعلى سعر',
                     ),
                   ),
                 ),
@@ -281,10 +300,11 @@ class _SavedSearchBuilderScreenState
               ),
             ],
             const SizedBox(height: AppSpacing.s20),
+            ],
             const AppSectionHeader(
               title: 'التنبيه',
               subtitle:
-                  'التنبيه الفوري يعمل الآن. لن نظهر الملخص اليومي كخيار جديد قبل تشغيل جدولة موثوقة له.',
+                  'التنبيه الفوري يعمل الآن؛ يمكنك أيضًا حفظ البحث دون تنبيهات.',
             ),
             const SizedBox(height: AppSpacing.s8),
             RadioListTile<String>(
@@ -308,7 +328,7 @@ class _SavedSearchBuilderScreenState
                 groupValue: 'daily',
                 title: Text('ملخص يومي محفوظ سابقًا'),
                 subtitle: Text(
-                  'هذا الخيار غير متاح لعمليات إنشاء جديدة حاليًا. اختر الفوري أو بدون تنبيهات إذا أردت تغييره.',
+                  'يمكنك التحويل إلى التنبيه الفوري أو إيقاف التنبيهات.',
                 ),
                 onChanged: null,
               ),
@@ -429,7 +449,11 @@ class _SavedSearchBuilderScreenState
     }
 
     final filters = Map<String, dynamic>.from(_baseFilters);
+    if (!widget.fixedFilters) {
     for (final key in const [
+      'currency',
+      'min_monthly_rent',
+      'max_monthly_rent',
       'purpose',
       'type',
       'search',
@@ -447,12 +471,14 @@ class _SavedSearchBuilderScreenState
     if (_keywords.text.trim().isNotEmpty) {
       filters['search'] = _keywords.text.trim();
     }
-    if (minPrice != null) filters['min_price'] = minPrice;
-    if (maxPrice != null) filters['max_price'] = maxPrice;
+    if (_currency != null) filters['currency'] = _currency;
+    if (minPrice != null) filters[_monthlyBudget ? 'min_monthly_rent' : 'min_price'] = minPrice;
+    if (maxPrice != null) filters[_monthlyBudget ? 'max_monthly_rent' : 'max_price'] = maxPrice;
     if (minBedrooms != null) filters['min_bedrooms'] = minBedrooms;
     if (minBathrooms != null) filters['min_bathrooms'] = minBathrooms;
     if (minArea != null) filters['min_area_m2'] = minArea;
     if (maxArea != null) filters['max_area_m2'] = maxArea;
+    }
 
     if (filters.isEmpty) {
       _showMessage('حدد شرطًا واحدًا على الأقل حتى يكون البحث مفيدًا.');
