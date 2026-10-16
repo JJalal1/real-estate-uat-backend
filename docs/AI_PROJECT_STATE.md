@@ -2,11 +2,17 @@
 
 Last updated: 2026-10-16
 
-## Active Wave5 on current APK1049
+## Wave5 deployed — APK1052, baseline1049
 
-The owner explicitly selected1049 as the new wave's baseline. Source `db378214ade105a7046a2d1069095070ac76f7a4` remains on UAT and the live Frankfurt service; implementation is isolated on `work/wave5-baseline-1049`. Read `WAVE5_BASELINE_1049_AR.md` for listing input7, inline rental requirements, native immutable fixed-fee Sai and lightweight Home/Account entries to the same search session. Existing manual-stop whole-recording voice and retired viewings remain.
+The owner selected1049 as this wave's baseline and approved PR74 merge/UAT deployment on October16 at04:55 Asia/Aden. Tested source `10ee06afea31c50f3f914d9788de4873bde3db0c` passed all five CI52 jobs (`38833687176`). PR74 merged as `c309fa5d2a52a5010850478e551711e60077076b`; its entire tree exactly equals the tested tree `105a39d52bad8dd622a6e0cdbc0317a4fa453aba`. The existing free Frankfurt service is live at deploy `dep-db8oa4ff3r2c73eqm660`, finished2026-10-16T02:00:51Z. Read `WAVE5_1052_DEPLOYMENT_AR.md` for the final evidence and open AI-provider issue.
 
-Code preparation is complete; new CI/APK evidence and handset review remain pending. No new UAT merge/deploy, data seed, resource or secrets change has occurred. The baseline1049 has CI49 and live deployment `dep-db8if3u89jmc73dsm750`; the baseline handset/full-video gate remains open. PR73 holds separate Wave4 completion evidence and remains unmerged.
+APK1052 is saved as `real-estate-uat-1052.apk`:49,189,662 bytes, SHA-256 `c04da95b848e037728838eb71a73a5c38f924f2a9ad9dc65e43455b228781a15`. ZIP/CMS, all715 signed payloads, package/version, three compiled Frankfurt API libraries and five original Manrope fonts passed locally. The development certificate differs from1049; preserve unsent local drafts before removing the previous app if reinstalling is required.
+
+The native fixed-amount migration applied successfully. All27 prior Sai terms and11 financial snapshots retain their pre-deployment hashes; percentage defaults, RLS, immutable triggers and denied anon/authenticated table privileges remain. `UAT_DEMO_SEED_ENABLED=false` and `UAT_RUN_MIGRATIONS=true` were merged without replacing secrets; that started one Render deploy, so no second deployment trigger was issued. No reseeding, account cleanup, Production or paid-resource change occurred.
+
+Public post-deployment health/database/PostGIS, discovery/detail, the new public Sai contract and invalid voice-upload validation passed. Live verification run `38838575751` is intentionally failed: the real AI search returned503 twice, matching startup diagnostic `provider_http_503`. The capabilities endpoint describes configuration availability; it does not prove current provider success. Gemini client/model/key configuration was not changed by Wave5. Manual browsing/search/filtering remains available; do not claim the AI-provider or handset gate has passed. Seven synthetic UI previews passed visual inspection, but handset/motion acceptance and comparison with the four unavailable full MP4s remain open. PR73 remains separate historical Wave4 documentation.
+
+Read `WAVE5_BASELINE_1049_AR.md` for listing input7, inline rental requirements, native immutable fixed-fee Sai and lightweight Home/Account entries to the existing search session. Manual-stop whole-recording voice and retired viewings remain. Documentation-only follow-ups preserve both application subtrees; APK1052 remains the verified installer.
 
 ## Retained Wave4 baseline history
 
