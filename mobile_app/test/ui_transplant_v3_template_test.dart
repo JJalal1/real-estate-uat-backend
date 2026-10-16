@@ -24,6 +24,7 @@ import 'package:real_estate_mobile/features/properties/data/property_market_repo
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_details_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_market_context_card.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_sai_public_line.dart';
 import 'package:real_estate_mobile/features/properties/presentation/favorites_screen.dart';
@@ -199,6 +200,8 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     propertySaiPublicProvider.overrideWith((ref, id) async => const PropertySaiEnvelope()),
     propertyMarketContextProvider.overrideWith((ref, id) async => const PropertyMarketContext(
       sufficientData: false, sampleCount: 0)),
+    propertyMapPreviewBuilderProvider.overrideWithValue((context, lat, lon) => const ColoredBox(color: Color(0xffedf6f4),
+      child: Center(child: Icon(Icons.location_on_outlined, color: Color(0xff087c7c))))),
     agreementRepositoryProvider.overrideWithValue(_AgreementsFixture()),
   ], child: MaterialApp.router(theme: AppTheme.light, routerConfig: router,
     builder: (context, child) => RepaintBoundary(key: boundary,
@@ -470,7 +473,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/properties/37');
     expect(find.byType(EbrokerPropertyHeading), findsOneWidget);
-    expect(find.text('تواصل مع المعلن'), findsOneWidget);
+    expect(find.text('اتصال'), findsOneWidget);
+    expect(find.text('محادثة'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

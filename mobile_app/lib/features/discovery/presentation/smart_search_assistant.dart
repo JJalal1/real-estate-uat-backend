@@ -73,7 +73,7 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
       if (widget.enabled && widget.showComparisonTray && MediaQuery.viewInsetsOf(context).bottom == 0) Positioned(right: 12, bottom: widget.bottom,
         child: ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 100), child: const PropertyCompareTray())),
       if (widget.enabled && MediaQuery.viewInsetsOf(context).bottom == 0)
-        Positioned(left: 16, bottom: widget.bottom, child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Positioned(left: 16, bottom: widget.bottom, child: Column(textDirection: TextDirection.ltr, crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           if (_hint) Padding(padding: const EdgeInsets.only(bottom: 8), child: Material(
             elevation: 3, color: scheme.surface, borderRadius: BorderRadius.circular(16),
             child: ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 48), child: Padding(

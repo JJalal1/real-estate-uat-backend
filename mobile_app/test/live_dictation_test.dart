@@ -113,6 +113,7 @@ void main() {
     expect(tester.widget<TextField>(input).controller!.text, 'شقة للإيجار في صنعاء ثلاث غرف');
     expect(ai.requests, isEmpty);
     await tester.enterText(input, 'شقة للإيجار في صنعاء أربع غرف');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send'))); await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
     expect(ai.requests.single.message, 'شقة للإيجار في صنعاء أربع غرف');
     expect(ai.requests.single.filters['search'], 'صنعاء');

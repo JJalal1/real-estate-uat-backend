@@ -141,6 +141,7 @@ void main() {
     final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);
     final session = container.read(smartSearchSessionProvider.notifier); session.replaceManually(SmartSearchFilters.fromMap(currentFilters));
     await pumpHome(tester, container); await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'مسودة مكتوبة');
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     final old = voice.latest; old.emit(const VoiceEvent('ready')); old.emit(const VoiceEvent('partial', text: 'غير المكان')); await tester.pump();
     await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel'))); await tester.pump(const Duration(milliseconds: 200));
@@ -149,6 +150,7 @@ void main() {
     old.emit(const VoiceEvent('final', text: 'غير المكان')); await tester.pump();
     expect(old.cancellations, 1); expect(ai.requests, isEmpty); expect(session.state.filters.values, currentFilters);
     expect(tester.widget<TextField>(find.byKey(const ValueKey('smart-search-description'))).controller!.text, 'مسودة مكتوبة');
+    await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); old.emit(const VoiceEvent('final', text: 'قديم')); await tester.pump();
     expect(find.text('قديم'), findsNothing);

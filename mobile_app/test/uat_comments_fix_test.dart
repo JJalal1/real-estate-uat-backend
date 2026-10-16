@@ -121,6 +121,8 @@ void main() {
     final communityButton = find.text('التعليقات والتقييم والبلاغات');
     final trustDetails = find.text('التوثيق والتقييم');
     await tester.scrollUntilVisible(trustDetails, 300, scrollable: find.byType(Scrollable).first);
+    await Scrollable.ensureVisible(tester.element(trustDetails), alignment: .5);
+    await tester.pumpAndSettle();
     await tester.tap(trustDetails);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(communityButton, 300, scrollable: find.byType(Scrollable).first);
@@ -135,6 +137,8 @@ void main() {
 
     expect(propertyRepository.detailsCalls, greaterThanOrEqualTo(2));
     await tester.scrollUntilVisible(trustDetails, -300, scrollable: find.byType(Scrollable).first);
+    await Scrollable.ensureVisible(tester.element(trustDetails), alignment: .5);
+    await tester.pumpAndSettle();
     if (communityButton.evaluate().isEmpty) {
       await tester.tap(trustDetails);
       await tester.pumpAndSettle();

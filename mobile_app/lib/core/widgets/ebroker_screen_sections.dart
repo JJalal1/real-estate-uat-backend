@@ -102,7 +102,8 @@ class EbrokerAdvertiserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    if (compact) return Semantics(button: true, label: 'الملف العام للمعلن $name', child: Material(
+    if (compact) {
+      return Semantics(button: true, label: 'الملف العام للمعلن $name', child: Material(
       color: EbrokerDesign.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: EbrokerDesign.border)),
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: Padding(padding: const EdgeInsets.all(14),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -120,6 +121,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
         ]),
       )),
     ));
+    }
     final enlarged = MediaQuery.textScalerOf(context).scale(11.5) > 20;
     final identityLabel = EbrokerText(identity, size: 11.5, weight: FontWeight.w600,
       color: primary, maxLines: enlarged ? 2 : 1);
