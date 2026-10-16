@@ -2,7 +2,15 @@
 
 Last updated: 2026-10-16
 
-## Reference voice interaction delivered — APK1063
+## Active-wave discovery and listing presentation delivered — APK1069
+
+Read `ACTIVE_WAVE_DISCOVERY_AR.md`. Source `526a87f10a63669c747e3ea967d0128e0e95547c`, CI69 (`38958017457`) and merged PR80 (`5d5fe18ac08eb9cf1117509a05f5c82baf5a0935`) share the exact tested full tree `58d07100918a1383ebc3854d8d7129daae0fd43f`. All five gates passed, including250 Laravel tests, PostgreSQL17/PostGIS/access checks, Docker, clean static analysis,196 selected/331 full Flutter tests (overlapping), native build and installer verification. Focused80 tests and12 hash-matched synthetic screen previews cover ordinary/enlarged Arabic text.
+
+The current Free Frankfurt UAT deploy is `dep-db989jvbtjjs739q9d4g` at the merge SHA. Post-deployment health, discovery, public profile, privacy, Sai, polygon/rental-currency validation, contact authentication and existing voice-route validation passed in `38960625251`. One real AI request returned200 in1908ms and preserved the map/source constraints; this does not establish persistent provider availability. No migration, reseed, account cleanup or immutable financial-history change occurred. The prior in-composer voice behavior is retained.
+
+APK1069 is49,409,792 bytes, SHA256 `7a3c35828fa4a5047ae7b7c45775bb6ad01c9020528a5268de51ebb459642d9c`. Its original bytes, ZIP CRC, CMS signature/all715 signed payloads, package/version, three compiled Frankfurt API architectures, five original fonts and native dialer/unchanged permissions passed local verification. Its development certificate differs from1063: retain local drafts before uninstalling. Physical handset, native map, dialer and microphone acceptance remain open. The tested mobile/backend trees are `372e6966ed98d7372c76fd514ec11bf0d0e3a99b` and `640b62ddbc20ddda414152b362f601b4da4b4f10` respectively; later evidence-only documentation changes do not change this application source.
+
+## Previous reference voice interaction delivered — APK1063
 
 The supplied19.4-second reference is implemented on source `2822ab45be21a6a715f0b0bafafce24fe449ff9f`, PR78 merged as `807d34330d1d9c4687308d54f55618b29ad2f28e`. Its complete tree equals tested `f571e2b3e91106b6e9b8393c9c2924afd70d94be`. All five CI63 jobs (`38908197056`) passed, including185 selected/320 full Flutter tests (overlapping), strict analysis, native release build and APK verification. Focused35 tests passed in `38908756343`. Five corrected synthetic preview hashes match both runs and were inspected at ordinary/large scales, including scrolled2.4 controls. Read `VOICE_REFERENCE_1063_DELIVERY_AR.md` and `VOICE_REFERENCE_20261016_AR.md`.
 
