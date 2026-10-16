@@ -78,9 +78,20 @@ Future<void> _pump(WidgetTester tester, Widget child, {required _Assistant ai, _
   await tester.pumpAndSettle();
 }
 
-Future<void> _tap(WidgetTester tester, String key) async {
+Future<void> _reveal(WidgetTester tester, String key) async {
   final finder = find.byKey(ValueKey(key));
+  if (finder.evaluate().isEmpty) {
+    final sheet = find.byType(ListingAiSheet);
+    final scrollable = sheet.evaluate().isEmpty ? find.byType(Scrollable).first
+      : find.descendant(of: sheet, matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(finder, 220, scrollable: scrollable);
+  }
   await tester.ensureVisible(finder); await tester.pumpAndSettle();
+}
+
+Future<void> _tap(WidgetTester tester, String key) async {
+  await _reveal(tester, key);
+  final finder = find.byKey(ValueKey(key));
   await tester.tap(finder); await tester.pumpAndSettle();
 }
 
@@ -205,7 +216,7 @@ void main() {
       await _capture(tester, key, 'review-$scale');
       await _tap(tester, 'listing-ai-field-has_elevator');
       await _tap(tester, 'listing-ai-refresh-copy');
-      await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-apply-draft'))); await tester.pumpAndSettle();
+      await _reveal(tester, 'listing-ai-apply-draft');
       await _capture(tester, key, 'copy-$scale');
       expect(find.byKey(const ValueKey('listing-ai-apply-draft')).hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
