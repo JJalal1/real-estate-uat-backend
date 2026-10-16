@@ -2,9 +2,15 @@
 
 Last updated: 2026-10-16
 
-## Reference voice interaction — implementation candidate
+## Reference voice interaction delivered — APK1063
 
-The owner provided the full 19.400-second reference video and requested matching in-composer dictation/AI behavior with the existing organized sections. This candidate starts from `eb40ab18516d067d902752d52eeb947895c7797e` (APK1058). Speech previews appear in the same input and preserve the typed prefix; finishing leaves editable text and requires explicit submission. Search retains the same session/chips/results and listing suggestions remain review-only. New in-app Android dictation accumulates finalized speech segments across pauses without ending the user session; preview hypotheses never execute or persist. The existing whole-clip Laravel path remains available when no recognition service exists. See `VOICE_REFERENCE_20261016_AR.md`; CI/new APK/real handset are separate acceptance evidence. No backend or schema/financial/auth/media changes.
+The supplied19.4-second reference is implemented on source `2822ab45be21a6a715f0b0bafafce24fe449ff9f`, PR78 merged as `807d34330d1d9c4687308d54f55618b29ad2f28e`. Its complete tree equals tested `f571e2b3e91106b6e9b8393c9c2924afd70d94be`. All five CI63 jobs (`38908197056`) passed, including185 selected/320 full Flutter tests (overlapping), strict analysis, native release build and APK verification. Focused35 tests passed in `38908756343`. Five corrected synthetic preview hashes match both runs and were inspected at ordinary/large scales, including scrolled2.4 controls. Read `VOICE_REFERENCE_1063_DELIVERY_AR.md` and `VOICE_REFERENCE_20261016_AR.md`.
+
+Speech stays in the original search/listing input, preserves typed context and accumulates finalized segments across pauses. Manual finish leaves editable text; only explicit send interprets it. Preview hypotheses never execute or persist. Cancel/error restores the previous brief and proposals. Devices without a recognition service retain full-clip Laravel transcription; Android dictation can depend on a network service. Actual handset/recognizer/microphone and multi-device acceptance remain open.
+
+Original `real-estate-uat-1063.apk`:49,241,917bytes, SHA256 `a2e5b95f14e52f6edae2b89eaf6340328139e053242634aa14033aad296b4f69`. Local ZIP/CMS/715 signed payloads, package/version, three Frankfurt API architectures, five fonts and compiled native recognition/Arabic/service-visibility checks passed. Certificate differs from1058: preserve unsent drafts before uninstalling if direct update fails. No local rebuild/re-signing.
+
+Mobile tree `e2f0b172f699d8732a2518f5689fca85abae801f`; backend remains `67e01f4d14ef9dedc553147dd90d2319a48443b3`, identical to existing live deploy `dep-db91o6ei0phs739ci6eg` at ddedbf4. No new API/schema/provider key, server deployment, dependency, camera/token, financial/auth or organized Home-section changes. Documentation-only follow-ups retain these application trees;1063 remains the delivered installer. Earlier candidate62 failed one missed cancel tap and exposed hint/label overlap; it was corrected and never delivered.
 
 ## Broker draft assistant deployed — APK1058
 
