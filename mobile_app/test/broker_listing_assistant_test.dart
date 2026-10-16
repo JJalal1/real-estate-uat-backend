@@ -137,6 +137,9 @@ void main() {
         'شقة للإيجار في صنعاء ثلاث غرف، الإيجار مئة ألف ريال');
       await _capture(tester, boundary, 'voice-inline-$scale');
       expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.byKey(const ValueKey('voice-finish'))); await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byKey(const ValueKey('voice-finish')).hitTestable(), findsOneWidget);
+      if (scale == 2.4) await _capture(tester, boundary, 'voice-controls-2.4');
       await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel')));
       await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
       expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text, 'شقة للإيجار');

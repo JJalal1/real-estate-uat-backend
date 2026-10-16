@@ -143,13 +143,18 @@ void main() {
     await pumpHome(tester, container); await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'مسودة مكتوبة');
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     final old = voice.latest; old.emit(const VoiceEvent('ready')); old.emit(const VoiceEvent('partial', text: 'غير المكان')); await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel'))); await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('voice-cancel')).hitTestable(), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
     old.emit(const VoiceEvent('final', text: 'غير المكان')); await tester.pump();
     expect(old.cancellations, 1); expect(ai.requests, isEmpty); expect(session.state.filters.values, currentFilters);
     expect(tester.widget<TextField>(find.byKey(const ValueKey('smart-search-description'))).controller!.text, 'مسودة مكتوبة');
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); old.emit(const VoiceEvent('final', text: 'قديم')); await tester.pump();
-    expect(find.text('قديم'), findsNothing); await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
+    expect(find.text('قديم'), findsNothing);
+    await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel'))); await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('voice-cancel')).hitTestable(), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 

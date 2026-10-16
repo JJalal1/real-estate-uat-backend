@@ -100,7 +100,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
             readOnly: _capture.active || state.interpreting,
             minLines: 2, maxLines: 4, maxLength: 5000, textInputAction: TextInputAction.search,
             onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
-              hintText: chips.isEmpty ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
+              hintText: _capture.active ? null : chips.isEmpty ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
           if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice),
           if (!_capture.active && state.lastRequest.isNotEmpty) ExpansionTile(tilePadding: EdgeInsets.zero,
             title: const Text('آخر طلب في هذه الجلسة'), children: [SelectableText(state.lastRequest)]),

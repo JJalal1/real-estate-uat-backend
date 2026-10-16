@@ -187,8 +187,11 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           : 'راجع الاقتراح قبل تطبيقه. يبقى الإعلان مسودة حتى تكمل مراجعته وإرساله.'),
         const SizedBox(height: 16),
         if (!widget.description) ...[
+          Text('صف العقار', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
           TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 1500, minLines: 2, maxLines: 5, enabled: !_busy, readOnly: _voiceBusy,
-            decoration: const InputDecoration(labelText: 'صف العقار', hintText: 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…')),
+            decoration: InputDecoration(labelText: _voiceBusy ? null : 'صف العقار', floatingLabelBehavior: FloatingLabelBehavior.never,
+              hintText: _voiceBusy ? null : 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…')),
           if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice),
           if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _busy ? null : _voice,
             key: const ValueKey('listing-ai-voice'),
