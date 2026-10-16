@@ -54,7 +54,7 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
       }
     });
     Future<void>.microtask(() async {
-      if (!await ref.read(assistantHintStoreProvider).take() || !mounted) return;
+      if (!mounted || !widget.enabled || !await ref.read(assistantHintStoreProvider).take() || !mounted) return;
       setState(() => _hint = true);
       _hintTimer = Timer(const Duration(seconds: 6), _dismissHint);
     });
@@ -90,8 +90,8 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
             color: scheme.surface, elevation: 5, shadowColor: scheme.primary.withValues(alpha: .24), shape: const CircleBorder(),
             child: InkWell(key: const ValueKey('floating-smart-search'), customBorder: const CircleBorder(),
               onTap: () { _dismissHint(); if (widget.onPressed != null) { widget.onPressed!(); } else { context.push('/smart-search'); } },
-              child: const Tooltip(message: 'بحث ذكي', child: Semantics(button: true, label: 'فتح مساعد البحث الذكي',
-                child: Padding(padding: EdgeInsets.all(10), child: SmartSearchRobotIcon(size: 38)))),
+              child: Tooltip(message: 'بحث ذكي', child: Semantics(button: true, label: 'فتح مساعد البحث الذكي',
+                child: const Padding(padding: EdgeInsets.all(10), child: SmartSearchRobotIcon(size: 38)))),
             ),
           )),
         ])),

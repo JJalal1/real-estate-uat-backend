@@ -51,7 +51,7 @@ void main() {
     expect(support, contains('final int? initialCaseId;'));
     expect(support, contains('await _showDetails(initialCaseId);'));
   });
-  test('property contact starts in conversation and external call is tracked', () {
+  test('property exposes explicit authorized call and chat while conversation calls stay tracked', () {
     final details = File(
       'lib/features/properties/presentation/property_details_screen.dart',
     ).readAsStringSync();
@@ -62,7 +62,11 @@ void main() {
       'lib/features/messages/data/message_repository.dart',
     ).readAsStringSync();
 
-    expect(details, contains("'تواصل مع المعلن'"));
+    expect(details, contains("label: 'اتصال'"));
+    expect(details, contains("label: 'محادثة'"));
+    expect(details, contains('_requireContactAccount()'));
+    expect(details, contains('contactPhone(property.id)'));
+    expect(details, contains('contactActionsProvider).openDialer(phone)'));
     expect(details, isNot(contains("title: 'الهاتف'")));
     expect(details, isNot(contains("title: 'واتساب'")));
     expect(details, isNot(contains("label: 'طلب معاينة'")));
