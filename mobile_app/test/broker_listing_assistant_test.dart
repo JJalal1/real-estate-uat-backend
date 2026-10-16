@@ -139,7 +139,8 @@ void main() {
     expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text, 'مسودتي السابقة');
     await _tap(tester, 'listing-ai-voice');
     voice.latest.emit(const VoiceEvent('ready')); await tester.pump();
-    await _tap(tester, 'voice-cancel');
+    await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel'))); await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
     expect(voice.latest.cancellations, greaterThan(0));
     expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text, 'مسودتي السابقة');
     expect(find.byKey(const ValueKey('listing-ai-apply-draft')), findsNothing);

@@ -162,10 +162,8 @@ class ListingAiService
         }
         // Include the explicitly entered location components without inventing
         // coordinates, a building reference or a unit identity.
-        if (empty($facts['address'])) {
-            $location = array_filter(array_map(fn ($key) => trim((string) ($facts[$key] ?? '')), ['governorate', 'district', 'street']));
-            if ($location !== []) $facts['address'] = implode('، ', array_unique($location));
-        }
+        $location = array_filter(array_map(fn ($key) => trim((string) ($facts[$key] ?? '')), ['governorate', 'district', 'street']));
+        if ($location !== []) $facts['address'] = implode('، ', array_unique($location));
         unset($facts['title']);
         $sentences = $this->sentences($facts);
         return ['title' => $title, 'description' => implode('، ', array_values($sentences)).($sentences ? '.' : ''),

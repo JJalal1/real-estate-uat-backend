@@ -48,6 +48,8 @@ class BrokerListingAssistantTest extends TestCase
         $this->withHeaders($ownerHeaders)->postJson('/api/ai/listing-draft', $input + ['property_id' => $property->id])->assertOk();
         [, $other] = $this->actor('other', 'broker');
         $this->withHeaders($other)->postJson('/api/ai/listing-draft', $input + ['property_id' => $property->id])->assertNotFound();
+        $this->withHeaders($ownerHeaders)->putJson('/api/properties/'.$property->id.'/sai', ['sai_payer' => 'buyer'])->assertOk();
+        $property->refresh();
         $property->update(['review_status' => 'submitted']);
         $this->withHeaders($ownerHeaders)->postJson('/api/ai/listing-draft', $input + ['property_id' => $property->id])->assertConflict();
         Http::assertNothingSent();
