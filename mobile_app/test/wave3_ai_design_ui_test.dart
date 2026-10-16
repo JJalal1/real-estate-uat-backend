@@ -27,6 +27,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     await tester.tap(find.byKey(const ValueKey('voice-finish'))); await tester.pumpAndSettle();
+    expect(ai.requests, hasLength(1));
+    await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));
+    await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
     expect(voice.calls, 1); expect(ai.requests.last.filters['search'], 'صنعاء'); expect(ai.requests.last.filters['purpose'], 'rent');
     expect(properties.queries.last.filters['max_monthly_rent'], 100000);
     expect(find.byKey(const ValueKey('smart-chip-type')), findsOneWidget);

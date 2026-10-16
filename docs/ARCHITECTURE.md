@@ -11,6 +11,10 @@ REAL ESTATE is a multi-device UAT real-estate platform. The same backend/databas
 - Current UAT API base is injected with `--dart-define`.
 - Mobile UI may hide actions, but it is never the authority for permissions.
 
+### Voice input
+
+Search and listing preparation share one foreground-only Flutter capture controller and native speech channel. The October16 reference adds Android in-app dictation previews, finalized segment accumulation across pauses, manual finish and an explicit editable send. The configured Android recognition service may use the network. Where no recognition service exists, the existing temporary full-clip/Laravel transcription path remains. Partial previews never call the interpretation endpoints or persist a listing brief. Camera/token code and original dependencies remain unchanged. Laravel still owns AI search/listing interpretation, authorization and review; see `VOICE_REFERENCE_20261016_AR.md`.
+
 ### Backend
 
 - Laravel API under `backend-api-runtime/`.

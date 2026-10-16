@@ -2,6 +2,10 @@
 
 Last updated: 2026-10-16
 
+## Reference voice interaction — implementation candidate
+
+The owner provided the full 19.400-second reference video and requested matching in-composer dictation/AI behavior with the existing organized sections. This candidate starts from `eb40ab18516d067d902752d52eeb947895c7797e` (APK1058). Speech previews appear in the same input and preserve the typed prefix; finishing leaves editable text and requires explicit submission. Search retains the same session/chips/results and listing suggestions remain review-only. New in-app Android dictation accumulates finalized speech segments across pauses without ending the user session; preview hypotheses never execute or persist. The existing whole-clip Laravel path remains available when no recognition service exists. See `VOICE_REFERENCE_20261016_AR.md`; CI/new APK/real handset are separate acceptance evidence. No backend or schema/financial/auth/media changes.
+
 ## Broker draft assistant deployed — APK1058
 
 PR76 source `2b955f18ea15946d462c1a3c111cda525e724377` passed all five CI58 jobs (`38844830294`) with178 selected and313 full Flutter tests. The owner approved the exact merge/UAT deployment on October16 at15:42 Asia/Aden. PR76 merged as `ddedbf4992ec93eb5da2c1ee574267a475de369e`; its complete tree equals the tested tree `5dc682e6afa2f58a8faa9478741a4323fde250c2`. The existing free Frankfurt deploy `dep-db91o6ei0phs739ci6eg` is live since2026-10-16T12:45:26Z. Read `BROKER_AI_1058_DEPLOYMENT_AR.md` for evidence and `BROKER_AI_ASSISTANT_AR.md` for behavior.

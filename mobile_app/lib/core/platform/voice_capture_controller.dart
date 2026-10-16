@@ -9,6 +9,8 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   final VoiceInput input;
   VoicePhase phase = VoicePhase.idle;
   String transcript = '';
+  String preview = '';
+  bool liveDictation = false;
   String? error;
   double level = 0;
   VoiceRecording? _recording;
@@ -26,7 +28,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     final completion = Completer<String?>();
     _completion = completion;
     _stopRequested = false;
-    phase = VoicePhase.preparing; transcript = ''; error = null; level = 0;
+    phase = VoicePhase.preparing; transcript = ''; preview = ''; liveDictation = false; error = null; level = 0;
     notifyListeners();
     try {
       _recording = input.start();
@@ -35,7 +37,14 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
         switch (event.type) {
           case 'ready': if (phase != VoicePhase.processing) phase = VoicePhase.listening;
           case 'level': if (phase == VoicePhase.listening) level = event.level.clamp(0, 1).toDouble();
-          case 'partial': return;
+          case 'mode': liveDictation = event.code == 'dictation';
+          case 'partial':
+            if (phase != VoicePhase.listening || _stopRequested) return;
+            if (event.text.length > 5000) {
+              error = _message('SPEECH_TOO_LONG');
+              final recording = _recording; _finish(null); unawaited(recording?.cancel() ?? Future.value()); return;
+            }
+            preview = event.text;
           case 'processing': if (!_stopRequested) return; phase = VoicePhase.processing; level = 0;
           case 'final':
             if (!_stopRequested) return;
@@ -43,7 +52,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
             if (transcript.length > 5000) { error = _message('SPEECH_TOO_LONG'); _finish(null); return; }
             _finish(transcript.isEmpty ? null : transcript); return;
           case 'error': error = _message(event.code); _finish(null); return;
-          case 'cancelled': transcript = ''; _finish(null); return;
+          case 'cancelled': transcript = ''; preview = ''; _finish(null); return;
         }
         notifyListeners();
       }, onError: (_) { if (generation == _generation && active) { error = _message(''); _finish(null); } },
@@ -75,7 +84,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     if (!active) return;
     ++_generation;
     final recording = _recording;
-    transcript = ''; error = null; _finish(null);
+    transcript = ''; preview = ''; error = null; _finish(null);
     unawaited(recording?.cancel() ?? Future.value());
   }
 
