@@ -6,14 +6,14 @@ use App\Models\Property;
 use App\Models\User;
 use App\Models\UserNotification;
 use App\Services\SavedSearchAlertService;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class ActiveWavePublicationAlertTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     public function test_real_publication_event_notifies_after_commit_and_retries_do_not_duplicate(): void
     {

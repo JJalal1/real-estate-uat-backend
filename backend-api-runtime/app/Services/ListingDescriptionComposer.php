@@ -50,7 +50,7 @@ class ListingDescriptionComposer
             $ordinals = ['0' => 'الأرضي', '1' => 'الأول', '2' => 'الثاني', '3' => 'الثالث', '4' => 'الرابع',
                 '5' => 'الخامس', '6' => 'السادس', '7' => 'السابع', '8' => 'الثامن', '9' => 'التاسع', '10' => 'العاشر'];
             $floor = $ordinals[$floor] ?? $floor;
-            $layout[] = $type === 'apartment' ? 'تقع الشقة في الدور '.$floor : 'يقع العقار في الدور '.$floor;
+            $layout[] = $type === 'apartment' ? 'تقع في الدور '.$floor : 'يقع في الدور '.$floor;
         }
         $rooms = [];
         if (($facts['bedrooms'] ?? 0) > 0) {

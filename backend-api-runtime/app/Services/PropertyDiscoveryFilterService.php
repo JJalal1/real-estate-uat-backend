@@ -53,11 +53,11 @@ class PropertyDiscoveryFilterService
             'purpose' => ['nullable', Rule::in(self::PURPOSES)],
             'type' => ['nullable', Rule::in(self::TYPES)],
             'min_price' => ['nullable', 'numeric', 'min:0'],
-            'max_price' => ['nullable', 'numeric', 'gte:min_price'],
+            'max_price' => ['nullable', 'numeric', 'min:0'],
             'min_bedrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
             'min_bathrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
             'min_area_m2' => ['nullable', 'numeric', 'min:0'],
-            'max_area_m2' => ['nullable', 'numeric', 'gte:min_area_m2'],
+            'max_area_m2' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
@@ -204,7 +204,7 @@ class PropertyDiscoveryFilterService
         } else {
             // SQLite test path uses the same spherical distance as nearby().
             $query->whereRaw(
-                '(6371 * 2 * ASIN(MIN(1, SQRT(POWER(SIN(RADIANS(latitude - ?) / 2), 2) + COS(RADIANS(?)) * COS(RADIANS(latitude)) * POWER(SIN(RADIANS(longitude - ?) / 2), 2))))) <= ?',
+                '(6371 * 2 * ASIN(MIN(1, SQRT(POWER(SIN(RADIANS(latitude - ?) / 2), 2) + COS(RADIANS(?)) * COS(RADIANS(latitude)) * POWER(SIN(RADIANS(longitude - ?) / 2), 2))))) <= CAST(? AS REAL)',
                 [$lat, $lat, $lon, $radius],
             );
         }
