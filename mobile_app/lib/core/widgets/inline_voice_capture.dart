@@ -32,33 +32,31 @@ class _InlineVoiceCaptureState extends State<InlineVoiceCapture> with SingleTick
     final listening = capture.phase == VoicePhase.listening;
     final label = switch (capture.phase) {
       VoicePhase.preparing => 'نجهّز الميكروفون…',
-      VoicePhase.processing => 'نفرّغ التسجيل كاملًا…',
+      VoicePhase.processing => capture.liveDictation ? 'نثبّت آخر كلماتك…' : 'نفرّغ التسجيل كاملًا…',
       _ => 'نستمع إليك الآن',
     };
     return Column(key: const ValueKey('inline-voice-capture'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Semantics(liveRegion: true, label: label, child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: [
         AnimatedBuilder(animation: _pulse, builder: (_, __) => Container(key: const ValueKey('voice-pulse'),
-          width: 56, height: 56, margin: const EdgeInsetsDirectional.only(end: 12),
+          width: 36, height: 36, margin: const EdgeInsetsDirectional.only(end: 12),
           decoration: BoxDecoration(shape: BoxShape.circle, color: theme.colorScheme.primary.withValues(alpha: .12),
             boxShadow: listening ? [BoxShadow(color: theme.colorScheme.primary.withValues(alpha: .08 + .07 * _pulse.value),
               spreadRadius: 2 + 6 * _pulse.value, blurRadius: 4)] : const []),
           child: Transform.scale(scale: listening ? 1 + .08 * _pulse.value : 1,
-            child: EbrokerIcon(Icons.mic_none, size: 28, color: theme.colorScheme.primary)))),
+            child: EbrokerIcon(Icons.mic_none, size: 22, color: theme.colorScheme.primary)))),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: theme.textTheme.titleSmall), const SizedBox(height: 7),
           ExcludeSemantics(child: SizedBox(height: 28, child: AnimatedBuilder(animation: _pulse, builder: (_, __) => Row(
             key: const ValueKey('voice-wave'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
-              for (var i = 0; i < 13; i++) Container(width: 3, margin: const EdgeInsets.symmetric(horizontal: 2),
+              for (var i = 0; i < 9; i++) Container(width: 3, margin: const EdgeInsets.symmetric(horizontal: 2),
                 height: listening ? 5 + 22 * (.2 + .8 * capture.level) * (.25 + .75 * math.sin(_pulse.value * math.pi + i * .6).abs()) : 5,
                 decoration: BoxDecoration(color: theme.colorScheme.primary.withValues(alpha: .45 + (i % 3) * .18), borderRadius: BorderRadius.circular(4))),
             ])))),
         ])),
       ]))),
       const SizedBox(height: 8),
-      Container(key: const ValueKey('voice-transcript'), padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: theme.colorScheme.surface, borderRadius: BorderRadius.circular(10)),
-        child: Text(capture.transcript.isEmpty ? 'تحدث براحتك، ثم اضغط إنهاء التسجيل.' : capture.transcript,
-          style: theme.textTheme.bodyMedium)),
+      Text(capture.liveDictation ? 'الكلام يظهر في المربع. أنهِ الإملاء ثم راجعه وأرسله.'
+        : 'تحدث براحتك، ثم اضغط إنهاء التسجيل لعرض النص.', style: theme.textTheme.bodySmall),
       const SizedBox(height: 8),
       Wrap(spacing: 12, alignment: WrapAlignment.end, children: [
         TextButton.icon(key: const ValueKey('voice-cancel'), onPressed: widget.onCancel,

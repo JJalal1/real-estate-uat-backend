@@ -5,6 +5,8 @@ Read it before proposing or applying changes.
 
 ## 1. Project mode
 
+- Current October16 reference-video task: the owner supplied `Screen_Recording_20261016-155253.mp4` and asks for its in-composer live dictation and AI interaction while retaining organized sections. Start from `eb40ab18516d067d902752d52eeb947895c7797e` / APK1058. Read `docs/VOICE_REFERENCE_20261016_AR.md`. Partial text is preview-only; manual finish then explicit edited submission, one search session, listing review, original brief recovery and all authoritative/financial/media boundaries remain. This newer reference changes the earlier batch-only presentation; the existing full-clip path remains a fallback. Native camera/token code, dependencies, backend and Home sections stay unchanged. CI/APK/handset evidence must be recorded independently.
+
 - Current owner-approved broker assistant deployment (October16): APK1058 source `2b955f18ea15946d462c1a3c111cda525e724377`, merged PR76 `ddedbf4992ec93eb5da2c1ee574267a475de369e`, live Frankfurt deploy `dep-db91o6ei0phs739ci6eg`. The owner approved merge/UAT deployment at15:42 Asia/Aden. All five CI58 gates passed; the full merge tree exactly matches the tested tree. Read `docs/BROKER_AI_1058_DEPLOYMENT_AR.md` and `docs/BROKER_AI_ASSISTANT_AR.md`. Post-deploy public checks passed; real AI search initially returned503 near25s and then200 in12.8s. Retain honest text fallback and do not claim stable provider/handset acceptance from one success. No new schema or financial/auth/media boundary changes.
 
 - Product: REAL ESTATE.

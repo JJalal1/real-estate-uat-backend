@@ -7,6 +7,7 @@ import android.media.MediaRecorder
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.speech.SpeechRecognizer
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -17,6 +18,8 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
     private val channel = MethodChannel(messenger, "real_estate/speech")
     private val handler = Handler(Looper.getMainLooper())
     private var recorder: MediaRecorder? = null
+    private var dictation: LiveDictationSession? = null
+    private var liveRequested = false
     private var clip: File? = null
     private var activeId: Int? = null
     private var permissionPending = false
@@ -43,6 +46,7 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
                     if (activeId != null || permissionPending) result.error("SPEECH_BUSY", "Recording already active.", null)
                     else {
                         activeId = id
+                        liveRequested = call.argument<String>("mode") == "dictation"
                         result.success(null)
                         if (!foreground) cancel()
                         else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
@@ -65,13 +69,23 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
         if (activeId == null) return
         if (grants.firstOrNull() == PackageManager.PERMISSION_GRANTED) begin() else fail("SPEECH_PERMISSION")
     }
-    fun onResume() { foreground = true; if (!permissionPending && activeId != null && !processing && recorder == null) begin() }
+    fun onResume() { foreground = true; if (!permissionPending && activeId != null && !processing && recorder == null && dictation == null) begin() }
     fun onPause() { foreground = false; if (!permissionPending) cancel() }
     @Suppress("DEPRECATION")
     private fun begin() {
         val id = activeId ?: return
-        if (!foreground || permissionPending || recorder != null || processing) return
+        if (!foreground || permissionPending || recorder != null || dictation != null || processing) return
         try {
+            if (liveRequested && SpeechRecognizer.isRecognitionAvailable(activity)) {
+                emit(id, "mode", "code" to "dictation")
+                val session = LiveDictationSession(activity,
+                    event = { type, values -> emit(id, type, *values) },
+                    failure = { code -> if (id == activeId) fail(code) })
+                dictation = session
+                session.start()
+                return
+            }
+            emit(id, "mode", "code" to "clip")
             val file = File.createTempFile("re_voice_", ".m4a", activity.cacheDir)
             clip = file
             val engine = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(activity) else MediaRecorder()
@@ -99,6 +113,7 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
     private fun stop() {
         val id = activeId ?: return
         if (processing) return
+        dictation?.let { processing = true; it.stop(); return }
         val engine = recorder ?: return
         processing = true
         handler.removeCallbacks(levels)
@@ -120,6 +135,8 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
         activeId = null
         processing = false
         handler.removeCallbacks(levels)
+        dictation?.dispose()
+        dictation = null
         try { recorder?.stop() } catch (_: Exception) {}
         try { recorder?.release() } catch (_: Exception) {}
         recorder = null

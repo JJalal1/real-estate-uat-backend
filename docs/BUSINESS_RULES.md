@@ -2,6 +2,10 @@
 
 These are product rules, not implementation suggestions. Agents must preserve them unless the product owner explicitly changes them.
 
+## October16 supplied voice reference
+
+The new reference authorizes live dictation previews in the existing text input for search and listing preparation. Preserve typed context, manual finish, edit/review and explicit send; neither pauses nor partial callbacks may execute a search or write listing facts. Cancel/error restores the original brief and does not save temporary hypotheses. Internal finalized recognition segments may accumulate while the user session stays active. Android system dictation can depend on a network service; do not promise offline/on-device recognition. The old full-clip Laravel transcription remains the fallback where no recognition service exists. Search chips, actual results, organized Home sections and advertiser review/financial rules remain. See `VOICE_REFERENCE_20261016_AR.md`.
+
 ## October16 delegated broker assistance
 
 Listing AI proposes only reviewable facts/title/description; it cannot save, approve or publish a listing. Recompose copy after changing selected proposals. Preserve raw brief locally per user/listing. Provider failure may use conservative literal-text organization only when labeled clearly. Voice transcription still depends on its provider. Completion guidance uses existing required-field/photo/identity/Sai checks. Copying public ad text is an explicit clipboard action; no automated messages or private evidence/financial splits. See `BROKER_AI_ASSISTANT_AR.md`.

@@ -29,17 +29,19 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   }
   void _voiceChanged() {
     if (!mounted) return;
-    if (_capture.active && _capture.transcript.isNotEmpty) _description.text = _searchText(_capture.transcript);
+    if (_capture.active && _capture.preview.isNotEmpty) {
+      final text = appendDictation(_voiceDraft, _capture.preview);
+      if (_description.text != text) _description.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    }
     setState(() {});
   }
-  String _searchText(String text) => text;
-
   @override
   void dispose() { _capture.removeListener(_voiceChanged); _capture.dispose(); _description.dispose(); super.dispose(); }
 
   Future<void> _send() async {
     final text = _description.text.trim();
     if (text.isEmpty || _capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
+    if (text.length > 5000) { setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.'); return; }
     FocusScope.of(context).unfocus();
     _capture.clearError();
     _description.clear();
@@ -55,9 +57,11 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     final text = await _capture.start();
     if (!mounted) return;
     if (text == null) {
-      _description.text = _capture.error != null && _capture.transcript.isNotEmpty ? _searchText(_capture.transcript) : _voiceDraft;
+      _description.text = _voiceDraft;
     } else if (revision == ref.read(smartSearchSessionProvider).revision && ModalRoute.of(context)?.isCurrent != false) {
-      _description.text = _searchText(text); await _send();
+      final combined = appendDictation(_voiceDraft, text);
+      _description.text = combined;
+      if (combined.length > 5000) setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.');
     }
   }
   void _cancelVoice() { if (_capture.active) { _capture.cancel(); _description.text = _voiceDraft; } }
@@ -92,14 +96,16 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         const Text('صف ما تبحث عنه، ثم أكمل طلبك أو عدّل أي شرط.'),
         const SizedBox(height: 18),
         AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice)
-          else TextField(key: const ValueKey('smart-search-description'), controller: _description,
+          TextField(key: const ValueKey('smart-search-description'), controller: _description,
+            readOnly: _capture.active || state.interpreting,
             minLines: 2, maxLines: 4, maxLength: 5000, textInputAction: TextInputAction.search,
             onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
-              hintText: chips.isEmpty ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
+              hintText: _capture.active ? null : chips.isEmpty ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
+          if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice),
           if (!_capture.active && state.lastRequest.isNotEmpty) ExpansionTile(tilePadding: EdgeInsets.zero,
             title: const Text('آخر طلب في هذه الجلسة'), children: [SelectableText(state.lastRequest)]),
           const SizedBox(height: 8),
+          if (!_capture.active) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('اكتب أو أمْلِ طلبك، راجعه ثم اضغط البحث.')),
           if (!_capture.active) Row(children: [
             Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: chips.isEmpty ? 'ابحث لي' : 'تحديث البحث',
               icon: Icons.auto_awesome_outlined, loading: state.interpreting,

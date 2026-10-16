@@ -121,6 +121,31 @@ void main() {
     await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   });
 
+  for (final scale in [1.0, 2.4]) {
+    testWidgets('inline listing dictation preserves typed context at scale $scale', (tester) async {
+      final voice = Wave3VoiceFake(autoComplete: false); addTearDown(voice.dispose);
+      final boundary = GlobalKey();
+      await _pump(tester, const Scaffold(body: ListingAiSheet(prepareDraft: true, facts: {}, initialMessage: 'شقة للإيجار')),
+        ai: _Assistant(), voice: voice, scale: scale, boundary: boundary);
+      await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-voice')));
+      await tester.tap(find.byKey(const ValueKey('listing-ai-voice'))); await tester.pump();
+      voice.latest.emit(const VoiceEvent('mode', code: 'dictation'));
+      voice.latest.emit(const VoiceEvent('ready'));
+      voice.latest.emit(const VoiceEvent('partial', text: 'في صنعاء ثلاث غرف، الإيجار مئة ألف ريال'));
+      await tester.pump(const Duration(milliseconds: 180));
+      expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text,
+        'شقة للإيجار في صنعاء ثلاث غرف، الإيجار مئة ألف ريال');
+      await _capture(tester, boundary, 'voice-inline-$scale');
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.byKey(const ValueKey('voice-finish'))); await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byKey(const ValueKey('voice-finish')).hitTestable(), findsOneWidget);
+      if (scale == 2.4) await _capture(tester, boundary, 'voice-controls-2.4');
+      await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel')));
+      await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text, 'شقة للإيجار');
+    });
+  }
+
   testWidgets('deselection invalidates copy and only reviewed fields and recomposed text are applied', (tester) async {
     final ai = _Assistant(); Map<String, dynamic>? applied;
     await _pump(tester, Builder(builder: (context) => Scaffold(body: TextButton(onPressed: () async {

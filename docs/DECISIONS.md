@@ -2,6 +2,10 @@
 
 This file records product/engineering decisions that AI agents must not silently reverse.
 
+## D-VOICE-REF — October16 explicit voice reference
+
+Match the supplied in-composer live dictation and explicit send interaction on current1058. Partial hypotheses are display-only, finalized segments accumulate until manual finish, and cancel/error restores typed context. Finished text remains editable before search or reviewed listing preparation. Retain structured Home/search/listing sections and whole-clip fallback without new keys, runtime dependencies, backend writes, auto-send or publication. This latest request supersedes the earlier batch-only presentation, not the manual-stop/no-partial-execution boundary. See `VOICE_REFERENCE_20261016_AR.md`.
+
 ## D-AI-DRAFT — October16 broker publishing assistance
 
 Owner delegation authorizes a focused draft-preparation helper on1052. Reuse the current listing editor, voice recording, authorization and support review. Fact-bound server composition and review prevent deselected proposals from leaking into copy. A single transient-provider retry shares the original deadline and charges the persistent UTC budget on every attempt. Labeled literal-text organization keeps this new entry useful during provider failure without claiming AI success. No new schema, providers, keys, automatic publication or sending.

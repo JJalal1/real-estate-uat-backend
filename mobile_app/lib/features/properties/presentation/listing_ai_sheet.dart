@@ -31,6 +31,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   bool _busy = false, _hasDescription = false, _copyReady = false;
   late final VoiceCaptureController _capture;
   String _voiceDraft = '';
+  bool _restoringVoice = false;
   bool get _voiceBusy => _capture.active;
   String? _error, _notice, _source;
   static const labels = {'title': 'عنوان الإعلان', 'type': 'نوع العقار', 'purpose': 'الغرض', 'price': 'سعر البيع بالريال اليمني',
@@ -48,6 +49,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   void _briefChanged() {
+    if (_capture.active || _restoringVoice) return;
     widget.onMessageChanged?.call(_message.text);
     if (widget.prepareDraft && _fields != null && mounted) {
       setState(() { _fields = null; _selected.clear(); _copyReady = false; _notice = null; });
@@ -56,7 +58,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
 
   void _voiceChanged() {
     if (!mounted) return;
-    if (_capture.active && _capture.transcript.isNotEmpty) _message.text = _capture.transcript;
+    if (_capture.active && _capture.preview.isNotEmpty) {
+      final text = appendDictation(_voiceDraft, _capture.preview);
+      if (_message.text != text) _message.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    }
     setState(() {});
   }
 
@@ -145,9 +150,16 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     FocusScope.of(context).unfocus(); _voiceDraft = _message.text;
     setState(() => _error = null);
     final text = await _capture.start();
-    if (mounted) _message.text = text ?? (_capture.error != null && _capture.transcript.isNotEmpty ? _capture.transcript : _voiceDraft);
+    if (!mounted) return;
+    if (text == null) { _restoreVoiceDraft(); return; }
+    final combined = appendDictation(_voiceDraft, text);
+    if (combined.length > 1500) {
+      _restoreVoiceDraft();
+      setState(() => _error = 'النص أطول من 1500 حرف. اختصر الوصف أو أمْلِ تفاصيل أقل.');
+    } else { _message.text = combined; }
   }
-  void _cancelVoice() { if (_capture.active) { _capture.cancel(); _message.text = _voiceDraft; } }
+  void _restoreVoiceDraft() { _restoringVoice = true; _message.text = _voiceDraft; _restoringVoice = false; }
+  void _cancelVoice() { if (_capture.active) { _capture.cancel(); _restoreVoiceDraft(); } }
 
   String _value(String key, dynamic value) => switch (key) {
     'type' => SmartSearchFilters.types[value] ?? '$value', 'purpose' => value == 'rent' ? 'للإيجار' : 'للبيع',
@@ -175,12 +187,15 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           : 'راجع الاقتراح قبل تطبيقه. يبقى الإعلان مسودة حتى تكمل مراجعته وإرساله.'),
         const SizedBox(height: 16),
         if (!widget.description) ...[
-          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice)
-          else TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 1500, maxLines: 4, enabled: !_busy,
-            decoration: const InputDecoration(labelText: 'صف العقار', hintText: 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…')),
+          Text('صف العقار', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 1500, minLines: 2, maxLines: 5, enabled: !_busy, readOnly: _voiceBusy,
+            decoration: InputDecoration(labelText: _voiceBusy ? null : 'صف العقار', floatingLabelBehavior: FloatingLabelBehavior.never,
+              hintText: _voiceBusy ? null : 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…')),
+          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice),
           if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _busy ? null : _voice,
             key: const ValueKey('listing-ai-voice'),
-            icon: const EbrokerIcon(Icons.mic_none, size: 20), label: const Text('وصف بالصوت'))),
+            icon: const EbrokerIcon(Icons.mic_none, size: 20), label: const Text('أمْلِ تفاصيل العقار'))),
         ],
         AppButton(key: const ValueKey('listing-ai-prepare'),
           label: _busy ? 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
