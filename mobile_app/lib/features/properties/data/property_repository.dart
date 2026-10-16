@@ -63,8 +63,8 @@ class PropertyRepository {
         'radius_km': radiusKm,
         if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
         if (type != null && type.isNotEmpty) 'type': type,
-        if (minPrice != null) 'min_price': minPrice,
-        if (maxPrice != null) 'max_price': maxPrice,
+        if (minPrice != null) (purpose == 'rent' ? 'min_monthly_rent' : 'min_price'): minPrice,
+        if (maxPrice != null) (purpose == 'rent' ? 'max_monthly_rent' : 'max_price'): maxPrice,
         if (minBedrooms != null) 'min_bedrooms': minBedrooms,
         if (minBathrooms != null) 'min_bathrooms': minBathrooms,
         if (minArea != null) 'min_area_m2': minArea,
@@ -84,6 +84,20 @@ class PropertyRepository {
         .whereType<Map<String, dynamic>>()
         .map(PropertyMarker.fromJson)
         .toList(growable: false);
+  }
+
+  Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: filters);
+    final rows = response.data?['data'] as List? ?? const [];
+    return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
+  }
+
+  Future<String> contactPhone(int propertyId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties/$propertyId/contact', options: await _auth.requiredAuthOptions());
+    final data = response.data?['data'];
+    final phone = data is Map ? data['phone']?.toString() ?? '' : '';
+    if (!RegExp(r'^\+?[0-9]{7,15}$').hasMatch(phone)) throw StateError('لم يتوفر رقم اتصال صالح لهذا الإعلان.');
+    return phone;
   }
 
   Future<PropertyLocationAddress> resolveLocationAddress({

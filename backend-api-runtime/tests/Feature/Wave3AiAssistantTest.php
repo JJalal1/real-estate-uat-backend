@@ -72,6 +72,26 @@ class Wave3AiAssistantTest extends TestCase
         $this->assertDatabaseCount('properties', 0);
     }
 
+    public function test_followup_preserves_exact_map_and_source_constraints_and_rejects_model_changes_to_them(): void
+    {
+        $scope = ['governorate' => 'تعز', 'advertiser_id' => 25, 'spotlight' => true,
+            'latitude' => 13.58, 'longitude' => 44.02, 'radius_km' => 10,
+            'south' => 13.5, 'west' => 44.0, 'north' => 13.7, 'east' => 44.2,
+            'area_polygon' => '[[44.0,13.5],[44.2,13.5],[44.1,13.7],[44.0,13.5]]'];
+        $this->model(['set' => ['max_price' => 400], 'remove' => []]);
+        $filters = $this->postJson('/api/ai/search', ['message' => 'الميزانية أربعمئة دولار',
+            'filters' => $scope + ['purpose' => 'rent', 'currency' => 'USD'], 'revision' => 1])
+            ->assertOk()->assertJsonPath('data.filters.max_price', 400)->json('data.filters');
+        foreach ($scope as $key => $value) $this->assertEquals($value, $filters[$key]);
+        foreach ([['set' => ['advertiser_id' => 99], 'remove' => []],
+            ['set' => (object) [], 'remove' => ['area_polygon']]] as $invalid) {
+            $this->model($invalid);
+            $this->postJson('/api/ai/search', ['message' => 'تابع', 'filters' => $filters, 'revision' => 2])
+                ->assertStatus(503)->assertJsonPath('code', 'ai_unavailable');
+        }
+        $this->assertDatabaseCount('properties', 0);
+    }
+
     public function test_contextual_suggestions_and_manual_filters_are_checked_server_side(): void
     {
         $this->model(['set' => ['type' => 'land'], 'remove' => []]);
@@ -132,8 +152,10 @@ class Wave3AiAssistantTest extends TestCase
         $this->model(['fact_order' => ['type', 'purpose', 'area_value', 'bedrooms'], 'tone' => 'direct']);
         $r = $this->withHeaders($headers)->postJson('/api/ai/listing-description', ['facts' => ['type' => 'apartment', 'purpose' => 'sale',
             'area_value' => 150, 'area_unit' => 'sqm', 'bedrooms' => 3]])->assertOk()->assertJsonPath('data.requires_review', true);
-        $this->assertStringContainsString('المساحة: 150 م²', $r->json('data.description'));
-        $this->assertStringContainsString('غرف النوم: 3', $r->json('data.description'));
+        $this->assertStringContainsString('تبلغ مساحتها 150 م²', $r->json('data.description'));
+        $this->assertStringContainsString('3 غرف نوم', $r->json('data.description'));
+        $this->assertStringNotContainsString('غرف النوم:', $r->json('data.description'));
+        $this->assertStringNotContainsString('تعرّف على هذا العقار', $r->json('data.description'));
         $this->assertStringNotContainsString('مصعد', $r->json('data.description'));
         $this->assertDatabaseCount('properties', 0);
     }

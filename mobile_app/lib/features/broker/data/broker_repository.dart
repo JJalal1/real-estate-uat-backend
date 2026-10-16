@@ -48,8 +48,10 @@ class BrokerRepository {
     return BrokerPage(items: brokerRows(body['data']).map(parse).toList(), page: brokerInt(meta['current_page']) == 0 ? 1 : brokerInt(meta['current_page']),
       lastPage: brokerInt(meta['last_page']) == 0 ? 1 : brokerInt(meta['last_page']));
   }
-  Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15}) async =>
-    _page(await _get('/brokers', public: true, query: {'page': page, 'per_page': perPage, if (governorate != null) 'governorate': governorate}), BrokerProfile.fromJson);
+  Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15, bool regionOnly = false, String? search, String? specialty, String? accountType, double? minRating}) async =>
+    _page(await _get('/brokers', public: true, query: {'page': page, 'per_page': perPage, if (governorate != null) 'governorate': governorate, if (regionOnly) 'region_only': 1,
+      if (search?.trim().isNotEmpty == true) 'search': search!.trim(), if (specialty?.isNotEmpty == true) 'specialty': specialty,
+      if (accountType != null) 'account_type': accountType, if (minRating != null) 'min_rating': minRating}), BrokerProfile.fromJson);
   Future<BrokerProfile> profile(int id) async => BrokerProfile.fromJson(brokerMap((await _get('/advertisers/$id/profile', public: true))['data']));
   Future<Map<String, dynamic>> workspace() async => brokerMap((await _get('/broker/workspace'))['data']);
   Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) async =>

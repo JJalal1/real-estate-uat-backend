@@ -22,6 +22,10 @@ import '../../properties/data/favorites_repository.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_marker.dart';
 import '../../properties/presentation/saved_search_builder_screen.dart';
+import '../../properties/presentation/property_compare_actions.dart';
+import '../../discovery/data/smart_search_session.dart';
+import '../../discovery/domain/smart_search_filters.dart';
+import '../../discovery/presentation/smart_search_assistant.dart';
 
 const double mapPropertyPriceIconSize = 1.0;
 
@@ -157,8 +161,10 @@ class NearbyQuery {
     this.west,
     this.north,
     this.east,
+    this.extraFilters = const {},
   });
 
+  final Map<String, dynamic> extraFilters;
   final LatLng center;
   final double radiusKm;
   final String? purpose;
@@ -194,7 +200,8 @@ class NearbyQuery {
             other.south == south &&
             other.west == west &&
             other.north == north &&
-            other.east == east;
+            other.east == east && other.extraFilters.length == extraFilters.length &&
+            extraFilters.entries.every((entry) => other.extraFilters[entry.key] == entry.value);
   }
 
   @override
@@ -215,6 +222,7 @@ class NearbyQuery {
         west,
         north,
         east,
+        Object.hashAllUnordered(extraFilters.entries.map((entry) => Object.hash(entry.key, entry.value))),
       ]);
 }
 
@@ -222,6 +230,19 @@ final nearbyPropertiesProvider =
     FutureProvider.autoDispose.family<List<PropertyMarker>, NearbyQuery>(
   (ref, query) {
     ref.watch(propertyDataRevisionProvider);
+    if (query.extraFilters.isNotEmpty) {
+      return ref.watch(propertyRepositoryProvider).nearbyFiltered({
+      ...query.extraFilters, 'latitude': query.center.latitude, 'longitude': query.center.longitude, 'radius_km': query.radiusKm,
+      if (query.purpose != null) 'purpose': query.purpose, if (query.type != null) 'type': query.type,
+      if (query.minPrice != null) (query.purpose == 'rent' ? 'min_monthly_rent' : 'min_price'): query.minPrice,
+      if (query.maxPrice != null) (query.purpose == 'rent' ? 'max_monthly_rent' : 'max_price'): query.maxPrice,
+      if (query.minBedrooms != null) 'min_bedrooms': query.minBedrooms, if (query.minBathrooms != null) 'min_bathrooms': query.minBathrooms,
+      if (query.minArea != null) 'min_area_m2': query.minArea, if (query.maxArea != null) 'max_area_m2': query.maxArea,
+      if (query.search?.isNotEmpty == true) 'search': query.search,
+      if (query.south != null) 'south': query.south, if (query.west != null) 'west': query.west,
+      if (query.north != null) 'north': query.north, if (query.east != null) 'east': query.east,
+    });
+    }
     return ref.watch(propertyRepositoryProvider).nearby(
           latitude: query.center.latitude,
           longitude: query.center.longitude,
@@ -244,9 +265,10 @@ final nearbyPropertiesProvider =
 );
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({this.initialLatitude, this.initialLongitude, this.initialType, super.key});
+  const MapScreen({this.initialLatitude, this.initialLongitude, this.initialType, this.initialFilters, super.key});
   final double? initialLatitude, initialLongitude;
   final String? initialType;
+  final SmartSearchFilters? initialFilters;
   bool get hasInitialLocation => initialLatitude != null && initialLongitude != null &&
       initialLatitude!.isFinite && initialLongitude!.isFinite &&
       initialLatitude!.abs() <= 90 && initialLongitude!.abs() <= 180;
@@ -290,6 +312,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final TextEditingController _searchController = TextEditingController();
   final PropertyDiscoveryHistoryStore _historyStore = const PropertyDiscoveryHistoryStore();
   String _searchText = '';
+  double _radiusKm = _defaultRadiusKm;
+  Map<String, dynamic> _extraFilters = const {};
+  bool _sharedSessionLinked = false;
   List<String> _recentSearches = const <String>[];
 
   bool _styleLoaded = false;
@@ -304,8 +329,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     super.initState();
     if (widget.hasInitialLocation) _center = LatLng(widget.initialLatitude!, widget.initialLongitude!);
     if (const ['apartment', 'house', 'villa', 'building', 'land', 'shop', 'office', 'farm'].contains(widget.initialType)) _filterType = widget.initialType;
+    if (widget.initialFilters != null) { _sharedSessionLinked = true; _applySharedFilters(widget.initialFilters!); }
     unawaited(_restoreDiscoveryHistory());
-    if (!widget.hasInitialLocation) _loadCurrentLocation();
+    if (!widget.hasInitialLocation && widget.initialFilters == null) _loadCurrentLocation();
   }
 
   @override
@@ -318,7 +344,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Future<void> _restoreDiscoveryHistory() async {
     final history = await _historyStore.load();
     if (!mounted) return;
-    if (widget.hasInitialLocation || widget.initialType != null) {
+    if (widget.hasInitialLocation || widget.initialType != null || widget.initialFilters != null) {
       setState(() => _recentSearches = history.recentSearches);
       return;
     }
@@ -374,6 +400,61 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
     );
   }
+
+  void _applySharedFilters(SmartSearchFilters filters) {
+    final values = filters.values;
+    _filterPurpose = _historyString(values['purpose']); _filterType = _historyString(values['type']);
+    _filterMinPrice = _historyDouble(values['min_price']); _filterMaxPrice = _historyDouble(values['max_price']);
+    _filterMinBedrooms = _historyInt(values['min_bedrooms']); _filterMinBathrooms = _historyInt(values['min_bathrooms']);
+    _filterMinArea = _historyDouble(values['min_area_m2']); _filterMaxArea = _historyDouble(values['max_area_m2']);
+    _searchText = _historyString(values['search']) ?? ''; _searchController.text = _searchText;
+    _radiusKm = _historyDouble(values['radius_km']) ?? _defaultRadiusKm;
+    final lat = _historyDouble(values['latitude']), lon = _historyDouble(values['longitude']);
+    if (lat != null && lon != null) _center = LatLng(lat, lon);
+    _selectedAreaGeometry = null; _selectedAreaBounds = null;
+    if (values['area_polygon'] is String) {
+      try { _selectedAreaGeometry = MapAreaGeometry.fromEncodedRing(values['area_polygon'] as String); } catch (_) { /* Server validation remains authoritative. */ }
+      _selectedAreaBounds = _selectedAreaGeometry?.bounds;
+      if (lat == null && _selectedAreaGeometry != null) _center = _selectedAreaGeometry!.center;
+    } else if (values['south'] is num && values['west'] is num && values['north'] is num && values['east'] is num) {
+      _selectedAreaBounds = LatLngBounds(southwest: LatLng((values['south'] as num).toDouble(), (values['west'] as num).toDouble()),
+        northeast: LatLng((values['north'] as num).toDouble(), (values['east'] as num).toDouble()));
+      if (lat == null) _center = LatLng(((values['south'] as num) + (values['north'] as num)) / 2, ((values['west'] as num) + (values['east'] as num)) / 2);
+    }
+    _extraFilters = Map.unmodifiable(Map<String, dynamic>.from(values)..removeWhere((key, _) => const {
+      'purpose','type','min_price','max_price','min_bedrooms','min_bathrooms','min_area_m2','max_area_m2','search',
+      'latitude','longitude','radius_km','south','west','north','east','area_polygon'}.contains(key)));
+    _selected = null; _lastMarkerSignature = '';
+  }
+
+  SmartSearchFilters _currentSmartFilters() => SmartSearchFilters.fromMap({
+    ..._extraFilters, ..._discoveryHistorySnapshot(), 'latitude': _center.latitude, 'longitude': _center.longitude, 'radius_km': _radiusKm,
+    if (_selectedAreaGeometry != null) 'area_polygon': _selectedAreaGeometry!.encodedRing,
+    if (_selectedAreaBounds != null) ...{
+      'south': _selectedAreaBounds!.southwest.latitude, 'west': _selectedAreaBounds!.southwest.longitude,
+      'north': _selectedAreaBounds!.northeast.latitude, 'east': _selectedAreaBounds!.northeast.longitude,
+    },
+  });
+
+  Future<void> _openSmartSearch() async {
+    _sharedSessionLinked = true;
+    ref.read(smartSearchSessionProvider.notifier).replaceManually(_currentSmartFilters());
+    if (widget.initialFilters != null) { Navigator.of(context).pop(); return; }
+    await context.push('/smart-search');
+    if (!mounted) return;
+    setState(() => _applySharedFilters(ref.read(smartSearchSessionProvider).filters));
+    _persistDiscoveryHistory();
+    await _renderSelectedAreaAnnotations();
+  }
+
+  Widget _withSharedSession(Widget child) => PopScope(
+    onPopInvokedWithResult: (didPop, _) {
+      if (didPop && _sharedSessionLinked) {
+        final filters = _currentSmartFilters(), current = ref.read(smartSearchSessionProvider).filters.values;
+        if (current.length != filters.values.length || !filters.values.entries.every((entry) => current[entry.key] == entry.value)) ref.read(smartSearchSessionProvider.notifier).replaceManually(filters);
+      }
+    }, child: child,
+  );
 
   Future<void> _loadCurrentLocation() async {
     try {
@@ -711,6 +792,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   void _resetFilters() {
     setState(() {
+      _extraFilters = const {};
       _filterPurpose = null;
       _filterType = null;
       _filterMinPrice = null;
@@ -726,7 +808,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   int get _filterCount {
-    var count = 0;
+    var count = _extraFilters.length;
     if (_filterPurpose != null) count++;
     if (_filterType != null) count++;
     if (_filterMinPrice != null || _filterMaxPrice != null) count++;
@@ -994,35 +1076,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
 
-  Map<String, dynamic> _currentSavedSearchFilters() {
-    final bounds = _selectedAreaBounds;
-    final filters = <String, dynamic>{
-      if (_filterPurpose != null) 'purpose': _filterPurpose,
-      if (_filterType != null) 'type': _filterType,
-      if (_filterMinPrice != null) 'min_price': _filterMinPrice,
-      if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
-      if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
-      if (_filterMinBathrooms != null) 'min_bathrooms': _filterMinBathrooms,
-      if (_filterMinArea != null) 'min_area_m2': _filterMinArea,
-      if (_filterMaxArea != null) 'max_area_m2': _filterMaxArea,
-      if (_searchText.trim().isNotEmpty) 'search': _searchText.trim(),
-    };
-    if (bounds != null) {
-      filters.addAll({
-        'south': bounds.southwest.latitude,
-        'west': bounds.southwest.longitude,
-        'north': bounds.northeast.latitude,
-        'east': bounds.northeast.longitude,
-      });
-    } else {
-      filters.addAll({
-        'latitude': _center.latitude,
-        'longitude': _center.longitude,
-        'radius_km': _defaultRadiusKm,
-      });
-    }
-    return filters;
-  }
+  Map<String, dynamic> _currentSavedSearchFilters() => _currentSmartFilters().apiFilters;
 
   Future<void> _saveCurrentSearch() async {
     final user = ref.read(authControllerProvider).asData?.value;
@@ -1045,7 +1099,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => SavedSearchBuilderScreen(
-          initialFilters: _currentSavedSearchFilters(),
+          initialFilters: _currentSavedSearchFilters(), fixedFilters: true,
         ),
       ),
     );
@@ -1064,9 +1118,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final bounds = _selectedAreaBounds;
+    final effective = Map<String, dynamic>.from(_currentSmartFilters().apiFilters)..removeWhere((key, _) => const {
+      'purpose','type','min_price','max_price','min_monthly_rent','max_monthly_rent','min_bedrooms','min_bathrooms','min_area_m2','max_area_m2','search',
+      'latitude','longitude','radius_km','south','west','north','east'}.contains(key));
     final query = NearbyQuery(
       center: _center,
-      radiusKm: _defaultRadiusKm,
+      radiusKm: _radiusKm,
+      extraFilters: effective,
       purpose: _filterPurpose,
       type: _filterType,
       minPrice: _filterMinPrice,
@@ -1098,15 +1156,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
 
     if (_listMode) {
-      return _buildListMode(properties, query, favoriteIds);
+      return _withSharedSession(_buildListMode(properties, query, favoriteIds));
     }
 
     final apiError = properties.asError?.error;
 
-    return Directionality(
+    return _withSharedSession(Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        body: Stack(
+        body: SmartSearchAssistantLayer(enabled: !_selectingArea, showComparisonTray: false, bottom: _selected == null ? 94 : 290, onPressed: _openSmartSearch, child: Stack(
           fit: StackFit.expand,
           children: [
             Positioned.fill(child: _buildMap()),
@@ -1140,9 +1198,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 child: _MessageCard(text: _mapMessage!),
               ),
           ],
-        ),
+        )),
       ),
-    );
+    ));
   }
 
   Widget _buildMap() {
@@ -1187,11 +1245,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _buildMapControls() {
     return PositionedDirectional(
-      end: 12,
+      start: 12,
       bottom: 86,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          Material(elevation: 3, color: Colors.white, borderRadius: BorderRadius.circular(16), child: TextButton.icon(
+            key: const ValueKey('map-smart-search'), onPressed: _openSmartSearch, icon: const SmartSearchRobotIcon(), label: const Text('بحث ذكي'))),
+          const SizedBox(height: 8),
           Material(
             elevation: 5,
             color: Colors.white,
@@ -1443,7 +1504,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        body: Column(
+        body: SmartSearchAssistantLayer(onPressed: _openSmartSearch, child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
@@ -1499,7 +1560,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               child: _buildListContent(properties, query, favoriteIds),
             ),
           ],
-        ),
+        )),
         bottomNavigationBar: SafeArea(
           top: false,
           child: Padding(
@@ -1527,7 +1588,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   ) {
     return properties.when(
       loading: () => ListView.separated(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 18),
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 110),
         itemCount: 4,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (_, __) => const _LoadingPropertyCard(),
@@ -2146,6 +2207,7 @@ class _PropertyResultCard extends StatelessWidget {
         if (property.priceDisplayNote != null)
           Padding(padding: const EdgeInsets.symmetric(horizontal: 8),
             child: EbrokerText(property.priceDisplayNote!, size: 11)),
+        PropertyCompareAction(propertyId: property.id),
         TextButton.icon(onPressed: onMap,
           icon: EbrokerImage('location', size: 18, color: scheme.primary),
           label: const Text('عرض على الخريطة')),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/ebroker_widgets.dart';
+import 'smart_search_assistant.dart';
 import '../data/smart_search_session.dart';
 
 /// A lightweight entry to the existing search session, shared with My Account.
@@ -28,7 +28,7 @@ class HomeAiSearchEntry extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
-      icon: const EbrokerIcon(Icons.auto_awesome_outlined, size: 20),
+      icon: const SmartSearchRobotIcon(size: 24),
       label: const Text('بحث ذكي'),
     );
   }

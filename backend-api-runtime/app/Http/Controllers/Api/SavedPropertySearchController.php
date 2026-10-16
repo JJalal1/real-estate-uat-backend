@@ -34,6 +34,7 @@ class SavedPropertySearchController extends Controller
         $user = $request->user();
         $validated = $request->validate($this->rules(false));
         $filters = $this->searches->normalizeFilters((array) $validated['filters']);
+        app(\App\Services\PropertyDiscoveryFilterService::class)->validateGeometry($filters);
         $fingerprint = $this->searches->fingerprint($filters);
 
         $existing = SavedPropertySearch::query()
@@ -73,6 +74,7 @@ class SavedPropertySearchController extends Controller
 
         if (array_key_exists('filters', $validated)) {
             $filters = $this->searches->normalizeFilters((array) $validated['filters']);
+            app(\App\Services\PropertyDiscoveryFilterService::class)->validateGeometry($filters);
             $row->filters = $filters;
             $row->fingerprint = $this->searches->fingerprint($filters);
             $row->last_match_property_id = $this->searches->latestMatchId($filters);
@@ -115,28 +117,21 @@ class SavedPropertySearchController extends Controller
     private function rules(bool $partial): array
     {
         $required = $partial ? ['sometimes'] : ['required'];
-        return [
+        $filterRules = app(\App\Services\PropertyDiscoveryFilterService::class)->rules();
+        $rules = [
             'name' => array_merge($required, ['string', 'max:120']),
             'alert_frequency' => ['sometimes', Rule::in(SavedPropertySearchService::ALERT_FREQUENCIES)],
             'is_active' => ['sometimes', 'boolean'],
-            'filters' => array_merge($required, ['array']),
-            'filters.search' => ['nullable', 'string', 'max:120'],
-            'filters.purpose' => ['nullable', Rule::in(SavedPropertySearchService::PURPOSES)],
-            'filters.type' => ['nullable', Rule::in(SavedPropertySearchService::TYPES)],
-            'filters.min_price' => ['nullable', 'numeric', 'min:0'],
-            'filters.max_price' => ['nullable', 'numeric', 'min:0'],
-            'filters.min_bedrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
-            'filters.min_bathrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
-            'filters.min_area_m2' => ['nullable', 'numeric', 'min:0'],
-            'filters.max_area_m2' => ['nullable', 'numeric', 'min:0'],
-            'filters.latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'filters.longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'filters.radius_km' => ['nullable', 'numeric', 'min:0.1', 'max:100'],
-            'filters.south' => ['nullable', 'numeric', 'between:-90,90'],
-            'filters.west' => ['nullable', 'numeric', 'between:-180,180'],
-            'filters.north' => ['nullable', 'numeric', 'between:-90,90'],
-            'filters.east' => ['nullable', 'numeric', 'between:-180,180'],
+            'filters' => array_merge($required, ['array:'.implode(',', array_keys($filterRules))]),
         ];
+        foreach ($filterRules as $key => $constraints) {
+            $rules['filters.'.$key] = array_map(
+                fn ($rule) => is_string($rule) && str_starts_with($rule, 'gte:')
+                    ? 'gte:filters.'.substr($rule, 4) : $rule,
+                $constraints,
+            );
+        }
+        return $rules;
     }
 
     private function data(SavedPropertySearch $row): array

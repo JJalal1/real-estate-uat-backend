@@ -88,6 +88,7 @@ Route::get('/services/catalog', [ServicePaymentController::class, 'catalog']);
 Route::get('/properties/{property}/services', [ServicePaymentController::class, 'propertyServices']);
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
+    Route::get('/properties/{property}/contact', \App\Http\Controllers\Api\PropertyContactController::class)->middleware('throttle:12,1');
     Route::post('/ai/listing-fields', [AiAssistantController::class, 'extract'])->middleware('throttle:8,1');
     Route::post('/ai/listing-draft', [AiAssistantController::class, 'draft'])->middleware('throttle:8,1');
     Route::post('/ai/rental-conditions', [AiAssistantController::class, 'rentalConditions'])->middleware('throttle:8,1');

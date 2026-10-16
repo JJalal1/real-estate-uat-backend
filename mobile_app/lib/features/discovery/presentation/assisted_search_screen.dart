@@ -11,6 +11,10 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
 import '../domain/smart_search_filters.dart';
 import 'smart_search_filter_editor.dart';
+import 'smart_search_assistant.dart';
+import '../../properties/presentation/save_search_action.dart';
+import '../../properties/presentation/property_compare_actions.dart';
+import '../../map/presentation/map_screen.dart';
 
 class AssistedSearchScreen extends ConsumerStatefulWidget {
   const AssistedSearchScreen({super.key});
@@ -20,6 +24,8 @@ class AssistedSearchScreen extends ConsumerStatefulWidget {
 
 class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   final _description = TextEditingController();
+  final _scroll = ScrollController();
+  final _focus = FocusNode();
   late final VoiceCaptureController _capture;
   String _voiceDraft = '';
 
@@ -36,7 +42,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     setState(() {});
   }
   @override
-  void dispose() { _capture.removeListener(_voiceChanged); _capture.dispose(); _description.dispose(); super.dispose(); }
+  void dispose() { _capture.removeListener(_voiceChanged); _capture.dispose(); _description.dispose(); _scroll.dispose(); _focus.dispose(); super.dispose(); }
 
   Future<void> _send() async {
     final text = _description.text.trim();
@@ -68,9 +74,16 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
 
   Future<void> _edit({String? focus}) async {
     if (_capture.active) _cancelVoice();
+    if (focus == 'map_area') { await _openMap(); return; }
     final next = await AppBottomSheet.show<SmartSearchFilters>(context,
       builder: (_) => SmartSearchFilterEditor(initial: ref.read(smartSearchSessionProvider).filters, focus: focus));
     if (next != null && mounted) ref.read(smartSearchSessionProvider.notifier).replaceManually(next);
+  }
+
+  Future<void> _openMap() async {
+    if (_capture.active) _cancelVoice();
+    await Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) =>
+      MapScreen(initialFilters: ref.read(smartSearchSessionProvider).filters)));
   }
 
   @override
@@ -90,13 +103,15 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           _cancelVoice(); _capture.clearError(); _description.clear(); controller.reset();
         }, child: const Text('بدء بحث جديد')),
       ]),
-      body: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 28), children: [
+      body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active, onPressed: () {
+        _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut); _focus.requestFocus();
+      }, child: ListView(controller: _scroll, padding: const EdgeInsets.fromLTRB(18, 12, 18, 110), children: [
         Text('مكان يناسبك', style: theme.textTheme.headlineSmall),
         const SizedBox(height: 6),
         const Text('صف ما تبحث عنه، ثم أكمل طلبك أو عدّل أي شرط.'),
         const SizedBox(height: 18),
         AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          TextField(key: const ValueKey('smart-search-description'), controller: _description,
+          TextField(key: const ValueKey('smart-search-description'), controller: _description, focusNode: _focus,
             readOnly: _capture.active || state.interpreting,
             minLines: 2, maxLines: 4, maxLength: 5000, textInputAction: TextInputAction.search,
             onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
@@ -124,6 +139,12 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 36), child: InputChip(
             key: ValueKey('smart-chip-${chip.$1}'), label: Text(chip.$2, maxLines: 1, overflow: TextOverflow.ellipsis),
             onPressed: () => _edit(focus: chip.$1), onDeleted: () { if (_capture.active) _cancelVoice(); controller.remove(chip.$1); }, deleteButtonTooltipMessage: 'إزالة ${chip.$2}')),
+        ]),
+        Wrap(spacing: 8, children: [
+          TextButton.icon(key: const ValueKey('smart-search-save'), onPressed: _capture.active || state.interpreting ? null : () => saveSearchFilters(context, ref, state.filters.apiFilters),
+            icon: const Icon(Icons.bookmark_add_outlined, size: 18), label: const Text('حفظ البحث والتنبيه')),
+          TextButton.icon(key: const ValueKey('smart-search-map'), onPressed: _capture.active || state.interpreting ? null : _openMap,
+            icon: const Icon(Icons.map_outlined, size: 18), label: const Text('تحديد النطاق على الخريطة')),
         ]),
         if (state.message.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(state.message, style: theme.textTheme.bodySmall)),
         const SizedBox(height: 10),
@@ -154,11 +175,12 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
               facts: [if (row.bedrooms != null) AppPropertyFact(icon: Icons.bed_outlined, label: '${row.bedrooms} غرف'), if (row.areaM2 != null) AppPropertyFact(icon: Icons.square_foot, label: '${row.areaM2} م²'), if (row.floorNumber != null) AppPropertyFact(icon: Icons.layers_outlined, label: row.floorNumber!)],
               categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? (row.monthlyRent == null ? 'للإيجار' : 'إيجار شهري') : 'للبيع',
               onTap: () => context.push('/properties/${row.id}')),
+            PropertyCompareAction(propertyId: row.id, enabled: row.status == 'published'),
             if (row.priceDisplayNote != null && (row.monthlyRent == null || row.priceDisplayNote!.contains('السعي'))) Text(row.priceDisplayNote!, style: theme.textTheme.bodySmall),
           ])),
           if (state.more && state.resultsError == null) TextButton(onPressed: state.loading ? null : () => controller.search(more: true), child: const Text('المزيد من العقارات')),
         ],
-      ]),
+      ])),
     ));
   }
 }

@@ -13,9 +13,11 @@ void main() {
     expect(source, contains("'purpose': _filterPurpose"));
     expect(source, contains("'min_price': _filterMinPrice"));
     expect(source, contains("'search': _searchText.trim()"));
-    expect(source, contains("'south': bounds.southwest.latitude"));
+    expect(source, contains("'south': _selectedAreaBounds!.southwest.latitude"));
     expect(source, contains("'latitude': _center.latitude"));
-    expect(source, contains("'radius_km': _defaultRadiusKm"));
+    expect(source, contains("'radius_km': _radiusKm"));
+    expect(source, contains('encodedRing'));
+    expect(source, contains('_currentSmartFilters().apiFilters'));
     expect(source, contains('حفظ البحث الحالي'));
     expect(source, contains('حفظ البحث'));
   });
