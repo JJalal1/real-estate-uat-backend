@@ -1,0 +1,41 @@
+name: Active wave synthetic previews
+on:
+  push:
+    branches: [verification/active-wave-preview]
+permissions:
+  contents: read
+concurrency:
+  group: active-wave-ui-preflight
+  cancel-in-progress: true
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve original locked packages
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Strict analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Active-wave RTL and retained voice journeys
+        if: ${{ !cancelled() }}
+        working-directory: mobile_app
+        run: flutter test test/active_wave_discovery_test.dart test/in_app_voice_search_test.dart test/live_dictation_test.dart test/uat_comments_fix_test.dart test/ui_transplant_v3_home_test.dart test/ui_transplant_v3_template_test.dart
+      - name: Read bounded synthetic UI previews
+        if: ${{ !cancelled() }}
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: python3 -B scripts/emit_ci_ui_previews.py
