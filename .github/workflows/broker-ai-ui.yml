@@ -1,0 +1,26 @@
+name: Inspect broker assistant large text correction
+on:
+  push:
+    branches: [delivery/broker-ai-58-ui]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  preview:
+    name: Preview ${{ matrix.file }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        file: [assistant-completion.png, assistant-review-1.0.png, assistant-copy-1.0.png, assistant-copy-2.4.png]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read pinned synthetic UI image
+        env:
+          UI_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_broker_ai_ui.py --file '${{ matrix.file }}'
