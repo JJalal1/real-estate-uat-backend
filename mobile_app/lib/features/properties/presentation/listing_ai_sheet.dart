@@ -60,7 +60,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     if (!mounted) return;
     if (_capture.active && _capture.preview.isNotEmpty) {
       final text = appendDictation(_voiceDraft, _capture.preview);
-      _message.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+      if (_message.text != text) _message.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
     }
     setState(() {});
   }

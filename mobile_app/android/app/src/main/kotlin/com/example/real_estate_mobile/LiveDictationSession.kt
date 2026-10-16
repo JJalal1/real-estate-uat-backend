@@ -25,6 +25,7 @@ class LiveDictationSession(
     private var disposed = false
     private var cycle = 0
     private val restart = Runnable { if (!stopping && !disposed) listen() }
+    private val readyTimeout = Runnable { if (awaiting && !stopping) fail("SPEECH_UNAVAILABLE") }
     private val finishTimeout = Runnable { fail("SPEECH_NETWORK") }
 
     fun start() {
@@ -50,7 +51,7 @@ class LiveDictationSession(
         engine.setRecognitionListener(object : RecognitionListener {
             private fun current(): Boolean = !disposed && segment == cycle && awaiting
             override fun onReadyForSpeech(params: Bundle?) {
-                if (current() && !stopping) event("ready", emptyArray())
+                if (current() && !stopping) { handler.removeCallbacks(readyTimeout); event("ready", emptyArray()) }
             }
             override fun onBeginningOfSpeech() { if (current()) spoke = true }
             override fun onRmsChanged(rmsdB: Float) {
@@ -59,10 +60,12 @@ class LiveDictationSession(
             override fun onPartialResults(results: Bundle?) {
                 if (!current() || stopping) return
                 partial = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty().trim()
+                spoke = spoke || partial.isNotEmpty()
                 preview(text(partial))
             }
             override fun onResults(results: Bundle?) {
                 if (!current()) return
+                handler.removeCallbacks(readyTimeout)
                 awaiting = false; ++cycle
                 val value = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty().trim()
                 // Never promote a partial hypothesis when a spoken segment is lost.
@@ -74,6 +77,7 @@ class LiveDictationSession(
             }
             override fun onError(error: Int) {
                 if (!current()) return
+                handler.removeCallbacks(readyTimeout)
                 awaiting = false; ++cycle
                 val silence = (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH) && !spoke && partial.isEmpty()
                 if (silence) {
@@ -86,10 +90,11 @@ class LiveDictationSession(
                     else -> "SPEECH_UNAVAILABLE"
                 })
             }
-            override fun onEndOfSpeech() { /* Silence closes a segment, never this user session. */ }
+            override fun onEndOfSpeech() { if (current() && !stopping) event("level", arrayOf("level" to 0.0)) }
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
+        handler.postDelayed(readyTimeout, 10000L)
         try {
             engine.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -105,6 +110,7 @@ class LiveDictationSession(
         if (disposed || stopping) return
         stopping = true
         handler.removeCallbacks(restart)
+        handler.removeCallbacks(readyTimeout)
         if (!awaiting) { finish(); return }
         handler.postDelayed(finishTimeout, 12000L)
         try { recognizer?.stopListening() } catch (_: Exception) { fail("SPEECH_UNAVAILABLE") }
@@ -123,7 +129,7 @@ class LiveDictationSession(
     fun dispose() {
         if (disposed) return
         disposed = true; ++cycle; awaiting = false
-        handler.removeCallbacks(restart); handler.removeCallbacks(finishTimeout)
+        handler.removeCallbacks(restart); handler.removeCallbacks(finishTimeout); handler.removeCallbacks(readyTimeout)
         try { recognizer?.cancel() } catch (_: Exception) {}
         try { recognizer?.destroy() } catch (_: Exception) {}
         recognizer = null; partial = ""; completed.clear()

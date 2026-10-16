@@ -29,8 +29,10 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   }
   void _voiceChanged() {
     if (!mounted) return;
-    if (_capture.active && _capture.preview.isNotEmpty) _description.value = TextEditingValue(
-      text: appendDictation(_voiceDraft, _capture.preview), selection: TextSelection.collapsed(offset: appendDictation(_voiceDraft, _capture.preview).length));
+    if (_capture.active && _capture.preview.isNotEmpty) {
+      final text = appendDictation(_voiceDraft, _capture.preview);
+      if (_description.text != text) _description.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    }
     setState(() {});
   }
   @override

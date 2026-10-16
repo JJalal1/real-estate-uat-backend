@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,6 +48,29 @@ void main() {
     await event(id, 'final', text: 'ابحث في صنعاء للإيجار ثلاث غرف', complete: true);
     expect(await result, 'ابحث في صنعاء للإيجار ثلاث غرف'); expect(uploads, 0);
     expect(commands.last.method, 'release'); expect(capture.active, isFalse);
+  });
+
+  testWidgets('a device without dictation retains complete-clip transcription after explicit finish', (tester) async {
+    const channel = MethodChannel('real_estate/speech');
+    final commands = <MethodCall>[], paths = <String>[];
+    final uploaded = Completer<String>();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async { commands.add(call); return null; });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+    final capture = VoiceCaptureController(SystemVoiceInput(liveDictation: true, transcribe: (path, _) { paths.add(path); return uploaded.future; }));
+    addTearDown(capture.dispose);
+    Future<void> event(int id, String type, {String code = '', String path = ''}) async {
+      await tester.binding.defaultBinaryMessenger.handlePlatformMessage(channel.name,
+        const StandardMethodCodec().encodeMethodCall(MethodCall('event', {'id': id, 'type': type, 'code': code, 'path': path})), null);
+      await tester.pump();
+    }
+    final result = capture.start(); await tester.pump(); final id = (commands.first.arguments as Map)['id'] as int;
+    await event(id, 'mode', code: 'clip'); await event(id, 'ready');
+    expect(capture.liveDictation, isFalse);
+    await event(id, 'recorded', path: 'premature.m4a'); expect(paths, isEmpty);
+    capture.stop(); await tester.pump(); await event(id, 'recorded', path: 'whole.m4a');
+    expect(paths, ['whole.m4a']); expect(capture.transcript, isEmpty);
+    uploaded.complete('نص التسجيل كاملًا'); await tester.pump();
+    expect(await result, 'نص التسجيل كاملًا'); expect(commands.last.method, 'release');
   });
 
   testWidgets('an error never promotes a preview and cancellation rejects delayed results', (tester) async {
