@@ -1,0 +1,39 @@
+name: Private Wave5 verified build evidence
+on:
+  push:
+    branches: [delivery/wave5-52-evidence]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evidence:
+    name: Verify Wave5 APK 1052 metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read bounded tested build metadata
+        env:
+          APK_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_wave5_evidence.py
+  preview:
+    name: Preview ${{ matrix.file }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      max-parallel: 7
+      matrix:
+        file: [wave5-home.png, wave5-home-large.png, wave5-rental-conditions.png, refinement-inline-sai.png, refinement-wave4-specifications-content.png, voice-home-listening.png, voice-home-large-text.png]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read one bounded synthetic preview
+        env:
+          APK_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_wave5_evidence.py --preview '${{ matrix.file }}'
