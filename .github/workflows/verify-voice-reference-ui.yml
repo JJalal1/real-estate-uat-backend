@@ -1,0 +1,49 @@
+name: Voice reference targeted UI verification
+on:
+  push:
+    branches: [verification/voice-reference-63-ui]
+permissions:
+  contents: read
+jobs:
+  ui:
+    name: Pinned dictation and structured composer tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SOURCE_COMMIT: 2822ab45be21a6a715f0b0bafafce24fe449ff9f
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2822ab45be21a6a715f0b0bafafce24fe449ff9f
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve original locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Verify voice and listing contracts
+        working-directory: mobile_app
+        run: flutter test test/in_app_voice_search_test.dart test/live_dictation_test.dart test/broker_listing_assistant_test.dart test/wave3_ai_design_ui_test.dart
+      - name: Emit only bounded synthetic voice previews
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,json,os
+          from pathlib import Path
+          assert json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())['repository']['private'] is True
+          assert os.environ['SOURCE_COMMIT']=='2822ab45be21a6a715f0b0bafafce24fe449ff9f'
+          for name in ['voice-home-listening.png','voice-home-large-text.png','assistant-voice-inline-1.0.png','assistant-voice-inline-2.4.png','assistant-voice-controls-2.4.png']:
+              data=(Path('mobile_app/build/broker-preview')/name).read_bytes()
+              assert data.startswith(b'\x89PNG\r\n\x1a\n') and 0<len(data)<1000000
+              meta={'file':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'source_commit':os.environ['SOURCE_COMMIT']}
+              print('CODEX_PREVIEW_BEGIN '+json.dumps(meta,sort_keys=True))
+              for i,start in enumerate(range(0,len(data),6144)):
+                  print('CODEX_PREVIEW_DATA '+name+' '+str(i)+' '+base64.b64encode(data[start:start+6144]).decode())
+              print('CODEX_PREVIEW_END '+name)
+          PY
