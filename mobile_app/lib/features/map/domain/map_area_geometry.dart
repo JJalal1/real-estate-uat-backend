@@ -80,7 +80,7 @@ class MapAreaGeometry {
           longitude >= (xi < xj ? xi : xj) - 1.0e-10 &&
           longitude <= (xi > xj ? xi : xj) + 1.0e-10 &&
           latitude >= (yi < yj ? yi : yj) - 1.0e-10 &&
-          latitude <= (yi > yj ? yi : yj) + 1.0e-10) return true;
+          latitude <= (yi > yj ? yi : yj) + 1.0e-10) { return true; }
       final crosses = ((yi > latitude) != (yj > latitude)) &&
           (longitude <
               (xj - xi) *

@@ -230,7 +230,8 @@ final nearbyPropertiesProvider =
     FutureProvider.autoDispose.family<List<PropertyMarker>, NearbyQuery>(
   (ref, query) {
     ref.watch(propertyDataRevisionProvider);
-    if (query.extraFilters.isNotEmpty) return ref.watch(propertyRepositoryProvider).nearbyFiltered({
+    if (query.extraFilters.isNotEmpty) {
+      return ref.watch(propertyRepositoryProvider).nearbyFiltered({
       ...query.extraFilters, 'latitude': query.center.latitude, 'longitude': query.center.longitude, 'radius_km': query.radiusKm,
       if (query.purpose != null) 'purpose': query.purpose, if (query.type != null) 'type': query.type,
       if (query.minPrice != null) (query.purpose == 'rent' ? 'min_monthly_rent' : 'min_price'): query.minPrice,
@@ -241,6 +242,7 @@ final nearbyPropertiesProvider =
       if (query.south != null) 'south': query.south, if (query.west != null) 'west': query.west,
       if (query.north != null) 'north': query.north, if (query.east != null) 'east': query.east,
     });
+    }
     return ref.watch(propertyRepositoryProvider).nearby(
           latitude: query.center.latitude,
           longitude: query.center.longitude,
