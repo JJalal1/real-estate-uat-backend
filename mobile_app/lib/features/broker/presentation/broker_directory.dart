@@ -22,7 +22,7 @@ class BrokerGovernorateFilter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => DropdownButtonFormField<String>(
     value: ref.watch(brokerGovernorateProvider), isExpanded: true,
-    decoration: const InputDecoration(labelText: 'الدلالون حسب المحافظة'), hint: const Text('كل المحافظات'),
+    decoration: const InputDecoration(labelText: 'المحافظة'), hint: const Text('كل المحافظات'),
     items: [const DropdownMenuItem<String>(value: null, child: Text('كل المحافظات')),
       for (final name in YemenAdminDivisions.governorates) DropdownMenuItem(value: name, child: Text(name))],
     onChanged: (value) { ref.read(brokerGovernorateProvider.notifier).state = value; onChanged?.call(); },
@@ -58,8 +58,9 @@ class _BrokerDirectoryScreenState extends ConsumerState<BrokerDirectoryScreen> {
   @override
   Widget build(BuildContext context) => BrokerScaffold(appBar: const AppAppBar(title: 'تعرّف على الدلالين'), body: RefreshIndicator(
     onRefresh: () => _load(), child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
+      const Text('اسم الدلال أو المكتب'), const SizedBox(height: 8),
       TextField(key: const ValueKey('broker-directory-search'), controller: _search, textInputAction: TextInputAction.search, maxLength: 120,
-        decoration: const InputDecoration(labelText: 'اسم الدلال أو المكتب', prefixIcon: Icon(Icons.search), counterText: ''), onSubmitted: (_) => _load()),
+        decoration: const InputDecoration(hintText: 'ابحث بالاسم', prefixIcon: Icon(Icons.search), counterText: ''), onSubmitted: (_) => _load()),
       const SizedBox(height: 12), BrokerGovernorateFilter(onChanged: () => _load()), const SizedBox(height: 12),
       Wrap(spacing: 8, children: [for (final item in const [('الكل', null), ('دلالون', 'broker'), ('مكاتب', 'office')])
         FilterChip(label: Text(item.$1), selected: _accountType == item.$2, onSelected: (_) { setState(() => _accountType = item.$2); _load(); })]),

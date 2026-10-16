@@ -72,6 +72,7 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen> {
   Widget _table(BuildContext context, List<_CompareItem> items) {
     final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final width = scale > 1.4 ? 270.0 : 220.0;
+    final labelWidth = scale > 1.4 ? 260.0 : 130.0;
     final fields = <(String, String? Function(_CompareItem))>[
       ('السعر', (item) { final p = item.property; return p == null ? null : '${_number(p.purpose == 'rent' ? p.monthlyRent ?? p.price : p.price)} ${p.currency}${p.purpose == 'rent' && p.monthlyRent != null ? ' شهريًا' : ''}'; }),
       ('السعي', (item) => item.property == null ? null : item.sai?.sai?.displayText ?? 'تعذر تحميل السعي'),
@@ -92,12 +93,12 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen> {
     Widget cell(String text, {bool heading = false}) => Padding(padding: const EdgeInsets.all(14), child: Text(text,
       style: heading ? Theme.of(context).textTheme.titleSmall : Theme.of(context).textTheme.bodyMedium));
     return SingleChildScrollView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), child: SingleChildScrollView(scrollDirection: Axis.horizontal,
-      child: SizedBox(width: 130 + items.length * width, child: Table(
+      child: SizedBox(width: labelWidth + items.length * width, child: Table(
         defaultVerticalAlignment: TableCellVerticalAlignment.top,
-        columnWidths: {0: const FixedColumnWidth(130), for (var i = 1; i <= items.length; i++) i: FixedColumnWidth(width)},
+        columnWidths: {0: FixedColumnWidth(labelWidth), for (var i = 1; i <= items.length; i++) i: FixedColumnWidth(width)},
         border: TableBorder.all(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(12)),
         children: [
-          TableRow(children: [cell('قارن المواصفات', heading: true), for (final item in items) Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TableRow(children: [cell('المواصفات\nاسحب لرؤية بقية العقارات', heading: true), for (final item in items) Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (item.property != null) ClipRRect(borderRadius: BorderRadius.circular(8), child: AppPropertyMedia(imageUrl: item.property!.mainImage, height: 120)),
             const SizedBox(height: 8), Text(item.property?.title ?? 'العقار غير متاح حاليًا', style: Theme.of(context).textTheme.titleSmall),
             if (item.property == null) const Text('قد يكون الإعلان أوقف أو تعذر تحميله. يمكنك تحديث المقارنة.'),
