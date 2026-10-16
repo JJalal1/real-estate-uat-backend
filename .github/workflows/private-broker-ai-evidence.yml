@@ -1,0 +1,21 @@
+name: Private broker AI verified build evidence
+on:
+  push:
+    branches: [delivery/broker-ai-58-evidence]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evidence:
+    name: Verify broker AI APK 1058 metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read bounded tested build metadata
+        env:
+          APK_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_broker_ai_evidence_58.py
