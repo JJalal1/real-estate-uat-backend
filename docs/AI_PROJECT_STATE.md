@@ -2,6 +2,10 @@
 
 Last updated: 2026-10-16
 
+## Broker draft assistant — implementation candidate
+
+The owner delegated choosing and implementing broker AI assistance after1052. The candidate starts atfe1573e on `work/broker-ai-assistant-v1`. See `BROKER_AI_ASSISTANT_AR.md` for reviewed text/voice preparation, no-model recomposition after field deselection, local brief recovery, completion navigation, explicit copy, bounded cost-accounted retry and clearly labeled literal-text fallback. No property or financial write occurs in the assistant endpoint. CI/APK/deployment acceptance must be recorded after verification. The prior provider503 is not evidence of a fix.
+
 ## Wave5 deployed — APK1052, baseline1049
 
 The owner selected1049 as this wave's baseline and approved PR74 merge/UAT deployment on October16 at04:55 Asia/Aden. Tested source `10ee06afea31c50f3f914d9788de4873bde3db0c` passed all five CI52 jobs (`38833687176`). PR74 merged as `c309fa5d2a52a5010850478e551711e60077076b`; its entire tree exactly equals the tested tree `105a39d52bad8dd622a6e0cdbc0317a4fa453aba`. The existing free Frankfurt service is live at deploy `dep-db8oa4ff3r2c73eqm660`, finished2026-10-16T02:00:51Z. Read `WAVE5_1052_DEPLOYMENT_AR.md` for the final evidence and open AI-provider issue.

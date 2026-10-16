@@ -7,6 +7,7 @@ use App\Models\Property;
 use App\Services\GeminiClient;
 use App\Services\ListingAccessService;
 use App\Services\ListingAiService;
+use App\Services\ListingDraftService;
 use App\Services\SmartSearchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,6 +60,17 @@ class AiAssistantController extends Controller
         $ordered = array_map(fn ($i) => $rows[$i], $order);
         return response()->json(['data' => ['rental_conditions' => $ordered,
             'text' => implode('، ', $conditions->sentences($ordered)).'.', 'requires_review' => true]]);
+    }
+
+    public function draft(Request $request, ListingDraftService $service, ListingAiService $listing): JsonResponse
+    {
+        $this->advertiser($request);
+        $v = $request->validate(['mode' => ['required', 'in:prepare,copy'],
+            'message' => ['required_if:mode,prepare', 'nullable', 'string', 'max:1500'],
+            'facts' => ['present', 'array'], 'property_id' => ['nullable', 'integer', 'min:1']]);
+        $facts = $listing->facts($v['facts']);
+        $result = $v['mode'] === 'copy' ? $service->copy($facts) : $service->prepare(trim($v['message']), $facts);
+        return response()->json(['data' => $result])->header('Cache-Control', 'no-store');
     }
 
     public function extract(Request $request, ListingAiService $service): JsonResponse

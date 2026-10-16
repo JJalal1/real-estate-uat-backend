@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1]
   workflow_dispatch:
 permissions:
   contents: read
@@ -150,7 +150,7 @@ jobs:
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Gemini boundaries and marketplace presentation on PostgreSQL
         run: >-
-          php artisan test tests/Feature/Wave3AiAssistantTest.php tests/Feature/Wave3DesignApiTest.php
+          php artisan test tests/Feature/Wave3AiAssistantTest.php tests/Feature/BrokerListingAssistantTest.php tests/Feature/Wave3DesignApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
 
   runtime:
@@ -218,6 +218,7 @@ jobs:
           test/wave3_personal_listing_test.dart
           test/wave3_ai_session_test.dart
           test/wave3_ai_design_ui_test.dart
+          test/broker_listing_assistant_test.dart
           test/wave4_listing_ui_test.dart
           test/wave4_sai_consent_test.dart
           test/in_app_voice_search_test.dart

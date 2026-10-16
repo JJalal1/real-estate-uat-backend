@@ -90,6 +90,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _mediaPicker = const Stage5MediaPicker();
   final _title = TextEditingController();
   final _description = TextEditingController();
+  final _assistantBrief = TextEditingController();
   final _price = TextEditingController();
   final _monthlyRent = TextEditingController();
   final _rentalTermMonths = TextEditingController();
@@ -148,7 +149,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Map<String, TextEditingController> get _recoveryFields => {
     'broker_sai_rate_percent': _saiRate,
     'fixed_sai_amount': _saiAmount,
-    'title': _title, 'description': _description, 'price': _price, 'monthly_rent': _monthlyRent,
+    'title': _title, 'description': _description, 'ai_listing_brief': _assistantBrief, 'price': _price, 'monthly_rent': _monthlyRent,
     'rental_term_months': _rentalTermMonths, 'advance_months': _advanceMonths, 'area': _area,
     'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'district': _district,
     'street': _street, 'building_reference': _buildingReference, 'unit_number': _unitNumber,
@@ -419,6 +420,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _saiAmount,
       _title,
       _description,
+      _assistantBrief,
       _price,
       _monthlyRent,
       _rentalTermMonths,
@@ -455,7 +457,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       child: Scaffold(
         appBar: AppAppBar(
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
-          actions: [Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
+          actions: [IconButton(key: const ValueKey('listing-completion'), tooltip: 'نواقص الإعلان',
+            onPressed: _busy ? null : _reviewCompletion, icon: const EbrokerIcon(Icons.fact_check_outlined)),
+            Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
             child: EbrokerText('${_step + 1}/4', size: 16, weight: FontWeight.w600,
               color: Theme.of(context).colorScheme.primary)))],
         ),
@@ -518,6 +522,16 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        AppSurface(key: const ValueKey('listing-draft-assistant-entry'), child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('جهّز إعلانك أسرع', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 6),
+            const Text('صف العقار بالنص أو الصوت، وراجع مسودة مرتبة قبل إكمالها.'),
+            TextButton.icon(key: const ValueKey('listing-draft-assistant'),
+              onPressed: _busy ? null : () => _assist(prepareDraft: true),
+              icon: const EbrokerIcon(Icons.auto_awesome_outlined, size: 20), label: const Text('تجهيز مسودة بالمساعد')),
+          ])),
+        const SizedBox(height: AppSpacing.s16),
         const AppSectionHeader(
           title: 'نوع الإعلان والعقار',
           subtitle: 'اختر الغرض والنوع واكتب عنوانًا واضحًا.',
@@ -1241,7 +1255,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (effectiveImageCount < 1) {
       return 'أضف صورة واحدة على الأقل قبل إرسال الإعلان للمراجعة.';
     }
+    return _ownershipValidation();
+  }
 
+  String? _ownershipValidation() {
     final user = ref.read(authControllerProvider).asData?.value;
     if (user?.isOwner == true) {
       if (_ownershipDocumentType == null) {
@@ -1268,6 +1285,80 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return null;
   }
 
+  List<(int, String)> _completionGaps() {
+    final gaps = <(int, String)>[];
+    for (var step = 0; step < 4; step++) {
+      final message = _validationMessageForStep(step);
+      if (message != null) gaps.add((step, message));
+    }
+    final images = (_replaceImages ? 0 : (_existing?.images.length ?? 0)) + _imagePaths.length;
+    if (images == 0 && !gaps.any((gap) => gap.$2.contains('صور'))) {
+      gaps.add((2, 'أضف صورًا حقيقية للعقار قبل المتابعة.'));
+    }
+    if (_validationMessageForStep(3) == null && !_isSaiReady && _inlineSaiValidation != null) {
+      gaps.add((3, _inlineSaiValidation!));
+    }
+    final ownership = _ownershipValidation();
+    if (ownership != null) gaps.add((1, ownership));
+    gaps.sort((a, b) => a.$1.compareTo(b.$1));
+    return gaps;
+  }
+
+  void _goToCompletionStep(int target) {
+    for (var step = 0; step < target; step++) {
+      final message = _validationMessageForStep(step);
+      if (message != null) {
+        setState(() => _step = step);
+        _message(message);
+        return;
+      }
+    }
+    setState(() => _step = target);
+  }
+
+  Future<void> _reviewCompletion() async {
+    FocusScope.of(context).unfocus();
+    final gaps = _completionGaps();
+    final target = await AppBottomSheet.show<int>(context, builder: (sheet) => Directionality(
+      textDirection: TextDirection.rtl,
+      child: SizedBox(height: MediaQuery.sizeOf(sheet).height * .68,
+        child: ListView(padding: const EdgeInsets.all(18), children: [
+          Text('أكمل إعلانك بسرعة', style: Theme.of(sheet).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          const Text('انتقل لما يحتاج إكمالًا. يبقى اعتماد الإعلان بعد إرساله لمراجعة المنصة.'),
+          const SizedBox(height: 16),
+          if (gaps.isEmpty) const AppInlineMessage(message: 'متطلبات النموذج مكتملة. راجع النص والصور قبل الإرسال.', tone: AppStatusTone.info),
+          for (var i = 0; i < gaps.length; i++) ListTile(
+            key: ValueKey('listing-gap-$i'),
+            contentPadding: EdgeInsets.zero,
+            leading: const EbrokerIcon(Icons.radio_button_unchecked, size: 20),
+            title: Text(gaps[i].$2),
+            subtitle: Text(const ['نوع الإعلان والعنوان', 'الموقع والمستندات', 'المواصفات والصور', 'السعر والسعي'][gaps[i].$1]),
+            trailing: const EbrokerIcon(Icons.chevron_left, size: 20),
+            onTap: () => Navigator.of(sheet).pop(gaps[i].$1)),
+          const Divider(),
+          ListTile(contentPadding: EdgeInsets.zero, leading: const EbrokerIcon(Icons.edit_note_outlined),
+            title: const Text('مراجعة الوصف والصور'),
+            onTap: () => Navigator.of(sheet).pop(2)),
+        ]))));
+    if (mounted && target != null) _goToCompletionStep(target);
+  }
+
+  Future<void> _copyListingText() async {
+    final text = [
+      _title.text.trim(),
+      '${_typeLabels[_type] ?? _type} ${_purpose == 'rent' ? 'للإيجار' : 'للبيع'}',
+      _priceSummaryText,
+      if (_isSaiReady) _saiDisplayText,
+      _composedAddress,
+      if (_description.text.trim().isNotEmpty) _description.text.trim(),
+      if (_phone.text.trim().isNotEmpty) 'للتواصل: ${_phone.text.trim()}',
+      if (_whatsapp.text.trim().isNotEmpty) 'واتساب: ${_whatsapp.text.trim()}',
+    ].where((line) => line.isNotEmpty).join('\n');
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) _message('نُسخ نص الإعلان. يمكنك لصقه ومراجعته قبل مشاركته.');
+  }
+
   Map<String, dynamic> _aiFacts() => {
     'type': _type, 'purpose': _purpose, 'currency': 'YER',
     if (_title.text.trim().isNotEmpty) 'title': _title.text.trim(),
@@ -1288,9 +1379,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_type == 'apartment') 'unit_occupies_entire_floor': _wholeFloor,
   };
 
-  Future<void> _assist({bool description = false}) async {
+  Future<void> _assist({bool description = false, bool prepareDraft = false}) async {
     final result = await AppBottomSheet.show<Map<String, dynamic>>(context, builder: (_) => ListingAiSheet(
-      facts: _aiFacts(), propertyId: _existing?.id ?? _recoveredServerId, description: description));
+      facts: _aiFacts(), propertyId: _existing?.id ?? _recoveredServerId, description: description,
+      prepareDraft: prepareDraft, initialMessage: _assistantBrief.text,
+      hasExistingDescription: _description.text.trim().isNotEmpty,
+      onMessageChanged: (text) => _assistantBrief.text = text));
     if (!mounted || result == null) return;
     final oldPurpose = _purpose;
     setState(() {
@@ -1323,6 +1417,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (oldPurpose != _purpose) { _saiAccepted = false; _saiTouched = true; }
     });
     if (oldPurpose != _purpose) unawaited(_loadSaiPolicy());
+    if (prepareDraft) {
+      final gaps = _completionGaps();
+      if (gaps.isNotEmpty) setState(() => _step = gaps.first.$1);
+    }
+    unawaited(_saveRecovery());
     _message('طُبّق الاقتراح في الحقول. راجع بقية الإعلان قبل إرساله.');
   }
 
@@ -1601,6 +1700,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                   onPressed: () => Navigator.pop(sheetContext),
                   expand: true,
                 ),
+                const SizedBox(height: AppSpacing.s8),
+                TextButton.icon(key: const ValueKey('listing-copy-text'), onPressed: _copyListingText,
+                  icon: const EbrokerIcon(Icons.copy_outlined, size: 18), label: const Text('نسخ نص الإعلان')),
               ],
             ),
           ),

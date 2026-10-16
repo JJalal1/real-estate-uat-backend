@@ -5,6 +5,8 @@ Read it before proposing or applying changes.
 
 ## 1. Project mode
 
+- Current delegated task (October16, after1052): the owner asks the assistant to choose and implement useful broker AI assistance. Branch `work/broker-ai-assistant-v1`, baseline `fe1573ed20d08c92fbd82ff936c1c56fc56ad80c`. Read `docs/BROKER_AI_ASSISTANT_AR.md`: reviewed draft preparation, selected-facts copy, completion guidance, explicit clipboard copy and honest provider-fallback organization. Preserve all financial/auth/review/media boundaries; tests/build/deploy evidence must be checked independently.
+
 - Product: REAL ESTATE.
 - Current environment: UAT / staging only.
 - Do not create or migrate to Production unless the product owner explicitly requests it.

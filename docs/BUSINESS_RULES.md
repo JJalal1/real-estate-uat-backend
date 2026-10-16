@@ -2,6 +2,10 @@
 
 These are product rules, not implementation suggestions. Agents must preserve them unless the product owner explicitly changes them.
 
+## October16 delegated broker assistance
+
+Listing AI proposes only reviewable facts/title/description; it cannot save, approve or publish a listing. Recompose copy after changing selected proposals. Preserve raw brief locally per user/listing. Provider failure may use conservative literal-text organization only when labeled clearly. Voice transcription still depends on its provider. Completion guidance uses existing required-field/photo/identity/Sai checks. Copying public ad text is an explicit clipboard action; no automated messages or private evidence/financial splits. See `BROKER_AI_ASSISTANT_AR.md`.
+
 ## Current October16 Wave5 on1049
 
 The owner confirmed current1049. Listing input7 hides rental-apartment area/elevator and makes position optional; known historical identity/facts remain. Unspecified units require an auditable support identity decision rather than an invented unit or shared whole-floor asset. Rental conditions use inline chips and reveal only selected details.
