@@ -16,6 +16,7 @@ jobs:
         with:
           ref: 2822ab45be21a6a715f0b0bafafce24fe449ff9f
           persist-credentials: false
+          fetch-depth: 0
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.27.3'
@@ -47,3 +48,4 @@ jobs:
                   print('CODEX_PREVIEW_DATA '+name+' '+str(i)+' '+base64.b64encode(data[start:start+6144]).decode())
               print('CODEX_PREVIEW_END '+name)
           PY
+
