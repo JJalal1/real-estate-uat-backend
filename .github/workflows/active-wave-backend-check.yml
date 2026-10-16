@@ -1,0 +1,69 @@
+name: Active wave backend contracts
+on:
+  push:
+    branches: [verification/active-wave-backend]
+permissions:
+  contents: read
+concurrency:
+  group: active-wave-backend-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  contracts:
+    name: Active wave ${{ matrix.database }} contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_audit
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: ${{ matrix.database == 'pgsql' && 'real_estate_audit' || ':memory:' }}
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3, pdo_pgsql
+          coverage: none
+      - name: Disposable environment and original dependencies
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+      - name: Disposable PostgreSQL roles
+        if: matrix.database == 'pgsql'
+        run: >-
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
+          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+      - name: Focused active-wave and retained contracts
+        run: >-
+          php artisan test tests/Feature/ActiveWaveDiscoveryTest.php tests/Feature/ActiveWavePublicationAlertTest.php
+          tests/Feature/Wave3AiAssistantTest.php tests/Feature/BrokerListingAssistantTest.php
+          tests/Feature/ProductExperienceSavedSearchTest.php tests/Feature/NotificationPreferenceTest.php
+          tests/Feature/BrokerExperienceApiTest.php
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped

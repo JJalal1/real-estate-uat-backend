@@ -12,11 +12,13 @@ class SmartSearchService
     public const FIELDS = ['type', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
         'min_bedrooms', 'min_bathrooms', 'floor_number', 'has_parking', 'has_elevator', 'building_facade', 'unit_occupies_entire_floor'];
 
+    public const MAP_FIELDS = ['area_polygon', 'latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east'];
+
     public function __construct(private readonly GeminiClient $gemini) {}
 
     public function validate(array $filters): array
     {
-        if (array_diff(array_keys($filters), self::FIELDS) !== []) {
+        if (array_diff(array_keys($filters), array_merge(self::FIELDS, self::MAP_FIELDS)) !== []) {
             throw ValidationException::withMessages(['filters' => ['يوجد فلتر غير مدعوم.']]);
         }
         $rules = ['type' => ['nullable', Rule::in(self::TYPES)], 'purpose' => ['nullable', Rule::in(['sale', 'rent'])],
@@ -26,7 +28,9 @@ class SmartSearchService
         foreach (['min_price', 'max_price', 'min_area_m2', 'max_area_m2'] as $key) $rules[$key] = ['nullable', 'numeric', 'between:0,1000000000000'];
         foreach (['min_bedrooms', 'min_bathrooms'] as $key) $rules[$key] = ['nullable', 'integer', 'between:0,50'];
         foreach (['has_parking', 'has_elevator', 'unit_occupies_entire_floor'] as $key) $rules[$key] = ['nullable', 'boolean'];
+        foreach (self::MAP_FIELDS as $key) $rules[$key] = app(PropertyDiscoveryFilterService::class)->rules()[$key];
         $value = Validator::make($filters, $rules)->validate();
+        app(PropertyDiscoveryFilterService::class)->validateGeometry($value);
         $value = array_filter($value, fn ($v) => $v !== null && $v !== '');
         foreach (['min_price' => 'max_price', 'min_area_m2' => 'max_area_m2'] as $min => $max) {
             if (isset($value[$min], $value[$max]) && $value[$min] > $value[$max]) {
@@ -54,6 +58,7 @@ class SmartSearchService
         $patch = $this->gemini->object(
             'Interpret an Arabic Yemen real-estate search follow-up as a PATCH to current_filters. Return only set and remove. '
             .'Set ONLY explicitly requested changes and remove ONLY explicitly withdrawn criteria. Preserve every unmentioned filter. '
+            .'Map coordinates and bounds in current_filters are read-only constraints chosen by the user on the map; never change or remove them. '
             .'Resolve references against current_filters. Search is the location/address keyword. Do not insert property type or purpose into search. '
             .'Prices mean MONTHLY rent when the effective purpose is rent; they never mean advance payment or commission. '
             .'Numbers such as 50 ألف mean 50000. Rooms map to min_bedrooms. A whole floor is type apartment and unit_occupies_entire_floor true. '

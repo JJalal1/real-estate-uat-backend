@@ -60,6 +60,8 @@ class PropertyController extends Controller
 
         $query = $this->publicQuery();
         $this->applyFilters($query, $validated);
+        $this->validateBounds($validated);
+        app(\App\Services\PropertyDiscoveryFilterService::class)->applyGeometry($query, $validated);
 
         $sort = (string) $request->input('sort', 'latest');
         match ($sort) {
@@ -98,12 +100,13 @@ class PropertyController extends Controller
         $latitude = (float) $validated['latitude'];
         $longitude = (float) $validated['longitude'];
         $radiusKm = (float) ($validated['radius_km'] ?? 30);
+        $validated['radius_km'] = $radiusKm;
 
         $this->validateBounds($validated);
 
         $query = $this->publicQuery();
         $this->applyFilters($query, $validated);
-        $this->applyBounds($query, $validated);
+        app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
 
         if (DB::connection()->getDriverName() === 'pgsql') {
             $pointSql = 'ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography';
@@ -358,27 +361,7 @@ class PropertyController extends Controller
 
     private function filterRules(): array
     {
-        return [
-            'advertiser_id' => ['nullable', 'integer', 'min:1'],
-            'search' => ['nullable', 'string', 'max:120'],
-            'currency' => ['nullable', 'string', 'size:3'],
-            'max_monthly_rent' => ['nullable', 'numeric', 'min:0'],
-            'min_monthly_rent' => ['nullable', 'numeric', 'min:0'],
-            'governorate' => ['nullable', 'string', 'max:120'],
-            'floor_number' => ['nullable', 'string', 'max:32'],
-            'building_facade' => ['nullable', Rule::in(self::FACADES)],
-            'has_parking' => ['nullable', 'boolean'], 'has_elevator' => ['nullable', 'boolean'],
-            'unit_occupies_entire_floor' => ['nullable', 'boolean'],
-            'spotlight' => ['nullable', 'boolean'],
-            'purpose' => ['nullable', Rule::in(self::PURPOSES)],
-            'type' => ['nullable', Rule::in(self::TYPES)],
-            'min_price' => ['nullable', 'numeric', 'min:0'],
-            'max_price' => ['nullable', 'numeric', 'gte:min_price'],
-            'min_bedrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
-            'min_bathrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
-            'min_area_m2' => ['nullable', 'numeric', 'min:0'],
-            'max_area_m2' => ['nullable', 'numeric', 'gte:min_area_m2'],
-        ];
+        return app(\App\Services\PropertyDiscoveryFilterService::class)->rules();
     }
 
     private function listingRules(bool $partial): array
@@ -656,126 +639,22 @@ class PropertyController extends Controller
 
     private function publicQuery(): Builder
     {
-        return Property::query()
-            ->with('images')
-            ->publiclyAvailable();
+        return app(\App\Services\PropertyDiscoveryFilterService::class)->publicQuery()->with('images');
     }
 
     private function applyFilters(Builder $query, array $validated): void
     {
-        if (isset($validated['advertiser_id'])) $query->where('user_id', $validated['advertiser_id']);
-        if (! empty($validated['governorate'])) {
-            $name = $validated['governorate'];
-            $aliases = in_array($name, ['صنعاء', 'أمانة العاصمة'], true) ? ['صنعاء', 'أمانة العاصمة'] : [$name];
-            $query->where(function (Builder $regional) use ($aliases): void {
-                $regional->whereHas('geoCell.governorate', fn ($g) => $g->where('is_active', true)->whereIn('name_ar', $aliases))
-                    ->orWhere(function (Builder $legacy) use ($aliases): void {
-                        $legacy->whereNull('geo_cell_id')->where(function (Builder $address) use ($aliases): void {
-                            foreach ($aliases as $name) $address->orWhere('address', DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like', '%'.$name.'%');
-                        });
-                    });
-            });
-        }
-        if (($validated['spotlight'] ?? false)) $query->where('spotlight_until', '>', now());
-        foreach (['has_parking', 'has_elevator', 'building_facade'] as $field) if (isset($validated[$field])) $query->where($field, $validated[$field]);
-        if (isset($validated['floor_number'])) {
-            $floor = $this->identity->normalizeFloorForSearch($validated['floor_number']);
-            $query->where(fn (Builder $q) => $q->where('floor_number', $validated['floor_number'])
-                ->orWhereHas('propertyAsset', fn ($asset) => $asset->where('floor_number', $floor)));
-        }
-        if (array_key_exists('unit_occupies_entire_floor', $validated) && $validated['unit_occupies_entire_floor'] !== null) {
-            if ((bool) $validated['unit_occupies_entire_floor']) $query->where(fn ($q) => $q->where('type', 'floor')->orWhere('unit_occupies_entire_floor', true));
-            else $query->where('type', '<>', 'floor')->where('unit_occupies_entire_floor', false);
-        }
-        if (isset($validated['currency'])) $query->where('currency', strtoupper($validated['currency']));
-        if (isset($validated['max_monthly_rent'])) {
-            $query->where('purpose', 'rent')->where('monthly_rent', '<=', $validated['max_monthly_rent']);
-        }
-        if (isset($validated['min_monthly_rent'])) $query->where('purpose', 'rent')->where('monthly_rent', '>=', $validated['min_monthly_rent']);
-        $search = trim((string) ($validated['search'] ?? ''));
-        if ($search !== '') {
-            $query->where(function (Builder $nested) use ($search) {
-                $pattern = '%' . $search . '%';
-                $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
-                $nested
-                    ->where('title', $operator, $pattern)
-                    ->orWhere('description', $operator, $pattern)
-                    ->orWhere('address', $operator, $pattern);
-            });
-        }
-
-        if (($validated['type'] ?? null) === 'apartment') {
-            $query->whereIn('type', ['apartment', 'floor']);
-        } elseif (($validated['type'] ?? null) === 'floor') {
-            $query->where(fn (Builder $scope) => $scope->where('type', 'floor')
-                ->orWhere(fn (Builder $unit) => $unit->where('type', 'apartment')->where('unit_occupies_entire_floor', true)));
-        } elseif (! empty($validated['type'])) {
-            $query->where('type', $validated['type']);
-        }
-        foreach (['purpose'] as $field) {
-            if (! empty($validated[$field])) {
-                $query->where($field, $validated[$field]);
-            }
-        }
-
-        $bounds = [
-            'min_price' => ['price', '>='],
-            'max_price' => ['price', '<='],
-            'min_bedrooms' => ['bedrooms', '>='],
-            'min_bathrooms' => ['bathrooms', '>='],
-            'min_area_m2' => ['area_m2', '>='],
-            'max_area_m2' => ['area_m2', '<='],
-        ];
-
-        foreach ($bounds as $input => [$column, $operator]) {
-            if (isset($validated[$input])) {
-                $query->where($column, $operator, $validated[$input]);
-            }
-        }
+        app(\App\Services\PropertyDiscoveryFilterService::class)->apply($query, $validated);
     }
 
     private function validateBounds(array $validated): void
     {
-        $keys = ['south', 'west', 'north', 'east'];
-        $provided = collect($keys)->filter(fn (string $key) => isset($validated[$key]));
-
-        if ($provided->isNotEmpty() && $provided->count() !== count($keys)) {
-            throw ValidationException::withMessages([
-                'bounds' => ['All four map bounds are required together.'],
-            ]);
-        }
-
-        if ($provided->count() === count($keys)
-            && (float) $validated['south'] > (float) $validated['north']) {
-            throw ValidationException::withMessages([
-                'bounds' => ['The south bound must not exceed the north bound.'],
-            ]);
-        }
+        app(\App\Services\PropertyDiscoveryFilterService::class)->validateGeometry($validated);
     }
 
     private function applyBounds(Builder $query, array $validated): void
     {
-        if (! isset($validated['south'], $validated['west'], $validated['north'], $validated['east'])) {
-            return;
-        }
-
-        $south = (float) $validated['south'];
-        $west = (float) $validated['west'];
-        $north = (float) $validated['north'];
-        $east = (float) $validated['east'];
-
-        $query->whereBetween('latitude', [$south, $north]);
-
-        if ($west <= $east) {
-            $query->whereBetween('longitude', [$west, $east]);
-            return;
-        }
-
-        // A wrapped longitude range crosses the antimeridian.
-        $query->where(function (Builder $nested) use ($west, $east) {
-            $nested->where('longitude', '>=', $west)
-                ->orWhere('longitude', '<=', $east);
-        });
+        app(\App\Services\PropertyDiscoveryFilterService::class)->applyBounds($query, $validated);
     }
 
     private function assertOwner(Property $property, User $user): void

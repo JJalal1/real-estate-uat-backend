@@ -39,8 +39,32 @@ class BrokerExperienceController extends Controller
 
     public function directory(Request $request): JsonResponse
     {
-        $v=$request->validate(['governorate'=>['nullable','string','max:120'],'page'=>['nullable','integer','min:1'],'per_page'=>['nullable','integer','between:1,30']]);
-        $page=$this->ranking->query($v['governorate'] ?? null)->paginate((int)($v['per_page'] ?? 15));
+        $v = $request->validate([
+            'governorate' => ['nullable', 'string', 'max:120'], 'region_only' => ['nullable', 'boolean'],
+            'search' => ['nullable', 'string', 'max:120'], 'specialty' => ['nullable', 'string', 'max:120'],
+            'account_type' => ['nullable', Rule::in(['broker', 'office'])], 'min_rating' => ['nullable', 'numeric', 'between:0,5'],
+            'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'between:1,30'],
+        ]);
+        $query = $this->ranking->query($v['governorate'] ?? null);
+        if (! empty($v['governorate']) && ($v['region_only'] ?? false)) {
+            $aliases = in_array($v['governorate'], ['صنعاء', 'أمانة العاصمة'], true) ? ['صنعاء', 'أمانة العاصمة'] : [$v['governorate']];
+            $query->whereHas('accountVerificationProfile', function ($profile) use ($aliases): void {
+                $profile->where(function ($region) use ($aliases): void {
+                    foreach ($aliases as $name) $region->orWhere('details->governorate', $name)->orWhereJsonContains('details->work_areas', $name);
+                });
+            });
+        }
+        if (! empty($v['account_type'])) $query->whereHas('accountVerificationProfile', fn ($profile) => $profile->where('type', $v['account_type']));
+        if (! empty($v['specialty'])) $query->whereHas('accountVerificationProfile', fn ($profile) => $profile->whereJsonContains('details->specialties', trim($v['specialty'])));
+        if (! empty($v['search'])) {
+            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($v['search'])).'%';
+            $query->where(function ($name) use ($term): void {
+                $name->where('users.name', 'like', $term)->orWhereHas('accountVerificationProfile', fn ($profile) =>
+                    $profile->where('type', 'office')->where('details->office_name', 'like', $term));
+            });
+        }
+        if (($v['min_rating'] ?? 0) > 0) $query->where('customer_rating.rating_average', '>=', (float) $v['min_rating']);
+        $page = $query->paginate((int) ($v['per_page'] ?? 15));
         return response()->json(['data'=>collect($page->items())->map(fn ($u) => $this->ranking->publicData($u))->values(),
             'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),'total'=>$page->total(),'governorate'=>$v['governorate'] ?? null]]);
     }
