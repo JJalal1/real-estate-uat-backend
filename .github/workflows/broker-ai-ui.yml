@@ -4,23 +4,44 @@ on:
     branches: [delivery/broker-ai-58-ui]
 permissions:
   contents: read
-  actions: read
+env:
+  SOURCE_COMMIT: 2b955f18ea15946d462c1a3c111cda525e724377
 jobs:
   preview:
-    name: Preview ${{ matrix.file }}
+    name: Render corrected broker assistant at normal and large text
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        file: [assistant-completion.png, assistant-review-1.0.png, assistant-copy-1.0.png, assistant-copy-2.4.png]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.SOURCE_COMMIT }}
           persist-credentials: false
-      - name: Read pinned synthetic UI image
-        env:
-          UI_READ_TOKEN: ${{ github.token }}
-        run: python3 -B scripts/read_broker_ai_ui.py --file '${{ matrix.file }}'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve original locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Exercise review recovery navigation and copy
+        working-directory: mobile_app
+        run: flutter test test/broker_listing_assistant_test.dart
+      - name: Return only the four synthetic UI previews
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,json,os
+          from pathlib import Path
+          assert json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())['repository']['private'] is True
+          for name in ['assistant-completion.png','assistant-review-1.0.png','assistant-copy-1.0.png','assistant-copy-2.4.png']:
+              data=(Path('mobile_app/build/broker-preview')/name).read_bytes()
+              assert data.startswith(b'\x89PNG\r\n\x1a\n') and len(data)<4000000
+              print('CODEX_PREVIEW_BEGIN '+json.dumps({'file':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'source_commit':os.environ['SOURCE_COMMIT']},sort_keys=True))
+              for i,start in enumerate(range(0,len(data),6144)):
+                  print('CODEX_PREVIEW_DATA '+name+' '+str(i)+' '+base64.b64encode(data[start:start+6144]).decode())
+              print('CODEX_PREVIEW_END '+name,flush=True)
+          PY
