@@ -129,9 +129,9 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     if (ModalRoute.of(context)?.isCurrent == false && _capture.active) {
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _capture.active) _cancelVoice(); });
     }
-    if (_mapMode) return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
+    if (_mapMode) { return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
       appBar:AppAppBar(title:'البحث على الخريطة',actions:[TextButton(key:const ValueKey('smart-search-list'),onPressed:_openMap,child:const Text('القائمة'))]),
-      body:MapScreen(sharedSearchJourney:true,searchToolbar:_mapToolbar(state),onShowList:_openMap)));
+      body:MapScreen(sharedSearchJourney:true,searchToolbar:_mapToolbar(state),onShowList:_openMap))); }
     final controller = ref.read(smartSearchSessionProvider.notifier);
     final chips = state.filters.chips;
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(

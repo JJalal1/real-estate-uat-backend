@@ -91,6 +91,7 @@ class _SavedSearchBuilderScreenState
     if(!DynamicPropertySchema.applies('bedrooms',_schemaContext))_minBedrooms.clear();
     if(!DynamicPropertySchema.applies('bathrooms',_schemaContext))_minBathrooms.clear();
     if(!DynamicPropertySchema.applies('area_value',_schemaContext)){_minArea.clear();_maxArea.clear();}
+    _baseFilters..remove('type')..remove('purpose');
     _baseFilters=DynamicPropertySchema.filters({..._baseFilters,if(_type!=null)'type':_type,if(_purpose!=null)'purpose':_purpose});
   }
 

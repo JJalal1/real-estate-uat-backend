@@ -5,7 +5,7 @@ import 'listing_draft_entry_screen.dart';
 
 /// Compatibility entry point retained for existing routes and deep links.
 ///
-/// Phase 2 moved the active implementation to [ListingEditorScreen], where
+/// Phase 2 moved the active implementation to [ListingDraftEntryScreen], where
 /// Save Draft, Preview, and Submit for Review are explicit separate actions.
 class AddPropertyWizardScreen extends StatelessWidget {
   const AddPropertyWizardScreen({

@@ -23,6 +23,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(overrides: [aiRepositoryProvider.overrideWithValue(ai),
       voiceInputProvider.overrideWithValue(voice), propertyRepositoryProvider.overrideWithValue(properties)],
       child: MaterialApp(theme: AppTheme.light, home: const AssistedSearchScreen())));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'شقة إيجار في صنعاء');
     await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();

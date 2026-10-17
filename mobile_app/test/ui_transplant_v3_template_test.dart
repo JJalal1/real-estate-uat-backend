@@ -1,3 +1,5 @@
+import 'support/wave6_fakes.dart';
+import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -183,6 +185,7 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
   ]);
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(overrides: [
+    listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
     authControllerProvider.overrideWith(() => _AuthFixture(user)),
     listingRecoveryStoreProvider.overrideWithValue(_EmptyRecovery()),
     brokerDirectoryProvider.overrideWith((_) async => []),

@@ -1,3 +1,5 @@
+import 'support/wave6_fakes.dart';
+import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -69,6 +71,7 @@ Future<void> _pump(WidgetTester tester, Widget child, {required _Assistant ai, _
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides: [
     aiRepositoryProvider.overrideWithValue(ai), propertyRepositoryProvider.overrideWithValue(_Properties()),
+    listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
     authControllerProvider.overrideWith(() => BrokerTestAuth(1)),
     listingRecoveryStoreProvider.overrideWithValue(recovery ?? _Recovery(null)),
     voiceInputProvider.overrideWithValue(voice ?? Wave3VoiceFake()),

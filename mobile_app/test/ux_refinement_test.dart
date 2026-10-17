@@ -1,3 +1,5 @@
+import 'support/wave6_fakes.dart';
+import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:ui' as ui;
@@ -73,7 +75,7 @@ class _Properties implements PropertyRepository {
       final input = invocation.positionalArguments.last as PropertyListingInput;
       lastInput = input.toMap();
       return Future<PropertyDetails>.value(PropertyDetails.fromJson({'id': 500, ...lastInput!, 'status': 'draft', 'review_status': 'draft', 'images': [],
-        'rental_conditions': jsonDecode(lastInput!['rental_conditions'] as String)}));
+        'rental_conditions': lastInput!['rental_conditions'] is String ? jsonDecode(lastInput!['rental_conditions'] as String) : const []}));
     }
     if (invocation.memberName == #configureSai) {
       deferred = invocation.namedArguments[#deferPlatformTerms] == true;
@@ -116,6 +118,7 @@ Future<void> _pump(WidgetTester tester, Widget child, {Map<String, dynamic>? sna
   tester.view.physicalSize = const Size(412, 915); tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides: [
+    listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
     authControllerProvider.overrideWith(() => BrokerTestAuth(1)),
     listingRecoveryStoreProvider.overrideWithValue(_Recovery(snapshot)),
     propertyRepositoryProvider.overrideWithValue(properties ?? _Properties()),
@@ -181,12 +184,9 @@ void main() {
       await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(type: type), boundary: key);
       expect(find.text('اسم أو رقم المبنى *'), findsNothing);
       expect(find.text('رقم الشقة أو موضعها داخل الدور *'), type == 'apartment' ? findsOneWidget : findsNothing);
-      expect(find.text('أي دور؟ *'), type == 'apartment' || type == 'floor' ? findsOneWidget : findsNothing);
+      expect(find.text('الشقة في الدور *'), type == 'apartment' || type == 'floor' ? findsOneWidget : findsNothing);
       if (type == 'floor') await _capture(tester, key, 'floor');
-      if (type == 'shop') {
-        await tester.tap(find.byType(CheckboxListTile).first); await tester.pumpAndSettle();
-        expect(find.text('أي دور؟ *'), findsOneWidget);
-      }
+      if(type=='shop'){expect(find.byType(CheckboxListTile),findsNothing);expect(find.text('موقف سيارة *'),findsNothing);}
       expect(tester.takeException(), isNull);
     });
   }
@@ -197,7 +197,7 @@ void main() {
     expect(find.text('الوحدة تشغل الدور كاملًا'), findsNothing);
     expect(find.byKey(const ValueKey('unit-whole-floor')), findsNothing);
     expect(find.text('رقم الشقة أو موضعها داخل الدور *'), findsOneWidget);
-    expect(find.text('أي دور؟ *'), findsOneWidget);
+    expect(find.text('الشقة في الدور *'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -211,7 +211,7 @@ void main() {
     expect(find.text('وحدة المساحة'), findsNothing);
     expect(find.text('المصعد'), findsNothing);
     expect(find.text('موضع الشقة داخل الدور (اختياري)'), findsOneWidget);
-    expect(find.text('أي دور؟ *'), findsOneWidget);
+    expect(find.text('الشقة في الدور *'), findsOneWidget);
     expect(find.text('الوحدة تشغل الدور كاملًا'), findsNothing);
     await tester.ensureVisible(find.text('التالي')); await tester.tap(find.text('التالي')); await tester.pumpAndSettle();
     expect(find.text('أضف صورًا حقيقية للعقار قبل المتابعة.'), findsOneWidget);
@@ -230,7 +230,7 @@ void main() {
     await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(step: 3), properties: repository, boundary: key);
     expect(find.text('4/4'), findsOneWidget); expect(find.text('من يتحمل السعي؟'), findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-total'))); await tester.pumpAndSettle();
-    expect(find.text('200000 ريال'), findsOneWidget);
+    expect(find.textContaining('200000 ريال'), findsOneWidget);expect(find.textContaining('حصة المنصة 20%'),findsOneWidget);
     expect(find.textContaining('صافي السعي'), findsNothing);
     expect(find.textContaining('مستحق المنصة'), findsNothing);
     expect(find.text('طريقة عرض السعر للباحث'), findsNothing);
@@ -280,7 +280,7 @@ void main() {
     expect(find.byKey(const ValueKey('listing-sai-rate')), findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-amount')));
     await tester.enterText(find.byKey(const ValueKey('listing-sai-amount')), '٣٠٠٠٠٠'); await tester.pump();
-    expect(find.text('300000 ريال'), findsOneWidget);
+    expect(find.text('حصة المنصة 60000 ريال'),findsOneWidget);
     expect(find.textContaining('المبالغ تقديرية'), findsNothing);
     expect(find.textContaining('صافي السعي'), findsNothing);
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();

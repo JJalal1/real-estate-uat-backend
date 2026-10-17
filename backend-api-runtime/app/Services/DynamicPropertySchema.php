@@ -58,7 +58,7 @@ class DynamicPropertySchema
         foreach ($this->definition()['fields'] as $key => $_) {
             if ($this->applies($key, $facts)) continue;
             foreach (array_merge([$key], $this->definition()['fields'][$key]['aliases'] ?? []) as $alias) {
-                if ($clearHidden) $facts[$alias] = $alias === 'rental_conditions' ? [] : null;
+                if ($clearHidden) $facts[$alias] = match($alias) { 'rental_conditions'=>[], 'unit_occupies_entire_floor'=>false, default=>null };
                 else unset($facts[$alias]);
             }
         }

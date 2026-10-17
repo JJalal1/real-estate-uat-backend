@@ -2546,22 +2546,6 @@ class _ResultsState extends StatelessWidget {
 }
 
 
-class _FilterSectionTitle extends StatelessWidget {
-  const _FilterSectionTitle(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-    );
-  }
-}
-
 class _ApiFailureBanner extends StatelessWidget {
   const _ApiFailureBanner({required this.message, required this.onRetry});
 
@@ -2611,24 +2595,23 @@ class _ApiFailureBanner extends StatelessWidget {
 }
 
 class _MessageCard extends StatelessWidget {
-  const _MessageCard({required this.text, this.error = false});
+  const _MessageCard({required this.text});
 
   final String text;
-  final bool error;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: error ? const Color(0xFFFFECEC) : Colors.white,
-      elevation: error ? 0 : 4,
+      color: Colors.white,
+      elevation: 4,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
             EbrokerIcon(
-              error ? Icons.error_outline : Icons.info_outline,
-              color: error ? Colors.red.shade700 : AppTheme.accent,
+              Icons.info_outline,
+              color: AppTheme.accent,
             ),
             const SizedBox(width: 8),
             Expanded(child: Text(text)),

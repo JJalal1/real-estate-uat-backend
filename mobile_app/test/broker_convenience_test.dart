@@ -1,3 +1,5 @@
+import 'support/wave6_fakes.dart';
+import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
@@ -66,7 +68,8 @@ class _Bookings implements BookingRepository {
 Future<void> _pump(WidgetTester tester, Widget screen, {BrokerTestRepository? repo, ListingRecoveryStore? recovery, BookingRepository? bookings, double scale = 1, GlobalKey? boundary}) async {
   tester.view.physicalSize = const Size(412, 915); tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => BrokerTestAuth(1)),
+  await tester.pumpWidget(ProviderScope(overrides: [listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
+    authControllerProvider.overrideWith(() => BrokerTestAuth(1)),
     brokerRepositoryProvider.overrideWithValue(repo ?? BrokerTestRepository()),
     listingRecoveryStoreProvider.overrideWithValue(recovery ?? _Recovery()),
     if (bookings != null) bookingRepositoryProvider.overrideWithValue(bookings)],
@@ -133,7 +136,8 @@ void main() {
       GoRoute(path: '/broker/customers', builder: (_, state) => Scaffold(body: Text('filter:${state.uri.queryParameters['filter']}'))),
     ]);
     addTearDown(router.dispose);
-    await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => BrokerTestAuth(1)), brokerRepositoryProvider.overrideWithValue(BrokerTestRepository())],
+    await tester.pumpWidget(ProviderScope(overrides: [listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
+    authControllerProvider.overrideWith(() => BrokerTestAuth(1)), brokerRepositoryProvider.overrideWithValue(BrokerTestRepository())],
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
     await tester.pumpAndSettle();
     expect(find.textContaining('معاينات للمتابعة'), findsNothing);

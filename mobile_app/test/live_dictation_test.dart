@@ -94,9 +94,10 @@ void main() {
       propertyRepositoryProvider.overrideWithValue(properties),
     ]); addTearDown(container.dispose);
     final session = container.read(smartSearchSessionProvider.notifier);
-    session.replaceManually(SmartSearchFilters.fromMap({'type': 'apartment', 'purpose': 'rent', 'search': 'صنعاء'}));
     await tester.pumpWidget(UncontrolledProviderScope(container: container,
       child: MaterialApp(theme: AppTheme.light, home: const AssistedSearchScreen())));
+    await tester.pumpAndSettle();
+    session.replaceManually(SmartSearchFilters.fromMap({'type': 'apartment', 'purpose': 'rent', 'search': 'صنعاء'}));
     await tester.pumpAndSettle();
     final input = find.byKey(const ValueKey('smart-search-description'));
     await tester.enterText(input, 'شقة للإيجار');
