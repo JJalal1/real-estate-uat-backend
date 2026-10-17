@@ -606,7 +606,7 @@ class AppNavigationBar extends StatelessWidget {
                     boxShadow: [BoxShadow(color: EbrokerDesign.text.withValues(alpha: 0.5),
                       offset: const Offset(0, -1.5), blurRadius: 5)])),
                 EbrokerImage('add_shape', size: 56.rh(context), color: scheme.primary),
-                EbrokerImage('plus_btn', size: 18.rh(context), color: Colors.white),
+                EbrokerIcon(Icons.add_home_outlined, size: 22.rh(context), color: Colors.white),
               ])))))))));
       }
       final selected = index == selectedIndex;

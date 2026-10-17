@@ -149,10 +149,15 @@ class Wave6EditorDiscoveryTest extends TestCase
 
     public function test_broker_closed_counts_and_home_nearby_sections_are_real_recorded_data(): void
     {
-        [$broker]=$this->actor('stats','broker');
-        $sold=$this->listing($broker);$sold->forceFill(['status'=>'published','review_status'=>'approved','availability_status'=>'sold','published_at'=>now()])->save();
-        $rented=$this->listing($broker);$rented->forceFill(['purpose'=>'rent','status'=>'published','review_status'=>'approved','availability_status'=>'rented','published_at'=>now()])->save();
-        $active=$this->listing($broker);$active->forceFill(['status'=>'published','review_status'=>'approved','availability_status'=>'available','published_at'=>now()])->save();
+        [$broker,$headers]=$this->actor('stats','broker');
+        $rows=[];
+        foreach([['sale','sold'],['rent','rented'],['sale','available']] as [$purpose,$availability]){
+            $property=$this->listing($broker);$property->forceFill(['purpose'=>$purpose,'monthly_rent'=>$purpose==='rent'?100000:null])->save();
+            $this->withHeaders($headers)->putJson('/api/properties/'.$property->id.'/sai',['broker_sai_rate_percent'=>0,'sai_payer'=>$purpose==='rent'?'tenant':'buyer'])->assertOk();
+            $property->refresh()->forceFill(['status'=>'published','review_status'=>'approved','availability_status'=>$availability,'published_at'=>now()])->save();$rows[]=$property;
+        }
+        [$sold,$rented,$active]=$rows;
+        $this->withHeaders(['Authorization'=>'']);
         $this->getJson('/api/advertisers/'.$broker->id.'/profile')->assertOk()->assertJsonPath('data.sold_listings',1)->assertJsonPath('data.rented_listings',1)->assertJsonPath('data.completed_deals',0);
         $r=$this->getJson('/api/marketplace?latitude=15.3694&longitude=44.191')->assertOk()->assertJsonCount(1,'data.sections.nearby')->assertJsonPath('data.sections.nearby.0.id',$active->id);
         $this->assertSame('nearby',$r->json('data.section_order.0'));
@@ -175,9 +180,12 @@ class Wave6EditorDiscoveryTest extends TestCase
 
     private function listing(User $user): Property
     {
-        return Property::create(['user_id' => $user->id, 'title' => 'عنوان محفوظ', 'description' => 'وصف محفوظ',
+        $property=Property::create(['user_id' => $user->id, 'title' => 'عنوان محفوظ', 'description' => 'وصف محفوظ',
             'purpose' => 'sale', 'type' => 'apartment', 'price' => 50000000, 'currency' => 'YER', 'area_m2' => 140,
             'bedrooms' => 3, 'bathrooms' => 2, 'address' => 'صنعاء، حدة', 'latitude' => 15.3694, 'longitude' => 44.1910,
             'status' => 'draft', 'review_status' => 'draft']);
+        if(\Illuminate\Support\Facades\DB::getDriverName()==='pgsql') \Illuminate\Support\Facades\DB::statement('UPDATE properties SET location=ST_SetSRID(ST_MakePoint(?, ?),4326)::geography WHERE id=?',[(float)$property->longitude,(float)$property->latitude,$property->id]);
+        return $property;
+
     }
 }

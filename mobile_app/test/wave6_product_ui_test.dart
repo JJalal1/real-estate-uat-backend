@@ -11,6 +11,8 @@ import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/core/platform/voice_input.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
@@ -18,6 +20,8 @@ import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/listing_account_draft.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_sai_configuration_sheet.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_draft_entry_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_compare_screen.dart';
@@ -33,13 +37,16 @@ Map<String,dynamic> editorSnapshot({String type='house'})=>{
 };
 Finder textField(String label)=>find.byWidgetPredicate((w)=>w is TextField && w.decoration?.labelText==label);
 
-Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts? drafts,Wave6Recovery? recovery,double scale=1,GlobalKey? boundary})async{
+Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts? drafts,Wave6Recovery? recovery,Wave3VoiceFake? voice,double scale=1,GlobalKey? boundary})async{
   tester.view.physicalSize=const Size(412,915);tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(()=>BrokerTestAuth(1)),
     propertyRepositoryProvider.overrideWithValue(Wave6Properties()),aiRepositoryProvider.overrideWithValue(ai??Wave6Ai()),
     listingAccountDraftRepositoryProvider.overrideWithValue(drafts??Wave6Drafts()),listingRecoveryStoreProvider.overrideWithValue(recovery??Wave6Recovery()),
-    voiceInputProvider.overrideWithValue(Wave3VoiceFake()),
+    voiceInputProvider.overrideWithValue(voice??Wave3VoiceFake()),
+    homeLocationAttemptedProvider.overrideWith((ref)=>true),
+    marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake(onFeed:(q)async=>MarketplaceFeed(label:'صنعاء',governorate:'صنعاء',sectionOrder:const ['rent','latest'],
+      sections:{'latest':[wave3Property(11)],'rent':[wave3Property(12)]}))),
   ],child:MaterialApp(theme:AppTheme.light,home:child,builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale)),
     child:RepaintBoundary(key:boundary,child:child!)))));
   await tester.pumpAndSettle();
@@ -49,6 +56,22 @@ Future<void> previewWave6(WidgetTester tester,GlobalKey key,String name)async{
   final boundary=key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
   await tester.runAsync(()async{final image=await boundary.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
     final file=File('build/broker-preview/$name.png');await file.parent.create(recursive:true);await file.writeAsBytes(bytes!.buffer.asUint8List());image.dispose();});
+}
+class Wave6SaiProperties extends Wave6Properties {
+  int writes=0;
+  String? savedType, decision;
+  double? savedAmount, savedRate;
+  static const policy=PropertySaiManagement(configured:true,advertiserType:'broker',purpose:'sale',
+    requestedBrokerRatePercent:2.5,brokerMaxRatePercent:6,fixedRatePercent:1.25,
+    professionalPlatformSharePercent:17.5,fallbackPlatformSharePercent:100);
+  @override
+  Future<PropertySaiEnvelope> saiForEditor(int id)async=>const PropertySaiEnvelope(management:policy);
+  @override
+  Future<PropertySaiEnvelope> configureSai(int propertyId,{required String payer,double? brokerRatePercent,
+    String? platformTermsDecision,bool deferPlatformTerms=false,String amountType='percentage',double? fixedAmount})async{
+    writes++;savedType=amountType;savedAmount=fixedAmount;savedRate=brokerRatePercent;decision=platformTermsDecision;
+    return const PropertySaiEnvelope(management:policy);
+  }
 }
 void main(){
   setUpAll(()async{
@@ -89,8 +112,8 @@ void main(){
       final boundary=GlobalKey();await pumpWave6(tester,const PropertyCompareScreen(propertyIds:[11,12]),scale:scale,boundary:boundary);
       expect(find.text('الفرق باختصار'),findsOneWidget);expect(find.text('استبدال'),findsNWidgets(2));expect(find.text('عرض العقار'),findsNWidgets(2));
       await previewWave6(tester,boundary,'wave6-compare-$scale');
-      await tester.ensureVisible(find.byKey(const ValueKey('compare-all')));await tester.tap(find.byKey(const ValueKey('compare-all')));await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('العقار والمبنى'));await tester.pumpAndSettle();await previewWave6(tester,boundary,'wave6-compare-facts-$scale');
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('compare-all')),300,scrollable:find.byType(Scrollable).first);await tester.tap(find.byKey(const ValueKey('compare-all')));await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('العقار والمبنى'),300,scrollable:find.byType(Scrollable).first);await tester.pumpAndSettle();await previewWave6(tester,boundary,'wave6-compare-facts-$scale');
       expect(tester.takeException(),isNull);await finishWave6(tester);
     });
     testWidgets('description is inline and a delayed result cannot replace a manual edit at scale $scale',(tester)async{
@@ -105,6 +128,73 @@ void main(){
       expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text,contains('ثلاث غرف'));
       await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();expect(drafts.saves,isNotEmpty);expect(drafts.saves.last.containsKey('image_tokens'),isFalse);
       await previewWave6(tester,boundary,'wave6-description-ready-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
+    });
+  }
+  testWidgets('apartment floor is a selection and its ground value survives account saving',(tester)async{
+    final drafts=Wave6Drafts(),snapshot=editorSnapshot(type:'apartment');
+    (snapshot['fields'] as Map)['floor_number']='3';(snapshot['fields'] as Map)['unit_number']='شمالية';
+    await pumpWave6(tester,const ListingEditorScreen(),drafts:drafts,recovery:Wave6Recovery(snapshot));
+    final floor=find.byKey(const ValueKey('listing-floor-select'));expect(floor,findsOneWidget);
+    await tester.tap(floor);await tester.pumpAndSettle();await tester.tap(find.text('الأرضي').last);await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
+    expect((drafts.saves.last['fields'] as Map)['floor_number'],'0');await finishWave6(tester);
+  });
+  testWidgets('a resumed fixed-fee account draft retains the entered amount and explicit choice after autosave',(tester)async{
+    final drafts=Wave6Drafts(),key=newListingDraftKey(),snapshot=editorSnapshot(type:'shop')
+      ..['step']=3..['sai_amount_type']='fixed'..['sai_touched']=true..['sai_terms_accepted']=true;
+    (snapshot['fields'] as Map)['fixed_sai_amount']='2500';
+    final draft=ListingAccountDraft(key:key,revision:2,payload:snapshot);drafts.drafts[key]=draft;
+    await pumpWave6(tester,ListingEditorScreen(accountDraft:draft),drafts:drafts);
+    expect(find.byKey(const ValueKey('listing-sai-rate')),findsNothing);
+    final amount=find.byKey(const ValueKey('listing-sai-amount'));
+    await tester.ensureVisible(amount);expect(tester.widget<TextField>(amount).controller!.text,'2500');
+    await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
+    expect(drafts.saves.last['sai_touched'],isTrue);expect(drafts.saves.last['sai_terms_accepted'],isTrue);
+    expect((drafts.saves.last['fields'] as Map)['fixed_sai_amount'],'2500');
+    await tester.enterText(amount,'3500');await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
+    expect((drafts.saves.last['fields'] as Map)['fixed_sai_amount'],'3500');await finishWave6(tester);
+  });
+  for(final scale in [1.0,2.4]){
+    testWidgets('existing-listing Sai uses server shares and compact fixed money at scale $scale',(tester)async{
+      final repository=Wave6SaiProperties(),boundary=GlobalKey();
+      await pumpWave6(tester,Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showPropertySaiConfigurationSheet(context,
+        repository:repository,propertyId:11,purpose:'sale',basis:100000),child:const Text('ضبط السعي')))),scale:scale,boundary:boundary);
+      await tester.tap(find.text('ضبط السعي'));await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-total')));
+      expect(find.textContaining('حصة المنصة 17.5%'),findsOneWidget);expect(find.textContaining('437.50 ريال'),findsOneWidget);
+      expect(find.textContaining('صافي'),findsNothing);expect(repository.writes,0);
+      await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-fixed')));await tester.tap(find.byKey(const ValueKey('listing-sai-fixed')));await tester.pumpAndSettle();
+      final amount=find.byKey(const ValueKey('listing-sai-amount'));await tester.ensureVisible(amount);await tester.enterText(amount,'1500');await tester.pumpAndSettle();
+      expect(find.text('حصة المنصة 262.50 ريال'),findsOneWidget);expect(find.textContaining('حصة المنصة 17.5%'),findsNothing);
+      await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-total')));await previewWave6(tester,boundary,'wave6-existing-sai-$scale');
+      expect(repository.writes,0);await tester.ensureVisible(find.text('قبول'));await tester.tap(find.text('قبول'));await tester.pumpAndSettle();
+      expect(repository.writes,1);expect(repository.savedType,'fixed');expect(repository.savedRate,isNull);expect(repository.savedAmount,1500);expect(repository.decision,'accept');
+      expect(tester.takeException(),isNull);await finishWave6(tester);
+    });
+    testWidgets('professional home has a compact house-plus CTA and dynamic sections at scale $scale',(tester)async{
+      final boundary=GlobalKey();await pumpWave6(tester,const AppShellScreen(),scale:scale,boundary:boundary);
+      expect(find.byKey(const ValueKey('home-add-property')),findsOneWidget);expect(find.text('إدارة عملي'),findsNothing);
+      expect(find.text('بحث ذكي'),findsOneWidget);expect(find.text('عملي'),findsOneWidget);
+      expect(find.byKey(const ValueKey('floating-smart-search')),findsOneWidget);
+      await previewWave6(tester,boundary,'wave6-home-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
+    });
+    testWidgets('voice prepares a reviewed shop draft then asks only for missing point and real photos at scale $scale',(tester)async{
+      final voice=Wave3VoiceFake(autoComplete:false),drafts=Wave6Drafts(),boundary=GlobalKey();addTearDown(voice.dispose);
+      await pumpWave6(tester,const ListingEditorScreen(),ai:Wave6Ai(),drafts:drafts,voice:voice,scale:scale,boundary:boundary);
+      await tester.tap(find.byKey(const ValueKey('listing-draft-assistant')));await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-voice')));await tester.tap(find.byKey(const ValueKey('listing-ai-voice')));await tester.pump();
+      voice.latest.emit(const VoiceEvent('ready'));voice.latest.emit(const VoiceEvent('partial',text:'وصف لم يكتمل'));await tester.pump(const Duration(seconds:12));
+      expect(voice.latest.stops,0);expect(drafts.saves.any((p)=>(p['fields'] as Map)['ai_listing_brief']=='وصف لم يكتمل'),isFalse);
+      await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
+      voice.latest.emit(const VoiceEvent('final',text:'محل للإيجار في حدة، المساحة خمسة وستون مترًا والإيجار خمسة وسبعون ألفًا والسعي خمسون بالمئة'));await tester.pumpAndSettle();
+      final scroll=find.byType(Scrollable).last;
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-prepare')),250,scrollable:scroll);await tester.tap(find.byKey(const ValueKey('listing-ai-prepare')));await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-apply-draft')),350,scrollable:find.byType(Scrollable).last);await tester.tap(find.byKey(const ValueKey('listing-ai-apply-draft')));await tester.pumpAndSettle();
+      expect(find.text('أكمل الناقص فقط'),findsOneWidget);expect(find.text('تأكيد الموقع على الخريطة'),findsOneWidget);
+      expect(find.text('الشقة في الدور *'),findsNothing);expect(textField('الإيجار الشهري بالريال اليمني *'),findsNothing);expect(textField('المساحة بالمتر المربع *'),findsNothing);
+      await tester.pump(const Duration(seconds:5));await tester.pumpAndSettle();
+      expect((drafts.saves.last['fields'] as Map)['monthly_rent'],'75000');expect(drafts.saves.last['parking'],isNull);expect(drafts.saves.last['completion_only'],isTrue);
+      await previewWave6(tester,boundary,'wave6-completion-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
   }
   testWidgets('shop discards stale hidden state before account autosave',(tester)async{

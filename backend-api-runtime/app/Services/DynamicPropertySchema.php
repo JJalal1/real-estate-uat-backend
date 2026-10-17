@@ -52,7 +52,7 @@ class DynamicPropertySchema
         if (($facts['type'] ?? '') === 'shop' && isset($facts['area_value'])) {
             $factor = $this->definition()['area_units_to_sqm'][$facts['area_unit'] ?? 'sqm'] ?? 1;
             $facts['area_value'] = round((float) $facts['area_value'] * $factor, 2);
-            $facts['area_m2'] = (int) round($facts['area_value']);
+            if (array_key_exists('area_m2',$facts)) $facts['area_m2'] = (int) round($facts['area_value']);
             $facts['area_unit'] = 'sqm';
         }
         foreach ($this->definition()['fields'] as $key => $_) {

@@ -92,7 +92,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   void _section(String section,String? governorate) {
     final location=ref.read(homeLocationProvider);
     context.push(Uri(path:'/marketplace-section',queryParameters:{'section':section,
-      if(governorate!=null)'governorate':governorate,if(_type!=null)'type':_type!,
+      if(governorate!=null && section!='nearby')'governorate':governorate,if(_type!=null)'type':_type!,
       if(section=='nearby')...{'lat':'${location.latitude}','lon':'${location.longitude}'},
     }).toString());
   }

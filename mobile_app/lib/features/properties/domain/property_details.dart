@@ -447,7 +447,7 @@ class PropertyDetails {
 
 class PropertyListingInput {
   const PropertyListingInput({
-    this.inputVersion = 5,
+    this.inputVersion = 8,
     this.rentalConditions = const [],
     required this.title,
     required this.purpose,

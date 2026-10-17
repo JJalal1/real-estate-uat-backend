@@ -30,7 +30,12 @@ class ListingEditorDraftController extends Controller
     public function save(Request $request,string $key)
     {
         abort_unless(Str::isUuid($key),404);
-        $v=$request->validate(['payload'=>['required','array'],'expected_revision'=>['required','integer','min:0'],'property_id'=>['nullable','integer','min:1']]);
+        $v=$request->validate(['payload'=>['required','array'],'expected_revision'=>['required','integer','min:0'],'property_id'=>['nullable','integer','min:1'],
+            'payload.type'=>['nullable',\Illuminate\Validation\Rule::in(array_keys(app(\App\Services\DynamicPropertySchema::class)->definition()['types']))],
+            'payload.purpose'=>['nullable','in:sale,rent'],'payload.step'=>['nullable','integer','between:0,3'],
+            'payload.latitude'=>['nullable','numeric','between:-90,90'],'payload.longitude'=>['nullable','numeric','between:-180,180'],
+            'payload.fields'=>['nullable','array'],'payload.image_order'=>['nullable','array','max:12'],'payload.image_order.*'=>['uuid','distinct'],
+        ]);
         abort_if(strlen(json_encode($v['payload']))>100000,422);
         $result=DB::transaction(function()use($request,$key,$v){
             $actor=User::query()->lockForUpdate()->findOrFail($request->user()->id);

@@ -26,7 +26,7 @@ abstract final class DynamicPropertySchema {
     if (result['type'] == 'shop' && result['area_value'] is num) {
       final factor = (propertySchemaDefinition['area_units_to_sqm'] as Map)[result['area_unit'] ?? 'sqm'] as num? ?? 1;
       result['area_value'] = (result['area_value'] as num) * factor;
-      result['area_m2'] = (result['area_value'] as num).round(); result['area_unit'] = 'sqm';
+      if(result.containsKey('area_m2'))result['area_m2'] = (result['area_value'] as num).round(); result['area_unit'] = 'sqm';
     }
     for (final entry in fields.entries) {
       if (applies(entry.key, result)) continue;

@@ -59,6 +59,9 @@ List<String> propertyComparisonHighlights(List<PropertyDetails?> values) {
     final sorted=List<PropertyDetails>.of(rows)..sort((a,b)=>a.bedrooms!.compareTo(b.bedrooms!));
     if(sorted.first.bedrooms!<sorted.last.bedrooms!)output.add('${sorted.last.title} يضم ${sorted.last.bedrooms} غرف نوم مقابل ${sorted.first.bedrooms}.');
   }
+  if(rows.every((p)=>DynamicPropertySchema.applies('has_parking',{'type':p.type,'purpose':p.purpose}) && p.hasParking!=null) && rows.map((p)=>p.hasParking).toSet().length>1){
+    output.add('يتوفر موقف في ${rows.where((p)=>p.hasParking==true).map((p)=>p.title).join(' و')}، ولا يوجد موقف في ${rows.where((p)=>p.hasParking==false).map((p)=>p.title).join(' و')}.');
+  }
   final addresses=rows.map((p)=>p.address?.trim()).whereType<String>().where((a)=>a.isNotEmpty).toSet();
   if(addresses.length>1)output.add('تختلف المواقع: ${addresses.join(' · ')}.');
   return output;

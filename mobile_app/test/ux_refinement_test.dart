@@ -245,7 +245,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('explicit draft save carries v7 fields and customer-paid commission, without submission', (tester) async {
+  testWidgets('explicit draft save carries v8 fields and customer-paid commission, without submission', (tester) async {
     final repository = _Properties();
     final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const ListingEditorScreen()),
       GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing')))]);
@@ -253,7 +253,7 @@ void main() {
     await _pump(tester, const SizedBox(), snapshot: _snapshot(step: 3), properties: repository, router: router);
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
-    expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 7);
+    expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 8);
     expect(jsonDecode(repository.lastInput!['rental_conditions'] as String), isEmpty);
     expect(repository.deferred, isTrue);
     expect(repository.payer, 'buyer'); expect(repository.rate, 2);
@@ -303,7 +303,7 @@ void main() {
     await _pump(tester, const SizedBox(), snapshot: recovery, properties: repository, router: router);
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
-    expect(repository.lastInput!['listing_input_version'], 7);
+    expect(repository.lastInput!['listing_input_version'], 8);
     expect(repository.lastInput!['area_value'], isNull);
     expect(repository.lastInput!['has_elevator'], isNull);
     expect(repository.lastInput!.containsKey('unit_number'), isFalse);

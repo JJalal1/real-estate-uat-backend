@@ -421,9 +421,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _imagePaths = (data['image_paths'] as List? ?? const []).whereType<String>().toList();
       final serverId = data['server_property_id'];
       if (widget.existingProperty == null && serverId is int && serverId > 0) _recoveredServerId = serverId;
-      _hasRecoveredSai = data['sai_touched'] == true && fields is Map && fields.containsKey('broker_sai_rate_percent');
-      _saiTouched = _hasRecoveredSai;
       if (const ['percentage', 'fixed'].contains(data['sai_amount_type'])) _saiAmountType = data['sai_amount_type'] as String;
+      final saiField = _saiAmountType == 'fixed' ? 'fixed_sai_amount' : 'broker_sai_rate_percent';
+      _hasRecoveredSai = data['sai_touched'] == true && fields is Map && (fields[saiField]?.toString().trim().isNotEmpty ?? false);
+      _saiTouched = _hasRecoveredSai;
       if (_hasRecoveredSai) _saiAccepted = data['sai_terms_accepted'] == true;
 
       _recoverySaved = true;
@@ -1122,8 +1123,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Widget _listingPhotos() {
     final existingImages = _existing?.images.length ?? 0, keys = _photoKeys;
     return AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [Expanded(child: Text('صور الإعلان ($_effectiveImageCount/12)', style: Theme.of(context).textTheme.titleMedium)),
-        AppButton(label:'إضافة صور', icon:Icons.add_photo_alternate_outlined, style:AppButtonStyle.tonal, onPressed:_busy ? null : _pickImages)]),
+      Text('صور الإعلان ($_effectiveImageCount/12)',style:Theme.of(context).textTheme.titleMedium),
+      const SizedBox(height:8),
+      AppButton(label:'إضافة صور',icon:Icons.add_photo_alternate_outlined,expand:true,style:AppButtonStyle.tonal,onPressed:_busy?null:_pickImages),
       if (_isEditing && existingImages > 0) SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,
         title:const Text('استبدال الصور الحالية بالكامل'), value:_replaceImages,
         onChanged:_busy ? null : (v) => setState(() => _replaceImages=v)),
