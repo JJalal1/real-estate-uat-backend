@@ -38,13 +38,7 @@ class SmartSearchService
             }
         }
         foreach (['has_parking', 'has_elevator', 'unit_occupies_entire_floor'] as $key) if (isset($value[$key])) $value[$key] = (bool) $value[$key];
-        $type = $value['type'] ?? null;
-        if ($type !== null && ! in_array($type, ['apartment', 'house', 'villa'], true)) unset($value['min_bedrooms'], $value['min_bathrooms']);
-        if ($type !== null && ! in_array($type, ['apartment', 'office', 'shop'], true)) unset($value['floor_number']);
-        if ($type !== null && $type !== 'apartment') unset($value['unit_occupies_entire_floor']);
-        if ($type !== null && ! in_array($type, ['apartment', 'building', 'office'], true)) unset($value['has_elevator']);
-        if (in_array($type, ['land', 'farm'], true)) unset($value['has_parking']);
-        if ($type === 'farm') unset($value['building_facade']);
+        $value=app(DynamicPropertySchema::class)->filters($value);
         return $value;
     }
 
@@ -64,7 +58,7 @@ class SmartSearchService
             .'Numbers such as 50 ألف mean 50000. Rooms map to min_bedrooms. A whole floor is type apartment and unit_occupies_entire_floor true. '
             .'Never invent unavailable fields, listings, results or locations. If the request is unclear or outside property search, return empty set and remove. '
             .'A reset is handled by the app button, not by dropping all filters. Schema names are the only supported filters.',
-            ['current_filters' => $current, 'follow_up' => $message], $schema,
+            ['current_filters' => $current, 'follow_up' => $message, 'property_schema'=>app(DynamicPropertySchema::class)->definition()], $schema,
         );
         try {
             if (array_diff(array_keys($patch), ['set', 'remove']) !== []) $this->gemini->unavailable();
@@ -94,7 +88,8 @@ class SmartSearchService
             'shop', 'office' => ['min_area_m2', 'floor_number', 'building_facade'],
             default => ['type', 'purpose', 'search', 'max_price'],
         };
-        return array_values(array_filter($keys, fn ($key) => ! array_key_exists($key, $filters)));
+        $allowed=app(DynamicPropertySchema::class)->filters($filters+array_fill_keys($keys,true));
+        return array_values(array_filter($keys,fn($key)=>!array_key_exists($key,$filters) && array_key_exists($key,$allowed)));
     }
 
     private function properties(): array

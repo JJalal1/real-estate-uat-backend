@@ -88,6 +88,14 @@ Route::get('/services/catalog', [ServicePaymentController::class, 'catalog']);
 Route::get('/properties/{property}/services', [ServicePaymentController::class, 'propertyServices']);
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
+    Route::get('/listing-editor-drafts', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'index']);
+    Route::get('/listing-editor-drafts/{key}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'show']);
+    Route::put('/listing-editor-drafts/{key}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'save'])->middleware('throttle:120,1');
+    Route::delete('/listing-editor-drafts/{key}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'destroy']);
+    Route::post('/listing-editor-drafts/{key}/images/{imageKey}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'upload'])->middleware('throttle:30,1');
+    Route::get('/listing-editor-drafts/{key}/images/{imageKey}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'image']);
+    Route::delete('/listing-editor-drafts/{key}/images/{imageKey}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'removeImage']);
+
     Route::get('/properties/{property}/contact', \App\Http\Controllers\Api\PropertyContactController::class)->middleware('throttle:12,1');
     Route::post('/ai/listing-fields', [AiAssistantController::class, 'extract'])->middleware('throttle:8,1');
     Route::post('/ai/listing-draft', [AiAssistantController::class, 'draft'])->middleware('throttle:8,1');

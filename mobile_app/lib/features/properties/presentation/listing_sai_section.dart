@@ -91,10 +91,11 @@ class ListingSaiSection extends StatelessWidget {
         ],
         if (quote != null) ...[
           const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 4, children: [
-            Text('قيمة السعي', style: theme.textTheme.bodyMedium),
-            Text(amount(quote.total), key: const ValueKey('listing-sai-total'),
-              style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.primary)),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.info_outline, size: 16, color: theme.colorScheme.primary), const SizedBox(width: 6),
+            Expanded(child: Text(fixed ? 'حصة المنصة ${amount(quote.platform)}' :
+              'حصة المنصة ${quote.platformPercent.toStringAsFixed(0)}% · ${amount(quote.platform)} من سعي ${amount(quote.total)}',
+              key: const ValueKey('listing-sai-total'), style: theme.textTheme.bodySmall)),
           ]),
         ],
         if (!current.isOwner && (fixed ? enteredAmount == 0 : rate == 0)) ...[

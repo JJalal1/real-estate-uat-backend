@@ -9,12 +9,7 @@ class ListingDescriptionComposer
     {
         $type = $facts['type'] ?? null;
         $purpose = $facts['purpose'] ?? null;
-        if ($type !== null && ! in_array($type, ['apartment', 'office', 'shop'], true)) unset($facts['floor_number'], $facts['unit_number']);
-        if ($type !== null && ! in_array($type, ['apartment', 'house', 'villa'], true)) unset($facts['bedrooms'], $facts['bathrooms']);
-        if ($type === 'apartment' && $purpose === 'rent') unset($facts['area_value'], $facts['area_unit'], $facts['has_elevator']);
-        if ($type !== null && ! in_array($type, ['apartment', 'building', 'office'], true)) unset($facts['has_elevator']);
-        if (in_array($type, ['land', 'farm'], true)) unset($facts['has_parking']);
-        if ($type === 'farm') unset($facts['building_facade']);
+        $facts=app(DynamicPropertySchema::class)->facts($facts);
 
         $used = [];
         $read = function (string $key) use ($facts, &$used) {
@@ -49,6 +44,7 @@ class ListingDescriptionComposer
             $read('floor_number');
             $ordinals = ['0' => 'الأرضي', '1' => 'الأول', '2' => 'الثاني', '3' => 'الثالث', '4' => 'الرابع',
                 '5' => 'الخامس', '6' => 'السادس', '7' => 'السابع', '8' => 'الثامن', '9' => 'التاسع', '10' => 'العاشر'];
+            $floor=app(DynamicPropertySchema::class)->normalizeFloor($floor);
             $floor = $ordinals[$floor] ?? $floor;
             $layout[] = $type === 'apartment' ? 'تقع في الدور '.$floor : 'يقع في الدور '.$floor;
         }
@@ -78,7 +74,7 @@ class ListingDescriptionComposer
         if (isset($facts['has_elevator'])) $amenities[] = $read('has_elevator') ? 'يتوفر مصعد في المبنى' : 'لا يوجد مصعد في المبنى';
         if (isset(ListingAiService::FACADES[$facts['building_facade'] ?? ''])) {
             $read('building_facade');
-            $amenities[] = 'واجهة المبنى '.ListingAiService::FACADES[$facts['building_facade']];
+            $amenities[] = ($type === 'land' ? 'واجهة الأرض ' : 'واجهة المبنى ').ListingAiService::FACADES[$facts['building_facade']];
         }
         $price = '';
         $moneyKey = $purpose === 'rent' ? 'monthly_rent' : 'price';
@@ -88,7 +84,7 @@ class ListingDescriptionComposer
             $currency = isset($facts['currency']) ? ' '.$read('currency') : '';
             $price = ($purpose === 'rent' ? 'الإيجار الشهري ' : 'السعر ').$this->number($value).$currency;
         }
-        $parts = array_filter([$lead, implode('، و', $layout), implode('، و', $amenities), $price]);
+        $parts = array_filter([$lead, implode(' و', $layout), implode(' و', $amenities), $price]);
         $text = implode('. ', array_map(fn ($part) => rtrim(trim($part), '.، '), $parts));
         return ['description' => $text === '' ? '' : $text.'.', 'fact_keys' => array_values(array_unique($used)), 'requires_review' => true];
     }

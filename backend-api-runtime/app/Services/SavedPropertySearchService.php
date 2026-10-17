@@ -28,6 +28,7 @@ class SavedPropertySearchService
                 default => (float) $filters[$key],
             };
         }
+        $normalized=app(DynamicPropertySchema::class)->filters($normalized);
         ksort($normalized);
         return $normalized;
     }

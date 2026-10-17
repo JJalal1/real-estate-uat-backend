@@ -290,6 +290,7 @@ class PropertySaiService
             'fixed_rate_percent' => $this->fixedRate($purpose),
             'broker_max_rate_percent' => $type === 'owner' ? null : $this->brokerMaxRate($purpose),
             'professional_platform_share_percent' => self::PLATFORM_BROKER_SHARE,
+            'fallback_platform_share_percent' => 100.0,
             'platform_terms_message' => 'للتطبيق نسبة مقدارها '.$this->formatRate(self::PLATFORM_BROKER_SHARE).'% من مبلغ السعي عند إتمام الصفقة.',
             'requires_configuration' => true,
             'amount_types' => $type === 'owner' ? ['percentage'] : ['percentage', 'fixed'],

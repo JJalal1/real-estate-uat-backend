@@ -1,3 +1,4 @@
+import 'property_schema.dart';
 import 'dart:convert';
 
 class PropertyImageItem {
@@ -89,6 +90,7 @@ class PropertySummary {
   final String? floorNumber;
 
   factory PropertySummary.fromJson(Map<String, dynamic> json) {
+    json = DynamicPropertySchema.sanitize(json);
     final rawPrice = _asDouble(json['price']) ?? 0;
     return PropertySummary(
       id: _asInt(json['id']) ?? 0,
@@ -304,6 +306,7 @@ class PropertyDetails {
   double get editablePrice => basePrice ?? price;
 
   factory PropertyDetails.fromJson(Map<String, dynamic> json) {
+    json = DynamicPropertySchema.sanitize(json);
     final imageRows = json['images'] as List<dynamic>? ?? const <dynamic>[];
     final similarRows = json['similar'] as List<dynamic>? ?? const <dynamic>[];
     final rawPrice = _asDouble(json['price']) ?? 0;
@@ -518,9 +521,9 @@ class PropertyListingInput {
   final String? ownerRelationshipNote;
 
   Map<String, dynamic> toMap() {
-    return <String, dynamic>{
+    return DynamicPropertySchema.sanitize(<String, dynamic>{
       'title': title.trim(),
-      if (description != null && description!.trim().isNotEmpty)
+      if (description != null)
         'description': description!.trim(),
       'purpose': purpose,
       'type': type,
@@ -547,8 +550,7 @@ class PropertyListingInput {
       if (type != 'land' && bathrooms != null) 'bathrooms': bathrooms,
       if (type != 'land' && hasParking != null) 'has_parking': hasParking,
       if (const ['apartment', 'building', 'office'].contains(type)) 'has_elevator': hasElevator,
-      if (type != 'land' &&
-          buildingFacade != null &&
+      if (buildingFacade != null &&
           buildingFacade!.isNotEmpty)
         'building_facade': buildingFacade,
       if (address != null && address!.trim().isNotEmpty)
@@ -574,7 +576,7 @@ class PropertyListingInput {
       if (ownerRelationshipNote != null &&
           ownerRelationshipNote!.trim().isNotEmpty)
         'owner_relationship_note': ownerRelationshipNote!.trim(),
-    };
+    });
   }
 }
 

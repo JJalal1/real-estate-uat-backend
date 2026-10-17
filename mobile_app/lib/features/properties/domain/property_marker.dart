@@ -1,3 +1,4 @@
+import 'property_schema.dart';
 class PropertyMarker {
   const PropertyMarker({
     required this.id,
@@ -49,6 +50,7 @@ class PropertyMarker {
   final bool isSpotlight;
 
   factory PropertyMarker.fromJson(Map<String, dynamic> json) {
+    json = DynamicPropertySchema.sanitize(json);
     final rawPrice = _asDouble(json['price']) ?? 0;
     return PropertyMarker(
       id: _asInt(json['id']) ?? 0,
