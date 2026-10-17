@@ -1,0 +1,80 @@
+name: Verify Wave6 public UAT API
+on:
+  push:
+    branches: [verification/wave6-1076-live]
+permissions: {}
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify deployed Wave6 discovery, draft authentication and AI constraints
+        run: |
+          python3 - <<'PY'
+          import json,time,urllib.request,urllib.error,urllib.parse
+          root='https://real-estate-uat-api-frankfurt.onrender.com/api'
+          checks=[]
+          def request(path,body=None,expected=200,method=None):
+              start=time.monotonic()
+              data=None if body is None else json.dumps(body).encode()
+              headers={'Accept':'application/json','User-Agent':'Wave6-UAT-Verification/1076'}
+              if data is not None:headers['Content-Type']='application/json'
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(root+path,data=data,headers=headers,method=method),timeout=55) as response:
+                      status=response.status;value=json.load(response)
+              except urllib.error.HTTPError as error:
+                  status=error.code;value=json.load(error)
+              checks.append({'path':path.split('?')[0],'status':status,'elapsed_ms':round((time.monotonic()-start)*1000)})
+              if expected is not None:assert status==expected,(path.split('?')[0],status)
+              return value
+          health=request('/health');assert health['status']=='ok' and health['database'] is True and health['postgis'] is True
+          rows=request('/properties?per_page=2')['data'];assert isinstance(rows,list) and rows
+          target=request('/properties/'+str(int(rows[0]['id'])))['data'];assert int(target['id'])==int(rows[0]['id'])
+          for key in ['contact_phone','contact_whatsapp','document_owner_name','owner_relationship_note']:
+              assert not target.get(key),'Public property leaked a private field.'
+          property_id=int(target['id'])
+          request('/properties/'+str(property_id)+'/contact',expected=401)
+          sai=request('/properties/'+str(property_id)+'/sai')['data'];assert 'sai_management' not in sai
+          assert sai['sai']['amount_type'] in ['percentage','fixed']
+          feed=request('/marketplace?latitude=15.3694&longitude=44.191')['data']
+          assert isinstance(feed['section_order'],list) and len(feed['section_order'])==len(set(feed['section_order']))
+          assert all(key in feed['sections'] and feed['sections'][key] for key in feed['section_order'])
+          assert isinstance(feed['sections']['nearby'],list)
+          directory=request('/brokers?region_only=1&per_page=2')['data'];assert isinstance(directory,list)
+          for profile in directory:
+              assert profile['verified'] is True and profile['account_type'] in ['broker','office']
+              assert not any(key in profile for key in ['phone','email','details','identity_document_path'])
+              assert all(isinstance(profile[key],int) and profile[key]>=0 for key in ['sold_listings','rented_listings','completed_deals'])
+          if directory:
+              profile=request('/advertisers/'+str(directory[0]['id'])+'/profile')['data']
+              assert profile['id']==directory[0]['id'] and not any(key in profile for key in ['phone','email','details'])
+              request('/brokers/'+str(directory[0]['id'])+'/conversation',{},401)
+          key='a1076000-0000-4000-8000-000000000076'
+          request('/listing-editor-drafts',expected=401)
+          request('/listing-editor-drafts/'+key,expected=401)
+          request('/listing-editor-drafts/'+key,{'payload':{'fields':{}},'expected_revision':0},401,'PUT')
+          ring='[[44.0,15.2],[44.4,15.2],[44.2,15.6],[44.0,15.2]]'
+          filters={'type':'apartment','purpose':'rent','currency':'USD','max_monthly_rent':400,'has_parking':0,
+              'latitude':15.3694,'longitude':44.191,'radius_km':30,'south':15.2,'west':44.0,'north':15.6,'east':44.4,'area_polygon':ring}
+          matched=request('/properties?'+urllib.parse.urlencode(filters))['data'];assert isinstance(matched,list)
+          for row in matched:
+              assert row['purpose']=='rent' and row['currency']=='USD' and float(row['monthly_rent'])<=400
+              assert row.get('area_value') is None and row.get('has_elevator') is None
+          request('/properties?area_polygon=invalid',expected=422)
+          request('/saved-searches',expected=401)
+          request('/ai/listing-description',{'facts':{'type':'apartment'}},401)
+          request('/ai/rental-conditions',{'rental_conditions':[{'kind':'advance','months':3}],'editor_draft_key':key},401)
+          request('/ai/transcribe',{},422)
+          print('WAVE6_LIVE_SMOKE '+json.dumps({'passed':True,'tested_source':'493cc09ebc8e544dc545b5dd84710ab7f4af4dbd',
+              'apk_version':1076,'checks':checks},sort_keys=True))
+          current={'type':'apartment','purpose':'rent','search':'صنعاء','currency':'USD','max_price':400,
+              'governorate':'صنعاء','area_polygon':ring,'latitude':15.3694,'longitude':44.191,'radius_km':30}
+          ai=request('/ai/search',{'message':'احتفظ بشروط البحث الحالية كما هي','filters':current,'revision':1076},None)
+          status=checks[-1]['status'];assert status in [200,503],status
+          if status==200:
+              result=ai['data'];assert result['revision']==1076
+              for field,value in current.items():assert result['filters'][field]==value,field
+          else:assert ai.get('code')=='ai_unavailable'
+          print('WAVE6_LIVE_AI '+json.dumps({'available':status==200,'status':status,'elapsed_ms':checks[-1]['elapsed_ms'],
+              'preserved_source_constraints':status==200,'fallback_checked':status==503},sort_keys=True))
+          PY
