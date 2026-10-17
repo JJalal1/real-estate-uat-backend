@@ -1526,7 +1526,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_busy || _rentalConditions.isEmpty) return;
     setState(() => _busy = true);
     try {
-      final result = await ref.read(aiRepositoryProvider).rentalConditions(_rentalConditions, propertyId: _existing?.id ?? _recoveredServerId);
+      final result = await ref.read(aiRepositoryProvider).rentalConditions(_rentalConditions,
+        propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null);
       if (!mounted) return;
       final rows = result['rental_conditions'];
       if (rows is! List || result['text'] is! String) throw StateError('Invalid requirements proposal');

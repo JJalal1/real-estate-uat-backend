@@ -68,6 +68,12 @@ class Wave6Properties extends Wave3PropertiesFake {
 }
 class Wave6Ai extends Wave3AiFake {
   Completer<Map<String,dynamic>>? descriptionResult;
+  String? rentalConditionsDraftKey;
+  @override
+  Future<Map<String,dynamic>> rentalConditions(List<Map<String,dynamic>> conditions,{int? propertyId,String? draftKey}) async {
+    rentalConditionsDraftKey=draftKey;
+    return {'rental_conditions':conditions,'text':'إيجار مقدم لثلاثة أشهر.','requires_review':true};
+  }
   @override
   Future<Map<String,dynamic>> description(Map<String,dynamic> facts,{int? propertyId,String? draftKey}) async=>
     descriptionResult?.future??Future.value({'description':'منزل للبيع في حدة بصنعاء. يضم ثلاث غرف نوم وحمامين.'});

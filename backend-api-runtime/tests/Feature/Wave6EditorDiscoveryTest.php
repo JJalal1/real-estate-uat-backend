@@ -65,6 +65,22 @@ class Wave6EditorDiscoveryTest extends TestCase
         $this->assertDatabaseCount('properties',0);
     }
 
+    public function test_personal_owner_can_review_rental_requirements_for_their_existing_account_draft(): void
+    {
+        [, $headers]=$this->actor('owner-requirements','owner');$key=(string)Str::uuid();
+        $this->withHeaders($headers)->putJson('/api/listing-editor-drafts/'.$key,
+            ['payload'=>['type'=>'shop','purpose'=>'rent','fields'=>[]],'expected_revision'=>0])->assertOk();
+        config(['gemini.enabled'=>true,'gemini.key'=>'fixture-key','gemini.model'=>'gemini-3.1-flash-lite','gemini.daily_limit'=>200]);
+        \Illuminate\Support\Facades\Http::fake(['generativelanguage.googleapis.com/*'=>\Illuminate\Support\Facades\Http::response(
+            ['candidates'=>[['content'=>['parts'=>[['text'=>json_encode(['order'=>[0]])]]]]]],200)]);
+        $input=['rental_conditions'=>[['kind'=>'advance','months'=>3]]];
+        $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',$input)->assertConflict();
+        $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',$input+['editor_draft_key'=>$key])
+            ->assertOk()->assertJsonPath('data.requires_review',true)->assertJsonPath('data.rental_conditions.0.months',3);
+        \Illuminate\Support\Facades\Http::assertSentCount(1);
+        $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);
+    }
+
     public function test_unverified_and_suspended_accounts_cannot_save_or_upload(): void
     {
         [$u,$a]=$this->actor('ordinary',null);$key=(string)Str::uuid();

@@ -136,6 +136,19 @@ void main(){
       await previewWave6(tester,boundary,'wave6-description-ready-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
   }
+  testWidgets('rental assistance uses the saved draft identity and keeps explicit review',(tester)async{
+    final drafts=Wave6Drafts(),ai=Wave6Ai(),key=newListingDraftKey(),snapshot=editorSnapshot(type:'shop')
+      ..['purpose']='rent'..['rental_conditions']=[{'kind':'advance','months':3}];
+    (snapshot['fields'] as Map)['monthly_rent']='75000';
+    final draft=ListingAccountDraft(key:key,revision:2,payload:snapshot);drafts.drafts[key]=draft;
+    await pumpWave6(tester,ListingEditorScreen(accountDraft:draft),ai:ai,drafts:drafts);
+    final polish=find.text('ترتيب وصياغة الشروط بالذكاء الاصطناعي');
+    await tester.ensureVisible(polish);await tester.tap(polish);await tester.pumpAndSettle();
+    expect(ai.rentalConditionsDraftKey,key);expect(find.text('راجع صياغة الشروط'),findsOneWidget);
+    expect(find.text('استخدام الترتيب المقترح'),findsOneWidget);
+    await tester.tap(find.text('إلغاء'));await tester.pumpAndSettle();
+    expect(drafts.drafts[key]!.propertyId,isNull);expect(tester.takeException(),isNull);await finishWave6(tester);
+  });
   testWidgets('apartment floor is a selection and its ground value survives account saving',(tester)async{
     final drafts=Wave6Drafts(),snapshot=editorSnapshot(type:'apartment');
     (snapshot['fields'] as Map)['floor_number']='3';(snapshot['fields'] as Map)['unit_number']='شمالية';
