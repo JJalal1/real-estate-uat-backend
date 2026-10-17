@@ -1,6 +1,20 @@
 # AI Project State — REAL ESTATE UAT
 
-Last updated: 2026-10-16
+## Wave6 reviewed implementation and UAT rollout — APK1076
+
+The owner requested completion through reviewed installer delivery, using1069 as the baseline. Read `WAVE6_BASELINE_1069_AR.md`. Final source `493cc09ebc8e544dc545b5dd84710ab7f4af4dbd` passed all five CI76 jobs (`39076536548`) and focused9 (`39076536560`). PR82 merged as `22569181f1c93bf78ceda8be0eb7ca5721186fe5`; its complete tree is exactly the tested `95826858e1576aef9dc8e78c6b3fac5d42cbda2c`. Mobile tree `46433748ff25f7cbf5af24f37fe3a56a501a5e3a`; backend tree `b1122103296b4e5fa04113cd72c2180422a522bf`. Later documentation-only handoff changes preserve both.
+
+Implemented: one generated property schema; account-scoped partial drafts/private photos/revisions; reviewed manual-stop voice and missing-fields completion; inline factual description with late-response protection; policy-derived compact Sai; dynamic factual comparison; one list/map journey cleared on full exit; data/location home and add-house action; existing private broker conversations and distinct closed/deal counts. Review found and fixed a missing draft key in rental-condition assistance, with owner API and explicit-review UI regressions.
+
+Validation passed260 Laravel tests (one SQLite-only PostGIS skip covered on PostgreSQL),106 PostgreSQL/PostGIS tests without skips,25 focused Flutter tests,356 full Flutter tests, strict analysis, Docker, native APK build and verification. Focused/full Flutter suites overlap. All18 inspected normal/2.4 Arabic synthetic preview hashes match corrected focused9 and CI76; they do not establish native-map or microphone acceptance.
+
+Existing Free Frankfurt UAT deploy `dep-db9vuqnbtjjs73d8m5o0` at the merge SHA became live2026-10-17T23:07:14Z. The additive account-draft migration is applied; RLS is enabled, policies intentionally deny direct access, anon/authenticated table and sequence grants are denied, storage remains private and24 immutable guards remain enabled. All15 financial table counts and sorted-row fingerprints match the immediate predeployment snapshot. No reseed, Production, paid resources, assets/dependencies or native Android changes.
+
+Public deployment smoke `39077874142` passed18 checks for health/database/PostGIS, discovery, privacy, Sai, marketplace, broker profiles, authentication and invalid filter/voice requests. One follow-up `39078303916` also passed. Real AI search returned503 (`ai_unavailable`) in both checks, after20288ms and3149ms; fallback was checked, provider success and constraint-preservation were not established live. Do not label provider availability complete or infer success from the workflow's allowed fallback. Physical handset/native MapLibre/microphone acceptance remains OPEN.
+
+Original `real-estate-uat-1076.apk`:49,364,423bytes, SHA256 `a6c7cae5b5974b32d1066b9e2fa01b7ee26d99d17adbb4cf8458d493f070a7ad`. Native apksigner plus local ZIP CRC, CMS signature/all715 signed payloads, package/version1076, three compiled Frankfurt API architectures,145 original assets and five original fonts passed. Delivery run `39077631697` transferred the original bytes without rebuilding/re-signing. The development certificate differs from1069; save local unsent drafts before uninstalling if direct update is rejected.
+
+Last updated: 2026-10-18 (Asia/Aden)
 
 ## Active-wave discovery and listing presentation delivered — APK1069
 

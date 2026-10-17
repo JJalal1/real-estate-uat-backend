@@ -1,5 +1,11 @@
 # Business Rules — REAL ESTATE
 
+## Wave6 accepted scope — October18
+
+Use the central property schema across all input/discovery/detail/compare surfaces. Shop area is sqm; apartment floor is a choice. Account checkpoints allow partial inputs, remain private and cannot publish or accept Sai. Voice keeps manual stop, editable review and explicit application; reviewed suggestions lead to missing-required-fields completion. Inline descriptions use reviewed facts and protect subsequent user edits from late results.
+
+The compact Sai summary uses actual backend policy and keeps fixed/percentage amounts, owner rates, zero fallback, split, payer, immutable history and explicit financial consent. Comparison uses factual compatible values, replacement/removal and dynamic groups. Full search exit clears the journey; only explicitly chosen saved searches restore it. Home uses actual data/location. Broker contact reuses private messaging without implicit messages; closed sold/rented listing counts stay distinct from confirmed deals. Retain rent7/sale14/grace2 availability. Provider503 must remain visible and must not be reported as successful AI interpretation.
+
 These are product rules, not implementation suggestions. Agents must preserve them unless the product owner explicitly changes them.
 
 ## October16 supplied voice reference
