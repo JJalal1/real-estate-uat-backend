@@ -1,3 +1,4 @@
+# One follow-up check of the transient503 provider response; no application changes.
 name: Verify Wave6 public UAT API
 on:
   push:
