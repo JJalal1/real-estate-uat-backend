@@ -25,7 +25,7 @@ def main():
                 *[f'build/broker-preview/active-wave-{screen}-{scale}.png'
                   for screen in ['compare', 'details', 'advertiser', 'save', 'directory']
                   for scale in ['1.0', '2.4']]]
-    selected += [f'build/broker-preview/wave6-{screen}-{scale}.png' for screen in ['compare','compare-facts','description-loading','description-ready','completion','home','search','map'] for scale in ['1.0','2.4']]
+    selected += [f'build/broker-preview/wave6-{screen}-{scale}.png' for screen in ['compare','compare-facts','description-loading','description-ready','completion','home','existing-sai','search','map'] for scale in ['1.0','2.4']]
     for path in selected:
         file = Path('mobile_app') / path
         if not file.is_file():

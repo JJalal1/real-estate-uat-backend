@@ -276,7 +276,7 @@ void main() {
     final router = await _pump(tester);
     final nav = tester.getRect(find.byType(AppNavigationBar));
     expect(nav.height, lessThan(tester.view.physicalSize.height * 0.45));
-    await tester.tap(find.text('حسابي'));
+    await tester.tap(find.byTooltip('حسابي'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('المفضلة').hitTestable());
     await tester.pumpAndSettle();
@@ -402,7 +402,7 @@ void main() {
       await _pump(tester, initial: page, scale: scale, user: _user());
       expect(tester.takeException(), isNull);
       if (page == '/') {
-        await tester.tap(find.text('حسابي'));
+        await tester.tap(find.byTooltip('حسابي'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }
@@ -414,7 +414,7 @@ void main() {
   testWidgets('own listing source card supports enlarged Arabic without losing review controls', (tester) async {
     _viewport(tester, const Size(320, 640));
     await _pump(tester, scale: 2.4, user: _user(verified: true, type: 'broker'));
-    await tester.tap(find.text('عملي'));
+    await tester.tap(find.byTooltip('عملي'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
@@ -505,7 +505,7 @@ void main() {
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -260));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-home-advertisers');
-      await tester.tap(find.text('عملي'));
+      await tester.tap(find.byTooltip('عملي'));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
       await tester.pumpAndSettle();
@@ -514,7 +514,7 @@ void main() {
       await _capture(tester, key, 'template-my-listings');
       router.pop();
       await tester.pumpAndSettle();
-      await tester.tap(find.text('حسابي'));
+      await tester.tap(find.byTooltip('حسابي'));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-account');
       router.push('/auth');

@@ -37,7 +37,7 @@ Map<String,dynamic> editorSnapshot({String type='house'})=>{
 };
 Finder textField(String label)=>find.byWidgetPredicate((w)=>w is TextField && w.decoration?.labelText==label);
 
-Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts? drafts,Wave6Recovery? recovery,Wave3VoiceFake? voice,double scale=1,GlobalKey? boundary})async{
+Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts? drafts,Wave6Recovery? recovery,Wave3VoiceFake? voice,bool testMap=false,double scale=1,GlobalKey? boundary})async{
   tester.view.physicalSize=const Size(412,915);tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(()=>BrokerTestAuth(1)),
@@ -45,6 +45,9 @@ Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts
     listingAccountDraftRepositoryProvider.overrideWithValue(drafts??Wave6Drafts()),listingRecoveryStoreProvider.overrideWithValue(recovery??Wave6Recovery()),
     voiceInputProvider.overrideWithValue(voice??Wave3VoiceFake()),
     homeLocationAttemptedProvider.overrideWith((ref)=>true),
+    if(testMap) sharedSearchMapBuilderProvider.overrideWithValue((context,rows,select,viewport)=>ColoredBox(color:Colors.teal.shade50,
+      child:Center(child:Wrap(spacing:12,runSpacing:12,children:[for(final row in rows)TextButton(
+        key:ValueKey('fixture-map-${row.id}'),onPressed:()=>select(row.id),child:Text('${row.latitude}, ${row.longitude}'))])))),
     marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake(onFeed:(q)async=>MarketplaceFeed(label:'صنعاء',governorate:'صنعاء',sectionOrder:const ['rent','latest'],
       sections:{'latest':[wave3Property(11)],'rent':[wave3Property(12)]}))),
   ],child:MaterialApp(theme:AppTheme.light,home:child,builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale)),
@@ -155,6 +158,18 @@ void main(){
     expect((drafts.saves.last['fields'] as Map)['fixed_sai_amount'],'3500');await finishWave6(tester);
   });
   for(final scale in [1.0,2.4]){
+    testWidgets('search and its shared map keep usable controls at scale $scale',(tester)async{
+      final boundary=GlobalKey();await pumpWave6(tester,const AssistedSearchScreen(),testMap:true,scale:scale,boundary:boundary);
+      final field=find.byKey(const ValueKey('smart-search-description'));
+      await tester.enterText(field,'شقة للإيجار في صنعاء');await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));
+      await tester.tap(find.byKey(const ValueKey('smart-search-send')));await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('smart-search-manual')),findsOneWidget);
+      await previewWave6(tester,boundary,'wave6-search-$scale');
+      await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).controller!.text,'شقة للإيجار في صنعاء');
+      await previewWave6(tester,boundary,'wave6-map-$scale');
+      expect(tester.takeException(),isNull);await finishWave6(tester);
+    });
     testWidgets('existing-listing Sai uses server shares and compact fixed money at scale $scale',(tester)async{
       final repository=Wave6SaiProperties(),boundary=GlobalKey();
       await pumpWave6(tester,Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showPropertySaiConfigurationSheet(context,
@@ -174,7 +189,7 @@ void main(){
     testWidgets('professional home has a compact house-plus CTA and dynamic sections at scale $scale',(tester)async{
       final boundary=GlobalKey();await pumpWave6(tester,const AppShellScreen(),scale:scale,boundary:boundary);
       expect(find.byKey(const ValueKey('home-add-property')),findsOneWidget);expect(find.text('إدارة عملي'),findsNothing);
-      expect(find.text('بحث ذكي'),findsOneWidget);expect(find.text('عملي'),findsOneWidget);
+      expect(find.text('بحث ذكي'),findsOneWidget);expect(find.byTooltip('عملي'),findsOneWidget);
       expect(find.byKey(const ValueKey('floating-smart-search')),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-home-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
@@ -187,9 +202,9 @@ void main(){
       expect(voice.latest.stops,0);expect(drafts.saves.any((p)=>(p['fields'] as Map)['ai_listing_brief']=='وصف لم يكتمل'),isFalse);
       await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
       voice.latest.emit(const VoiceEvent('final',text:'محل للإيجار في حدة، المساحة خمسة وستون مترًا والإيجار خمسة وسبعون ألفًا والسعي خمسون بالمئة'));await tester.pumpAndSettle();
-      final scroll=find.byType(Scrollable).last;
+      final scroll=find.descendant(of:find.byKey(const ValueKey('listing-ai-scroll')),matching:find.byType(Scrollable)).first;
       await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-prepare')),250,scrollable:scroll);await tester.tap(find.byKey(const ValueKey('listing-ai-prepare')));await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-apply-draft')),350,scrollable:find.byType(Scrollable).last);await tester.tap(find.byKey(const ValueKey('listing-ai-apply-draft')));await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-apply-draft')),350,scrollable:scroll);await tester.tap(find.byKey(const ValueKey('listing-ai-apply-draft')));await tester.pumpAndSettle();
       expect(find.text('أكمل الناقص فقط'),findsOneWidget);expect(find.text('تأكيد الموقع على الخريطة'),findsOneWidget);
       expect(find.text('الشقة في الدور *'),findsNothing);expect(textField('الإيجار الشهري بالريال اليمني *'),findsNothing);expect(textField('المساحة بالمتر المربع *'),findsNothing);
       await tester.pump(const Duration(seconds:5));await tester.pumpAndSettle();

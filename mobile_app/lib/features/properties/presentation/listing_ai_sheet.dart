@@ -182,7 +182,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: SizedBox(
       height: (MediaQuery.sizeOf(context).height - MediaQuery.viewInsetsOf(context).bottom) * .78,
-      child: ListView(padding: const EdgeInsets.all(18), children: [
+      child: ListView(key: const ValueKey('listing-ai-scroll'), padding: const EdgeInsets.all(18), children: [
         Text(widget.description ? 'وصف من مواصفاتك' : widget.prepareDraft ? 'جهّز إعلانك بسرعة' : 'مساعد إضافة العقار',
           style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),

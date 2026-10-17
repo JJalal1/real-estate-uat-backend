@@ -174,10 +174,13 @@ void main() {
       final key = GlobalKey();
       await _pump(tester, const PropertyCompareScreen(propertyIds: [11,12,13]), scale: scale, boundary:key);
       expect(find.text('العقار غير متاح حاليًا'), findsOneWidget);
+      await _capture(tester,key,'compare-$scale');
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('compare-all')),300,scrollable:find.byType(Scrollable).first);
+      await tester.tap(find.byKey(const ValueKey('compare-all')));await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('غرف النوم'),300,scrollable:find.byType(Scrollable).first);await tester.pumpAndSettle();
       expect(find.text('غير مذكور'), findsWidgets);
       expect(find.text('3'), findsOneWidget);
       expect(find.text('0 غرف'), findsNothing);
-      await _capture(tester,key,'compare-$scale');
       expect(tester.takeException(),isNull);
     });
     testWidgets('details shows ordered facts, compact advertiser and explicit contact at scale $scale', (tester) async {

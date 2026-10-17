@@ -136,14 +136,14 @@ class Wave6EditorDiscoveryTest extends TestCase
         $fields=['type'=>'shop','purpose'=>'rent','monthly_rent'=>75000,'floor_number'=>'3','has_parking'=>true,'area_value'=>65,'area_unit'=>'sqm',
             'sai_amount_type'=>'percentage','broker_sai_rate_percent'=>50,'rental_conditions'=>[['kind'=>'advance','months'=>3]]];
         $response=fn($f)=>['candidates'=>[['content'=>['parts'=>[['text'=>json_encode(['fields'=>$f],JSON_UNESCAPED_UNICODE)]]]]]];
-        \Illuminate\Support\Facades\Http::fake(['generativelanguage.googleapis.com/*'=>\Illuminate\Support\Facades\Http::response($response($fields))]);
+        $foreignFields=['type'=>'shop','purpose'=>'rent','monthly_rent'=>100,'currency'=>'USD','sai_amount_type'=>'fixed','fixed_sai_amount'=>10];
+        \Illuminate\Support\Facades\Http::fake(['generativelanguage.googleapis.com/*'=>\Illuminate\Support\Facades\Http::sequence()->push($response($fields))->push($response($foreignFields))]);
         $this->withHeaders($headers)->postJson('/api/ai/listing-draft',['mode'=>'prepare','message'=>'محل للإيجار مساحته 65 مترًا، الإيجار 75 ألف ريال والسعي 50%، مقدم ثلاثة أشهر','facts'=>(object)[]])
             ->assertOk()->assertJsonPath('data.fields.broker_sai_rate_percent',50)->assertJsonPath('data.fields.rental_conditions.0.months',3)
             ->assertJsonMissingPath('data.fields.floor_number')->assertJsonMissingPath('data.fields.has_parking')->assertJsonPath('data.requires_review',true);
-        $fields=['type'=>'shop','purpose'=>'rent','monthly_rent'=>100,'currency'=>'USD','sai_amount_type'=>'fixed','fixed_sai_amount'=>10];
-        \Illuminate\Support\Facades\Http::fake(['generativelanguage.googleapis.com/*'=>\Illuminate\Support\Facades\Http::response($response($fields))]);
         $this->withHeaders($headers)->postJson('/api/ai/listing-draft',['mode'=>'prepare','message'=>'محل بإيجار مئة دولار وسعي عشرة دولارات','facts'=>(object)[]])
             ->assertOk()->assertJsonMissingPath('data.fields.monthly_rent')->assertJsonMissingPath('data.fields.fixed_sai_amount')->assertJsonMissingPath('data.fields.sai_amount_type');
+        \Illuminate\Support\Facades\Http::assertSentCount(2);
         $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);
     }
 

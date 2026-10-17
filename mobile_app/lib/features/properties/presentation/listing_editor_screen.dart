@@ -389,21 +389,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (data['image_tokens'] is Map) _localPhotoKeys.addAll(Map<String,String>.from(data['image_tokens'] as Map));
       _photoOrder = (data['image_order'] as List? ?? const []).whereType<String>().toList();
       final fields = data['fields'];
-      if (fields is Map) {
-        for (final entry in _recoveryFields.entries) {
-          if (const ['broker_sai_rate_percent', 'fixed_sai_amount'].contains(entry.key) && data['sai_touched'] != true) continue;
-          final text = fields[entry.key]; if (text is String) entry.value.text = text;
-        }
-      }
       if (data['rental_conditions'] is List) _rentalConditions = (data['rental_conditions'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       _step = (data['step'] is int ? data['step'] as int : 0).clamp(0, 3).toInt();
       if (const ['sale', 'rent'].contains(data['purpose'])) _purpose = data['purpose'] as String;
-      if (_purpose == 'rent' && data['rental_conditions'] is! List) {
-        _rentalConditions = [
-          if (int.tryParse(_advanceMonths.text) case final int months when months > 0) {'kind': 'advance', 'months': months},
-          if (int.tryParse(_rentalTermMonths.text) case final int months when months > 0) {'kind': 'duration', 'months': months},
-        ];
-      }
       if (_typeLabels.containsKey(data['type'])) _type = data['type'] as String;
       if (data['type'] == 'floor') _type = 'apartment';
       _wholeFloor = _type == 'apartment' && (widget.existingProperty != null || data['server_property_id'] is int) && (data['type'] == 'floor' || data['unit_occupies_entire_floor'] == true);
@@ -426,6 +414,19 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _hasRecoveredSai = data['sai_touched'] == true && fields is Map && (fields[saiField]?.toString().trim().isNotEmpty ?? false);
       _saiTouched = _hasRecoveredSai;
       if (_hasRecoveredSai) _saiAccepted = data['sai_terms_accepted'] == true;
+
+      if (fields is Map) {
+        for (final entry in _recoveryFields.entries) {
+          if (const ['broker_sai_rate_percent', 'fixed_sai_amount'].contains(entry.key) && data['sai_touched'] != true) continue;
+          final text = fields[entry.key]; if (text is String) entry.value.text = text;
+        }
+      }
+      if (_purpose == 'rent' && data['rental_conditions'] is! List) {
+        _rentalConditions = [
+          if (int.tryParse(_advanceMonths.text) case final int months when months > 0) {'kind': 'advance', 'months': months},
+          if (int.tryParse(_rentalTermMonths.text) case final int months when months > 0) {'kind': 'duration', 'months': months},
+        ];
+      }
 
       _recoverySaved = true;
       if (data['proof_needs_reselection'] == true) _message('استعدنا بيانات الإعلان. أعد اختيار ملف إثبات الملكية عند إكمال المسودة.');
@@ -497,7 +498,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool? get _parkingValue =>
       _parkingChoice == null ? null : _parkingChoice == 'yes';
   bool get _isRentalApartment => _type == 'apartment' && _purpose == 'rent';
-  bool get _optionalArea => _isRentalApartment;
 
   double? get _effectivePrice {
     if (_purpose == 'rent') {
@@ -948,40 +948,22 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           ],
         ],
         const SizedBox(height: AppSpacing.s16),
-        if (!_isRentalApartment) Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: AppTextField(
-                controller: _area,
-                label: _areaUnit == 'sqm' ? (_optionalArea ? 'المساحة (اختياري)' : 'المساحة *') : (_optionalArea ? 'عدد الوحدات (اختياري)' : 'عدد الوحدات *'),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                enabled: !_busy,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.s8),
-            Expanded(
-              flex: 3,
-              child: DropdownButtonFormField<String>(
-                value: _areaUnit,
-                decoration: const InputDecoration(labelText: 'وحدة المساحة'),
-                items: (_type == 'shop' ? const {'sqm': 'متر مربع'} : propertyAreaUnitLabels).entries
-                    .map(
-                      (entry) => DropdownMenuItem(
-                        value: entry.key,
-                        child:
-                            Text(entry.value, overflow: TextOverflow.ellipsis),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: _busy
-                    ? null
-                    : (value) => setState(() => _areaUnit = value ?? 'sqm'),
-              ),
-            ),
-          ],
-        ),
+        if (!_isRentalApartment)
+          _type == 'shop' ? AppTextField(controller: _area, label: 'المساحة بالمتر المربع *',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true), enabled: !_busy)
+          : LayoutBuilder(builder: (context, constraints) {
+            final area = AppTextField(controller: _area,
+              label: _areaUnit == 'sqm' ? 'المساحة *' : 'عدد الوحدات *',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true), enabled: !_busy);
+            final unit = DropdownButtonFormField<String>(value: _areaUnit, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'وحدة المساحة'),
+              items: propertyAreaUnitLabels.entries.map((entry) => DropdownMenuItem(value: entry.key,
+                child: Text(entry.value, overflow: TextOverflow.ellipsis))).toList(growable: false),
+              onChanged: _busy ? null : (value) => setState(() => _areaUnit = value ?? 'sqm'));
+            return MediaQuery.textScalerOf(context).scale(14) > 21
+              ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [area, const SizedBox(height: 12), unit])
+              : Row(children: [Expanded(flex: 2, child: area), const SizedBox(width: 8), Expanded(flex: 3, child: unit)]);
+          }),
         if (_requiresResidential) ...[
           const SizedBox(height: AppSpacing.s12),
           Row(
@@ -1020,7 +1002,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (_requiresStructure) ...[
           const SizedBox(height: AppSpacing.s16),
           DropdownButtonFormField<String>(
-            value: _parkingChoice,
+            value: _parkingChoice, isExpanded: true,
             decoration: const InputDecoration(labelText: 'موقف سيارة *'),
             items: const [
               DropdownMenuItem(value: 'yes', child: Text('يوجد')),
@@ -1032,7 +1014,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           ),
           const SizedBox(height: AppSpacing.s12),
           DropdownButtonFormField<String>(
-            value: _facade,
+            value: _facade, isExpanded: true,
             decoration: const InputDecoration(labelText: 'واجهة البناء *'),
             items: propertyFacadeLabels.entries
                 .map((entry) => DropdownMenuItem(
@@ -1042,7 +1024,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 _busy ? null : (value) => setState(() => _facade = value),
           ),
         ],
-        if (_type == 'land') ...[const SizedBox(height: 12), DropdownButtonFormField<String>(value: _facade,
+        if (_type == 'land') ...[const SizedBox(height: 12), DropdownButtonFormField<String>(value: _facade, isExpanded: true,
           decoration: const InputDecoration(labelText: 'واجهة الأرض (اختياري)'), items: propertyFacadeLabels.entries.map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value))).toList(),
           onChanged: _busy ? null : (value) => setState(() => _facade = value))],
         const SizedBox(height: 24),
