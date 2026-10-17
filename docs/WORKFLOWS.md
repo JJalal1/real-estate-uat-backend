@@ -1,5 +1,11 @@
 # Workflows — REAL ESTATE
 
+## Wave6 editor, discovery and broker journeys — October18
+
+Start or resume a checkpoint under the signed-in account; partial fields and private photos save with its UUID/revision. Manually finish recording, review/edit suggestions, then explicitly apply them. The editor asks for remaining applicable required fields. Rental-condition assistance carries the same draft identity so the owner's checkpoint is not mistaken for another personal listing. Generating description stays inline and cannot overwrite a newer manual edit. Only explicit listing submission enters the existing review/publication workflow; consent remains separate and explicit.
+
+List/map, chips, text, coordinates/polygon and results share the active search journey. Exit it fully to begin clean; restore only a selected saved search. Compare selected properties through cards with factual differences and replace/remove actions. Use the small home add-house action to open the existing editor. A broker-card conversation opens the existing authorized thread; no message is sent automatically. Final live checks confirmed manual discovery and privacy; provider503 fallback and physical-handset acceptance remain documented in `WAVE6_BASELINE_1069_AR.md`.
+
 ## 1. Login and account identity
 
 `phone/WhatsApp verification -> profile completion -> basic browsing/search/buyer account`
