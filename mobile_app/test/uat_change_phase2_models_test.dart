@@ -6,6 +6,7 @@ void main() {
   group('UAT Change Phase 2 property contract', () {
     test('v5 payload preserves original area unit and optional contact', () {
       const input = PropertyListingInput(
+        inputVersion: 5,
         title: 'منزل للاختبار',
         purpose: 'sale',
         type: 'house',
@@ -71,3 +72,4 @@ void main() {
     });
   });
 }
+

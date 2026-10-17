@@ -77,9 +77,8 @@ class Wave6SaiProperties extends Wave6Properties {
   }
 }
 void main(){
-  final previousShadows=debugDisableShadows;
-  setUpAll(() { WidgetController.hitTestWarningShouldBeFatal=true;debugDisableShadows=false; });
-  tearDownAll(() { WidgetController.hitTestWarningShouldBeFatal=false;debugDisableShadows=previousShadows; });
+  setUpAll(() { WidgetController.hitTestWarningShouldBeFatal=true; });
+  tearDownAll(() { WidgetController.hitTestWarningShouldBeFatal=false; });
   setUpAll(()async{
     await (FontLoader('NotoSansArabic')..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))).load();
     await (FontLoader('sans-serif')..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))).load();

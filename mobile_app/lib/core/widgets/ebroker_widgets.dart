@@ -331,12 +331,19 @@ class EbrokerPropertyPlaceholder extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) => ColoredBox(color: EbrokerDesign.page,
-    child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      EbrokerImage('home_active', size: size, color: Theme.of(context).colorScheme.primary),
-      const SizedBox(height: 4),
-      EbrokerText('عقارات حولك', size: 12, maxLines: 1, align: TextAlign.center,
-        color: Theme.of(context).colorScheme.primary),
-    ])));
+    child: LayoutBuilder(builder: (context, constraints) {
+      final captionHeight = MediaQuery.textScalerOf(context).scale(12.rf(context)) * 1.3;
+      final compact = constraints.maxHeight < size + 4 + captionHeight;
+      final image = EbrokerImage('home_active', size: size,
+        color: Theme.of(context).colorScheme.primary);
+      if (compact) return Semantics(label: 'صورة العقار غير متاحة', child: Center(child: image));
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        image,
+        const SizedBox(height: 4),
+        EbrokerText('عقارات حولك', size: 12, maxLines: 1, align: TextAlign.center,
+          color: Theme.of(context).colorScheme.primary),
+      ]));
+    }));
 }
 
 // home/widgets/header_card.dart::TitleHeader.
