@@ -25,6 +25,7 @@ import '../data/favorites_repository.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
+import '../domain/property_schema.dart';
 import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
 import 'property_market_context_card.dart';
@@ -148,32 +149,33 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 
   Widget _buildContent(PropertyDetails property, Set<int> favoriteIds) {
     final published = property.status == 'published';
-    final residential = const ['apartment','floor','house','villa'].contains(property.type);
-    final unit = const ['apartment','floor','office','shop'].contains(property.type);
+    final schemaContext={'type':property.type,'purpose':property.purpose,'unit_occupies_entire_floor':property.unitOccupiesEntireFloor};
+    bool applies(String key)=>DynamicPropertySchema.applies(key,schemaContext);
+    final residential=applies('bedrooms'),unit=applies('floor_number');
     final facts = <AppPropertyFact>[
-      if (property.areaValue != null)
+      if (applies('area_value') && property.areaValue != null)
         AppPropertyFact(
           icon: Icons.square_foot,
           label:
               '${formatPropertyAreaValue(property.areaValue!)} ${propertyAreaUnitLabel(property.areaUnit)}',
         )
-      else if (property.areaM2 != null)
+      else if (applies('area_value') && property.areaM2 != null)
         AppPropertyFact(icon: Icons.square_foot, label: '${property.areaM2} م²'),
       if (residential && property.bedrooms != null)
         AppPropertyFact(icon: Icons.bed_outlined, label: '${property.bedrooms} غرف'),
       if (residential && property.bathrooms != null)
         AppPropertyFact(icon: Icons.bathtub_outlined, label: '${property.bathrooms} حمام'),
-      if (property.hasParking != null && !const ['land','farm'].contains(property.type)) AppPropertyFact(icon: Icons.local_parking_outlined, label: property.hasParking! ? 'موقف سيارة' : 'بدون موقف'),
-      if (unit && property.floorNumber?.isNotEmpty == true) AppPropertyFact(icon: Icons.layers_outlined, label: property.floorNumber!),
+      if (property.hasParking != null && applies('has_parking')) AppPropertyFact(icon: Icons.local_parking_outlined, label: property.hasParking! ? 'موقف سيارة' : 'بدون موقف'),
+      if (unit && property.floorNumber?.isNotEmpty == true) AppPropertyFact(icon: Icons.layers_outlined, label: DynamicPropertySchema.floorLabel(property.floorNumber)),
       if (property.unitOccupiesEntireFloor) const AppPropertyFact(icon: Icons.apartment, label: 'الوحدة تشغل الدور كاملًا'),
-      if (property.hasElevator != null && const ['apartment','floor','building','office'].contains(property.type))
+      if (property.hasElevator != null && applies('has_elevator'))
         AppPropertyFact(icon: Icons.elevator_outlined, label: property.hasElevator! ? 'يوجد مصعد' : 'بدون مصعد'),
-      if (property.tenureType != null && property.purpose == 'sale')
+      if (property.tenureType != null && applies('tenure_type'))
         AppPropertyFact(
           icon: Icons.account_balance_outlined,
           label: property.tenureType == 'waqf' ? 'وقف' : 'حر',
         ),
-      if (property.buildingFacade != null && property.type != 'farm')
+      if (property.buildingFacade != null && applies('building_facade'))
         AppPropertyFact(
           icon: Icons.explore_outlined,
           label: propertyFacadeLabel(property.buildingFacade),

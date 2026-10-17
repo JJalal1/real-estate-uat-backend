@@ -161,6 +161,7 @@ class ListingAiService
 
     private function sentences(array $facts): array
     {
+        $facts=app(DynamicPropertySchema::class)->facts($facts);
         $result = [];
         foreach (['title', 'address'] as $key) if (is_string($facts[$key] ?? null) && trim($facts[$key]) !== '') $result[$key] = trim($facts[$key]);
         if (isset(self::TYPES[$facts['type'] ?? ''])) $result['type'] = self::TYPES[$facts['type']];

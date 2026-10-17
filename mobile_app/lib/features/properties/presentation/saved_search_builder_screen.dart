@@ -86,6 +86,14 @@ class _SavedSearchBuilderScreenState
     super.dispose();
   }
 
+  Map<String,dynamic> get _schemaContext=>{'type':_type,'purpose':_purpose};
+  void _clearIrrelevant(){
+    if(!DynamicPropertySchema.applies('bedrooms',_schemaContext))_minBedrooms.clear();
+    if(!DynamicPropertySchema.applies('bathrooms',_schemaContext))_minBathrooms.clear();
+    if(!DynamicPropertySchema.applies('area_value',_schemaContext)){_minArea.clear();_maxArea.clear();}
+    _baseFilters=DynamicPropertySchema.filters({..._baseFilters,if(_type!=null)'type':_type,if(_purpose!=null)'purpose':_purpose});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -154,7 +162,7 @@ class _SavedSearchBuilderScreenState
               selected: _purpose == null ? const <String>{} : {_purpose!},
               emptySelectionAllowed: true,
               onSelectionChanged: (value) =>
-                  setState(() { _purpose = value.isEmpty ? null : value.first; _monthlyBudget = _purpose == 'rent'; }),
+                  setState(() { _purpose = value.isEmpty ? null : value.first; _monthlyBudget = _purpose == 'rent'; _clearIrrelevant(); }),
             ),
             const SizedBox(height: AppSpacing.s12),
             DropdownButtonFormField<String>(
@@ -171,7 +179,7 @@ class _SavedSearchBuilderScreenState
                 DropdownMenuItem(value: 'office', child: Text('مكتب')),
                 DropdownMenuItem(value: 'farm', child: Text('مزرعة')),
               ],
-              onChanged: (value) => setState(() => _type = value),
+              onChanged: (value) => setState(() { _type = value; _clearIrrelevant(); }),
             ),
             const SizedBox(height: AppSpacing.s12),
             TextField(
@@ -219,7 +227,7 @@ class _SavedSearchBuilderScreenState
             const SizedBox(height: AppSpacing.s20),
             const AppSectionHeader(title: 'المواصفات'),
             const SizedBox(height: AppSpacing.s8),
-            Row(
+            if(DynamicPropertySchema.applies('bedrooms',_schemaContext))             Row(
               children: [
                 Expanded(
                   child: TextField(
@@ -241,7 +249,7 @@ class _SavedSearchBuilderScreenState
               ],
             ),
             const SizedBox(height: AppSpacing.s12),
-            Row(
+            if(DynamicPropertySchema.applies('area_value',_schemaContext))             Row(
               children: [
                 Expanded(
                   child: TextField(

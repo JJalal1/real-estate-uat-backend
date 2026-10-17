@@ -89,6 +89,76 @@ class Wave6EditorDiscoveryTest extends TestCase
         $this->assertEquals(88.88,$shop['area_value']);$this->assertSame('sqm',$shop['area_unit']);
         $this->assertSame(['type'=>'shop'], $schema->filters(['type'=>'shop','floor_number'=>'3','has_parking'=>true,'building_facade'=>'north']));
     }
+    public function test_promotion_uses_the_normal_listing_path_and_never_duplicates_uploaded_photos(): void
+    {
+        Storage::fake('local'); Storage::fake('public');
+        [, $headers]=$this->actor('promote','broker'); $key=(string)Str::uuid();$photo=(string)Str::uuid();
+        $url='/api/listing-editor-drafts/'.$key;
+        $this->withHeaders($headers)->putJson($url,['expected_revision'=>0,'payload'=>['type'=>'shop','purpose'=>'rent','image_order'=>[$photo],'fields'=>['area'=>'65']]])->assertOk();
+        $this->withHeaders($headers)->post($url.'/images/'.$photo,['expected_revision'=>1,'image'=>UploadedFile::fake()->image('real.jpg')])->assertOk();
+        $input=['listing_input_version'=>8,'title'=>'محل للإيجار في حدة','description'=>'محل مساحته 65 مترًا مربعًا.','type'=>'shop','purpose'=>'rent',
+            'price'=>75000,'monthly_rent'=>75000,'currency'=>'YER','area_value'=>65,'area_unit'=>'sqm','address'=>'صنعاء حدة شارع 14',
+            'latitude'=>15.3694,'longitude'=>44.191,'editor_draft_key'=>$key,'editor_draft_revision'=>2];
+        $id=(int)$this->withHeaders($headers)->postJson('/api/properties',$input)->assertCreated()->assertJsonCount(1,'data.images')->json('data.id');
+        $this->assertDatabaseHas('properties',['id'=>$id,'type'=>'shop','status'=>'draft','floor_number'=>null,'unit_number'=>null,'has_parking'=>null,'building_facade'=>null]);
+        $this->withHeaders($headers)->getJson($url)->assertJsonPath('data.property_id',$id)->assertJsonPath('data.revision',3)->assertJsonCount(0,'data.images');
+        $this->withHeaders($headers)->postJson('/api/properties',$input)->assertConflict();
+        $input['editor_draft_revision']=3;
+        $this->withHeaders($headers)->postJson('/api/properties',$input)->assertOk()->assertJsonPath('data.id',$id)->assertJsonCount(1,'data.images');
+        $this->assertDatabaseCount('properties',1);$this->assertDatabaseCount('property_images',1);$this->assertDatabaseCount('property_sai_terms',0);
+        $image=\App\Models\PropertyImage::query()->firstOrFail();
+        $this->withHeaders(['Authorization'=>''])->get('/api/property-media/'.$image->id)->assertNotFound();
+        $this->withHeaders($headers)->get('/api/property-media/'.$image->id)->assertOk();
+        $this->withHeaders($headers)->deleteJson($url)->assertOk();
+        $this->assertDatabaseHas('properties',['id'=>$id,'status'=>'archived']);$this->assertDatabaseCount('property_images',1);
+        Storage::disk('local')->assertExists($image->path);
+    }
+
+    public function test_broker_directory_conversation_reuses_private_threads_and_has_no_implicit_messages_or_financial_terms(): void
+    {
+        [$broker,$b]=$this->actor('chat-broker','broker');[$customer,$c]=$this->actor('chat-customer',null);[, $outsider]=$this->actor('chat-outsider',null);
+        $url='/api/brokers/'.$broker->id.'/conversation';
+        $id=$this->withHeaders($c)->postJson($url)->assertCreated()->assertJsonPath('data.context_type','broker')->assertJsonPath('data.property_id',null)->json('data.id');
+        $this->withHeaders($c)->postJson($url)->assertOk()->assertJsonPath('data.id',$id);
+        $this->assertDatabaseCount('message_threads',1);$this->assertDatabaseCount('message_thread_participants',2);$this->assertDatabaseCount('private_messages',0);
+        $this->withHeaders($outsider)->getJson('/api/messages/threads/'.$id)->assertNotFound();
+        $this->withHeaders($b)->getJson('/api/messages/threads/'.$id)->assertOk()->assertJsonCount(0,'data.messages');
+        $this->withHeaders($b)->postJson($url)->assertUnprocessable();
+        $this->withHeaders($c)->postJson('/api/brokers/'.$customer->id.'/conversation')->assertUnprocessable();
+        $broker->update(['account_status'=>'suspended']);$this->withHeaders($c)->postJson($url)->assertNotFound();
+        $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);$this->assertDatabaseCount('viewing_bookings',0);
+    }
+
+    public function test_listing_ai_extracts_only_explicit_sai_and_rental_conditions_and_never_relabels_foreign_fixed_money(): void
+    {
+        [, $headers]=$this->actor('ai-sai','broker');
+        config(['gemini.enabled'=>true,'gemini.key'=>'fixture-key','gemini.model'=>'gemini-3.1-flash-lite','gemini.daily_limit'=>200]);
+        $fields=['type'=>'shop','purpose'=>'rent','monthly_rent'=>75000,'floor_number'=>'3','has_parking'=>true,'area_value'=>65,'area_unit'=>'sqm',
+            'sai_amount_type'=>'percentage','broker_sai_rate_percent'=>50,'rental_conditions'=>[['kind'=>'advance','months'=>3]]];
+        $response=fn($f)=>['candidates'=>[['content'=>['parts'=>[['text'=>json_encode(['fields'=>$f],JSON_UNESCAPED_UNICODE)]]]]]];
+        \Illuminate\Support\Facades\Http::fake(['generativelanguage.googleapis.com/*'=>\Illuminate\Support\Facades\Http::response($response($fields))]);
+        $this->withHeaders($headers)->postJson('/api/ai/listing-draft',['mode'=>'prepare','message'=>'محل للإيجار مساحته 65 مترًا، الإيجار 75 ألف ريال والسعي 50%، مقدم ثلاثة أشهر','facts'=>(object)[]])
+            ->assertOk()->assertJsonPath('data.fields.broker_sai_rate_percent',50)->assertJsonPath('data.fields.rental_conditions.0.months',3)
+            ->assertJsonMissingPath('data.fields.floor_number')->assertJsonMissingPath('data.fields.has_parking')->assertJsonPath('data.requires_review',true);
+        $fields=['type'=>'shop','purpose'=>'rent','monthly_rent'=>100,'currency'=>'USD','sai_amount_type'=>'fixed','fixed_sai_amount'=>10];
+        \Illuminate\Support\Facades\Http::fake(['generativelanguage.googleapis.com/*'=>\Illuminate\Support\Facades\Http::response($response($fields))]);
+        $this->withHeaders($headers)->postJson('/api/ai/listing-draft',['mode'=>'prepare','message'=>'محل بإيجار مئة دولار وسعي عشرة دولارات','facts'=>(object)[]])
+            ->assertOk()->assertJsonMissingPath('data.fields.monthly_rent')->assertJsonMissingPath('data.fields.fixed_sai_amount')->assertJsonMissingPath('data.fields.sai_amount_type');
+        $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);
+    }
+
+    public function test_broker_closed_counts_and_home_nearby_sections_are_real_recorded_data(): void
+    {
+        [$broker]=$this->actor('stats','broker');
+        $sold=$this->listing($broker);$sold->forceFill(['status'=>'published','review_status'=>'approved','availability_status'=>'sold','published_at'=>now()])->save();
+        $rented=$this->listing($broker);$rented->forceFill(['purpose'=>'rent','status'=>'published','review_status'=>'approved','availability_status'=>'rented','published_at'=>now()])->save();
+        $active=$this->listing($broker);$active->forceFill(['status'=>'published','review_status'=>'approved','availability_status'=>'available','published_at'=>now()])->save();
+        $this->getJson('/api/advertisers/'.$broker->id.'/profile')->assertOk()->assertJsonPath('data.sold_listings',1)->assertJsonPath('data.rented_listings',1)->assertJsonPath('data.completed_deals',0);
+        $r=$this->getJson('/api/marketplace?latitude=15.3694&longitude=44.191')->assertOk()->assertJsonCount(1,'data.sections.nearby')->assertJsonPath('data.sections.nearby.0.id',$active->id);
+        $this->assertSame('nearby',$r->json('data.section_order.0'));
+        $this->assertNotContains($sold->id,array_column($r->json('data.sections.nearby'),'id'));
+    }
+
     private function actor(string $name, ?string $type): array
     {
         $user = User::create(['name' => 'دلال اختباري', 'email' => $name.'@draft.example.test',

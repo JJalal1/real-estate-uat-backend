@@ -1527,7 +1527,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_purpose == 'rent' && result['rental_conditions'] is List) _rentalConditions = (result['rental_conditions'] as List).whereType<Map>().map((e) => Map<String,dynamic>.from(e)).toList();
       _clearHiddenFields();
     });
-    if (oldPurpose != _purpose) unawaited(_loadSaiPolicy());
+    if (oldPurpose != _purpose) await _loadSaiPolicy();
+    if (!mounted) return;
     if (prepareDraft) {
       _completionOnly = true; _completionFields = _missingFields();
       final gaps = _completionGaps();

@@ -172,8 +172,8 @@ class PropertyController extends Controller
             if (in_array($section, ['sale', 'rent'], true)) $query->where('purpose', $section);
             $sections[$section] = $query->latest('id')->limit(6)->get()->map(fn ($p) => $this->summaryData($p, $request))->values()->all();
         }
-        if (isset($v['latitude'],$v['longitude']) && $context['source'] === 'device') {
-            $nearby=clone $base;$lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
+        if (isset($v['latitude'],$v['longitude'])) {
+            $nearby=$this->publicQuery();$this->applyFilters($nearby,['type'=>$v['type'] ?? null]);$lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
             if(DB::getDriverName()==='pgsql'){
                 $point='ST_SetSRID(ST_MakePoint(?, ?),4326)::geography';
                 $nearby->whereRaw("ST_DWithin(location::geography, $point, ?)",[$lon,$lat,30000])
@@ -831,7 +831,7 @@ class PropertyController extends Controller
         $property->loadMissing('images');
         $mainImage = $property->images->first();
 
-        return [
+        $data = [
             'id' => $property->id,
             'title' => $property->title,
             'purpose' => $property->purpose,
@@ -862,6 +862,7 @@ class PropertyController extends Controller
             'floor_number' => in_array($property->type, ['apartment', 'floor', 'office', 'shop'], true) ? $property->floor_number : null,
             'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,
         ];
+        return array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true),$data);
     }
 
     private function mineWorkspaceData(Property $property, Request $request): array
@@ -961,7 +962,7 @@ class PropertyController extends Controller
             $data['duplicate_check_metadata'] = $property->duplicate_check_metadata;
             $data['ownership_proof_present'] = $property->documents()->where('kind', 'ownership_proof')->exists();
         }
-        return $data;
+        return array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true),$data);
     }
 
     private function advertiserDisplayName(?User $user): string

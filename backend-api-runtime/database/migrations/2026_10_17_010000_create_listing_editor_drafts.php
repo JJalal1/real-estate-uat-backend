@@ -13,6 +13,7 @@ return new class extends Migration {
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->uuid('client_key');
             $table->foreignId('property_id')->nullable()->constrained()->nullOnDelete();
+            $table->index('property_id');
             $table->unsignedInteger('revision')->default(0);
             $table->json('payload'); $table->json('images'); $table->timestamps();
             $table->unique(['user_id','client_key']); $table->index(['user_id','updated_at']);
