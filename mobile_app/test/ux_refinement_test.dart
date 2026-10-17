@@ -254,7 +254,7 @@ void main() {
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
     expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 8);
-    expect(jsonDecode(repository.lastInput!['rental_conditions'] as String), isEmpty);
+    expect(repository.lastInput!.containsKey('rental_conditions'), isFalse);
     expect(repository.deferred, isTrue);
     expect(repository.payer, 'buyer'); expect(repository.rate, 2);
     expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);

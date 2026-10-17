@@ -194,7 +194,8 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')), 'شقة في صنعاء أربع غرف');
     await _tap(tester, 'listing-ai-prepare');
     await _tap(tester, 'listing-ai-apply-draft');
-    expect(find.text('2/4'), findsOneWidget); expect(find.text('اختيار من الخريطة'), findsOneWidget);
+    expect(find.text('2/4'), findsOneWidget); expect(find.text('أكمل الناقص فقط'), findsOneWidget);
+    expect(find.text('تأكيد الموقع على الخريطة'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1)); await tester.pumpAndSettle();
     final fields = recovery.snapshot!['fields'] as Map;
     expect(fields['ai_listing_brief'], 'شقة في صنعاء أربع غرف');

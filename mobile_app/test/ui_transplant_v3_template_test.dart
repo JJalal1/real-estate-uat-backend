@@ -347,7 +347,7 @@ void main() {
       final router = await _pump(tester, user: _user(verified: verified, type: 'broker'));
       final shape = find.byWidgetPredicate((w) => w is EbrokerImage && w.name == 'add_shape');
       expect(shape, verified ? findsNothing : findsOneWidget);
-      await tester.tap(verified ? find.text('إضافة عقار') : find.byTooltip('إضافة عقار'));
+      await tester.tap(verified ? find.byKey(const ValueKey('home-add-property')) : find.byTooltip('إضافة عقار'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
       expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);

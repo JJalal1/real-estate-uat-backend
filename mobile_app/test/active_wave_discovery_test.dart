@@ -176,7 +176,8 @@ void main() {
       expect(find.text('العقار غير متاح حاليًا'), findsOneWidget);
       await _capture(tester,key,'compare-$scale');
       await tester.scrollUntilVisible(find.byKey(const ValueKey('compare-all')),300,scrollable:find.byType(Scrollable).first);
-      await tester.tap(find.byKey(const ValueKey('compare-all')));await tester.pumpAndSettle();
+      await tester.pumpAndSettle();await tester.tap(find.byKey(const ValueKey('compare-all')));await tester.pumpAndSettle();
+      expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('compare-all'))).selected,isTrue);
       await tester.scrollUntilVisible(find.text('غرف النوم'),300,scrollable:find.byType(Scrollable).first);await tester.pumpAndSettle();
       expect(find.text('غير مذكور'), findsWidgets);
       expect(find.text('3'), findsOneWidget);

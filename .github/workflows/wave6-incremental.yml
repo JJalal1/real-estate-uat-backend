@@ -81,3 +81,12 @@ jobs:
       - name: Transport synthetic previews if artifact storage is full
         if: ${{ !cancelled() && steps.preview_upload.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_ui_previews.py
+      - name: Full Flutter regression before the runtime build finishes
+        if: ${{ !cancelled() }}
+        working-directory: mobile_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' tests < <(find test -type f -name '*_test.dart' ! -path 'test/uat_compiled_environment_test.dart' -print0 | sort -z)
+          test "${#tests[@]}" -gt 0
+          flutter test "${tests[@]}"

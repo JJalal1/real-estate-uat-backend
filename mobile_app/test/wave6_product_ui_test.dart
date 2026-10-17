@@ -77,6 +77,9 @@ class Wave6SaiProperties extends Wave6Properties {
   }
 }
 void main(){
+  final previousShadows=debugDisableShadows;
+  setUpAll(() { WidgetController.hitTestWarningShouldBeFatal=true;debugDisableShadows=false; });
+  tearDownAll(() { WidgetController.hitTestWarningShouldBeFatal=false;debugDisableShadows=previousShadows; });
   setUpAll(()async{
     await (FontLoader('NotoSansArabic')..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))).load();
     await (FontLoader('sans-serif')..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))).load();
@@ -115,7 +118,8 @@ void main(){
       final boundary=GlobalKey();await pumpWave6(tester,const PropertyCompareScreen(propertyIds:[11,12]),scale:scale,boundary:boundary);
       expect(find.text('الفرق باختصار'),findsOneWidget);expect(find.text('استبدال'),findsNWidgets(2));expect(find.text('عرض العقار'),findsNWidgets(2));
       await previewWave6(tester,boundary,'wave6-compare-$scale');
-      await tester.scrollUntilVisible(find.byKey(const ValueKey('compare-all')),300,scrollable:find.byType(Scrollable).first);await tester.tap(find.byKey(const ValueKey('compare-all')));await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('compare-all')),300,scrollable:find.byType(Scrollable).first);await tester.pumpAndSettle();await tester.tap(find.byKey(const ValueKey('compare-all')));await tester.pumpAndSettle();
+      expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('compare-all'))).selected,isTrue);
       await tester.scrollUntilVisible(find.text('العقار والمبنى'),300,scrollable:find.byType(Scrollable).first);await tester.pumpAndSettle();await previewWave6(tester,boundary,'wave6-compare-facts-$scale');
       expect(tester.takeException(),isNull);await finishWave6(tester);
     });
@@ -165,8 +169,11 @@ void main(){
       await tester.tap(find.byKey(const ValueKey('smart-search-send')));await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('smart-search-manual')),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-search-$scale');
-      await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
+      expect(find.byType(MapScreen),findsOneWidget);
       expect(tester.widget<TextField>(field).controller!.text,'شقة للإيجار في صنعاء');
+      await tester.tap(find.byKey(const ValueKey('fixture-map-11')));await tester.pumpAndSettle();
+      expect(find.text('عقار تجريبي 11'),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-map-$scale');
       expect(tester.takeException(),isNull);await finishWave6(tester);
     });
