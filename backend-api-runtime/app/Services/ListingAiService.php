@@ -13,7 +13,7 @@ class ListingAiService
         'price' => 'السعر', 'monthly_rent' => 'الإيجار الشهري', 'area_value' => 'المساحة',
         'bedrooms' => 'غرف النوم', 'bathrooms' => 'دورات المياه', 'floor_number' => 'الدور',
         'has_parking' => 'موقف', 'has_elevator' => 'مصعد', 'building_facade' => 'الواجهة',
-        'unit_occupies_entire_floor' => 'نطاق الوحدة'];
+        'unit_occupies_entire_floor' => 'نطاق الوحدة', 'sai_amount_type'=>'نوع السعي', 'broker_sai_rate_percent'=>'نسبة السعي', 'fixed_sai_amount'=>'مبلغ السعي', 'rental_conditions'=>'شروط الإيجار'];
     public const TYPES = ['apartment' => 'شقة', 'house' => 'منزل', 'villa' => 'فيلا', 'building' => 'عمارة',
         'land' => 'أرض', 'farm' => 'مزرعة', 'shop' => 'محل', 'office' => 'مكتب'];
     public const FACADES = ['north' => 'شمالية', 'south' => 'جنوبية', 'east' => 'شرقية', 'west' => 'غربية',
@@ -35,6 +35,10 @@ class ListingAiService
         foreach (['price', 'monthly_rent', 'area_value'] as $key) $r[$key] = ['nullable', 'numeric', 'gt:0', 'max:1000000000000'];
         foreach (['bedrooms', 'bathrooms'] as $key) $r[$key] = ['nullable', 'integer', 'between:1,50'];
         foreach (['has_parking', 'has_elevator', 'unit_occupies_entire_floor'] as $key) $r[$key] = ['nullable', 'boolean'];
+        $r['sai_amount_type']=['nullable',Rule::in(['percentage','fixed'])];
+        $r['broker_sai_rate_percent']=['nullable','numeric','between:0,100'];
+        $r['fixed_sai_amount']=['nullable','numeric','between:0,1000000000000'];
+        $r['rental_conditions']=['nullable','array','max:8'];
         return $r;
     }
 
@@ -43,35 +47,37 @@ class ListingAiService
         if (array_diff(array_keys($input), array_keys($this->rules())) !== []) {
             throw ValidationException::withMessages(['facts' => ['يقبل المساعد مواصفات الإعلان فقط.']]);
         }
-        return Validator::make($input, $this->rules())->validate();
+        $facts=Validator::make($input,$this->rules())->validate();
+        if (isset($facts['rental_conditions'])) $facts['rental_conditions']=app(RentalConditionService::class)->normalize($facts['rental_conditions']);
+        return app(DynamicPropertySchema::class)->facts($facts);
     }
 
     public function extract(string $message, array $current): array
     {
         $properties = [];
         foreach (array_keys($this->rules()) as $key) $properties[$key] = ['type' => ['string', 'number', 'boolean']];
+        $properties['rental_conditions']=['type'=>'array','maxItems'=>8,'items'=>['type'=>'object','additionalProperties'=>false,'properties'=>['kind'=>['type'=>'string','enum'=>RentalConditionService::KINDS],'months'=>['type'=>'integer','minimum'=>1,'maximum'=>24],'text'=>['type'=>'string','maxLength'=>300]],'required'=>['kind']]];
         $schema = ['type' => 'object', 'additionalProperties' => false, 'properties' => [
             'fields' => ['type' => 'object', 'additionalProperties' => false, 'properties' => $properties]], 'required' => ['fields']];
         $result = $this->gemini->object(
             'Extract ONLY explicitly stated real-estate facts from the Arabic message into existing form fields. '
             .'Use current_facts only for resolving references. Do not repeat unmentioned values. Never invent specifications, identity, ownership, coordinates or approvals. '
-            .'Do not add description or financial commission fields. A whole floor is apartment + unit_occupies_entire_floor true. '
+            .'Do not add description. Commission fields may contain ONLY explicitly stated percentage or fixed amount, never calculate fees, splits, payer, financial terms or acceptance. Extract rental_conditions only when explicitly stated: advance/duration need months, guarantor/deposit have kind only, special has exact text. A whole floor is apartment + unit_occupies_entire_floor true. '
             .'price is the sale price; a monthly rental amount belongs in monthly_rent. Local amounts in ريال mean YER unless another currency is explicit. '
             .'Do not infer a floor or apartment number for a whole building, house, villa, land or farm. '
             .'Prefer governorate, district and street components when explicitly named; never invent a missing address component. '
             .'String fields contain text, numeric fields actual JSON numbers, boolean fields actual JSON booleans. Unclear facts are omitted.',
-            ['message' => $message, 'current_facts' => (object) $current], $schema,
+            ['message' => $message, 'current_facts' => (object) $current, 'property_schema'=>app(DynamicPropertySchema::class)->definition()], $schema,
         );
         try {
             Validator::make($result, ['fields' => ['present', 'array:'.implode(',', array_keys($this->rules()))]])->validate();
             if (array_diff(array_keys($result), ['fields']) !== []) $this->gemini->unavailable();
             $fields = $this->facts($result['fields']);
-            $type = $fields['type'] ?? $current['type'] ?? null;
-            if ($type && ! in_array($type, ['apartment', 'office', 'shop'], true)) unset($fields['floor_number'], $fields['unit_number']);
-            if ($type && ! in_array($type, ['apartment', 'house', 'villa'], true)) unset($fields['bedrooms'], $fields['bathrooms']);
-            if ($type !== 'apartment') unset($fields['unit_occupies_entire_floor']);
-            if ($type && ! in_array($type, ['apartment', 'building', 'office'], true)) unset($fields['has_elevator']);
-            if (($fields['unit_occupies_entire_floor'] ?? $current['unit_occupies_entire_floor'] ?? false) === true) unset($fields['unit_number']);
+            if (isset($fields['floor_number'])) $fields['floor_number']=app(DynamicPropertySchema::class)->normalizeFloor($fields['floor_number']);
+            if (isset($fields['broker_sai_rate_percent']) && !isset($fields['fixed_sai_amount'])) $fields['sai_amount_type']='percentage';
+            if (isset($fields['fixed_sai_amount']) && !isset($fields['broker_sai_rate_percent'])) $fields['sai_amount_type']='fixed';
+            $effective=array_merge($current,$fields);
+            $fields=array_intersect_key(app(DynamicPropertySchema::class)->facts($effective),$fields);
         } catch (ValidationException) {
             $this->gemini->unavailable();
         }
@@ -141,15 +147,7 @@ class ListingAiService
         $facts = $this->facts($facts);
         $type = $facts['type'] ?? null;
         $purpose = $facts['purpose'] ?? null;
-        if ($type !== null && ! in_array($type, ['apartment', 'office', 'shop'], true)) {
-            unset($facts['floor_number'], $facts['unit_number']);
-        }
-        if ($type !== null && ! in_array($type, ['apartment', 'house', 'villa'], true)) {
-            unset($facts['bedrooms'], $facts['bathrooms']);
-        }
-        if ($type === 'apartment' && $purpose === 'rent') {
-            unset($facts['area_value'], $facts['area_unit'], $facts['has_elevator']);
-        }
+        $facts=app(DynamicPropertySchema::class)->facts($facts);
         $title = trim((string) ($facts['title'] ?? ''));
         if ($title === '') {
             $title = self::TYPES[$type] ?? 'عقار';
@@ -163,6 +161,7 @@ class ListingAiService
 
     private function sentences(array $facts): array
     {
+        $facts=app(DynamicPropertySchema::class)->facts($facts);
         $result = [];
         foreach (['title', 'address'] as $key) if (is_string($facts[$key] ?? null) && trim($facts[$key]) !== '') $result[$key] = trim($facts[$key]);
         if (isset(self::TYPES[$facts['type'] ?? ''])) $result['type'] = self::TYPES[$facts['type']];

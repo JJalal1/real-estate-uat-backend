@@ -1,3 +1,5 @@
+import 'support/wave6_fakes.dart';
+import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -24,7 +26,7 @@ class _Assistant extends Wave3AiFake {
   int prepares = 0;
   Map<String, dynamic> get proposals => {'bedrooms': 4, 'has_elevator': true};
   @override
-  Future<Map<String, dynamic>> prepareListing(String message, Map<String, dynamic> facts, {int? propertyId}) async {
+  Future<Map<String, dynamic>> prepareListing(String message, Map<String, dynamic> facts, {int? propertyId, String? draftKey}) async {
     prepares++;
     if (fail) throw StateError('Temporary failure');
     return {'fields': proposals, 'source': 'text', 'requires_review': true,
@@ -32,7 +34,7 @@ class _Assistant extends Wave3AiFake {
       'copy': {'title': 'شقة للإيجار في صنعاء', 'description': 'شقة للإيجار، غرف النوم: 4، يوجد مصعد.'}};
   }
   @override
-  Future<Map<String, dynamic>> listingCopy(Map<String, dynamic> facts, {int? propertyId}) async {
+  Future<Map<String, dynamic>> listingCopy(Map<String, dynamic> facts, {int? propertyId, String? draftKey}) async {
     composedFacts = Map.of(facts);
     return {'source': 'facts', 'copy': {'title': 'شقة للإيجار في صنعاء', 'description': 'شقة للإيجار، غرف النوم: 4.'}};
   }
@@ -52,7 +54,7 @@ class _Recovery extends ListingRecoveryStore {
 class _Properties extends Wave3PropertiesFake {
   @override
   Future<PropertySaiManagement> saiPolicy(String purpose) async => const PropertySaiManagement(configured: false,
-    advertiserType: 'broker', fixedRatePercent: 1, brokerMaxRatePercent: 5, professionalPlatformSharePercent: 20);
+    advertiserType: 'broker', fixedRatePercent: 1, brokerMaxRatePercent: 5, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 20);
 }
 
 Map<String, dynamic> _snapshot() => {
@@ -69,6 +71,7 @@ Future<void> _pump(WidgetTester tester, Widget child, {required _Assistant ai, _
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides: [
     aiRepositoryProvider.overrideWithValue(ai), propertyRepositoryProvider.overrideWithValue(_Properties()),
+    listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
     authControllerProvider.overrideWith(() => BrokerTestAuth(1)),
     listingRecoveryStoreProvider.overrideWithValue(recovery ?? _Recovery(null)),
     voiceInputProvider.overrideWithValue(voice ?? Wave3VoiceFake()),
@@ -191,7 +194,8 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')), 'شقة في صنعاء أربع غرف');
     await _tap(tester, 'listing-ai-prepare');
     await _tap(tester, 'listing-ai-apply-draft');
-    expect(find.text('2/4'), findsOneWidget); expect(find.text('اختيار من الخريطة'), findsOneWidget);
+    expect(find.text('2/4'), findsOneWidget); expect(find.text('أكمل الناقص فقط'), findsOneWidget);
+    expect(find.text('تأكيد الموقع على الخريطة'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1)); await tester.pumpAndSettle();
     final fields = recovery.snapshot!['fields'] as Map;
     expect(fields['ai_listing_brief'], 'شقة في صنعاء أربع غرف');

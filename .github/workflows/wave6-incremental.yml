@@ -1,0 +1,92 @@
+name: Wave6 incremental backend verification
+on:
+  push:
+    branches: [work/wave6-current-1069]
+    paths: ['mobile_app/**', 'backend-api-runtime/**', 'scripts/generate_property_schema.py', '.github/workflows/wave6-incremental.yml']
+permissions:
+  contents: read
+env:
+  SOURCE_COMMIT: ${{ github.sha }}
+concurrency:
+  group: wave6-backend-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - run: python3 scripts/generate_property_schema.py --check
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Verify PHP syntax
+        run: find backend-api-runtime/app backend-api-runtime/database/migrations -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Install test dependencies
+        working-directory: backend-api-runtime
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+      - name: Focused new wave contracts
+        working-directory: backend-api-runtime
+        run: php artisan test tests/Feature/Wave6EditorDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky
+      - name: Full backend regression
+        working-directory: backend-api-runtime
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve original locked packages
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Strict Flutter analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: New wave contracts
+        id: wave_tests
+        working-directory: mobile_app
+        run: flutter test test/wave6_product_contract_test.dart test/wave6_product_ui_test.dart
+      - name: Save synthetic wave6 previews
+        id: preview_upload
+        if: ${{ !cancelled() && (steps.wave_tests.conclusion == 'success' || steps.wave_tests.conclusion == 'failure') }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: wave6-ui-${{ github.run_number }}
+          path: mobile_app/build/broker-preview/wave6-*.png
+          if-no-files-found: error
+          retention-days: 7
+      - name: Transport synthetic previews if artifact storage is full
+        if: ${{ !cancelled() && steps.preview_upload.outcome == 'failure' }}
+        run: python3 -B scripts/emit_ci_ui_previews.py
+      - name: Full Flutter regression before the runtime build finishes
+        if: ${{ !cancelled() }}
+        working-directory: mobile_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' tests < <(find test -type f -name '*_test.dart' ! -path 'test/uat_compiled_environment_test.dart' -print0 | sort -z)
+          test "${#tests[@]}" -gt 0
+          flutter test "${tests[@]}"

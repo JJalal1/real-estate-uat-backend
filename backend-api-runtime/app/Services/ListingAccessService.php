@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Property;
+use App\Models\ListingEditorDraft;
 use App\Models\User;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
@@ -25,7 +26,7 @@ class ListingAccessService
     {
         $personal = $this->personalLimitApplies($user);
         $count = Property::query()->withoutGlobalScopes()->where('user_id', $user->id)
-            ->where('status', '<>', 'archived')->count();
+            ->where('status', '<>', 'archived')->count() + ListingEditorDraft::query()->where('user_id',$user->id)->whereNull('property_id')->count();
         $limitReached = $personal && $count >= 1;
         return ['mode' => $this->isProfessional($user) ? 'professional' : 'personal',
             'listing_limit' => $personal ? 1 : null, 'listing_count' => $count,
@@ -34,10 +35,10 @@ class ListingAccessService
             'upgrade_path' => '/account-verification?upgrade=broker'];
     }
 
-    public function assertCanCreate(User $user): void
+    public function assertCanCreate(User $user, ?string $editorDraftKey = null): void
     {
         if (! $this->personalLimitApplies($user)) return;
-        if (Property::query()->withoutGlobalScopes()->where('user_id', $user->id)->where('status', '<>', 'archived')->exists()) {
+        if (Property::query()->withoutGlobalScopes()->where('user_id', $user->id)->where('status', '<>', 'archived')->exists() || ListingEditorDraft::query()->where('user_id',$user->id)->whereNull('property_id')->when($editorDraftKey,fn($q)=>$q->where('client_key','<>',$editorDraftKey))->exists()) {
             throw new HttpResponseException(response()->json([
                 'message' => 'لديك عقار شخصي بالفعل. فعّل حساب دلال لإدارة عدة عقارات بعد اعتماد التوثيق.',
                 'code' => 'personal_listing_limit', 'upgrade_required' => true,

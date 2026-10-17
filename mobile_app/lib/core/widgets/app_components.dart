@@ -593,6 +593,7 @@ class AppNavigationBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final scaled = MediaQuery.textScalerOf(context).scale(12);
+    final largeText = scaled > 18;
     final height = (76.rh(context) + (scaled - 12) * 2).clamp(76.0, 124.0).toDouble();
     final items = <Widget>[];
     for (var index = 0; index < destinations.length; index++) {
@@ -606,26 +607,32 @@ class AppNavigationBar extends StatelessWidget {
                     boxShadow: [BoxShadow(color: EbrokerDesign.text.withValues(alpha: 0.5),
                       offset: const Offset(0, -1.5), blurRadius: 5)])),
                 EbrokerImage('add_shape', size: 56.rh(context), color: scheme.primary),
-                EbrokerImage('plus_btn', size: 18.rh(context), color: Colors.white),
+                EbrokerIcon(Icons.add_home_outlined, size: 22.rh(context), color: Colors.white),
               ])))))))));
       }
       final selected = index == selectedIndex;
       final item = destinations[index];
       final color = selected ? scheme.primary : EbrokerDesign.text.withValues(alpha: 0.5);
-      items.add(Expanded(child: Semantics(button: true, selected: selected, label: item.label,
-        child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => onSelected(index),
-          child: Padding(padding: const EdgeInsets.all(4),
+      items.add(Expanded(child: Semantics(button: true, selected: selected, label: item.label, excludeSemantics: true,
+        child: Tooltip(message: item.label, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => onSelected(index),
+          child: Padding(padding: EdgeInsets.symmetric(horizontal: 4, vertical: largeText ? 12 : 4),
             child: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
               AnimatedScale(scale: selected ? 1.3 : 1, duration: const Duration(milliseconds: 200),
                 child: EbrokerImage(_asset(item, selected), size: 24.rh(context), color: color)),
-              const SizedBox(height: 4),
-              EbrokerText(item.label, size: 12, color: color, maxLines: 2, align: TextAlign.center),
-            ]))))));
+              if (!largeText) ...[
+                const SizedBox(height: 4),
+                EbrokerText(item.label, size: 12, color: color, maxLines: 2, align: TextAlign.center),
+              ],
+            ])))))));
     }
     return Container(decoration: BoxDecoration(color: Colors.white, boxShadow: [
       BoxShadow(color: EbrokerDesign.text.withValues(alpha: 0.2), offset: const Offset(0, -1), blurRadius: 5),
     ]), child: SafeArea(top: false, child: ConstrainedBox(
-      constraints: BoxConstraints(minHeight: height), child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: items))));
+      constraints: BoxConstraints(minHeight: largeText ? 80 : height), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: items),
+        if (largeText) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: ExcludeSemantics(
+          child: EbrokerText(destinations[selectedIndex].label, size: 12, color: scheme.primary, maxLines: 2, align: TextAlign.center))),
+      ]))));
   }
 }
 

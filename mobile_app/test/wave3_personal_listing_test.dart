@@ -129,7 +129,7 @@ void main() {
       await repository.createListing(PropertyListingInput(title: 'شقة', purpose: 'sale', type: 'apartment', price: 1000,
         latitude: 15.3, longitude: 44.2, floorNumber: '3', unitNumber: wholeFloor ? null : 'جنوبية', unitOccupiesEntireFloor: wholeFloor));
       final fields = Map.fromEntries(forms.last.fields);
-      expect(fields['listing_input_version'], '5');
+      expect(fields['listing_input_version'], '8');
       expect(fields['unit_occupies_entire_floor'], wholeFloor ? '1' : '0');
       expect(fields['floor_number'], '3');
     }

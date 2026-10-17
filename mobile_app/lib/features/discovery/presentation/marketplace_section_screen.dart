@@ -12,8 +12,9 @@ import '../../properties/presentation/property_compare_actions.dart';
 import 'smart_search_assistant.dart';
 
 class MarketplaceSectionScreen extends ConsumerStatefulWidget {
-  const MarketplaceSectionScreen({this.section = 'latest', this.governorate, this.type, super.key});
+  const MarketplaceSectionScreen({this.section = 'latest', this.governorate, this.type, this.latitude, this.longitude, super.key});
   final String section;
+  final double? latitude, longitude;
   final String? governorate, type;
   @override
   ConsumerState<MarketplaceSectionScreen> createState() => _MarketplaceSectionState();
@@ -40,6 +41,7 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
         if (widget.governorate != null) 'governorate': widget.governorate,
         if (widget.type != null) 'type': widget.type,
         if (const ['sale', 'rent'].contains(widget.section)) 'purpose': widget.section,
+        if (widget.section=='nearby' && widget.latitude!=null && widget.longitude!=null)...{'latitude':widget.latitude,'longitude':widget.longitude,'radius_km':30},
         if (widget.section == 'spotlight') 'spotlight': 1,
       }, page: page);
       if (!mounted || request != _request) return;
@@ -49,7 +51,7 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = switch (widget.section) { 'spotlight' => 'عقارات مميزة', 'sale' => 'عقارات للبيع', 'rent' => 'عقارات للإيجار', _ => 'أحدث العقارات' };
+    final title = switch (widget.section) { 'nearby'=>'قريبة منك', 'spotlight' => 'عقارات مميزة', 'sale' => 'عقارات للبيع', 'rent' => 'عقارات للإيجار', _ => 'أحدث العقارات' };
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(appBar: AppAppBar(title: title),
       body: SmartSearchAssistantLayer(child: RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.fromLTRB(18, 18, 18, 110), physics: const AlwaysScrollableScrollPhysics(), children: [
         if (widget.governorate != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(widget.governorate!)),

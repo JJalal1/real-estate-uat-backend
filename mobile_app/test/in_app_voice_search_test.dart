@@ -37,6 +37,8 @@ ProviderContainer searchContainer(Wave3VoiceFake voice, Wave3AiFake ai, Wave3Pro
 ]);
 
 Future<GoRouter> pumpHome(WidgetTester tester, ProviderContainer container, {GlobalKey? boundary, double scale = 1, bool reducedMotion = false}) async {
+  // Simulate an explicit manual selection INSIDE the active test journey. Product entry never restores this fixture.
+  final fixtureFilters=container.read(smartSearchSessionProvider).filters;
   final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => Scaffold(body: SingleChildScrollView(child: const HomeAiSearchEntry()))),
     GoRoute(path: '/smart-search', builder: (_, __) => const AssistedSearchScreen()),
     GoRoute(path: '/other', builder: (_, __) => const Scaffold(body: Text('صفحة أخرى')))]);
@@ -49,6 +51,7 @@ Future<GoRouter> pumpHome(WidgetTester tester, ProviderContainer container, {Glo
   expect(find.text('بحث ذكي'), findsOneWidget);
   await tester.tap(find.byKey(const ValueKey('home-smart-search')));
   await tester.pumpAndSettle();
+  if(fixtureFilters.values.isNotEmpty){container.read(smartSearchSessionProvider.notifier).replaceManually(fixtureFilters);await tester.pumpAndSettle();}
   return router;
 }
 
@@ -264,7 +267,8 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('account-smart-search')));
       await tester.tap(find.byKey(const ValueKey('account-smart-search'))); await tester.pumpAndSettle();
       expect(find.byType(AssistedSearchScreen), findsOneWidget);
-      expect(container.read(smartSearchSessionProvider).filters.values, filters);
+      expect(container.read(smartSearchSessionProvider).filters.values,isEmpty);
+      expect(container.read(smartSearchSessionProvider).rows,isEmpty);
       expect(ai.requests, isEmpty); expect(voice.calls, 0); expect(tester.takeException(), isNull);
     });
   }

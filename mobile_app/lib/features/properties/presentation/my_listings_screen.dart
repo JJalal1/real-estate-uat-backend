@@ -251,6 +251,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         repository: repository,
         propertyId: item.id,
         purpose: item.purpose,
+        basis: item.purpose == 'rent' ? (item.monthlyRent ?? item.editablePrice) : item.editablePrice,
       );
       if (!context.mounted) return;
       if (!saiReady) {

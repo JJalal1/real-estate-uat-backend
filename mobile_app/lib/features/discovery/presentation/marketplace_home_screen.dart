@@ -18,7 +18,6 @@ import '../data/marketplace_repository.dart';
 import 'home_ai_search_entry.dart';
 import 'smart_search_assistant.dart';
 import '../../properties/presentation/property_compare_actions.dart';
-import '../data/smart_search_session.dart';
 
 const homeDiscoveryQuery = NearbyQuery(center: LatLng(15.3694, 44.1910));
 
@@ -90,8 +89,14 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     final location = ref.read(homeLocationProvider);
     context.push(Uri(path: '/property-market', queryParameters: {'lat': '${location.latitude}', 'lon': '${location.longitude}', if (_type != null) 'type': _type!}).toString());
   }
-  void _section(String section, String? governorate) => context.push(Uri(path: '/marketplace-section',
-    queryParameters: {'section': section, if (governorate != null) 'governorate': governorate, if (_type != null) 'type': _type!}).toString());
+  void _section(String section,String? governorate) {
+    final location=ref.read(homeLocationProvider);
+    context.push(Uri(path:'/marketplace-section',queryParameters:{'section':section,
+      if(governorate!=null && section!='nearby')'governorate':governorate,if(_type!=null)'type':_type!,
+      if(section=='nearby')...{'lat':'${location.latitude}','lon':'${location.longitude}'},
+    }).toString());
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +117,6 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         ]))), actions: [Padding(padding: const EdgeInsetsDirectional.only(end: 12), child: IconButton(
           tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'), icon: const EbrokerImage('notification', size: 21)))]),
       body: SmartSearchAssistantLayer(onPressed: () {
-        ref.read(smartSearchSessionProvider.notifier).startFromHome(location: data?.governorate ?? location.governorate ?? 'صنعاء', type: _type);
         context.push('/smart-search');
       }, child: RefreshIndicator(onRefresh: () async { try { ref.invalidate(marketplaceFeedProvider(_query)); await ref.read(marketplaceFeedProvider(_query).future); } catch (_) {} },
         child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
@@ -129,10 +133,6 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               const SizedBox(width: 10),
               Expanded(child: Text('صف ما تحتاجه بالنص أو الصوت', style: theme.textTheme.bodySmall)),
             ]))),
-          if (widget.showAdvertiserActions) SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18), child: Wrap(spacing: 10, children: [
-            TextButton.icon(onPressed: () => context.push('/broker/workspace'), icon: const EbrokerIcon(Icons.work_outline, size: 18), label: const Text('إدارة عملي')),
-            TextButton.icon(onPressed: () => context.push('/add-property'), icon: const EbrokerIcon(Icons.add, size: 18), label: const Text('إضافة عقار')),
-          ]))),
           SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'ماذا تبحث عنه؟', onSeeAll: _openMap)),
           SliverToBoxAdapter(child: SizedBox(height: 48 + (MediaQuery.textScalerOf(context).scale(13) - 13) * 2, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 18), children: [
             for (final category in const [('الكل', null), ('شقق', 'apartment'), ('منازل', 'house'), ('فلل', 'villa'), ('عمائر', 'building'), ('أراضٍ', 'land'), ('محلات', 'shop'), ('مكاتب', 'office'), ('مزارع', 'farm')])
@@ -149,10 +149,10 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                   for (final broker in data.brokers) Padding(padding: const EdgeInsetsDirectional.only(end: 10), child: _HomeBrokerCard(profile: broker)),
                 ])),
               ],
-              for (final section in const [('spotlight', 'عقارات تستحق نظرة'), ('latest', 'أحدث العقارات'), ('sale', 'تملّك في منطقتك'), ('rent', 'مساحة تناسب حياتك')])
+              for (final section in data.sectionOrder.map((key)=>(key,switch(key){'nearby'=>'قريبة منك','spotlight'=>'عقارات تستحق نظرة','sale'=>'تملّك في منطقتك','rent'=>'مساحة تناسب حياتك',_=>'أحدث العقارات'})))
                 if ((data.sections[section.$1] ?? const []).isNotEmpty) ...[
                   EbrokerTitleHeader(title: section.$2, onSeeAll: () => _section(section.$1, data.governorate)),
-                  if (section.$1 == 'latest') Padding(padding: const EdgeInsets.symmetric(horizontal: 18), child: Column(children: [
+                  if (const ['latest','nearby'].contains(section.$1)) Padding(padding: const EdgeInsets.symmetric(horizontal: 18), child: Column(children: [
                     for (final row in data.sections[section.$1]!.take(3)) Padding(padding: const EdgeInsets.only(bottom: 12), child: _property(row, false)),
                   ]))
                   else SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 18), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

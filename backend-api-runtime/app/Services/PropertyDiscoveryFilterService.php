@@ -63,6 +63,7 @@ class PropertyDiscoveryFilterService
 
     public function apply(Builder $query, array $validated): void
     {
+        $validated=app(DynamicPropertySchema::class)->filters($validated);
         if (isset($validated['advertiser_id'])) $query->where('user_id', $validated['advertiser_id']);
         if (! empty($validated['governorate'])) {
             $name = $validated['governorate'];

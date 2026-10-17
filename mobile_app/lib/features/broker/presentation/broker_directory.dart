@@ -15,6 +15,7 @@ import '../../properties/domain/property_details.dart';
 import '../data/broker_repository.dart';
 import '../domain/broker_models.dart';
 import 'broker_workspaces.dart';
+import 'broker_contact_button.dart';
 
 class BrokerGovernorateFilter extends ConsumerWidget {
   const BrokerGovernorateFilter({this.onChanged, super.key});
@@ -82,7 +83,7 @@ class _BrokerDirectoryScreenState extends ConsumerState<BrokerDirectoryScreen> {
       for (final profile in _items) Padding(padding: const EdgeInsets.only(bottom: 14), child: EbrokerAdvertiserCard(
         name: profile.name, identity: '${profile.typeLabel}${profile.governorate == null ? '' : ' · ${profile.governorate}'}', rating: profile.rating,
         ratingCount: profile.ratingCount, verified: profile.verified, photoUrl: profile.photoUrl,
-        completedDeals: profile.completedDeals, activeListings: profile.activeListings, onTap: () => context.push('/advertisers/${profile.id}'))),
+        completedDeals: profile.completedDeals, activeListings: profile.activeListings, action: const ['broker','office'].contains(profile.type) ? BrokerContactButton(brokerId:profile.id) : null, onTap: () => context.push('/advertisers/${profile.id}'))),
       if (_loading) const AppLoadingState(),
       if (_error != null) AppErrorState(message: _error!, onRetry: () => _load()),
       if (!_loading && _error == null && _items.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('لا يوجد دلالون موثقون لعرضهم الآن.')),
@@ -141,8 +142,9 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
     loading: () => const AppLoadingState(), error: (e, _) => AppErrorState(message: friendlyApiError(e), onRetry: () => ref.invalidate(brokerProfileProvider(widget.id))),
     data: (profile) => ListView(padding: const EdgeInsets.all(16), children: [
       EbrokerAdvertiserCard(name: profile.name, identity: profile.typeLabel, rating: profile.rating, ratingCount: profile.ratingCount,
-        verified: profile.verified, photoUrl: profile.photoUrl, completedDeals: profile.completedDeals, activeListings: profile.activeListings, onTap: () {}),
+        verified: profile.verified, photoUrl: profile.photoUrl, completedDeals: profile.completedDeals, activeListings: profile.activeListings, action: const ['broker','office'].contains(profile.type) ? BrokerContactButton(brokerId:profile.id) : null, onTap: () {}),
       const SizedBox(height: 16),
+      Text('إعلانات أُغلقت: ${profile.soldListings} مباع · ${profile.rentedListings} مؤجر'),
       if (profile.bio?.isNotEmpty == true) Text(profile.bio!),
       if (profile.governorate != null) Text('المحافظة: ${profile.governorate}'),
       if (profile.workAreas.isNotEmpty) Text('مناطق العمل: ${profile.workAreas.join('، ')}'),

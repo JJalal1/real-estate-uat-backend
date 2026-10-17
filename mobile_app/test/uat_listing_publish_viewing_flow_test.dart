@@ -25,7 +25,7 @@ void main() {
         'lib/features/properties/presentation/listing_editor_screen.dart',
       ).readAsString();
 
-      expect(legacyEntry, contains('ListingEditorScreen'));
+      expect(legacyEntry, contains('ListingDraftEntryScreen'));
       expect(editor, contains("value: 'freehold'"));
       expect(editor, contains("value: 'waqf'"));
       expect(editor, contains("label: 'حفظ مسودة'"));

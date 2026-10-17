@@ -107,7 +107,12 @@ class AiAssistantController extends Controller
             abort_unless((int) $property->user_id === (int) $actor->id, 404);
             abort_unless(! in_array($property->review_status, ['submitted', 'under_review', 'rejected_blocked'], true), 409);
         } else {
-            app(ListingAccessService::class)->assertCanCreate($actor);
+            app(ListingAccessService::class)->assertCanCreate($actor,$request->input('editor_draft_key'));
+            if ($request->input('editor_draft_key')) {
+                $request->validate(['editor_draft_key'=>['uuid']]);
+                $draft=app(\App\Services\ListingEditorDraftService::class)->owned($actor,$request->input('editor_draft_key'));
+                if ($draft->property_id) app(\App\Services\ListingEditorDraftService::class)->assertEditable($actor,Property::query()->findOrFail($draft->property_id));
+            }
         }
     }
 }

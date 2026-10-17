@@ -1,3 +1,5 @@
+import 'support/wave6_fakes.dart';
+import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -183,6 +185,7 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
   ]);
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(overrides: [
+    listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
     authControllerProvider.overrideWith(() => _AuthFixture(user)),
     listingRecoveryStoreProvider.overrideWithValue(_EmptyRecovery()),
     brokerDirectoryProvider.overrideWith((_) async => []),
@@ -273,7 +276,7 @@ void main() {
     final router = await _pump(tester);
     final nav = tester.getRect(find.byType(AppNavigationBar));
     expect(nav.height, lessThan(tester.view.physicalSize.height * 0.45));
-    await tester.tap(find.text('حسابي'));
+    await tester.tap(find.byTooltip('حسابي'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('المفضلة').hitTestable());
     await tester.pumpAndSettle();
@@ -344,7 +347,7 @@ void main() {
       final router = await _pump(tester, user: _user(verified: verified, type: 'broker'));
       final shape = find.byWidgetPredicate((w) => w is EbrokerImage && w.name == 'add_shape');
       expect(shape, verified ? findsNothing : findsOneWidget);
-      await tester.tap(verified ? find.text('إضافة عقار') : find.byTooltip('إضافة عقار'));
+      await tester.tap(verified ? find.byKey(const ValueKey('home-add-property')) : find.byTooltip('إضافة عقار'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
       expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
@@ -399,7 +402,7 @@ void main() {
       await _pump(tester, initial: page, scale: scale, user: _user());
       expect(tester.takeException(), isNull);
       if (page == '/') {
-        await tester.tap(find.text('حسابي'));
+        await tester.tap(find.byTooltip('حسابي'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }
@@ -411,7 +414,7 @@ void main() {
   testWidgets('own listing source card supports enlarged Arabic without losing review controls', (tester) async {
     _viewport(tester, const Size(320, 640));
     await _pump(tester, scale: 2.4, user: _user(verified: true, type: 'broker'));
-    await tester.tap(find.text('عملي'));
+    await tester.tap(find.byTooltip('عملي'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
@@ -502,7 +505,7 @@ void main() {
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -260));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-home-advertisers');
-      await tester.tap(find.text('عملي'));
+      await tester.tap(find.byTooltip('عملي'));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
       await tester.pumpAndSettle();
@@ -511,7 +514,7 @@ void main() {
       await _capture(tester, key, 'template-my-listings');
       router.pop();
       await tester.pumpAndSettle();
-      await tester.tap(find.text('حسابي'));
+      await tester.tap(find.byTooltip('حسابي'));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-account');
       router.push('/auth');

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/app_components.dart';
 import '../domain/smart_search_filters.dart';
+import '../../properties/domain/property_schema.dart';
 
 class SmartSearchFilterEditor extends StatefulWidget {
   const SmartSearchFilterEditor({required this.initial, this.focus, super.key});
@@ -49,9 +50,20 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
     Navigator.of(context).pop(SmartSearchFilters.fromMap(next));
   }
 
-  bool _visible(String key) => widget.focus == null || widget.focus == key ||
+  void _changed(VoidCallback change) {
+    setState(() {
+      change(); final clean = DynamicPropertySchema.filters({..._values, for (final e in _text.entries) if (e.value.text.isNotEmpty) e.key:e.value.text});
+      _values = DynamicPropertySchema.filters(_values);
+      for (final e in _text.entries) { if (!clean.containsKey(e.key)) e.value.clear(); }
+    });
+  }
+  bool _applicable(String key) {
+    const mapped = {'min_bedrooms':'bedrooms','min_bathrooms':'bathrooms','min_area_m2':'area_value','max_area_m2':'area_value'};
+    return DynamicPropertySchema.applies(mapped[key] ?? key,_values);
+  }
+  bool _visible(String key) => _applicable(key) && (widget.focus == null || widget.focus == key ||
     (const ['budget', 'min_price', 'max_price'].contains(widget.focus) && const ['min_price', 'max_price', 'currency'].contains(key)) ||
-    (const ['min_area_m2', 'max_area_m2'].contains(widget.focus) && const ['min_area_m2', 'max_area_m2'].contains(key));
+    (const ['min_area_m2', 'max_area_m2'].contains(widget.focus) && const ['min_area_m2', 'max_area_m2'].contains(key)));
 
   Widget _field(String key, String label) => !_visible(key) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: TextField(
     key: ValueKey('filter-$key'), controller: _text[key], autofocus: widget.focus == key,
@@ -73,12 +85,12 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
         if (_visible('type')) DropdownButtonFormField<String>(key: const ValueKey('filter-type'), value: _values['type'] as String?, isExpanded: true,
           decoration: const InputDecoration(labelText: 'نوع العقار'), items: [const DropdownMenuItem(value: null, child: Text('كل الأنواع')),
             for (final entry in SmartSearchFilters.types.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
-          onChanged: (value) => setState(() { if (value == null) { _values.remove('type'); } else { _values['type'] = value; } })),
+          onChanged: (value) => _changed(() { if (value == null) { _values.remove('type'); } else { _values['type'] = value; } })),
         const SizedBox(height: 12),
         if (_visible('purpose')) DropdownButtonFormField<String>(key: const ValueKey('filter-purpose'), value: _values['purpose'] as String?, isExpanded: true,
           decoration: const InputDecoration(labelText: 'الغرض'), items: const [DropdownMenuItem(value: null, child: Text('بيع وإيجار')),
             DropdownMenuItem(value: 'sale', child: Text('بيع')), DropdownMenuItem(value: 'rent', child: Text('إيجار'))],
-          onChanged: (value) => setState(() { if (value == null) { _values.remove('purpose'); } else { _values['purpose'] = value; } })),
+          onChanged: (value) => _changed(() { if (value == null) { _values.remove('purpose'); } else { _values['purpose'] = value; } })),
         _field('search', 'المحافظة أو المنطقة'),
         _field('min_price', rent ? 'من إيجار شهري' : 'أقل سعر'), _field('max_price', rent ? 'حتى إيجار شهري' : 'أعلى سعر'),
         const SizedBox(height: 12),
@@ -88,13 +100,17 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
           onChanged: (value) => setState(() { if (value == null) { _values.remove('currency'); } else { _values['currency'] = value; } })),
         _field('min_area_m2', 'أقل مساحة بالمتر المربع'), _field('max_area_m2', 'أقصى مساحة بالمتر المربع'),
         if (type == null || const ['apartment', 'house', 'villa'].contains(type)) ...[_field('min_bedrooms', 'غرف النوم على الأقل'), _field('min_bathrooms', 'دورات المياه على الأقل')],
-        if (const ['apartment', 'office', 'shop'].contains(type)) _field('floor_number', 'الدور'),
-        if (type == 'apartment') _boolean('unit_occupies_entire_floor', 'الوحدة تشغل الدور كاملًا'),
-        if (const ['apartment', 'building', 'office'].contains(type)) _boolean('has_elevator', 'مصعد'),
+        if (_visible('floor_number')) Padding(padding:const EdgeInsets.only(top:12),child:DropdownButtonFormField<String>(key:const ValueKey('filter-floor_number'),
+          value:_text['floor_number']!.text.isEmpty ? null : _text['floor_number']!.text,isExpanded:true,decoration:const InputDecoration(labelText:'الدور'),
+          items:[const DropdownMenuItem(value:null,child:Text('أي دور')),for(final e in DynamicPropertySchema.floorOptions.entries) DropdownMenuItem(value:e.key,child:Text(e.value)),
+            if(_text['floor_number']!.text.isNotEmpty && !DynamicPropertySchema.floorOptions.containsKey(_text['floor_number']!.text)) DropdownMenuItem(value:_text['floor_number']!.text,child:Text(_text['floor_number']!.text))],
+          onChanged:(v)=>setState(()=>_text['floor_number']!.text=v??''))),
+        if (_applicable('unit_occupies_entire_floor')) _boolean('unit_occupies_entire_floor', 'الوحدة تشغل الدور كاملًا'),
+        if (_applicable('has_elevator')) _boolean('has_elevator', 'مصعد'),
         if (type == 'land' && _visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'واجهة الأرض'),
           items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
           onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } })),
-        if (!const ['land', 'farm'].contains(type)) ...[_boolean('has_parking', 'موقف'), const SizedBox(height: 12),
+        if (_applicable('has_parking')) ...[_boolean('has_parking', 'موقف'), const SizedBox(height: 12),
           if (_visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'الواجهة'),
             items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
             onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } }))],

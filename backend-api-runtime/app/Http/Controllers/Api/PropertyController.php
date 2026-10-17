@@ -172,6 +172,21 @@ class PropertyController extends Controller
             if (in_array($section, ['sale', 'rent'], true)) $query->where('purpose', $section);
             $sections[$section] = $query->latest('id')->limit(6)->get()->map(fn ($p) => $this->summaryData($p, $request))->values()->all();
         }
+        if (isset($v['latitude'],$v['longitude'])) {
+            $nearby=$this->publicQuery();$this->applyFilters($nearby,['type'=>$v['type'] ?? null]);$lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
+            if(DB::getDriverName()==='pgsql'){
+                $point='ST_SetSRID(ST_MakePoint(?, ?),4326)::geography';
+                $nearby->whereRaw("ST_DWithin(location::geography, $point, ?)",[$lon,$lat,30000])
+                    ->orderByRaw("ST_Distance(location::geography, $point)",[$lon,$lat]);
+                $nearbyRows=$nearby->limit(6)->get();
+            }else{
+                $nearbyRows=$nearby->limit(1000)->get()->filter(fn($p)=>$this->distanceKm($lat,$lon,(float)$p->latitude,(float)$p->longitude)<=30)
+                    ->sortBy(fn($p)=>$this->distanceKm($lat,$lon,(float)$p->latitude,(float)$p->longitude))->take(6);
+            }
+            $sections['nearby']=$nearbyRows->map(fn($p)=>$this->summaryData($p,$request))->values()->all();
+        }
+        $purposeOrder=count($sections['rent'])>count($sections['sale'])?['rent','sale']:['sale','rent'];
+        $sectionOrder=array_values(array_filter(array_merge(['nearby','spotlight','latest'],$purposeOrder),fn($key)=>!empty($sections[$key])));
         $ranking = app(\App\Services\BrokerRankingService::class);
         $localNames = $context['governorate'] === 'صنعاء' ? ['صنعاء', 'أمانة العاصمة'] : [$context['governorate']];
         $localOwnerIds = (clone $base)->select('properties.user_id');
@@ -181,7 +196,7 @@ class PropertyController extends Controller
                 ->orWhereJsonContains('details->work_areas', $context['governorate']))
                 ->orWhereIn('users.id', $localOwnerIds);
         })->limit(5)->get()->map(fn ($u) => $ranking->publicData($u))->values();
-        return response()->json(['data' => ['context' => $context, 'sections' => $sections, 'brokers' => $brokers]]);
+        return response()->json(['data' => ['context' => $context, 'sections' => $sections, 'section_order'=>$sectionOrder, 'brokers' => $brokers]]);
     }
 
     public function marketplaceLocations(): JsonResponse
@@ -262,7 +277,13 @@ class PropertyController extends Controller
     public function store(Request $request): JsonResponse
     {
         /** @var User $user */
-        $user=$request->user();$this->assertAdvertiserCanCreateDraft($user);app(\App\Services\ListingAccessService::class)->assertCanCreate($user);$validated=$request->validate($this->listingRules(false));
+        $user=$request->user();$this->assertAdvertiserCanCreateDraft($user);
+        $request->validate(['editor_draft_key'=>['nullable','uuid']]);
+        if ($request->input('editor_draft_key')) {
+            $draft=app(\App\Services\ListingEditorDraftService::class)->owned($user,$request->input('editor_draft_key'));
+            if ($draft->property_id) return $this->update($request,Property::query()->findOrFail($draft->property_id));
+        }
+        app(\App\Services\ListingAccessService::class)->assertCanCreate($user,$request->input('editor_draft_key'));$validated=$request->validate($this->listingRules(false));
         $validated=$this->normalizeListingFields($validated,null,false);
         $this->assertV2ListingCompleteness($validated);
         $cell=$this->regions->assertListingAllowed($user,(float)$validated['latitude'],(float)$validated['longitude']);
@@ -272,9 +293,9 @@ class PropertyController extends Controller
         try{
             $property=DB::transaction(function()use($request,$validated,$user,$cell,$asset,&$storedPublic,&$storedPrivate){
                 $lockedUser=User::query()->lockForUpdate()->findOrFail($user->id);
-                app(\App\Services\ListingAccessService::class)->assertCanCreate($lockedUser);
+                app(\App\Services\ListingAccessService::class)->assertCanCreate($lockedUser,$request->input('editor_draft_key'));
                 $property=Property::query()->create(array_merge($this->listingPayload($validated,false),['user_id'=>$user->id,'property_asset_id'=>$asset->id,'geo_cell_id'=>$cell?->id,'owner_key'=>null,'status'=>'draft','review_status'=>'draft']));
-                $this->syncLocation($property);$this->storeImages($request,$property,0,$storedPublic);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
+                $this->syncLocation($property);$this->storeImages($request,$property,0,$storedPublic);app(\App\Services\ListingEditorDraftService::class)->attach($request,$property);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
                 $this->audit->record($user,'listing.created',$property,['purpose'=>$property->purpose,'status'=>'draft','property_asset_id'=>$asset->id],$request,$user->id);
                 return $property->fresh(['images','documents','propertyAsset']);
             });
@@ -295,13 +316,15 @@ class PropertyController extends Controller
         if($property->documents()->count()+count($request->file('proof_documents',[]))>5)throw ValidationException::withMessages(['proof_documents'=>['A listing may contain at most 5 proof documents.']]);
         $storedPublic=[];$storedPrivate=[];$oldImages=$replaceImages?$property->images()->get():collect();
         try{$property=DB::transaction(function()use($request,$property,$validated,$replaceImages,$user,&$storedPublic,&$storedPrivate){
+            User::query()->lockForUpdate()->findOrFail($user->id);$property=Property::query()->lockForUpdate()->findOrFail($property->id);
+            abort_if($property->status === 'archived' || in_array($property->review_status,['submitted','under_review','rejected_blocked'],true),409);
             $wasPublished=$property->status==='published';$property->fill($this->listingPayload($validated,true));
             $cell=$this->regions->assertListingAllowed($user,(float)$property->latitude,(float)$property->longitude);$property->geo_cell_id=$cell?->id;
             $identity=array_merge(['purpose'=>$property->purpose,'type'=>$property->type,'latitude'=>$property->latitude,'longitude'=>$property->longitude,'area_m2'=>$property->area_m2,'bedrooms'=>$property->bedrooms,'bathrooms'=>$property->bathrooms,'address'=>$property->address],$validated);
             if ((int) $property->listing_input_version >= 6) $identity = array_merge($this->listingState($property), $validated);
             $asset=$this->identity->resolveOrCreateAsset($user,$identity,$property->propertyAsset);$property->property_asset_id=$asset->id;
             $property->status='draft';$property->review_status='draft';$property->submitted_at=null;$property->reviewed_at=null;$property->last_review_reason=null;if($wasPublished)$property->published_at=null;$property->save();$this->syncLocation($property);
-            if($replaceImages)$property->images()->delete();if($request->hasFile('images'))$this->storeImages($request,$property,$property->images()->count(),$storedPublic);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
+            if($replaceImages)$property->images()->delete();if($request->hasFile('images'))$this->storeImages($request,$property,$property->images()->count(),$storedPublic);$this->storeProofDocuments($request,$property,$user,$storedPrivate);app(\App\Services\ListingEditorDraftService::class)->attach($request,$property);
             $this->audit->record($user,$wasPublished?'listing.published_edit_moved_to_draft':'listing.updated',$property,['changed_fields'=>array_values(array_keys($validated)),'replace_images'=>$replaceImages,'property_asset_id'=>$asset->id],$request,$user->id);
             return $property->fresh(['images','documents','propertyAsset']);
         });}catch(Throwable $e){$this->deletePaths($storedPublic);$this->deletePrivatePaths($storedPrivate);throw $e;}
@@ -352,6 +375,10 @@ class PropertyController extends Controller
 
         abort_unless($property->status === 'published' || $isOwner || $isReviewer, 404);
         abort_if($image->cdn_url, 404);
+        if (str_starts_with($image->path,'editor-drafts/')) {
+            abort_unless($this->storage->existsPrivate($image->path),404);
+            return $this->storage->responsePrivate($image->path,null,['Cache-Control'=>$property->status==='published'?'public, max-age=86400':'private, no-store']);
+        }
         abort_unless($this->storage->existsPublic($image->path), 404);
 
         return $this->storage->responsePublic($image->path, null, [
@@ -376,8 +403,10 @@ class PropertyController extends Controller
             'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
             'currency' => ['sometimes', 'string', 'size:3'],
-            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4, 5, 6, 7])],
+            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4, 5, 6, 7, 8])],
             'rental_conditions' => ['nullable'],
+            'editor_draft_key' => ['nullable','uuid'],
+            'editor_draft_revision' => ['required_with:editor_draft_key','integer','min:1'],
             'area_m2' => ['nullable', 'integer', 'min:1', 'max:10000000'],
             'area_value' => ['nullable', 'numeric', 'gt:0', 'max:10000000'],
             'area_unit' => ['nullable', 'string', Rule::in(array_keys(self::AREA_UNITS))],
@@ -484,6 +513,7 @@ class PropertyController extends Controller
             $validated['area_value'] = null; $validated['area_m2'] = null; $validated['area_unit'] = null;
             $withoutArea = true;
         } else $withoutArea = false;
+        if ($version >= 8 && $type === 'shop' && isset($validated['area_unit']) && $validated['area_unit'] !== 'sqm') throw ValidationException::withMessages(['area_unit'=>['مساحة المحل بالمتر المربع.']]);
         $hasAreaInput = array_key_exists('area_value', $validated) || array_key_exists('area_unit', $validated);
         $hasLegacyArea = array_key_exists('area_m2', $validated);
 
@@ -550,11 +580,21 @@ class PropertyController extends Controller
         $validated['unit_occupies_entire_floor'] = $effectiveType === 'apartment' && $wholeFloor;
         if ($wholeFloor) $validated['unit_number'] = null;
         if ($effectiveType === 'shop' && (int) ($validated['listing_input_version'] ?? 1) >= 4 && !array_key_exists('floor_number', $validated)) $validated['floor_number'] = null;
+        if ($version >= 8) $validated = app(\App\Services\DynamicPropertySchema::class)->facts($validated + ['type'=>$type,'purpose'=>$purpose],true);
         return $validated;
     }
 
     private function assertV2ListingCompleteness(array $listing): void
     {
+        if ((int) ($listing['listing_input_version'] ?? 1) >= 8) {
+            $errors=[];
+            foreach (array_merge(['address','price'],app(\App\Services\DynamicPropertySchema::class)->required($listing)) as $key) {
+                $value=$listing[$key] ?? null;
+                if ($value === null || $value === '' || (in_array($key,['price','area_value','bedrooms','bathrooms'],true) && (float)$value <= 0)) $errors[$key][]='أكمل هذه المعلومة المطلوبة.';
+            }
+            if ($errors) throw ValidationException::withMessages($errors);
+            return;
+        }
         if (! in_array((int) ($listing['listing_input_version'] ?? 1), [2, 4, 5, 6, 7], true)) {
             return;
         }
@@ -620,6 +660,7 @@ class PropertyController extends Controller
             'bedrooms' => $property->bedrooms,
             'bathrooms' => $property->bathrooms,
             'has_parking' => $property->has_parking,
+            'has_elevator' => $property->has_elevator,
             'building_facade' => $property->building_facade,
             'address' => $property->address,
             'latitude' => $property->latitude,
@@ -773,7 +814,7 @@ class PropertyController extends Controller
     {
         foreach ($images as $image) {
             if (! $image->cdn_url && $image->path) {
-                $this->storage->deletePublic($image->path);
+                if (str_starts_with($image->path,'editor-drafts/')) $this->storage->deletePrivate($image->path); else $this->storage->deletePublic($image->path);
             }
         }
     }
@@ -790,7 +831,7 @@ class PropertyController extends Controller
         $property->loadMissing('images');
         $mainImage = $property->images->first();
 
-        return [
+        $data = [
             'id' => $property->id,
             'title' => $property->title,
             'purpose' => $property->purpose,
@@ -821,6 +862,7 @@ class PropertyController extends Controller
             'floor_number' => in_array($property->type, ['apartment', 'floor', 'office', 'shop'], true) ? $property->floor_number : null,
             'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,
         ];
+        return array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true),$data);
     }
 
     private function mineWorkspaceData(Property $property, Request $request): array
@@ -920,7 +962,7 @@ class PropertyController extends Controller
             $data['duplicate_check_metadata'] = $property->duplicate_check_metadata;
             $data['ownership_proof_present'] = $property->documents()->where('kind', 'ownership_proof')->exists();
         }
-        return $data;
+        return array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true),$data);
     }
 
     private function advertiserDisplayName(?User $user): string

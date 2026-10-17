@@ -10,20 +10,20 @@ import 'ai_repository.dart';
 class SmartSearchState {
   const SmartSearchState({this.filters = const SmartSearchFilters(), this.rows = const [], this.revision = 0,
     this.page = 0, this.more = false, this.interpreting = false, this.loading = false, this.started = false,
-    this.message = '', this.lastRequest = '', this.aiError, this.resultsError});
+    this.message = '', this.lastRequest = '', this.draftText = '', this.aiError, this.resultsError});
   final SmartSearchFilters filters;
   final List<PropertySummary> rows;
   final int revision, page;
   final bool more, interpreting, loading, started;
-  final String message, lastRequest;
+  final String message, lastRequest, draftText;
   final String? aiError, resultsError;
 
   SmartSearchState copyWith({SmartSearchFilters? filters, List<PropertySummary>? rows, int? revision, int? page,
-    bool? more, bool? interpreting, bool? loading, bool? started, String? message, String? lastRequest, String? aiError,
+    bool? more, bool? interpreting, bool? loading, bool? started, String? message, String? lastRequest, String? draftText, String? aiError,
     String? resultsError, bool clearAiError = false, bool clearResultsError = false}) => SmartSearchState(
       filters: filters ?? this.filters, rows: rows ?? this.rows, revision: revision ?? this.revision,
       page: page ?? this.page, more: more ?? this.more, interpreting: interpreting ?? this.interpreting,
-      loading: loading ?? this.loading, started: started ?? this.started, message: message ?? this.message, lastRequest: lastRequest ?? this.lastRequest,
+      loading: loading ?? this.loading, started: started ?? this.started, message: message ?? this.message, lastRequest: lastRequest ?? this.lastRequest, draftText: draftText ?? this.draftText,
       aiError: clearAiError ? null : aiError ?? this.aiError,
       resultsError: clearResultsError ? null : resultsError ?? this.resultsError);
 }
@@ -34,10 +34,22 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   final PropertyRepository _properties;
   int _inference = 0, _results = 0;
 
-  void startFromHome({required String location, String? type}) {
-    if (state.revision != 0 || state.started || state.filters.values.isNotEmpty) return;
-    _replace(SmartSearchFilters.fromMap({'search': location, if (type != null) 'type': type}),
-      message: 'تبدأ الشروط من منطقتك المختارة. يمكنك تغيير الموقع أو إزالته.');
+  int _journey = 0;
+  int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters}) {
+    final token = ++_journey;
+    reset();
+    if (savedFilters != null || entryFilters != null) replaceManually(savedFilters ?? entryFilters!);
+    return token;
+  }
+  void endJourney(int token) {
+    scheduleMicrotask(() { if (mounted && token == _journey) reset(); });
+  }
+  void setDraftText(String value) { if (value != state.draftText) state = state.copyWith(draftText:value); }
+  void startFromHome({required String location, String? type}) => reset();
+  void updateViewport({required double south, required double west, required double north, required double east}) {
+    final values = Map<String,dynamic>.from(state.filters.values)..remove('latitude')..remove('longitude')..remove('radius_km');
+    values.addAll({'south':south,'west':west,'north':north,'east':east});
+    replaceManually(SmartSearchFilters.fromMap(values));
   }
 
   Future<void> interpret(String message) async {
@@ -60,7 +72,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 
   void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.'}) {
     _inference++; _results++;
-    state = SmartSearchState(filters: filters, revision: state.revision + 1, message: message, lastRequest: state.lastRequest);
+    state = SmartSearchState(filters: filters, revision: state.revision + 1, message: message, lastRequest: state.lastRequest, draftText: state.draftText);
   }
 
   void replaceManually(SmartSearchFilters filters) {
@@ -91,6 +103,6 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   }
 }
 
-// Not autoDispose: leaving the search screen never silently loses its context.
+// One owner route controls a journey. List/map share it; full exit invalidates it.
 final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>((ref) =>
   SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider)));

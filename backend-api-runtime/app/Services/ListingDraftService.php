@@ -24,7 +24,8 @@ class ListingDraftService
         // The mobile editor is YER-only. Never relabel a foreign amount.
         $foreign = isset($fields['currency']) && $fields['currency'] !== 'YER';
         if ($foreign) {
-            unset($fields['price'], $fields['monthly_rent'], $fields['currency']);
+            unset($fields['price'], $fields['monthly_rent'], $fields['currency'], $fields['fixed_sai_amount']);
+            if (($fields['sai_amount_type'] ?? '') === 'fixed') unset($fields['sai_amount_type']);
             $notice .= ' المبلغ بعملة أخرى لم يُنقل إلى حقل الريال اليمني.';
         }
         // Titles/descriptions are composed from accepted facts, not free model
@@ -48,14 +49,9 @@ class ListingDraftService
 
     private function relevant(array $fields, array $facts): array
     {
-        $type = $facts['type'] ?? null;
-        $purpose = $facts['purpose'] ?? null;
-        if ($type && ! in_array($type, ['apartment', 'office', 'shop'], true)) unset($fields['floor_number'], $fields['unit_number']);
-        if ($type && ! in_array($type, ['apartment', 'house', 'villa'], true)) unset($fields['bedrooms'], $fields['bathrooms']);
-        if ($type && ! in_array($type, ['apartment', 'building', 'office'], true)) unset($fields['has_elevator']);
-        if ($type === 'apartment' && $purpose === 'rent') unset($fields['area_value'], $fields['area_unit'], $fields['has_elevator']);
-        if ($purpose === 'rent') unset($fields['price']);
-        if ($purpose === 'sale') unset($fields['monthly_rent']);
+        $clean=app(DynamicPropertySchema::class)->facts(array_merge($facts,$fields));
+        $fields=array_intersect_key($clean,$fields);
+        if (($facts['purpose'] ?? '') === 'rent') unset($fields['price']);
         return $fields;
     }
 

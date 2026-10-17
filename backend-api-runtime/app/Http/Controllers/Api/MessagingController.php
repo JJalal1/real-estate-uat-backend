@@ -96,6 +96,25 @@ class MessagingController extends Controller
         return response()->json(['message'=>'Conversation ready.','data'=>$this->threadSummary($thread,$user)],$created?201:200);
     }
 
+    public function startForBroker(Request $request, User $broker): JsonResponse
+    {
+        $actor=$request->user();
+        abort_unless($actor->isActive(),403);
+        if ((int)$actor->id === (int)$broker->id) throw ValidationException::withMessages(['broker'=>['لا يمكنك محادثة نفسك.']]);
+        $pair=[(int)$actor->id,(int)$broker->id];sort($pair);$key='broker:'.$pair[0].':'.$pair[1];
+        [$thread,$created]=DB::transaction(function()use($actor,$broker,$pair,$key):array{
+            User::query()->whereIn('id',$pair)->orderBy('id')->lockForUpdate()->get();
+            abort_unless(app(\App\Services\BrokerRankingService::class)->query()->where('users.id',$broker->id)->exists(),404);
+            $this->advisoryLock('message-thread:'.$key);
+            $thread=MessageThread::query()->firstOrCreate(['conversation_key'=>$key],['property_id'=>null,'started_by_user_id'=>$actor->id,'last_message_at'=>now()]);
+            $created=$thread->wasRecentlyCreated;
+            foreach([[$actor->id,$actor->name],[$broker->id,$broker->name]] as [$id,$name]) MessageThreadParticipant::query()->firstOrCreate(['thread_id'=>$thread->id,'user_id'=>$id],['user_name_snapshot'=>$name]);
+            return [$thread->fresh(['property','participants']),$created];
+        });
+        $this->audit->record($actor,'messages.broker_thread_opened',$thread,[],$request,$broker->id);
+        return response()->json(['message'=>'المحادثة جاهزة.','data'=>$this->threadSummary($thread,$actor)],$created?201:200);
+    }
+
     public function show(Request $request, MessageThread $thread): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
@@ -284,7 +303,7 @@ class MessagingController extends Controller
         $messages=PrivateMessage::query()->where('thread_id',$thread->id)->orderByDesc('id')->limit(500)->get()->sortBy('id')->values();
         return response()->json(['data'=>[
             'report'=>$this->reportSummary($report->fresh()),
-            'thread'=>['id'=>$thread->id,'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,'participants'=>$thread->participants->map(fn($p)=>['user_id'=>$p->user_id,'name'=>$p->user_name_snapshot])->values()],
+            'thread'=>['id'=>$thread->id,'context_type'=>str_starts_with((string)$thread->conversation_key,'broker:')?'broker':'property','property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,'participants'=>$thread->participants->map(fn($p)=>['user_id'=>$p->user_id,'name'=>$p->user_name_snapshot])->values()],
             'messages'=>$messages->map(fn(PrivateMessage $m)=>['id'=>$m->id,'sender_user_id'=>$m->sender_user_id,'sender_name'=>$m->sender_name_snapshot,'body'=>$m->body,'created_at'=>$m->created_at?->toIso8601String()])->values(),
         ]]);
     }
@@ -324,7 +343,7 @@ class MessagingController extends Controller
             $unread=PrivateMessage::query()->where('thread_id',$thread->id)->where('sender_user_id','<>',$user->id)->when($me?->last_read_message_id,fn($q,$id)=>$q->where('id','>',$id))->count();
         }
         return [
-            'id'=>$thread->id,'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,
+            'id'=>$thread->id,'context_type'=>str_starts_with((string)$thread->conversation_key,'broker:')?'broker':'property','property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,
             'property_status'=>$thread->property?->status === 'published' && !$thread->property->isPubliclyAvailable() ? 'unavailable' : $thread->property?->status,
             'can_manage_customer'=>app(\App\Services\ListingAccessService::class)->isProfessional($user) && (int)($thread->property?->user_id ?? 0) === (int)$user->id && (int)$thread->started_by_user_id !== (int)$user->id,
             'lead_stage'=>$thread->lead_stage,

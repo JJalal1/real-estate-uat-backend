@@ -1,3 +1,4 @@
+import '../../properties/domain/property_schema.dart';
 class SmartSearchFilters {
   const SmartSearchFilters([this.values = const {}]);
   final Map<String, dynamic> values;
@@ -24,13 +25,7 @@ class SmartSearchFilters {
       }
     }
     if (next['type'] == 'floor') { next['type'] = 'apartment'; next['unit_occupies_entire_floor'] = true; }
-    final type = next['type'];
-    if (type != null && !const ['apartment', 'house', 'villa'].contains(type)) { next.remove('min_bedrooms'); next.remove('min_bathrooms'); }
-    if (type != null && !const ['apartment', 'office', 'shop'].contains(type)) next.remove('floor_number');
-    if (type != null && type != 'apartment') next.remove('unit_occupies_entire_floor');
-    if (type != null && !const ['apartment', 'building', 'office'].contains(type)) next.remove('has_elevator');
-    if (const ['land', 'farm'].contains(type)) { next.remove('has_parking'); if (type == 'farm') next.remove('building_facade'); }
-    return SmartSearchFilters(Map.unmodifiable(next));
+    return SmartSearchFilters(Map.unmodifiable(DynamicPropertySchema.filters(next)));
   }
 
   factory SmartSearchFilters.fromApiFilters(Map<String, dynamic> source) {
@@ -72,7 +67,8 @@ class SmartSearchFilters {
       'office' || 'shop' => ['min_area_m2', 'floor_number', 'building_facade'],
       _ => ['type', 'purpose', 'search', 'budget'],
     };
-    return keys.where((key) => key == 'budget' ? !values.containsKey('min_price') && !values.containsKey('max_price') : !values.containsKey(key)).toList();
+    final allowed = DynamicPropertySchema.filters({...values, for (final key in keys) key: values[key] ?? true});
+    return keys.where((key) => allowed.containsKey(key) && (key == 'budget' ? !values.containsKey('min_price') && !values.containsKey('max_price') : !values.containsKey(key))).toList();
   }
 
   String _number(dynamic value) => value is num ? value.toStringAsFixed(value == value.roundToDouble() ? 0 : 1) : value.toString();

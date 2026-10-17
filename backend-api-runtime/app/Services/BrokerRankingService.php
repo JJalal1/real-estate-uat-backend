@@ -34,17 +34,19 @@ class BrokerRankingService
             ->where(function ($query): void { $query->whereNull('availability_notified_at')->orWhere('availability_notified_at','>',now()->subDays(2)); })
             ->whereNull('financial_hold_at')->groupBy('user_id')->selectRaw('user_id, COUNT(*) AS active_listings')
             ->selectRaw('SUM(CASE WHEN availability_confirmed_at >= ? OR published_at >= ? THEN 1 ELSE 0 END) AS recent_activity', [now()->subDays(30),now()->subDays(30)]);
+        $closed=DB::table('properties')->whereIn('availability_status',['sold','rented'])->groupBy('user_id')->selectRaw("user_id, SUM(CASE WHEN availability_status = 'sold' THEN 1 ELSE 0 END) AS sold_listings, SUM(CASE WHEN availability_status = 'rented' THEN 1 ELSE 0 END) AS rented_listings");
         $query = User::query()->where('users.account_status','active')->whereNotNull('users.phone_verified_at')
             ->where(function ($eligible) use ($brokersOnly, $includePublicIndividuals): void {
                 $eligible->whereHas('accountVerificationProfile', fn ($q) => $q->where('status','approved')->whereNotNull('reviewed_at')
                     ->whereIn('type', $brokersOnly ? [AccountVerificationProfile::TYPE_BROKER,AccountVerificationProfile::TYPE_OFFICE] : [AccountVerificationProfile::TYPE_OWNER,AccountVerificationProfile::TYPE_BROKER,AccountVerificationProfile::TYPE_OFFICE]));
                 if ($includePublicIndividuals) $eligible->orWhereIn('users.id', app(PropertyDiscoveryFilterService::class)->publicQuery()->select('properties.user_id'));
             })
+            ->leftJoinSub($closed,'closed_property',fn($join)=>$join->on('closed_property.user_id','=','users.id'))
             ->leftJoinSub($ratings,'customer_rating',fn ($join) => $join->on('customer_rating.advertiser_user_id','=','users.id'))
             ->leftJoinSub($deals,'completed_result',fn ($join) => $join->on('completed_result.advertiser_user_id','=','users.id'))
             ->leftJoinSub($listings,'active_property',fn ($join) => $join->on('active_property.user_id','=','users.id'))
             ->with('accountVerificationProfile')
-            ->select('users.*')
+            ->select('users.*')->selectRaw('COALESCE(closed_property.sold_listings,0) AS sold_listings, COALESCE(closed_property.rented_listings,0) AS rented_listings')
             ->selectRaw('COALESCE(customer_rating.rating_count,0) AS rating_count, COALESCE(customer_rating.rating_average,0) AS rating_average')
             ->selectRaw('COALESCE(completed_result.completed_deals,0) AS completed_deals, COALESCE(active_property.active_listings,0) AS active_listings');
         // Stars remain the actual customer average. Only the independent ordering score uses confidence, settlement and recency.
@@ -75,6 +77,7 @@ class BrokerRankingService
             'photo_url'=>$approved && $user->public_professional_photo_path ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16) : null,
             'rating_average'=>round((float)($user->rating_average ?? 0),2),'rating_count'=>(int)($user->rating_count ?? 0),
             'completed_deals'=>(int)($user->completed_deals ?? 0),'active_listings'=>(int)($user->active_listings ?? 0),
+            'sold_listings'=>(int)($user->sold_listings ?? 0),'rented_listings'=>(int)($user->rented_listings ?? 0),
             'joined_at'=>$user->created_at?->toDateString(),
         ];
     }

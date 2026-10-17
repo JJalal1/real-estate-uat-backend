@@ -87,7 +87,7 @@ class PropertyIdentityService
                 $errors['floor_number'][] = 'حدد أي دور يعرضه الإعلان.';
             }
             if ($type !== 'floor' && !($type === 'apartment' && (bool) ($listing['unit_occupies_entire_floor'] ?? false))
-                && ! $this->allowsUnspecifiedRentalUnit($listing) && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '') {
+                && ! $this->allowsUnspecifiedUnit($listing) && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '') {
                 $errors['unit_number'][] = 'حدد رقم الوحدة أو موضعها داخل الدور حتى نميزها عن غيرها.';
             }
             if (trim((string) ($listing['address'] ?? '')) === '') {
@@ -193,7 +193,7 @@ class PropertyIdentityService
             throw new ConflictHttpException('هذا العقار أو هذه الوحدة مسجلة بالفعل على المنصة ولا يمكن إنشاء إعلان آخر لها.');
         }
         if ($result['decision'] === 'possible_duplicate' && empty($listing->duplicate_self_verification)) {
-            if ($this->allowsUnspecifiedRentalUnit($listing->getAttributes())
+            if ($this->allowsUnspecifiedUnit($listing->getAttributes())
                 && in_array('unit_identity_incomplete', $result['signals'] ?? [], true)) {
                 // Missing a position is allowed, but it requires an auditable
                 // human identity decision rather than an invented unit number.
@@ -450,7 +450,7 @@ class PropertyIdentityService
     private function finishEvaluation(Property $listing, ?User $actor, array $result, bool $persist): array
     {
         $needsSupport = ! empty($listing->duplicate_self_verification)
-            || ($this->allowsUnspecifiedRentalUnit($listing->getAttributes())
+            || ($this->allowsUnspecifiedUnit($listing->getAttributes())
                 && in_array('unit_identity_incomplete', $result['signals'] ?? [], true));
         $result['status'] = match ($result['decision']) {
             'confirmed_duplicate' => 'confirmed_duplicate',
@@ -463,7 +463,7 @@ class PropertyIdentityService
             'needs_support' => 'بقيت حالة تشابه غير محسومة وستذهب للمراجعة الاستثنائية.',
             default => 'لم نجد تكراراً يمنع النشر.',
         };
-        if ($this->allowsUnspecifiedRentalUnit($listing->getAttributes()) && $result['status'] === 'needs_support') {
+        if ($this->allowsUnspecifiedUnit($listing->getAttributes()) && $result['status'] === 'needs_support') {
             $result['message'] = 'سيُراجع فريق الدعم هوية الوحدة وموضعها قبل اعتماد الإعلان.';
         }
         if (! $persist) return $result;
@@ -522,7 +522,7 @@ class PropertyIdentityService
             ? $address.'|'.$buildingReference
             : 'v4|'.$address.'|'.number_format((float) $listing['latitude'], 5, '.', '').'|'.number_format((float) $listing['longitude'], 5, '.', '')) : null;
         $unitKey = $kind === 'unit' ? hash('sha256', ($floorNumber ?? '').'|'.$unitNumber) : null;
-        if ($this->allowsUnspecifiedRentalUnit($listing) && ! $wholeFloor) {
+        if ($this->allowsUnspecifiedUnit($listing) && ! $wholeFloor) {
             $unitKey = null;
         }
         $boundary = $kind === 'land' ? $this->normalizeBoundary($listing['land_boundary_geojson'] ?? null) : null;
@@ -561,10 +561,10 @@ class PropertyIdentityService
         return PropertyAsset::query()->where('status', 'active')->where('identity_hash', $identity['identity_hash'])->first();
     }
 
-    private function allowsUnspecifiedRentalUnit(array $listing): bool
+    private function allowsUnspecifiedUnit(array $listing): bool
     {
-        return (int) ($listing['listing_input_version'] ?? 1) >= 7
-            && ($listing['type'] ?? '') === 'apartment' && ($listing['purpose'] ?? '') === 'rent'
+        return (((int) ($listing['listing_input_version'] ?? 1) >= 8 && ($listing['type'] ?? '') === 'shop')
+            || ((int) ($listing['listing_input_version'] ?? 1) >= 7 && ($listing['type'] ?? '') === 'apartment' && ($listing['purpose'] ?? '') === 'rent'))
             && ! ($listing['unit_occupies_entire_floor'] ?? false)
             && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '';
     }

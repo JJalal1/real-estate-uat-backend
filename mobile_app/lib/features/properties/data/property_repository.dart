@@ -367,6 +367,7 @@ class PropertyRepository {
     String? ownerIdBackPath,
     String? ownerSelfiePath,
     String? ownershipProofPath,
+    String? editorDraftKey, int? editorDraftRevision,
   }) async {
     final form = await _listingForm(
       input,
@@ -377,6 +378,7 @@ class PropertyRepository {
       ownerIdBackPath: ownerIdBackPath,
       ownerSelfiePath: ownerSelfiePath,
       ownershipProofPath: ownershipProofPath,
+      editorDraftKey: editorDraftKey, editorDraftRevision: editorDraftRevision,
     );
     final response = await _dio.post<Map<String, dynamic>>(
       '/properties',
@@ -397,6 +399,7 @@ class PropertyRepository {
     String? ownerIdBackPath,
     String? ownerSelfiePath,
     String? ownershipProofPath,
+    String? editorDraftKey, int? editorDraftRevision,
   }) async {
     final form = await _listingForm(
       input,
@@ -408,6 +411,7 @@ class PropertyRepository {
       ownerIdBackPath: ownerIdBackPath,
       ownerSelfiePath: ownerSelfiePath,
       ownershipProofPath: ownershipProofPath,
+      editorDraftKey: editorDraftKey, editorDraftRevision: editorDraftRevision,
     );
     final response = await _dio.post<Map<String, dynamic>>(
       '/properties/$propertyId',
@@ -510,8 +514,10 @@ class PropertyRepository {
     String? ownerIdBackPath,
     String? ownerSelfiePath,
     String? ownershipProofPath,
+    String? editorDraftKey, int? editorDraftRevision,
   }) async {
     final fields = Map<String, dynamic>.from(input.toMap());
+    if (editorDraftKey != null) { fields['editor_draft_key'] = editorDraftKey; fields['editor_draft_revision'] = editorDraftRevision; }
     final parking = fields['has_parking'];
     if (parking is bool) {
       // Multipart form fields are text. Send an explicit 1/0 so a selected

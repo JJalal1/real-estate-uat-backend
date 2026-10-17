@@ -87,7 +87,7 @@ class EbrokerSectionPanel extends StatelessWidget {
 class EbrokerAdvertiserCard extends StatelessWidget {
   const EbrokerAdvertiserCard({required this.name, required this.identity,
     required this.rating, required this.ratingCount, required this.verified,
-    required this.onTap, this.width, this.photoUrl, this.completedDeals, this.activeListings, this.compact = false, super.key});
+    required this.onTap, this.width, this.photoUrl, this.completedDeals, this.activeListings, this.action, this.compact = false, super.key});
   final String name;
   final String identity;
   final double rating;
@@ -98,6 +98,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
   final String? photoUrl;
   final int? completedDeals, activeListings;
   final bool compact;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +117,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
             Text(identity, style: Theme.of(context).textTheme.bodySmall), const SizedBox(height: 5),
             Text(ratingCount == 0 ? 'لا توجد تقييمات بعد' : '${rating.toStringAsFixed(1)} من 5 · $ratingCount تقييمًا', style: Theme.of(context).textTheme.bodySmall),
             if (completedDeals != null && activeListings != null) Text('$activeListings عقارات متاحة · $completedDeals صفقات مؤكدة', style: Theme.of(context).textTheme.bodySmall),
+            if(action!=null)action!,
             Text('عرض الملف والإعلانات', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: primary)),
           ])),
         ]),
@@ -164,6 +166,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
             SizedBox(height: 10.rh(context)),
             if (completedDeals != null && activeListings != null) Padding(padding: const EdgeInsets.only(bottom: 8),
               child: Text('$completedDeals صفقات مؤكدة · $activeListings عقارات نشطة', style: Theme.of(context).textTheme.bodySmall)),
+            if(action!=null)action!,
             EbrokerText(name, size: 16, weight: FontWeight.w600, maxLines: 1),
             SizedBox(height: 2.rh(context)),
             EbrokerText(identity, size: 12, color: EbrokerDesign.textLight, maxLines: 1),

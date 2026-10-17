@@ -265,7 +265,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('advertiser shortcut cannot bypass publishing eligibility',
+  testWidgets('removed home shortcut stays absent and its route still enforces publishing eligibility',
       (tester) async {
     final user = AuthUser.fromJson({
       'id': 9,
@@ -275,12 +275,11 @@ void main() {
       'phone_verified_at': '2026-10-11T00:00:00Z',
       'profile_completed_at': '2026-10-11T00:00:00Z',
     });
-    await _pumpHome(tester, advertiser: true, user: user);
+    final router = await _pumpHome(tester, advertiser: true, user: user);
     await tester.pumpAndSettle();
-    final action = find.text('إضافة عقار');
-    await tester.scrollUntilVisible(action, 300, scrollable: find.byType(Scrollable).first);
-    await tester.pumpAndSettle();
-    await tester.tap(action);
+    expect(find.text('إضافة عقار'), findsNothing);
+    expect(find.text('إدارة عملي'), findsNothing);
+    router.push('/add-property');
     await tester.pumpAndSettle();
     expect(find.text('توثيق نوع الحساب مطلوب'), findsOneWidget);
     expect(find.text('listing destination'), findsNothing);
