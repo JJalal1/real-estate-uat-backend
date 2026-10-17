@@ -49,7 +49,7 @@ class ActiveWaveDiscoveryTest extends TestCase
             ->assertJsonPath('data.filters.currency', 'USD')->assertJsonPath('data.filters.max_monthly_rent', 600);
         $this->getJson('/api/properties?'.http_build_query($filters))->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $match->id);
         $this->assertSame(1, SavedPropertySearch::query()->count());
-        $this->withHeaders($headers)->patchJson('/api/saved-searches/'.$r->json('data.id'), ['filters' => $filters + ['has_elevator' => false]])->assertOk()->assertJsonPath('data.filters.has_elevator', false);
+        $this->withHeaders($headers)->patchJson('/api/saved-searches/'.$r->json('data.id'), ['filters' => $filters + ['has_elevator' => false]])->assertOk()->assertJsonMissingPath('data.filters.has_elevator'); // Rental apartments have no elevator criterion in schema v8.
     }
 
     public function test_polygon_and_radius_apply_to_results_counts_and_alerts_without_rectangular_false_matches(): void

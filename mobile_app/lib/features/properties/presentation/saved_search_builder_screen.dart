@@ -8,6 +8,7 @@ import '../../../core/widgets/app_components.dart';
 import '../data/saved_search_repository.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../domain/saved_property_search.dart';
+import '../domain/property_schema.dart';
 
 class SavedSearchBuilderScreen extends ConsumerStatefulWidget {
   const SavedSearchBuilderScreen({
@@ -480,6 +481,8 @@ class _SavedSearchBuilderScreenState
     if (maxArea != null) filters['max_area_m2'] = maxArea;
     }
 
+    final clean = DynamicPropertySchema.filters(filters);
+    filters..clear()..addAll(clean);
     if (filters.isEmpty) {
       _showMessage('حدد شرطًا واحدًا على الأقل حتى يكون البحث مفيدًا.');
       return;

@@ -11,7 +11,6 @@ import '../domain/property_marker.dart';
 import '../domain/saved_property_search.dart';
 import 'saved_search_builder_screen.dart';
 import 'property_compare_actions.dart';
-import '../../discovery/data/smart_search_session.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../discovery/presentation/smart_search_assistant.dart';
 
@@ -224,8 +223,7 @@ class SavedSearchResultsScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppAppBar(title: search.name),
         body: SmartSearchAssistantLayer(onPressed: () {
-          ref.read(smartSearchSessionProvider.notifier).replaceManually(SmartSearchFilters.fromApiFilters(search.filters));
-          context.push('/smart-search');
+          context.push('/smart-search', extra:search);
         }, child: FutureBuilder<List<PropertyMarker>>(
           future: ref.read(savedSearchRepositoryProvider).results(search),
           builder: (context, snapshot) {

@@ -26,7 +26,7 @@ import 'package:real_estate_mobile/features/properties/presentation/listing_edit
 import 'broker_experience_ui_test.dart' show BrokerTestAuth;
 
 const _policy = PropertySaiManagement(configured: false, advertiserType: 'broker',
-  fixedRatePercent: 1, brokerMaxRatePercent: 5, professionalPlatformSharePercent: 20,
+  fixedRatePercent: 1, brokerMaxRatePercent: 5, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 20,
   platformTermsMessage: 'للتطبيق نسبة مقدارها 20% من مبلغ السعي عند إتمام الصفقة.');
 
 class _Recovery extends ListingRecoveryStore {
@@ -51,7 +51,7 @@ class _Properties implements PropertyRepository {
   @override
   Future<PropertySaiManagement> saiPolicy(String purpose) async => purpose == 'sale' ? _policy :
     const PropertySaiManagement(configured: false, advertiserType: 'broker', fixedRatePercent: 20,
-      brokerMaxRatePercent: 100, professionalPlatformSharePercent: 20);
+      brokerMaxRatePercent: 100, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 20);
   @override
   Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1}) async {
     lastQuery = filters;
@@ -166,7 +166,7 @@ void main() {
 
   test('commission quote follows supplied policy and zero fallback rather than a hardcoded platform percentage', () {
     const alternate = PropertySaiManagement(configured: false, advertiserType: 'broker',
-      fixedRatePercent: 1, brokerMaxRatePercent: 5, professionalPlatformSharePercent: 17.5);
+      fixedRatePercent: 1, brokerMaxRatePercent: 5, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 17.5);
     final quote = PropertySaiQuote.calculate(alternate, 2, 10000000)!;
     expect(quote.total, 200000); expect(quote.platform, 35000); expect(quote.net, 165000);
     final fallback = PropertySaiQuote.calculate(alternate, 0, 10000000)!;

@@ -20,6 +20,7 @@ return new class extends Migration {
         if (DB::getDriverName() === 'pgsql') {
             DB::statement('ALTER TABLE listing_editor_drafts ENABLE ROW LEVEL SECURITY');
             DB::statement('REVOKE ALL ON listing_editor_drafts FROM PUBLIC');
+            DB::statement('REVOKE ALL ON SEQUENCE listing_editor_drafts_id_seq FROM PUBLIC');
             foreach (['anon','authenticated'] as $role) {
                 if (DB::select('SELECT 1 FROM pg_roles WHERE rolname = ?', [$role])) {
                     DB::statement('REVOKE ALL ON listing_editor_drafts FROM '.$role);

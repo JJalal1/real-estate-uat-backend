@@ -28,7 +28,8 @@ import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
 import '../features/messages/presentation/messages_screen.dart';
 import '../features/messages/presentation/notifications_screen.dart';
-import '../features/map/presentation/map_screen.dart';
+import '../features/properties/domain/saved_property_search.dart';
+import '../features/discovery/domain/smart_search_filters.dart';
 import '../features/discovery/presentation/marketplace_section_screen.dart';
 import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/favorites_screen.dart';
@@ -51,10 +52,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
-      GoRoute(path: '/smart-search', builder: (context, state) => const AssistedSearchScreen()),
+      GoRoute(path: '/smart-search', builder: (context, state) => AssistedSearchScreen(savedSearch:state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null)),
       GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(
         section: state.uri.queryParameters['section'] ?? 'latest',
-        governorate: state.uri.queryParameters['governorate'], type: state.uri.queryParameters['type'])),
+        governorate: state.uri.queryParameters['governorate'], type: state.uri.queryParameters['type'],
+        latitude:double.tryParse(state.uri.queryParameters['lat']??''),longitude:double.tryParse(state.uri.queryParameters['lon']??''))),
       GoRoute(path: '/brokers', builder: (context, state) => const BrokerDirectoryScreen()),
       GoRoute(path: '/advertisers/:id', builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
@@ -290,10 +292,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/property-market',
-        builder: (context, state) => MapScreen(
-          initialLatitude: double.tryParse(state.uri.queryParameters['lat'] ?? ''),
-          initialLongitude: double.tryParse(state.uri.queryParameters['lon'] ?? ''),
-          initialType: state.uri.queryParameters['type']),
+        builder: (context, state) => AssistedSearchScreen(initialMapMode:true,entryFilters:SmartSearchFilters.fromMap({
+          if(double.tryParse(state.uri.queryParameters['lat']??'')!=null && double.tryParse(state.uri.queryParameters['lon']??'')!=null) ...{
+            'latitude':double.parse(state.uri.queryParameters['lat']!), 'longitude':double.parse(state.uri.queryParameters['lon']!), 'radius_km':30},
+          if(state.uri.queryParameters['type']!=null)'type':state.uri.queryParameters['type'],
+        })),
       ),
     ],
   );

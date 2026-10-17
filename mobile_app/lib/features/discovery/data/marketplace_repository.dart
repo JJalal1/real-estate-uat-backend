@@ -22,17 +22,19 @@ class HomeLocation {
 typedef HomeFeedQuery = ({double latitude, double longitude, String? governorate, String? type, bool device});
 
 class MarketplaceFeed {
-  const MarketplaceFeed({required this.label, this.governorate, this.source = 'default', this.sections = const {}, this.brokers = const []});
+  const MarketplaceFeed({required this.label, this.governorate, this.source = 'default', this.sections = const {}, this.brokers = const [], this.sectionOrder = const ['spotlight','latest','sale','rent']});
   final String label;
   final String? governorate;
   final String source;
   final Map<String, List<PropertySummary>> sections;
   final List<BrokerProfile> brokers;
+  final List<String> sectionOrder;
   factory MarketplaceFeed.fromJson(Map<String, dynamic> j) {
     final context = brokerMap(j['context']), sections = brokerMap(j['sections']);
     return MarketplaceFeed(label: context['label']?.toString() ?? 'صنعاء', governorate: context['governorate']?.toString(),
+      sectionOrder:(j['section_order'] as List? ?? const ['spotlight','latest','sale','rent']).whereType<String>().where((key)=>const ['nearby','spotlight','latest','sale','rent'].contains(key)).toList(),
       source: context['source']?.toString() ?? 'default', brokers: brokerRows(j['brokers']).map(BrokerProfile.fromJson).toList(growable: false),
-      sections: {for (final key in const ['spotlight', 'latest', 'sale', 'rent']) key: brokerRows(sections[key]).map(PropertySummary.fromJson).toList(growable: false)});
+      sections: {for (final key in const ['nearby', 'spotlight', 'latest', 'sale', 'rent']) key: brokerRows(sections[key]).map(PropertySummary.fromJson).toList(growable: false)});
   }
 }
 

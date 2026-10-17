@@ -43,6 +43,8 @@ class ListingSaiSection extends StatelessWidget {
     final quote = current == null || basis == null ||
         (fixed ? enteredAmount == null : rate == null)
         ? null : PropertySaiQuote.calculate(current, rate ?? 0, basis!, fixedAmount: enteredAmount);
+    final platformShare = quote?.fallback == true ? current?.fallbackPlatformSharePercent : current?.professionalPlatformSharePercent;
+    String percent(double value) => value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
     final fixedRateText = current?.fixedRatePercent?.toStringAsFixed(0) ?? '—';
     final maximumText = current?.brokerMaxRatePercent?.toStringAsFixed(0) ?? '—';
     final basisText = purpose == 'rent' ? 'إيجار الشهر الأول' : 'سعر البيع';
@@ -94,7 +96,7 @@ class ListingSaiSection extends StatelessWidget {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(Icons.info_outline, size: 16, color: theme.colorScheme.primary), const SizedBox(width: 6),
             Expanded(child: Text(fixed ? 'حصة المنصة ${amount(quote.platform)}' :
-              'حصة المنصة ${quote.platformPercent.toStringAsFixed(0)}% · ${amount(quote.platform)} من سعي ${amount(quote.total)}',
+              'حصة المنصة ${percent(platformShare!)}% · ${amount(quote.platform)} من سعي ${amount(quote.total)}',
               key: const ValueKey('listing-sai-total'), style: theme.textTheme.bodySmall)),
           ]),
         ],

@@ -6,7 +6,8 @@ abstract final class DynamicPropertySchema {
     (e.key == 'type' && facts[e.key] == 'floor' ? 'apartment' : facts[e.key]) == e.value);
 
   static bool applies(String key, Map<String, dynamic> facts) {
-    final field = fields[key] as Map<String, dynamic>?;
+    var field = fields[key] as Map<String, dynamic>?;
+    if(field==null) { for(final candidate in fields.values) { if(((candidate as Map)['aliases'] as List? ?? const []).contains(key)) { field=Map<String,dynamic>.from(candidate);break; } } }
     if (field == null) return true;
     final type = facts['type'] == 'floor' ? 'apartment' : facts['type'], purpose = facts['purpose'];
     if (type != null && field['types'] is List && !(field['types'] as List).contains(type)) return false;

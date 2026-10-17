@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'smart_search_assistant.dart';
-import '../data/smart_search_session.dart';
 
 /// A lightweight entry to the existing search session, shared with My Account.
 class HomeAiSearchEntry extends ConsumerWidget {
@@ -18,8 +17,6 @@ class HomeAiSearchEntry extends ConsumerWidget {
     return TextButton.icon(
       key: const ValueKey('home-smart-search'),
       onPressed: () {
-        ref.read(smartSearchSessionProvider.notifier)
-            .startFromHome(location: location, type: type);
         context.push('/smart-search');
       },
       style: TextButton.styleFrom(

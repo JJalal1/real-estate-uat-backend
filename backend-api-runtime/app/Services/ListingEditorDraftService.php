@@ -69,8 +69,9 @@ class ListingEditorDraftService
         $payload = $draft->payload; $fields = $payload['fields'] ?? [];
         $title=trim((string)($fields['title'] ?? ''));
         if ($title === '') {
-            $title=ListingAiService::TYPES[$payload['type'] ?? ''] ?? 'إعلان غير مكتمل';
-            if (in_array($payload['purpose'] ?? '',['sale','rent'],true)) $title.= $payload['purpose'] === 'rent' ? ' للإيجار' : ' للبيع';
+            $knownType=($payload['type_confirmed'] ?? true) ? ($payload['type'] ?? '') : '';
+            $title=ListingAiService::TYPES[$knownType] ?? 'إعلان غير مكتمل';
+            if (($payload['purpose_confirmed'] ?? true) && in_array($payload['purpose'] ?? '',['sale','rent'],true)) $title.= $payload['purpose'] === 'rent' ? ' للإيجار' : ' للبيع';
             $place=trim((string)($fields['district'] ?? $fields['governorate'] ?? ''));
             if ($place!=='') $title.=' - '.$place;
         }

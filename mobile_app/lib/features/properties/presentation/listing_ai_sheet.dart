@@ -12,11 +12,12 @@ import '../../discovery/domain/smart_search_filters.dart';
 import '../domain/property_field_options.dart';
 
 class ListingAiSheet extends ConsumerStatefulWidget {
-  const ListingAiSheet({required this.facts, this.propertyId, this.description = false,
+  const ListingAiSheet({required this.facts, this.propertyId, this.draftKey, this.description = false,
     this.prepareDraft = false, this.initialMessage = '', this.onMessageChanged,
     this.hasExistingDescription = false, super.key});
   final Map<String, dynamic> facts;
   final int? propertyId;
+  final String? draftKey;
   final bool description, prepareDraft, hasExistingDescription;
   final String initialMessage;
   final ValueChanged<String>? onMessageChanged;
@@ -38,7 +39,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     'monthly_rent': 'الإيجار الشهري بالريال اليمني', 'area_value': 'المساحة', 'area_unit': 'وحدة المساحة',
     'bedrooms': 'غرف النوم', 'bathrooms': 'الحمامات', 'governorate': 'المحافظة', 'district': 'الحي', 'street': 'الشارع',
     'floor_number': 'الدور', 'unit_number': 'موضع الوحدة', 'has_parking': 'موقف السيارة', 'has_elevator': 'المصعد',
-    'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية'};
+    'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية', 'sai_amount_type':'نوع السعي', 'broker_sai_rate_percent':'نسبة السعي', 'fixed_sai_amount':'مبلغ السعي بالريال', 'rental_conditions':'شروط الإيجار'};
 
   @override
   void initState() {
@@ -89,10 +90,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     try {
       final api = ref.read(aiRepositoryProvider);
       final result = widget.description
-        ? await api.description(widget.facts, propertyId: widget.propertyId)
+        ? await api.description(widget.facts, propertyId: widget.propertyId, draftKey: widget.draftKey)
         : widget.prepareDraft
-          ? await api.prepareListing(_message.text, widget.facts, propertyId: widget.propertyId)
-          : await api.listingFields(_message.text, widget.facts, propertyId: widget.propertyId);
+          ? await api.prepareListing(_message.text, widget.facts, propertyId: widget.propertyId, draftKey: widget.draftKey)
+          : await api.listingFields(_message.text, widget.facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
       if (!mounted) return;
       if (widget.description) {
         final text = result['description'];
@@ -103,7 +104,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         if (raw is! Map) throw StateError('Invalid proposed fields.');
         final foreign = raw['currency'] != null && raw['currency'] != 'YER';
         final fields = <String, dynamic>{for (final entry in raw.entries)
-          if (labels.containsKey(entry.key) && entry.value != null && !(foreign && const ['price', 'monthly_rent'].contains(entry.key)))
+          if (labels.containsKey(entry.key) && entry.value != null && !(foreign && const ['price', 'monthly_rent', 'fixed_sai_amount'].contains(entry.key)))
             entry.key.toString(): entry.value};
         setState(() {
           _fields = fields; _selected..clear()..addAll(fields.keys);
@@ -126,7 +127,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     setState(() { _busy = true; _error = null; });
     try {
       final facts = {...widget.facts, for (final key in _selected) key: _fields![key]};
-      final result = await ref.read(aiRepositoryProvider).listingCopy(facts, propertyId: widget.propertyId);
+      final result = await ref.read(aiRepositoryProvider).listingCopy(facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
       if (!mounted) return;
       setState(() => _setCopy(result['copy']));
     } catch (error) { if (mounted) setState(() => _error = friendlyApiError(error)); }
@@ -164,6 +165,8 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   String _value(String key, dynamic value) => switch (key) {
     'type' => SmartSearchFilters.types[value] ?? '$value', 'purpose' => value == 'rent' ? 'للإيجار' : 'للبيع',
     'building_facade' => SmartSearchFilters.facades[value] ?? '$value', 'area_unit' => propertyAreaUnitLabel(value.toString()),
+    'sai_amount_type' => value == 'fixed' ? 'مبلغ ثابت' : 'نسبة مئوية',
+    'rental_conditions' => (value as List).map((c) => switch ((c as Map)['kind']) { 'advance' => 'مقدم ${c['months']} أشهر', 'duration' => 'مدة ${c['months']} أشهر', 'guarantor' => 'ضمانة تجارية', 'deposit' => 'تأمين', _ => c['text']?.toString() ?? '' }).join('، '),
     'tenure_type' => value == 'waqf' ? 'وقف' : 'حر',
     'has_parking' || 'has_elevator' || 'unit_occupies_entire_floor' => value == true || value == 1 ? 'نعم' : 'لا',
     _ => '$value',

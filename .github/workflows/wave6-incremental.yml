@@ -2,7 +2,7 @@ name: Wave6 incremental backend verification
 on:
   push:
     branches: [work/wave6-current-1069]
-    paths: ['backend-api-runtime/**', 'scripts/generate_property_schema.py', '.github/workflows/wave6-incremental.yml']
+    paths: ['mobile_app/**', 'backend-api-runtime/**', 'scripts/generate_property_schema.py', '.github/workflows/wave6-incremental.yml']
 permissions:
   contents: read
 concurrency:
@@ -37,3 +37,29 @@ jobs:
       - name: Full backend regression
         working-directory: backend-api-runtime
         run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve original locked packages
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Strict Flutter analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: New wave contracts
+        working-directory: mobile_app
+        run: flutter test test/wave6_product_contract_test.dart test/wave6_product_ui_test.dart

@@ -88,6 +88,7 @@ Route::get('/services/catalog', [ServicePaymentController::class, 'catalog']);
 Route::get('/properties/{property}/services', [ServicePaymentController::class, 'propertyServices']);
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
+    Route::post('/brokers/{broker}/conversation', [\App\Http\Controllers\Api\MessagingController::class,'startForBroker'])->middleware('throttle:12,1');
     Route::get('/listing-editor-drafts', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'index']);
     Route::get('/listing-editor-drafts/{key}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'show']);
     Route::put('/listing-editor-drafts/{key}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'save'])->middleware('throttle:120,1');

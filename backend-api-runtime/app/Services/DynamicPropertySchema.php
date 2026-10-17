@@ -7,12 +7,14 @@ class DynamicPropertySchema
 {
     public function definition(): array
     {
-        return json_decode(file_get_contents(resource_path('property-schema.json')), true, flags: JSON_THROW_ON_ERROR);
+        static $definition=null;
+        return $definition ??= json_decode(file_get_contents(resource_path('property-schema.json')), true, flags: JSON_THROW_ON_ERROR);
     }
 
     public function applies(string $key, array $facts): bool
     {
         $field = $this->definition()['fields'][$key] ?? null;
+        if ($field === null) foreach ($this->definition()['fields'] as $candidate) { if (in_array($key,$candidate['aliases'] ?? [],true)) { $field=$candidate; break; } }
         if ($field === null) return true;
         $type = ($facts['type'] ?? null) === 'floor' ? 'apartment' : ($facts['type'] ?? null);
         $purpose = $facts['purpose'] ?? null;

@@ -23,22 +23,22 @@ class AiRepository {
   Future<Map<String, dynamic>> refine(String message, Map<String, dynamic> filters, int revision) =>
     _post('/ai/search', {'message': message.trim(), 'filters': filters, 'revision': revision});
 
-  Future<Map<String, dynamic>> listingFields(String message, Map<String, dynamic> facts, {int? propertyId}) =>
-    _post('/ai/listing-fields', {'message': message.trim(), 'facts': facts, if (propertyId != null) 'property_id': propertyId}, private: true);
+  Future<Map<String, dynamic>> listingFields(String message, Map<String, dynamic> facts, {int? propertyId, String? draftKey}) =>
+    _post('/ai/listing-fields', {'message': message.trim(), 'facts': facts, if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
 
-  Future<Map<String, dynamic>> prepareListing(String message, Map<String, dynamic> facts, {int? propertyId}) =>
+  Future<Map<String, dynamic>> prepareListing(String message, Map<String, dynamic> facts, {int? propertyId, String? draftKey}) =>
     _post('/ai/listing-draft', {'mode': 'prepare', 'message': message.trim(), 'facts': facts,
-      if (propertyId != null) 'property_id': propertyId}, private: true);
+      if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
 
-  Future<Map<String, dynamic>> listingCopy(Map<String, dynamic> facts, {int? propertyId}) =>
+  Future<Map<String, dynamic>> listingCopy(Map<String, dynamic> facts, {int? propertyId, String? draftKey}) =>
     _post('/ai/listing-draft', {'mode': 'copy', 'facts': facts,
-      if (propertyId != null) 'property_id': propertyId}, private: true);
+      if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
 
-  Future<Map<String, dynamic>> description(Map<String, dynamic> facts, {int? propertyId}) =>
-    _post('/ai/listing-description', {'facts': facts, if (propertyId != null) 'property_id': propertyId}, private: true);
+  Future<Map<String, dynamic>> description(Map<String, dynamic> facts, {int? propertyId, String? draftKey}) =>
+    _post('/ai/listing-description', {'facts': facts, if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
 
-  Future<Map<String, dynamic>> rentalConditions(List<Map<String, dynamic>> conditions, {int? propertyId}) =>
-    _post('/ai/rental-conditions', {'rental_conditions': conditions, if (propertyId != null) 'property_id': propertyId}, private: true);
+  Future<Map<String, dynamic>> rentalConditions(List<Map<String, dynamic>> conditions, {int? propertyId, String? draftKey}) =>
+    _post('/ai/rental-conditions', {'rental_conditions': conditions, if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
 
   Future<Map<String, dynamic>> question(int id, String question) => _post('/properties/$id/ask', {'question': question.trim()});
 }

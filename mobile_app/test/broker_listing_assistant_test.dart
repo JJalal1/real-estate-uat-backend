@@ -24,7 +24,7 @@ class _Assistant extends Wave3AiFake {
   int prepares = 0;
   Map<String, dynamic> get proposals => {'bedrooms': 4, 'has_elevator': true};
   @override
-  Future<Map<String, dynamic>> prepareListing(String message, Map<String, dynamic> facts, {int? propertyId}) async {
+  Future<Map<String, dynamic>> prepareListing(String message, Map<String, dynamic> facts, {int? propertyId, String? draftKey}) async {
     prepares++;
     if (fail) throw StateError('Temporary failure');
     return {'fields': proposals, 'source': 'text', 'requires_review': true,
@@ -32,7 +32,7 @@ class _Assistant extends Wave3AiFake {
       'copy': {'title': 'شقة للإيجار في صنعاء', 'description': 'شقة للإيجار، غرف النوم: 4، يوجد مصعد.'}};
   }
   @override
-  Future<Map<String, dynamic>> listingCopy(Map<String, dynamic> facts, {int? propertyId}) async {
+  Future<Map<String, dynamic>> listingCopy(Map<String, dynamic> facts, {int? propertyId, String? draftKey}) async {
     composedFacts = Map.of(facts);
     return {'source': 'facts', 'copy': {'title': 'شقة للإيجار في صنعاء', 'description': 'شقة للإيجار، غرف النوم: 4.'}};
   }
@@ -52,7 +52,7 @@ class _Recovery extends ListingRecoveryStore {
 class _Properties extends Wave3PropertiesFake {
   @override
   Future<PropertySaiManagement> saiPolicy(String purpose) async => const PropertySaiManagement(configured: false,
-    advertiserType: 'broker', fixedRatePercent: 1, brokerMaxRatePercent: 5, professionalPlatformSharePercent: 20);
+    advertiserType: 'broker', fixedRatePercent: 1, brokerMaxRatePercent: 5, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 20);
 }
 
 Map<String, dynamic> _snapshot() => {

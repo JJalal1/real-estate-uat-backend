@@ -106,6 +106,8 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         },
         child: Scaffold(
           body: IndexedStack(index: _index, children: lazyPages),
+          floatingActionButtonLocation:FloatingActionButtonLocation.centerFloat,
+          floatingActionButton:mode=='advertiser' && _index==0 ? FloatingActionButton.small(key:const ValueKey('home-add-property'),tooltip:'أضف عقار',onPressed:()=>context.push('/add-property'),child:const Icon(Icons.add_home_outlined)):null,
           bottomNavigationBar: AppNavigationBar(
             destinations: shell.items
                 .map((item) => AppNavDestination(label: item.label, icon: item.icon))

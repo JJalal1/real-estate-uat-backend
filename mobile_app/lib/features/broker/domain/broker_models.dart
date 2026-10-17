@@ -6,17 +6,18 @@ List<Map<String, dynamic>> brokerRows(dynamic value) => value is List ? value.wh
 class BrokerProfile {
   const BrokerProfile({required this.id, required this.name, required this.type, required this.verified,
     required this.rating, required this.ratingCount, required this.completedDeals, required this.activeListings,
-    this.governorate, this.bio, this.photoUrl, this.joinedAt, this.workAreas = const [], this.specializations = const []});
+    this.governorate, this.bio, this.photoUrl, this.joinedAt, this.soldListings=0, this.rentedListings=0, this.workAreas = const [], this.specializations = const []});
   final int id;
   final String name, type;
   final bool verified;
   final double rating;
-  final int ratingCount, completedDeals, activeListings;
+  final int ratingCount, completedDeals, activeListings, soldListings, rentedListings;
   final String? governorate, bio, photoUrl, joinedAt;
   final List<String> workAreas, specializations;
   String get typeLabel => type == 'office' ? 'مكتب عقاري' : type == 'owner' ? 'مالك' : type == 'broker' ? 'دلال' : 'معلن';
   factory BrokerProfile.fromJson(Map<String, dynamic> j) => BrokerProfile(id: brokerInt(j['id']), name: '${j['name'] ?? 'معلن'}',
     type: '${j['account_type'] ?? 'individual'}', verified: j['verified'] == true, rating: brokerNumber(j['rating_average']),
+    soldListings:brokerInt(j['sold_listings']),rentedListings:brokerInt(j['rented_listings']),
     ratingCount: brokerInt(j['rating_count']), completedDeals: brokerInt(j['completed_deals']), activeListings: brokerInt(j['active_listings']),
     governorate: j['governorate']?.toString(), bio: j['bio']?.toString(), photoUrl: j['photo_url']?.toString(), joinedAt: j['joined_at']?.toString(),
     workAreas: (j['work_areas'] as List? ?? const []).map((v) => '$v').toList(),

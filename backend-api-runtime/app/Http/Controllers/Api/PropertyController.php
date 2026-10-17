@@ -172,6 +172,21 @@ class PropertyController extends Controller
             if (in_array($section, ['sale', 'rent'], true)) $query->where('purpose', $section);
             $sections[$section] = $query->latest('id')->limit(6)->get()->map(fn ($p) => $this->summaryData($p, $request))->values()->all();
         }
+        if (isset($v['latitude'],$v['longitude']) && $context['source'] === 'device') {
+            $nearby=clone $base;$lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
+            if(DB::getDriverName()==='pgsql'){
+                $point='ST_SetSRID(ST_MakePoint(?, ?),4326)::geography';
+                $nearby->whereRaw("ST_DWithin(location::geography, $point, ?)",[$lon,$lat,30000])
+                    ->orderByRaw("ST_Distance(location::geography, $point)",[$lon,$lat]);
+                $nearbyRows=$nearby->limit(6)->get();
+            }else{
+                $nearbyRows=$nearby->limit(1000)->get()->filter(fn($p)=>$this->distanceKm($lat,$lon,(float)$p->latitude,(float)$p->longitude)<=30)
+                    ->sortBy(fn($p)=>$this->distanceKm($lat,$lon,(float)$p->latitude,(float)$p->longitude))->take(6);
+            }
+            $sections['nearby']=$nearbyRows->map(fn($p)=>$this->summaryData($p,$request))->values()->all();
+        }
+        $purposeOrder=count($sections['rent'])>count($sections['sale'])?['rent','sale']:['sale','rent'];
+        $sectionOrder=array_values(array_filter(array_merge(['nearby','spotlight','latest'],$purposeOrder),fn($key)=>!empty($sections[$key])));
         $ranking = app(\App\Services\BrokerRankingService::class);
         $localNames = $context['governorate'] === 'صنعاء' ? ['صنعاء', 'أمانة العاصمة'] : [$context['governorate']];
         $localOwnerIds = (clone $base)->select('properties.user_id');
@@ -181,7 +196,7 @@ class PropertyController extends Controller
                 ->orWhereJsonContains('details->work_areas', $context['governorate']))
                 ->orWhereIn('users.id', $localOwnerIds);
         })->limit(5)->get()->map(fn ($u) => $ranking->publicData($u))->values();
-        return response()->json(['data' => ['context' => $context, 'sections' => $sections, 'brokers' => $brokers]]);
+        return response()->json(['data' => ['context' => $context, 'sections' => $sections, 'section_order'=>$sectionOrder, 'brokers' => $brokers]]);
     }
 
     public function marketplaceLocations(): JsonResponse
