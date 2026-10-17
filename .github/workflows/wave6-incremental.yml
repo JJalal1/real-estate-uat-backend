@@ -1,0 +1,39 @@
+name: Wave6 incremental backend verification
+on:
+  push:
+    branches: [work/wave6-current-1069]
+    paths: ['backend-api-runtime/**', 'scripts/generate_property_schema.py', '.github/workflows/wave6-incremental.yml']
+permissions:
+  contents: read
+concurrency:
+  group: wave6-backend-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 scripts/generate_property_schema.py --check
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Verify PHP syntax
+        run: find backend-api-runtime/app backend-api-runtime/database/migrations -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Install test dependencies
+        working-directory: backend-api-runtime
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+      - name: Focused new wave contracts
+        working-directory: backend-api-runtime
+        run: php artisan test tests/Feature/Wave6EditorDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky
+      - name: Full backend regression
+        working-directory: backend-api-runtime
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
