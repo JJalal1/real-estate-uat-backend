@@ -284,4 +284,3 @@ class BrokerListingAssistantTest extends TestCase
             'status' => 'draft', 'review_status' => 'draft']);
     }
 }
-

@@ -22,7 +22,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   bool _stopRequested = false;
   bool get active => phase != VoicePhase.idle;
 
-  Future<String?> start() {
+  Future<String?> start({bool wholeRecording = false}) {
     if (active || _disposed) return Future.value();
     final generation = ++_generation;
     final completion = Completer<String?>();
@@ -31,7 +31,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     phase = VoicePhase.preparing; transcript = ''; preview = ''; liveDictation = false; error = null; level = 0;
     notifyListeners();
     try {
-      _recording = input.start();
+      _recording = wholeRecording && input is SystemVoiceInput ? (input as SystemVoiceInput).startWholeRecording() : input.start();
       _subscription = _recording!.events.listen((event) {
         if (_disposed || generation != _generation || !active) return;
         switch (event.type) {
@@ -94,7 +94,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     phase = VoicePhase.processing; level = 0;
     _timeout = Timer(const Duration(minutes: 3), () {
       if (!active) return;
-      error = 'تعذّر إكمال تفريغ التسجيل. لم نغير بحثك؛ حاول مرة أخرى.';
+      error = 'تعذّر إكمال تفريغ التسجيل. لم تُطبّق أي معلومات؛ يمكنك إعادة التسجيل أو كتابة التفاصيل.';
       final recording = _recording; _finish(null); unawaited(recording?.cancel() ?? Future.value());
     });
     notifyListeners();

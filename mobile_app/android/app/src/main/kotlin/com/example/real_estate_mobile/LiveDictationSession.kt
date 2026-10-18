@@ -111,7 +111,13 @@ class LiveDictationSession(
         stopping = true
         handler.removeCallbacks(restart)
         handler.removeCallbacks(readyTimeout)
-        if (!awaiting) { finish(); return }
+        if (!awaiting || (!spoke && partial.isEmpty() && completed.isNotEmpty())) {
+            // A finalized utterance followed by an idle recognition cycle needs
+            // no network result. Never promote an unfinished spoken segment.
+            awaiting = false; ++cycle
+            try { recognizer?.cancel() } catch (_: Exception) {}
+            finish(); return
+        }
         handler.postDelayed(finishTimeout, 12000L)
         try { recognizer?.stopListening() } catch (_: Exception) { fail("SPEECH_UNAVAILABLE") }
     }

@@ -36,10 +36,11 @@ import 'rental_conditions_editor.dart';
 import '../../discovery/data/ai_repository.dart';
 
 class ListingEditorScreen extends ConsumerStatefulWidget {
-  const ListingEditorScreen({super.key, this.existingProperty, this.accountDraft, this.startFresh = false});
+  const ListingEditorScreen({super.key, this.existingProperty, this.accountDraft, this.startFresh = false, this.startWithAssistant = false});
 
   final ListingAccountDraft? accountDraft;
   final bool startFresh;
+  final bool startWithAssistant;
 
   final PropertyDetails? existingProperty;
 
@@ -235,7 +236,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Widget _floorSelector() {
     final value = _floorNumber.text.trim(), options = DynamicPropertySchema.floorOptionsFor(_type);
     final selected = value.isNotEmpty && (options.containsKey(value) || _type != 'apartment') ? value : null;
-    return DropdownButtonFormField<String>(key: const ValueKey('listing-floor-select'), value: selected,
+    return AppSelectField<String>(key: const ValueKey('listing-floor-select'), value: selected,
       isExpanded: true, decoration: InputDecoration(labelText: _type == 'apartment' ? 'الشقة في الدور *' : 'الدور *',
         errorText: _type == 'apartment' && value.isNotEmpty && !options.containsKey(value) ? 'اختر دورًا من الأرضي إلى السابع.' : null),
       items: [for (final entry in options.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value)),
@@ -291,7 +292,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       !keys.contains(key) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: AppTextField(
         controller: controller, label: label, enabled: !_busy, keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text));
     Widget choice(String key, String label, String? value, Map<String,String> options, ValueChanged<String?> change) => !keys.contains(key)
-      ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: DropdownButtonFormField<String>(
+      ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: AppSelectField<String>(
         value: value, isExpanded: true, decoration: InputDecoration(labelText: label),
         items: [for (final e in options.entries) DropdownMenuItem(value: e.key, child: Text(e.value))], onChanged: _busy ? null : change));
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -559,7 +560,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (widget.accountDraft != null) _adoptAccountDraft(widget.accountDraft!);
     _typeConfirmed = widget.existingProperty != null; _purposeConfirmed = widget.existingProperty != null;
     _recoveryUserId = ref.read(authControllerProvider).asData?.value?.id;
-    Future.microtask(() async { await _restoreRecovery(); if (mounted) await _loadSaiPolicy(); });
+    Future.microtask(() async {
+      await _restoreRecovery(); if (mounted) await _loadSaiPolicy();
+      if (mounted && widget.startWithAssistant) WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _assist(prepareDraft: true);
+      });
+    });
     for (final controller in _recoveryFields.values) { controller.addListener(_scheduleRecovery); }
     final property = _existing;
     if (property == null) return;
@@ -815,7 +821,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         ),
         if (_requiresSaleTenure) ...[
           const SizedBox(height: AppSpacing.s16),
-          DropdownButtonFormField<String>(
+          AppSelectField<String>(
             value: _tenureType,
             decoration: const InputDecoration(labelText: 'نوع الملكية *'),
             items: const [
@@ -977,7 +983,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             final area = AppTextField(controller: _area,
               label: _areaUnit == 'sqm' ? 'المساحة *' : 'عدد الوحدات *',
               keyboardType: const TextInputType.numberWithOptions(decimal: true), enabled: !_busy);
-            final unit = DropdownButtonFormField<String>(value: _areaUnit, isExpanded: true,
+            final unit = AppSelectField<String>(value: _areaUnit, isExpanded: true,
               decoration: const InputDecoration(labelText: 'وحدة المساحة'),
               items: propertyAreaUnitLabels.entries.map((entry) => DropdownMenuItem(value: entry.key,
                 child: Text(entry.value, overflow: TextOverflow.ellipsis))).toList(growable: false),
@@ -1014,7 +1020,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         ],
         if (_supportsElevator) ...[
           const SizedBox(height: AppSpacing.s16),
-          DropdownButtonFormField<String>(value: _elevatorChoice ?? 'unknown', isExpanded: true,
+          AppSelectField<String>(value: _elevatorChoice ?? 'unknown', isExpanded: true,
             decoration: const InputDecoration(labelText: 'المصعد'), items: const [
               DropdownMenuItem(value: 'unknown', child: Text('غير مذكور')),
               DropdownMenuItem(value: 'yes', child: Text('يوجد مصعد')),
@@ -1023,7 +1029,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         ],
         if (_requiresStructure) ...[
           const SizedBox(height: AppSpacing.s16),
-          DropdownButtonFormField<String>(
+          AppSelectField<String>(
             value: _parkingChoice, isExpanded: true,
             decoration: const InputDecoration(labelText: 'موقف سيارة *'),
             items: const [
@@ -1035,7 +1041,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 : (value) => setState(() => _parkingChoice = value),
           ),
           const SizedBox(height: AppSpacing.s12),
-          DropdownButtonFormField<String>(
+          AppSelectField<String>(
             value: _facade, isExpanded: true,
             decoration: const InputDecoration(labelText: 'واجهة البناء *'),
             items: propertyFacadeLabels.entries
@@ -1046,7 +1052,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 _busy ? null : (value) => setState(() => _facade = value),
           ),
         ],
-        if (_type == 'land') ...[const SizedBox(height: 12), DropdownButtonFormField<String>(value: _facade, isExpanded: true,
+        if (_type == 'land') ...[const SizedBox(height: 12), AppSelectField<String>(value: _facade, isExpanded: true,
           decoration: const InputDecoration(labelText: 'واجهة الأرض (اختياري)'), items: propertyFacadeLabels.entries.map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value))).toList(),
           onChanged: _busy ? null : (value) => setState(() => _facade = value))],
         const SizedBox(height: 24),
@@ -1168,7 +1174,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 'هويتك موثقة في الحساب؛ هنا نراجع علاقتك بهذا العقار فقط.',
           ),
           const SizedBox(height: AppSpacing.s12),
-          DropdownButtonFormField<String>(
+          AppSelectField<String>(
             value: _ownershipDocumentType,
             decoration: const InputDecoration(labelText: 'نوع مستند العقار'),
             items: _ownershipDocumentTypes.entries
@@ -1186,7 +1192,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             enabled: !_busy,
           ),
           const SizedBox(height: AppSpacing.s12),
-          DropdownButtonFormField<String>(
+          AppSelectField<String>(
             value: _relationshipType,
             decoration: const InputDecoration(labelText: 'صفتك بالنسبة للعقار'),
             items: _relationshipTypes.entries
@@ -1926,7 +1932,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               const Text(
                   'إذا كان هذا عقاراً مختلفاً، اختر الفرق واكتب معلومة تساعد النظام على التمييز. الحالات غير المحسومة فقط تذهب للدعم.'),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
+              AppSelectField<String>(
                 value: type,
                 decoration:
                     const InputDecoration(labelText: 'ما الفرق الأساسي؟'),

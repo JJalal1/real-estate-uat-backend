@@ -4,7 +4,10 @@ import '../theme/app_theme.dart';
 import '../theme/ebroker_design.dart';
 import 'ebroker_widgets.dart';
 import 'ebroker_property_card.dart';
-import 'property_card_gallery.dart';
+import '../formatters/money.dart';
+export '../formatters/money.dart';
+
+export 'app_select_field.dart';
 
 enum AppButtonStyle { filled, tonal, outlined, text }
 
@@ -178,6 +181,7 @@ class AppSurface extends StatelessWidget {
     final decoration = BoxDecoration(
       color: selected ? scheme.primaryContainer : scheme.surface,
       borderRadius: BorderRadius.circular(AppRadii.card),
+      boxShadow: [BoxShadow(color: scheme.secondary.withValues(alpha: .035), blurRadius: 18, offset: const Offset(0, 6))],
       border: Border.all(
         color: selected ? scheme.primary : scheme.outlineVariant,
         width: selected ? AppBorderWidths.emphasized : AppBorderWidths.standard,
@@ -569,70 +573,49 @@ class AppNavDestination {
 
 class AppNavigationBar extends StatelessWidget {
   const AppNavigationBar({required this.destinations, required this.selectedIndex,
-    required this.onSelected, this.onCreate, super.key});
+    required this.onSelected, this.onCreate, this.createExpanded = false, super.key});
   final List<AppNavDestination> destinations;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final VoidCallback? onCreate;
-  String _asset(AppNavDestination item, bool active) {
-    final name = item.label;
-    if (name == 'العقارات' || name == 'الرئيسية') return active ? 'home_active' : 'home';
-    if (name == 'الرسائل') return active ? 'chat_active' : 'chat';
-    if (name == 'حسابي') return active ? 'profile_active' : 'profile_outlined';
-    if (name == 'إعلاناتي' || name == 'عقاراتي') return active ? 'properties_active' : 'properties';
-    if (name == 'المعاينات' || name == 'نشاطي') return active ? 'calendar_filled' : 'calendar';
-    if (name == 'العملاء') return 'interested_users';
-    if (name == 'الفريق') return 'interested_users';
-    if (name == 'التقارير') return 'agent/chart';
-    if (name == 'السوق') return 'propertymap';
-    if (name == 'الإدارة') return 'agent/user-check';
-    if (name == 'الوارد' || name == 'مهامي' || name == 'الأعمال') return 'properties_icon';
-    return 'agent/dashboard';
-  }
+  final bool createExpanded;
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final scaled = MediaQuery.textScalerOf(context).scale(12);
-    final largeText = scaled > 18;
-    final height = (76.rh(context) + (scaled - 12) * 2).clamp(76.0, 124.0).toDouble();
+    final largeText = MediaQuery.textScalerOf(context).scale(12) > 18;
+    final duration = MediaQuery.disableAnimationsOf(context) ? Duration.zero : AppMotion.standard;
     final items = <Widget>[];
     for (var index = 0; index < destinations.length; index++) {
-      if (onCreate != null && index == 2) { items.add(Expanded(child: Center(heightFactor: 1,
-        child: Transform.translate(offset: const Offset(0, -30),
-          child: Semantics(button: true, label: 'إضافة عقار', child: Tooltip(message: 'إضافة عقار',
-            child: GestureDetector(onTap: onCreate, child: SizedBox(width: 56.rw(context), height: 56.rh(context),
-              child: Stack(alignment: Alignment.center, children: [
-                Container(width: 46.rw(context), height: 48.rh(context),
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(99999),
-                    boxShadow: [BoxShadow(color: EbrokerDesign.text.withValues(alpha: 0.5),
-                      offset: const Offset(0, -1.5), blurRadius: 5)])),
-                EbrokerImage('add_shape', size: 56.rh(context), color: scheme.primary),
-                EbrokerIcon(Icons.add_home_outlined, size: 22.rh(context), color: Colors.white),
-              ])))))))));
-      }
-      final selected = index == selectedIndex;
-      final item = destinations[index];
-      final color = selected ? scheme.primary : EbrokerDesign.text.withValues(alpha: 0.5);
-      items.add(Expanded(child: Semantics(button: true, selected: selected, label: item.label, excludeSemantics: true,
-        child: Tooltip(message: item.label, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => onSelected(index),
-          child: Padding(padding: EdgeInsets.symmetric(horizontal: 4, vertical: largeText ? 12 : 4),
-            child: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-              AnimatedScale(scale: selected ? 1.3 : 1, duration: const Duration(milliseconds: 200),
-                child: EbrokerImage(_asset(item, selected), size: 24.rh(context), color: color)),
-              if (!largeText) ...[
-                const SizedBox(height: 4),
-                EbrokerText(item.label, size: 12, color: color, maxLines: 2, align: TextAlign.center),
-              ],
+      if (onCreate != null && index == 2) items.add(Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Semantics(button: true, label: 'إضافة عقار', child: Tooltip(message: 'إضافة عقار', child: InkWell(
+          key: const ValueKey('home-add-property'), customBorder: const CircleBorder(), onTap: onCreate,
+          child: SizedBox.square(dimension: 62, child: Stack(alignment: Alignment.center, children: [
+            EbrokerImage('add_shape', size: 58, color: scheme.primary),
+            AnimatedRotation(turns: createExpanded ? .125 : 0, duration: duration,
+              child: const Icon(Icons.add_rounded, color: Colors.white, size: 28)),
+          ]))))),
+        if (!largeText) Text('إعلان', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.primary)),
+      ]))));
+      final item = destinations[index], active = index == selectedIndex;
+      items.add(Expanded(child: Semantics(button: true, selected: active, label: item.label, excludeSemantics: true,
+        child: Tooltip(message: item.label, child: InkWell(onTap: () => onSelected(index), borderRadius: BorderRadius.circular(16),
+          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 12),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              AnimatedContainer(duration: duration, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(color: active ? scheme.primaryContainer : Colors.transparent, borderRadius: BorderRadius.circular(16)),
+                child: Icon(item.icon, size: 23, color: active ? scheme.primary : scheme.onSurfaceVariant)),
+              if (!largeText) ...[const SizedBox(height: 4), Text(item.label, maxLines: 1,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 10, color: active ? scheme.primary : scheme.onSurfaceVariant,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w400))],
             ])))))));
     }
-    return Container(decoration: BoxDecoration(color: Colors.white, boxShadow: [
-      BoxShadow(color: EbrokerDesign.text.withValues(alpha: 0.2), offset: const Offset(0, -1), blurRadius: 5),
-    ]), child: SafeArea(top: false, child: ConstrainedBox(
-      constraints: BoxConstraints(minHeight: largeText ? 80 : height), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.center, children: items),
-        if (largeText) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: ExcludeSemantics(
-          child: EbrokerText(destinations[selectedIndex].label, size: 12, color: scheme.primary, maxLines: 2, align: TextAlign.center))),
-      ]))));
+    return DecoratedBox(decoration: BoxDecoration(color: scheme.surface, border: Border(top: BorderSide(color: scheme.outlineVariant)),
+      boxShadow: [BoxShadow(color: scheme.secondary.withValues(alpha: .045), blurRadius: 24, offset: const Offset(0, -6))]),
+      child: SafeArea(top: false, child: ConstrainedBox(constraints: const BoxConstraints(minHeight: 80),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [Row(children: items),
+          if (largeText) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: ExcludeSemantics(
+            child: Text(destinations[selectedIndex].label, style: TextStyle(color: scheme.primary), textAlign: TextAlign.center))),
+        ]))));
   }
 }
 
@@ -687,6 +670,7 @@ class AppPropertyMedia extends StatelessWidget {
     this.badge,
     this.overlay,
     this.cacheWidth,
+    this.propertyType,
     super.key,
   });
 
@@ -695,6 +679,7 @@ class AppPropertyMedia extends StatelessWidget {
   final Widget? badge;
   final Widget? overlay;
   final int? cacheWidth;
+  final String? propertyType;
 
   @override
   Widget build(BuildContext context) {
@@ -705,13 +690,13 @@ class AppPropertyMedia extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (imageUrl == null || imageUrl!.isEmpty)
-            const EbrokerPropertyPlaceholder()
+            EbrokerPropertyPlaceholder(type: propertyType)
           else
             Image.network(
               imageUrl!,
               cacheWidth: cacheWidth,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const EbrokerPropertyPlaceholder(),
+              errorBuilder: (_, __, ___) => EbrokerPropertyPlaceholder(type: propertyType),
               loadingBuilder: (context, child, progress) {
                 if (progress == null) return child;
                 return const AppSkeleton(height: 190, radius: 0);
@@ -728,69 +713,28 @@ class AppPropertyMedia extends StatelessWidget {
 }
 
 class AppPropertyPrice extends StatelessWidget {
-  const AppPropertyPrice({
-    required this.price,
-    required this.currency,
-    this.suffix,
-    super.key,
-  });
-
-  final String price;
-  final String currency;
+  const AppPropertyPrice({required this.price, required this.currency, this.suffix, super.key});
+  final String price, currency;
   final String? suffix;
-
   @override
-  Widget build(BuildContext context) {
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: price,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontSize: 14.rf(context),
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          TextSpan(text: ' $currency', style: Theme.of(context).textTheme.labelMedium),
-          if (suffix != null) TextSpan(text: ' $suffix', style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Text.rich(TextSpan(children: [
+    TextSpan(text: formatMoneyAmount(price), style: Theme.of(context).textTheme.titleLarge?.copyWith(
+      fontSize: 18, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800)),
+    TextSpan(text: ' ${currencyLabel(currency)}', style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 11)),
+    if (suffix != null) TextSpan(text: ' $suffix', style: Theme.of(context).textTheme.bodySmall),
+  ]));
 }
 
 class AppPropertyFacts extends StatelessWidget {
   const AppPropertyFacts({required this.facts, super.key});
-
   final List<AppPropertyFact> facts;
-
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Wrap(
-      spacing: AppSpacing.s12,
-      runSpacing: AppSpacing.s8,
-      children: facts
-          .map(
-            (fact) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                EbrokerIcon(fact.icon, size: 18, color: scheme.onSurfaceVariant),
-                const SizedBox(width: AppSpacing.s4),
-                Text(
-                  fact.label,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-          )
-          .toList(growable: false),
-    );
-  }
+  Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (final fact in facts)
+    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(10)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        const SizedBox(width: 5), Text(fact.label, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11))])),
+  ]);
 }
 
 class AppPropertyCard extends StatelessWidget {
@@ -828,37 +772,10 @@ class AppPropertyCard extends StatelessWidget {
   final bool horizontal;
 
   @override
-  Widget build(BuildContext context) {
-    if (horizontal) {
-      return EbrokerPropertyHorizontalCard(title: title,
-      price: price, currency: currency, onTap: onTap, imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight,
-      location: location, purposeLabel: purposeLabel, categoryLabel: categoryLabel,
-      facts: facts, trailing: trailing, unavailable: unavailable);
-    }
-    return AppSurface(padding: const EdgeInsets.all(8), onTap: onTap,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ClipRRect(borderRadius: BorderRadius.circular(4),
-          child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, height: 132.rh(context), overlay: trailing)),
-        const SizedBox(height: 8),
-        Row(children: [EbrokerImage('properties_icon', size: 18, color: EbrokerDesign.textLight),
-          const SizedBox(width: 4), Expanded(child: EbrokerText(categoryLabel, size: 12,
-            weight: FontWeight.w600, color: EbrokerDesign.textLight))]),
-        const SizedBox(height: 8), EbrokerText(title, size: 16, weight: FontWeight.w600, maxLines: 2),
-        if (location != null && location!.trim().isNotEmpty) ...[
-          const SizedBox(height: 8), Row(children: [
-            const EbrokerImage('location', size: 18, color: EbrokerDesign.textLight), const SizedBox(width: 5),
-            Expanded(child: EbrokerText(location!, size: 12, color: EbrokerDesign.textLight, maxLines: 2))]),
-        ],
-        const SizedBox(height: 8), const Divider(height: 1), const SizedBox(height: 8),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: AppPropertyPrice(price: price, currency: currency)),
-          if (purposeLabel != null) EbrokerPurposeLabel(purposeLabel!),
-        ]),
-        if (facts.isNotEmpty) ...[const SizedBox(height: 8), AppPropertyFacts(facts: facts)],
-        if (unavailable) ...[const SizedBox(height: 8), const AppInlineMessage(
-          message: 'هذا الإعلان غير متاح حالياً.', tone: AppStatusTone.neutral, icon: Icons.visibility_off_outlined)],
-      ]));
-  }
+  Widget build(BuildContext context) => EbrokerPropertyHorizontalCard(title: title, price: price, currency: currency,
+    onTap: onTap, imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, location: location,
+    purposeLabel: purposeLabel, categoryLabel: categoryLabel, facts: facts, trailing: trailing,
+    unavailable: unavailable, imageFirst: !horizontal);
 }
 
 (Color, Color) _semantic(BuildContext context, AppStatusTone tone) {

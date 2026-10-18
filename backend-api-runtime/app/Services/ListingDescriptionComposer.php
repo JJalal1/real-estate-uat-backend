@@ -107,4 +107,3 @@ class ListingDescriptionComposer
         return rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
     }
 }
-

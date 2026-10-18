@@ -6,8 +6,9 @@ import 'ebroker_widgets.dart';
 
 class PropertyCardGallery extends StatefulWidget {
   const PropertyCardGallery({this.imageUrl, this.imageUrls = const [], this.height = 190,
-    this.overlay, this.isSpotlight = false, super.key});
+    this.overlay, this.isSpotlight = false, this.propertyType, super.key});
   final String? imageUrl;
+  final String? propertyType;
   final List<String> imageUrls;
   final double height;
   final Widget? overlay;
@@ -38,12 +39,12 @@ class _PropertyCardGalleryState extends State<PropertyCardGallery> {
     final urls = _urls;
     final pixels = (size.maxWidth * MediaQuery.devicePixelRatioOf(context)).round().clamp(128, 1080).toInt();
     return SizedBox(height: widget.height, child: Stack(fit: StackFit.expand, children: [
-      if (urls.length < 2) AppPropertyMedia(imageUrl: urls.isEmpty ? null : urls.first, height: widget.height, cacheWidth: pixels)
+      if (urls.length < 2) AppPropertyMedia(imageUrl: urls.isEmpty ? null : urls.first, height: widget.height, cacheWidth: pixels, propertyType: widget.propertyType)
       else PageView.builder(key: const ValueKey('property-card-gallery'), controller: _controller,
         itemCount: urls.length, allowImplicitScrolling: false,
         onPageChanged: (index) => setState(() => _index = index),
         itemBuilder: (_, index) => Semantics(label: 'صورة العقار ${index + 1} من ${urls.length}', image: true,
-          child: AppPropertyMedia(imageUrl: urls[index], height: widget.height, cacheWidth: pixels))),
+          child: AppPropertyMedia(imageUrl: urls[index], height: widget.height, cacheWidth: pixels, propertyType: widget.propertyType))),
       if (urls.length > 1) PositionedDirectional(bottom: 8, start: 8, end: 8, child: IgnorePointer(child: Row(
         mainAxisAlignment: MainAxisAlignment.center, children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -54,13 +55,13 @@ class _PropertyCardGalleryState extends State<PropertyCardGallery> {
                 decoration: BoxDecoration(color: i == _index ? Colors.white : Colors.white70, borderRadius: BorderRadius.circular(4))),
             ]) : Text('${_index + 1}/${urls.length}', style: const TextStyle(color: Colors.white, fontSize: 11))),
         ]))),
-      if (widget.isSpotlight) PositionedDirectional(top: 8, start: 8,
+      if (widget.isSpotlight) PositionedDirectional(bottom: 8, end: 8,
         child: Tooltip(message: 'إعلان مميز', child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
           decoration: BoxDecoration(color: Colors.white.withValues(alpha: .94), borderRadius: BorderRadius.circular(6)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [EbrokerIcon(Icons.auto_awesome_outlined, size: 13, color: Theme.of(context).colorScheme.primary),
             if (size.maxWidth > 180) ...[const SizedBox(width: 3), Text('مميز', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary))],
           ])))),
-      if (widget.overlay != null) PositionedDirectional(top: 8, end: 8, child: widget.overlay!),
+      if (widget.overlay != null) PositionedDirectional(top: 4, end: 4, child: widget.overlay!),
     ]));
   });
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/ebroker_design.dart';
+import '../theme/app_tokens.dart';
+import 'property_type_icon.dart';
 
 class EbrokerIcon extends StatelessWidget {
   const EbrokerIcon(this.icon, {this.size, this.color, this.semanticLabel, this.textDirection, super.key});
@@ -112,7 +114,7 @@ class EbrokerText extends StatelessWidget {
   );
 }
 
-// utils/ui_utils.dart::buildButton. MaterialButton is deliberately retained.
+// Shared adaptive button; the existing callback and loading contracts stay intact.
 class EbrokerButton extends StatelessWidget {
   const EbrokerButton({required this.onPressed, required this.child,
     this.icon, this.style, this.outlined = false, this.tonal = false,
@@ -132,25 +134,25 @@ class EbrokerButton extends StatelessWidget {
     final foreground = style?.foregroundColor?.resolve(states) ??
       (outlined || tonal ? scheme.primary : Colors.white);
     final background = style?.backgroundColor?.resolve(states) ??
-      (outlined ? Colors.white : tonal ? scheme.primaryContainer : scheme.primary);
+      (outlined ? Colors.transparent : tonal ? scheme.primaryContainer : scheme.primary);
     return MaterialButton(
       focusElevation: 0, hoverElevation: 0, highlightElevation: 0,
       minWidth: expand ? double.infinity : null,
-      height: 56.rh(context),
-      padding: style?.padding?.resolve(states) ?? const EdgeInsets.symmetric(horizontal: 16),
+      height: 52,
+      padding: style?.padding?.resolve(states) ?? const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       shape: RoundedRectangleBorder(
         side: outlined ? BorderSide(color: scheme.primary) : BorderSide.none,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AppRadii.control),
       ),
-      elevation: outlined ? 0 : 0.5, color: background, disabledColor: background,
-      textColor: foreground, disabledTextColor: foreground,
+      elevation: 0, color: background, disabledColor: scheme.surfaceContainerHigh,
+      textColor: foreground, disabledTextColor: scheme.onSurfaceVariant,
       onPressed: loading || onPressed == null ? null : () {
         FocusManager.instance.primaryFocus?.unfocus(); onPressed!();
       },
       child: DefaultTextStyle(
-        maxLines: 1, overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: 18.rf(context),
-          color: foreground, height: 1.3),
+        softWrap: true,
+        style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: 15, fontWeight: FontWeight.w600,
+          color: onPressed == null || loading ? scheme.onSurfaceVariant : foreground, height: 1.4),
         child: IconTheme(data: IconThemeData(color: foreground, size: 20),
           child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -207,8 +209,8 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
             active && emptySelectionAllowed ? <T>{} : {segment.value}) : null,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(color: EbrokerDesign.surface,
-              borderRadius: BorderRadius.circular(6),
+            decoration: BoxDecoration(color: active ? Theme.of(context).colorScheme.primaryContainer : EbrokerDesign.surface,
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: active ? primary : EbrokerDesign.border,
                 width: active ? 1.5 : 1)),
             child: DefaultTextStyle(
@@ -260,13 +262,14 @@ class EbrokerChoiceChip extends StatelessWidget {
     child: GestureDetector(onTap: onSelected == null ? null : () => onSelected!(!selected),
       child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? Theme.of(context).colorScheme.primary : EbrokerDesign.text.withValues(alpha: .05),
-          borderRadius: BorderRadius.circular(4)),
+          color: selected ? Theme.of(context).colorScheme.primaryContainer : Colors.white,
+          border: Border.all(color: selected ? Theme.of(context).colorScheme.primary.withValues(alpha: .25) : EbrokerDesign.border),
+          borderRadius: BorderRadius.circular(999)),
         child: DefaultTextStyle(style: TextStyle(fontFamily: 'PrimaryFont',
           fontFamilyFallback: const ['sans-serif'],
           fontSize: 14.rf(context), height: 1.3,
-          color: selected ? Colors.white : EbrokerDesign.text),
-          child: IconTheme(data: IconThemeData(color: selected ? Colors.white : EbrokerDesign.text),
+          color: selected ? Theme.of(context).colorScheme.onPrimaryContainer : EbrokerDesign.text),
+          child: IconTheme(data: IconThemeData(color: selected ? Theme.of(context).colorScheme.primary : EbrokerDesign.text),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               if (avatar != null) ...[avatar!, const SizedBox(width: 8)],
               Flexible(child: label),
@@ -309,14 +312,14 @@ class EbrokerWizardCategoryCard extends StatelessWidget {
     return Semantics(button: true, selected: selected, enabled: onTap != null,
       child: GestureDetector(onTap: onTap,
         child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-          decoration: BoxDecoration(color: selected ? primary : EbrokerDesign.surface,
-            borderRadius: BorderRadius.circular(8),
+          decoration: BoxDecoration(color: selected ? Theme.of(context).colorScheme.primaryContainer : EbrokerDesign.surface,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: selected ? primary : EbrokerDesign.border.withValues(alpha: .7))),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            EbrokerImage(icon, size: 28.rw(context), color: selected ? Colors.white : EbrokerDesign.text),
+            EbrokerImage(icon, size: 28.rw(context), color: selected ? primary : EbrokerDesign.text),
             SizedBox(height: 6.rh(context)),
             EbrokerText(label, size: 12, weight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected ? Colors.white : EbrokerDesign.text, align: TextAlign.center, maxLines: 1),
+              color: selected ? primary : EbrokerDesign.text, align: TextAlign.center, maxLines: 1),
           ]),
         ),
       ),
@@ -327,20 +330,20 @@ class EbrokerWizardCategoryCard extends StatelessWidget {
 // Keep the purchased fallback composition, using our identity rather than
 // displaying the template vendor's eBroker wordmark in our marketplace.
 class EbrokerPropertyPlaceholder extends StatelessWidget {
-  const EbrokerPropertyPlaceholder({this.size = 56, super.key});
+  const EbrokerPropertyPlaceholder({this.size = 44, this.type, super.key});
   final double size;
+  final String? type;
   @override
   Widget build(BuildContext context) => ColoredBox(color: EbrokerDesign.page,
     child: LayoutBuilder(builder: (context, constraints) {
       final captionHeight = MediaQuery.textScalerOf(context).scale(12.rf(context)) * 1.3;
       final compact = constraints.maxHeight < size + 4 + captionHeight;
-      final image = EbrokerImage('home_active', size: size,
-        color: Theme.of(context).colorScheme.primary);
+      final image = PropertyTypeIcon(type: type, size: size, color: Theme.of(context).colorScheme.primary.withValues(alpha: .45));
       if (compact) return Semantics(label: 'صورة العقار غير متاحة', child: Center(child: image));
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         image,
         const SizedBox(height: 4),
-        EbrokerText('عقارات حولك', size: 12, maxLines: 1, align: TextAlign.center,
+        EbrokerText('الصورة غير متاحة', size: 10, maxLines: 1, align: TextAlign.center,
           color: Theme.of(context).colorScheme.primary),
       ]));
     }));
@@ -366,28 +369,24 @@ class EbrokerTitleHeader extends StatelessWidget {
 
 // home/widgets/category_card.dart. Values come from our discovery taxonomy.
 class EbrokerCategoryCard extends StatelessWidget {
-  const EbrokerCategoryCard({required this.label, required this.icon,
-    required this.onTap, this.selected = false, super.key});
-  final String label;
-  final String icon;
+  const EbrokerCategoryCard({required this.label, required this.icon, required this.onTap, this.selected = false, super.key});
+  final String label, icon;
   final VoidCallback onTap;
   final bool selected;
   @override
-  Widget build(BuildContext context) => Material(color: Colors.transparent,
-    child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(4),
-      child: Container(
-        constraints: BoxConstraints(minWidth: 100.rw(context), minHeight: 28.rh(context)),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: Colors.white,
-          border: Border.all(color: selected ? Theme.of(context).colorScheme.primary : EbrokerDesign.border),
-          borderRadius: BorderRadius.circular(4)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          EbrokerImage(icon, size: 18.rw(context), color: Theme.of(context).colorScheme.primary),
-          SizedBox(width: 12.rw(context)), EbrokerText(label, maxLines: 1, align: TextAlign.center),
-        ]),
-      ),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(button: true, selected: selected, child: Material(color: Colors.transparent,
+      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 180),
+          constraints: const BoxConstraints(minHeight: 48), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(color: selected ? scheme.secondary : scheme.surface,
+            border: Border.all(color: selected ? scheme.secondary : scheme.outlineVariant), borderRadius: BorderRadius.circular(999)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            EbrokerImage(icon, size: 18, color: selected ? Colors.white : scheme.primary), const SizedBox(width: 8),
+            EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? Colors.white : scheme.onSurface, maxLines: 1),
+          ])))));
+  }
 }
 
 // home/widgets/sell_rent_label.dart.
@@ -396,7 +395,7 @@ class EbrokerPurposeLabel extends StatelessWidget {
   final String label;
   @override
   Widget build(BuildContext context) {
-    final color = label.contains('إيجار') ? Colors.amber : Colors.blue;
+    final color = label.contains('إيجار') ? const Color(0xFF896024) : const Color(0xFF1C6092);
     return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(48)),
       child: EbrokerText(label, size: 11, weight: FontWeight.w500, color: color));

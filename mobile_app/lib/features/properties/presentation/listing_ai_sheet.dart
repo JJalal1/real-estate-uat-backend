@@ -35,8 +35,8 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   bool _restoringVoice = false;
   bool get _voiceBusy => _capture.active;
   String? _error, _notice, _source;
-  static const labels = {'title': 'عنوان الإعلان', 'type': 'نوع العقار', 'purpose': 'الغرض', 'price': 'سعر البيع بالريال اليمني',
-    'monthly_rent': 'الإيجار الشهري بالريال اليمني', 'area_value': 'المساحة', 'area_unit': 'وحدة المساحة',
+  static const labels = {'title': 'عنوان الإعلان', 'type': 'نوع العقار', 'purpose': 'الغرض', 'price': 'سعر البيع',
+    'monthly_rent': 'الإيجار الشهري', 'area_value': 'المساحة', 'area_unit': 'وحدة المساحة',
     'bedrooms': 'غرف النوم', 'bathrooms': 'الحمامات', 'governorate': 'المحافظة', 'district': 'الحي', 'street': 'الشارع',
     'floor_number': 'الدور', 'unit_number': 'موضع الوحدة', 'has_parking': 'موقف السيارة', 'has_elevator': 'المصعد',
     'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية', 'sai_amount_type':'نوع السعي', 'broker_sai_rate_percent':'نسبة السعي', 'fixed_sai_amount':'مبلغ السعي بالريال', 'rental_conditions':'شروط الإيجار'};
@@ -146,11 +146,11 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     });
   }
 
-  Future<void> _voice() async {
+  Future<void> _voice({bool wholeRecording = false}) async {
     if (_busy || _voiceBusy) return;
     FocusScope.of(context).unfocus(); _voiceDraft = _message.text;
     setState(() => _error = null);
-    final text = await _capture.start();
+    final text = await _capture.start(wholeRecording: wholeRecording);
     if (!mounted) return;
     if (text == null) { _restoreVoiceDraft(); return; }
     final combined = appendDictation(_voiceDraft, text);
@@ -169,7 +169,9 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     'rental_conditions' => (value as List).map((c) => switch ((c as Map)['kind']) { 'advance' => 'مقدم ${c['months']} أشهر', 'duration' => 'مدة ${c['months']} أشهر', 'guarantor' => 'ضمانة تجارية', 'deposit' => 'تأمين', _ => c['text']?.toString() ?? '' }).join('، '),
     'tenure_type' => value == 'waqf' ? 'وقف' : 'حر',
     'has_parking' || 'has_elevator' || 'unit_occupies_entire_floor' => value == true || value == 1 ? 'نعم' : 'لا',
-    _ => '$value',
+    'price' || 'monthly_rent' || 'fixed_sai_amount' => moneyLabel(value, 'YER'),
+    'broker_sai_rate_percent' => '${formatMoneyAmount(value)}٪',
+    _ => arabicDigits('$value'),
   };
 
   String _proposalValue(String key, dynamic value) {
@@ -181,7 +183,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   @override
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: SizedBox(
-      height: (MediaQuery.sizeOf(context).height - MediaQuery.viewInsetsOf(context).bottom) * .78,
+      height: (MediaQuery.sizeOf(context).height - MediaQuery.viewInsetsOf(context).bottom) * .9,
       child: ListView(key: const ValueKey('listing-ai-scroll'), padding: const EdgeInsets.all(18), children: [
         Text(widget.description ? 'وصف من مواصفاتك' : widget.prepareDraft ? 'جهّز إعلانك بسرعة' : 'مساعد إضافة العقار',
           style: Theme.of(context).textTheme.titleLarge),
@@ -199,6 +201,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _busy ? null : _voice,
             key: const ValueKey('listing-ai-voice'),
             icon: const EbrokerIcon(Icons.mic_none, size: 20), label: const Text('أمْلِ تفاصيل العقار'))),
+          if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
+            key: const ValueKey('listing-ai-whole-recording'), onPressed: _busy ? null : () => _voice(wholeRecording: true),
+            icon: const Icon(Icons.graphic_eq_rounded, size: 19), label: const Text('تسجيل الوصف كاملًا'))),
+          if (_capture.error != null) const Text('جرّب تسجيل الوصف كاملًا، ثم اضغط إنهاء. راجع النص هنا قبل تجهيز الإعلان.'),
         ],
         AppButton(key: const ValueKey('listing-ai-prepare'),
           label: _busy ? 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
@@ -212,13 +218,26 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           const SizedBox(height: 16),
           Text(_fields!.isEmpty ? 'لم نجد مواصفات واضحة في النص. أكمل التفاصيل يدويًا.' : 'راجع ما سيتغير',
             style: Theme.of(context).textTheme.titleMedium),
-          for (final entry in _fields!.entries) CheckboxListTile(
-            key: ValueKey('listing-ai-field-${entry.key}'), contentPadding: EdgeInsets.zero,
-            title: Text(labels[entry.key]!), subtitle: Text(_proposalValue(entry.key, entry.value)),
-            value: _selected.contains(entry.key), onChanged: _busy || _voiceBusy ? null : (value) => setState(() {
-              if (value == true) { _selected.add(entry.key); } else { _selected.remove(entry.key); }
-              if (widget.prepareDraft) _copyReady = false;
-            })),
+          const SizedBox(height: 12),
+          LayoutBuilder(builder: (context, constraints) {
+            final columns = MediaQuery.textScalerOf(context).scale(14) > 20 || constraints.maxWidth < 300 ? 1 : 2;
+            final width = (constraints.maxWidth - (columns - 1) * 10) / columns;
+            return Wrap(spacing: 10, runSpacing: 10, children: [for (final entry in _fields!.entries)
+              SizedBox(width: width, child: Material(color: _selected.contains(entry.key)
+                ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .6) : Theme.of(context).colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(16), child: InkWell(key: ValueKey('listing-ai-field-${entry.key}'),
+                  borderRadius: BorderRadius.circular(16), onTap: _busy || _voiceBusy ? null : () => setState(() {
+                    if (!_selected.remove(entry.key)) _selected.add(entry.key);
+                    if (widget.prepareDraft) _copyReady = false;
+                  }), child: Padding(padding: const EdgeInsets.all(12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(labels[entry.key]!, style: Theme.of(context).textTheme.bodySmall), const SizedBox(height: 5),
+                      Text(_proposalValue(entry.key, entry.value), style: Theme.of(context).textTheme.labelMedium),
+                    ])), const SizedBox(width: 6), Icon(_selected.contains(entry.key) ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                      size: 19, color: Theme.of(context).colorScheme.primary),
+                  ]))))),
+            ]);
+          }),
           if (!widget.prepareDraft) ...[
             const SizedBox(height: 12), AppButton(label: 'تطبيق المواصفات المحددة', expand: true,
               onPressed: _busy || _selected.isEmpty ? null : () => Navigator.of(context).pop({for (final key in _selected) key: _fields![key]})),
@@ -247,10 +266,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
             const SizedBox(height: 12),
             const Text('راجع العنوان والنص، ثم اعتمد المسودة.'),
             const SizedBox(height: 8),
-            AppButton(key: const ValueKey('listing-ai-apply-draft'), label: 'اعتماد المسودة', expand: true,
+            AppButton(key: const ValueKey('listing-ai-apply-draft'), label: 'استخدام البيانات والمتابعة', expand: true,
               onPressed: _busy || _voiceBusy ? null : _applyDraft),
             const SizedBox(height: 8),
-            const Text('بعد التطبيق أكمل الموقع والصور والمتطلبات، ثم أرسل الإعلان للمراجعة.'),
+            const Text('ستُعبّأ الحقول بهذه البيانات. أضف الصور وأكمل ما لم تذكره، ثم راجع الإعلان وأرسله.'),
           ],
         ],
         if (_hasDescription) ...[

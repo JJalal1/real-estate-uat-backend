@@ -7,7 +7,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../../core/widgets/ebroker_property_card.dart';
+import '../../properties/presentation/property_summary_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../map/presentation/map_screen.dart';
@@ -17,7 +17,6 @@ import '../data/marketplace_repository.dart';
 import '../data/discovery_location.dart';
 import 'home_ai_search_entry.dart';
 import 'smart_search_assistant.dart';
-import '../../properties/presentation/property_compare_actions.dart';
 
 const homeDiscoveryQuery = NearbyQuery(center: LatLng(15.3694, 44.1910));
 
@@ -164,15 +163,9 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     );
   }
 
-  Widget _property(PropertySummary row, bool large) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    EbrokerPropertyHorizontalCard(key: ValueKey('home-property-${row.id}'), title: row.title, price: row.price.toStringAsFixed(0), currency: row.currency,
-      imageFirst: large, imageUrl: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight,
-      location: row.address, categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? 'للإيجار' : 'للبيع',
-      onTap: () => context.push('/properties/${row.id}')),
-    if (row.monthlyRent != null) Padding(padding: const EdgeInsets.only(top: 5), child: Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency}', style: Theme.of(context).textTheme.bodySmall)),
-    if (row.priceDisplayNote != null) Text(row.priceDisplayNote!, style: Theme.of(context).textTheme.bodySmall),
-    PropertyCompareAction(propertyId: row.id, enabled: row.status == 'published'),
-  ]);
+  Widget _property(PropertySummary row, bool large) => PropertySummaryCard(key: ValueKey('home-property-${row.id}'),
+    property: row, imageFirst: large);
+
 }
 
 class _HomeBrokerCard extends StatelessWidget {

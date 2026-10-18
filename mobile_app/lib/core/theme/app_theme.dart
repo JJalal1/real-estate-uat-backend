@@ -10,18 +10,18 @@ export 'app_tokens.dart';
 export 'app_typography.dart';
 
 abstract final class AppTheme {
-  // Purchased eBroker palette, including the exact teal shown in the reference.
+  // Teal identity with ink accents and soft layered surfaces.
   static const brandSeed = Color(0xFF087C7C);
   static const brand = brandSeed;
   static const brandStrong = Color(0xFF065858);
   static const brandSoft = Color(0xFFE6F2F2);
-  static const accent = brand;
-  static const accentSoft = brandSoft;
-  static const page = Color(0xFFFAFAFA);
+  static const accent = Color(0xFF203A56);
+  static const accentSoft = Color(0xFFEAF0F7);
+  static const page = Color(0xFFF5F7FA);
   static const surface = Color(0xFFFFFFFF);
-  static const outlineSoft = Color(0x99EEEEEE);
-  static const textStrong = Color(0xFF4D5454);
-  static const textMuted = Color(0x99000000);
+  static const outlineSoft = Color(0xFFE3EAF1);
+  static const textStrong = Color(0xFF192F48);
+  static const textMuted = Color(0xFF64748B);
   static const warning = Color(0xFFC88700);
 
   static ThemeData get light {
@@ -36,22 +36,22 @@ abstract final class AppTheme {
       secondary: accent,
       onSecondary: Colors.white,
       secondaryContainer: accentSoft,
-      onSecondaryContainer: brandStrong,
+      onSecondaryContainer: accent,
       surface: surface,
       onSurface: EbrokerDesign.text,
       onSurfaceVariant: EbrokerDesign.textLight,
       surfaceContainerLowest: Colors.white,
       surfaceContainerLow: EbrokerDesign.page,
-      surfaceContainer: const Color(0xFFF2F2F2),
-      surfaceContainerHigh: const Color(0xFFEEEEEE),
-      surfaceContainerHighest: const Color(0xFFE9E9E9),
-      outline: const Color(0xFF909595),
+      surfaceContainer: const Color(0xFFF0F4F8),
+      surfaceContainerHigh: const Color(0xFFEAF0F5),
+      surfaceContainerHighest: const Color(0xFFE3EAF1),
+      outline: const Color(0xFF7A8797),
       outlineVariant: EbrokerDesign.border,
       error: const Color(0xFFB3261E),
       onError: Colors.white,
       errorContainer: const Color(0xFFF9DEDC),
       onErrorContainer: const Color(0xFF410E0B),
-      inverseSurface: const Color(0xFF2F3434),
+      inverseSurface: const Color(0xFF192F48),
       onInverseSurface: Colors.white,
     );
 
@@ -81,10 +81,10 @@ abstract final class AppTheme {
         backgroundColor: EbrokerDesign.surface,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
-        elevation: 1.5,
-        scrolledUnderElevation: 1.5,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         titleTextStyle: readableTextTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w700,
         ),
       ),
       cardTheme: CardThemeData(
@@ -135,9 +135,9 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surface,
-        contentPadding: const EdgeInsetsDirectional.only(start: 12, end: 8),
-        prefixIconConstraints: const BoxConstraints(minHeight: 5, minWidth: 5),
-        suffixIconConstraints: const BoxConstraints(minHeight: 5, minWidth: 5),
+        contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
+        prefixIconConstraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+        suffixIconConstraints: const BoxConstraints(minHeight: 48, minWidth: 48),
         labelStyle: readableTextTheme.bodyLarge?.copyWith(
           color: scheme.onSurfaceVariant,
         ),
@@ -162,11 +162,11 @@ abstract final class AppTheme {
       ),
       listTileTheme: const ListTileThemeData(contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4)),
       elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(
-        minimumSize: const Size(48, 56), backgroundColor: scheme.primary, foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)))),
+        minimumSize: const Size(48, 52), backgroundColor: scheme.primary, foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.control)))),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(AppSizes.touchTarget, 56),
+          minimumSize: const Size(AppSizes.touchTarget, 52),
           foregroundColor: scheme.onPrimary,
           textStyle: AppTypography.labelLarge.copyWith(
             fontFamily: AppTypography.fontFamily,
@@ -179,7 +179,7 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(AppSizes.touchTarget, 56),
+          minimumSize: const Size(AppSizes.touchTarget, 52),
           foregroundColor: scheme.onSurface,
           side: BorderSide(color: scheme.outlineVariant),
           textStyle: AppTypography.labelLarge.copyWith(
@@ -191,6 +191,15 @@ abstract final class AppTheme {
           ),
         ),
       ),
+      popupMenuTheme: PopupMenuThemeData(color: scheme.surface, surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        textStyle: readableTextTheme.bodyMedium, elevation: 8),
+      dropdownMenuTheme: DropdownMenuThemeData(menuStyle: MenuStyle(
+        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+        backgroundColor: WidgetStatePropertyAll(scheme.surface), surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent))),
+      tabBarTheme: TabBarThemeData(labelColor: scheme.primary, unselectedLabelColor: scheme.onSurfaceVariant,
+        indicatorColor: scheme.primary, dividerColor: scheme.outlineVariant,
+        labelStyle: readableTextTheme.labelLarge, indicatorSize: TabBarIndicatorSize.label),
       chipTheme: ChipThemeData(
         backgroundColor: scheme.surface,
         selectedColor: scheme.primaryContainer,

@@ -1,4 +1,5 @@
 import 'property_details.dart';
+import '../../../core/formatters/money.dart';
 import 'property_schema.dart';
 import 'property_field_options.dart';
 
@@ -9,7 +10,7 @@ class ComparisonFact {
   bool get differs => values.toSet().length > 1;
 }
 
-String comparisonMoney(PropertyDetails p) => '${formatPropertyAreaValue(p.purpose=='rent' ? p.monthlyRent??p.price : p.price)} ${p.currency}${p.purpose=='rent' && p.monthlyRent!=null ? ' شهريًا':''}';
+String comparisonMoney(PropertyDetails p) => '${moneyLabel(p.purpose=='rent' ? p.monthlyRent??p.price : p.price, p.currency)}${p.purpose=='rent' && p.monthlyRent!=null ? ' شهريًا':''}';
 
 List<ComparisonFact> propertyComparisonFacts(List<PropertyDetails?> properties, {List<String?> sai = const []}) {
   final rows=<ComparisonFact>[];
@@ -47,7 +48,7 @@ List<String> propertyComparisonHighlights(List<PropertyDetails?> values) {
       (rows.first.purpose!='rent' || rows.every((p)=>p.monthlyRent!=null))){
     double price(PropertyDetails p)=>p.purpose=='rent'?p.monthlyRent!:p.price;
     final sorted=List<PropertyDetails>.of(rows)..sort((a,b)=>price(a).compareTo(price(b)));
-    if(price(sorted.first)<price(sorted.last))output.add('${sorted.first.title} أقل ${rows.first.purpose=='rent'?'إيجارًا شهريًا':'سعرًا'} بفارق ${formatPropertyAreaValue(price(sorted.last)-price(sorted.first))} ${rows.first.currency}.');
+    if(price(sorted.first)<price(sorted.last))output.add('${sorted.first.title} أقل ${rows.first.purpose=='rent'?'إيجارًا شهريًا':'سعرًا'} بفارق ${moneyLabel(price(sorted.last)-price(sorted.first), rows.first.currency)}.');
   }
   double? area(PropertyDetails p)=>!DynamicPropertySchema.applies('area_value',{'type':p.type,'purpose':p.purpose})?null:
     p.areaValue!=null?p.areaValue!*(propertyAreaUnitSquareMetres[p.areaUnit??'sqm']??1):p.areaM2?.toDouble();

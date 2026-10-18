@@ -11,12 +11,14 @@ class AddPropertyWizardScreen extends StatelessWidget {
   const AddPropertyWizardScreen({
     super.key,
     this.existingProperty,
+    this.startWithAssistant = false,
   });
 
   final PropertyDetails? existingProperty;
+  final bool startWithAssistant;
 
   @override
   Widget build(BuildContext context) {
-    return ListingDraftEntryScreen(existingProperty: existingProperty);
+    return ListingDraftEntryScreen(existingProperty: existingProperty, startWithAssistant: startWithAssistant);
   }
 }

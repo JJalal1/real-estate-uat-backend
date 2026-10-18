@@ -197,4 +197,3 @@ class ListingAiService
         return $result;
     }
 }
-

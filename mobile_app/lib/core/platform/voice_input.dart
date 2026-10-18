@@ -34,6 +34,7 @@ class SystemVoiceInput implements VoiceInput {
   final bool liveDictation;
   @override
   VoiceRecording start() => _NativeVoiceRecording(transcribe, liveDictation);
+  VoiceRecording startWholeRecording() => _NativeVoiceRecording(transcribe, false);
 }
 
 class _NativeVoiceRecording implements VoiceRecording {

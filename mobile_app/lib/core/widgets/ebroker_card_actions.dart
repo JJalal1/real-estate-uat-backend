@@ -18,7 +18,7 @@ class EbrokerCardActions extends StatelessWidget {
     if (actions.isEmpty) return const SizedBox.shrink();
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Expanded(child: AppButton(label: actions.first.label, icon: actions.first.icon,
-        expand: true, onPressed: actions.first.onPressed)),
+        expand: true, style: AppButtonStyle.tonal, onPressed: actions.first.onPressed)),
       if (actions.length > 1) ...[
         const SizedBox(width: 6),
         PopupMenuButton<int>(tooltip: 'خيارات البطاقة',
