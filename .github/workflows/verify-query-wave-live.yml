@@ -1,0 +1,53 @@
+name: Verify real query followups on existing UAT
+on:
+  push:
+    branches: [verification/search-query-1081]
+permissions: {}
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify spoken-city, fresh-price and unrestricted followup interpretation
+        run: |
+          python3 - <<'PY'
+          import json,time,urllib.request,urllib.error,urllib.parse
+          root='https://real-estate-uat-api-frankfurt.onrender.com/api'
+          def call(path,body=None):
+              data=None if body is None else json.dumps(body,ensure_ascii=False).encode()
+              headers={'Accept':'application/json','User-Agent':'Search-Query-Wave-Verification/1081'}
+              if data is not None: headers['Content-Type']='application/json'
+              started=time.monotonic()
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(root+path,data=data,headers=headers),timeout=55) as r:
+                      status=r.status; value=json.loads(r.read())
+              except urllib.error.HTTPError as e:
+                  status=e.code; value=json.loads(e.read())
+              return status,value,round((time.monotonic()-started)*1000)
+          filters={}; results=[]
+          commands=['ابحث لي عن عقارات داخل مدينة اب','خلي السعر أكثر من ١٠٠ مليون','خلها أرض للبيع']
+          for index,message in enumerate(commands):
+              status,body,elapsed=call('/ai/search',{'message':message,'filters':filters,'revision':index})
+              print('QUERY_WAVE_REAL_AI '+json.dumps({'step':index+1,'status':status,'elapsed_ms':elapsed,'filters':body.get('data',{}).get('filters'),'code':body.get('code')},ensure_ascii=False,sort_keys=True),flush=True)
+              assert status==200,('real_ai_unavailable_or_invalid',status)
+              data=body['data']; assert data['revision']==index
+              previous=filters;filters=data['filters']
+              if index>=1:
+                  assert filters.get('min_price')==100000000,filters
+                  for key in ['search','governorate']:
+                      if key in previous: assert filters.get(key)==previous[key],key
+              if index==2: assert filters.get('type')=='land' and filters.get('purpose')=='sale'
+              query=dict(filters)
+              if query.get('purpose')=='rent':
+                  for key in ['min_price','max_price']:
+                      if key in query: query[key.replace('_price','_monthly_rent')]=query.pop(key)
+              if ('min_price' in filters or 'max_price' in filters) and 'currency' not in query:query['currency']='YER'
+              query['per_page']=50
+              status,properties,elapsed=call('/properties?'+urllib.parse.urlencode(query))
+              assert status==200,status
+              ids=[int(row['id']) for row in properties['data']]
+              print('QUERY_WAVE_REAL_RESULTS '+json.dumps({'step':index+1,'total':properties['meta']['total'],'public_property_ids':ids,'elapsed_ms':elapsed},sort_keys=True),flush=True)
+              if index==0: assert set(ids)==set(range(76,84)),('spoken_city_must_match_ibb_fixtures',ids)
+              results.append({'step':index+1,'filters':filters,'total':properties['meta']['total']})
+          print('QUERY_WAVE_REAL_SUCCESS '+json.dumps({'passed':True,'steps':results,'automatic_test_retries':0},ensure_ascii=False,sort_keys=True),flush=True)
+          PY
