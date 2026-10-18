@@ -24,7 +24,7 @@ jobs=json.loads(get('/actions/runs/'+str(RUN)+'/jobs?per_page=100'))['jobs']
 job=next(j for j in jobs if j['name']=='Flutter broker experience and UAT APK')
 assert job['head_sha']==SOURCE and job['run_id']==RUN
 raw=get('/actions/jobs/'+str(job['id'])+'/logs').decode('utf-8-sig')
-raw=re.split('CODEX_PREVIEW_BEGIN |CODEX_APK_BEGIN ',raw,maxsplit=1)[0]
+raw=re.split('CODEX_APK_BEGIN ',raw,maxsplit=1)[0]
 lines=re.sub(r'\x1b\[[0-9;]*m','',raw).replace('\r','\n').splitlines()
 indices=set()
 for i,line in enumerate(lines):
