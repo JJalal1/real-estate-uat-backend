@@ -94,8 +94,11 @@ class SpokenSearchCityTest extends TestCase
         $property = Property::create(['user_id' => $user->id, 'title' => 'عقار تجريبي في '.$city,
             'type' => 'house', 'purpose' => 'sale', 'price' => $price, 'currency' => 'YER', 'area_m2' => 200,
             'address' => $city.'، حي تجريبي', 'latitude' => $latitude, 'longitude' => $longitude,
-            'status' => 'published', 'review_status' => 'approved', 'published_at' => now(),
-            'availability_status' => 'available', 'availability_confirmed_at' => now(), 'availability_due_at' => now()->addDays(14)]);
+            'status' => 'published', 'review_status' => 'approved', 'published_at' => now()]);
+        // Availability timestamps are guarded model fields. Initialize the
+        // fixture explicitly so the pre-existing public sweep has no work.
+        $property->forceFill(['availability_status' => 'available',
+            'availability_confirmed_at' => now(), 'availability_due_at' => now()->addDays(14)])->saveQuietly();
         if (DB::getDriverName() === 'pgsql') DB::statement('UPDATE properties SET location=ST_SetSRID(ST_MakePoint(longitude,latitude),4326)::geography WHERE id=?', [$property->id]);
         return $property;
     }

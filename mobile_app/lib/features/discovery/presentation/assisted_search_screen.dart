@@ -142,9 +142,9 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     final controller = ref.read(smartSearchSessionProvider.notifier);
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       appBar: AppAppBar(title: 'البحث الذكي', actions: [
-        TextButton(key: const ValueKey('smart-search-reset'), onPressed: () {
+        IconButton(key: const ValueKey('smart-search-reset'), tooltip: 'بدء بحث جديد', onPressed: () {
           _cancelVoice(); _capture.clearError(); _description.clear(); controller.reset(useLocation: true);
-        }, child: const Text('بدء بحث جديد')),
+        }, icon: const Icon(Icons.restart_alt)),
       ]),
       body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active, onPressed: () {
         _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut); _focus.requestFocus();
@@ -182,7 +182,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           const SizedBox(height: 8),
           if (!_capture.active && !state.started) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('اكتب أو أمْلِ طلبك، راجعه ثم اضغط البحث.')),
           if (!_capture.active) Row(children: [
-            Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: !state.started ? 'ابحث لي' : 'تحديث البحث',
+            Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: !state.started ? 'ابحث لي' : 'تحديث',
               icon: Icons.auto_awesome_outlined, loading: state.interpreting,
               onPressed: state.interpreting ? null : _send)),
             const SizedBox(width: 8),
