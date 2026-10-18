@@ -422,6 +422,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final serverId = data['server_property_id'];
       if (widget.existingProperty == null && serverId is int && serverId > 0) _recoveredServerId = serverId;
       if (const ['percentage', 'fixed'].contains(data['sai_amount_type'])) _saiAmountType = data['sai_amount_type'] as String;
+      else if (data['sai_touched'] == true && fields is Map && (fields['broker_sai_rate_percent']?.toString().trim().isNotEmpty ?? false)) _saiAmountType = 'percentage';
       final saiField = _saiAmountType == 'fixed' ? 'fixed_sai_amount' : 'broker_sai_rate_percent';
       _hasRecoveredSai = data['sai_touched'] == true && fields is Map && (fields[saiField]?.toString().trim().isNotEmpty ?? false);
       _saiTouched = _hasRecoveredSai;

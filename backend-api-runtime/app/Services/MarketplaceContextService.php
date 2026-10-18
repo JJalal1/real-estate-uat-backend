@@ -45,13 +45,46 @@ class MarketplaceContextService
         $rows = [];
         foreach (GeoCell::query()->with('governorate')->where('is_active', true)
             ->whereHas('governorate', fn ($q) => $q->where('is_active', true))->orderBy('id')->get() as $cell) {
-            if (isset($rows[$cell->governorate_id])) continue;
+            $label = $cell->governorate->name_ar === 'أمانة العاصمة' ? 'صنعاء' : $cell->governorate->name_ar;
+            if (isset($rows[$label])) continue;
             $ring = $cell->boundary_json['coordinates'][0] ?? [];
             if (count($ring) < 4) continue;
             $latitudes = array_column($ring, 1); $longitudes = array_column($ring, 0);
-            $rows[$cell->governorate_id] = ['governorate' => $cell->governorate->name_ar,
-                'label' => $cell->governorate->name_ar === 'أمانة العاصمة' ? 'صنعاء' : $cell->governorate->name_ar,
+            $rows[$label] = ['governorate' => $cell->governorate->name_ar,
+                'label' => $label,
                 'latitude' => (min($latitudes) + max($latitudes)) / 2, 'longitude' => (min($longitudes) + max($longitudes)) / 2];
+        }
+        // Legacy listings can be public before coverage polygons are configured.
+        // Derive approximate discovery centres from those public records only;
+        // never invent coverage cells, which would change listing permissions.
+        $missing = [];
+        foreach (Governorate::query()->where('is_active', true)->orderBy('id')->get() as $governorate) {
+            $label = $governorate->name_ar === 'أمانة العاصمة' ? 'صنعاء' : $governorate->name_ar;
+            if (isset($rows[$label])) continue;
+            $missing[$label] ??= ['governorate' => $governorate->name_ar, 'label' => $label,
+                'latitude' => 0.0, 'longitude' => 0.0, 'count' => 0];
+        }
+        if ($missing !== []) {
+            foreach (app(PropertyDiscoveryFilterService::class)->publicQuery()->whereNull('geo_cell_id')
+                ->select(['id', 'address', 'latitude', 'longitude'])->orderBy('id')->cursor() as $property) {
+                $lat = (float) $property->latitude; $lon = (float) $property->longitude;
+                if (! is_finite($lat) || ! is_finite($lon) || abs($lat) > 90 || abs($lon) > 180) continue;
+                foreach ($missing as $label => &$row) {
+                    $names = $label === 'صنعاء' ? ['صنعاء', 'أمانة العاصمة'] : [$label];
+                    foreach ($names as $name) {
+                        if (preg_match('/(?<![\pL\pN])'.preg_quote($name, '/').'(?![\pL\pN])/u', (string) $property->address)) {
+                            $row['latitude'] += $lat; $row['longitude'] += $lon; $row['count']++;
+                            break;
+                        }
+                    }
+                }
+                unset($row);
+            }
+            foreach ($missing as $label => $row) {
+                if ($row['count'] === 0) continue;
+                $row['latitude'] /= $row['count']; $row['longitude'] /= $row['count'];
+                unset($row['count']); $rows[$label] = $row;
+            }
         }
         return array_values($rows);
     }

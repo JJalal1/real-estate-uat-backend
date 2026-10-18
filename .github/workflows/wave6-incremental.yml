@@ -36,7 +36,7 @@ jobs:
           php artisan key:generate --force
       - name: Focused new wave contracts
         working-directory: backend-api-runtime
-        run: php artisan test tests/Feature/Wave6EditorDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky
+        run: php artisan test tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky
       - name: Full backend regression
         working-directory: backend-api-runtime
         run: php artisan test --display-warnings --fail-on-warning --fail-on-risky

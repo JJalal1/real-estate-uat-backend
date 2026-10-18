@@ -86,13 +86,13 @@ void main() {
     expect(session.state.filters.values,{'governorate':'صنعاء','type':'land'});
   });
   test('one description request serves double taps, then a later explicit request is allowed', () async {
-    final dio=Dio(),auth=DescriptionAuth(),pending=Completer<void>();int calls=0;
+    final dio=Dio(),auth=DescriptionAuth(),pending=Completer<void>(),started=Completer<void>();int calls=0;
     dio.interceptors.add(InterceptorsWrapper(onRequest:(options,handler) async {
-      calls++;await pending.future;handler.resolve(Response(requestOptions:options,statusCode:200,data:{'data':{'description':'وصف من الحقائق'}}));
+      calls++;if(!started.isCompleted)started.complete();await pending.future;handler.resolve(Response(requestOptions:options,statusCode:200,data:{'data':{'description':'وصف من الحقائق'}}));
     }));
     final ai=AiRepository(dio,auth);
     final a=ai.description({'type':'house'}),b=ai.description({'type':'house'});
-    await Future<void>.delayed(Duration.zero);expect(calls,1);pending.complete();await Future.wait([a,b]);
+    await started.future;expect(calls,1);pending.complete();await Future.wait([a,b]);
     await ai.description({'type':'house'});expect(calls,2);dio.close();
   });
   test('429 respects Retry-After across repeats and never starts an automatic retry', () async {
@@ -106,12 +106,12 @@ void main() {
     expect(calls,1);expect(ai.descriptionRetryAt!.difference(DateTime.now()).inSeconds,greaterThanOrEqualTo(118));dio.close();
   });
   test('description coalescing never crosses authenticated sessions', () async {
-    final dio=Dio(),auth=DescriptionAuth(),pending=Completer<void>();int calls=0;
+    final dio=Dio(),auth=DescriptionAuth(),pending=Completer<void>(),first=Completer<void>(),second=Completer<void>();int calls=0;
     dio.interceptors.add(InterceptorsWrapper(onRequest:(options,handler) async {
-      calls++;await pending.future;handler.resolve(Response(requestOptions:options,statusCode:200,data:{'data':{'description':'وصف'}}));
+      calls++;if(calls==1)first.complete();if(calls==2)second.complete();await pending.future;handler.resolve(Response(requestOptions:options,statusCode:200,data:{'data':{'description':'وصف'}}));
     }));
     final ai=AiRepository(dio,auth),a=ai.description({'type':'house'});
-    await Future<void>.delayed(Duration.zero);auth.token='fixture-b';final b=ai.description({'type':'house'});
-    await Future<void>.delayed(Duration.zero);expect(calls,2);pending.complete();await Future.wait([a,b]);dio.close();
+    await first.future;auth.token='fixture-b';final b=ai.description({'type':'house'});
+    await second.future;expect(calls,2);pending.complete();await Future.wait([a,b]);dio.close();
   });
 }

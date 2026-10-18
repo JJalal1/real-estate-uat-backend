@@ -1372,7 +1372,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           _MapActionButton(
             tooltip: 'موقعي',
             icon: Icons.my_location,
-            onPressed: _userLocation == null ? null : _moveToMyLocation,
+            onPressed: _userLocation == null
+                ? _loadCurrentLocation
+                : _moveToMyLocation,
           ),
         ],
       ),

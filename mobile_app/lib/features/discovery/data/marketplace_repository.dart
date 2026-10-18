@@ -14,7 +14,7 @@ class HomeLocation {
   final String label;
   final bool manual;
   final bool device;
-  Map<String, dynamic> get searchContext => {
+  Map<String, dynamic> get searchContext => !manual && !device && governorate == null ? const {} : {
     if (governorate != null) 'governorate': governorate,
     'latitude': latitude, 'longitude': longitude, 'radius_km': 30,
   };

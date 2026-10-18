@@ -138,7 +138,7 @@ jobs:
           tests/Feature/Wave5ListingRefinementTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Account drafts, real photos and broker contact on PostgreSQL
-        run: php artisan test tests/Feature/Wave6EditorDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+        run: php artisan test tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Listing scope, customer commission and private editor contracts on PostgreSQL
         run: >-
           php artisan test tests/Feature/UxRefinementApiTest.php
