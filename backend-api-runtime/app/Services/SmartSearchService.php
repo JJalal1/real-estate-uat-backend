@@ -91,12 +91,27 @@ class SmartSearchService
             foreach ($patch['set'] as $key => $value) {
                 if ($value === null) unset($next[$key]); else $next[$key] = $value;
             }
+            // A type amendment can omit a plainly spoken sale/rent purpose.
+            // Complete only that closed enum; ambiguous/negative text stays AI-led.
+            if (isset($patch['set']['type']) && ($purpose = $this->literalPurpose($message)) !== null) {
+                $next['purpose'] = $purpose;
+            }
             $next = $this->validate($next);
         } catch (ValidationException) {
             $this->gemini->unavailable();
         }
         return ['filters' => $next, 'suggestions' => $this->suggestions($next),
             'changed' => $current !== $next, 'message' => $current === $next ? 'لم نغيّر شروطك. يمكنك توضيح الطلب أو تعديل الشرائح.' : 'حدّثنا شروط البحث مع الاحتفاظ ببقية اختياراتك.'];
+    }
+
+    private function literalPurpose(string $message): ?string
+    {
+        $text = strtr(preg_replace('/[\x{0640}\x{064B}-\x{065F}\x{0670}]/u', '', $message),
+            ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا']);
+        if (preg_match('/(?<!\p{L})(?:لا|ليس|ليست|لست|لن|ما|مو|مش|بدون|غير|الا|الغ|الغي|الغاء|ازل|ازالة|احذف|حذف|شيل|استبعد|استبعاد|هل|ليش|لماذا|كيف|تقصد|not|no|without|exclude|remove|why|whether)(?!\p{L})/iu', $text)) return null;
+        $sale = preg_match('/(?<!\p{L})للبيع(?!\p{L})/u', $text) === 1;
+        $rent = preg_match('/(?<!\p{L})للايجار(?!\p{L})/u', $text) === 1;
+        return $sale === $rent ? null : ($sale ? 'sale' : 'rent');
     }
 
     public function suggestions(array $filters): array

@@ -1,7 +1,7 @@
 name: Search followup context regression
 on:
   push:
-    branches: [work/search-followup-context]
+    branches: [work/search-purpose-followup]
 permissions:
   contents: read
 jobs:
@@ -21,11 +21,11 @@ jobs:
       - name: Preserve the approved mobile tree
         run: |
           test "$(git rev-parse HEAD:mobile_app)" = 1c7b52ad9fb882ba40288b9176d27d7b07f2ddab
-          git diff --check 4f09754ed6748e28a9259922bcc1f2f34c46017d HEAD
+          git diff --check 1fedc4cd7f9435ca4b129d4a50890e1ff98e78c5 HEAD
           python3 - <<'PY'
           import subprocess
           allowed = {'backend-api-runtime/app/Services/SmartSearchService.php', 'backend-api-runtime/tests/Feature/SpokenSearchCityTest.php', '.github/workflows/search-followup-context.yml'}
-          changed = set(subprocess.check_output(['git', 'diff', '--name-only', '4f09754ed6748e28a9259922bcc1f2f34c46017d', 'HEAD'], text=True).splitlines())
+          changed = set(subprocess.check_output(['git', 'diff', '--name-only', '1fedc4cd7f9435ca4b129d4a50890e1ff98e78c5', 'HEAD'], text=True).splitlines())
           assert changed == allowed, changed
           PY
       - name: Install locked backend dependencies
