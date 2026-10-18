@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Governorate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -32,6 +33,7 @@ class SmartSearchService
         $value = Validator::make($filters, $rules)->validate();
         app(PropertyDiscoveryFilterService::class)->validateGeometry($value);
         $value = array_filter($value, fn ($v) => $v !== null && $v !== '');
+        if (isset($value['search'])) $value['search'] = $this->canonicalCityKeyword($value['search']);
         foreach (['min_price' => 'max_price', 'min_area_m2' => 'max_area_m2'] as $min => $max) {
             if (isset($value[$min], $value[$max]) && $value[$min] > $value[$max]) {
                 throw ValidationException::withMessages(['filters' => ['الحد الأدنى يجب ألا يتجاوز الحد الأعلى.']]);
@@ -40,6 +42,22 @@ class SmartSearchService
         foreach (['has_parking', 'has_elevator', 'unit_occupies_entire_floor'] as $key) if (isset($value[$key])) $value[$key] = (bool) $value[$key];
         $value=app(DynamicPropertySchema::class)->filters($value);
         return $value;
+    }
+
+    private function canonicalCityKeyword(string $keyword): string
+    {
+        $key = function (string $name): string {
+            $name = preg_replace('/[\x{0640}\x{064B}-\x{065F}\x{0670}]/u', '', $name);
+            $name = strtr($name, ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي', 'ة' => 'ه']);
+            return preg_replace('/^[\s.,،؛:]+|[\s.,،؛:]+$/u', '', preg_replace('/\s+/u', ' ', $name));
+        };
+        $candidate = preg_replace('/^(?:مدينه|محافظه)\s*/u', '', $key($keyword));
+        foreach (Governorate::query()->where('is_active', true)->pluck('name_ar') as $city) {
+            if ($candidate === $key($city)) return $city;
+        }
+        // A neighborhood or an unknown place remains the user's exact keyword;
+        // only a complete match to the existing active gazetteer is canonical.
+        return $keyword;
     }
 
     public function update(string $message, array $current): array

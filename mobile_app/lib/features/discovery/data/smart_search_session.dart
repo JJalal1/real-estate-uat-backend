@@ -76,16 +76,17 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       if (_usingDefaultLocation && !explicitLocation) values.addAll(_defaultContext);
       if (explicitLocation) _usingDefaultLocation = false;
       final next = SmartSearchFilters.fromMap(values);
-      _replace(next, message: result['message']?.toString() ?? 'حدّثنا شروط بحثك.');
+      _replace(next, message: result['message']?.toString() ?? 'حدّثنا شروط بحثك.',
+        draftText: state.draftText.trim() == text ? '' : null);
       await search();
     } catch (error) {
       if (mounted && request == _inference && revision == state.revision) state = state.copyWith(interpreting: false, aiError: friendlyApiError(error));
     }
   }
 
-  void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.'}) {
+  void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.', String? draftText}) {
     _inference++; _results++;
-    state = SmartSearchState(filters: filters, revision: state.revision + 1, message: message, lastRequest: state.lastRequest, draftText: state.draftText);
+    state = SmartSearchState(filters: filters, revision: state.revision + 1, message: message, lastRequest: state.lastRequest, draftText: draftText ?? state.draftText);
   }
 
   void replaceManually(SmartSearchFilters filters) {

@@ -12,6 +12,7 @@ import '../data/smart_search_session.dart';
 import '../domain/smart_search_filters.dart';
 import 'smart_search_filter_editor.dart';
 import 'smart_search_assistant.dart';
+import 'smart_search_query_summary.dart';
 import '../../properties/presentation/save_search_action.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../../map/presentation/map_screen.dart';
@@ -67,7 +68,6 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     _capture.clearError();
     _session.setDraftText(text);
     await ref.read(smartSearchSessionProvider.notifier).interpret(text);
-    if (mounted && ref.read(smartSearchSessionProvider).aiError != null && _description.text.isEmpty) _description.text = text;
   }
 
   Future<void> _voice() async {
@@ -106,7 +106,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       Row(children:[const SmartSearchRobotIcon(size:24),const SizedBox(width:6), Expanded(child:TextField(
         key:const ValueKey('smart-search-description'),controller:_description,focusNode:_focus,readOnly:_capture.active || state.interpreting,
         minLines:1,maxLines:2,onChanged:_session.setDraftText,onSubmitted:(_)=>_send(),
-        decoration:InputDecoration(hintText:_capture.active ? null : 'صف العقار الذي تبحث عنه',isDense:true,border:InputBorder.none))),
+        decoration:InputDecoration(hintText:_capture.active ? null : state.started ? 'أضف أو عدّل أي شرط…' : 'صف العقار الذي تبحث عنه',isDense:true,border:InputBorder.none))),
         IconButton(key:const ValueKey('smart-search-voice'),tooltip:'أكمل بحثك بالصوت',onPressed:state.interpreting?null:_voice,icon:const Icon(Icons.mic_none_outlined)),
         IconButton(key:const ValueKey('smart-search-send'),tooltip:'بحث',onPressed:state.interpreting?null:_send,
           icon:state.interpreting?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.search)),
@@ -125,6 +125,13 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     final state = ref.watch(smartSearchSessionProvider), theme = Theme.of(context);
     ref.listen<SmartSearchState>(smartSearchSessionProvider, (before, after) {
       if (_capture.active && before?.revision != after.revision) _cancelVoice();
+      // Applied criteria belong to the summary. Only consume the exact draft
+      // that was accepted; manual changes and newer unsent text stay intact.
+      if (before != null && before.revision != after.revision &&
+          before.draftText.isNotEmpty && after.draftText.isEmpty &&
+          _description.text.trim() == before.draftText.trim()) {
+        _description.clear();
+      }
     });
     if (ModalRoute.of(context)?.isCurrent == false && _capture.active) {
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _capture.active) _cancelVoice(); });
@@ -133,33 +140,49 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       appBar:AppAppBar(title:'البحث على الخريطة',actions:[TextButton(key:const ValueKey('smart-search-list'),onPressed:_openMap,child:const Text('القائمة'))]),
       body:MapScreen(sharedSearchJourney:true,searchToolbar:_mapToolbar(state),onShowList:_openMap))); }
     final controller = ref.read(smartSearchSessionProvider.notifier);
-    final chips = state.started ? state.filters.chips : <(String, String)>[];
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       appBar: AppAppBar(title: 'البحث الذكي', actions: [
-        TextButton(key: const ValueKey('smart-search-reset'), onPressed: () {
+        IconButton(key: const ValueKey('smart-search-reset'), tooltip: 'بدء بحث جديد', onPressed: () {
           _cancelVoice(); _capture.clearError(); _description.clear(); controller.reset(useLocation: true);
-        }, child: const Text('بدء بحث جديد')),
+        }, icon: const Icon(Icons.restart_alt)),
       ]),
       body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active, onPressed: () {
         _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut); _focus.requestFocus();
       }, child: ListView(controller: _scroll, padding: const EdgeInsets.fromLTRB(18, 12, 18, 110), children: [
-        Text('مكان يناسبك', style: theme.textTheme.headlineSmall),
-        const SizedBox(height: 6),
-        const Text('صف ما تبحث عنه، ثم أكمل طلبك أو عدّل أي شرط.'),
-        const SizedBox(height: 18),
+        if (!state.started) ...[
+          Text('مكان يناسبك', style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 6),
+          const Text('صف ما تبحث عنه، ثم أكمل طلبك أو عدّل أي شرط.'),
+          const SizedBox(height: 18),
+        ],
         AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (state.started || state.interpreting) ...[
+            SmartSearchQuerySummary(
+              filters: state.started ? state.filters : const SmartSearchFilters(),
+              interpreting: state.interpreting,
+              onEdit: (key) => _edit(focus: key),
+              onRemove: (key) { if (_capture.active) { _cancelVoice(); } controller.remove(key); },
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (state.started) ...[
+            Wrap(spacing: 12, alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              Text('أضف أو عدّل أي شرط', style: theme.textTheme.titleSmall),
+              TextButton.icon(key: const ValueKey('smart-search-manual'), onPressed: () => _edit(),
+                icon: const EbrokerIcon(Icons.tune, size: 18), label: const Text('تعديل الفلاتر')),
+            ]),
+            const SizedBox(height: 4),
+          ],
           TextField(key: const ValueKey('smart-search-description'), controller: _description, focusNode: _focus,
             readOnly: _capture.active || state.interpreting,
-            minLines: 2, maxLines: 4, maxLength: 5000, textInputAction: TextInputAction.search,
+            minLines: state.started ? 1 : 2, maxLines: 4, maxLength: 5000, textInputAction: TextInputAction.search,
             onChanged: _session.setDraftText, onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
-              hintText: _capture.active ? null : chips.isEmpty ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
+              hintText: _capture.active ? null : !state.started ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
           if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice),
-          if (!_capture.active && state.lastRequest.isNotEmpty) ExpansionTile(tilePadding: EdgeInsets.zero,
-            title: const Text('آخر طلب في هذه الجلسة'), children: [SelectableText(state.lastRequest)]),
           const SizedBox(height: 8),
-          if (!_capture.active) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('اكتب أو أمْلِ طلبك، راجعه ثم اضغط البحث.')),
+          if (!_capture.active && !state.started) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('اكتب أو أمْلِ طلبك، راجعه ثم اضغط البحث.')),
           if (!_capture.active) Row(children: [
-            Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: chips.isEmpty ? 'ابحث لي' : 'تحديث البحث',
+            Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: !state.started ? 'ابحث لي' : 'تحديث',
               icon: Icons.auto_awesome_outlined, loading: state.interpreting,
               onPressed: state.interpreting ? null : _send)),
             const SizedBox(width: 8),
@@ -170,18 +193,11 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           if (_capture.error != null || state.aiError != null) Padding(padding: const EdgeInsets.only(top: 12),
             child: Text(_capture.error ?? state.aiError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
         const SizedBox(height: 12),
-        if (state.started) Row(children: [Expanded(child: Text('شروط بحثك', style: theme.textTheme.titleMedium)),
-          TextButton.icon(key: const ValueKey('smart-search-manual'), onPressed: () => _edit(), icon: const EbrokerIcon(Icons.tune, size: 18), label: const Text('تعديل الفلاتر'))]),
-        if (chips.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: [for (final chip in chips)
-          ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 36), child: InputChip(
-            key: ValueKey('smart-chip-${chip.$1}'), label: Text(chip.$2, maxLines: 1, overflow: TextOverflow.ellipsis),
-            onPressed: () => _edit(focus: chip.$1), onDeleted: () { if (_capture.active) _cancelVoice(); controller.remove(chip.$1); }, deleteButtonTooltipMessage: 'إزالة ${chip.$2}')),
-        ]),
         Wrap(spacing: 8, children: [
           if (state.page > 0 && !state.loading && state.resultsError == null) TextButton.icon(key: const ValueKey('smart-search-save'), onPressed: _capture.active || state.interpreting ? null : () => saveSearchFilters(context, ref, state.filters.apiFilters),
-            icon: const Icon(Icons.bookmark_add_outlined, size: 18), label: const Text('حفظ البحث والتنبيه')),
+            icon: const Icon(Icons.bookmark_add_outlined, size: 18), label: const Text('حفظ البحث')),
           TextButton.icon(key: const ValueKey('smart-search-map'), onPressed: _capture.active || state.interpreting ? null : _openMap,
-            icon: const Icon(Icons.map_outlined, size: 18), label: const Text('تحديد النطاق على الخريطة')),
+            icon: const Icon(Icons.map_outlined, size: 18), label: const Text('الخريطة')),
         ]),
         if (state.message.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(state.message, style: theme.textTheme.bodySmall)),
         const SizedBox(height: 10),

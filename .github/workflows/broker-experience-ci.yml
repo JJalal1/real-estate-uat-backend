@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081]
   workflow_dispatch:
 permissions:
   contents: read
@@ -155,6 +155,7 @@ jobs:
       - name: Gemini boundaries and marketplace presentation on PostgreSQL
         run: >-
           php artisan test tests/Feature/Wave3AiAssistantTest.php tests/Feature/BrokerListingAssistantTest.php tests/Feature/Wave3DesignApiTest.php
+          tests/Feature/SpokenSearchCityTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Exact discovery, saved alerts, public profiles and authorized contact on PostgreSQL
         run: >-
@@ -233,6 +234,7 @@ jobs:
           test/wave6_product_ui_test.dart
           test/current_wave_contract_test.dart
           test/current_wave_ui_test.dart
+          test/search_query_wave_test.dart
           test/wave4_listing_ui_test.dart
           test/wave4_sai_consent_test.dart
           test/in_app_voice_search_test.dart
