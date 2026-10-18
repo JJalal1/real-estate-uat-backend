@@ -1,5 +1,13 @@
 # AI Project State — REAL ESTATE UAT
 
+## October18 late-evening query/voice followup wave — implementation under verification
+
+The owner supplied `Screen_Recording_20261018-225721.mp4` and `Screen_Recording_20261018-230112.mp4` and requested the reference's structured criteria presentation while preserving arbitrary voice and typed followups inside the same search section. The latest integration remains `419db103490fabe43b2ca89f397fac82ea708a6b`, delivered as APK1081. See `SEARCH_QUERY_WAVE_1081_AR.md` for observed evidence and acceptance.
+
+The client now displays accepted canonical criteria as an interactive Arabic query sentence with editable/removable chips. Successful interpretation clears only the exact draft it consumed, so later dictation starts a fresh command against the existing filters rather than replaying the old sentence. In-flight/newer/failed drafts are preserved; text and voice remain open after every query. Query summaries never invent criteria from partial recognition. Manual finish and explicit editable send, cancellation/stale-result guards, list/map/saved-search context, true monthly-rent budgets and normal property results remain.
+
+The focused branch is `work/search-query-wave-1081`; source, focused/regression CI, rendered previews and original APK identity are pending actual results. The deployed backend tree stays `fa8c534e67625eb03192222e6b465e7ffbd4c116`; no migration, seed, Render/environment change or financial/auth/native/dependency/asset edit is requested. Physical handset/provider acceptance is independent of mocked tests and synthetic previews.
+
 ## October18 current wave delivered and deployed — APK1081
 
 The owner supplied `WORK_HANDOFF_CURRENT_WAVE_AR.docx` after explicitly choosing the latest1076, then requested fictional city listings and authorized necessary merge/UAT deployment work on October18 at12:09 Asia/Aden. Read `CURRENT_WAVE_1076_AR.md`. Source `8c0e9ddaa378d6c98d436b5d8104d8f08c5cfeee` on `work/current-wave-1076` passed all CI81 gates (`39110119120`) and focused12 (`39110119166`):267 Laravel tests/3344 assertions, the SQLite-only PostGIS skip covered on PostgreSQL, Docker, zero-diagnostic strict Flutter analysis,38 focused and369 full Flutter tests (overlapping), native APK build and verification. PR84 merged as `7c3d5fa24cc353a8c4db88445892256800581fe9`; its entire tree equals tested `6197950be9a1d682cbc20c34915943006fb8a7ee`. Four exact-source Arabic synthetic previews were inspected at enlarged text sizes.
