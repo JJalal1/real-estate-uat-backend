@@ -24,6 +24,7 @@ jobs:
         working-directory: backend-api-runtime
         run: |
           install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
           composer install --no-interaction --prefer-dist --no-progress
           php artisan key:generate --force
           php -l bootstrap/app.php
@@ -70,6 +71,7 @@ jobs:
         working-directory: backend-api-runtime
         run: |
           install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
           composer install --no-interaction --prefer-dist --no-progress
           php artisan key:generate --force
       - name: Prepare disposable API roles
@@ -77,6 +79,9 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
           -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
           -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+      - name: Apply the original migration chain to the disposable database
+        working-directory: backend-api-runtime
+        run: php artisan migrate --force
       - name: HTTPS, city fixtures, access and discovery on PostgreSQL
         working-directory: backend-api-runtime
         run: php artisan test tests/Postgres tests/Feature/UatHttpsMediaTest.php tests/Feature/UatCityDemoSeedTest.php tests/Feature/Wave6EditorDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
