@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
@@ -15,6 +14,7 @@ import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/presentation/property_details_screen.dart';
 import '../data/marketplace_repository.dart';
+import '../data/discovery_location.dart';
 import 'home_ai_search_entry.dart';
 import 'smart_search_assistant.dart';
 import '../../properties/presentation/property_compare_actions.dart';
@@ -57,37 +57,32 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     return (latitude: location.latitude, longitude: location.longitude, governorate: location.governorate, type: _type, device: location.device);
   }
   @override
-  void initState() { super.initState(); Future.microtask(() => _tryDeviceLocation()); }
+  void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _tryDeviceLocation(); }); }
 
   Future<void> _tryDeviceLocation({bool prompt = false}) async {
     if (!prompt && ref.read(homeLocationAttemptedProvider)) return;
     ref.read(homeLocationAttemptedProvider.notifier).state = true;
     if (!prompt && ref.read(homeLocationProvider).manual) return;
-    if (prompt) setState(() => _locationBusy = true);
+    setState(() => _locationBusy = true);
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) throw StateError('Location service unavailable.');
-      var permission = await Geolocator.checkPermission();
-      if (prompt && permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
-      if (permission != LocationPermission.whileInUse && permission != LocationPermission.always) throw StateError('Location permission unavailable.');
-      final before = ref.read(homeLocationProvider);
-      final position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 8)));
-      if (!mounted || !identical(before, ref.read(homeLocationProvider))) return;
-      ref.read(homeLocationProvider.notifier).state = HomeLocation(latitude: position.latitude, longitude: position.longitude, label: 'موقعي', device: true);
+      final coordinator = ref.read(discoveryLocationCoordinatorProvider);
+      if (prompt) { await coordinator.useDevice(); } else { await coordinator.initialize(); }
     } catch (_) {
       if (prompt && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر تحديد موقعك. يمكنك اختيار المنطقة يدويًا.')));
-    } finally { if (mounted && prompt) setState(() => _locationBusy = false); }
+    } finally { if (mounted) setState(() => _locationBusy = false); }
   }
 
   Future<void> _chooseLocation() async {
     final choice = await AppBottomSheet.show<Object>(context, builder: (_) => const _HomeLocationSheet());
     if (!mounted) return;
-    if (choice is HomeLocation) { ref.read(homeLocationProvider.notifier).state = choice; }
+    if (choice is HomeLocation) { await ref.read(discoveryLocationCoordinatorProvider).selectManual(choice); }
     else if (choice == 'device') { await _tryDeviceLocation(prompt: true); }
   }
 
   void _openMap() {
     final location = ref.read(homeLocationProvider);
-    context.push(Uri(path: '/property-market', queryParameters: {'lat': '${location.latitude}', 'lon': '${location.longitude}', if (_type != null) 'type': _type!}).toString());
+    context.push(Uri(path: '/property-market', queryParameters: {'lat': '${location.latitude}', 'lon': '${location.longitude}',
+      if(location.governorate!=null) 'governorate':location.governorate!, if (_type != null) 'type': _type!}).toString());
   }
   void _section(String section,String? governorate) {
     final location=ref.read(homeLocationProvider);

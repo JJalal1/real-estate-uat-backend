@@ -414,5 +414,39 @@
     "qasaba_taizi_ashari": 20.25,
     "qasaba_taizi_hadawi": 29.16,
     "qasaba_ibbi": 56.25
-  }
+  },
+  "apartment_floors": [
+    {
+      "value": "0",
+      "label": "الأرضي"
+    },
+    {
+      "value": "1",
+      "label": "الأول"
+    },
+    {
+      "value": "2",
+      "label": "الثاني"
+    },
+    {
+      "value": "3",
+      "label": "الثالث"
+    },
+    {
+      "value": "4",
+      "label": "الرابع"
+    },
+    {
+      "value": "5",
+      "label": "الخامس"
+    },
+    {
+      "value": "6",
+      "label": "السادس"
+    },
+    {
+      "value": "7",
+      "label": "السابع"
+    }
+  ]
 }

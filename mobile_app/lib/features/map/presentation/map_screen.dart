@@ -26,6 +26,7 @@ import '../../discovery/presentation/smart_search_filter_editor.dart';
 import '../../properties/presentation/saved_search_builder_screen.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../../discovery/data/smart_search_session.dart';
+import '../../discovery/data/marketplace_repository.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../discovery/presentation/smart_search_assistant.dart';
 
@@ -346,8 +347,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _applySharedFilters(ref.read(smartSearchSessionProvider).filters);
       final rows=ref.read(smartSearchSessionProvider).rows;
       if(rows.isNotEmpty && !ref.read(smartSearchSessionProvider).filters.hasMapArea) _center=LatLng(rows.first.latitude,rows.first.longitude);
-    } else { unawaited(_restoreDiscoveryHistory()); }
-    if (!widget.sharedSearchJourney && !widget.hasInitialLocation && widget.initialFilters == null) _loadCurrentLocation();
+    } else {
+      if (!widget.hasInitialLocation && widget.initialFilters == null) {
+        _applySharedFilters(SmartSearchFilters.fromMap({...ref.read(homeLocationProvider).searchContext,
+          if (widget.initialType != null) 'type':widget.initialType}));
+      }
+      unawaited(_restoreDiscoveryHistory());
+    }
   }
 
   @override
@@ -360,7 +366,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Future<void> _restoreDiscoveryHistory() async {
     final history = await _historyStore.load();
     if (!mounted) return;
-    if (widget.hasInitialLocation || widget.initialType != null || widget.initialFilters != null) {
+    if (widget.hasInitialLocation || widget.initialType != null || widget.initialFilters != null ||
+        ref.read(homeLocationProvider).manual || ref.read(homeLocationProvider).device) {
       setState(() => _recentSearches = history.recentSearches);
       return;
     }

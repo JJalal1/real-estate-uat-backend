@@ -9,6 +9,8 @@ PropertySummary wave3Property(int id) => PropertySummary.fromJson({'id': id, 'ti
   'purpose': 'rent', 'price': 300000, 'monthly_rent': 100000, 'currency': 'YER', 'address': 'صنعاء، حدة', 'latitude': 15.3694, 'longitude': 44.1910});
 
 class Wave3AiFake implements AiRepository {
+  @override
+  DateTime? descriptionRetryAt;
   final requests = <({String message, Map<String, dynamic> filters, int revision})>[];
   Future<Map<String, dynamic>> Function(String, Map<String, dynamic>, int)? onRefine;
   Map<String, dynamic> fields = {'bedrooms': 4, 'has_elevator': true};

@@ -6,6 +6,7 @@ import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
 import '../domain/smart_search_filters.dart';
 import 'ai_repository.dart';
+import 'marketplace_repository.dart';
 
 class SmartSearchState {
   const SmartSearchState({this.filters = const SmartSearchFilters(), this.rows = const [], this.revision = 0,
@@ -29,15 +30,18 @@ class SmartSearchState {
 }
 
 class SmartSearchSession extends StateNotifier<SmartSearchState> {
-  SmartSearchSession(this._ai, this._properties) : super(const SmartSearchState());
+  SmartSearchSession(this._ai, this._properties, {this.defaultLocation}) : super(const SmartSearchState());
   final AiRepository _ai;
   final PropertyRepository _properties;
+  final SmartSearchFilters Function()? defaultLocation;
+  Map<String, dynamic> _defaultContext = {};
+  bool _usingDefaultLocation = false;
   int _inference = 0, _results = 0;
 
   int _journey = 0;
   int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters}) {
     final token = ++_journey;
-    reset();
+    reset(useLocation: true);
     if (savedFilters != null || entryFilters != null) replaceManually(savedFilters ?? entryFilters!);
     return token;
   }
@@ -59,10 +63,19 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     final filters = state.filters;
     state = state.copyWith(interpreting: true, clearAiError: true, lastRequest: text);
     try {
-      final result = await _ai.refine(text, filters.values, revision);
+      // A default city is a starting point, not an explicit map constraint.
+      // Let a city stated in the request override it; retain user-chosen bounds.
+      final input = Map<String, dynamic>.from(filters.values);
+      if (_usingDefaultLocation) { for (final key in _defaultContext.keys) { input.remove(key); } }
+      final result = await _ai.refine(text, input, revision);
       if (!mounted || request != _inference || revision != state.revision) return;
       if (result['revision'] != revision || result['filters'] is! Map) throw StateError('Invalid search session response.');
-      final next = SmartSearchFilters.fromMap(Map<String, dynamic>.from(result['filters'] as Map));
+      final values = Map<String, dynamic>.from(result['filters'] as Map);
+      final explicitLocation = values.containsKey('governorate') ||
+        (values['search'] is String && (values['search'] as String).trim().isNotEmpty) || SmartSearchFilters.mapFields.any(values.containsKey);
+      if (_usingDefaultLocation && !explicitLocation) values.addAll(_defaultContext);
+      if (explicitLocation) _usingDefaultLocation = false;
+      final next = SmartSearchFilters.fromMap(values);
       _replace(next, message: result['message']?.toString() ?? 'حدّثنا شروط بحثك.');
       await search();
     } catch (error) {
@@ -76,13 +89,19 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   }
 
   void replaceManually(SmartSearchFilters filters) {
+    _usingDefaultLocation = false;
     _replace(filters);
     unawaited(search());
   }
 
   void remove(String key) => replaceManually(state.filters.without(key));
 
-  void reset() { _inference++; _results++; state = SmartSearchState(revision: state.revision + 1); }
+  void reset({bool useLocation = false}) {
+    _inference++; _results++;
+    _defaultContext = useLocation ? Map.of(defaultLocation?.call().values ?? const <String,dynamic>{}) : {};
+    _usingDefaultLocation = _defaultContext.isNotEmpty;
+    state = SmartSearchState(revision: state.revision + 1, filters: SmartSearchFilters.fromMap(_defaultContext));
+  }
 
   Future<void> search({bool more = false}) async {
     if (more && (state.loading || !state.more)) return;
@@ -105,4 +124,5 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 
 // One owner route controls a journey. List/map share it; full exit invalidates it.
 final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>((ref) =>
-  SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider)));
+  SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
+    defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).searchContext)));

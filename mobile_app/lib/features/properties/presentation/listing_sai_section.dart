@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_components.dart';
 import '../domain/property_sai.dart';
+import '../domain/arabic_price_words.dart';
 
 class ListingSaiSection extends StatelessWidget {
   const ListingSaiSection({
@@ -14,7 +15,7 @@ class ListingSaiSection extends StatelessWidget {
     required this.onAcceptanceChanged,
     required this.onRetry,
     this.amountController,
-    this.amountType = 'percentage',
+    this.amountType = 'fixed',
     this.onAmountTypeChanged,
     this.error,
     this.enabled = true,
@@ -40,6 +41,9 @@ class ListingSaiSection extends StatelessWidget {
     final rate = current != null && current.isOwner ? current.fixedRatePercent
         : parseSaiNumber(rateController.text);
     final enteredAmount = fixed ? parseSaiNumber(amountController?.text ?? '') : null;
+    final words = enteredAmount == null || !enteredAmount.isFinite || (enteredAmount * 100 - (enteredAmount * 100).round()).abs() > .000001
+        ? null : enteredAmount == 0 ? 'صفر ريال يمني' : arabicRiyalAmountInWords(enteredAmount.toStringAsFixed(2));
+    final rateError = !fixed && rate != null && rate > 100 ? 'أقصى نسبة للسعي 100%' : null;
     final quote = current == null || basis == null ||
         (fixed ? enteredAmount == null : rate == null)
         ? null : PropertySaiQuote.calculate(current, rate ?? 0, basis!, fixedAmount: enteredAmount);
@@ -82,15 +86,19 @@ class ListingSaiSection extends StatelessWidget {
           if (fixed)
             TextField(key: const ValueKey('listing-sai-amount'), controller: amountController,
               enabled: enabled, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'مبلغ السعي بالريال اليمني', hintText: '0'),
+              decoration: InputDecoration(labelText: 'مقدار السعي بالريال اليمني', hintText: '0',
+                helperText: words, helperMaxLines: 4),
               onChanged: (_) => onChanged())
           else
             TextField(key: const ValueKey('listing-sai-rate'), controller: rateController,
               enabled: enabled, keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(labelText: 'نسبة السعي %', hintText: '0',
+                errorText: rateError,
                 helperText: 'من 0 إلى $maximumText% من $basisText'),
               onChanged: (_) => onChanged()),
         ],
+        if (!current.isOwner) Padding(padding: const EdgeInsets.only(top: 8),
+          child: Text('حصة المنصة تُحتسب على الدلال', style: theme.textTheme.bodySmall)),
         if (quote != null) ...[
           const SizedBox(height: 12),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

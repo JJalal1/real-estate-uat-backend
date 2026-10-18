@@ -30,7 +30,10 @@ class GeminiClient
             for ($attempt = 0; $attempt < 2; $attempt++) {
                 // Charge every outbound attempt, including the one retry, to
                 // the persistent UTC budget. No request lock spans network I/O.
-                if (! $this->reserveRequest()) { $this->probeFailure = 'daily_budget'; $this->unavailable(429); }
+                if (! $this->reserveRequest()) {
+                    $this->probeFailure = 'daily_budget';
+                    $this->unavailable(429, max(1, (int)ceil(now('UTC')->diffInSeconds(now('UTC')->addDay()->startOfDay(), absolute: true))));
+                }
                 $this->probeFailure = 'network_or_timeout';
                 $remaining = max(1, (int) ceil($deadline - microtime(true)));
                 $response = Http::acceptJson()->withHeaders(['x-goog-api-key' => (string) config('gemini.key')])
@@ -47,6 +50,11 @@ class GeminiClient
             }
             // Probe diagnostics use a status code only, never provider text.
             $this->probeFailure = 'provider_http_'.$response->status();
+            if ($response->status() === 429) {
+                $raw = trim((string)$response->header('Retry-After'));
+                $seconds = ctype_digit($raw) ? (int)$raw : (($time = strtotime($raw)) === false ? 60 : $time - time());
+                $this->unavailable(429, max(1, min(86400, $seconds)));
+            }
             if (! $response->successful() || strlen($response->body()) > 24000) $this->unavailable();
             $this->probeFailure = 'invalid_json_output';
             if ($audio !== null && $response->json('candidates.0.finishReason') !== 'STOP') $this->unavailable();
@@ -102,11 +110,14 @@ class GeminiClient
         return trim($value['transcript']);
     }
 
-    public function unavailable(int $status = 503): never
+    public function unavailable(int $status = 503, ?int $retryAfter = null): never
     {
-        throw new HttpResponseException(response()->json([
+        $response = response()->json([
             'message' => 'تعذّر استخدام المساعد الآن. يمكنك تعديل الحقول والفلاتر يدويًا أو المحاولة لاحقًا.',
             'code' => 'ai_unavailable', 'retryable' => true,
-        ], $status));
+            ...($retryAfter === null ? [] : ['retry_after_seconds' => $retryAfter]),
+        ], $status);
+        if ($retryAfter !== null) $response->header('Retry-After', (string)$retryAfter);
+        throw new HttpResponseException($response);
     }
 }

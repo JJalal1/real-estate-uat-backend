@@ -14,6 +14,10 @@ class HomeLocation {
   final String label;
   final bool manual;
   final bool device;
+  Map<String, dynamic> get searchContext => {
+    if (governorate != null) 'governorate': governorate,
+    'latitude': latitude, 'longitude': longitude, 'radius_km': 30,
+  };
   factory HomeLocation.fromJson(Map<String, dynamic> j) => HomeLocation(
     latitude: (j['latitude'] as num).toDouble(), longitude: (j['longitude'] as num).toDouble(),
     governorate: j['governorate']?.toString(), label: j['label']?.toString() ?? 'المنطقة', manual: true);

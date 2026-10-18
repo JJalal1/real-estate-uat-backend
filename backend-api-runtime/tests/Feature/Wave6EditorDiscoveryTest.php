@@ -180,6 +180,53 @@ class Wave6EditorDiscoveryTest extends TestCase
         $this->assertNotContains($sold->id,array_column($r->json('data.sections.nearby'),'id'));
     }
 
+    public function test_current_wave_apartment_floor_bounds_cover_listing_checkpoints_and_ai(): void
+    {
+        [, $headers]=$this->actor('floor-bounds','broker');
+        $input=['listing_input_version'=>8,'title'=>'شقة للإيجار في حدة','description'=>'','type'=>'apartment','purpose'=>'rent',
+            'price'=>100000,'monthly_rent'=>100000,'currency'=>'YER','bedrooms'=>3,'bathrooms'=>2,'has_parking'=>false,
+            'building_facade'=>'north','address'=>'صنعاء حدة شارع 14','latitude'=>15.3694,'longitude'=>44.191];
+        foreach(['8','-1','50','الثامن'] as $floor) {
+            $this->withHeaders($headers)->postJson('/api/properties',$input+['floor_number'=>$floor])->assertUnprocessable()->assertJsonValidationErrors('floor_number');
+            $this->withHeaders($headers)->putJson('/api/listing-editor-drafts/'.Str::uuid(),['expected_revision'=>0,
+                'payload'=>['type'=>'apartment','fields'=>['floor_number'=>$floor]]])->assertUnprocessable()->assertJsonValidationErrors('fields.floor_number');
+        }
+        foreach(['0','7','الأرضي','السابع'] as $floor) {
+            $this->withHeaders($headers)->putJson('/api/listing-editor-drafts/'.Str::uuid(),['expected_revision'=>0,
+                'payload'=>['type'=>'apartment','fields'=>['floor_number'=>$floor]]])->assertOk();
+        }
+        $this->withHeaders($headers)->postJson('/api/ai/listing-description',['facts'=>['type'=>'apartment','floor_number'=>'8']])
+            ->assertUnprocessable()->assertJsonValidationErrors('facts.floor_number');
+        $this->assertDatabaseCount('properties',0);
+        $this->assertCount(8,app(DynamicPropertySchema::class)->definition()['apartment_floors']);
+    }
+
+    public function test_description_provider_429_keeps_retry_after_and_spends_exactly_one_request(): void
+    {
+        [, $headers]=$this->actor('description-rate','broker');
+        config(['gemini.enabled'=>true,'gemini.key'=>'fixture-key','gemini.model'=>'gemini-3.1-flash-lite','gemini.daily_limit'=>200]);
+        \Illuminate\Support\Facades\Http::fake(['generativelanguage.googleapis.com/*'=>\Illuminate\Support\Facades\Http::response(
+            ['error'=>['message'=>'private-provider-quota']],429,['Retry-After'=>'90'])]);
+        $response=$this->withHeaders($headers)->postJson('/api/ai/listing-description',['facts'=>['type'=>'house','purpose'=>'sale']])
+            ->assertStatus(429)->assertHeader('Retry-After','90')->assertJsonPath('retry_after_seconds',90);
+        \Illuminate\Support\Facades\Http::assertSentCount(1);
+        $this->assertStringNotContainsString('private-provider-quota',$response->getContent());
+        $this->assertDatabaseHas('ai_daily_usage',['day'=>now('UTC')->toDateString(),'request_count'=>1]);
+        $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);
+    }
+
+    public function test_description_daily_budget_waits_until_utc_reset_without_an_outbound_request(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-18T23:59:00Z'));
+        [, $headers]=$this->actor('description-budget','broker');
+        config(['gemini.enabled'=>true,'gemini.key'=>'fixture-key','gemini.model'=>'gemini-3.1-flash-lite','gemini.daily_limit'=>1]);
+        \Illuminate\Support\Facades\DB::table('ai_daily_usage')->insert(['day'=>'2026-10-18','request_count'=>1]);
+        \Illuminate\Support\Facades\Http::fake();
+        $this->withHeaders($headers)->postJson('/api/ai/listing-description',['facts'=>['type'=>'house']])
+            ->assertStatus(429)->assertHeader('Retry-After','60');
+        \Illuminate\Support\Facades\Http::assertNothingSent();
+    }
+
     private function actor(string $name, ?string $type): array
     {
         $user = User::create(['name' => 'دلال اختباري', 'email' => $name.'@draft.example.test',

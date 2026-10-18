@@ -80,4 +80,16 @@ class DynamicPropertySchema
         $value = preg_replace('/^(?:الدور|الطابق)\s*/u', '', $value);
         return ['ارضي'=>'0','الارضي'=>'0','الاول'=>'1','الثاني'=>'2','الثالث'=>'3','الرابع'=>'4','الخامس'=>'5','السادس'=>'6','السابع'=>'7','الثامن'=>'8','التاسع'=>'9','العاشر'=>'10'][$value] ?? $value;
     }
+
+    /** Validate current editor writes without changing historical read models. */
+    public function validateApartmentFloor(array $facts, string $key = 'floor_number'): array
+    {
+        if (($facts['type'] ?? '') !== 'apartment' || !isset($facts['floor_number']) || trim((string)$facts['floor_number']) === '') return $facts;
+        $floor = $this->normalizeFloor((string)$facts['floor_number']);
+        if (!in_array($floor, array_column($this->definition()['apartment_floors'], 'value'), true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([$key => ['اختر دورًا من الأرضي إلى السابع.']]);
+        }
+        $facts['floor_number'] = $floor;
+        return $facts;
+    }
 }

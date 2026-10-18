@@ -166,7 +166,7 @@ class PropertySaiQuote {
     final fixed = fixedAmount != null && !policy.isOwner;
     final amount = fixedAmount ?? 0;
     if (!basis.isFinite || basis <= 0) return null;
-    if (fixed ? !amount.isFinite || amount < 0 : !requestedRate.isFinite || requestedRate < 0) return null;
+    if (fixed ? !amount.isFinite || amount < 0 : !requestedRate.isFinite || requestedRate < 0 || requestedRate > 100) return null;
     final fallback = policy.isOwner || (fixed ? amount == 0 : requestedRate == 0);
     final rate = fallback ? policy.fixedRatePercent : requestedRate;
     final share = fallback ? policy.fallbackPlatformSharePercent : policy.professionalPlatformSharePercent;

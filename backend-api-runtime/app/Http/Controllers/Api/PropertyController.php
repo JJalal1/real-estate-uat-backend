@@ -488,6 +488,10 @@ class PropertyController extends Controller
         $purpose = (string) ($validated['purpose'] ?? $existing?->purpose ?? '');
         $type = (string) ($validated['type'] ?? $existing?->type ?? '');
         $version = (int) ($validated['listing_input_version'] ?? $existing?->listing_input_version ?? 1);
+        if ($version >= 8) {
+            $checked = app(\App\Services\DynamicPropertySchema::class)->validateApartmentFloor($validated + ['type'=>$type]);
+            if (isset($checked['floor_number'])) $validated['floor_number'] = $checked['floor_number'];
+        }
         if ($partial && $existing && $version >= 6) {
             $state = $this->listingState($existing);
             foreach (['listing_input_version','type','building_reference','unit_number','floor_number','land_boundary_geojson'] as $key) {

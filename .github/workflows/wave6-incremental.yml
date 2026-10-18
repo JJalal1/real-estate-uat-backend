@@ -1,7 +1,7 @@
 name: Wave6 incremental backend verification
 on:
   push:
-    branches: [work/wave6-current-1069]
+    branches: [work/wave6-current-1069, work/current-wave-1076]
     paths: ['mobile_app/**', 'backend-api-runtime/**', 'scripts/generate_property_schema.py', '.github/workflows/wave6-incremental.yml']
 permissions:
   contents: read
@@ -67,7 +67,7 @@ jobs:
       - name: New wave contracts
         id: wave_tests
         working-directory: mobile_app
-        run: flutter test test/wave6_product_contract_test.dart test/wave6_product_ui_test.dart
+        run: flutter test test/wave6_product_contract_test.dart test/wave6_product_ui_test.dart test/current_wave_contract_test.dart test/current_wave_ui_test.dart
       - name: Save synthetic wave6 previews
         id: preview_upload
         if: ${{ !cancelled() && (steps.wave_tests.conclusion == 'success' || steps.wave_tests.conclusion == 'failure') }}

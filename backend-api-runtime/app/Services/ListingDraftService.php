@@ -33,6 +33,7 @@ class ListingDraftService
         unset($fields['title'], $fields['unit_occupies_entire_floor'], $fields['address']);
         $fields = array_filter($fields, fn ($value) => $value !== null && $value !== '');
         $facts = array_merge($current, $fields);
+        $facts = app(DynamicPropertySchema::class)->validateApartmentFloor($facts, 'facts.floor_number');
         $fields = $this->relevant($fields, $facts);
         $facts = $this->relevant(array_merge($current, $fields), $facts);
         return ['fields' => (object) $fields, 'copy' => $this->listing->draftCopy($facts),

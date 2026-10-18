@@ -1,5 +1,11 @@
 # Business Rules — REAL ESTATE
 
+## October18 current-wave input and location decisions
+
+New professional Sai input defaults to a fixed amount; existing explicit saved/immutable choices retain their type. Fixed input shows Arabic money words and the compact notice that the platform share is charged to the broker. Percentage input cannot exceed100%; the existing stricter sale ceiling still applies. Owner rates, financial formulas, payer, zero fallback, explicit attestation and all historical records remain unchanged.
+
+The current apartment selector/writes accept ground through seventh only. Office choices and historical read labels remain. First Home requests foreground location with the system prompt; remember a denied/resolved prompt across launches. Manual city choice persists and wins over delayed GPS until explicitly changed. New discovery journeys use Home's location as a default, while explicit city/map/saved searches override it. Location context does not restore old search text/results or trigger a search before user action. Description remains inline, one request per press, editable, and waits for Retry-After following429 without an automatic request loop.
+
 ## Wave6 accepted scope — October18
 
 Use the central property schema across all input/discovery/detail/compare surfaces. Shop area is sqm; apartment floor is a choice. Account checkpoints allow partial inputs, remain private and cannot publish or accept Sai. Voice keeps manual stop, editable review and explicit application; reviewed suggestions lead to missing-required-fields completion. Inline descriptions use reviewed facts and protect subsequent user edits from late results.
