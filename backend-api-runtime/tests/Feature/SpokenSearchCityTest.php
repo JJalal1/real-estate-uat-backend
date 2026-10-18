@@ -93,6 +93,36 @@ class SpokenSearchCityTest extends TestCase
         $this->assertDatabaseCount('properties', 3);
     }
 
+    public function test_type_followups_complete_clear_literal_purpose_without_losing_context(): void
+    {
+        foreach ([['خلها أرض للبيع', 'land', 'sale'], ['خليها فيلا للإيجار', 'villa', 'rent'],
+            ['أريد منزل لِلْبَيْع', 'house', 'sale']] as [$message, $type, $purpose]) {
+            $this->model(['set' => ['type' => $type], 'remove' => []]);
+            $this->postJson('/api/ai/search', ['message' => $message,
+                'filters' => ['search' => 'إب', 'min_price' => 100000000], 'revision' => 2])
+                ->assertOk()->assertJsonPath('data.filters.type', $type)
+                ->assertJsonPath('data.filters.purpose', $purpose)
+                ->assertJsonPath('data.filters.search', 'إب')
+                ->assertJsonPath('data.filters.min_price', 100000000);
+        }
+    }
+
+    public function test_literal_purpose_does_not_override_negation_questions_or_alternatives(): void
+    {
+        foreach (['ما أريد أرض للبيع', 'مو للبيع أبغى أرض', 'ألغ شرط للبيع وأبغى أرض',
+            'أرض للبيع أو للإيجار', 'هل تقصد أرض للبيع؟', 'land but NOT للبيع'] as $message) {
+            $this->model(['set' => ['type' => 'land'], 'remove' => []]);
+            $this->postJson('/api/ai/search', ['message' => $message,
+                'filters' => ['search' => 'إب', 'purpose' => 'rent'], 'revision' => 1])
+                ->assertOk()->assertJsonPath('data.filters.purpose', 'rent')
+                ->assertJsonPath('data.filters.search', 'إب');
+        }
+        $this->model(['set' => ['type' => 'land'], 'remove' => ['purpose']]);
+        $this->postJson('/api/ai/search', ['message' => 'ألغ شرط للبيع وأبغى أرض',
+            'filters' => ['search' => 'إب', 'purpose' => 'sale'], 'revision' => 1])
+            ->assertOk()->assertJsonMissingPath('data.filters.purpose');
+    }
+
     private function listing(User $user, string $city, int $price, float $latitude, float $longitude): Property
     {
         $property = Property::create(['user_id' => $user->id, 'title' => 'عقار تجريبي في '.$city,
