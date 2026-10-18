@@ -76,7 +76,7 @@ def main():
             assert item['source_commit'] == SOURCE
             print('CODEX_PREVIEW_META ' + json.dumps(item, sort_keys=True))
         clean = re.sub(r'\x1b\[[0-9;]*m', '', prefix)
-        summaries = [line for line in clean.splitlines() if 'All tests passed!' in line]
+        summaries = [line for line in clean.splitlines() if 'All tests passed!' in line or re.search(r'\b\d+ tests passed\.', line)]
         print('CODEX_TEST_SUMMARIES ' + json.dumps(summaries[-3:]))
         return
     start = meta['chunks'] * args.part // args.parts
