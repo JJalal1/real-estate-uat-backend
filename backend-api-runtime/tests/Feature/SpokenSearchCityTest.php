@@ -83,6 +83,10 @@ class SpokenSearchCityTest extends TestCase
         $last = $this->postJson('/api/ai/search', ['message' => 'خلها أرض للبيع', 'filters' => $next, 'revision' => 2])
             ->assertOk()->assertJsonPath('data.filters.search', 'إب')->assertJsonPath('data.filters.min_price', 100000000)
             ->assertJsonPath('data.filters.type', 'land')->assertJsonPath('data.filters.purpose', 'sale')->json('data.filters');
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($next): bool {
+            $input = json_decode($request->data()['contents'][0]['parts'][0]['text'], true, flags: JSON_THROW_ON_ERROR);
+            return $input['current_filters'] === $next && $input['follow_up'] === 'خلها أرض للبيع';
+        });
         $this->getJson('/api/properties?'.http_build_query($last))->assertOk()->assertJsonPath('meta.total', 0);
         $this->assertSame($before, DB::table('properties')->orderBy('id')->get()->toJson());
         $this->assertDatabaseCount('users', 1);

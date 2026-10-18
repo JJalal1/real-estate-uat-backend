@@ -70,6 +70,10 @@ class SmartSearchService
         $patch = $this->gemini->object(
             'Interpret an Arabic Yemen real-estate search follow-up as a PATCH to current_filters. Return only set and remove. '
             .'Set ONLY explicitly requested changes and remove ONLY explicitly withdrawn criteria. Preserve every unmentioned filter. '
+            .'Changing type does not reset location, budget or purpose. Extract every explicitly stated criterion in the follow_up, including للبيع=sale and للإيجار=rent. '
+            .'Examples: current_filters={"search":"إب","min_price":100000000}, follow_up="خلها أرض للبيع" => {"set":{"type":"land","purpose":"sale"},"remove":[]}. '
+            .'current_filters={"type":"land","purpose":"sale","search":"إب","min_price":100000000}, follow_up="في ذمار بدل إب" => {"set":{"search":"ذمار"},"remove":[]}. '
+            .'current_filters={"search":"إب","min_price":100000000}, follow_up="ألغ الحد الأدنى للسعر" => {"set":{},"remove":["min_price"]}. '
             .'Map coordinates, polygon, bounds, governorate, advertiser_id and spotlight in current_filters are read-only source constraints chosen by the user; never change or remove them. The user may remove their chips manually. '
             .'Resolve references against current_filters. Search is the location/address keyword. Do not insert property type or purpose into search. '
             .'Prices mean MONTHLY rent when the effective purpose is rent; they never mean advance payment or commission. '

@@ -1,0 +1,95 @@
+name: Search followup context regression
+on:
+  push:
+    branches: [work/search-followup-context]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Preserve the approved mobile tree
+        run: |
+          test "$(git rev-parse HEAD:mobile_app)" = 1c7b52ad9fb882ba40288b9176d27d7b07f2ddab
+          git diff --check 4f09754ed6748e28a9259922bcc1f2f34c46017d HEAD
+          python3 - <<'PY'
+          import subprocess
+          allowed = {'backend-api-runtime/app/Services/SmartSearchService.php', 'backend-api-runtime/tests/Feature/SpokenSearchCityTest.php', '.github/workflows/search-followup-context.yml'}
+          changed = set(subprocess.check_output(['git', 'diff', '--name-only', '4f09754ed6748e28a9259922bcc1f2f34c46017d', 'HEAD'], text=True).splitlines())
+          assert changed == allowed, changed
+          PY
+      - name: Install locked backend dependencies
+        working-directory: backend-api-runtime
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+          php -l app/Services/SmartSearchService.php
+          php -l tests/Feature/SpokenSearchCityTest.php
+      - name: Focused city and followup context contracts
+        working-directory: backend-api-runtime
+        run: php artisan test tests/Feature/SpokenSearchCityTest.php tests/Feature/Wave3AiAssistantTest.php --display-warnings --fail-on-warning --fail-on-risky
+      - name: Full backend regression
+        working-directory: backend-api-runtime
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_audit
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: real_estate_audit
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Install locked backend dependencies
+        working-directory: backend-api-runtime
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+      - name: Prepare disposable API roles
+        run: >-
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
+          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+      - name: Apply the original migration chain to the disposable database
+        working-directory: backend-api-runtime
+        run: php artisan migrate --force
+      - name: City, followup context, HTTPS, access and discovery on PostgreSQL
+        working-directory: backend-api-runtime
+        run: php artisan test tests/Postgres tests/Feature/SpokenSearchCityTest.php tests/Feature/Wave3AiAssistantTest.php tests/Feature/UatHttpsMediaTest.php tests/Feature/UatCityDemoSeedTest.php tests/Feature/Wave6EditorDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
