@@ -28,7 +28,7 @@ class SpokenSearchCityTest extends TestCase
     public function test_complete_spoken_city_names_use_existing_active_canonical_names(): void
     {
         $service = app(SmartSearchService::class);
-        foreach ([['اب', 'إب'], ['مدينة اب', 'إب'], ['مدينه إب', 'إب'], ['مَدِينَة إِب', 'إب'],
+        foreach ([['اب', 'إب'], ['مدينة اب', 'إب'], ['مدينة اب،', 'إب'], ['مدينه إب', 'إب'], ['مَدِينَة إِب', 'إب'],
             ['مدينةإب', 'إب'], [' محافظة   اب ', 'إب'], ['مدينة ذمار', 'ذمار'],
             ['مدينه صنعاء', 'صنعاء'], ['محافظة مارب', 'مأرب']] as [$spoken, $canonical]) {
             $this->assertSame($canonical, $service->validate(['search' => $spoken])['search'], $spoken);

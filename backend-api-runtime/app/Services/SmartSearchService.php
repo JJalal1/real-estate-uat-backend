@@ -49,7 +49,7 @@ class SmartSearchService
         $key = function (string $name): string {
             $name = preg_replace('/[\x{0640}\x{064B}-\x{065F}\x{0670}]/u', '', $name);
             $name = strtr($name, ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي', 'ة' => 'ه']);
-            return trim(preg_replace('/\s+/u', ' ', $name), " \t\n\r\0\x0B.,،؛:");
+            return preg_replace('/^[\s.,،؛:]+|[\s.,،؛:]+$/u', '', preg_replace('/\s+/u', ' ', $name));
         };
         $candidate = preg_replace('/^(?:مدينه|محافظه)\s*/u', '', $key($keyword));
         foreach (Governorate::query()->where('is_active', true)->pluck('name_ar') as $city) {
