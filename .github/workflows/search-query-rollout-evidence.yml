@@ -1,0 +1,31 @@
+name: Search-query rollout evidence
+on:
+  push:
+    branches: [work/search-query-1087-evidence]
+permissions:
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify evidence-only scope and deployed application trees
+        run: |
+          set -euo pipefail
+          git diff --check 09619e2b3ed83048e99399683f9fe3c23ef69fb1 HEAD
+          test "$(git rev-parse HEAD:mobile_app)" = 1c7b52ad9fb882ba40288b9176d27d7b07f2ddab
+          test "$(git rev-parse HEAD:backend-api-runtime)" = 709de0a91a145a09595f5d63044c6ad854fdecd9
+          python3 - <<'PY'
+          import pathlib, subprocess
+          expected = {'AGENTS.md', 'docs/AI_PROJECT_STATE.md', 'docs/SEARCH_QUERY_WAVE_1081_AR.md', '.github/workflows/search-query-rollout-evidence.yml'}
+          changed = set(subprocess.check_output(['git', 'diff', '--name-only', '09619e2b3ed83048e99399683f9fe3c23ef69fb1', 'HEAD'], text=True).splitlines())
+          assert changed == expected, changed
+          for name in ['AGENTS.md', 'docs/AI_PROJECT_STATE.md', 'docs/SEARCH_QUERY_WAVE_1081_AR.md']:
+              text = pathlib.Path(name).read_text()
+              for evidence in ['1087', 'dep-dbajen49v7es738okofg', '39162942501', '09619e2b3ed83048e99399683f9fe3c23ef69fb1']:
+                  assert evidence in text, (name, evidence)
+          print('Evidence-only diff verified; approved mobile and deployed backend trees are unchanged.')
+          PY
