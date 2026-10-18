@@ -1,0 +1,16 @@
+name: Listing design live UAT verification
+on:
+  push:
+    branches: [verification/listing-design-1090]
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public API and protected listing boundaries after the exact live deploy
+        run: python3 -B scripts/verify_listing_live_uat.py
