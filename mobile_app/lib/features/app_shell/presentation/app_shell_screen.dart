@@ -14,7 +14,8 @@ import '../../discovery/presentation/marketplace_home_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
 import '../../properties/presentation/my_listings_screen.dart';
 import '../../broker/presentation/broker_workspaces.dart';
-import '../../broker/presentation/broker_activity.dart';
+import '../../broker/presentation/broker_connections_screen.dart';
+import 'listing_creation_menu.dart';
 import '../../support/presentation/support_tasks_screen.dart';
 import '../../support/presentation/support_workspace_pages.dart';
 
@@ -27,7 +28,7 @@ class AppShellScreen extends ConsumerStatefulWidget {
 
 class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   int _index = 0;
-  bool _exitDialogOpen = false;
+  bool _exitDialogOpen = false, _createMenuOpen = false;
   String? _lastMode;
   final Set<int> _visitedIndices = <int>{0};
 
@@ -58,6 +59,15 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     );
     _exitDialogOpen = false;
     if (shouldExit == true && mounted) await SystemNavigator.pop();
+  }
+
+  Future<void> _createListing() async {
+    if (_createMenuOpen) return;
+    setState(() => _createMenuOpen = true);
+    final assisted = await showListingCreationMenu(context);
+    if (!mounted) return;
+    setState(() => _createMenuOpen = false);
+    if (assisted != null) await context.push('/add-property?assistant=${assisted ? 1 : 0}');
   }
 
   void _selectTab(int value) {
@@ -106,16 +116,14 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         },
         child: Scaffold(
           body: IndexedStack(index: _index, children: lazyPages),
-          floatingActionButtonLocation:FloatingActionButtonLocation.centerFloat,
-          floatingActionButton:mode=='advertiser' && _index==0 ? FloatingActionButton.small(key:const ValueKey('home-add-property'),tooltip:'أضف عقار',onPressed:()=>context.push('/add-property'),child:const Icon(Icons.add_home_outlined)):null,
           bottomNavigationBar: AppNavigationBar(
             destinations: shell.items
                 .map((item) => AppNavDestination(label: item.label, icon: item.icon))
                 .toList(growable: false),
             selectedIndex: _index,
             onSelected: _selectTab,
-            onCreate: const ['anonymous', 'regular'].contains(mode)
-                ? () => context.push('/add-property') : null,
+            onCreate: const ['anonymous', 'regular', 'advertiser'].contains(mode) ? _createListing : null,
+            createExpanded: _createMenuOpen,
           ),
         ),
       ),
@@ -189,12 +197,11 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         );
       case 'advertiser':
         return const _ShellData(pages: [
-          MarketplaceHomeScreen(showAdvertiserActions: true), BrokerDashboardScreen(), BrokerCustomersScreen(), BrokerActivityScreen(), AccountScreen(),
+          MarketplaceHomeScreen(showAdvertiserActions: true), BrokerDashboardScreen(), BrokerConnectionsScreen(), AccountScreen(),
         ], items: [
           _NavItemData(label: 'الرئيسية', icon: Icons.home_outlined),
           _NavItemData(label: 'عملي', icon: Icons.work_outline),
           _NavItemData(label: 'العملاء', icon: Icons.people_outline),
-          _NavItemData(label: 'نشاطي', icon: Icons.calendar_month_outlined),
           _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
         ]);
       case 'regular':

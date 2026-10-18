@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/platform/voice_input.dart';
 import '../../../core/platform/voice_capture_controller.dart';
 import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../../core/widgets/ebroker_property_card.dart';
+import '../../properties/presentation/property_summary_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
 import '../domain/smart_search_filters.dart';
@@ -14,7 +13,6 @@ import 'smart_search_filter_editor.dart';
 import 'smart_search_assistant.dart';
 import 'smart_search_query_summary.dart';
 import '../../properties/presentation/save_search_action.dart';
-import '../../properties/presentation/property_compare_actions.dart';
 import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/saved_property_search.dart';
 
@@ -219,15 +217,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
             AppErrorState(message: state.resultsError!, onRetry: () => controller.search(more: state.rows.isNotEmpty))
           else if (state.rows.isEmpty)
             AppEmptyState(title: 'لا توجد عقارات بهذه الشروط', message: 'وسّع الميزانية أو عدّل الموقع والنوع.', actionLabel: 'تعديل الشروط', onAction: () => _edit()),
-          for (final row in state.rows) Padding(padding: const EdgeInsets.only(bottom: 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            EbrokerPropertyHorizontalCard(key: ValueKey('smart-search-result-${row.id}'), imageFirst: false, title: row.title, price: (row.monthlyRent ?? row.price).toStringAsFixed(0), currency: row.currency,
-              imageUrl: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight, location: row.address,
-              facts: [if (row.bedrooms != null) AppPropertyFact(icon: Icons.bed_outlined, label: '${row.bedrooms} غرف'), if (row.areaM2 != null) AppPropertyFact(icon: Icons.square_foot, label: '${row.areaM2} م²'), if (row.floorNumber != null) AppPropertyFact(icon: Icons.layers_outlined, label: row.floorNumber!)],
-              categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? (row.monthlyRent == null ? 'للإيجار' : 'إيجار شهري') : 'للبيع',
-              onTap: () => context.push('/properties/${row.id}')),
-            PropertyCompareAction(propertyId: row.id, enabled: row.status == 'published'),
-            if (row.priceDisplayNote != null && (row.monthlyRent == null || row.priceDisplayNote!.contains('السعي'))) Text(row.priceDisplayNote!, style: theme.textTheme.bodySmall),
-          ])),
+          for (final row in state.rows) Padding(padding: const EdgeInsets.only(bottom: 12),
+            child: PropertySummaryCard(key: ValueKey('smart-search-result-${row.id}'), property: row)),
           if (state.more && state.resultsError == null) TextButton(onPressed: state.loading ? null : () => controller.search(more: true), child: const Text('المزيد من العقارات')),
         ],
       ])),

@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 
-// Exact design values from reference/ebroker-1.8.0, ui/theme/theme.dart.
-// The owner confirmed the source teal and neutral palette on 11 October.
+// October19 owner-authorized refresh. Retain original assets and brand recognition.
 abstract final class EbrokerDesign {
-  static const page = Color(0xFFFAFAFA);
+  static const page = Color(0xFFF5F7FA);
   static const surface = Colors.white;
   static const templateBrand = Color(0xFF087C7C);
-  static const text = Color(0xFF4D5454);
-  static const textLight = Color(0x99000000);
-  static const border = Color(0x99EEEEEE);
-  static const controlRadius = 4.0;
-  static const cardRadius = 8.0;
+  static const text = Color(0xFF192F48);
+  static const textLight = Color(0xFF64748B);
+  static const border = Color(0xFFE3EAF1);
+  static const controlRadius = 16.0;
+  static const cardRadius = 22.0;
   static const pageGutter = 18.0;
 }
 

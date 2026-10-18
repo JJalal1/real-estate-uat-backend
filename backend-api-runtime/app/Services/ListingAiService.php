@@ -56,18 +56,31 @@ class ListingAiService
     public function extract(string $message, array $current): array
     {
         $properties = [];
-        foreach (array_keys($this->rules()) as $key) $properties[$key] = ['type' => ['string', 'number', 'boolean']];
+        foreach (array_keys($this->rules()) as $key) $properties[$key] = ['type' => 'string'];
+        foreach (['price','monthly_rent','area_value','broker_sai_rate_percent','fixed_sai_amount'] as $key) $properties[$key] = ['type'=>'number'];
+        foreach (['bedrooms','bathrooms'] as $key) $properties[$key] = ['type'=>'integer', 'minimum'=>1, 'maximum'=>50];
+        foreach (['has_parking','has_elevator','unit_occupies_entire_floor'] as $key) $properties[$key] = ['type'=>'boolean'];
+        foreach (['type'=>array_keys(self::TYPES), 'purpose'=>['sale','rent'], 'currency'=>['YER','USD','SAR'],
+            'area_unit'=>array_keys(self::UNITS), 'building_facade'=>array_keys(self::FACADES),
+            'tenure_type'=>['freehold','waqf'], 'sai_amount_type'=>['percentage','fixed']] as $key=>$values) $properties[$key]['enum']=$values;
+        foreach (['governorate'=>'Explicit city/governorate, e.g. اب is إب.', 'district'=>'Explicit neighborhood only.',
+            'street'=>'Street name without the شارع prefix.', 'bedrooms'=>'غرف or غرف نوم; ثلاث means 3.',
+            'bathrooms'=>'حمامات or حمامين; اثنين means 2.', 'monthly_rent'=>'Monthly rent, including السعر for a rental ad. مئة ألف ريال means 100000 YER.',
+            'broker_sai_rate_percent'=>'Explicit نسبة السعي percentage only, e.g. 100% is 100.'] as $key=>$description) $properties[$key]['description']=$description;
         $properties['rental_conditions']=['type'=>'array','maxItems'=>8,'items'=>['type'=>'object','additionalProperties'=>false,'properties'=>['kind'=>['type'=>'string','enum'=>RentalConditionService::KINDS],'months'=>['type'=>'integer','minimum'=>1,'maximum'=>24],'text'=>['type'=>'string','maxLength'=>300]],'required'=>['kind']]];
         $schema = ['type' => 'object', 'additionalProperties' => false, 'properties' => [
             'fields' => ['type' => 'object', 'additionalProperties' => false, 'properties' => $properties]], 'required' => ['fields']];
         $result = $this->gemini->object(
-            'Extract ONLY explicitly stated real-estate facts from the Arabic message into existing form fields. '
+            'Read the ENTIRE Arabic listing brief and extract EVERY explicitly supplied fact, not just the property type. '
             .'Use current_facts only for resolving references. Do not repeat unmentioned values. Never invent specifications, identity, ownership, coordinates or approvals. '
             .'Do not add description. Commission fields may contain ONLY explicitly stated percentage or fixed amount, never calculate fees, splits, payer, financial terms or acceptance. Extract rental_conditions only when explicitly stated: advance/duration need months, guarantor/deposit have kind only, special has exact text. A whole floor is apartment + unit_occupies_entire_floor true. '
             .'price is the sale price; a monthly rental amount belongs in monthly_rent. Local amounts in ريال mean YER unless another currency is explicit. '
             .'Do not infer a floor or apartment number for a whole building, house, villa, land or farm. '
             .'Prefer governorate, district and street components when explicitly named; never invent a missing address component. '
-            .'String fields contain text, numeric fields actual JSON numbers, boolean fields actual JSON booleans. Unclear facts are omitted.',
+            .'Walk through purpose, location components, rooms, bathrooms, amenities, rent/sale amount, currency, rental requirements and explicit commission before returning. '
+            .'Arabic number words are amounts: ثلاث غرف = bedrooms 3; اثنين حمامات = bathrooms 2; السعر مئة ألف ريال with rent = monthly_rent 100000 and currency YER. '
+            .'مقدم ثلاثة أشهر = rental_conditions advance months 3; ضمانة تجارية = guarantor. Do not turn advance rent into the monthly amount. '
+            .'String fields contain text, numeric fields actual JSON numbers, boolean fields actual JSON booleans. Omit only unmentioned or unclear facts.',
             ['message' => $message, 'current_facts' => (object) $current, 'property_schema'=>app(DynamicPropertySchema::class)->definition()], $schema,
         );
         try {

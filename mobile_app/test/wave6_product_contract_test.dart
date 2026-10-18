@@ -30,7 +30,7 @@ void main(){
   test('comparison uses only real comparable money and known applicable facts',(){
     final a=wave6Property(11,price:10000000),b=wave6Property(12,price:12000000,area:160);
     final highlights=propertyComparisonHighlights([a,b]).join(' ');
-    expect(highlights,contains('2000000'));expect(highlights,contains('40 م²'));expect(highlights, isNot(contains('الأفضل')));
+    expect(highlights,contains('٢٬٠٠٠٬٠٠٠ ريال'));expect(highlights,contains('40 م²'));expect(highlights, isNot(contains('الأفضل')));
     expect(propertyComparisonHighlights([a,wave6Property(12,currency:'USD')]).join(' '),isNot(contains('أقل سعرًا')));
     final missing=wave6Property(12,area:null);expect(propertyComparisonHighlights([a,missing]).join(' '),isNot(contains('أكبر مساحة')));
     final shop=wave6Property(13,type:'shop');expect(propertyComparisonFacts([shop,shop]).map((r)=>r.label),isNot(anyOf(contains('الدور'),contains('الموقف'),contains('الواجهة'))));

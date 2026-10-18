@@ -6,6 +6,7 @@ import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
+import 'package:real_estate_mobile/core/widgets/app_select_field.dart';
 import 'support/wave3_fakes.dart';
 import 'support/wave6_fakes.dart';
 import 'current_wave_contract_test.dart' show MemoryLocationStore, FakeLocationAccess;
@@ -41,12 +42,10 @@ void main() {
     testWidgets('current wave apartment floor selector contains exactly ground through seven at scale $scale',(tester)async {
       final snapshot=editorSnapshot(type:'apartment');(snapshot['fields'] as Map)['floor_number']='7';
       await pumpWave6(tester,const ListingEditorScreen(),recovery:Wave6Recovery(snapshot),scale:scale);
-      final field=tester.widget<DropdownButtonFormField<String>>(find.byKey(const ValueKey('listing-floor-select')));
-      // Inspect the real rendered dropdown, not a separate test-only option list.
-      final dropdown=find.descendant(of:find.byKey(const ValueKey('listing-floor-select')),matching:find.byWidgetPredicate((w)=>w is DropdownButton<String>));
-      final widget=tester.widget<DropdownButton<String>>(dropdown);
-      expect(widget.items!.map((item)=>item.value),['0','1','2','3','4','5','6','7']);
-      expect(field.initialValue,'7');expect(tester.takeException(),isNull);await finishWave6(tester);
+      final field=tester.widget<AppSelectField<String>>(find.byKey(const ValueKey('listing-floor-select')));
+      // Inspect the actual controlled field used by the editor.
+      expect(field.items.map((item)=>item.value),['0','1','2','3','4','5','6','7']);
+      expect(field.value,'7');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
   }
   testWidgets('description double tap is one request and rate limiting stays inline without automatic retries',(tester)async {

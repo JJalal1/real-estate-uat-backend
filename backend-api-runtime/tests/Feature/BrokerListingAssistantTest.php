@@ -174,6 +174,94 @@ class BrokerListingAssistantTest extends TestCase
         $this->assertDatabaseCount('properties', 0);
     }
 
+    private const OWNER_BRIEF = "شقة للايجار في اب شارع السبل ثلاث غرف واثنين حمامات\nويوجد موقف سيارات\nمطلوب ايجار مقدم ثلاثة اشهر وضمانه تجاريه\nالسعر مئة الف ريال ونسبة السعي 100%";
+
+    public function test_complete_owner_brief_completes_sparse_ai_response_without_any_listing_write(): void
+    {
+        [, $headers] = $this->actor('complete-brief', 'broker');
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response($this->response(['type'=>'apartment']))]);
+        $r = $this->prepare($headers, self::OWNER_BRIEF)->assertOk()->assertJsonPath('data.source','ai');
+        $this->assertOwnerBrief($r);
+        Http::assertSentCount(1);
+        $this->assertDatabaseCount('properties',0);
+        $this->assertDatabaseCount('property_sai_terms',0);
+        $this->assertDatabaseCount('listing_editor_drafts',0);
+    }
+
+    public function test_same_complete_owner_brief_is_usable_and_honestly_labelled_during_provider_failure(): void
+    {
+        [, $headers] = $this->actor('complete-offline', 'broker');
+        config(['gemini.enabled'=>false]);
+        $r = $this->prepare($headers, self::OWNER_BRIEF)->assertOk()->assertJsonPath('data.source','text');
+        $this->assertOwnerBrief($r);
+        $this->assertStringContainsString('تعذّر',$r->json('data.message'));
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('properties',0);
+        $this->assertDatabaseCount('property_sai_terms',0);
+    }
+
+    public function test_clear_labels_complete_ai_facts_without_losing_other_explicit_rental_requirements(): void
+    {
+        [, $headers] = $this->actor('complete-conflict', 'broker');
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response($this->response([
+            'type'=>'apartment','purpose'=>'rent','bedrooms'=>4,'monthly_rent'=>100,
+            'rental_conditions'=>[['kind'=>'special','text'=>'ممنوع التدخين']]]))]);
+        $r = $this->prepare($headers,self::OWNER_BRIEF.' ممنوع التدخين')->assertOk()
+            ->assertJsonPath('data.fields.bedrooms',3)->assertJsonPath('data.fields.monthly_rent',100000);
+        $this->assertCount(3,$r->json('data.fields.rental_conditions'));
+        $this->assertStringContainsString('ممنوع التدخين',$r->json('data.copy.description'));
+    }
+
+    public function test_explicit_parser_preserves_street_spelling_and_does_not_guess_missing_facts(): void
+    {
+        [, $headers] = $this->actor('street-only','broker');
+        config(['gemini.enabled'=>false]);
+        $this->prepare($headers,'شقة للإيجار في ذمار شارع الروضة، ثلاث غرف، لا يوجد موقف')
+            ->assertOk()->assertJsonPath('data.fields.governorate','ذمار')->assertJsonPath('data.fields.street','الروضة')
+            ->assertJsonPath('data.fields.bedrooms',3)->assertJsonPath('data.fields.has_parking',false)
+            ->assertJsonMissingPath('data.fields.floor_number')->assertJsonMissingPath('data.fields.bathrooms')
+            ->assertJsonMissingPath('data.fields.monthly_rent')->assertJsonMissingPath('data.fields.rental_conditions');
+        Http::assertNothingSent();
+    }
+
+    public function test_unlabelled_counts_negation_and_alternative_amounts_are_not_promoted(): void
+    {
+        [, $headers] = $this->actor('ambiguous-words','broker');
+        config(['gemini.enabled'=>false]);
+        $this->prepare($headers,'شقة للإيجار، ثلاث غرف أو أربع غرف، السعر مئة ألف أو مئتين ألف، بدون ضمانة تجارية')
+            ->assertOk()->assertJsonMissingPath('data.fields.bedrooms')->assertJsonMissingPath('data.fields.monthly_rent')
+            ->assertJsonMissingPath('data.fields.rental_conditions');
+        $this->prepare($headers,'ليست شقة، السعر غير معروف، الدور غير محدد')->assertOk()
+            ->assertJsonMissingPath('data.fields.type')->assertJsonMissingPath('data.fields.price')->assertJsonMissingPath('data.fields.floor_number');
+        Http::assertNothingSent();
+    }
+
+    public function test_arabic_cardinal_amounts_are_bounded_and_ambiguous_fragments_are_rejected(): void
+    {
+        $parser = app(\App\Services\ArabicListingNumber::class);
+        foreach (['مئة ألف'=>100000.0,'مئتين وخمسين ألف'=>250000.0,'ثلاث مئة ألف'=>300000.0,
+            'مليون ومئتين ألف'=>1200000.0,'خمسة وعشرين'=>25.0,'ثلاثة عشر'=>13.0,'١٢٥٫٥ ألف'=>125500.0,
+            'واحد'=>1.0,'اثنين'=>2.0,'ثلاث'=>3.0,'٢٥٠٬٠٠٠'=>250000.0] as $input=>$expected) {
+            $this->assertSame($expected,$parser->parse($input),$input);
+        }
+        foreach (['ثلاث أو خمس','3 4','مئة مليون مليون','سعر مناسب','1000000000001'] as $input) $this->assertNull($parser->parse($input),$input);
+        Http::assertNothingSent();
+    }
+
+    private function assertOwnerBrief($response): void
+    {
+        foreach (['type'=>'apartment','purpose'=>'rent','governorate'=>'إب','street'=>'السبل',
+            'bedrooms'=>3,'bathrooms'=>2,'has_parking'=>true,'monthly_rent'=>100000,
+            'currency'=>'YER','sai_amount_type'=>'percentage','broker_sai_rate_percent'=>100] as $key=>$expected) $response->assertJsonPath('data.fields.'.$key,$expected);
+        $response->assertJsonPath('data.fields.rental_conditions.0.kind','advance')->assertJsonPath('data.fields.rental_conditions.0.months',3)
+            ->assertJsonPath('data.fields.rental_conditions.1.kind','guarantor')->assertJsonPath('data.requires_review',true)
+            ->assertJsonMissingPath('data.fields.price')->assertJsonMissingPath('data.fields.floor_number')
+            ->assertJsonMissingPath('data.fields.latitude')->assertJsonMissingPath('data.fields.unit_number');
+        foreach (['إب','السبل','3 غرف نوم','حمامين','موقف','100000 ريال','3 أشهر','ضمانة تجارية','100%'] as $text) $this->assertStringContainsString($text,$response->json('data.copy.description'));
+        $this->assertStringContainsString('إب',$response->json('data.copy.title'));
+        $this->assertStringNotContainsString('YER',$response->json('data.copy.description'));
+    }
+
     private function actor(string $name, ?string $type): array
     {
         $user = User::create(['name' => 'دلال اختباري', 'email' => $name.'@draft.example.test',

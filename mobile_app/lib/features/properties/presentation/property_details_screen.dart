@@ -1,3 +1,4 @@
+import 'property_summary_card.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/widgets/ebroker_screen_sections.dart';
@@ -331,21 +332,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     );
   }
 
-  Widget _similarCard(PropertySummary item, Set<int> favoriteIds) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-    AppPropertyCard(categoryLabel: ebrokerPropertyTypeLabel(item.type), title: item.title,
-      price: _formatPrice(item.purpose == 'rent' ? item.monthlyRent ?? item.price : item.price), currency: item.currency,
-      imageUrl: item.mainImage, imageUrls: item.imageUrls, isSpotlight: item.isSpotlight, location: item.address, purposeLabel: _purposeLabel(item.purpose),
-      facts: [if (item.areaM2 != null) AppPropertyFact(icon: Icons.square_foot, label: '${item.areaM2} م²'),
-        if (item.bedrooms != null && const ['apartment','floor','house','villa'].contains(item.type)) AppPropertyFact(icon: Icons.bed_outlined, label: '${item.bedrooms} غرف')],
-      trailing: IconButton.filledTonal(tooltip: favoriteIds.contains(item.id) ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-        icon: Icon(favoriteIds.contains(item.id) ? Icons.favorite : Icons.favorite_border),
-        onPressed: _changingFavorite || _consumingPendingFavorite ? null : () => _toggleFavorite(item.id, currentlyFavorite: favoriteIds.contains(item.id))),
-      unavailable: item.status != 'published', onTap: () { if (item.status == 'published') context.push('/properties/${item.id}'); }),
-    Wrap(spacing: 8, alignment: WrapAlignment.spaceBetween, children: [
-      TextButton.icon(onPressed: item.status == 'published' ? () => context.push('/properties/${item.id}') : null, icon: const Icon(Icons.open_in_new, size: 18), label: const Text('عرض')),
-      PropertyCompareAction(propertyId: item.id, enabled: item.status == 'published'),
-    ]),
-  ]);
+  Widget _similarCard(PropertySummary item, Set<int> favoriteIds) => PropertySummaryCard(property: item, imageFirst: true,
+    onTap: () { if (item.status == 'published') context.push('/properties/${item.id}'); });
 
   Future<bool> _requireContactAccount() async {
     if (ref.read(authControllerProvider).asData?.value == null) {

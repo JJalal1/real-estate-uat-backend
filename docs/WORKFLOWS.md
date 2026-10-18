@@ -1,5 +1,9 @@
 # Workflows — REAL ESTATE
 
+## October19 assisted creation and consolidated navigation
+
+The centered hexagon opens assisted preparation or «أدخل البيانات» through existing account and listing-eligibility gates. Assisted entry opens the same editor's preparation sheet after draft recovery; the complete typed or manually finished recording becomes editable input. Review all extracted facts and copy, then explicitly apply them. All supplied applicable fields are filled together; the completion panel asks only for remaining true requirements/photos before ordinary submission. Work owns listing/deal/finance tools; Customers contains followup and Messages tabs. Photo comparison uses one shared set across discovery/map/favorites and retains the2–4 limit. See `LISTING_DESIGN_WAVE_AR.md`; older small floating-add/navigation descriptions below are historical.
+
 ## Wave6 editor, discovery and broker journeys — October18
 
 Start or resume a checkpoint under the signed-in account; partial fields and private photos save with its UUID/revision. Manually finish recording, review/edit suggestions, then explicitly apply them. The editor asks for remaining applicable required fields. Rental-condition assistance carries the same draft identity so the owner's checkpoint is not mistaken for another personal listing. Generating description stays inline and cannot overwrite a newer manual edit. Only explicit listing submission enters the existing review/publication workflow; consent remains separate and explicit.

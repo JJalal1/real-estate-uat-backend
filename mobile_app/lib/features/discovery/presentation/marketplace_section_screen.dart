@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../../core/widgets/ebroker_property_card.dart';
-import '../../../core/widgets/ebroker_widgets.dart';
+import '../../properties/presentation/property_summary_card.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
-import '../../properties/presentation/property_compare_actions.dart';
 import 'smart_search_assistant.dart';
 
 class MarketplaceSectionScreen extends ConsumerStatefulWidget {
@@ -58,15 +55,7 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
         if (_busy && _rows.isEmpty) const AppSkeleton(height: 190, radius: 12)
         else if (_error != null) AppErrorState(message: _error!, onRetry: () => _load(more: _rows.isNotEmpty))
         else if (_rows.isEmpty) const AppEmptyState(title: 'لا توجد عقارات في هذا القسم الآن', message: 'يمكنك تغيير المنطقة أو استكشاف الأقسام الأخرى.'),
-        for (final row in _rows) Padding(padding: const EdgeInsets.only(bottom: 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          EbrokerPropertyHorizontalCard(title: row.title, price: row.price.toStringAsFixed(0), currency: row.currency,
-            imageUrl: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight,
-            location: row.address, categoryLabel: ebrokerPropertyTypeLabel(row.type), purposeLabel: row.purpose == 'rent' ? 'للإيجار' : 'للبيع',
-            onTap: () => context.push('/properties/${row.id}')),
-          PropertyCompareAction(propertyId: row.id, enabled: row.status == 'published'),
-          if (row.monthlyRent != null) Text('الإيجار الشهري: ${row.monthlyRent!.toStringAsFixed(0)} ${row.currency}', style: Theme.of(context).textTheme.bodySmall),
-          if (row.priceDisplayNote != null) Text(row.priceDisplayNote!, style: Theme.of(context).textTheme.bodySmall),
-        ])),
+        for (final row in _rows) Padding(padding: const EdgeInsets.only(bottom: 14), child: PropertySummaryCard(property: row)),
         if (_more && _error == null) TextButton(onPressed: _busy ? null : () => _load(more: true), child: const Text('المزيد من العقارات')),
       ])))));
   }

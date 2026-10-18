@@ -40,6 +40,21 @@ class _Assistant extends Wave3AiFake {
   }
 }
 
+const ownerBrief = 'شقة للايجار في اب شارع السبل ثلاث غرف واثنين حمامات\nويوجد موقف سيارات\nمطلوب ايجار مقدم ثلاثة اشهر وضمانه تجاريه\nالسعر مئة الف ريال ونسبة السعي 100%';
+class _CompleteAssistant extends _Assistant {
+  String? received;
+  @override
+  Map<String,dynamic> get proposals => {'type':'apartment','purpose':'rent','governorate':'إب','street':'السبل',
+    'bedrooms':3,'bathrooms':2,'monthly_rent':100000,'has_parking':true,'sai_amount_type':'percentage','broker_sai_rate_percent':100,
+    'rental_conditions':[{'kind':'advance','months':3},{'kind':'guarantor'}]};
+  @override
+  Future<Map<String,dynamic>> prepareListing(String message, Map<String,dynamic> facts,{int? propertyId,String? draftKey}) async {
+    received=message; prepares++;
+    return {'fields':proposals,'source':'ai','requires_review':true,'message':'راجع بياناتك ثم استخدمها.',
+      'copy':{'title':'شقة للإيجار في إب','description':'شقة للإيجار في إب، شارع السبل. تضم 3 غرف نوم وحمامين ويتوفر موقف. الإيجار الشهري 100000 ريال. مقدم 3 أشهر وضمانة تجارية. السعي 100%.'}};
+  }
+}
+
 class _Recovery extends ListingRecoveryStore {
   _Recovery(this.snapshot);
   Map<String, dynamic>? snapshot;
@@ -149,6 +164,37 @@ void main() {
     });
   }
 
+  for(final byVoice in [false,true]) {
+    testWidgets('complete owner brief fills every supplied field after explicit review via ${byVoice?'voice':'typing'}',(tester) async {
+      final ai=_CompleteAssistant(), voice=Wave3VoiceFake(autoComplete:false); addTearDown(voice.dispose);
+      final boundary=GlobalKey();
+      Map<String,dynamic>? applied;
+      await _pump(tester,Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:() async {
+        applied=await AppBottomSheet.show<Map<String,dynamic>>(context,builder:(_)=>const ListingAiSheet(prepareDraft:true,facts:{}));
+      },child:const Text('تجهيز الوصف')))),ai:ai,voice:voice,boundary:boundary);
+      await tester.tap(find.text('تجهيز الوصف'));await tester.pumpAndSettle();
+      if(byVoice){
+        await _tap(tester,'listing-ai-voice');voice.latest.emit(const VoiceEvent('ready'));await tester.pump();
+        voice.latest.emit(const VoiceEvent('partial',text:ownerBrief));await tester.pump();
+        expect(ai.prepares,0);expect(applied,isNull);
+        await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.pump(const Duration(milliseconds:180));
+        await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
+        voice.latest.emit(const VoiceEvent('final',text:ownerBrief));await tester.pumpAndSettle();
+        expect(ai.prepares,0);expect(applied,isNull);
+      }else{await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),ownerBrief);}
+      await _tap(tester,'listing-ai-prepare');expect(ai.received,ownerBrief);expect(applied,isNull);
+      await _reveal(tester,'listing-ai-field-type');
+      await _capture(tester,boundary,'complete-fields-${byVoice?'voice':'typed'}');
+      for(final field in ai.proposals.keys) { await _reveal(tester,'listing-ai-field-$field'); }
+      await _reveal(tester,'listing-ai-apply-draft');
+      await _capture(tester,boundary,'complete-copy-${byVoice?'voice':'typed'}');
+      await _tap(tester,'listing-ai-apply-draft');
+      for(final field in ai.proposals.keys) { expect(applied![field],ai.proposals[field],reason:field); }
+      expect(applied!['title'],'شقة للإيجار في إب');expect(applied!['description'],contains('ضمانة تجارية'));
+      expect(ai.prepares,1);expect(tester.takeException(),isNull);
+    });
+  }
+
   testWidgets('deselection invalidates copy and only reviewed fields and recomposed text are applied', (tester) async {
     final ai = _Assistant(); Map<String, dynamic>? applied;
     await _pump(tester, Builder(builder: (context) => Scaffold(body: TextButton(onPressed: () async {
@@ -158,7 +204,7 @@ void main() {
     await tester.tap(find.text('تجهيز')); await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')), '4 غرف نوم ويوجد مصعد');
     await _tap(tester, 'listing-ai-prepare');
-    expect(applied, isNull); expect(find.textContaining('الحالي: 2'), findsOneWidget);
+    expect(applied, isNull); expect(find.textContaining('الحالي: ٢'), findsOneWidget);
     await _tap(tester, 'listing-ai-field-has_elevator');
     expect(find.byKey(const ValueKey('listing-ai-apply-draft')), findsNothing);
     expect(find.byKey(const ValueKey('listing-ai-copy')), findsNothing);
@@ -202,6 +248,29 @@ void main() {
     expect(fields['title'], 'شقة للإيجار في صنعاء');
     expect(fields['description'], contains('غرف النوم: 4'));
     expect(ai.prepares, 1); expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the complete owner brief populates the canonical editor including rental conditions and explicit Sai', (tester) async {
+    final snapshot = _snapshot()..['step'] = 0;
+    final recovery = _Recovery(snapshot), ai = _CompleteAssistant();
+    await _pump(tester, const ListingEditorScreen(), ai: ai, recovery: recovery);
+    await _tap(tester, 'listing-draft-assistant');
+    await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')), ownerBrief);
+    await _tap(tester, 'listing-ai-prepare');
+    await _tap(tester, 'listing-ai-apply-draft');
+    await tester.pump(const Duration(seconds: 1)); await tester.pumpAndSettle();
+    final saved = recovery.snapshot!, fields = saved['fields'] as Map;
+    expect(saved['type'], 'apartment'); expect(saved['purpose'], 'rent');
+    expect(saved['parking'], 'yes'); expect(saved['sai_amount_type'], 'percentage');
+    expect(saved['rental_conditions'], ai.proposals['rental_conditions']);
+    expect(fields['governorate'], 'إب'); expect(fields['street'], 'السبل');
+    expect(fields['bedrooms'], '3'); expect(fields['bathrooms'], '2');
+    expect(fields['monthly_rent'], '100000'); expect(fields['broker_sai_rate_percent'], '100');
+    expect(fields['title'], 'شقة للإيجار في إب'); expect(fields['description'], contains('ضمانة تجارية'));
+    expect(saved['latitude'], isNull); expect(saved['longitude'], isNull);
+    expect(fields['floor_number'], isEmpty); expect(fields['area'], isEmpty);
+    expect(find.text('أكمل الناقص فقط'), findsOneWidget); expect(ai.prepares, 1);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('completion navigation respects required photos before the price step', (tester) async {

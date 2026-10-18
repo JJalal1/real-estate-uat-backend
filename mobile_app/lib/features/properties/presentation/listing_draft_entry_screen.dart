@@ -11,8 +11,9 @@ import 'listing_editor_screen.dart';
 import 'personal_listing_creation_gate.dart';
 
 class ListingDraftEntryScreen extends ConsumerStatefulWidget {
-  const ListingDraftEntryScreen({this.existingProperty, super.key});
+  const ListingDraftEntryScreen({this.existingProperty, this.startWithAssistant = false, super.key});
   final PropertyDetails? existingProperty;
+  final bool startWithAssistant;
   @override
   ConsumerState<ListingDraftEntryScreen> createState() => _ListingDraftEntryState();
 }
@@ -53,7 +54,7 @@ class _ListingDraftEntryState extends ConsumerState<ListingDraftEntryScreen> {
   @override
   Widget build(BuildContext context) {
     if (_open) {
-      final editor = ListingEditorScreen(existingProperty: _property, accountDraft: _selected, startFresh: _fresh);
+      final editor = ListingEditorScreen(existingProperty: _property, accountDraft: _selected, startFresh: _fresh, startWithAssistant: widget.startWithAssistant);
       return _selected != null || _property != null ? editor : PersonalListingCreationGate(child: editor);
     }
     final actor = ref.watch(authControllerProvider).asData?.value;

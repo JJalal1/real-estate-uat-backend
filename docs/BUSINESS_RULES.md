@@ -1,5 +1,9 @@
 # Business Rules — REAL ESTATE
 
+## October19 complete listing facts and refreshed interface
+
+Complete unambiguous facts in a supplied listing brief populate all corresponding applicable fields after review, even when the AI provider returns a sparse result. Literal organization is labeled honestly during provider failure. Numbers in Arabic words, monthly rent, advance requirements, guarantor and explicit Sai must remain distinct; unknown location/floor/photos are never invented. Valid proposals start selected, with explicit deselection and recomposition before application. Only explicit submission sends the draft for review, and financial consent remains separate. The centered assisted/manual add action and two professional destinations supersede previous navigation/palette/radius presentation. Real WhatsApp OTP, private evidence, financial rates and history, manual-stop voice and account eligibility stay authoritative. See `LISTING_DESIGN_WAVE_AR.md`.
+
 ## October18 query-summary and followup clarification
 
 After successful search interpretation, show the accepted criteria as a readable interactive query and consume only the draft that produced them. Each later voice or typed request applies to the existing canonical filters and can add, change or remove any supported criterion; the UI must not close or limit the user to the initially suggested filter chips. Do not replay the previously applied raw sentence when recording a new request. Preserve typed but unsent text within the current request, including voice appended to that draft. Failed/stale interpretation never clears it. Partial recognition and manual finish leave an editable draft; explicit send still applies it. Listing preparation's raw-brief behavior remains unchanged.

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/property_type_icon.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_comparison.dart';
@@ -17,7 +19,7 @@ class PropertyCompareScreen extends ConsumerStatefulWidget {
 class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
   late List<int> _ids;
   late Future<List<_CompareItem>> _future;
-  bool _differences=true,_syncing=false;
+  bool _differences=false,_syncing=false;
   final _scrolls=<String,ScrollController>{};
   @override
   void initState(){super.initState();_ids=widget.propertyIds.where((id)=>id>0).toSet().take(4).toList();_future=_load();}
@@ -68,12 +70,13 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
           final highlights=propertyComparisonHighlights(items.map((i)=>i.property).toList());
           return ListView(padding:const EdgeInsets.fromLTRB(16,16,16,40),children:[
             columns('cards',[for(final item in items)AppSurface(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-              ClipRRect(borderRadius:BorderRadius.circular(10),child:AppPropertyMedia(imageUrl:item.property?.mainImage,height:110)),const SizedBox(height:10),
+              Row(children:[PropertyTypeIcon(type:item.property?.type),const SizedBox(width:4),Expanded(child:Text(item.property==null?'غير متاح':ebrokerPropertyTypeLabel(item.property!.type),style:Theme.of(context).textTheme.bodySmall)),
+                IconButton(key:ValueKey('remove-compare-${item.id}'),tooltip:'إزالة من المقارنة',onPressed:()=>_remove(item.id),icon:const Icon(Icons.close_rounded,size:19))]),
+              ClipRRect(borderRadius:BorderRadius.circular(16),child:AppPropertyMedia(imageUrl:item.property?.mainImage,propertyType:item.property?.type,height:110)),const SizedBox(height:10),
               Text(item.property?.title??'العقار غير متاح حاليًا',maxLines:2,overflow:TextOverflow.ellipsis,style:Theme.of(context).textTheme.titleSmall),
               if(item.property!=null)...[const SizedBox(height:6),Text(item.property!.address??'الموقع غير مذكور',maxLines:2,overflow:TextOverflow.ellipsis),const SizedBox(height:6),Text(comparisonMoney(item.property!),style:Theme.of(context).textTheme.titleSmall)],
               TextButton.icon(onPressed:item.property==null?null:()=>context.push('/properties/${item.id}'),icon:const Icon(Icons.open_in_new,size:16),label:const Text('عرض العقار')),
               TextButton.icon(onPressed:()=>_replace(oldId:item.id),icon:const Icon(Icons.swap_horiz,size:16),label:const Text('استبدال')),
-              TextButton(onPressed:()=>_remove(item.id),child:const Text('إزالة من المقارنة')),
             ]))]),
             if(_ids.length<4)Align(alignment:AlignmentDirectional.centerStart,child:TextButton.icon(onPressed:_replace,icon:const Icon(Icons.add),label:const Text('إضافة عقار للمقارنة'))),
             const SizedBox(height:12),AppSurface(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[

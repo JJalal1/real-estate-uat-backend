@@ -271,9 +271,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/add-property',
-        builder: (context, state) => const Stage6AuthGate(
+        builder: (context, state) => Stage6AuthGate(
           requireListingEligible: true,
-          child: AddPropertyWizardScreen(),
+          child: AddPropertyWizardScreen(startWithAssistant: state.uri.queryParameters['assistant'] == '1'),
         ),
       ),
       GoRoute(

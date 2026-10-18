@@ -12,21 +12,21 @@ void main() {
       (scheme.primary, 0xFF087C7C),
       (scheme.primaryContainer, 0xFFE6F2F2),
       (scheme.onPrimaryContainer, 0xFF065858),
-      (scheme.secondary, 0xFF087C7C),
-      (scheme.secondaryContainer, 0xFFE6F2F2),
-      (scheme.onSecondaryContainer, 0xFF065858),
-      (scheme.onSurface, 0xFF4D5454),
-      (scheme.onSurfaceVariant, 0x99000000),
-      (scheme.surfaceContainerLow, 0xFFFAFAFA),
-      (scheme.surfaceContainer, 0xFFF2F2F2),
-      (scheme.surfaceContainerHigh, 0xFFEEEEEE),
-      (scheme.surfaceContainerHighest, 0xFFE9E9E9),
-      (scheme.outline, 0xFF909595),
-      (scheme.outlineVariant, 0x99EEEEEE),
+      (scheme.secondary, 0xFF203A56),
+      (scheme.secondaryContainer, 0xFFEAF0F7),
+      (scheme.onSecondaryContainer, 0xFF203A56),
+      (scheme.onSurface, 0xFF192F48),
+      (scheme.onSurfaceVariant, 0xFF64748B),
+      (scheme.surfaceContainerLow, 0xFFF5F7FA),
+      (scheme.surfaceContainer, 0xFFF0F4F8),
+      (scheme.surfaceContainerHigh, 0xFFEAF0F5),
+      (scheme.surfaceContainerHighest, 0xFFE3EAF1),
+      (scheme.outline, 0xFF7A8797),
+      (scheme.outlineVariant, 0xFFE3EAF1),
       (scheme.error, 0xFFB3261E),
       (scheme.errorContainer, 0xFFF9DEDC),
       (scheme.onErrorContainer, 0xFF410E0B),
-      (scheme.inverseSurface, 0xFF2F3434),
+      (scheme.inverseSurface, 0xFF192F48),
     ];
     for (final (actual, expected) in roles) {
       expect(actual, Color(expected));
@@ -69,7 +69,7 @@ void main() {
       expect(style.letterSpacing, 0);
       expect(style.fontFamily, 'PrimaryFont');
       expect(style.fontFamilyFallback, ['sans-serif']);
-      expect(style.color, const Color(0xFF4D5454));
+      expect(style.color, const Color(0xFF192F48));
     }
     expect(AppTypography.bodyLarge.fontFamily, isNull);
     for (final style in [
@@ -201,13 +201,13 @@ void main() {
       Color(0xFF087C7C),
       Color(0xFF065858),
       Color(0xFFE6F2F2),
-      Color(0xFF087C7C),
-      Color(0xFFE6F2F2),
-      Color(0xFFFAFAFA),
+      Color(0xFF203A56),
+      Color(0xFFEAF0F7),
+      Color(0xFFF5F7FA),
       Colors.white,
-      Color(0x99EEEEEE),
-      Color(0xFF4D5454),
-      Color(0x99000000),
+      Color(0xFFE3EAF1),
+      Color(0xFF192F48),
+      Color(0xFF64748B),
       Color(0xFFC88700),
     ]);
   });

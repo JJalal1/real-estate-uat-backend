@@ -81,10 +81,23 @@ class ListingDescriptionComposer
         if (($facts[$moneyKey] ?? 0) > 0) {
             $value = $read($moneyKey);
             // Missing currency is left unstated rather than assumed in ad copy.
-            $currency = isset($facts['currency']) ? ' '.$read('currency') : '';
+            $currency = isset($facts['currency']) ? ' '.(['YER'=>'ريال', 'USD'=>'دولار أمريكي', 'SAR'=>'ريال سعودي'][$read('currency')] ?? $facts['currency']) : '';
             $price = ($purpose === 'rent' ? 'الإيجار الشهري ' : 'السعر ').$this->number($value).$currency;
         }
-        $parts = array_filter([$lead, implode(' و', $layout), implode(' و', $amenities), $price]);
+        $requirements = [];
+        if (($facts['rental_conditions'] ?? []) !== []) {
+            $read('rental_conditions');
+            $requirements = app(RentalConditionService::class)->sentences($facts['rental_conditions']);
+        }
+        $fee = '';
+        if (($facts['sai_amount_type'] ?? '') === 'percentage' && isset($facts['broker_sai_rate_percent'])) {
+            $read('sai_amount_type');
+            $fee = 'السعي بنسبة '.$this->number($read('broker_sai_rate_percent')).'%';
+        } elseif (($facts['sai_amount_type'] ?? '') === 'fixed' && isset($facts['fixed_sai_amount'])) {
+            $read('sai_amount_type');
+            $fee = 'السعي '.$this->number($read('fixed_sai_amount')).(isset($facts['currency']) ? ' '.(['YER'=>'ريال', 'USD'=>'دولار أمريكي', 'SAR'=>'ريال سعودي'][$facts['currency']] ?? $facts['currency']) : '');
+        }
+        $parts = array_filter([$lead, implode(' و', $layout), implode(' و', $amenities), $price, implode('، ', $requirements), $fee]);
         $text = implode('. ', array_map(fn ($part) => rtrim(trim($part), '.، '), $parts));
         return ['description' => $text === '' ? '' : $text.'.', 'fact_keys' => array_values(array_unique($used)), 'requires_review' => true];
     }

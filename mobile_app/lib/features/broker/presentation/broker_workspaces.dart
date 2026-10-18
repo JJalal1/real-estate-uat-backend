@@ -37,7 +37,8 @@ class BrokerPanel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(8)),
+      borderRadius: BorderRadius.circular(22), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.secondary.withValues(alpha: .03), blurRadius: 16, offset: const Offset(0, 6))]),
     child: child,
   );
 }
@@ -66,8 +67,6 @@ class BrokerDashboardScreen extends ConsumerWidget {
         ];
         final tools = <({String label, IconData icon, VoidCallback? action})>[
           (label: 'عقاراتي', icon: Icons.home_work_outlined, action: () => context.push('/my-listings')),
-          (label: 'إضافة عقار', icon: Icons.add_home_outlined, action: () => context.push('/add-property')),
-          (label: 'العملاء', icon: Icons.people_outline, action: () => context.push('/broker/customers')),
           (label: 'الصفقات', icon: Icons.handshake_outlined, action: () => context.push('/broker/activity')),
           (label: 'التوفر', icon: Icons.update, action: () => context.push('/broker/availability?due=1')),
           (label: 'المستحقات', icon: Icons.account_balance_wallet_outlined, action: () => context.push('/broker/finance')),
@@ -108,12 +107,14 @@ class BrokerDashboardScreen extends ConsumerWidget {
             const SizedBox(height: 12), Text('أدوات عملك', style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 12),
             LayoutBuilder(builder: (context, size) {
               final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-              final columns = scale > 1.7 || size.maxWidth < 290 ? 1 : size.maxWidth < 350 ? 2 : 3;
+              final columns = scale > 1.7 || size.maxWidth < 320 ? 1 : 2;
               final width = (size.maxWidth - (columns - 1) * 10) / columns;
               return Wrap(spacing: 10, runSpacing: 10, children: [for (final tool in tools)
                 SizedBox(width: width, child: AppSurface(key: ValueKey('broker-tool-${tool.label}'), onTap: tool.action,
-                  child: Column(children: [EbrokerIcon(tool.icon, size: 27, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(height: 10), Text(tool.label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelLarge)]))),
+                  child: Row(children: [Container(padding:const EdgeInsets.all(10),decoration:BoxDecoration(
+                    color:Theme.of(context).colorScheme.secondaryContainer,borderRadius:BorderRadius.circular(14)),
+                    child:Icon(tool.icon,size:23,color:Theme.of(context).colorScheme.secondary)), const SizedBox(width:10),
+                    Expanded(child:Text(tool.label,style:Theme.of(context).textTheme.labelMedium))]))),
               ]);
             }),
           ]));
@@ -133,9 +134,10 @@ class BrokerDashboardScreen extends ConsumerWidget {
 }
 
 class BrokerCustomersScreen extends ConsumerStatefulWidget {
-  const BrokerCustomersScreen({this.propertyId, this.selectForDeal = false, this.initialFilter = 'all', super.key});
+  const BrokerCustomersScreen({this.propertyId, this.selectForDeal = false, this.initialFilter = 'all', this.embedded = false, super.key});
   final int? propertyId;
   final bool selectForDeal;
+  final bool embedded;
   final String initialFilter;
   @override
   ConsumerState<BrokerCustomersScreen> createState() => _BrokerCustomersState();
@@ -157,32 +159,42 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
       setState(() { if (!more) _items.clear(); _items.addAll(result.items); _page = result.page; _lastPage = result.lastPage; _loading = false; _moreBusy = false; });
     } catch (error) { if (mounted && request == _request) setState(() { _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
   }
+  Future<void> _chooseStage(BrokerCustomer item) async {
+    final stage = await AppBottomSheet.show<String>(context, builder: (sheet) => Padding(padding: const EdgeInsets.fromLTRB(20,0,20,20),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('تحديث حالة المتابعة', style: Theme.of(sheet).textTheme.titleLarge), const SizedBox(height: 12),
+        Flexible(child: ListView(shrinkWrap:true, children:[for(final entry in brokerLeadLabels.entries.where((e)=>e.key!='completed')) ListTile(
+          shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(14)), selected:item.stage==entry.key,
+          selectedTileColor:Theme.of(sheet).colorScheme.primaryContainer, title:Text(entry.value),
+          trailing:item.stage==entry.key?const Icon(Icons.check_circle_outline):null,onTap:()=>Navigator.pop(sheet,entry.key))])),
+      ])));
+    if (stage != null && mounted) await _change(item, stage);
+  }
   Future<void> _change(BrokerCustomer item, String stage) async {
     try { await ref.read(brokerRepositoryProvider).updateCustomer(item.threadId, stage); refreshBrokerData(ref); await _load(); }
     catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
   }
   @override
   Widget build(BuildContext context) => BrokerScaffold(
-    appBar: AppAppBar(title: widget.selectForDeal ? 'اختر عميل الصفقة' : 'العملاء'),
+    appBar: widget.embedded ? null : AppAppBar(title: widget.selectForDeal ? 'اختر عميل الصفقة' : 'العملاء'),
     body: _loading ? const AppLoadingState() : _error != null ? AppErrorState(message: _error!, onRetry: _load) : RefreshIndicator(onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
         if (!widget.selectForDeal) Padding(padding: const EdgeInsets.only(bottom: 10), child: Wrap(spacing: 8, runSpacing: 8, children: [
           for (final entry in const {'all': 'كل العملاء', 'unread': 'تحتاج ردك', 'followup_due': 'حان موعد المتابعة'}.entries) EbrokerChoiceChip(
             label: Text(entry.value), selected: _filter == entry.key, onSelected: (_) { setState(() => _filter = entry.key); _load(); }),
         ])),
-        if (!widget.selectForDeal) DropdownButtonFormField<String>(value: _stage, isExpanded: true, hint: const Text('كل العملاء'), decoration: const InputDecoration(labelText: 'حالة المتابعة'),
-          items: [const DropdownMenuItem(value: null, child: Text('كل العملاء')), for (final entry in brokerLeadLabels.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
+        if (!widget.selectForDeal) AppSelectField<String>(value: _stage, isExpanded: true, hint: const Text('كل الحالات'), decoration: const InputDecoration(labelText: 'حالة المتابعة'),
+          items: [const DropdownMenuItem(value: null, child: Text('كل الحالات')), for (final entry in brokerLeadLabels.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
           onChanged: (value) { setState(() => _stage = value); _load(); }),
         const SizedBox(height: 12),
         if (_items.isEmpty) const BrokerPanel(child: Text('لا توجد عملاء في هذه القائمة بعد. ستظهر هنا المحادثات المرتبطة بإعلاناتك.')),
         for (final item in _items) Padding(padding: const EdgeInsets.only(bottom: 10), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [const EbrokerIcon(Icons.person_outline, size: 22), const SizedBox(width: 8), Expanded(child: Text(item.customerName, style: Theme.of(context).textTheme.titleMedium)),
+          Row(children: [Container(padding:const EdgeInsets.all(11),decoration:BoxDecoration(color:Theme.of(context).colorScheme.secondaryContainer,borderRadius:BorderRadius.circular(15)),child:Icon(Icons.person_outline_rounded,size:22,color:Theme.of(context).colorScheme.secondary)), const SizedBox(width: 10), Expanded(child: Text(item.customerName, style: Theme.of(context).textTheme.titleSmall)),
             if (item.unreadCount > 0) AppStatusBadge(label: '${item.unreadCount} غير مقروءة', tone: AppStatusTone.info),
-            if (!widget.selectForDeal && item.stage != 'completed') PopupMenuButton<String>(tooltip: 'تحديث حالة العميل',
-              onSelected: (value) => _change(item, value), itemBuilder: (_) => [for (final entry in brokerLeadLabels.entries.where((e) => e.key != 'completed')) PopupMenuItem(value: entry.key, child: Text(entry.value))]),
+
           ]),
           const SizedBox(height: 4), Text(item.propertyTitle, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 8), Text(item.deal?.statusLabel ?? item.stageLabel, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+          const SizedBox(height: 10), AppStatusBadge(label: item.deal?.statusLabel ?? item.stageLabel, tone: item.stage == 'completed' ? AppStatusTone.success : AppStatusTone.info),
           const SizedBox(height: 10),
           if (widget.selectForDeal) AppButton(label: 'الصفقة مع هذا العميل', expand: true, onPressed: () => Navigator.of(context).pop(item))
           else ...[
@@ -190,6 +202,7 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
             if (item.remindAt != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text('${item.followupDue ? 'حان موعد المتابعة' : 'المتابعة'}: ${followupDateLabel(item.remindAt!)}')),
             EbrokerCardActions(actions: [
               EbrokerCardAction(item.unreadCount > 0 ? 'الرد على العميل' : 'المحادثة', () async { await context.push('/messages/${item.threadId}'); if (mounted) _load(); }, icon: Icons.chat_bubble_outline),
+              if (item.stage != 'completed') EbrokerCardAction('تحديث حالة المتابعة', () => _chooseStage(item), icon: Icons.swap_horiz_rounded),
               EbrokerCardAction('ملاحظة وتذكير', () async { final saved = await editCustomerFollowup(context, ref, item.threadId, customer: item); if (saved && mounted) _load(); }, icon: Icons.event_note_outlined),
               EbrokerCardAction('العقار', () => context.push('/properties/${item.propertyId}'), icon: Icons.home_outlined),
               if (item.deal != null) EbrokerCardAction('نتيجة الصفقة', () => context.push('/broker/deals/${item.deal!.id}'), icon: Icons.check_circle_outline),

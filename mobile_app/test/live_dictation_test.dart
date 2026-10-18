@@ -73,6 +73,41 @@ void main() {
     expect(await result, 'نص التسجيل كاملًا'); expect(commands.last.method, 'release');
   });
 
+  testWidgets('explicit whole recording bypasses dictation and releases the clip after one complete upload', (tester) async {
+    const channel = MethodChannel('real_estate/speech');
+    final commands = <MethodCall>[], paths = <String>[];
+    final uploaded = Completer<String>();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async { commands.add(call); return null; });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+    final capture = VoiceCaptureController(SystemVoiceInput(liveDictation: true, transcribe: (path, _) {
+      paths.add(path); return uploaded.future;
+    }));
+    addTearDown(capture.dispose);
+    Future<void> event(int id, String type, {String code = '', String path = '', String text = ''}) async {
+      await tester.binding.defaultBinaryMessenger.handlePlatformMessage(channel.name,
+        const StandardMethodCodec().encodeMethodCall(MethodCall('event',
+          {'id': id, 'type': type, 'code': code, 'path': path, 'text': text, 'complete': true})), null);
+      await tester.pump();
+    }
+    final result = capture.start(wholeRecording: true); await tester.pump();
+    final args = commands.single.arguments as Map, id = args['id'] as int;
+    expect(args['mode'], 'clip');
+    await event(id, 'mode', code: 'clip'); await event(id, 'ready');
+    await event(id, 'partial', text: 'لا يعتمد هذا الجزء');
+    await event(id, 'final', text: 'لا يعتمد هذا الجزء');
+    await event(id, 'recorded', path: 'premature.m4a');
+    expect(capture.preview, isEmpty); expect(capture.transcript, isEmpty); expect(paths, isEmpty);
+    capture.stop(); capture.stop(); await tester.pump();
+    expect(commands.where((c) => c.method == 'stop'), hasLength(1));
+    await event(id, 'recorded', path: 'complete-listing.m4a');
+    await event(id, 'recorded', path: 'duplicate.m4a');
+    expect(paths, ['complete-listing.m4a']); expect(capture.transcript, isEmpty);
+    uploaded.complete('شقة للإيجار في إب ثلاث غرف وحمامان'); await tester.pump();
+    expect(await result, 'شقة للإيجار في إب ثلاث غرف وحمامان');
+    expect(commands.where((c) => c.method == 'release'), hasLength(1));
+    expect(capture.active, isFalse);
+  });
+
   testWidgets('an error never promotes a preview and cancellation rejects delayed results', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false); addTearDown(voice.dispose);
     final capture = VoiceCaptureController(voice); addTearDown(capture.dispose);

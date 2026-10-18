@@ -338,6 +338,6 @@ void main() {
     expect(await first, isNull); expect(voice.latest.cancellations, 1);
     final second = capture.start(); voice.latest.emit(const VoiceEvent('ready')); await tester.pump();
     capture.stop(); await tester.pump(const Duration(minutes: 3, seconds: 1));
-    expect(await second, isNull); expect(voice.latest.cancellations, 1); expect(capture.error, contains('لم نغير بحثك'));
+    expect(await second, isNull); expect(voice.latest.cancellations, 1); expect(capture.error, contains('لم تُطبّق أي معلومات'));
   });
 }
