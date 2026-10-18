@@ -79,7 +79,7 @@ jobs:
           assert isinstance(directory,list) and directory
           for profile in directory:
               assert profile['verified'] is True and not any(key in profile for key in ['phone','email','details','identity_document_path'])
-          print('CURRENT_WAVE_LIVE_SMOKE '+json.dumps({'passed':True,'tested_source':'8c0e9ddaa378d6c98d436b5d8104d8f08c5cfeee','deployed_merge':'7c3d5fa24cc353a8c4db88445892256800581fe9','apk_version':1081,'cities':summaries,'checks':checks},ensure_ascii=False,sort_keys=True),flush=True)
+          print('CURRENT_WAVE_LIVE_SMOKE '+json.dumps({'passed':True,'tested_source':'8c0e9ddaa378d6c98d436b5d8104d8f08c5cfeee','deployed_merge':'7b94ee51440afbcb72dcfd88452db6aa41f5b738','tested_backend_source':'d682eff3d8c33487e3da16d82e4add72406c07dd','apk_version':1081,'cities':summaries,'checks':checks},ensure_ascii=False,sort_keys=True),flush=True)
           current={'type':'house','purpose':'rent','currency':'YER','governorate':'ذمار','latitude':14.55,'longitude':44.40,'radius_km':30,'max_monthly_rent':250000}
           ai=request('/ai/search',{'message':'احتفظ بشروط البحث الحالية كما هي','filters':current,'revision':1081},None)
           status=checks[-1]['status']
