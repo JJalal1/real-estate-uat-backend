@@ -1,0 +1,34 @@
+name: Listing and Design Wave Acceptance
+on:
+  push:
+    branches: [work/listing-design-1087]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: listing-design-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  listing:
+    name: Complete Arabic listing brief and AI boundaries
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer validate --no-check-publish
+      - run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: php artisan key:generate --force
+      - run: php artisan test tests/Feature/BrokerListingAssistantTest.php tests/Feature/Wave3AiAssistantTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
