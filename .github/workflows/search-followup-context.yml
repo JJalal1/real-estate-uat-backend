@@ -93,4 +93,3 @@ jobs:
       - name: City, followup context, HTTPS, access and discovery on PostgreSQL
         working-directory: backend-api-runtime
         run: php artisan test tests/Postgres tests/Feature/SpokenSearchCityTest.php tests/Feature/Wave3AiAssistantTest.php tests/Feature/UatHttpsMediaTest.php tests/Feature/UatCityDemoSeedTest.php tests/Feature/Wave6EditorDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
-
