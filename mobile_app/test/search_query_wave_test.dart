@@ -241,6 +241,12 @@ void main() {
       expect(_draft(tester), isEmpty);
       await tester.drag(find.byType(Scrollable).first, const Offset(0, 2000));
       await tester.pumpAndSettle();
+      for (final key in ['type', 'purpose', 'search', 'budget', 'min_bedrooms', 'has_parking']) {
+        final chip = tester.getRect(find.byKey(ValueKey('smart-chip-$key')));
+        final label = tester.getRect(find.byKey(ValueKey('smart-chip-label-$key')));
+        expect(chip.contains(label.topLeft), isTrue, reason: '$key label starts inside its criterion');
+        expect(chip.contains(label.bottomRight - const Offset(.1, .1)), isTrue, reason: '$key label must not be clipped');
+      }
       await preview(tester, boundary, 'search-query-summary-$scale');
 
       await tester.ensureVisible(find.byKey(_voice));
@@ -252,8 +258,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(_draft(tester), 'خلّي السعر أقل من مئتي مليون');
       expect(ai.requests, hasLength(1));
-      await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));
+      await tester.ensureVisible(find.byKey(_input));
       await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('voice-finish')).hitTestable(), findsOneWidget);
+      expect(find.byKey(const ValueKey('voice-cancel')).hitTestable(), findsOneWidget);
       await preview(tester, boundary, 'search-query-followup-$scale');
       await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel')));
       await tester.pumpAndSettle();
