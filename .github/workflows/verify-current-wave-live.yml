@@ -1,0 +1,93 @@
+name: Verify deployed current-wave three-city UAT
+on:
+  push:
+    branches: [verification/current-wave-1081-live]
+permissions: {}
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify city discovery, maps, photos, privacy and real AI
+        run: |
+          python3 - <<'PY'
+          import json,time,urllib.request,urllib.error,urllib.parse
+          root='https://real-estate-uat-api-frankfurt.onrender.com/api'
+          checks=[]
+          def request(path,body=None,expected=200,raw=False,method=None):
+              started=time.monotonic()
+              data=None if body is None else json.dumps(body,ensure_ascii=False).encode()
+              headers={'Accept':'application/json','User-Agent':'Current-Wave-UAT-Verification/1081'}
+              if data is not None: headers['Content-Type']='application/json'
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(root+path,data=data,headers=headers,method=method),timeout=55) as response:
+                      status=response.status;content=response.read();response_headers=response.headers
+              except urllib.error.HTTPError as error:
+                  status=error.code;content=error.read();response_headers=error.headers
+              checks.append({'path':path.split('?')[0],'status':status,'elapsed_ms':round((time.monotonic()-started)*1000)})
+              if expected is not None: assert status==expected,(path.split('?')[0],status)
+              if raw: return content,response_headers
+              return json.loads(content)
+          def query(path,fields):
+              return request(path+'?'+urllib.parse.urlencode(fields))
+          health=request('/health')
+          assert health['status']=='ok' and health['database'] is True and health['postgis'] is True
+          locations=request('/marketplace/locations')['data']
+          assert {'صنعاء','ذمار','إب'} <= {row['label'] for row in locations}
+          assert len(locations)==len({row['label'] for row in locations})
+          cities=[('صنعاء',15.3694,44.1910,60,116,50),('ذمار',14.55,44.40,68,124,58),('إب',13.9667,44.1833,76,132,66)]
+          summaries=[]
+          for city,lat,lon,first,image,proof in cities:
+              expected_ids=set(range(first,first+8))
+              filters={'governorate':city,'search':'إعلان وهمي تجريبي','per_page':50}
+              result=query('/properties',filters)
+              rows=result['data']
+              assert len(rows)==8 and {int(row['id']) for row in rows}==expected_ids,city
+              assert result['meta']['total']==8
+              assert len({row['type'] for row in rows})==8
+              assert sum(row['purpose']=='sale' for row in rows)==4 and sum(row['purpose']=='rent' for row in rows)==4
+              assert all('تجريبي' in row['title'] and row['currency']=='YER' for row in rows)
+              feed=query('/marketplace',{'governorate':city})['data']
+              assert feed['context']['label']==city and feed['context']['source']=='manual'
+              assert feed['sections']['latest'] and all(int(row['id']) in expected_ids for row in feed['sections']['latest'])
+              assert len(feed['section_order'])==len(set(feed['section_order']))
+              assert all(feed['sections'][key] for key in feed['section_order'])
+              device=query('/marketplace',{'latitude':lat,'longitude':lon})['data']
+              assert device['context']['label']==city and device['context']['source']=='device'
+              assert device['sections']['nearby']
+              nearby=query('/properties/nearby',{'latitude':lat,'longitude':lon,'radius_km':30,'search':'إعلان وهمي تجريبي'})['data']
+              assert {int(row['id']) for row in nearby}==expected_ids and all(float(row['distance_km'])<=30 for row in nearby)
+              mapped=query('/properties',{'south':lat-.05,'north':lat+.05,'west':lon-.05,'east':lon+.05,'search':'إعلان وهمي تجريبي','per_page':50})['data']
+              assert {int(row['id']) for row in mapped}==expected_ids
+              detail=request('/properties/'+str(first))['data']
+              for key in ['contact_phone','contact_whatsapp','document_owner_name','owner_relationship_note']:
+                  assert not detail.get(key),'Public property leaked a private field'
+              assert detail['images'] and detail['images'][0]['url'].startswith(root+'/property-media/')
+              sai=request('/properties/'+str(first)+'/sai')['data']
+              assert sai['sai']['amount_type']=='fixed' and 'sai_management' not in sai
+              photo,photo_headers=request('/property-media/'+str(image),raw=True)
+              assert photo.startswith(b'\xff\xd8') and photo_headers.get('Content-Type','').startswith('image/')
+              request('/listing-documents/'+str(proof),expected=401)
+              request('/properties/'+str(first)+'/contact',expected=401)
+              summaries.append({'city':city,'public_demo_ads':len(rows),'types':8,'sale':4,'rent':4,'manual_location':True,'device_region':True,'map':True,'photo':True,'private_proof_denied':True})
+          request('/listing-editor-drafts',expected=401)
+          request('/ai/listing-description',{'facts':{'type':'apartment','floor_number':'7'}},401)
+          request('/saved-searches',expected=401)
+          request('/properties?area_polygon=invalid',expected=422)
+          directory=request('/brokers?per_page=5')['data']
+          assert isinstance(directory,list) and directory
+          for profile in directory:
+              assert profile['verified'] is True and not any(key in profile for key in ['phone','email','details','identity_document_path'])
+          print('CURRENT_WAVE_LIVE_SMOKE '+json.dumps({'passed':True,'tested_source':'8c0e9ddaa378d6c98d436b5d8104d8f08c5cfeee','deployed_merge':'7c3d5fa24cc353a8c4db88445892256800581fe9','apk_version':1081,'cities':summaries,'checks':checks},ensure_ascii=False,sort_keys=True),flush=True)
+          current={'type':'house','purpose':'rent','currency':'YER','governorate':'ذمار','latitude':14.55,'longitude':44.40,'radius_km':30,'max_monthly_rent':250000}
+          ai=request('/ai/search',{'message':'احتفظ بشروط البحث الحالية كما هي','filters':current,'revision':1081},None)
+          status=checks[-1]['status']
+          assert status in [200,429,503],status
+          if status==200:
+              result=ai['data'];assert result['revision']==1081
+              for field,value in current.items(): assert result['filters'][field]==value,field
+          elif status==503:
+              assert ai.get('code')=='ai_unavailable'
+          print('CURRENT_WAVE_LIVE_AI '+json.dumps({'available':status==200,'status':status,'elapsed_ms':checks[-1]['elapsed_ms'],'preserved_source_constraints':status==200,'fallback_checked':status==503,'rate_limit_seen':status==429,'automatic_test_retries':0},sort_keys=True),flush=True)
+          
+          PY
