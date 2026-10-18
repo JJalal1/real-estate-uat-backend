@@ -62,6 +62,7 @@ jobs:
               detail=request('/properties/'+str(first))['data']
               for key in ['contact_phone','contact_whatsapp','document_owner_name','owner_relationship_note']:
                   assert not detail.get(key),'Public property leaked a private field'
+              print('CURRENT_WAVE_PUBLIC_IMAGE '+json.dumps({'property':first,'images':detail['images']},ensure_ascii=False),flush=True)
               assert detail['images'] and detail['images'][0]['url'].startswith(root+'/property-media/')
               sai=request('/properties/'+str(first)+'/sai')['data']
               assert sai['sai']['amount_type']=='fixed' and 'sai_management' not in sai
