@@ -59,7 +59,7 @@ jobs:
         run: python3 -B ../scripts/check_v3_analysis.py
       - name: Focused interface and voice regression
         working-directory: mobile_app
-        run: flutter test test/listing_design_wave_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart
+        run: flutter test test/listing_design_wave_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart test/phase3_favorites_screen_test.dart test/uat_account_types_kyc_models_test.dart
       - name: Upload synthetic interface previews
         id: previews
         if: ${{ !cancelled() }}

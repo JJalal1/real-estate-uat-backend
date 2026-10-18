@@ -236,6 +236,8 @@ jobs:
           test/current_wave_ui_test.dart
           test/search_query_wave_test.dart
           test/listing_design_wave_test.dart
+          test/phase3_favorites_screen_test.dart
+          test/uat_account_types_kyc_models_test.dart
           test/wave4_listing_ui_test.dart
           test/wave4_sai_consent_test.dart
           test/in_app_voice_search_test.dart
