@@ -1,0 +1,18 @@
+name: Bounded listing CI diagnostics
+on:
+  push:
+    branches: [diagnostics/listing-design-ci-88]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read only failure contexts from the identified private run
+        env:
+          LOG_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_listing_ci_failure.py
