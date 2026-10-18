@@ -40,6 +40,21 @@ class _Assistant extends Wave3AiFake {
   }
 }
 
+const ownerBrief = 'شقة للايجار في اب شارع السبل ثلاث غرف واثنين حمامات\nويوجد موقف سيارات\nمطلوب ايجار مقدم ثلاثة اشهر وضمانه تجاريه\nالسعر مئة الف ريال ونسبة السعي 100%';
+class _CompleteAssistant extends _Assistant {
+  String? received;
+  @override
+  Map<String,dynamic> get proposals => {'type':'apartment','purpose':'rent','governorate':'إب','street':'السبل',
+    'bedrooms':3,'bathrooms':2,'monthly_rent':100000,'has_parking':true,'sai_amount_type':'percentage','broker_sai_rate_percent':100,
+    'rental_conditions':[{'kind':'advance','months':3},{'kind':'guarantor'}]};
+  @override
+  Future<Map<String,dynamic>> prepareListing(String message, Map<String,dynamic> facts,{int? propertyId,String? draftKey}) async {
+    received=message; prepares++;
+    return {'fields':proposals,'source':'ai','requires_review':true,'message':'راجع بياناتك ثم استخدمها.',
+      'copy':{'title':'شقة للإيجار في إب','description':'شقة للإيجار في إب، شارع السبل. تضم 3 غرف نوم وحمامين ويتوفر موقف. الإيجار الشهري 100000 ريال. مقدم 3 أشهر وضمانة تجارية. السعي 100%.'}};
+  }
+}
+
 class _Recovery extends ListingRecoveryStore {
   _Recovery(this.snapshot);
   Map<String, dynamic>? snapshot;
@@ -146,6 +161,30 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel')));
       await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
       expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text, 'شقة للإيجار');
+    });
+  }
+
+  for(final byVoice in [false,true]) {
+    testWidgets('complete owner brief fills every supplied field after explicit review via ${byVoice?'voice':'typing'}',(tester) async {
+      final ai=_CompleteAssistant(), voice=Wave3VoiceFake(autoComplete:false); addTearDown(voice.dispose);
+      Map<String,dynamic>? applied;
+      await _pump(tester,Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:() async {
+        applied=await AppBottomSheet.show<Map<String,dynamic>>(context,builder:(_)=>const ListingAiSheet(prepareDraft:true,facts:{}));
+      },child:const Text('تجهيز الوصف')))),ai:ai,voice:voice);
+      await tester.tap(find.text('تجهيز الوصف'));await tester.pumpAndSettle();
+      if(byVoice){
+        await _tap(tester,'listing-ai-voice');voice.latest.emit(const VoiceEvent('ready'));await tester.pump();
+        voice.latest.emit(const VoiceEvent('partial',text:ownerBrief));await tester.pump();
+        expect(ai.prepares,0);expect(applied,isNull);
+        await _tap(tester,'voice-finish');voice.latest.emit(const VoiceEvent('final',text:ownerBrief));await tester.pumpAndSettle();
+        expect(ai.prepares,0);expect(applied,isNull);
+      }else{await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),ownerBrief);}
+      await _tap(tester,'listing-ai-prepare');expect(ai.received,ownerBrief);expect(applied,isNull);
+      for(final field in ai.proposals.keys) await _reveal(tester,'listing-ai-field-$field');
+      await _tap(tester,'listing-ai-apply-draft');
+      for(final field in ai.proposals.keys) expect(applied![field],ai.proposals[field],reason:field);
+      expect(applied!['title'],'شقة للإيجار في إب');expect(applied!['description'],contains('ضمانة تجارية'));
+      expect(ai.prepares,1);expect(tester.takeException(),isNull);
     });
   }
 

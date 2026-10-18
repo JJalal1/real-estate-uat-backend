@@ -417,7 +417,7 @@ class EbrokerProfileTile extends StatelessWidget {
       child: Row(children: [
         if (leading != null) ...[
           Container(padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: EbrokerDesign.text.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+            decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(14)),
             child: IconTheme(data: const IconThemeData(size: 24, color: EbrokerDesign.text), child: leading!)),
           const SizedBox(width: 8),
         ],

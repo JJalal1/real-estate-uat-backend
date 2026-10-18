@@ -605,7 +605,7 @@ class AppNavigationBar extends StatelessWidget {
                 decoration: BoxDecoration(color: active ? scheme.primaryContainer : Colors.transparent, borderRadius: BorderRadius.circular(16)),
                 child: Icon(item.icon, size: 23, color: active ? scheme.primary : scheme.onSurfaceVariant)),
               if (!largeText) ...[const SizedBox(height: 4), Text(item.label, maxLines: 1,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 10, color: active ? scheme.primary : scheme.onSurfaceVariant,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 11, color: active ? scheme.primary : scheme.onSurfaceVariant,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w400))],
             ])))))));
     }
@@ -733,7 +733,7 @@ class AppPropertyFacts extends StatelessWidget {
     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(10)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(width: 5), Text(fact.label, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11))])),
+        const SizedBox(width: 5), Flexible(child: Text(fact.label, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11)))])),
   ]);
 }
 

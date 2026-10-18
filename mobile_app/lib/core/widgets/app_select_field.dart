@@ -54,7 +54,7 @@ class AppSelectField<T> extends StatelessWidget {
               floatingLabelBehavior: FloatingLabelBehavior.always),
             isEmpty: false, child: ConstrainedBox(constraints: BoxConstraints(minHeight: math.max(20, MediaQuery.textScalerOf(context).scale(16))),
               child: Row(children: [Expanded(child: selected?.child ?? hint ?? const Text('اختر…')),
-                const SizedBox(width: 8), Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: Theme.of(context).colorScheme.onSurfaceVariant)])))));
+                const SizedBox(width: 8), Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: Theme.of(context).colorScheme.onSurfaceVariant)]))))));
     });
 }
 

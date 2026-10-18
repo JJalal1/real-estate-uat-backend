@@ -37,11 +37,11 @@ class EbrokerStepButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(backgroundColor: Colors.transparent,
           foregroundColor: EbrokerDesign.text,
           side: const BorderSide(color: EbrokerDesign.text, width: 1.2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)), padding: EdgeInsets.zero),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), padding: EdgeInsets.zero),
         child: child)
         : ElevatedButton(onPressed: callback,
           style: ElevatedButton.styleFrom(backgroundColor: primary, foregroundColor: Colors.white,
-            elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             padding: EdgeInsets.zero), child: child));
   }
 }
