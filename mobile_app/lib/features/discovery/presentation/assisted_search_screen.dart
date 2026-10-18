@@ -149,10 +149,12 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active, onPressed: () {
         _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut); _focus.requestFocus();
       }, child: ListView(controller: _scroll, padding: const EdgeInsets.fromLTRB(18, 12, 18, 110), children: [
-        Text('مكان يناسبك', style: theme.textTheme.headlineSmall),
-        const SizedBox(height: 6),
-        const Text('صف ما تبحث عنه، ثم أكمل طلبك أو عدّل أي شرط.'),
-        const SizedBox(height: 18),
+        if (!state.started) ...[
+          Text('مكان يناسبك', style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 6),
+          const Text('صف ما تبحث عنه، ثم أكمل طلبك أو عدّل أي شرط.'),
+          const SizedBox(height: 18),
+        ],
         AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (state.started || state.interpreting) ...[
             SmartSearchQuerySummary(
@@ -164,8 +166,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
             const SizedBox(height: 12),
           ],
           if (state.started) ...[
-            Row(children: [
-              Expanded(child: Text('أضف أو عدّل أي شرط', style: theme.textTheme.titleSmall)),
+            Wrap(spacing: 12, alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              Text('أضف أو عدّل أي شرط', style: theme.textTheme.titleSmall),
               TextButton.icon(key: const ValueKey('smart-search-manual'), onPressed: () => _edit(),
                 icon: const EbrokerIcon(Icons.tune, size: 18), label: const Text('تعديل الفلاتر')),
             ]),
@@ -178,7 +180,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
               hintText: _capture.active ? null : !state.started ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
           if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice),
           const SizedBox(height: 8),
-          if (!_capture.active) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('اكتب أو أمْلِ طلبك، راجعه ثم اضغط البحث.')),
+          if (!_capture.active && !state.started) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('اكتب أو أمْلِ طلبك، راجعه ثم اضغط البحث.')),
           if (!_capture.active) Row(children: [
             Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: !state.started ? 'ابحث لي' : 'تحديث البحث',
               icon: Icons.auto_awesome_outlined, loading: state.interpreting,
@@ -193,9 +195,9 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         const SizedBox(height: 12),
         Wrap(spacing: 8, children: [
           if (state.page > 0 && !state.loading && state.resultsError == null) TextButton.icon(key: const ValueKey('smart-search-save'), onPressed: _capture.active || state.interpreting ? null : () => saveSearchFilters(context, ref, state.filters.apiFilters),
-            icon: const Icon(Icons.bookmark_add_outlined, size: 18), label: const Text('حفظ البحث والتنبيه')),
+            icon: const Icon(Icons.bookmark_add_outlined, size: 18), label: const Text('حفظ البحث')),
           TextButton.icon(key: const ValueKey('smart-search-map'), onPressed: _capture.active || state.interpreting ? null : _openMap,
-            icon: const Icon(Icons.map_outlined, size: 18), label: const Text('تحديد النطاق على الخريطة')),
+            icon: const Icon(Icons.map_outlined, size: 18), label: const Text('الخريطة')),
         ]),
         if (state.message.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(state.message, style: theme.textTheme.bodySmall)),
         const SizedBox(height: 10),

@@ -128,8 +128,8 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('filter-max_price')), '١٢٠٠٠٠');
     await tester.ensureVisible(find.text('تطبيق الشروط')); await tester.tap(find.text('تطبيق الشروط')); await tester.pumpAndSettle();
     expect(session.state.filters.values, {...currentFilters, 'min_price': 50000, 'max_price': 120000.0});
-    final rooms = tester.widget<InputChip>(find.byKey(const ValueKey('smart-chip-min_bedrooms')));
-    rooms.onDeleted!(); await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('smart-chip-remove-min_bedrooms')));
+    await tester.tap(find.byKey(const ValueKey('smart-chip-remove-min_bedrooms'))); await tester.pumpAndSettle();
     expect(session.state.filters.values['search'], 'صنعاء');
     expect(session.state.filters.values['purpose'], 'rent');
     expect(session.state.filters.values['type'], 'apartment');

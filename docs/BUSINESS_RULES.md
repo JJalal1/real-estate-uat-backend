@@ -4,6 +4,8 @@
 
 After successful search interpretation, show the accepted criteria as a readable interactive query and consume only the draft that produced them. Each later voice or typed request applies to the existing canonical filters and can add, change or remove any supported criterion; the UI must not close or limit the user to the initially suggested filter chips. Do not replay the previously applied raw sentence when recording a new request. Preserve typed but unsent text within the current request, including voice appended to that draft. Failed/stale interpretation never clears it. Partial recognition and manual finish leave an editable draft; explicit send still applies it. Listing preparation's raw-brief behavior remains unchanged.
 
+Complete spoken city names such as «مدينة اب» resolve to the existing active registry name «إب» before canonical search results are requested. This must never strip a neighborhood/address criterion, invent an unknown/inactive locality, modify read-only map/governorate/advertiser constraints or rewrite stored records.
+
 ## October18 current-wave input and location decisions
 
 New professional Sai input defaults to a fixed amount; existing explicit saved/immutable choices retain their type. Fixed input shows Arabic money words and the compact notice that the platform share is charged to the broker. Percentage input cannot exceed100%; the existing stricter sale ceiling still applies. Owner rates, financial formulas, payer, zero fallback, explicit attestation and all historical records remain unchanged.

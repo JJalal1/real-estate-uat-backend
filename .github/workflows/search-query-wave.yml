@@ -10,6 +10,28 @@ concurrency:
   group: search-query-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Resolve locked backend and test the actual spoken-city sequence
+        working-directory: backend-api-runtime
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+          php -l app/Services/SmartSearchService.php
+          php -l tests/Feature/SpokenSearchCityTest.php
+          php artisan test tests/Feature/SpokenSearchCityTest.php tests/Feature/Wave3AiAssistantTest.php --display-warnings --fail-on-warning --fail-on-risky
   mobile:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -18,10 +40,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Preserve the deployed backend, native voice and original dependencies
+      - name: Preserve the reviewed backend scope, native voice and original dependencies
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:backend-api-runtime)" = fa8c534e67625eb03192222e6b465e7ffbd4c116
+          python3 - <<'PY'
+          import subprocess
+          changed = set(subprocess.check_output(['git', 'diff', '--name-only', '419db103490fabe43b2ca89f397fac82ea708a6b', 'HEAD', '--', 'backend-api-runtime'], text=True).splitlines())
+          assert changed == {'backend-api-runtime/app/Services/SmartSearchService.php', 'backend-api-runtime/tests/Feature/SpokenSearchCityTest.php'}, changed
+          PY
           git diff --exit-code 419db103490fabe43b2ca89f397fac82ea708a6b HEAD -- mobile_app/android mobile_app/ios mobile_app/pubspec.yaml mobile_app/pubspec.lock mobile_app/assets mobile_app/lib/core/platform mobile_app/lib/core/widgets/inline_voice_capture.dart
           git diff --check 419db103490fabe43b2ca89f397fac82ea708a6b HEAD
       - uses: subosito/flutter-action@v2

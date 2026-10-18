@@ -155,6 +155,7 @@ jobs:
       - name: Gemini boundaries and marketplace presentation on PostgreSQL
         run: >-
           php artisan test tests/Feature/Wave3AiAssistantTest.php tests/Feature/BrokerListingAssistantTest.php tests/Feature/Wave3DesignApiTest.php
+          tests/Feature/SpokenSearchCityTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Exact discovery, saved alerts, public profiles and authorized contact on PostgreSQL
         run: >-

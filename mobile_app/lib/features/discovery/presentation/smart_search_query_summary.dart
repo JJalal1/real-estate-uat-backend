@@ -80,26 +80,50 @@ class SmartSearchQuerySummary extends StatelessWidget {
     final chips = {for (final chip in filters.chips) chip.$1: chip.$2};
     final hasBudget = chips.containsKey('budget');
     final keys = _order.where((key) => chips.containsKey(key) && (key != 'currency' || !hasBudget)).toList();
-    final compact = theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant);
-    Widget word(String text) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12), child: Text(text, style: compact),
+    final compact = theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
+    Widget word(String text) => Text(text, style: compact);
+
+    Widget criterion(String key, String label, double width) => ConstrainedBox(
+      key: ValueKey('smart-chip-$key'),
+      constraints: BoxConstraints(maxWidth: width),
+      child: Material(
+        color: key == 'search' || key == 'governorate'
+            ? scheme.primaryContainer.withValues(alpha: .65) : scheme.surfaceContainerHighest.withValues(alpha: .45),
+        borderRadius: BorderRadius.circular(18),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Flexible(child: InkWell(
+            key: ValueKey('smart-chip-edit-$key'),
+            borderRadius: BorderRadius.circular(18),
+            onTap: interpreting ? null : () => onEdit(key),
+            child: Semantics(button: true, label: 'تعديل $label', excludeSemantics: true, child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(9, 6, 3, 6),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(_icon(key), size: 15, color: scheme.primary),
+                  const SizedBox(width: 5),
+                  Flexible(child: Text(label, key: ValueKey('smart-chip-label-$key'),
+                    style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600), softWrap: true)),
+                ]),
+              ),
+            )),
+          )),
+          IconButton(
+            key: ValueKey('smart-chip-remove-$key'),
+            onPressed: interpreting ? null : () => onRemove(key),
+            tooltip: 'إزالة $label',
+            icon: const Icon(Icons.close, size: 15),
+            padding: const EdgeInsets.all(5),
+            constraints: const BoxConstraints(minWidth: 30, minHeight: 44),
+          ),
+        ]),
+      ),
     );
 
     return Container(
       key: const ValueKey('smart-search-query-summary'),
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .6)),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.auto_awesome_outlined, size: 16, color: scheme.primary),
-          const SizedBox(width: 6),
-          Expanded(child: Text('بحثك الحالي', style: theme.textTheme.labelLarge)),
-        ]),
         if (interpreting && keys.isEmpty)
           Padding(
             key: const ValueKey('smart-search-query-pending'),
@@ -108,29 +132,19 @@ class SmartSearchQuerySummary extends StatelessWidget {
           )
         else
           LayoutBuilder(builder: (context, constraints) => Wrap(
-            spacing: 6, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              word('ابحث عن'),
-              if (!chips.containsKey('type')) word('عقارات'),
-              for (final key in keys) ...[
-                if (key == 'governorate' || key == 'search') word('في'),
-                if (key == 'budget') word('بسعر'),
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                  child: InputChip(
-                    key: ValueKey('smart-chip-$key'),
-                    avatar: Icon(_icon(key), size: 16,
-                      color: key == 'search' || key == 'governorate' ? scheme.primary : scheme.onSurfaceVariant),
-                    label: Text(_label(key, chips[key]!), maxLines: 2, overflow: TextOverflow.ellipsis),
-                    backgroundColor: key == 'search' || key == 'governorate'
-                        ? scheme.primaryContainer.withValues(alpha: .55) : scheme.surface,
-                    side: BorderSide.none,
-                    onPressed: interpreting ? null : () => onEdit(key),
-                    onDeleted: interpreting ? null : () => onRemove(key),
-                    deleteButtonTooltipMessage: 'إزالة ${_label(key, chips[key]!)}',
-                  ),
+              if (!chips.containsKey('type')) word('ابحث عن عقارات'),
+              for (final key in keys)
+                ConstrainedBox(constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (key == 'type' || key == 'search' || key == 'governorate' || key == 'budget') ...[
+                      word(key == 'type' ? 'ابحث عن' : key == 'budget' ? 'بسعر' : 'في'),
+                      const SizedBox(width: 6),
+                    ],
+                    Flexible(child: criterion(key, _label(key, chips[key]!), constraints.maxWidth)),
+                  ]),
                 ),
-              ],
             ],
           )),
         if (interpreting && keys.isNotEmpty)

@@ -214,9 +214,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('حتى 100٬000٬001.25 دولار شهريًا'), findsOneWidget);
     expect(find.text('بدون موقف'), findsOneWidget);
-    final chip = tester.widget<InputChip>(find.byKey(const ValueKey('smart-chip-budget')));
-    chip.onPressed!();
-    chip.onDeleted!();
+    await tester.tap(find.byKey(const ValueKey('smart-chip-edit-budget')));
+    await tester.tap(find.byKey(const ValueKey('smart-chip-remove-budget')));
     expect(edited, ['budget']);
     expect(removed, ['budget']);
     expect(tester.takeException(), isNull);
