@@ -9,7 +9,7 @@ Future<bool?> showListingCreationMenu(BuildContext context) => showGeneralDialog
     child: Align(alignment: Alignment.bottomCenter, child: Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 104),
       child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: Material(
-        color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(28), elevation: 12,
+        color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(28),
         child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(22), child: Column(
           mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [Expanded(child: Text('إعلانك يبدأ هنا', style: Theme.of(context).textTheme.titleLarge)),

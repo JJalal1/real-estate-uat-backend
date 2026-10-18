@@ -51,7 +51,7 @@ class PropertyCompareTray extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ids = ref.watch(propertyCompareSelectionProvider);
     if (ids.isEmpty) return const SizedBox.shrink();
-    return Material(elevation: 3, color: Theme.of(context).colorScheme.secondary, borderRadius: BorderRadius.circular(20),
+    return Material(color: Theme.of(context).colorScheme.secondary, borderRadius: BorderRadius.circular(20),
       child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
         TextButton.icon(key: const ValueKey('open-property-comparison'),
           style: TextButton.styleFrom(foregroundColor: Colors.white, disabledForegroundColor: Colors.white70),

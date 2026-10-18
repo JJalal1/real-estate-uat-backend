@@ -30,8 +30,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         child: SafeArea(child: ListView(padding: const EdgeInsets.fromLTRB(24, 12, 24, 28), children: [
           Row(children: [Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .08),
             borderRadius: BorderRadius.circular(14)), child: const EbrokerImage('home_active', size: 24, color: Color(0xFF9CE6D8))),
-            const SizedBox(width: 10), Text('عقارات حولك', style: theme.textTheme.titleSmall?.copyWith(color: Colors.white)),
-            const Spacer(), IconButton(tooltip: 'رجوع', onPressed: () {
+            const SizedBox(width: 10), Expanded(child: Text('عقارات حولك', style: theme.textTheme.titleSmall?.copyWith(color: Colors.white))),
+            IconButton(tooltip: 'رجوع', onPressed: () {
               if (context.canPop()) { context.pop(); } else { context.go('/'); }
             }, icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70))]),
           const SizedBox(height: 44),

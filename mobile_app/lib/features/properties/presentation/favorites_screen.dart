@@ -9,6 +9,7 @@ import '../../../core/widgets/app_components.dart';
 import '../data/favorites_repository.dart';
 import '../domain/property_marker.dart';
 import 'property_compare_screen.dart';
+import 'property_compare_actions.dart';
 
 class FavoritesScreen extends ConsumerStatefulWidget {
   const FavoritesScreen({super.key, this.startInCompareMode = false});
@@ -20,7 +21,7 @@ class FavoritesScreen extends ConsumerStatefulWidget {
 }
 
 class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
-  final Set<int> _selected = <int>{};
+  Set<int> get _selected => ref.read(propertyCompareSelectionProvider);
   late bool _compareMode;
 
   @override
@@ -32,6 +33,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     final favorites = ref.watch(favoritePropertiesProvider);
+    ref.watch(propertyCompareSelectionProvider);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -58,7 +60,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 top: false,
                 child: Material(
                   color: Theme.of(context).colorScheme.surface,
-                  elevation: AppElevation.floating,
                   child: Padding(
                     padding: const EdgeInsetsDirectional.all(AppSpacing.s12),
                     child: AppButton(
@@ -72,7 +73,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                   ),
                 ),
               )
-            : null,
+            : const SafeArea(top: false, child: Padding(padding: EdgeInsets.all(16), child: PropertyCompareTray())),
         body: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(favoritePropertiesProvider);
@@ -137,23 +138,19 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         location: property.address,
                         purposeLabel: _purposeLabel(property.purpose),
                         facts: _facts(property),
-                        trailing: _compareMode
-                            ? EbrokerIcon(
-                                selected
-                                    ? Icons.check_circle_rounded
-                                    : Icons.radio_button_unchecked_rounded,
-                                color: selected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.onSurfaceVariant,
-                              )
-                            : IconButton.filledTonal(
+                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                          PropertyCompareAction(propertyId: property.id, overlay: true),
+                          IconButton(
                                 tooltip: 'إزالة من المفضلة',
                                 onPressed: () => _remove(context, property.id),
+                                style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: .96),
+                                  minimumSize: const Size(48, 48), shape: const CircleBorder()),
                                 icon: EbrokerIcon(
                                   Icons.favorite_rounded,
                                   color: Theme.of(context).colorScheme.error,
                                 ),
                               ),
+                        ]),
                         onTap: _compareMode
                             ? () => _toggleSelection(property.id)
                             : () => context.push('/properties/${property.id}'),
@@ -179,19 +176,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   }
 
   void _toggleSelection(int propertyId) {
-    setState(() {
-      if (_selected.contains(propertyId)) {
-        _selected.remove(propertyId);
-        return;
-      }
-      if (_selected.length >= 4) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('يمكن مقارنة أربعة عقارات كحد أقصى.')),
-        );
-        return;
-      }
-      _selected.add(propertyId);
-    });
+    if (!ref.read(propertyCompareSelectionProvider.notifier).toggle(propertyId)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يمكن مقارنة أربعة عقارات كحد أقصى.')));
+    }
   }
 
   int _selectionPosition(int propertyId) => _selected.toList().indexOf(propertyId) + 1;
@@ -199,7 +186,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   void _exitCompareMode() {
     setState(() {
       _compareMode = false;
-      _selected.clear();
+      ref.read(propertyCompareSelectionProvider.notifier).clear();
     });
   }
 
@@ -215,6 +202,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   Future<void> _remove(BuildContext context, int propertyId) async {
     try {
       await ref.read(favoritesRepositoryProvider).remove(propertyId);
+      if (!mounted) return;
       ref.read(favoriteDataRevisionProvider.notifier).state++;
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -230,20 +218,20 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   List<AppPropertyFact> _facts(PropertyMarker property) {
     return [
-      if (property.areaM2 != null)
+      if (property.areaM2 != null && property.areaM2! > 0)
         AppPropertyFact(
           icon: Icons.square_foot,
-          label: '${property.areaM2} م²',
+          label: '${arabicDigits('${property.areaM2}')} م²',
         ),
-      if (property.bedrooms != null)
+      if (property.bedrooms != null && property.bedrooms! > 0)
         AppPropertyFact(
           icon: Icons.bed_outlined,
-          label: '${property.bedrooms} غرف',
+          label: '${arabicDigits('${property.bedrooms}')} غرف',
         ),
-      if (property.bathrooms != null)
+      if (property.bathrooms != null && property.bathrooms! > 0)
         AppPropertyFact(
           icon: Icons.bathtub_outlined,
-          label: '${property.bathrooms} حمام',
+          label: '${arabicDigits('${property.bathrooms}')} حمام',
         ),
     ];
   }

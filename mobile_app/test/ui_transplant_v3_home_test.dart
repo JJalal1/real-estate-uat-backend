@@ -171,7 +171,7 @@ void main() {
     expect(find.text('السعر المعروض يشمل السعي'), findsOneWidget);
     expect(
       find.byWidgetPredicate((widget) => widget is Text &&
-          widget.textSpan?.toPlainText().contains('102000000 YER') == true),
+          widget.textSpan?.toPlainText().contains('١٠٢٬٠٠٠٬٠٠٠ ريال') == true),
       findsOneWidget,
     );
     expect(find.text('إضافة عقار'), findsNothing);

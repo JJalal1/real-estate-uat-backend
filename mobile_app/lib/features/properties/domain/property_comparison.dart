@@ -24,7 +24,7 @@ List<ComparisonFact> propertyComparisonFacts(List<PropertyDetails?> properties, 
   add('معلومات أساسية','الغرض',(p)=>p.purpose=='rent'?'للإيجار':'للبيع');
   add('معلومات أساسية','المساحة',(p)=>p.areaValue!=null?'${formatPropertyAreaValue(p.areaValue!)} ${propertyAreaUnitLabel(p.areaUnit)}':p.areaM2==null?null:'${p.areaM2} م²',key:'area_value');
   add('السعر والتكاليف','السعر',comparisonMoney);
-  if(sai.any((v)=>v!=null))rows.add(ComparisonFact('السعر والتكاليف','السعي',List.generate(properties.length,(i)=>i<sai.length?sai[i]:null)));
+  if(sai.any((v)=>v!=null))rows.add(ComparisonFact('السعر والتكاليف','السعي',List.generate(properties.length,(i)=>i<sai.length && sai[i]!=null?localizedMoneyText(sai[i]!):null)));
   add('العقار والمبنى','نوع الملكية',(p)=>p.tenureType==null?null:p.tenureType=='waqf'?'وقف':'حر',key:'tenure_type');
   add('العقار والمبنى','غرف النوم',(p)=>p.bedrooms?.toString(),key:'bedrooms');
   add('العقار والمبنى','الحمامات',(p)=>p.bathrooms?.toString(),key:'bathrooms');

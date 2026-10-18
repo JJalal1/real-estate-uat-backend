@@ -77,6 +77,7 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
     try {
       final repo = ref.read(favoritesRepositoryProvider);
       if (selected) { await repo.remove(widget.propertyId); } else { await repo.add(widget.propertyId); }
+      if (!mounted) return;
       ref.read(favoriteDataRevisionProvider.notifier).state++;
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(selected ? 'تمت إزالة العقار من المفضلة.' : 'تم حفظ العقار في المفضلة.')));
     } catch (e) {

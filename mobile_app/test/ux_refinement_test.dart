@@ -337,8 +337,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(repository.lastQuery!['max_monthly_rent'], 150000);
     final resultCard = tester.widget<EbrokerPropertyHorizontalCard>(find.byType(EbrokerPropertyHorizontalCard));
-    expect(resultCard.price, '100000');
-    expect(resultCard.purposeLabel, 'إيجار شهري');
+    expect(double.parse(resultCard.price), 100000);
+    expect(resultCard.purposeLabel, 'للإيجار');
+    expect(resultCard.priceSuffix, 'شهريًا');
+    expect(find.textContaining('١٠٠٬٠٠٠ ريال', findRichText: true), findsOneWidget);
     expect(find.text('شقة من نتائج الخادم'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 

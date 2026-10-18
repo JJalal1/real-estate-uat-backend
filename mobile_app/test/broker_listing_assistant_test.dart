@@ -177,7 +177,9 @@ void main() {
         await _tap(tester,'listing-ai-voice');voice.latest.emit(const VoiceEvent('ready'));await tester.pump();
         voice.latest.emit(const VoiceEvent('partial',text:ownerBrief));await tester.pump();
         expect(ai.prepares,0);expect(applied,isNull);
-        await _tap(tester,'voice-finish');voice.latest.emit(const VoiceEvent('final',text:ownerBrief));await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.pump(const Duration(milliseconds:180));
+        await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
+        voice.latest.emit(const VoiceEvent('final',text:ownerBrief));await tester.pumpAndSettle();
         expect(ai.prepares,0);expect(applied,isNull);
       }else{await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),ownerBrief);}
       await _tap(tester,'listing-ai-prepare');expect(ai.received,ownerBrief);expect(applied,isNull);
@@ -202,7 +204,7 @@ void main() {
     await tester.tap(find.text('تجهيز')); await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')), '4 غرف نوم ويوجد مصعد');
     await _tap(tester, 'listing-ai-prepare');
-    expect(applied, isNull); expect(find.textContaining('الحالي: 2'), findsOneWidget);
+    expect(applied, isNull); expect(find.textContaining('الحالي: ٢'), findsOneWidget);
     await _tap(tester, 'listing-ai-field-has_elevator');
     expect(find.byKey(const ValueKey('listing-ai-apply-draft')), findsNothing);
     expect(find.byKey(const ValueKey('listing-ai-copy')), findsNothing);
@@ -246,6 +248,29 @@ void main() {
     expect(fields['title'], 'شقة للإيجار في صنعاء');
     expect(fields['description'], contains('غرف النوم: 4'));
     expect(ai.prepares, 1); expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the complete owner brief populates the canonical editor including rental conditions and explicit Sai', (tester) async {
+    final snapshot = _snapshot()..['step'] = 0;
+    final recovery = _Recovery(snapshot), ai = _CompleteAssistant();
+    await _pump(tester, const ListingEditorScreen(), ai: ai, recovery: recovery);
+    await _tap(tester, 'listing-draft-assistant');
+    await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')), ownerBrief);
+    await _tap(tester, 'listing-ai-prepare');
+    await _tap(tester, 'listing-ai-apply-draft');
+    await tester.pump(const Duration(seconds: 1)); await tester.pumpAndSettle();
+    final saved = recovery.snapshot!, fields = saved['fields'] as Map;
+    expect(saved['type'], 'apartment'); expect(saved['purpose'], 'rent');
+    expect(saved['parking'], 'yes'); expect(saved['sai_amount_type'], 'percentage');
+    expect(saved['rental_conditions'], ai.proposals['rental_conditions']);
+    expect(fields['governorate'], 'إب'); expect(fields['street'], 'السبل');
+    expect(fields['bedrooms'], '3'); expect(fields['bathrooms'], '2');
+    expect(fields['monthly_rent'], '100000'); expect(fields['broker_sai_rate_percent'], '100');
+    expect(fields['title'], 'شقة للإيجار في إب'); expect(fields['description'], contains('ضمانة تجارية'));
+    expect(saved['latitude'], isNull); expect(saved['longitude'], isNull);
+    expect(fields['floor_number'], isEmpty); expect(fields['area'], isEmpty);
+    expect(find.text('أكمل الناقص فقط'), findsOneWidget); expect(ai.prepares, 1);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('completion navigation respects required photos before the price step', (tester) async {

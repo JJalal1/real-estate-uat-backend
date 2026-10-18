@@ -1,5 +1,5 @@
 String currencyLabel(String currency) => switch (currency.toUpperCase()) {
-  'YER' => 'ريال', 'SAR' => 'ريال سعودي', 'USD' => 'دولار أمريكي', _ => currency,
+  'YER' || 'ر.ي' || 'ريال يمني' => 'ريال', 'SAR' || 'ر.س' => 'ريال سعودي', 'USD' => 'دولار أمريكي', _ => currency,
 };
 
 String arabicDigits(String text) {

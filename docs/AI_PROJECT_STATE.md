@@ -1,5 +1,9 @@
 # AI Project State — REAL ESTATE UAT
 
+## October19 listing preparation and interface wave
+
+The owner requested complete typed/spoken factual preparation on the latest1087 source and a broad interface refresh. `LISTING_DESIGN_WAVE_AR.md` records the supplied references, exact example, updated navigation/card/login/selection behavior, tests and open physical-device gate. PR91 targets the existing private integration branch. This wave adds no schema, dependencies, asset edits, reseed, auth method or financial-policy/history changes. Delivery evidence must be recorded separately after the full original CI and native installer checks;1087 below remains the last completed delivery until then.
+
 ## October18/19 query/voice wave — APK1087 delivered
 
 The owner supplied two video-only recordings and requested the reference's structured criteria presentation with arbitrary voice and typed followups inside the same search section. The client now renders accepted canonical criteria as a readable Arabic query sentence with independent edit/remove actions. Only the exact accepted draft is consumed before property retrieval, so the next dictation starts fresh. Newer/failed drafts, explicit manual finish/review/send, cancellation/stale-response guards, monthly budgets and shared list/map/save context remain.

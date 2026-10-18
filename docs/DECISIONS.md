@@ -1,5 +1,9 @@
 # Decisions — REAL ESTATE
 
+## D-LISTING-DESIGN — October19 current1087 reference wave
+
+The owner explicitly authorizes new colors, rounded components, consolidated professional navigation and a centered animated creation menu. Preserve existing entities, real auth and protected workflows. Supplement sparse model extraction with conservative explicit facts from the complete Arabic brief, never guessed missing data. Apply reviewed proposals together to the canonical editor; offer the existing complete-clip route alongside live dictation with manual finish. Move comparison beside favorites on listing photos and localize price display without changing values. `LISTING_DESIGN_WAVE_AR.md` defines scope and acceptance limits; physical-device microphone acceptance remains separate from CI previews.
+
 This file records product/engineering decisions that AI agents must not silently reverse.
 
 ## D-VOICE-REF — October16 explicit voice reference

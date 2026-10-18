@@ -66,7 +66,7 @@ void main() {
     await tester.tap(find.text('المساعد')); await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'أربع غرف ومصعد');
     await tester.tap(find.text('اقتراح الحقول')); await tester.pumpAndSettle(); expect(applied, isNull);
-    final elevator = find.widgetWithText(CheckboxListTile, 'المصعد'); await tester.ensureVisible(elevator); await tester.pumpAndSettle(); await tester.tap(elevator); await tester.pumpAndSettle();
+    final elevator = find.byKey(const ValueKey('listing-ai-field-has_elevator')); await tester.ensureVisible(elevator); await tester.pumpAndSettle(); await tester.tap(elevator); await tester.pumpAndSettle();
     final apply = find.text('تطبيق المواصفات المحددة'); await tester.ensureVisible(apply); await tester.pumpAndSettle(); await tester.tap(apply); await tester.pumpAndSettle();
     expect(applied, {'bedrooms': 4}); expect(tester.takeException(), isNull);
   });

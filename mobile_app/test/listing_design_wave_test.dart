@@ -16,6 +16,9 @@ import 'package:real_estate_mobile/features/app_shell/presentation/listing_creat
 import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
+import 'package:real_estate_mobile/features/properties/data/favorites_repository.dart';
+import 'package:real_estate_mobile/features/properties/presentation/favorites_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_compare_actions.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
 import 'broker_experience_ui_test.dart' show BrokerTestAuth, BrokerTestRepository;
@@ -32,12 +35,13 @@ PropertySummary _property(int id, {String type = 'house', String purpose = 'sale
   'address':'إب، شارع السبل', 'bedrooms':3, 'bathrooms':2, 'area_value':180, 'area_unit':'sqm', 'has_parking':true,
 });
 
-Future<void> _pump(WidgetTester tester, Widget child, {double scale = 1, GlobalKey? boundary, bool broker = false}) async {
+Future<void> _pump(WidgetTester tester, Widget child, {double scale = 1, GlobalKey? boundary, bool broker = false, List<PropertyMarker>? favorites}) async {
   tester.view.physicalSize = const Size(412,915); tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides: [
     authControllerProvider.overrideWith(() => broker ? BrokerTestAuth(1) : _Anonymous()),
     brokerRepositoryProvider.overrideWithValue(BrokerTestRepository()),
+    if (favorites != null) favoritePropertiesProvider.overrideWith((ref) async => favorites),
   ], child: MaterialApp(theme: AppTheme.light, builder: (context, child) => MediaQuery(
     data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
     child: RepaintBoundary(key: boundary, child: child!)), home: Directionality(textDirection: TextDirection.rtl, child: child))));
@@ -153,5 +157,20 @@ void main() {
     await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-المستحقات')),200);
     expect(find.byKey(const ValueKey('broker-tool-الصفقات')),findsOneWidget);
     expect(find.byKey(const ValueKey('broker-tool-المستحقات')),findsOneWidget); expect(tester.takeException(),isNull);
+  });
+
+  testWidgets('favorites share photo comparison selection with discovery without entering a separate selection mode', (tester) async {
+    await _pump(tester, const FavoritesScreen(), broker: true, favorites: [PropertyMarker.fromJson({
+      'id': 1, 'title': 'منزل محفوظ في إب', 'type': 'house', 'purpose': 'sale', 'price': 125000000,
+      'currency': 'YER', 'latitude': 13.96, 'longitude': 44.18, 'bedrooms': 3, 'bathrooms': 2,
+    })]);
+    final action = find.byKey(const ValueKey('compare-property-1'));
+    final container = ProviderScope.containerOf(tester.element(find.byType(FavoritesScreen)));
+    container.read(propertyCompareSelectionProvider.notifier).toggle(1); await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(action).isSelected, isTrue);
+    expect(tester.getRect(find.byType(PropertyCardGallery)).contains(tester.getCenter(action)), isTrue);
+    await tester.tap(action); await tester.pumpAndSettle();
+    expect(container.read(propertyCompareSelectionProvider), isEmpty);
+    expect(find.byTooltip('إزالة من المفضلة'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 }
