@@ -23,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Render terminates TLS before forwarding to Apache. Trust only the
+        // original scheme; forwarded client IP/host/port remain untrusted.
+        $middleware->trustProxies(at: '*', headers: Request::HEADER_X_FORWARDED_PROTO);
         $middleware->prepend(FastRenderHealthProbe::class);
         $middleware->append(RequestObservability::class);
         $middleware->append(\App\Http\Middleware\RefreshBrokerAvailability::class);
