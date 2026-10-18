@@ -47,5 +47,8 @@ abstract final class DynamicPropertySchema {
   static Map<String, String> get floorOptions => {
     for (final row in propertySchemaDefinition['floors'] as List) (row as Map)['value'] as String: row['label'] as String,
   };
+  static Map<String, String> floorOptionsFor(String type) => type == 'apartment'
+      ? {for (final row in propertySchemaDefinition['apartment_floors'] as List) (row as Map)['value'] as String: row['label'] as String}
+      : floorOptions;
   static String floorLabel(String? value) => floorOptions[value] ?? value ?? '';
 }

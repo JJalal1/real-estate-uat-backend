@@ -109,7 +109,7 @@ class Wave3AiAssistantTest extends TestCase
         Http::assertNothingSent();
         config(['gemini.enabled' => true]);
         Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['error' => ['message' => 'private-provider-details']], 429)]);
-        $r = $this->postJson('/api/ai/search', ['message' => 'شقة', 'filters' => (object) [], 'revision' => 0])->assertStatus(503);
+        $r = $this->postJson('/api/ai/search', ['message' => 'شقة', 'filters' => (object) [], 'revision' => 0])->assertStatus(429)->assertHeader('Retry-After','60');
         $this->assertStringNotContainsString('fixture-server-key', $r->getContent());
         $this->assertStringNotContainsString('private-provider-details', $r->getContent());
     }

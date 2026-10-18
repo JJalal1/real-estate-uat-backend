@@ -184,6 +184,20 @@ class Wave5ListingRefinementTest extends TestCase
         Property::findOrFail($id)->forceFill(['status'=>'published', 'review_status'=>'approved', 'published_at'=>now()])->save();
     }
 
+    public function test_current_wave_percentage_never_exceeds_100_and_sale_keeps_its_existing_ceiling(): void
+    {
+        [, $headers]=$this->actor('percentage-ceiling');$id=$this->createListing($headers);
+        foreach([100.01,101,-1] as $rate) $this->withHeaders($headers)->putJson("/api/properties/$id/sai",
+            ['sai_amount_type'=>'percentage','broker_sai_rate_percent'=>$rate,'defer_platform_terms'=>true])->assertUnprocessable();
+        $this->assertDatabaseCount('property_sai_terms',0);
+        $this->withHeaders($headers)->putJson("/api/properties/$id/sai",
+            ['sai_amount_type'=>'percentage','broker_sai_rate_percent'=>100,'defer_platform_terms'=>true])->assertOk();
+        $this->assertDatabaseCount('property_sai_terms',1);
+        $sale=$this->createListing($headers,['purpose'=>'sale','monthly_rent'=>null,'price'=>1000000,'area_value'=>100,'area_unit'=>'sqm','tenure_type'=>'freehold']);
+        $this->withHeaders($headers)->putJson("/api/properties/$sale/sai",
+            ['sai_amount_type'=>'percentage','broker_sai_rate_percent'=>6,'defer_platform_terms'=>true])->assertUnprocessable();
+    }
+
     private function actor(string $key, ?string $type = 'broker'): array
     {
         $user = User::create(['name'=>'أحمد محمد علي صالح', 'email'=>$key.'@wave5.example.test',

@@ -49,7 +49,8 @@ class ListingAiService
         }
         $facts=Validator::make($input,$this->rules())->validate();
         if (isset($facts['rental_conditions'])) $facts['rental_conditions']=app(RentalConditionService::class)->normalize($facts['rental_conditions']);
-        return app(DynamicPropertySchema::class)->facts($facts);
+        $schema = app(DynamicPropertySchema::class);
+        return $schema->validateApartmentFloor($schema->facts($facts), 'facts.floor_number');
     }
 
     public function extract(string $message, array $current): array
@@ -77,6 +78,7 @@ class ListingAiService
             if (isset($fields['broker_sai_rate_percent']) && !isset($fields['fixed_sai_amount'])) $fields['sai_amount_type']='percentage';
             if (isset($fields['fixed_sai_amount']) && !isset($fields['broker_sai_rate_percent'])) $fields['sai_amount_type']='fixed';
             $effective=array_merge($current,$fields);
+            $effective=app(DynamicPropertySchema::class)->validateApartmentFloor($effective,'facts.floor_number');
             $fields=array_intersect_key(app(DynamicPropertySchema::class)->facts($effective),$fields);
         } catch (ValidationException) {
             $this->gemini->unavailable();

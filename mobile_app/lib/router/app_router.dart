@@ -296,6 +296,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           if(double.tryParse(state.uri.queryParameters['lat']??'')!=null && double.tryParse(state.uri.queryParameters['lon']??'')!=null) ...{
             'latitude':double.parse(state.uri.queryParameters['lat']!), 'longitude':double.parse(state.uri.queryParameters['lon']!), 'radius_km':30},
           if(state.uri.queryParameters['type']!=null)'type':state.uri.queryParameters['type'],
+          if(state.uri.queryParameters['governorate']!=null)'governorate':state.uri.queryParameters['governorate'],
         })),
       ),
     ],

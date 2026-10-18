@@ -133,11 +133,11 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       appBar:AppAppBar(title:'البحث على الخريطة',actions:[TextButton(key:const ValueKey('smart-search-list'),onPressed:_openMap,child:const Text('القائمة'))]),
       body:MapScreen(sharedSearchJourney:true,searchToolbar:_mapToolbar(state),onShowList:_openMap))); }
     final controller = ref.read(smartSearchSessionProvider.notifier);
-    final chips = state.filters.chips;
+    final chips = state.started ? state.filters.chips : <(String, String)>[];
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       appBar: AppAppBar(title: 'البحث الذكي', actions: [
         TextButton(key: const ValueKey('smart-search-reset'), onPressed: () {
-          _cancelVoice(); _capture.clearError(); _description.clear(); controller.reset();
+          _cancelVoice(); _capture.clearError(); _description.clear(); controller.reset(useLocation: true);
         }, child: const Text('بدء بحث جديد')),
       ]),
       body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active, onPressed: () {

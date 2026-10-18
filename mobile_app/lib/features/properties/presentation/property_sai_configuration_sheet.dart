@@ -56,7 +56,7 @@ class _SaiConfigurationBody extends StatefulWidget {
 class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
   late final TextEditingController _rateController;
   late final TextEditingController _amountController;
-  String _amountType = 'percentage';
+  String _amountType = 'fixed';
   String? _payer;
   bool _busy = false;
   String? _error;
@@ -81,7 +81,7 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
       text: currentRequested == null ? '' : _formatRate(currentRequested),
     );
     _amountController = TextEditingController(text: management.fixedAmount?.toString() ?? '');
-    _amountType = management.amountType;
+    _amountType = management.configured ? management.amountType : 'fixed';
     _payer = isSale ? 'buyer' : 'tenant';
   }
 

@@ -101,7 +101,7 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/ai/listing-fields', [AiAssistantController::class, 'extract'])->middleware('throttle:8,1');
     Route::post('/ai/listing-draft', [AiAssistantController::class, 'draft'])->middleware('throttle:8,1');
     Route::post('/ai/rental-conditions', [AiAssistantController::class, 'rentalConditions'])->middleware('throttle:8,1');
-    Route::post('/ai/listing-description', [AiAssistantController::class, 'description'])->middleware('throttle:8,1');
+    Route::post('/ai/listing-description', [AiAssistantController::class, 'description'])->middleware('throttle:8,1,listing-description');
     Route::get('/listing-access', [PropertyController::class, 'listingAccess']);
     Route::get('/listing-sai-policy', [PropertySaiController::class, 'policy']);
     Route::get('/properties/{property}/sai-management', [PropertySaiController::class, 'management']);

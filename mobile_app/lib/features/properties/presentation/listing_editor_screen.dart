@@ -119,7 +119,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   PropertyDetails? _workingDraft;
   final _saiRate = TextEditingController();
   final _saiAmount = TextEditingController();
-  String _saiAmountType = 'percentage';
+  String _saiAmountType = 'fixed';
   PropertySaiManagement? _saiPolicy;
   String? _saiPolicyError;
   bool _saiAccepted = false, _saiTouched = false, _hasRecoveredSai = false;
@@ -140,6 +140,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool _accountSaved = false, _accountSyncing = false, _accountConflict = false;
   String? _accountError, _descriptionError;
   bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false;
+  Timer? _descriptionRetryTimer;
+  bool get _descriptionCoolingDown => ref.read(aiRepositoryProvider).descriptionRetryAt?.isAfter(DateTime.now()) == true;
   Set<String> _completionFields = {};
   final _remotePhotos = <String, String>{}, _localPhotoKeys = <String, String>{};
   final _removedPhotoKeys = <String>{};
@@ -231,16 +233,18 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Widget _floorSelector() {
-    final value = _floorNumber.text.trim(), options = DynamicPropertySchema.floorOptions;
-    return DropdownButtonFormField<String>(key: const ValueKey('listing-floor-select'), value: value.isEmpty ? null : value,
-      isExpanded: true, decoration: InputDecoration(labelText: _type == 'apartment' ? 'الشقة في الدور *' : 'الدور *'),
+    final value = _floorNumber.text.trim(), options = DynamicPropertySchema.floorOptionsFor(_type);
+    final selected = value.isNotEmpty && (options.containsKey(value) || _type != 'apartment') ? value : null;
+    return DropdownButtonFormField<String>(key: const ValueKey('listing-floor-select'), value: selected,
+      isExpanded: true, decoration: InputDecoration(labelText: _type == 'apartment' ? 'الشقة في الدور *' : 'الدور *',
+        errorText: _type == 'apartment' && value.isNotEmpty && !options.containsKey(value) ? 'اختر دورًا من الأرضي إلى السابع.' : null),
       items: [for (final entry in options.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value)),
-        if (value.isNotEmpty && !options.containsKey(value)) DropdownMenuItem(value: value, child: Text(value))],
+        if (_type != 'apartment' && value.isNotEmpty && !options.containsKey(value)) DropdownMenuItem(value: value, child: Text(value))],
       onChanged: _busy ? null : (value) => setState(() => _floorNumber.text = value ?? ''));
   }
 
   Future<void> _generateDescription() async {
-    if (_descriptionBusy || _busy) return;
+    if (_descriptionBusy || _busy || _descriptionCoolingDown) return;
     final facts = _aiFacts(), before = _description.text, signature = jsonEncode(_aiFacts());
     setState(() { _descriptionBusy = true; _descriptionError = null; });
     try {
@@ -253,7 +257,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final text = result['description'];
       if (text is! String || text.trim().isEmpty || text.length > 5000) throw StateError('تعذر تجهيز الوصف.');
       setState(() => _description.text = text);
-    } catch (e) { if (mounted) setState(() => _descriptionError = friendlyApiError(e)); }
+    } catch (e) {
+      if (!mounted) return;
+      if (e is DescriptionRateLimit) {
+        _descriptionRetryTimer?.cancel();
+        _descriptionRetryTimer = Timer(e.retryAt.difference(DateTime.now()), () { if (mounted) setState(() {}); });
+      }
+      setState(() => _descriptionError = e is DioException && const [401,403,422].contains(e.response?.statusCode)
+        ? friendlyApiError(e) : 'تعذر إنشاء الوصف الآن، جرّب بعد لحظات');
+    }
     finally { if (mounted) setState(() => _descriptionBusy = false); }
   }
 
@@ -409,7 +421,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _imagePaths = (data['image_paths'] as List? ?? const []).whereType<String>().toList();
       final serverId = data['server_property_id'];
       if (widget.existingProperty == null && serverId is int && serverId > 0) _recoveredServerId = serverId;
-      if (const ['percentage', 'fixed'].contains(data['sai_amount_type'])) _saiAmountType = data['sai_amount_type'] as String;
+      if (const ['percentage', 'fixed'].contains(data['sai_amount_type'])) {
+        _saiAmountType = data['sai_amount_type'] as String;
+      } else if (data['sai_touched'] == true && fields is Map && (fields['broker_sai_rate_percent']?.toString().trim().isNotEmpty ?? false)) {
+        _saiAmountType = 'percentage';
+      }
       final saiField = _saiAmountType == 'fixed' ? 'fixed_sai_amount' : 'broker_sai_rate_percent';
       _hasRecoveredSai = data['sai_touched'] == true && fields is Map && (fields[saiField]?.toString().trim().isNotEmpty ?? false);
       _saiTouched = _hasRecoveredSai;
@@ -472,6 +488,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       return null;
     }
     final rate = _enteredSaiRate, maximum = policy.brokerMaxRatePercent;
+    if (rate.isFinite && rate > 100) return 'أقصى نسبة للسعي 100%';
     if (!rate.isFinite || rate < 0 || maximum == null || rate > maximum || (rate * 100 - (rate * 100).round()).abs() > .000001) {
       return 'أدخل نسبة سعي صحيحة ضمن الحد المسموح وبدقتين عشريتين على الأكثر.';
     }
@@ -529,6 +546,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final retryAt = ref.read(aiRepositoryProvider).descriptionRetryAt;
+    if (retryAt?.isAfter(DateTime.now()) == true) {
+      _descriptionRetryTimer = Timer(retryAt!.difference(DateTime.now()), () { if (mounted) setState(() {}); });
+    }
     _price.addListener(_onPriceChanged);
     _monthlyRent.addListener(_onPriceChanged);
     _advanceMonths.addListener(_onPriceChanged);
@@ -594,6 +615,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   @override
   void dispose() {
+    _descriptionRetryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _price.removeListener(_onPriceChanged);
     _monthlyRent.removeListener(_onPriceChanged);
@@ -1036,7 +1058,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           hint: 'اكتب ما يميز العقار أو استخدم وصفًا مقترحًا من مواصفاتك.', enabled: !_busy, maxLines: 5),
         if (_descriptionBusy) const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Row(children: [SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Expanded(child: Text('جارٍ تجهيز الوصف…'))])),
         if (_descriptionError != null) Text(_descriptionError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        TextButton.icon(onPressed: _busy || _descriptionBusy ? null : _generateDescription,
+        TextButton.icon(key: const ValueKey('listing-description-generate'), onPressed: _busy || _descriptionBusy || _descriptionCoolingDown ? null : _generateDescription,
           icon: const EbrokerIcon(Icons.edit_note_outlined, size: 18), label: const Text('إنشاء وصف بالذكاء الاصطناعي')),
         if (_purpose == 'rent') RentalConditionsEditor(value: _rentalConditions, enabled: !_busy, onPolish: _polishRentalConditions,
           onChanged: (value) => setState(() => _rentalConditions = value)),
@@ -1294,6 +1316,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (_unitNeedsFloor && _floorNumber.text.trim().isEmpty) {
           return 'أدخل رقم الدور.';
         }
+        if (_type == 'apartment' && !DynamicPropertySchema.floorOptionsFor(_type).containsKey(_floorNumber.text.trim())) return 'اختر دورًا من الأرضي إلى السابع.';
       }
       if (_requiresResidential) {
         if ((_optionalInt(_bedrooms) ?? 0) < 1) return 'أدخل عدد غرف النوم.';
@@ -1842,7 +1865,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         _existingSaiLoaded = true;
         final management = envelope.management;
         if (management != null && management.purpose == _purpose && !_saiTouched && !_hasRecoveredSai) {
-          _saiAmountType = management.amountType;
+          _saiAmountType = management.configured ? management.amountType : 'fixed';
           _saiAmount.text = management.fixedAmount?.toString() ?? '';
           _saiRate.text = management.requestedBrokerRatePercent?.toString() ?? '';
           _saiAccepted = management.platformTermsStatus == 'accepted';

@@ -14,6 +14,7 @@ import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
+import 'package:real_estate_mobile/features/discovery/data/discovery_location.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
@@ -37,18 +38,21 @@ Map<String,dynamic> editorSnapshot({String type='house'})=>{
 };
 Finder textField(String label)=>find.byWidgetPredicate((w)=>w is TextField && w.decoration?.labelText==label);
 
-Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts? drafts,Wave6Recovery? recovery,Wave3VoiceFake? voice,bool testMap=false,double scale=1,GlobalKey? boundary})async{
+Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts? drafts,Wave6Recovery? recovery,Wave3VoiceFake? voice,bool testMap=false,double scale=1,GlobalKey? boundary,
+  bool allowLocation=false,DiscoveryLocationStore? locationStore,DiscoveryLocationAccess? locationAccess,Wave3MarketplaceFake? marketplace})async{
   tester.view.physicalSize=const Size(412,915);tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(()=>BrokerTestAuth(1)),
     propertyRepositoryProvider.overrideWithValue(Wave6Properties()),aiRepositoryProvider.overrideWithValue(ai??Wave6Ai()),
     listingAccountDraftRepositoryProvider.overrideWithValue(drafts??Wave6Drafts()),listingRecoveryStoreProvider.overrideWithValue(recovery??Wave6Recovery()),
     voiceInputProvider.overrideWithValue(voice??Wave3VoiceFake()),
-    homeLocationAttemptedProvider.overrideWith((ref)=>true),
+    homeLocationAttemptedProvider.overrideWith((ref)=>!allowLocation),
+    if(locationStore!=null) discoveryLocationStoreProvider.overrideWithValue(locationStore),
+    if(locationAccess!=null) discoveryLocationAccessProvider.overrideWithValue(locationAccess),
     if(testMap) sharedSearchMapBuilderProvider.overrideWithValue((context,rows,select,viewport)=>ColoredBox(color:Colors.teal.shade50,
       child:Center(child:Wrap(spacing:12,runSpacing:12,children:[for(final row in rows)TextButton(
         key:ValueKey('fixture-map-${row.id}'),onPressed:()=>select(row.id),child:Text('${row.latitude}, ${row.longitude}'))])))),
-    marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake(onFeed:(q)async=>MarketplaceFeed(label:'صنعاء',governorate:'صنعاء',sectionOrder:const ['rent','latest'],
+    marketplaceRepositoryProvider.overrideWithValue(marketplace??Wave3MarketplaceFake(onFeed:(q)async=>MarketplaceFeed(label:'صنعاء',governorate:'صنعاء',sectionOrder:const ['rent','latest'],
       sections:{'latest':[wave3Property(11)],'rent':[wave3Property(12)]}))),
   ],child:MaterialApp(theme:AppTheme.light,home:child,builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale)),
     child:RepaintBoundary(key:boundary,child:child!)))));

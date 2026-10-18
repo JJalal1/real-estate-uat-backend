@@ -1,5 +1,11 @@
 # AI Project State — REAL ESTATE UAT
 
+## October18 current wave on1076 — implementation under verification
+
+The owner supplied `WORK_HANDOFF_CURRENT_WAVE_AR.docx` after explicitly choosing the latest1076. Read `CURRENT_WAVE_1076_AR.md`. The focused branch is `work/current-wave-1076` from integration `2dcea7a32504679c703225e6a06fc8ebf9a3bf06`. The wave restricts current apartment floor writes to ground–7, starts new professional Sai input at fixed money, adds Arabic words/compact broker-share wording and a100% client ceiling, coalesces description requests per authenticated session and respects server Retry-After, and requests foreground location once after first Home render. Manual city/permission decision persist locally; the GPS fix does not. Home, new normal/AI/map journeys share a default that explicit chosen/saved locations can override. Full exit still clears the search journey.
+
+No migration, reseed, financial-policy/history modification, dependency/lock/asset change, new service or Production work. Existing sale/owner/zero rates and split/payer/consent remain. Native Android foreground permissions already exist; iOS receives the when-in-use purpose string. Green CI, original APK verification, handset/OS-sheet acceptance and merge/UAT rollout are separate pending gates until evidence is added.
+
 ## Wave6 reviewed implementation and UAT rollout — APK1076
 
 The owner requested completion through reviewed installer delivery, using1069 as the baseline. Read `WAVE6_BASELINE_1069_AR.md`. Final source `493cc09ebc8e544dc545b5dd84710ab7f4af4dbd` passed all five CI76 jobs (`39076536548`) and focused9 (`39076536560`). PR82 merged as `22569181f1c93bf78ceda8be0eb7ca5721186fe5`; its complete tree is exactly the tested `95826858e1576aef9dc8e78c6b3fac5d42cbda2c`. Mobile tree `46433748ff25f7cbf5af24f37fe3a56a501a5e3a`; backend tree `b1122103296b4e5fa04113cd72c2180422a522bf`. Later documentation-only handoff changes preserve both.

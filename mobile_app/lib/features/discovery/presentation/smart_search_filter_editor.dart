@@ -47,6 +47,10 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
         setState(() => _error = 'الحد الأدنى يجب ألا يتجاوز الحد الأعلى.'); return;
       }
     }
+    if (next['search'] != widget.initial.values['search']) {
+      next.remove('governorate');
+      for (final key in SmartSearchFilters.mapFields) { next.remove(key); }
+    }
     Navigator.of(context).pop(SmartSearchFilters.fromMap(next));
   }
 

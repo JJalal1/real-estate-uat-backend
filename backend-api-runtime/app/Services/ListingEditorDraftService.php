@@ -53,6 +53,8 @@ class ListingEditorDraftService
         $schema = app(DynamicPropertySchema::class);
         foreach ($fields as $key=>$_) if (! $schema->applies($aliases[$key] ?? $key,$context)) unset($fields[$key]);
         foreach ($payload as $key=>$_) if (! $schema->applies($aliases[$key] ?? $key,$context)) unset($payload[$key]);
+        $checked = $schema->validateApartmentFloor($fields + ['type'=>$payload['type'] ?? null], 'fields.floor_number');
+        if (isset($checked['floor_number'])) $fields['floor_number'] = $checked['floor_number'];
         if (($payload['type'] ?? '') === 'shop') {
             if (is_numeric($fields['area'] ?? null)) $fields['area'] = (string)((float)$fields['area'] * ($schema->definition()['area_units_to_sqm'][$payload['area_unit'] ?? 'sqm'] ?? 1));
             $payload['area_unit']='sqm';

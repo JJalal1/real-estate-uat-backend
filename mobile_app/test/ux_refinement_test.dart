@@ -270,6 +270,8 @@ void main() {
     ]);
     addTearDown(router.dispose);
     await _pump(tester, const SizedBox(), snapshot: recovery, properties: repository, router: router);
+    await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-percentage')));
+    await tester.tap(find.byKey(const ValueKey('listing-sai-percentage'))); await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-rate')));
     final empty = tester.widget<TextField>(find.byKey(const ValueKey('listing-sai-rate')));
     expect(empty.controller!.text, isEmpty);
