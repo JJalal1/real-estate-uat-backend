@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 String? propertyTypeFromLabel(String label) => const {
+  'شقق':'apartment', 'منازل':'house', 'فلل':'villa', 'عمائر':'building', 'أراضٍ':'land', 'محلات':'shop', 'مكاتب':'office', 'مزارع':'farm',
   'شقة':'apartment', 'دور كامل':'floor', 'عمارة':'building', 'عمارة كاملة':'building', 'منزل':'house',
   'فيلا':'villa', 'أرض':'land', 'مزرعة':'farm', 'محل':'shop', 'مكتب':'office',
 }[label];

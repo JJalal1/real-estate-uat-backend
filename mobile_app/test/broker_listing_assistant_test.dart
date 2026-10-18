@@ -167,10 +167,11 @@ void main() {
   for(final byVoice in [false,true]) {
     testWidgets('complete owner brief fills every supplied field after explicit review via ${byVoice?'voice':'typing'}',(tester) async {
       final ai=_CompleteAssistant(), voice=Wave3VoiceFake(autoComplete:false); addTearDown(voice.dispose);
+      final boundary=GlobalKey();
       Map<String,dynamic>? applied;
       await _pump(tester,Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:() async {
         applied=await AppBottomSheet.show<Map<String,dynamic>>(context,builder:(_)=>const ListingAiSheet(prepareDraft:true,facts:{}));
-      },child:const Text('تجهيز الوصف')))),ai:ai,voice:voice);
+      },child:const Text('تجهيز الوصف')))),ai:ai,voice:voice,boundary:boundary);
       await tester.tap(find.text('تجهيز الوصف'));await tester.pumpAndSettle();
       if(byVoice){
         await _tap(tester,'listing-ai-voice');voice.latest.emit(const VoiceEvent('ready'));await tester.pump();
@@ -180,9 +181,13 @@ void main() {
         expect(ai.prepares,0);expect(applied,isNull);
       }else{await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),ownerBrief);}
       await _tap(tester,'listing-ai-prepare');expect(ai.received,ownerBrief);expect(applied,isNull);
-      for(final field in ai.proposals.keys) await _reveal(tester,'listing-ai-field-$field');
+      await _reveal(tester,'listing-ai-field-type');
+      await _capture(tester,boundary,'complete-fields-${byVoice?'voice':'typed'}');
+      for(final field in ai.proposals.keys) { await _reveal(tester,'listing-ai-field-$field'); }
+      await _reveal(tester,'listing-ai-apply-draft');
+      await _capture(tester,boundary,'complete-copy-${byVoice?'voice':'typed'}');
       await _tap(tester,'listing-ai-apply-draft');
-      for(final field in ai.proposals.keys) expect(applied![field],ai.proposals[field],reason:field);
+      for(final field in ai.proposals.keys) { expect(applied![field],ai.proposals[field],reason:field); }
       expect(applied!['title'],'شقة للإيجار في إب');expect(applied!['description'],contains('ضمانة تجارية'));
       expect(ai.prepares,1);expect(tester.takeException(),isNull);
     });

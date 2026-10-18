@@ -562,9 +562,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _recoveryUserId = ref.read(authControllerProvider).asData?.value?.id;
     Future.microtask(() async {
       await _restoreRecovery(); if (mounted) await _loadSaiPolicy();
-      if (mounted && widget.startWithAssistant) WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.startWithAssistant) { WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _assist(prepareDraft: true);
-      });
+      }); }
     });
     for (final controller in _recoveryFields.values) { controller.addListener(_scheduleRecovery); }
     final property = _existing;

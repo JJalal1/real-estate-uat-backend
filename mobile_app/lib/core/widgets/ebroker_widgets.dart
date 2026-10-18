@@ -316,7 +316,7 @@ class EbrokerWizardCategoryCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: selected ? primary : EbrokerDesign.border.withValues(alpha: .7))),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            EbrokerImage(icon, size: 28.rw(context), color: selected ? primary : EbrokerDesign.text),
+            PropertyTypeIcon(label: label, size: 28.rw(context), color: selected ? primary : EbrokerDesign.text),
             SizedBox(height: 6.rh(context)),
             EbrokerText(label, size: 12, weight: selected ? FontWeight.w600 : FontWeight.w400,
               color: selected ? primary : EbrokerDesign.text, align: TextAlign.center, maxLines: 1),
@@ -383,7 +383,7 @@ class EbrokerCategoryCard extends StatelessWidget {
           decoration: BoxDecoration(color: selected ? scheme.secondary : scheme.surface,
             border: Border.all(color: selected ? scheme.secondary : scheme.outlineVariant), borderRadius: BorderRadius.circular(999)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            EbrokerImage(icon, size: 18, color: selected ? Colors.white : scheme.primary), const SizedBox(width: 8),
+            PropertyTypeIcon(label: label, size: 18, color: selected ? Colors.white : scheme.primary), const SizedBox(width: 8),
             EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? Colors.white : scheme.onSurface, maxLines: 1),
           ])))));
   }

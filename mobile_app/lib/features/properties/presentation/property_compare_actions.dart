@@ -34,12 +34,12 @@ class PropertyCompareAction extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختر حتى أربعة عقارات للمقارنة. أزل أحد الاختيارات لإضافة آخر.')));
       }
     }
-    if (overlay) return IconButton(key: ValueKey('compare-property-$propertyId'), tooltip: label,
+    if (overlay) { return IconButton(key: ValueKey('compare-property-$propertyId'), tooltip: label,
       onPressed: enabled ? toggle : null, isSelected: selected,
       style: IconButton.styleFrom(backgroundColor: selected ? Theme.of(context).colorScheme.primary : Colors.white.withValues(alpha: .96),
         foregroundColor: selected ? Colors.white : Theme.of(context).colorScheme.secondary, minimumSize: const Size(48, 48),
         padding: const EdgeInsets.all(10), shape: const CircleBorder()),
-      icon: Icon(selected ? Icons.check_rounded : Icons.compare_arrows_rounded, size: 20));
+      icon: Icon(selected ? Icons.check_rounded : Icons.compare_arrows_rounded, size: 20)); }
     return TextButton.icon(key: ValueKey('compare-property-$propertyId'), onPressed: enabled ? toggle : null,
       icon: Icon(selected ? Icons.check_circle_outline : Icons.compare_arrows, size: 18), label: Text(label));
   }

@@ -83,7 +83,7 @@ void main() {
     expect(
       find.byWidgetPredicate(
         (widget) => widget is Text &&
-            widget.textSpan?.toPlainText().contains('12,500,000 YER') == true,
+            widget.textSpan?.toPlainText().contains('١٢٬٥٠٠٬٠٠٠ ريال') == true,
       ),
       findsOneWidget,
     );

@@ -44,7 +44,7 @@ class AppSelectField<T> extends StatelessWidget {
                               size: 22, color: active ? scheme.primary : scheme.outline)]))));
                     })),
                 ])))));
-        if (choice == null || !context.mounted) return;
+        if (choice == null || !context.mounted || !field.mounted) return;
         field.didChange(choice.value); onChanged?.call(choice.value);
       }
       return Semantics(button: true, enabled: onChanged != null,

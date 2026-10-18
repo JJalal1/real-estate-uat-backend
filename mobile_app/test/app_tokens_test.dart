@@ -41,7 +41,7 @@ void main() {
       AppRadii.card,
       AppRadii.modal,
       AppRadii.pill,
-    ], [8, 4, 8, 16, 999]);
+    ], [8, 16, 22, 28, 999]);
     expect([AppBorderWidths.standard, AppBorderWidths.emphasized], [1, 2]);
     expect([
       AppElevation.flat,
@@ -60,7 +60,7 @@ void main() {
       AppSizes.badgeMinHeight,
       AppSizes.appBarMinHeight,
       AppSizes.navigationMinHeight,
-    ], [48, 56, 48, 32, 28, 56, 76]);
+    ], [48, 52, 48, 32, 28, 56, 76]);
     final theme = AppTheme.light;
     for (final style in [
       theme.filledButtonTheme.style!,

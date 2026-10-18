@@ -254,15 +254,15 @@ void main() {
     }
   });
 
-  testWidgets('template button retains MaterialButton, 56 height, 4 corners and loading lock', (tester) async {
+  testWidgets('refreshed button retains MaterialButton, touch target and loading lock', (tester) async {
     _viewport(tester, const Size(412, 915));
     var taps = 0;
     await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
       body: EbrokerButton(onPressed: () => taps++, child: const Text('متابعة')))));
     final material = tester.widget<MaterialButton>(find.byType(MaterialButton));
-    expect(material.height, 56);
-    expect(material.elevation, 0.5);
-    expect((material.shape! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(4));
+    expect(material.height, 52);
+    expect(material.elevation, 0);
+    expect((material.shape! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(16));
     await tester.tap(find.text('متابعة'));
     expect(taps, 1);
     await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
@@ -311,7 +311,7 @@ void main() {
     final next = find.widgetWithText(EbrokerStepButton, 'التالي');
     expect(next, findsOneWidget);
     final button = tester.widget<ElevatedButton>(find.descendant(of: next, matching: find.byType(ElevatedButton)));
-    expect((button.style!.shape!.resolve({})! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(6));
+    expect((button.style!.shape!.resolve({})! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(16));
     await tester.tap(next);
     await tester.pumpAndSettle();
     expect(find.text('1/4'), findsOneWidget);
@@ -346,8 +346,10 @@ void main() {
     testWidgets('center add button enforces publishing eligibility verified=$verified', (tester) async {
       final router = await _pump(tester, user: _user(verified: verified, type: 'broker'));
       final shape = find.byWidgetPredicate((w) => w is EbrokerImage && w.name == 'add_shape');
-      expect(shape, verified ? findsNothing : findsOneWidget);
-      await tester.tap(verified ? find.byKey(const ValueKey('home-add-property')) : find.byTooltip('إضافة عقار'));
+      expect(shape, findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('home-add-property')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('create-listing-manual')));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
       expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);

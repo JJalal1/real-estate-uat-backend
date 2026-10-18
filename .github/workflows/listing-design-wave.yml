@@ -60,3 +60,18 @@ jobs:
       - name: Focused interface and voice regression
         working-directory: mobile_app
         run: flutter test test/listing_design_wave_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart
+      - name: Upload synthetic interface previews
+        id: previews
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: listing-design-previews-${{ github.run_number }}
+          path: |
+            mobile_app/build/listing-design-preview/
+            mobile_app/build/broker-preview/assistant-complete-*.png
+          if-no-files-found: error
+          retention-days: 7
+      - name: Bounded preview fallback
+        if: ${{ !cancelled() && steps.previews.outcome == 'failure' }}
+        run: python3 -B scripts/emit_listing_design_previews.py

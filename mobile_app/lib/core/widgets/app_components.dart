@@ -586,7 +586,7 @@ class AppNavigationBar extends StatelessWidget {
     final duration = MediaQuery.disableAnimationsOf(context) ? Duration.zero : AppMotion.standard;
     final items = <Widget>[];
     for (var index = 0; index < destinations.length; index++) {
-      if (onCreate != null && index == 2) items.add(Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      if (onCreate != null && index == 2) { items.add(Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Semantics(button: true, label: 'إضافة عقار', child: Tooltip(message: 'إضافة عقار', child: InkWell(
           key: const ValueKey('home-add-property'), customBorder: const CircleBorder(), onTap: onCreate,
           child: SizedBox.square(dimension: 62, child: Stack(alignment: Alignment.center, children: [
@@ -595,7 +595,7 @@ class AppNavigationBar extends StatelessWidget {
               child: const Icon(Icons.add_rounded, color: Colors.white, size: 28)),
           ]))))),
         if (!largeText) Text('إعلان', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.primary)),
-      ]))));
+      ])))); }
       final item = destinations[index], active = index == selectedIndex;
       items.add(Expanded(child: Semantics(button: true, selected: active, label: item.label, excludeSemantics: true,
         child: Tooltip(message: item.label, child: InkWell(onTap: () => onSelected(index), borderRadius: BorderRadius.circular(16),

@@ -5,7 +5,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:real_estate_mobile/core/formatters/money.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/core/widgets/property_card_gallery.dart';
