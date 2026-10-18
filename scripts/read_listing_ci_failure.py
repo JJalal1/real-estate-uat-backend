@@ -1,7 +1,7 @@
 import json, os, re, urllib.request, urllib.parse
 REPO='JJalal1/real-estate-uat-backend'
-SOURCE='c57d1d1b17521dadaf1c459ebf3d0461179b12f3'
-RUN=39175237093
+SOURCE='64c9ee9399eca21c370e2c67e0c2248467b8c5b5'
+RUN=39176318725
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         out=super().redirect_request(req, fp, code, msg, headers, newurl)
@@ -30,7 +30,7 @@ indices=set()
 for i,line in enumerate(lines):
     if re.search(r'EXCEPTION CAUGHT|Expected:|Actual:|Which:|test description was:|\[E\]|Failed assertion|Some tests failed|pumpAndSettle timed out|Error:',line):
         indices.update(range(max(0,i-3),min(len(lines),i+16)))
-out='\n'.join(lines[i] for i in sorted(indices) if 'CHUNK' not in lines[i] and len(lines[i])<2000)
+out='\n'.join(lines[i] for i in sorted(indices) if 'CHUNK' not in lines[i] and '✅' not in lines[i] and len(lines[i])<2000)
 assert len(out)<100000
 print('FAILED_SOURCE '+SOURCE+' RUN '+str(RUN))
 print(out)
