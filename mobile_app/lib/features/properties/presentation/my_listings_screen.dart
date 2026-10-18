@@ -1,5 +1,8 @@
+import 'property_summary_card.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_card_actions.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +11,12 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../financial/data/financial_repository.dart';
+import '../../account/data/auth_controller.dart';
+import '../../broker/data/broker_repository.dart';
+import '../../broker/domain/broker_models.dart';
+import '../../broker/presentation/broker_workspaces.dart';
+import '../../broker/presentation/broker_activity.dart';
+import '../../../router/app_deep_links.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import 'add_property_wizard_screen.dart';
@@ -16,6 +25,7 @@ import 'property_sai_configuration_sheet.dart';
 final myListingsProvider =
     FutureProvider.autoDispose<List<PropertyDetails>>((ref) async {
   ref.watch(propertyDataRevisionProvider);
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(propertyRepositoryProvider).myListings();
 });
 
@@ -28,6 +38,31 @@ class MyListingsScreen extends ConsumerStatefulWidget {
 
 class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   String _filter = 'all';
+  final Set<int> _updating = {};
+
+  Future<void> _availability(PropertyDetails item, String state) async {
+    if (_updating.contains(item.id)) return;
+    setState(() => _updating.add(item.id));
+    try { await ref.read(brokerRepositoryProvider).updateAvailability([item.id], state); refreshBrokerData(ref); }
+    catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e)))); }
+    finally { if (mounted) setState(() => _updating.remove(item.id)); }
+  }
+  Future<void> _closeListing(PropertyDetails item) async {
+    final mode = await showDialog<String>(context: context, builder: (c) => AlertDialog(
+      title: Text(item.purpose == 'rent' ? 'تم التأجير' : 'تم البيع'),
+      content: const Text('كيف تمت الصفقة؟ إغلاق إعلان خارج المنصة يحدّث التوفر فقط. الصفقة مع عميل من التطبيق تحتاج اختياره وتأكيده.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('رجوع')),
+        AppButton(label: 'خارج المنصة', onPressed: () => Navigator.pop(c, 'external')),
+        AppButton(label: 'مع عميل من التطبيق', onPressed: () => Navigator.pop(c, 'platform'))]));
+    if (mode == null || !mounted) return;
+    if (mode == 'external') { await _availability(item, item.purpose == 'rent' ? 'rented' : 'sold'); return; }
+    final customer = await Navigator.of(context).push<BrokerCustomer>(MaterialPageRoute(builder: (_) => BrokerCustomersScreen(propertyId: item.id, selectForDeal: true)));
+    if (customer != null && mounted) await reportBrokerDeal(context, ref, customer.threadId);
+  }
+  Future<void> _share(PropertyDetails item) async {
+    await Clipboard.setData(ClipboardData(text: '${item.title}\n${propertyAppDeepLink(item.id)}'));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ رابط العقار للمشاركة.')));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +71,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: const AppAppBar(title: 'إعلاناتي'),
+        appBar: AppAppBar(title: 'عقاراتي', actions: [IconButton(tooltip: 'تحديث التوفر الجماعي', onPressed: () => context.push('/broker/availability'), icon: const EbrokerIcon(Icons.update, size: 20))]),
         floatingActionButton: EbrokerButton(
           onPressed: () => _create(context, ref),
           icon: const EbrokerIcon(Icons.add_home_work_outlined),
@@ -134,6 +169,9 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
                             onAttest: item.saiAttestationRequired
                                 ? () => _attestSai(context, ref, item)
                                 : null,
+                            onAvailability: _updating.contains(item.id) ? null : (state) => _availability(item, state),
+                            onClose: _updating.contains(item.id) ? null : () => _closeListing(item),
+                            onShare: () => _share(item),
                           );
                         },
                       ),
@@ -214,6 +252,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         repository: repository,
         propertyId: item.id,
         purpose: item.purpose,
+        basis: item.purpose == 'rent' ? (item.monthlyRent ?? item.editablePrice) : item.editablePrice,
       );
       if (!context.mounted) return;
       if (!saiReady) {
@@ -251,19 +290,19 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     WidgetRef ref,
     PropertyDetails item,
   ) async {
-    const oath =
-        'أقسم بالله أنني إذا تمت الصفقة عن طريق المنصة فسأقوم بسداد مستحقات المنصة من السعي حسب الشروط التي وافقت عليها عند نشر الإعلان.';
+    final oath = item.saiAttestationText ??
+        'ألتزم بسداد مستحق المنصة من السعي عند إتمام صفقة جاءت من عميل عبر المنصة، وفق نسبة المنصة الموضحة.';
     final confirmed = await AppDialog.show<bool>(
           context,
           title: 'إقرار السعي للإعلان المنشور',
-          content: const Text(oath),
+          content: Text(oath),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('ليس الآن')),
             EbrokerFilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('أقسم بذلك')),
+                child: const Text('أوافق على الإقرار')),
           ],
         ) ??
         false;
@@ -472,6 +511,9 @@ class _ListingCard extends StatelessWidget {
     required this.onSubmit,
     required this.onDelete,
     required this.onAttest,
+    this.onAvailability,
+    this.onClose,
+    this.onShare,
   });
 
   final PropertyDetails property;
@@ -480,6 +522,8 @@ class _ListingCard extends StatelessWidget {
   final VoidCallback? onSubmit;
   final VoidCallback? onDelete;
   final VoidCallback? onAttest;
+  final ValueChanged<String>? onAvailability;
+  final VoidCallback? onClose, onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -493,12 +537,15 @@ class _ListingCard extends StatelessWidget {
         children: [
           EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
             price: _formatPrice(property.price), currency: property.currency,
-            categoryLabel: ebrokerPropertyTypeLabel(property.type),
+            categoryLabel: ebrokerPropertyTypeLabel(property.type), facts: summaryPropertyFacts(property.toSummary()),
             purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
-            imageUrl: property.mainImage, location: property.address, onTap: onOpen),
+            imageUrl: property.mainImage, imageUrls: property.imageUrls, isSpotlight: property.isSpotlight, location: property.address, onTap: onOpen),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Wrap(spacing: AppSpacing.s8, runSpacing: AppSpacing.s4, children: [
               AppStatusBadge(label: state.$1, tone: state.$2),
+              if (property.status == 'published') AppStatusBadge(label: switch (property.availabilityStatus) {
+                'sold' => 'تم البيع', 'rented' => 'تم التأجير', 'paused' => 'متوقف مؤقتًا', 'confirmation_paused' => 'يحتاج تأكيد التوفر', _ => 'متوفر',
+              }, tone: property.availabilityStatus == 'available' ? AppStatusTone.success : AppStatusTone.neutral),
               AppStatusBadge(label: '${property.proofDocumentCount} إثبات',
                 tone: AppStatusTone.neutral, icon: Icons.description_outlined),
             ])),
@@ -532,52 +579,29 @@ class _ListingCard extends StatelessWidget {
               ),
             ),
           const Divider(height: 1),
+          if (property.status == 'published') Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Wrap(spacing: 12, runSpacing: 6, children: [
+            Text('المشاهدات: ${property.viewCount}'), Text('المفضلة: ${property.favoriteCount}'),
+            Text('المحادثات: ${property.conversationCount}'),
+          ])),
           Padding(
             padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
-            child: Wrap(
-              spacing: AppSpacing.s4,
-              runSpacing: AppSpacing.s4,
-              alignment: WrapAlignment.start,
-              children: [
-                TextButton.icon(
-                  onPressed: onOpen,
-                  icon: const EbrokerIcon(Icons.visibility_outlined),
-                  label: const Text('عرض'),
-                ),
-                if (onEdit != null)
-                  TextButton.icon(
-                    onPressed: onEdit,
-                    icon: const EbrokerIcon(Icons.edit_outlined),
-                    label: Text(
-                      property.reviewStatus == 'returned_for_correction'
-                          ? 'تصحيح الإعلان'
-                          : 'تعديل',
-                    ),
-                  ),
-                if (onSubmit != null)
-                  EbrokerFilledButton.tonalIcon(
-                    onPressed: onSubmit,
-                    icon: const EbrokerIcon(Icons.send_outlined),
-                    label: Text(
-                      property.reviewStatus == 'returned_for_correction'
-                          ? 'إعادة الإرسال'
-                          : 'إرسال للمراجعة',
-                    ),
-                  ),
-                if (onAttest != null)
-                  EbrokerFilledButton.tonalIcon(
-                    onPressed: onAttest,
-                    icon: const EbrokerIcon(Icons.verified_user_outlined),
-                    label: const Text('إقرار السعي'),
-                  ),
-                if (onDelete != null)
-                  TextButton.icon(
-                    onPressed: onDelete,
-                    icon: const EbrokerIcon(Icons.delete_outline),
-                    label: const Text('حذف'),
-                  ),
+            child: EbrokerCardActions(actions: [
+              if (onEdit != null && ['draft', 'returned_for_correction'].contains(property.reviewStatus))
+                EbrokerCardAction(property.reviewStatus == 'returned_for_correction' ? 'تصحيح الإعلان' : 'إكمال الإعلان', onEdit, icon: Icons.edit_outlined),
+              if (onAttest != null) EbrokerCardAction('إقرار السعي', onAttest, icon: Icons.verified_user_outlined),
+              if (property.status == 'published' && property.reviewStatus == 'approved' && property.availabilityStatus == 'confirmation_paused')
+                EbrokerCardAction('أكد التوفر لإعادة إظهاره', onAvailability == null ? null : () => onAvailability!('available'), icon: Icons.check_circle_outline),
+              EbrokerCardAction('عرض', onOpen, icon: Icons.visibility_outlined),
+              if (property.status == 'published' && property.reviewStatus == 'approved' && !['sold', 'rented'].contains(property.availabilityStatus)) ...[
+                if (property.availabilityStatus != 'confirmation_paused') EbrokerCardAction('ما زال متوفرًا', onAvailability == null ? null : () => onAvailability!('available'), icon: Icons.check_circle_outline),
+                if (property.availabilityStatus == 'available') EbrokerCardAction('إيقاف مؤقت', onAvailability == null ? null : () => onAvailability!('paused'), icon: Icons.pause_circle_outline),
+                EbrokerCardAction(property.purpose == 'rent' ? 'تم التأجير' : 'تم البيع', onClose, icon: Icons.task_alt),
               ],
-            ),
+              if (property.availabilityStatus == 'available' && property.status == 'published') EbrokerCardAction('مشاركة', onShare, icon: Icons.share_outlined),
+              if (onEdit != null && !['draft', 'returned_for_correction'].contains(property.reviewStatus)) EbrokerCardAction('تعديل', onEdit, icon: Icons.edit_outlined),
+              if (onSubmit != null) EbrokerCardAction(property.reviewStatus == 'returned_for_correction' ? 'إعادة الإرسال' : 'إرسال للمراجعة', onSubmit, icon: Icons.send_outlined),
+              if (onDelete != null) EbrokerCardAction('حذف', onDelete, icon: Icons.delete_outline),
+            ]),
           ),
         ],
       ),

@@ -53,6 +53,17 @@ class PropertyFinancialController extends Controller
         return response()->json(['message'=>'تم إنشاء عملية الدفع.','data'=>$this->paymentData($payment,$user)],201);
     }
 
+    public function receivable(Request $request, PropertyPlatformReceivable $receivable): JsonResponse
+    {
+        $user=$request->user();
+        abort_unless((int)$receivable->advertiser_user_id === (int)$user->id,403);
+        $term=PropertyDealFinancialTerm::query()->findOrFail($receivable->deal_financial_term_id);
+        $data=$this->dealData($term,$user,false);
+        $data['payment_methods']=$this->finance->paymentMethods(max(0,$receivable->amount_total-$receivable->amount_paid),$receivable->currency);
+        $data['can_pay_full']=false;
+        return response()->json(['data'=>$data]);
+    }
+
     public function createReceivablePayment(Request $request, PropertyPlatformReceivable $receivable): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
@@ -127,6 +138,7 @@ class PropertyFinancialController extends Controller
         if($property->status==='published'||in_array($property->review_status,['submitted','under_review','approved','rejected_blocked'],true)){
             throw new ConflictHttpException('عدّل البيانات المالية أثناء المسودة أو بعد إعادتها للتصحيح.');
         }
+        if ((int) $property->listing_input_version >= 6) throw new ConflictHttpException('عدّل السعر وشروط الإيجار من محرر الإعلان؛ عرض السعر والسعي تلقائي.');
         $validated=$request->validate([
             'price_display_mode'=>['nullable',Rule::in(['includes_sai','excludes_sai'])],
             'monthly_rent'=>['nullable','numeric','gt:0','max:9999999999999'],
@@ -163,10 +175,10 @@ class PropertyFinancialController extends Controller
         /** @var User $user */ $user=$request->user();
         $rows=Property::query()->withoutGlobalScopes()->where('user_id',$user->id)->where('status','published')->whereNotNull('current_sai_term_id')
             ->whereNotExists(function($q):void{$q->selectRaw('1')->from('property_sai_attestations as a')->whereColumn('a.property_id','properties.id')->whereColumn('a.sai_term_id','properties.current_sai_term_id');})
-            ->latest('published_at')->limit(100)->get(['id','title','current_sai_term_id']);
+            ->latest('published_at')->limit(100)->get(['id','title','current_sai_term_id','listing_input_version']);
         return response()->json(['data'=>$rows->map(fn(Property $p)=>[
             'property_id'=>$p->id,'property_title'=>$p->title,'sai_term_id'=>(int)$p->current_sai_term_id,
-            'text'=>PropertyFinancialService::SAI_ATTESTATION_TEXT,
+            'text'=>$this->finance->attestationText($p),
         ])->values()]);
     }
 
@@ -184,8 +196,8 @@ class PropertyFinancialController extends Controller
     public function attestSai(Request $request, Property $property): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $request->validate(['accepted'=>['required','accepted']]);
-        $this->finance->attestSai($property,$user,$request);
+        $request->validate(['accepted'=>['required','accepted'],'sai_term_id'=>['nullable','integer','min:1']]);
+        $this->finance->attestSai($property,$user,$request,$request->integer('sai_term_id') ?: null);
         return response()->json(['message'=>'تم تسجيل إقرار السعي.']);
     }
 

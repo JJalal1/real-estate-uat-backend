@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 class MapAreaGeometry {
@@ -45,6 +46,22 @@ class MapAreaGeometry {
     );
   }
 
+  factory MapAreaGeometry.fromEncodedRing(String encoded) {
+    final ring = jsonDecode(encoded);
+    if (ring is! List || ring.length < 4 || ring.length > 81) throw const FormatException('Invalid map area.');
+    final points = <LatLng>[];
+    for (final point in ring) {
+      if (point is! List || point.length != 2 || point[0] is! num || point[1] is! num) throw const FormatException('Invalid map point.');
+      final lon = (point[0] as num).toDouble(), lat = (point[1] as num).toDouble();
+      if (!lat.isFinite || !lon.isFinite || lat.abs() > 90 || lon.abs() > 180) throw const FormatException('Invalid map point.');
+      points.add(LatLng(lat, lon));
+    }
+    if (!_samePoint(points.first, points.last)) throw const FormatException('Open map area.');
+    return MapAreaGeometry.fromPoints(points);
+  }
+
+  String get encodedRing => jsonEncode(points.map((point) => [point.longitude, point.latitude]).toList(growable: false));
+
   final List<LatLng> points;
   final LatLngBounds bounds;
   final LatLng center;
@@ -57,6 +74,13 @@ class MapAreaGeometry {
       final yi = ring[i].latitude;
       final xj = ring[j].longitude;
       final yj = ring[j].latitude;
+      // Include the boundary, matching the server's ST_Covers contract.
+      final cross = (longitude - xi) * (yj - yi) - (latitude - yi) * (xj - xi);
+      if (cross.abs() < 1.0e-10 &&
+          longitude >= (xi < xj ? xi : xj) - 1.0e-10 &&
+          longitude <= (xi > xj ? xi : xj) + 1.0e-10 &&
+          latitude >= (yi < yj ? yi : yj) - 1.0e-10 &&
+          latitude <= (yi > yj ? yi : yj) + 1.0e-10) { return true; }
       final crosses = ((yi > latitude) != (yj > latitude)) &&
           (longitude <
               (xj - xi) *

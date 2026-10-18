@@ -1,8 +1,13 @@
 String? arabicRiyalAmountInWords(String rawValue) {
-  final normalized = rawValue.replaceAll(',', '').trim();
-  final value = int.tryParse(normalized);
-  if (value == null || value <= 0) return null;
-  return '${arabicIntegerInWords(value)} ريال يمني';
+  var normalized = rawValue.replaceAll(',', '').replaceAll('٬', '').replaceAll('٫', '.').trim();
+  const arabic = '٠١٢٣٤٥٦٧٨٩', persian = '۰۱۲۳۴۵۶۷۸۹';
+  for (var i = 0; i < 10; i++) { normalized = normalized.replaceAll(arabic[i], '$i').replaceAll(persian[i], '$i'); }
+  if (!RegExp(r'^\d+(?:\.\d{1,2})?$').hasMatch(normalized)) return null;
+  final parts = normalized.split('.'), value = int.tryParse(parts.first);
+  if (value == null || value < 0 || value > 1000000000000) return null;
+  final fils = parts.length == 1 ? 0 : int.parse(parts[1].padRight(2, '0'));
+  if (value == 0 && fils == 0) return null;
+  return '${arabicIntegerInWords(value)} ريال يمني${fils == 0 ? '' : ' و${arabicIntegerInWords(fils)} فلس'}';
 }
 
 String arabicIntegerInWords(int value) {

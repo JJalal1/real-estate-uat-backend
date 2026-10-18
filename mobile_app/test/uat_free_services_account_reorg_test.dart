@@ -12,17 +12,16 @@ void main() {
       'الخدمات والأدوات',
       'المساعدة والدعم',
       'إدارة عقاراتي',
-      'إعلاناتي',
+      'عقاراتي',
       'إضافة عقار',
       'نشاطي',
-      'المعاينات',
       'المفضلة',
     ]) {
       expect(source, contains(label), reason: 'Missing account label: $label');
     }
 
     expect(source, contains("context.push('/services')"));
-    expect(source, contains("context.push('/bookings')"));
+    expect(source, isNot(contains("context.push('/bookings')")));
     expect(source, contains('user.hasVerifiedPublishingProfile'));
     expect(source, isNot(contains("'طلبات العقار'")));
     expect(source, isNot(contains("'طلبات الباحثين'")));

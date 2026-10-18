@@ -1,3 +1,4 @@
+import 'property_summary_card.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/widgets/ebroker_screen_sections.dart';
@@ -7,6 +8,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/platform/contact_actions.dart';
+import '../../broker/data/broker_repository.dart';
+import '../../community/data/community_repository.dart';
+import '../../community/presentation/community_dialogs.dart';
+import 'property_compare_actions.dart';
+import 'property_location_preview.dart';
+import '../../../core/local/listing_viewer_key_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../router/app_deep_links.dart';
@@ -18,10 +26,12 @@ import '../data/favorites_repository.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
+import '../domain/property_schema.dart';
 import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
 import 'property_market_context_card.dart';
 import 'property_sai_public_line.dart';
+import 'property_question_section.dart';
 
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
@@ -43,6 +53,22 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _startingConversation = false;
   bool _changingFavorite = false;
   bool _consumingPendingFavorite = false;
+  bool _viewRecorded = false;
+  bool _calling = false, _reporting = false;
+
+  @override
+  void didUpdateWidget(covariant PropertyDetailsScreen old) {
+    super.didUpdateWidget(old);
+    if (old.propertyId != widget.propertyId) { _viewRecorded = false; _imageIndex = 0; }
+  }
+
+  Future<void> _recordView() async {
+    try {
+      final repo = ref.read(propertyRepositoryProvider);
+      final key = await ref.read(listingViewerKeyProvider.future);
+      if (mounted) await repo.recordView(widget.propertyId, key);
+    } catch (_) { /* A failed analytics request never blocks public browsing. */ }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +82,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               orElse: () => const <int>{},
             );
     final loaded = details.asData?.value;
+    if (!_viewRecorded && loaded != null && !loaded.isOwner && loaded.status == 'published') {
+      _viewRecorded = true;
+      Future<void>.microtask(_recordView);
+    }
 
     if (user != null &&
         user.isActive &&
@@ -68,7 +98,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 
     final showPrimaryActions = loaded != null &&
         loaded.status == 'published' &&
-        !loaded.isOwner;
+        !loaded.isOwner && loaded.availabilityStatus == 'available' && !loaded.financialHold;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -108,7 +138,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         ),
         bottomNavigationBar: showPrimaryActions
             ? _PropertyPrimaryActions(
-                loading: _startingConversation,
+                loading: _startingConversation, calling: _calling, onCall: _calling ? null : () => _callAdvertiser(loaded),
                 onMessage: _startingConversation
                     ? null
                     : () => _startConversation(loaded),
@@ -120,30 +150,33 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 
   Widget _buildContent(PropertyDetails property, Set<int> favoriteIds) {
     final published = property.status == 'published';
+    final schemaContext={'type':property.type,'purpose':property.purpose,'unit_occupies_entire_floor':property.unitOccupiesEntireFloor};
+    bool applies(String key)=>DynamicPropertySchema.applies(key,schemaContext);
+    final residential=applies('bedrooms'),unit=applies('floor_number');
     final facts = <AppPropertyFact>[
-      if (property.areaValue != null)
+      if (applies('area_value') && property.areaValue != null)
         AppPropertyFact(
           icon: Icons.square_foot,
           label:
               '${formatPropertyAreaValue(property.areaValue!)} ${propertyAreaUnitLabel(property.areaUnit)}',
         )
-      else if (property.areaM2 != null)
+      else if (applies('area_value') && property.areaM2 != null)
         AppPropertyFact(icon: Icons.square_foot, label: '${property.areaM2} م²'),
-      if (property.bedrooms != null)
+      if (residential && property.bedrooms != null)
         AppPropertyFact(icon: Icons.bed_outlined, label: '${property.bedrooms} غرف'),
-      if (property.bathrooms != null)
+      if (residential && property.bathrooms != null)
         AppPropertyFact(icon: Icons.bathtub_outlined, label: '${property.bathrooms} حمام'),
-      if (property.hasParking == true)
-        const AppPropertyFact(
-          icon: Icons.local_parking_outlined,
-          label: 'موقف سيارة',
-        ),
-      if (property.tenureType != null)
+      if (property.hasParking != null && applies('has_parking')) AppPropertyFact(icon: Icons.local_parking_outlined, label: property.hasParking! ? 'موقف سيارة' : 'بدون موقف'),
+      if (unit && property.floorNumber?.isNotEmpty == true) AppPropertyFact(icon: Icons.layers_outlined, label: DynamicPropertySchema.floorLabel(property.floorNumber)),
+      if (property.unitOccupiesEntireFloor) const AppPropertyFact(icon: Icons.apartment, label: 'الوحدة تشغل الدور كاملًا'),
+      if (property.hasElevator != null && applies('has_elevator'))
+        AppPropertyFact(icon: Icons.elevator_outlined, label: property.hasElevator! ? 'يوجد مصعد' : 'بدون مصعد'),
+      if (property.tenureType != null && applies('tenure_type'))
         AppPropertyFact(
           icon: Icons.account_balance_outlined,
           label: property.tenureType == 'waqf' ? 'وقف' : 'حر',
         ),
-      if (property.buildingFacade != null)
+      if (property.buildingFacade != null && applies('building_facade'))
         AppPropertyFact(
           icon: Icons.explore_outlined,
           label: propertyFacadeLabel(property.buildingFacade),
@@ -177,7 +210,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           EbrokerPropertyHeading(
             category: _typeLabel(property.type), title: property.title,
             purpose: _purposeLabel(property.purpose),
-            price: AppPropertyPrice(price: _formatPrice(property.price), currency: property.currency),
+            price: AppPropertyPrice(price: _formatPrice(property.purpose == 'rent' ? property.monthlyRent ?? property.price : property.price), currency: property.currency,
+              suffix: property.purpose == 'rent' && property.monthlyRent != null ? 'شهريًا' : null),
             trailing: property.isOwner ? PopupMenuButton<String>(
               tooltip: 'إدارة الإعلان',
               onSelected: (action) => _ownerAction(action, property),
@@ -198,24 +232,20 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             const SizedBox(height: 16),
             const AppUnavailableState(),
           ],
-          if (property.address != null) ...[
-            const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(title: 'الموقع'),
-            const SizedBox(height: AppSpacing.s8),
-            AppSurface(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  EbrokerIcon(
-                    Icons.location_on_outlined,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: AppSpacing.s8),
-                  Expanded(child: Text(property.address!)),
-                ],
-              ),
+          if (property.address?.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.location_on_outlined, size: 20, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 6), Expanded(child: Text(property.address!)),
+          ])),
+          if (published) Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            PropertyCompareAction(propertyId: property.id, enabled: property.availabilityStatus == 'available'), const PropertyCompareTray(),
+          ]),
+          const SizedBox(height: AppSpacing.s24),
+          EbrokerSectionPanel(title: 'حول العقار',
+            child: Text(
+              property.description ??
+                  'لم يضف المعلن وصفاً تفصيلياً لهذا العقار بعد.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
             ),
-          ],
+          ),
           if (facts.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s24),
             EbrokerSectionPanel(title: 'مواصفات العقار',
@@ -251,85 +281,98 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               currency: property.currency,
             ),
           ],
-          const SizedBox(height: AppSpacing.s24),
-          EbrokerSectionPanel(title: 'وصف العقار',
-            child: Text(
-              property.description ??
-                  'لم يضف المعلن وصفاً تفصيلياً لهذا العقار بعد.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
-            ),
-          ),
+          if (property.purpose == 'rent' && property.rentalConditions.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s24),
+            EbrokerSectionPanel(title: 'شروط الإيجار', child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [for (final c in property.rentalConditions) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(switch (c['kind']) {
+                'advance' => 'مقدم إيجار: ${c['months']} أشهر', 'duration' => 'مدة العقد: ${c['months']} أشهر',
+                'guarantor' => 'ضمانة تجارية مطلوبة', 'deposit' => 'تأمين مطلوب', 'special' => c['text']?.toString() ?? '', _ => '',
+              }))])),
+          ],
+          if (published && property.availabilityStatus == 'available') ...[
+            const SizedBox(height: AppSpacing.s24), PropertyQuestionSection(propertyId: property.id),
+          ],
           if (published && property.advertiser != null) ...[
             const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(title: 'المعلن والثقة'),
+            const AppSectionHeader(title: 'المعلن'),
             const SizedBox(height: AppSpacing.s8),
             _AdvertiserCard(
               property: property,
               onCommunity: () => _openCommunity(property),
             ),
           ],
+          if (property.images.length > 1) ...[
+            const SizedBox(height: 24), EbrokerSectionPanel(title: 'معرض الصور', child: SizedBox(height: 96, child: ListView.separated(
+              scrollDirection: Axis.horizontal, itemCount: property.images.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) => Semantics(button: true, label: 'فتح صورة العقار ${index + 1}', child: InkWell(
+                onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: property.images, initialIndex: index))),
+                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, child: AppPropertyMedia(imageUrl: property.images[index].url, height: 96))),
+              )),
+            ))),
+          ],
+          if (property.latitude.isFinite && property.longitude.isFinite && property.latitude.abs() <= 90 && property.longitude.abs() <= 180 && (property.latitude != 0 || property.longitude != 0)) ...[
+            const SizedBox(height: 24), EbrokerSectionPanel(title: 'الموقع والخريطة', child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (property.address?.isNotEmpty == true) ...[Text(property.address!), const SizedBox(height: 12)],
+              PropertyLocationPreview(latitude: property.latitude, longitude: property.longitude, onOpen: () => context.push(Uri(path: '/property-market',
+                queryParameters: {'lat': '${property.latitude}', 'lon': '${property.longitude}'}).toString())),
+            ])),
+          ],
+          if (published && !property.isOwner) Padding(padding: const EdgeInsets.only(top: 18), child: Align(alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(key: const ValueKey('property-report'), onPressed: _reporting ? null : () => _reportListing(property),
+              icon: const Icon(Icons.flag_outlined, size: 20), label: Text(_reporting ? 'جارٍ إرسال البلاغ...' : 'الإبلاغ عن الإعلان')))),
           if (property.similar.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.s32),
-            const AppSectionHeader(title: 'عقارات مشابهة'),
-            const SizedBox(height: AppSpacing.s12),
-            SizedBox(
-              height: 340 + (MediaQuery.textScalerOf(context).scale(14) - 14) * 8,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: property.similar.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(width: AppSpacing.s12),
-                itemBuilder: (context, index) {
-                  final item = property.similar[index];
-                  final isFavorite = favoriteIds.contains(item.id);
-                  return SizedBox(
-                    width: 290,
-                    child: AppPropertyCard(
-                      categoryLabel: ebrokerPropertyTypeLabel(item.type),
-                  title: item.title,
-                      price: _formatPrice(item.price),
-                      currency: item.currency,
-                      imageUrl: item.mainImage,
-                      location: item.address,
-                      purposeLabel: _purposeLabel(item.purpose),
-                      facts: [
-                        if (item.areaM2 != null)
-                          AppPropertyFact(
-                            icon: Icons.square_foot,
-                            label: '${item.areaM2} م²',
-                          ),
-                        if (item.bedrooms != null)
-                          AppPropertyFact(
-                            icon: Icons.bed_outlined,
-                            label: '${item.bedrooms} غرف',
-                          ),
-                      ],
-                      trailing: IconButton.filledTonal(
-                        tooltip:
-                            isFavorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-                        icon: EbrokerIcon(
-                          isFavorite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                        ),
-                        onPressed: _changingFavorite || _consumingPendingFavorite
-                            ? null
-                            : () => _toggleFavorite(
-                                  item.id,
-                                  currentlyFavorite: isFavorite,
-                                ),
-                      ),
-                      unavailable: item.status != 'published',
-                      onTap: () => context.push('/properties/${item.id}'),
-                    ),
-                  );
-                },
-              ),
-            ),
+            const SizedBox(height: 28), const AppSectionHeader(title: 'عقارات مشابهة'), const SizedBox(height: 12),
+            if (MediaQuery.textScalerOf(context).scale(14) > 20)
+              ...[for (final item in property.similar) Padding(padding: const EdgeInsets.only(bottom: 16), child: _similarCard(item, favoriteIds))]
+            else SizedBox(height: 442, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: property.similar.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12), itemBuilder: (_, index) => SizedBox(width: 290, child: _similarCard(property.similar[index], favoriteIds)))),
           ],
         ],
       ),
     );
+  }
+
+  Widget _similarCard(PropertySummary item, Set<int> favoriteIds) => PropertySummaryCard(property: item, imageFirst: true,
+    onTap: () { if (item.status == 'published') context.push('/properties/${item.id}'); });
+
+  Future<bool> _requireContactAccount() async {
+    if (ref.read(authControllerProvider).asData?.value == null) {
+      setAuthReturnLocation(ref, '/properties/${widget.propertyId}'); await context.push('/auth');
+      if (!mounted || ref.read(authControllerProvider).asData?.value == null) return false;
+    }
+    if (ref.read(authControllerProvider).asData?.value?.isActive != true) {
+      setAuthReturnLocation(ref, '/properties/${widget.propertyId}'); await context.push('/verify-phone');
+    }
+    return mounted && ref.read(authControllerProvider).asData?.value?.isActive == true;
+  }
+
+  Future<void> _callAdvertiser(PropertyDetails property) async {
+    if (_calling || !await _requireContactAccount() || !mounted) return;
+    setState(() => _calling = true);
+    try {
+      final phone = await ref.read(propertyRepositoryProvider).contactPhone(property.id);
+      if (!mounted) return;
+      final opened = await ref.read(contactActionsProvider).openDialer(phone);
+      if (!mounted || opened) return;
+      await showDialog<void>(context: context, builder: (dialog) => AlertDialog(title: const Text('رقم الاتصال بالإعلان'),
+        content: SelectableText(phone, textDirection: TextDirection.ltr), actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('إغلاق')),
+          TextButton(onPressed: () async { await Clipboard.setData(ClipboardData(text: phone)); if (dialog.mounted) Navigator.pop(dialog); }, child: const Text('نسخ الرقم')),
+        ]));
+    } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
+    finally { if (mounted) setState(() => _calling = false); }
+  }
+
+  Future<void> _reportListing(PropertyDetails property) async {
+    if (_reporting || !await _requireContactAccount() || !mounted) return;
+    final result = await showCommunityReportDialog(context, label: 'الإعلان');
+    if (result == null || !mounted) return;
+    setState(() => _reporting = true);
+    try {
+      await ref.read(communityRepositoryProvider).report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال البلاغ إلى الدعم.')));
+    } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
+    finally { if (mounted) setState(() => _reporting = false); }
   }
 
   Future<void> _toggleFavorite(
@@ -503,7 +546,7 @@ class _Gallery extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadii.card),
       child: SizedBox(
-        height: 218.rs(context),
+        height: 250.rs(context),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -653,7 +696,7 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
   }
 }
 
-class _AdvertiserCard extends StatelessWidget {
+class _AdvertiserCard extends ConsumerWidget {
   const _AdvertiserCard({
     required this.property,
     required this.onCommunity,
@@ -663,8 +706,9 @@ class _AdvertiserCard extends StatelessWidget {
   final VoidCallback onCommunity;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final advertiser = property.advertiser!;
+    final profile = ref.watch(brokerProfileProvider(advertiser.id)).asData?.value;
     final verified = advertiser.verificationStatus == 'approved';
     final signals = <_AdvertiserTrustSignal>[
       if (advertiser.verificationFlag('identity_reviewed'))
@@ -684,15 +728,15 @@ class _AdvertiserCard extends StatelessWidget {
     return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          EbrokerAdvertiserCard(name: advertiser.name,
+          EbrokerAdvertiserCard(name: advertiser.name, compact: true, photoUrl: profile?.photoUrl, completedDeals: profile?.completedDeals, activeListings: profile?.activeListings,
             identity: verified ? advertiser.verificationLabel : 'معلن غير موثق',
             rating: advertiser.ratingAverage, ratingCount: advertiser.ratingCount,
-            verified: verified, onTap: onCommunity),
-          const SizedBox(height: AppSpacing.s12),
+            verified: verified, onTap: () => context.push('/advertisers/${advertiser.id}')),
+          ExpansionTile(tilePadding: EdgeInsets.zero, title: const Text('التوثيق والتقييم'), children: [
           Text(
             verified
                 ? 'تم التحقق من صفة المعلن داخل المنصة. إشارات الثقة أدناه مبنية على بيانات تحقق فعلية وليست شارات دعائية.'
-                : 'لم يكتمل توثيق هذا المعلن داخل المنصة. استخدم المراسلة والمعاينة داخل التطبيق قبل اتخاذ أي قرار.',
+                : 'لم يكتمل توثيق هذا المعلن داخل المنصة. استخدم المراسلة داخل التطبيق وناقش تفاصيل العقار مع المعلن قبل اتخاذ أي قرار.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -728,12 +772,13 @@ class _AdvertiserCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.s12),
           AppButton(
-            label: 'التعليقات والتقييم والبلاغات',
+            label: 'التعليقات والتقييمات',
             icon: Icons.rate_review_outlined,
             style: AppButtonStyle.tonal,
             onPressed: onCommunity,
             expand: true,
           ),
+          ]),
         ],
     );
   }
@@ -746,39 +791,19 @@ class _AdvertiserTrustSignal {
 }
 
 class _PropertyPrimaryActions extends StatelessWidget {
-  const _PropertyPrimaryActions({
-    required this.loading,
-    required this.onMessage,
-  });
-
-  final bool loading;
-  final VoidCallback? onMessage;
-
+  const _PropertyPrimaryActions({required this.loading, required this.calling, required this.onMessage, required this.onCall});
+  final bool loading, calling;
+  final VoidCallback? onMessage, onCall;
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surface,
-      elevation: 10,
-      shadowColor: Colors.black.withValues(alpha: .12),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s10,
-            AppLayout.compactPageGutter,
-            AppSpacing.s10,
-          ),
-          child: AppButton(
-            label: loading ? 'جارٍ الفتح...' : 'تواصل مع المعلن',
-            icon: Icons.forum_outlined,
-            loading: loading,
-            onPressed: onMessage,
-            expand: true,
-          ),
-        ),
-      ),
+    final call = AppButton(key: const ValueKey('property-call'), label: 'اتصال', icon: Icons.call_outlined, loading: calling, onPressed: onCall, expand: true);
+    final message = AppButton(key: const ValueKey('property-message'), label: 'محادثة', icon: Icons.chat_bubble_outline, loading: loading, onPressed: onMessage, expand: true);
+    return Material(color: Theme.of(context).colorScheme.surface, elevation: 10,
+      child: SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: MediaQuery.textScalerOf(context).scale(14) > 20
+          ? Column(mainAxisSize: MainAxisSize.min, children: [call, const SizedBox(height: 8), message])
+          : Row(children: [Expanded(child: call), const SizedBox(width: 10), Expanded(child: message)]),
+      )),
     );
   }
 }
@@ -809,6 +834,9 @@ String _factLabel(IconData icon) {
   if (icon == Icons.square_foot) { return 'المساحة'; }
   if (icon == Icons.bed_outlined) { return 'غرف النوم'; }
   if (icon == Icons.bathtub_outlined) { return 'الحمامات'; }
+  if (icon == Icons.layers_outlined) { return 'الدور'; }
+  if (icon == Icons.elevator_outlined) { return 'المصعد'; }
+  if (icon == Icons.apartment) { return 'نطاق الوحدة'; }
   if (icon == Icons.local_parking_outlined) { return 'الموقف'; }
   if (icon == Icons.account_balance_outlined) { return 'نوع الملكية'; }
   if (icon == Icons.explore_outlined) { return 'واجهة المبنى'; }

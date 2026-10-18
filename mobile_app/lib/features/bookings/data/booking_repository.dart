@@ -15,8 +15,8 @@ class BookingRepository {
   final Dio _dio;
   final AuthRepository _auth;
 
-  Future<List<ViewingBooking>> mine() async => _list('/bookings/mine');
-  Future<List<ViewingBooking>> managed() async => _list('/bookings/managed');
+  Future<List<ViewingBooking>> mine({DateTime? from, DateTime? before}) async => _list('/bookings/mine', from: from, before: before);
+  Future<List<ViewingBooking>> managed({DateTime? from, DateTime? before}) async => _list('/bookings/managed', from: from, before: before);
 
   Future<ViewingBooking> requestProperty(
       int propertyId, Map<String, dynamic> payload) async {
@@ -50,8 +50,8 @@ class BookingRepository {
           int bookingId, Map<String, dynamic> payload) =>
       _action(bookingId, 'reschedule', payload);
 
-  Future<List<ViewingBooking>> _list(String path) async {
-    final response = await _dio.get<Map<String, dynamic>>(path,
+  Future<List<ViewingBooking>> _list(String path, {DateTime? from, DateTime? before}) async {
+    final response = await _dio.get<Map<String, dynamic>>(path, queryParameters: {if (from != null) 'starts_from': from.toUtc().toIso8601String(), if (before != null) 'starts_before': before.toUtc().toIso8601String()},
         options: await _auth.requiredAuthOptions());
     final rows = response.data?['data'] as List<dynamic>? ?? const <dynamic>[];
     return rows

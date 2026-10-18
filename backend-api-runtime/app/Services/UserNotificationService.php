@@ -16,6 +16,7 @@ class UserNotificationService
         ?int $entityId = null,
         array $data = [],
     ): ?UserNotification {
+        if (in_array($type, UserNotification::RETIRED_VIEWING_TYPES, true) || $entityType === 'viewing_booking') return null;
         $category = $this->preferenceCategory($type);
         if ($category !== null && ! $this->enabled($userId, $category)) {
             return null;

@@ -37,9 +37,9 @@ abstract final class AppLayout {
 
 abstract final class AppRadii {
   static const double small = 8;
-  static const double control = 4;
-  static const double card = 8;
-  static const double modal = 16;
+  static const double control = 16;
+  static const double card = 22;
+  static const double modal = 28;
   static const double pill = 999;
 }
 
@@ -59,7 +59,7 @@ abstract final class AppElevation {
 abstract final class AppSizes {
   /// Applies to both width and height of every independent action.
   static const double touchTarget = 48;
-  static const double buttonMinHeight = 56;
+  static const double buttonMinHeight = 52;
 
   /// Excludes helper and error text.
   static const double fieldMinHeight = 48;

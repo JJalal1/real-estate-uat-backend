@@ -1,5 +1,11 @@
 # Security — REAL ESTATE UAT
 
+## Wave6 account-draft boundaries — October18
+
+Laravel authenticates and scopes every listing-editor-draft operation to the current account, validates UUID/revision ownership and protects private draft images. Cross-account draft/photo references are denied, stale writes conflict, and promotion uses the authorized existing Property transaction. Checkpoints cannot bypass personal-listing limits, identity/review rules or financial consent. Draft UUID is passed to rental-condition assistance with server ownership checks.
+
+The deployed draft table has RLS with intentional deny-all direct access; anon/authenticated have no table SELECT/INSERT/UPDATE/DELETE or sequence USAGE grants. Access goes through Laravel, not direct mobile Supabase queries. The storage bucket stays private. Existing messaging authorization and public broker/property privacy remain; opening a broker thread sends no message. Postdeploy all15 financial fingerprints match the immediate predeploy snapshot and24 immutable guards remain enabled. Security advisors contain only intentional RLS-without-policy INFO; no broader direct-access policy was added.
+
 ## Security posture
 
 This repository is UAT/staging, but security rules should be close to Production quality because the application handles identity, ownership evidence, location, conversations, roles, and private documents.

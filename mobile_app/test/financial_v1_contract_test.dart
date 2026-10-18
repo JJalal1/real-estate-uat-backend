@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('listing editor keeps rental settlement inputs in the listing journey', () {
+  test('listing editor keeps monthly price and selected rental conditions before settlement', () {
     final source = File(
       'lib/features/properties/presentation/listing_editor_screen.dart',
     ).readAsStringSync();
@@ -12,12 +12,14 @@ void main() {
     expect(source, contains('final _rentalTermMonths = TextEditingController()'));
     expect(source, contains('final _advanceMonths = TextEditingController()'));
     expect(source, contains('الإيجار الشهري بالريال اليمني *'));
-    expect(source, contains('مدة التأجير يجب أن تكون من شهر إلى 24 شهراً.'));
-    expect(source, contains('عدد أشهر المقدم'));
+    expect(source, contains('RentalConditionsEditor'));
+    final conditions = File('lib/features/properties/presentation/rental_conditions_editor.dart').readAsStringSync();
+    expect(conditions, contains('عدد أشهر المقدم'));
+    expect(source, isNot(contains('مدة التأجير يجب أن تكون من شهر إلى 24 شهراً.')));
     expect(source, contains("String _priceDisplayMode = 'excludes_sai'"));
   });
 
-  test('published listing Sai attestation keeps the locked oath and explicit action', () {
+  test('published Sai consent clearly applies to a platform-sourced completed deal with explicit action', () {
     final source = File(
       'lib/features/properties/presentation/my_listings_screen.dart',
     ).readAsStringSync();
@@ -25,11 +27,11 @@ void main() {
     expect(
       source,
       contains(
-        'أقسم بالله أنني إذا تمت الصفقة عن طريق المنصة فسأقوم بسداد مستحقات المنصة من السعي حسب الشروط التي وافقت عليها عند نشر الإعلان.',
+        'ألتزم بسداد مستحق المنصة من السعي عند إتمام صفقة جاءت من عميل عبر المنصة، وفق نسبة المنصة الموضحة.',
       ),
     );
     expect(source, contains('إقرار السعي للإعلان المنشور'));
-    expect(source, contains('أقسم بذلك'));
+    expect(source, contains('أوافق على الإقرار'));
     expect(source, contains('financialRepositoryProvider).attestSai(item.id)'));
   });
 

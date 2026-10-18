@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PropertyDealFinancialTerm extends Model
 {
     protected $fillable = [
-        'property_agreement_id','property_agreement_revision_id','property_sai_settlement_id','property_id',
+        'broker_deal_outcome_id','property_agreement_id','property_agreement_revision_id','property_sai_settlement_id','property_id',
         'buyer_user_id','advertiser_user_id','transaction_type','advertiser_type','currency','base_amount',
         'monthly_basis_amount','rental_term_months','advance_months','sai_payer','sai_total_amount',
         'platform_share_amount','advertiser_sai_share_amount','price_display_mode','snapshot','frozen_at',

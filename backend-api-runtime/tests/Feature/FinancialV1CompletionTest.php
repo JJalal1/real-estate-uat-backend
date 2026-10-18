@@ -15,6 +15,12 @@ class FinancialV1CompletionTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['broker_experience.legacy_contract_creation'=>true]);
+    }
+
     public function test_general_manager_finance_workspace_and_method_configuration_are_authoritative(): void
     {
         [$owner, $headers] = $this->adminUser();

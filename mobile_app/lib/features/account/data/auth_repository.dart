@@ -151,10 +151,11 @@ class AuthRepository {
   Future<AuthUser> updateProfile({
     required String name,
     required String phone,
+    String? email,
   }) async {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/auth/profile',
-      data: {'name': name.trim(), 'phone': phone.trim()},
+      data: {'name': name.trim(), 'phone': phone.trim(), if (email?.trim().isNotEmpty == true) 'email': email!.trim()},
       options: await requiredAuthOptions(),
     );
     return _userFromData(response.data);

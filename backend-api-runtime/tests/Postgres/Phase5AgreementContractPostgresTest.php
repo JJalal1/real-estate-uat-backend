@@ -19,6 +19,7 @@ class Phase5AgreementContractPostgresTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['broker_experience.legacy_contract_creation'=>true]);
         $this->assertSame('testing', app()->environment());
         $this->assertSame('pgsql', DB::connection()->getDriverName());
         $this->assertSame('real_estate_audit', DB::connection()->getDatabaseName());

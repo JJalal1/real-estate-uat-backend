@@ -13,12 +13,18 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class PropertyIdentityService
 {
-    private const UNIT_TYPES = ['apartment', 'office', 'shop'];
+    private const UNIT_TYPES = ['apartment', 'floor', 'office', 'shop'];
     private const CHECKABLE_STATES = ['submitted', 'under_review', 'approved'];
 
-    public function resolveOrCreateAsset(User $actor, array $listing): PropertyAsset
+    public function resolveOrCreateAsset(User $actor, array $listing, ?PropertyAsset $previous = null): PropertyAsset
     {
         $identity = $this->identityData($listing);
+        if ($previous && $identity['identity_kind'] === 'unit' && $identity['unit_identity_key'] === null
+            && $previous->identity_kind === 'unit' && $previous->unit_identity_key === null
+            && $previous->building_identity_key === $identity['building_identity_key']
+            && $previous->floor_number === $identity['floor_number']) {
+            return $previous;
+        }
         $existing = $this->findExactAsset($identity);
         if ($existing) return $existing;
 
@@ -54,17 +60,38 @@ class PropertyIdentityService
         }
     }
 
+    public function normalizeFloorForSearch(string $value): string
+    {
+        return $this->floorMarker($value);
+    }
+
     public function validateIdentityInput(array $listing): void
     {
         $type = (string) ($listing['type'] ?? '');
         $inputVersion = (int) ($listing['listing_input_version'] ?? 1);
         $errors = [];
-        if ($inputVersion >= 3 && in_array($type, self::UNIT_TYPES, true)) {
+        if ($inputVersion === 3 && in_array($type, self::UNIT_TYPES, true)) {
             if (trim((string) ($listing['building_reference'] ?? '')) === '') {
                 $errors['building_reference'][] = 'حدد اسم أو رقم المبنى حتى نميز الوحدة عن العقارات المجاورة.';
             }
             if (trim((string) ($listing['unit_number'] ?? '')) === '') {
                 $errors['unit_number'][] = 'رقم الوحدة مطلوب للشقق والمكاتب والمحلات لمنع تكرار نفس الوحدة.';
+            }
+        }
+        if ($type === 'floor' && $inputVersion < 4) {
+            $errors['listing_input_version'][] = 'إعلان الدور الكامل يحتاج نموذج الإعلان الحالي.';
+        }
+        if ($inputVersion >= 4 && in_array($type, self::UNIT_TYPES, true)) {
+            if (in_array($type, ['apartment', 'floor', 'office'], true)
+                && $this->unitMarker((string) ($listing['floor_number'] ?? '')) === '') {
+                $errors['floor_number'][] = 'حدد أي دور يعرضه الإعلان.';
+            }
+            if ($type !== 'floor' && !($type === 'apartment' && (bool) ($listing['unit_occupies_entire_floor'] ?? false))
+                && ! $this->allowsUnspecifiedUnit($listing) && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '') {
+                $errors['unit_number'][] = 'حدد رقم الوحدة أو موضعها داخل الدور حتى نميزها عن غيرها.';
+            }
+            if (trim((string) ($listing['address'] ?? '')) === '') {
+                $errors['address'][] = 'حدد عنوان العقار مع موقعه على الخريطة.';
             }
         }
         if ($type === 'land') {
@@ -166,6 +193,13 @@ class PropertyIdentityService
             throw new ConflictHttpException('هذا العقار أو هذه الوحدة مسجلة بالفعل على المنصة ولا يمكن إنشاء إعلان آخر لها.');
         }
         if ($result['decision'] === 'possible_duplicate' && empty($listing->duplicate_self_verification)) {
+            if ($this->allowsUnspecifiedUnit($listing->getAttributes())
+                && in_array('unit_identity_incomplete', $result['signals'] ?? [], true)) {
+                // Missing a position is allowed, but it requires an auditable
+                // human identity decision rather than an invented unit number.
+                $listing->forceFill(['duplicate_check_status' => 'needs_support'])->save();
+                return array_merge($result, ['status' => 'needs_support']);
+            }
             throw ValidationException::withMessages([
                 'duplicate_self_verification' => ['وجدنا عقاراً مشابهاً جداً بالقرب من هذا الموقع. أكد أنه عقار مختلف وأدخل سبب الاختلاف قبل الإرسال.'],
             ]);
@@ -313,6 +347,25 @@ class PropertyIdentityService
                 ->latest('id')->first();
             if ($candidate) return ['decision' => 'confirmed_duplicate', 'score' => 100, 'signals' => ['same_building_same_unit'], 'candidate' => $this->candidatePayload($candidate, $this->distanceBetween($listing, $candidate), true)];
         }
+        foreach ($this->nearbyCandidates($listing, 60, true) as $candidate) {
+            $other = $candidate->propertyAsset;
+            if (! $other || $other->identity_kind !== 'unit') continue;
+            $sameFloor = $this->floorMarker((string) $other->floor_number) === $this->floorMarker((string) $asset->floor_number);
+            $sameUnit = $this->unitMarker((string) $other->unit_number) === $this->unitMarker((string) $asset->unit_number);
+            if ($sameFloor && $sameUnit && $other->building_identity_key === $asset->building_identity_key) {
+                return ['decision' => 'confirmed_duplicate', 'score' => 100, 'signals' => ['same_building_same_unit'],
+                    'candidate' => $this->candidatePayload($candidate, $this->distanceBetween($listing, $candidate), true)];
+            }
+            $floorOverlap = $sameFloor && ($other->unit_number === '@whole_floor' || $asset->unit_number === '@whole_floor');
+            // Missing building names must not let an existing named unit be
+            // republished unnoticed, or merge nearby distinct units silently.
+            if ($floorOverlap || ($sameFloor && $sameUnit
+                && (! $other->building_reference || ! $asset->building_reference))) {
+                return ['decision' => 'possible_duplicate', 'score' => 75,
+                    'signals' => ['nearby_unit_requires_building_review'],
+                    'candidate' => $this->candidatePayload($candidate, $this->distanceBetween($listing, $candidate), false)];
+            }
+        }
         return ['decision' => 'distinct', 'score' => 0, 'signals' => ['unit_identity_unique'], 'candidate' => null];
     }
 
@@ -378,7 +431,7 @@ class PropertyIdentityService
         return $best ?? ['decision' => 'distinct', 'score' => 0, 'signals' => ['no_similar_nearby_property'], 'candidate' => null];
     }
 
-    private function nearbyCandidates(Property $listing, int $meters): iterable
+    private function nearbyCandidates(Property $listing, int $meters, bool $unitFamily = false): iterable
     {
         $latitude = (float) $listing->latitude;
         $longitude = (float) $listing->longitude;
@@ -386,7 +439,7 @@ class PropertyIdentityService
         $lonWindow = $latWindow / max(cos(deg2rad($latitude)), 0.25);
         return Property::query()->with('propertyAsset')
             ->whereKeyNot($listing->id)
-            ->where('type', $listing->type)
+            ->whereIn('type', $unitFamily ? self::UNIT_TYPES : [$listing->type])
             ->where(function ($q): void { $q->where('status', 'published')->orWhereIn('review_status', self::CHECKABLE_STATES); })
             ->whereBetween('latitude', [$latitude - $latWindow, $latitude + $latWindow])
             ->whereBetween('longitude', [$longitude - $lonWindow, $longitude + $lonWindow])
@@ -396,9 +449,12 @@ class PropertyIdentityService
 
     private function finishEvaluation(Property $listing, ?User $actor, array $result, bool $persist): array
     {
+        $needsSupport = ! empty($listing->duplicate_self_verification)
+            || ($this->allowsUnspecifiedUnit($listing->getAttributes())
+                && in_array('unit_identity_incomplete', $result['signals'] ?? [], true));
         $result['status'] = match ($result['decision']) {
             'confirmed_duplicate' => 'confirmed_duplicate',
-            'possible_duplicate' => empty($listing->duplicate_self_verification) ? 'self_verification_required' : 'needs_support',
+            'possible_duplicate' => $needsSupport ? 'needs_support' : 'self_verification_required',
             default => 'distinct',
         };
         $result['message'] = match ($result['status']) {
@@ -407,6 +463,9 @@ class PropertyIdentityService
             'needs_support' => 'بقيت حالة تشابه غير محسومة وستذهب للمراجعة الاستثنائية.',
             default => 'لم نجد تكراراً يمنع النشر.',
         };
+        if ($this->allowsUnspecifiedUnit($listing->getAttributes()) && $result['status'] === 'needs_support') {
+            $result['message'] = 'سيُراجع فريق الدعم هوية الوحدة وموضعها قبل اعتماد الإعلان.';
+        }
         if (! $persist) return $result;
 
         $listing->forceFill([
@@ -433,6 +492,7 @@ class PropertyIdentityService
     {
         $this->validateIdentityInput($listing);
         $type = (string) $listing['type'];
+        $wholeFloor = $type === 'floor' || ($type === 'apartment' && (bool) ($listing['unit_occupies_entire_floor'] ?? false));
         $kind = $this->kindForType($type);
         $inputVersion = (int) ($listing['listing_input_version'] ?? 1);
         if (
@@ -449,15 +509,29 @@ class PropertyIdentityService
         }
         $address = $this->normalizedText((string) ($listing['address'] ?? ''));
         $buildingReference = $kind === 'unit' ? $this->normalizedText((string) ($listing['building_reference'] ?? '')) : null;
-        $unitNumber = $kind === 'unit' ? $this->normalizedText((string) ($listing['unit_number'] ?? '')) : null;
+        $unitNumber = $kind === 'unit' ? ($wholeFloor ? '@whole_floor' : $this->normalizedText((string) ($listing['unit_number'] ?? ''))) : null;
         $floorNumber = $kind === 'unit' ? $this->normalizedText((string) ($listing['floor_number'] ?? '')) : null;
-        $buildingKey = $kind === 'unit' ? hash('sha256', $address.'|'.$buildingReference) : null;
+        if ($inputVersion >= 4 && $kind === 'unit') {
+            if (!$wholeFloor) $unitNumber = $this->unitMarker((string) ($listing['unit_number'] ?? ''));
+            $floorNumber = $this->floorMarker((string) ($listing['floor_number'] ?? ''));
+        }
+        // Existing named-building identities keep their original hashes. New
+        // unnamed buildings use the real map point and address, not a shared
+        // empty name. A proximity match remains a human-review signal.
+        $buildingKey = $kind === 'unit' ? hash('sha256', $buildingReference
+            ? $address.'|'.$buildingReference
+            : 'v4|'.$address.'|'.number_format((float) $listing['latitude'], 5, '.', '').'|'.number_format((float) $listing['longitude'], 5, '.', '')) : null;
         $unitKey = $kind === 'unit' ? hash('sha256', ($floorNumber ?? '').'|'.$unitNumber) : null;
+        if ($this->allowsUnspecifiedUnit($listing) && ! $wholeFloor) {
+            $unitKey = null;
+        }
         $boundary = $kind === 'land' ? $this->normalizeBoundary($listing['land_boundary_geojson'] ?? null) : null;
         $boundaryJson = $boundary ? json_encode($boundary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
         $boundaryHash = $boundaryJson ? hash('sha256', $boundaryJson) : null;
         $identityHash = match ($kind) {
-            'unit' => hash('sha256', 'v2|unit|'.$buildingKey.'|'.$unitKey),
+            'unit' => $unitKey === null
+                ? hash('sha256', 'v7|unresolved-unit|'.Str::uuid())
+                : hash('sha256', 'v2|unit|'.$buildingKey.'|'.$unitKey),
             'land' => hash('sha256', 'v2|land|'.($boundaryHash ?: $this->pointIdentity($listing, $address))),
             default => hash('sha256', 'v2|standalone|'.$this->pointIdentity($listing, $address)),
         };
@@ -478,12 +552,21 @@ class PropertyIdentityService
     private function findExactAsset(array $identity): ?PropertyAsset
     {
         if ($identity['identity_kind'] === 'unit') {
+            if ($identity['unit_identity_key'] === null) return null;
             return PropertyAsset::query()->where('status', 'active')->where('building_identity_key', $identity['building_identity_key'])->where('unit_identity_key', $identity['unit_identity_key'])->first();
         }
         if ($identity['identity_kind'] === 'land' && $identity['land_boundary_hash']) {
             return PropertyAsset::query()->where('status', 'active')->where('land_boundary_hash', $identity['land_boundary_hash'])->first();
         }
         return PropertyAsset::query()->where('status', 'active')->where('identity_hash', $identity['identity_hash'])->first();
+    }
+
+    private function allowsUnspecifiedUnit(array $listing): bool
+    {
+        return (((int) ($listing['listing_input_version'] ?? 1) >= 8 && ($listing['type'] ?? '') === 'shop')
+            || ((int) ($listing['listing_input_version'] ?? 1) >= 7 && ($listing['type'] ?? '') === 'apartment' && ($listing['purpose'] ?? '') === 'rent'))
+            && ! ($listing['unit_occupies_entire_floor'] ?? false)
+            && $this->unitMarker((string) ($listing['unit_number'] ?? '')) === '';
     }
 
     private function normalizeBoundary(mixed $value): ?array
@@ -597,6 +680,22 @@ class PropertyIdentityService
         if ($a === $b) return 1.0;
         similar_text($a, $b, $percent);
         return max(0.0, min(1.0, $percent / 100));
+    }
+
+    private function unitMarker(string $value): string
+    {
+        return $this->normalizedText(strtr($value, ['٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9']));
+    }
+
+    private function floorMarker(string $value): string
+    {
+        $marker = $this->unitMarker($value);
+        return match ($marker) {
+            'ارضي', 'الارضي' => '0', 'اول', 'الاول' => '1',
+            'ثاني', 'الثاني' => '2', 'ثالث', 'الثالث' => '3',
+            'رابع', 'الرابع' => '4', 'خامس', 'الخامس' => '5',
+            default => $marker,
+        };
     }
 
     private function normalizedText(string $value): string

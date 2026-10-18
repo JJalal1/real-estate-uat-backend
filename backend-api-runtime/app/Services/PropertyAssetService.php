@@ -58,7 +58,7 @@ class PropertyAssetService
 
     public function assertNotAlreadyPublished(PropertyAsset $asset, string $purpose, ?int $excludeListingId = null): void
     {
-        $query = $asset->listings()->where('status', 'published');
+        $query = $asset->listings()->where('status', 'published')->whereNotIn('availability_status', ['sold','rented']);
         if ($excludeListingId !== null) {
             $query->where('id', '<>', $excludeListingId);
         }

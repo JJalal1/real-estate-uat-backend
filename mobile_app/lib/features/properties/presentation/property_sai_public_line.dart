@@ -69,7 +69,7 @@ class PropertySaiDisplayLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: text,
+      label: localizedMoneyText(text),
       child: Padding(
         padding: const EdgeInsetsDirectional.only(top: AppSpacing.s8),
         child: Row(
@@ -83,7 +83,7 @@ class PropertySaiDisplayLine extends StatelessWidget {
             const SizedBox(width: AppSpacing.s8),
             Expanded(
               child: Text(
-                text,
+                localizedMoneyText(text),
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),

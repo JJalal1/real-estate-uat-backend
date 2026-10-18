@@ -32,5 +32,18 @@ if [ "${UAT_DEMO_SEED_ENABLED:-true}" = "true" ]; then
   esac
 fi
 
+# Separate, opt-in additive city fixtures; never rerun the historical cleanup.
+if [ "${UAT_CITY_DEMO_SEED_ENABLED:-false}" = "true" ]; then
+  php artisan db:seed --class=UatCityDemoSeeder --force
+fi
+
+case "${APP_ENV:-production}" in
+  uat|staging)
+    if ! php artisan uat:ai-check; then
+      echo "AI provider is unavailable; manual marketplace workflows remain ready."
+    fi
+    ;;
+esac
+
 php artisan config:cache
 exec apache2-foreground

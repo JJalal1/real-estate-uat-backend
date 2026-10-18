@@ -1,3 +1,4 @@
+import 'property_schema.dart';
 import 'dart:convert';
 
 class PropertyImageItem {
@@ -46,10 +47,14 @@ class PropertySummary {
     this.bedrooms,
     this.bathrooms,
     this.hasParking,
+    this.hasElevator,
     this.buildingFacade,
     this.address,
     this.status = 'published',
     this.mainImage,
+    this.imageUrls = const [],
+    this.isSpotlight = false,
+    this.floorNumber,
   });
 
   final int id;
@@ -75,12 +80,17 @@ class PropertySummary {
   final int? bedrooms;
   final int? bathrooms;
   final bool? hasParking;
+  final bool? hasElevator;
   final String? buildingFacade;
   final String? address;
   final String status;
   final String? mainImage;
+  final List<String> imageUrls;
+  final bool isSpotlight;
+  final String? floorNumber;
 
   factory PropertySummary.fromJson(Map<String, dynamic> json) {
+    json = DynamicPropertySchema.sanitize(json);
     final rawPrice = _asDouble(json['price']) ?? 0;
     return PropertySummary(
       id: _asInt(json['id']) ?? 0,
@@ -105,10 +115,14 @@ class PropertySummary {
       bedrooms: _asInt(json['bedrooms']),
       bathrooms: _asInt(json['bathrooms']),
       hasParking: _asBool(json['has_parking']),
+      hasElevator: _asBool(json['has_elevator']),
       buildingFacade: _nullableString(json['building_facade']),
       address: _nullableString(json['address']),
       status: json['status']?.toString() ?? 'published',
       mainImage: _nullableString(json['main_image']),
+      imageUrls: List.unmodifiable((json['image_urls'] as List? ?? const []).whereType<String>().where((url) => url.isNotEmpty).take(12)),
+      isSpotlight: _asBool(json['is_spotlight']) ?? false,
+      floorNumber: _nullableString(json['floor_number']),
     );
   }
 }
@@ -173,11 +187,20 @@ class PropertyDetails {
     this.basePrice,
     this.priceDisplayMode,
     this.priceDisplayNote,
+    this.rentalConditions = const [],
     this.monthlyRent,
     this.rentalTermMonths,
     this.advanceMonths,
     this.financialHold = false,
+    this.availabilityStatus = 'available',
+    this.availabilityConfirmedAt,
+    this.availabilityDueAt,
+    this.viewCount = 0,
+    this.favoriteCount = 0,
+    this.conversationCount = 0,
+    this.viewingCount = 0,
     this.saiAttestationRequired = false,
+    this.saiAttestationText,
     this.description,
     this.areaM2,
     this.areaValue,
@@ -185,11 +208,13 @@ class PropertyDetails {
     this.bedrooms,
     this.bathrooms,
     this.hasParking,
+    this.hasElevator,
     this.buildingFacade,
     this.address,
     this.buildingReference,
     this.unitNumber,
     this.floorNumber,
+    this.unitOccupiesEntireFloor = false,
     this.landBoundaryGeoJson,
     this.duplicateCheckStatus,
     this.duplicateCheckScore = 0,
@@ -211,6 +236,7 @@ class PropertyDetails {
     this.advertiser,
     this.commentsCount = 0,
     this.similar = const <PropertySummary>[],
+    this.isSpotlight = false,
   });
 
   final int id;
@@ -225,11 +251,13 @@ class PropertyDetails {
   final double? basePrice;
   final String? priceDisplayMode;
   final String? priceDisplayNote;
+  final List<Map<String, dynamic>> rentalConditions;
   final double? monthlyRent;
   final int? rentalTermMonths;
   final int? advanceMonths;
   final bool financialHold;
   final bool saiAttestationRequired;
+  final String? saiAttestationText;
   final String currency;
   final int? areaM2;
   final double? areaValue;
@@ -237,11 +265,13 @@ class PropertyDetails {
   final int? bedrooms;
   final int? bathrooms;
   final bool? hasParking;
+  final bool? hasElevator;
   final String? buildingFacade;
   final String? address;
   final String? buildingReference;
   final String? unitNumber;
   final String? floorNumber;
+  final bool unitOccupiesEntireFloor;
   final Map<String, dynamic>? landBoundaryGeoJson;
   final String? duplicateCheckStatus;
   final int duplicateCheckScore;
@@ -257,6 +287,9 @@ class PropertyDetails {
   final String? contactPhone;
   final String? contactWhatsapp;
   final bool isOwner;
+  final String availabilityStatus;
+  final DateTime? availabilityConfirmedAt, availabilityDueAt;
+  final int viewCount, favoriteCount, conversationCount, viewingCount;
   final String? ownershipDocumentType;
   final String? documentOwnerName;
   final String? ownerRelationshipType;
@@ -266,11 +299,14 @@ class PropertyDetails {
   final int commentsCount;
   final List<PropertyImageItem> images;
   final List<PropertySummary> similar;
+  final bool isSpotlight;
 
   String? get mainImage => images.isEmpty ? null : images.first.url;
+  List<String> get imageUrls => images.map((image) => image.url).take(12).toList(growable: false);
   double get editablePrice => basePrice ?? price;
 
   factory PropertyDetails.fromJson(Map<String, dynamic> json) {
+    json = DynamicPropertySchema.sanitize(json);
     final imageRows = json['images'] as List<dynamic>? ?? const <dynamic>[];
     final similarRows = json['similar'] as List<dynamic>? ?? const <dynamic>[];
     final rawPrice = _asDouble(json['price']) ?? 0;
@@ -298,12 +334,21 @@ class PropertyDetails {
       basePrice: _asDouble(json['base_price']) ?? rawPrice,
       priceDisplayMode: _nullableString(json['price_display_mode']),
       priceDisplayNote: _nullableString(json['price_display_note']),
+      rentalConditions: (json['rental_conditions'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(),
       monthlyRent: _asDouble(json['monthly_rent']),
       rentalTermMonths: _asInt(json['rental_term_months']),
       advanceMonths: _asInt(json['advance_months']),
       financialHold: _asBool(json['financial_hold']) ?? false,
+      availabilityStatus: json['availability_status']?.toString() ?? 'available',
+      availabilityConfirmedAt: DateTime.tryParse('${json['availability_confirmed_at'] ?? ''}'),
+      availabilityDueAt: DateTime.tryParse('${json['availability_due_at'] ?? ''}'),
+      viewCount: _asInt(json['view_count']) ?? 0,
+      favoriteCount: _asInt(json['favorite_count']) ?? 0,
+      conversationCount: _asInt(json['conversation_count']) ?? 0,
+      viewingCount: _asInt(json['viewing_count']) ?? 0,
       saiAttestationRequired:
           _asBool(json['sai_attestation_required']) ?? false,
+      saiAttestationText: _nullableString(json['sai_attestation_text']),
       currency: json['currency']?.toString() ?? 'YER',
       areaM2: _asInt(json['area_m2']),
       areaValue: _asDouble(json['area_value']) ?? _asDouble(json['area_m2']),
@@ -312,11 +357,13 @@ class PropertyDetails {
       bedrooms: _asInt(json['bedrooms']),
       bathrooms: _asInt(json['bathrooms']),
       hasParking: _asBool(json['has_parking']),
+      hasElevator: _asBool(json['has_elevator']),
       buildingFacade: _nullableString(json['building_facade']),
       address: _nullableString(json['address']),
       buildingReference: _nullableString(json['building_reference']),
       unitNumber: _nullableString(json['unit_number']),
       floorNumber: _nullableString(json['floor_number']),
+      unitOccupiesEntireFloor: json['unit_occupies_entire_floor'] == true || json['type'] == 'floor',
       landBoundaryGeoJson: json['land_boundary_geojson'] is Map<String, dynamic>
           ? Map<String, dynamic>.from(
               json['land_boundary_geojson'] as Map<String, dynamic>)
@@ -355,6 +402,7 @@ class PropertyDetails {
               0
           : 0,
       images: images,
+      isSpotlight: _asBool(json['is_spotlight']) ?? false,
       similar: similarRows
           .whereType<Map<String, dynamic>>()
           .map(PropertySummary.fromJson)
@@ -385,16 +433,22 @@ class PropertyDetails {
       bedrooms: bedrooms,
       bathrooms: bathrooms,
       hasParking: hasParking,
+      hasElevator: hasElevator,
       buildingFacade: buildingFacade,
       address: address,
       status: status,
       mainImage: mainImage,
+      imageUrls: images.map((image) => image.url).toList(growable: false),
+      isSpotlight: isSpotlight,
+      floorNumber: floorNumber,
     );
   }
 }
 
 class PropertyListingInput {
   const PropertyListingInput({
+    this.inputVersion = 8,
+    this.rentalConditions = const [],
     required this.title,
     required this.purpose,
     required this.type,
@@ -414,11 +468,13 @@ class PropertyListingInput {
     this.bedrooms,
     this.bathrooms,
     this.hasParking,
+    this.hasElevator,
     this.buildingFacade,
     this.address,
     this.buildingReference,
     this.unitNumber,
     this.floorNumber,
+    this.unitOccupiesEntireFloor = false,
     this.landBoundaryGeoJson,
     this.contactPhone,
     this.contactWhatsapp,
@@ -428,6 +484,8 @@ class PropertyListingInput {
     this.ownerRelationshipNote,
   });
 
+  final int inputVersion;
+  final List<Map<String, dynamic>> rentalConditions;
   final String title;
   final String? description;
   final String purpose;
@@ -445,11 +503,13 @@ class PropertyListingInput {
   final int? bedrooms;
   final int? bathrooms;
   final bool? hasParking;
+  final bool? hasElevator;
   final String? buildingFacade;
   final String? address;
   final String? buildingReference;
   final String? unitNumber;
   final String? floorNumber;
+  final bool unitOccupiesEntireFloor;
   final Map<String, dynamic>? landBoundaryGeoJson;
   final double latitude;
   final double longitude;
@@ -461,9 +521,9 @@ class PropertyListingInput {
   final String? ownerRelationshipNote;
 
   Map<String, dynamic> toMap() {
-    return <String, dynamic>{
+    return DynamicPropertySchema.sanitize(<String, dynamic>{
       'title': title.trim(),
-      if (description != null && description!.trim().isNotEmpty)
+      if (description != null)
         'description': description!.trim(),
       'purpose': purpose,
       'type': type,
@@ -478,7 +538,10 @@ class PropertyListingInput {
         'rental_term_months': rentalTermMonths,
       if (purpose == 'rent' && advanceMonths != null)
         'advance_months': advanceMonths,
-      'listing_input_version': 3,
+      'listing_input_version': inputVersion,
+      if (inputVersion >= 6) 'rental_conditions': jsonEncode(purpose == 'rent' ? rentalConditions : []),
+      if (inputVersion >= 6 && areaValue == null && areaM2 == null) ...{'area_value': null, 'area_unit': null},
+      'unit_occupies_entire_floor': type == 'apartment' && unitOccupiesEntireFloor,
       if (areaValue != null) 'area_value': areaValue,
       if (areaUnit != null && areaUnit!.trim().isNotEmpty)
         'area_unit': areaUnit,
@@ -486,8 +549,8 @@ class PropertyListingInput {
       if (type != 'land' && bedrooms != null) 'bedrooms': bedrooms,
       if (type != 'land' && bathrooms != null) 'bathrooms': bathrooms,
       if (type != 'land' && hasParking != null) 'has_parking': hasParking,
-      if (type != 'land' &&
-          buildingFacade != null &&
+      if (const ['apartment', 'building', 'office'].contains(type)) 'has_elevator': hasElevator,
+      if (buildingFacade != null &&
           buildingFacade!.isNotEmpty)
         'building_facade': buildingFacade,
       if (address != null && address!.trim().isNotEmpty)
@@ -513,7 +576,7 @@ class PropertyListingInput {
       if (ownerRelationshipNote != null &&
           ownerRelationshipNote!.trim().isNotEmpty)
         'owner_relationship_note': ownerRelationshipNote!.trim(),
-    };
+    });
   }
 }
 

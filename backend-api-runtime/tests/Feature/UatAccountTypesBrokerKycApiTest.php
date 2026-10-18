@@ -127,10 +127,10 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         ])->assertOk();
 
         $this->withHeaders($ownerHeaders)->putJson("/api/properties/$listingId/sai", [
-            'sai_payer' => 'seller',
+            'sai_payer' => 'buyer',
         ])->assertOk()
             ->assertJsonPath('data.sai.rate_percent', 1)
-            ->assertJsonPath('data.sai.payer', 'seller');
+            ->assertJsonPath('data.sai.payer', 'buyer');
 
         $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
             ->assertOk()->assertJsonPath('data.review_status', 'submitted');
@@ -237,7 +237,7 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->json('data.id');
 
         $this->withHeaders($headers)->putJson("/api/properties/$listingId/sai", [
-            'sai_payer' => 'seller',
+            'sai_payer' => 'buyer',
             'broker_sai_rate_percent' => 0,
         ])->assertOk()
             ->assertJsonPath('data.sai.rate_percent', 1)

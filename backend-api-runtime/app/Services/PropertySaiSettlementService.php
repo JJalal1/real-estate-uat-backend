@@ -42,9 +42,14 @@ class PropertySaiSettlementService
                 throw new ConflictHttpException('نسخة شروط السعي المجمدة لا تطابق العقار أو نوع الاتفاق.');
             }
 
+            $this->sai->assertSettlementConsent($term);
+
             $revision = DB::table('property_agreement_revisions')->where('property_agreement_id', $lockedAgreement->id)
                 ->orderByDesc('revision_number')->lockForUpdate()->first();
             if (! $revision) throw new ConflictHttpException('لا يمكن حساب السعي بدون نسخة اتفاق نهائية.');
+            if ($term->sai_amount_type === 'fixed' && $term->fixed_sai_currency !== $revision->currency) {
+                throw new ConflictHttpException('عملة الاتفاق لا تطابق عملة السعي المحفوظ.');
+            }
 
             $basisAmount = $this->basisAmount(
                 $lockedAgreement->transaction_type,

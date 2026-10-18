@@ -12,7 +12,7 @@ class NotificationController extends Controller
     public function index(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $rows=UserNotification::query()->where('user_id',$user->id)->latest('id')->limit(200)->get();
+        $rows=UserNotification::query()->where('user_id',$user->id)->whereNull('read_at')->latest('id')->limit(200)->get();
         return response()->json(['data'=>$rows->map(fn(UserNotification $n)=>$this->data($n))->values()]);
     }
     public function unreadCount(Request $request): JsonResponse

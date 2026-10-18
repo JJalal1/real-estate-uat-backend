@@ -35,9 +35,14 @@ class MainActivity : FlutterActivity() {
 
     private var pendingResult: MethodChannel.Result? = null
     private var pendingCameraFile: File? = null
+    private var speechInput: InAppSpeechInput? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        ContactActions(this, flutterEngine.dartExecutor.binaryMessenger)
+
+        speechInput?.dispose()
+        speechInput = InAppSpeechInput(this, flutterEngine.dartExecutor.binaryMessenger)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -201,6 +206,27 @@ class MainActivity : FlutterActivity() {
             PICK_IMAGES_REQUEST -> handleImagePickerResult(resultCode, data)
             TAKE_PHOTO_REQUEST -> handleCameraResult(resultCode)
         }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        speechInput?.onPermissionResult(requestCode, grantResults)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        speechInput?.onResume()
+    }
+
+    override fun onPause() {
+        speechInput?.onPause()
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        speechInput?.dispose()
+        speechInput = null
+        super.onDestroy()
     }
 
     private fun handleImagePickerResult(resultCode: Int, data: Intent?) {

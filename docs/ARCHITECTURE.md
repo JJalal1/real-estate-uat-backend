@@ -1,5 +1,11 @@
 # Architecture — REAL ESTATE UAT
 
+## Wave6 account drafts and shared discovery — October18
+
+`backend-api-runtime/resources/property-schema.json` is the central applicability/required-field definition; the generator checks Flutter parity. Editor, inference, search, saved filters, details and comparison use that contract. Hidden/inapplicable values are removed; shop area uses sqm and apartments select floor. Existing Property persistence remains authoritative.
+
+`listing_editor_drafts` stores per-user UUID checkpoints, partial payloads, revision conflicts and private draft-photo references. Only explicit existing listing save promotes images; a checkpoint never publishes or accepts financial terms. One search session spans list/map and clears on full exit; saved restore is explicit. Broker-card conversation starts reuse current MessageThread authorization/participants without creating a message or financial workflow. See `WAVE6_BASELINE_1069_AR.md` for tested trees and rollout limits.
+
 ## System overview
 
 REAL ESTATE is a multi-device UAT real-estate platform. The same backend/database/storage must serve several phones simultaneously so that user actions are visible across roles.
@@ -10,6 +16,10 @@ REAL ESTATE is a multi-device UAT real-estate platform. The same backend/databas
 - Uses compile-time UAT configuration in GitHub Actions.
 - Current UAT API base is injected with `--dart-define`.
 - Mobile UI may hide actions, but it is never the authority for permissions.
+
+### Voice input
+
+Search and listing preparation share one foreground-only Flutter capture controller and native speech channel. The October16 reference adds Android in-app dictation previews, finalized segment accumulation across pauses, manual finish and an explicit editable send. The configured Android recognition service may use the network. Where no recognition service exists, the existing temporary full-clip/Laravel transcription path remains. Partial previews never call the interpretation endpoints or persist a listing brief. Camera/token code and original dependencies remain unchanged. Laravel still owns AI search/listing interpretation, authorization and review; see `VOICE_REFERENCE_20261016_AR.md`.
 
 ### Backend
 

@@ -21,7 +21,6 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _loading = true;
-  bool _unreadOnly = false;
   String? _error;
   List<AppNotificationItem> _items = const [];
   bool _actionPending = false;
@@ -87,6 +86,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       await ref.read(messageRepositoryProvider).readNotification(item.id);
     }
     if (!mounted) return;
+    setState(() => _items = _items.where((entry) => entry.id != item.id).toList(growable: false));
 
     final destination = notificationDestination(item);
     if (destination != null) {
@@ -104,9 +104,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final unread = _items.where((item) => !item.isRead).length;
-    final visible = _unreadOnly
-        ? _items.where((item) => !item.isRead).toList(growable: false)
-        : _items;
+    final visible = _items.where((item) => !item.isRead).toList(growable: false);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -142,65 +140,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     AppLayout.compactPageGutter,
                     0,
                   ),
-                  child: AppSurface(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                unread > 0
-                                    ? '$unread إشعار يحتاج انتباهك'
-                                    : 'أنت مطّلع على كل شيء',
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                              const SizedBox(height: AppSpacing.s4),
-                              Text(
-                                'الإشعارات المهمة تبقى هنا، وتقدر تتحكم في الفئات الاختيارية من الإعدادات.',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    ),
-                              ),
-                              const SizedBox(height: AppSpacing.s10),
-                              EbrokerFilterChip(
-                                selected: _unreadOnly,
-                                avatar: const EbrokerIcon(
-                                  Icons.notifications_active_outlined,
-                                  size: 18,
-                                ),
-                                label: const Text('غير المقروء فقط'),
-                                onSelected: (value) =>
-                                    setState(() => _unreadOnly = value),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.s12),
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).colorScheme.primaryContainer,
-                            borderRadius:
-                                BorderRadius.circular(AppRadii.control),
-                          ),
-                          child: EbrokerIcon(
-                            unread > 0
-                                ? Icons.notifications_active_outlined
-                                : Icons.notifications_none_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  child: Text(_loading || _error != null ? 'تحديثات حسابك' : unread > 0 ? '$unread إشعار جديد' : 'أنت مطّلع على كل شيء',
+                    style: Theme.of(context).textTheme.bodyMedium),
                 ),
               ),
               if (_loading)
@@ -211,26 +152,23 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   sliver: SliverToBoxAdapter(child: _NotificationSkeleton()),
                 )
               else if (_error != null)
-                SliverFillRemaining(
-                  hasScrollBody: false,
+                SliverToBoxAdapter(
                   child: AppErrorState(message: _error!, onRetry: _load),
                 )
               else if (_items.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
+                const SliverToBoxAdapter(
                   child: AppEmptyState(
-                    title: 'لا توجد إشعارات بعد',
+                    title: 'أنت مطّلع على كل شيء',
                     message:
                         'بتظهر هنا الرسائل والمواعيد والتحديثات المهمة لحسابك.',
                     icon: Icons.notifications_none_rounded,
                   ),
                 )
               else if (visible.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
+                const SliverToBoxAdapter(
                   child: AppEmptyState(
                     title: 'ما عندك إشعارات غير مقروءة',
-                    message: 'كل الإشعارات الحالية مقروءة.',
+                    message: 'سنُظهر هنا ما يحتاج انتباهك عند وصوله.',
                     icon: Icons.done_all_rounded,
                   ),
                 )
@@ -245,7 +183,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   sliver: SliverList.separated(
                     itemCount: visible.length,
                     separatorBuilder: (_, __) =>
-                        const SizedBox(height: AppSpacing.s10),
+                        const Divider(height: 1, thickness: .5),
                     itemBuilder: (context, index) {
                       final item = visible[index];
                       return _NotificationCard(
@@ -279,78 +217,34 @@ class _NotificationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final presentation = _notificationPresentation(item.type);
-    return AppSurface(
-      padding: EdgeInsets.zero,
-      selected: !item.isRead,
-      onTap: pending ? null : onTap,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(AppSpacing.s14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: !item.isRead
-                    ? scheme.primaryContainer
-                    : scheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(AppRadii.control),
-              ),
-              child: EbrokerIcon(
-                presentation.$1,
-                color: !item.isRead ? scheme.primary : scheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.s12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.title,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: item.isRead
-                                    ? FontWeight.w600
-                                    : FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                      if (item.createdAt != null)
-                        Text(
-                          _relativeTime(item.createdAt!),
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.s4),
-                  AppStatusBadge(
-                    label: presentation.$2,
-                    tone: presentation.$3,
-                  ),
-                  if (item.body != null) ...[
-                    const SizedBox(height: AppSpacing.s8),
-                    Text(
-                      item.body!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.s8),
-            EbrokerIcon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
-          ],
-        ),
+    return Semantics(button: true, label: 'إشعار جديد: ${item.title}', child: Material(
+      color: scheme.primary.withValues(alpha: .025),
+      child: InkWell(onTap: pending ? null : onTap,
+        child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(10, 16, 8, 16),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(padding: const EdgeInsets.only(top: 2),
+              child: EbrokerIcon(presentation.$1, size: 20, color: scheme.primary)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(item.title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+              if (item.body != null) ...[
+                const SizedBox(height: 5),
+                Text(item.body!, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+              ],
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 4, children: [
+                Text(presentation.$2, style: Theme.of(context).textTheme.labelSmall),
+                if (item.createdAt != null) Text(_relativeTime(item.createdAt!),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
+              ]),
+            ])),
+            const SizedBox(width: 10),
+            Padding(padding: const EdgeInsets.only(top: 6), child: Container(width: 5, height: 5,
+              decoration: BoxDecoration(color: scheme.primary, shape: BoxShape.circle))),
+          ])),
       ),
-    );
+    ));
   }
 }
 
@@ -361,11 +255,11 @@ class _NotificationSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: const [
-        AppSkeleton(height: 112, radius: AppRadii.card),
+        AppSkeleton(height: 74, radius: AppRadii.card),
         SizedBox(height: AppSpacing.s10),
-        AppSkeleton(height: 112, radius: AppRadii.card),
+        AppSkeleton(height: 74, radius: AppRadii.card),
         SizedBox(height: AppSpacing.s10),
-        AppSkeleton(height: 112, radius: AppRadii.card),
+        AppSkeleton(height: 74, radius: AppRadii.card),
       ],
     );
   }
@@ -374,9 +268,6 @@ class _NotificationSkeleton extends StatelessWidget {
 (IconData, String, AppStatusTone) _notificationPresentation(String type) {
   if (type == 'message_received') {
     return (Icons.chat_bubble_outline, 'رسائل', AppStatusTone.info);
-  }
-  if (type.startsWith('booking_')) {
-    return (Icons.calendar_month_outlined, 'معاينة', AppStatusTone.info);
   }
   if (type.startsWith('agreement_') || type.startsWith('rental_contract_')) {
     return (Icons.handshake_outlined, 'اتفاق', AppStatusTone.success);

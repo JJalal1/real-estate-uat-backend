@@ -1,6 +1,54 @@
 # Business Rules — REAL ESTATE
 
+## October19 complete listing facts and refreshed interface
+
+Complete unambiguous facts in a supplied listing brief populate all corresponding applicable fields after review, even when the AI provider returns a sparse result. Literal organization is labeled honestly during provider failure. Numbers in Arabic words, monthly rent, advance requirements, guarantor and explicit Sai must remain distinct; unknown location/floor/photos are never invented. Valid proposals start selected, with explicit deselection and recomposition before application. Only explicit submission sends the draft for review, and financial consent remains separate. The centered assisted/manual add action and two professional destinations supersede previous navigation/palette/radius presentation. Real WhatsApp OTP, private evidence, financial rates and history, manual-stop voice and account eligibility stay authoritative. See `LISTING_DESIGN_WAVE_AR.md`.
+
+## October18 query-summary and followup clarification
+
+After successful search interpretation, show the accepted criteria as a readable interactive query and consume only the draft that produced them. Each later voice or typed request applies to the existing canonical filters and can add, change or remove any supported criterion; the UI must not close or limit the user to the initially suggested filter chips. Do not replay the previously applied raw sentence when recording a new request. Preserve typed but unsent text within the current request, including voice appended to that draft. Failed/stale interpretation never clears it. Partial recognition and manual finish leave an editable draft; explicit send still applies it. Listing preparation's raw-brief behavior remains unchanged.
+
+Complete spoken city names such as «مدينة اب» resolve to the existing active registry name «إب» before canonical search results are requested. This must never strip a neighborhood/address criterion, invent an unknown/inactive locality, modify read-only map/governorate/advertiser constraints or rewrite stored records.
+
+## October18 current-wave input and location decisions
+
+New professional Sai input defaults to a fixed amount; existing explicit saved/immutable choices retain their type. Fixed input shows Arabic money words and the compact notice that the platform share is charged to the broker. Percentage input cannot exceed100%; the existing stricter sale ceiling still applies. Owner rates, financial formulas, payer, zero fallback, explicit attestation and all historical records remain unchanged.
+
+The current apartment selector/writes accept ground through seventh only. Office choices and historical read labels remain. First Home requests foreground location with the system prompt; remember a denied/resolved prompt across launches. Manual city choice persists and wins over delayed GPS until explicitly changed. New discovery journeys use Home's location as a default, while explicit city/map/saved searches override it. Location context does not restore old search text/results or trigger a search before user action. Description remains inline, one request per press, editable, and waits for Retry-After following429 without an automatic request loop.
+
+## Wave6 accepted scope — October18
+
+Use the central property schema across all input/discovery/detail/compare surfaces. Shop area is sqm; apartment floor is a choice. Account checkpoints allow partial inputs, remain private and cannot publish or accept Sai. Voice keeps manual stop, editable review and explicit application; reviewed suggestions lead to missing-required-fields completion. Inline descriptions use reviewed facts and protect subsequent user edits from late results.
+
+The compact Sai summary uses actual backend policy and keeps fixed/percentage amounts, owner rates, zero fallback, split, payer, immutable history and explicit financial consent. Comparison uses factual compatible values, replacement/removal and dynamic groups. Full search exit clears the journey; only explicitly chosen saved searches restore it. Home uses actual data/location. Broker contact reuses private messaging without implicit messages; closed sold/rented listing counts stay distinct from confirmed deals. Retain rent7/sale14/grace2 availability. Provider503 must remain visible and must not be reported as successful AI interpretation.
+
 These are product rules, not implementation suggestions. Agents must preserve them unless the product owner explicitly changes them.
+
+## October16 supplied voice reference
+
+The new reference authorizes live dictation previews in the existing text input for search and listing preparation. Preserve typed context, manual finish, edit/review and explicit send; neither pauses nor partial callbacks may execute a search or write listing facts. Cancel/error restores the original brief and does not save temporary hypotheses. Internal finalized recognition segments may accumulate while the user session stays active. Android system dictation can depend on a network service; do not promise offline/on-device recognition. The old full-clip Laravel transcription remains the fallback where no recognition service exists. Search chips, actual results, organized Home sections and advertiser review/financial rules remain. See `VOICE_REFERENCE_20261016_AR.md`.
+
+## October16 delegated broker assistance
+
+Listing AI proposes only reviewable facts/title/description; it cannot save, approve or publish a listing. Recompose copy after changing selected proposals. Preserve raw brief locally per user/listing. Provider failure may use conservative literal-text organization only when labeled clearly. Voice transcription still depends on its provider. Completion guidance uses existing required-field/photo/identity/Sai checks. Copying public ad text is an explicit clipboard action; no automated messages or private evidence/financial splits. See `BROKER_AI_ASSISTANT_AR.md`.
+
+## Current October16 Wave5 on1049
+
+The owner confirmed current1049. Listing input7 hides rental-apartment area/elevator and makes position optional; known historical identity/facts remain. Unspecified units require an auditable support identity decision rather than an invented unit or shared whole-floor asset. Rental conditions use inline chips and reveal only selected details.
+
+Professional Sai supports percentage or native fixed amounts. Owner rates, zero fallback, payer and internal split remain. Fixed fees are bounded at configuration/review by the equivalent current percentage ceiling and frozen in their original currency; final deal-price changes do not recalculate the fee. Mixed inputs and currency mismatches are rejected. Explicit consent and customer-confirmed outcomes remain mandatory. Home and Account open the existing smart-search session through lightweight entries; no full AI block remains on Home.
+
+## Earlier October15 Wave4 changes
+
+Wave4 starts from APK1039. The active viewing/booking UI, endpoints and notifications are retired; parties coordinate visits using ordinary property-linked messages. Historical bookings/events/messages and all immutable financial history stay intact; no replacement calendar is authorized.
+
+Listing input6 moves mandatory photos and editable fact-grounded description to specifications, removes new whole-floor selection, makes area optional for rental apartments, and stores only selected optional rental requirements. Existing whole-floor identity is preserved read-only for legacy listings. Step4 shows rate/total and visible Previous, without display-mode choice, split or consent checkbox. Public price/rate are automatic. Existing rates, monthly commission basis and customer payer remain. New pending custom terms may enter review, but settlement requires the existing explicit post-publication attestation tied to the immutable term. No implicit acceptance is created.
+
+Voice capture ends by the user's stop action, not silence. The complete temporary clip is transcribed on Laravel with the existing server-only Gemini configuration. Text, voice and chips update one search state; resource-limit/error paths never execute a partial request. No TTS or background recording is authorized.
+
+## Earlier October13 refinement
+
+New Sai configurations are paid by the customer (sale buyer / rental tenant), with the existing rates, zero-rate fallback, internal split and explicit platform-condition acceptance. Immutable historical conversation/financial terms are retained. Advertisers start in the normal marketplace and reach their separate work area explicitly. See `UX_REFINEMENT_ROUND2_AR.md` for dynamic listing scope and the new read-only editor policy contract. Historical planned contract text below does not enable new contract creation.
 
 ## 1. Core marketplace journey
 
@@ -194,3 +242,11 @@ Do not fabricate a valuation when comparable data is insufficient. Return/displa
 ## 20. Legal/guide content
 
 The Real-estate Guide and Legal Documents library are informational. Do not present templates as government-certified or legal advice unless that is genuinely verified. Sensitive/high-risk cases should direct users to an appropriate specialist.
+
+## 21. October 13 Wave3 account and unit scope
+
+The first listing step offers basic types only; a whole-floor unit is an apartment with `unit_occupies_entire_floor`, not a separate first-step category. It requires a floor, clears a unit position, and uses the existing `@whole_floor` identity marker. Old `floor` listings remain readable/editable and match apartment searches. Whole buildings/houses/villas discard irrelevant floor/unit fields.
+
+A modern ordinary account needs the existing owner verification before publishing one personal property. Any non-archived personal listing, including a draft, consumes that slot; editing/resuming it does not create another slot. A second creation is rejected by the backend under a user-row transaction lock and offers broker review. Approved brokers/offices can manage multiple listings and use the work/CRM screens. An approved owner retains owned-property availability, conversation/viewing/outcome actions and platform receivables without getting professional CRM. Broker activation is free and grants tools only after normal verification approval; registration remains ordinary.
+
+The historical v0 local/test listing compatibility is retained; modern registration cannot request it. No commission formulas, financial snapshots, hierarchy, contracts or public/private storage boundaries change.

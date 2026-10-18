@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/theme/ebroker_design.dart';
@@ -7,10 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../agreements/presentation/conversation_agreement_card.dart';
-import '../../bookings/data/booking_repository.dart';
-import '../../bookings/domain/booking_models.dart';
-import '../../bookings/presentation/booking_request_sheet.dart';
+import '../../broker/presentation/broker_activity.dart';
 import '../data/message_repository.dart';
 import '../domain/message_models.dart';
 
@@ -24,16 +19,23 @@ class ConversationScreen extends ConsumerStatefulWidget {
 class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _controller = TextEditingController();
   MessageThreadDetails? _details;
-  ViewingBooking? _viewing;
   bool _loading = true;
-  bool _loadingViewing = false;
   bool _loadingOlder = false;
   bool _sending = false;
   bool _calling = false;
-  bool _bookingBusy = false;
   String? _error;
   String? _pendingMessageKey;
   String? _pendingMessageText;
+
+  void _chooseQuickReply(String text) {
+    if (_sending) return;
+    final current = _controller.text.trim();
+    final candidate = current.isEmpty ? text : '$current\n$text';
+    if (candidate.length > 2000) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختصر الرسالة الحالية قبل إضافة الرد السريع.'))); return;
+    }
+    _controller.value = TextEditingValue(text: candidate, selection: TextSelection.collapsed(offset: candidate.length));
+  }
 
   @override
   void initState() {
@@ -47,7 +49,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     super.dispose();
   }
 
-  Future<void> _load({bool refreshViewing = true}) async {
+  Future<void> _load() async {
     try {
       final details =
           await ref.read(messageRepositoryProvider).details(widget.threadId);
@@ -57,34 +59,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         _loading = false;
         _error = null;
       });
-      if (refreshViewing) unawaited(_loadViewing());
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
       });
-    }
-  }
-
-  Future<void> _loadViewing() async {
-    if (_loadingViewing) return;
-    _loadingViewing = true;
-    try {
-      final bookings = await ref.read(bookingRepositoryProvider).mine();
-      ViewingBooking? viewing;
-      for (final booking in bookings) {
-        if (booking.messageThreadId == widget.threadId) {
-          viewing = booking;
-          if (booking.isActive) break;
-        }
-      }
-      if (!mounted) return;
-      setState(() => _viewing = viewing);
-    } catch (_) {
-      // Conversation content remains fully usable while viewing data catches up.
-    } finally {
-      _loadingViewing = false;
     }
   }
 
@@ -142,7 +122,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       _controller.clear();
       _pendingMessageKey = null;
       _pendingMessageText = null;
-      await _load(refreshViewing: false);
+      await _load();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -170,7 +150,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           const SnackBar(content: Text('تعذر فتح تطبيق الهاتف على هذا الجهاز.')),
         );
       }
-      if (mounted) await _load(refreshViewing: false);
+      if (mounted) await _load();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -179,163 +159,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     } finally {
       if (mounted) setState(() => _calling = false);
     }
-  }
-
-  Future<void> _bookingAction(String action) async {
-    final booking = _viewing;
-    if (booking == null || _bookingBusy) return;
-    setState(() => _bookingBusy = true);
-    try {
-      final repo = ref.read(bookingRepositoryProvider);
-      ViewingBooking? updated;
-      if (action == 'confirm') {
-        updated = await repo.confirm(booking.id);
-      } else if (action == 'decline') {
-        final reason = await _bookingReason('رفض طلب المعاينة', 'سبب الرفض');
-        if (reason == null) return;
-        updated = await repo.decline(booking.id, reason);
-      } else if (action == 'cancel') {
-        final reason = await _bookingReason('إلغاء المعاينة', 'سبب الإلغاء');
-        if (reason == null) return;
-        updated = await repo.cancel(booking.id, reason);
-      } else if (action == 'reschedule') {
-        if (!mounted) return;
-        updated = await BookingRequestSheet.showForReschedule(context, booking);
-        if (updated == null) return;
-      } else if (action == 'complete') {
-        updated = await repo.complete(booking.id);
-      }
-      if (!mounted || updated == null) return;
-      setState(() => _viewing = updated);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم تحديث حالة طلب المعاينة.')),
-      );
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
-      }
-    } finally {
-      if (mounted) setState(() => _bookingBusy = false);
-    }
-  }
-
-  Future<String?> _bookingReason(String title, String label) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          minLines: 2,
-          maxLines: 4,
-          maxLength: 1500,
-          decoration: InputDecoration(labelText: label),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('إلغاء'),
-          ),
-          EbrokerFilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('تأكيد'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (result == null || result.trim().length < 2) return null;
-    return result.trim();
-  }
-
-  Widget _viewingCard(ViewingBooking booking) {
-    final start = booking.startsAt.toLocal();
-    final date =
-        "${start.year}/${start.month.toString().padLeft(2, '0')}/${start.day.toString().padLeft(2, '0')} - ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}";
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              const EbrokerIcon(Icons.event_available_outlined),
-              const SizedBox(width: 8),
-              const Expanded(
-                  child: Text('طلب معاينة مرتبط بهذه المحادثة',
-                      style: TextStyle(fontWeight: FontWeight.w600))),
-              Chip(label: Text(booking.statusLabel)),
-            ]),
-            Text(date),
-            const SizedBox(height: 4),
-            Text(booking.isRequester
-                ? 'المعلن: ${booking.hostName ?? '-'}'
-                : 'طالب المعاينة: ${booking.requesterName}'),
-            if (booking.awaitingRequesterConfirmation && booking.isRequester)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text(
-                    'المعلن اقترح هذا الموعد الجديد. راجعه ثم وافق عليه أو غيّره.'),
-              ),
-            if (booking.requesterNote?.trim().isNotEmpty == true)
-              Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text('ملاحظة الطلب: ${booking.requesterNote}')),
-            if (booking.hostNote?.trim().isNotEmpty == true)
-              Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text('ملاحظة المعلن: ${booking.hostNote}')),
-            if (booking.isActive) ...[
-              const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                if (booking.canConfirm)
-                  EbrokerFilledButton.tonalIcon(
-                    onPressed:
-                        _bookingBusy ? null : () => _bookingAction('confirm'),
-                    icon: const EbrokerIcon(Icons.check_circle_outline),
-                    label: Text(booking.canAcceptReschedule
-                        ? 'قبول الموعد الجديد'
-                        : 'تأكيد الموعد'),
-                  ),
-                if (booking.canDecline)
-                  EbrokerOutlinedButton.icon(
-                    onPressed:
-                        _bookingBusy ? null : () => _bookingAction('decline'),
-                    icon: const EbrokerIcon(Icons.cancel_outlined),
-                    label: const Text('رفض'),
-                  ),
-                if (booking.canReschedule)
-                  EbrokerOutlinedButton.icon(
-                    onPressed: _bookingBusy
-                        ? null
-                        : () => _bookingAction('reschedule'),
-                    icon: const EbrokerIcon(Icons.schedule_outlined),
-                    label: const Text('تغيير الموعد'),
-                  ),
-                if (booking.canCancel)
-                  EbrokerOutlinedButton.icon(
-                    onPressed:
-                        _bookingBusy ? null : () => _bookingAction('cancel'),
-                    icon: const EbrokerIcon(Icons.event_busy_outlined),
-                    label: const Text('إلغاء'),
-                  ),
-              ]),
-            ],
-            if (booking.canComplete) ...[
-              const SizedBox(height: 10),
-              EbrokerFilledButton.tonalIcon(
-                  onPressed:
-                      _bookingBusy ? null : () => _bookingAction('complete'),
-                  icon: const EbrokerIcon(Icons.task_alt),
-                  label: const Text('تسجيل المعاينة كمكتملة')),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _propertyAvailabilityBanner(MessageThreadSummary thread) {
@@ -462,15 +285,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   icon: const EbrokerIcon(Icons.flag_outlined))
             ]),
         body: Column(children: [
-          if (!_loading && (thread != null || _viewing != null))
-            ConstrainedBox(constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.35),
-              child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                if (!_loading && thread?.isPropertyUnavailable == true)
-                  _propertyAvailabilityBanner(thread!),
-                if (!_loading && thread != null)
-                  ConversationAgreementCard(thread: thread),
-                if (!_loading && _viewing != null) _viewingCard(_viewing!),
-              ]))),
+          if (!_loading && thread?.isPropertyUnavailable == true) _propertyAvailabilityBanner(thread!),
+          if (!_loading && thread != null) BrokerConversationTools(thread: thread),
           Expanded(
               child: Container(
                 decoration: const BoxDecoration(image: DecorationImage(
@@ -486,6 +302,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               child: Padding(
                   padding: const EdgeInsets.all(10),
                   child: Row(children: [
+                    PopupMenuButton<String>(tooltip: 'ردود سريعة', enabled: !_sending && !_loading && _error == null,
+                      icon: const EbrokerIcon(Icons.quickreply_outlined, size: 22),
+                      onSelected: _chooseQuickReply,
+                      itemBuilder: (_) => [
+                        if (thread?.canManageCustomer == true && thread?.isPropertyUnavailable != true) const PopupMenuItem(value: 'العقار متاح حاليًا. هل يناسبك تحديد موعد للمعاينة؟', child: Text('العقار متاح')),
+                        const PopupMenuItem(value: 'متى يناسبك موعد المعاينة؟', child: Text('تنسيق زيارة العقار')),
+                        const PopupMenuItem(value: 'شكرًا لتواصلك. سأراجع التفاصيل وأرد عليك.', child: Text('سأرد عليك')),
+                        const PopupMenuItem(value: 'شكرًا لك. هل ما زلت مهتمًا بهذا العقار؟', child: Text('متابعة الاهتمام')),
+                      ]),
                     Expanded(
                         child: TextField(
                             controller: _controller,

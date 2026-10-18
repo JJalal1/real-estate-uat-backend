@@ -6,8 +6,8 @@ import 'package:real_estate_mobile/core/widgets/app_components.dart';
 
 const _roleLabels = <String, List<String>>{
   'anonymous': ['العقارات', 'حسابي'],
-  'regular': ['العقارات', 'الرسائل', 'المعاينات', 'حسابي'],
-  'advertiser': ['العقارات', 'إعلاناتي', 'الرسائل', 'المعاينات', 'حسابي'],
+  'regular': ['العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'],
+  'advertiser': ['الرئيسية', 'عملي', 'العملاء', 'حسابي'],
   'agent': ['لوحة الدعم', 'الوارد', 'مهامي', 'الرسائل', 'حسابي'],
   'manager': ['لوحة الدعم', 'الأعمال', 'الفريق', 'حسابي'],
   'platform': ['لوحة الإدارة', 'المراجعات', 'المستخدمون', 'المنصة', 'حسابي'],
@@ -94,7 +94,7 @@ void main() {
             // Presence/selection alone passed with the old full-screen bar.
             // Require visible, hit-testable page content after EVERY selection.
             for (var index = 0; index < role.value.length; index++) {
-              await tester.tap(find.text(role.value[index]));
+              await tester.tap(find.byTooltip(role.value[index]));
               await tester.pumpAndSettle();
               expect(selected, index);
               final action = find.text('صفحة ${index + 1}').hitTestable();
@@ -104,8 +104,8 @@ void main() {
               expect(tester.takeException(), isNull);
             }
 
-            final firstLabel = tester.getCenter(find.text(role.value.first));
-            final lastLabel = tester.getCenter(find.text(role.value.last));
+            final firstLabel = tester.getCenter(find.byTooltip(role.value.first));
+            final lastLabel = tester.getCenter(find.byTooltip(role.value.last));
             expect(firstLabel.dx, greaterThan(lastLabel.dx),
                 reason: 'Destination order must remain RTL.');
           },

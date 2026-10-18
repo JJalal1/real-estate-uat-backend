@@ -17,7 +17,7 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class PropertyFinancialService
 {
-    public const SAI_ATTESTATION_TEXT = 'أقسم بالله أنني إذا تمت الصفقة عن طريق المنصة فسأقوم بسداد مستحقات المنصة من السعي حسب الشروط التي وافقت عليها عند نشر الإعلان.';
+    public const SAI_ATTESTATION_TEXT = 'ألتزم بسداد مستحق المنصة من السعي عند إتمام صفقة جاءت من عميل عبر المنصة، وفق نسبة المنصة الموضحة.';
 
     public function __construct(
         private readonly PropertySaiSettlementService $saiSettlements,
@@ -90,6 +90,9 @@ class PropertyFinancialService
                     'agreement_reference'=>$locked->reference,
                     'sai_term_id'=>(int) $settlement->sai_term_id,
                     'sai_rate_percent'=>(float) $settlement->sai_rate_percent,
+                    'sai_amount_type'=>$term->sai_amount_type ?? 'percentage',
+                    'fixed_sai_amount'=>$term->fixed_sai_amount ?? null,
+                    'fixed_sai_currency'=>$term->fixed_sai_currency ?? null,
                     'calculation_basis'=>$settlement->calculation_basis,
                 ],
                 'frozen_at'=>now(),
@@ -314,17 +317,37 @@ class PropertyFinancialService
         ];
     }
 
-    public function attestSai(Property $property, User $user, Request $request): void
+    public function attestationText(Property $property, ?object $term = null): string
+    {
+        $term ??= DB::table('property_sai_terms')->where('id', $property->current_sai_term_id)->first();
+        if ((int) $property->listing_input_version < 6 && $term?->platform_terms_status !== 'pending') return self::SAI_ATTESTATION_TEXT;
+        if (! $term) return self::SAI_ATTESTATION_TEXT;
+        $rate = rtrim(rtrim(number_format((float) $term->platform_share_percent, 2, '.', ''), '0'), '.');
+        $sai = rtrim(rtrim(number_format((float) $term->sai_rate_percent, 2, '.', ''), '0'), '.');
+        $basis = $term->purpose === 'rent' ? 'إيجار الشهر الأول' : 'قيمة البيع النهائية';
+        if (($term->sai_amount_type ?? 'percentage') === 'fixed') {
+            $amount = rtrim(rtrim(number_format((float) $term->fixed_sai_amount, 2, '.', ''), '0'), '.');
+            return 'السعي المحفوظ: مبلغ ثابت '.$amount.' '.$term->fixed_sai_currency.'. ألتزم بسداد مستحق المنصة ('.$rate.'% من مبلغ السعي) عند إتمام صفقة جاءت من عميل عبر المنصة. يظهر المستحق في التسوية عند إتمام الصفقة.';
+        }
+        return 'السعي المحفوظ: '.$sai.'% من '.$basis.'. ألتزم بسداد مستحق المنصة ('.$rate.'% من مبلغ السعي) عند إتمام صفقة جاءت من عميل عبر المنصة. يظهر المستحق في التسوية عند إتمام الصفقة.';
+    }
+
+    public function attestSai(Property $property, User $user, Request $request, ?int $saiTermId = null): void
     {
         abort_unless((int) $property->user_id === (int) $user->id, 403);
-        abort_unless($property->status === 'published' && $property->current_sai_term_id, 409, 'يظهر الإقرار بعد نشر إعلان بشروط سعي معتمدة.');
-        $term = DB::table('property_sai_terms')->where('id', $property->current_sai_term_id)->first();
-        abort_unless($term, 409);
-        DB::table('property_sai_attestations')->updateOrInsert(
+        $termId = $saiTermId ?? $property->current_sai_term_id;
+        $term = DB::table('property_sai_terms')->where('id', $termId)->where('property_id', $property->id)->first();
+        abort_unless($term, $saiTermId === null ? 409 : 404);
+        $frozenContact = $saiTermId !== null && $term->platform_terms_status === 'pending'
+            && DB::table('message_threads as t')->join('message_thread_participants as p','p.thread_id','=','t.id')
+                ->where('t.property_id',$property->id)->where('t.sai_term_id',$termId)->where('p.user_id',$user->id)->exists();
+        abort_unless(($property->status === 'published' && (int)$termId === (int)$property->current_sai_term_id) || $frozenContact,
+            409, 'يظهر الإقرار بعد نشر إعلان بشروط سعي معتمدة، أو لشروط محادثة بدأت من إعلان منشور.');
+        DB::table('property_sai_attestations')->insertOrIgnore(array_merge(
             ['property_id'=>$property->id,'sai_term_id'=>$term->id],
-            ['user_id'=>$user->id,'terms_version'=>$term->version,'text_snapshot'=>self::SAI_ATTESTATION_TEXT,
+            ['user_id'=>$user->id,'terms_version'=>$term->version,'text_snapshot'=>$this->attestationText($property, $term),
              'ip_address'=>$request->ip(),'user_agent'=>substr((string)$request->userAgent(),0,500),'accepted_at'=>now(),'created_at'=>now(),'updated_at'=>now()],
-        );
+        ));
         $this->audit->record($user, 'listing.sai_attested', $property, ['sai_term_id'=>(int)$term->id,'terms_version'=>(int)$term->version], $request, $user->id);
     }
 

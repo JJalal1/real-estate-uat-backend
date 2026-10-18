@@ -10,7 +10,8 @@ import '../domain/message_models.dart';
 import 'conversation_screen.dart';
 
 class MessagesScreen extends ConsumerStatefulWidget {
-  const MessagesScreen({super.key});
+  const MessagesScreen({this.embedded = false, super.key});
+  final bool embedded;
 
   @override
   ConsumerState<MessagesScreen> createState() => _MessagesScreenState();
@@ -73,7 +74,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: const AppAppBar(title: 'الرسائل'),
+        appBar: widget.embedded ? null : const AppAppBar(title: 'الرسائل'),
         body: RefreshIndicator(
           onRefresh: _load,
           child: CustomScrollView(
@@ -205,8 +206,8 @@ class _InboxHeader extends StatelessWidget {
                 ),
               ),
               Container(
-                width: 48,
-                height: 48,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(AppRadii.control),

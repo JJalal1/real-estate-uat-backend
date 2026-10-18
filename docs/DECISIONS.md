@@ -1,6 +1,26 @@
 # Decisions — REAL ESTATE
 
+## D-LISTING-DESIGN — October19 current1087 reference wave
+
+The owner explicitly authorizes new colors, rounded components, consolidated professional navigation and a centered animated creation menu. Preserve existing entities, real auth and protected workflows. Supplement sparse model extraction with conservative explicit facts from the complete Arabic brief, never guessed missing data. Apply reviewed proposals together to the canonical editor; offer the existing complete-clip route alongside live dictation with manual finish. Move comparison beside favorites on listing photos and localize price display without changing values. `LISTING_DESIGN_WAVE_AR.md` defines scope and acceptance limits; physical-device microphone acceptance remains separate from CI previews.
+
 This file records product/engineering decisions that AI agents must not silently reverse.
+
+## D-VOICE-REF — October16 explicit voice reference
+
+Match the supplied in-composer live dictation and explicit send interaction on current1058. Partial hypotheses are display-only, finalized segments accumulate until manual finish, and cancel/error restores typed context. Finished text remains editable before search or reviewed listing preparation. Retain structured Home/search/listing sections and whole-clip fallback without new keys, runtime dependencies, backend writes, auto-send or publication. This latest request supersedes the earlier batch-only presentation, not the manual-stop/no-partial-execution boundary. See `VOICE_REFERENCE_20261016_AR.md`.
+
+Accepted source `2822ab45be21a6a715f0b0bafafce24fe449ff9f` passed all five CI63 gates and original APK1063 was verified/delivered. PR78 merged as `807d34330d1d9c4687308d54f55618b29ad2f28e`, with the complete tested tree retained. Backend is unchanged; no Render deployment. Actual handset recognition acceptance remains open. See `VOICE_REFERENCE_1063_DELIVERY_AR.md`.
+
+## D-AI-DRAFT — October16 broker publishing assistance
+
+Owner delegation authorizes a focused draft-preparation helper on1052. Reuse the current listing editor, voice recording, authorization and support review. Fact-bound server composition and review prevent deselected proposals from leaking into copy. A single transient-provider retry shares the original deadline and charges the persistent UTC budget on every attempt. Labeled literal-text organization keeps this new entry useful during provider failure without claiming AI success. No new schema, providers, keys, automatic publication or sending.
+
+The owner explicitly approved PR76 merge and the existing-UAT deployment on October16 at15:42 Asia/Aden. APK1058/CI58 and the merged tree match exactly. Live health/auth boundaries passed; real AI search failed once near25s then passed in12.8s, so availability remains a measured variable rather than a guarantee. See `BROKER_AI_1058_DEPLOYMENT_AR.md`.
+
+## D-W5 — October16 current1049 and focused refinement
+
+The owner selected current1049 over the1039 label in the new handoff. Work starts at `db378214ade105a7046a2d1069095070ac76f7a4` and retains Wave4. `WAVE5_BASELINE_1049_AR.md` defines listing input7, optional rental unit position with support identity review, inline rental chips, immutable native fixed Sai with unchanged owner/fallback/split policies, and lightweight Home/Account entries to existing smart search. No Production, paid resource, cleanup, active viewing journey or1043 startup import is authorized.
 
 ## D-001 — UAT first, no Production yet
 
@@ -153,3 +173,24 @@ The previously discussed follow-on sequence — in-app agreement/rental contract
 The product owner explicitly chose to complete other product priorities first. The next work package must therefore be defined from those newer priorities. Old phase numbering does not override a newer explicit product-owner decision.
 
 No Phase 4 acceptance authorizes a merge to `main` or any Production deployment.
+
+## D-032 — October 13 marketplace and dynamic listing refinement
+
+The owner authorizes thoughtful refinement using eBroker assets and the supplied Houzi references, rather than literal template copying. Verified advertisers start in the marketplace with a separate work area. Listing input v4 distinguishes whole floors/buildings and moves photos and Sai into their appropriate form contexts. New Sai terms are customer-paid, with unchanged percentage policies and immutable historical terms. The first assisted-search path proposes editable filters and fetches real canonical API results; no external AI provider is enabled. UAT checks and handset/reference-video acceptance remain separate gates. See `UX_REFINEMENT_ROUND2_AR.md`.
+
+## D-W3 — Contextual unit scope and reviewed professional activation
+
+The October 13 Wave3 handoff supersedes standalone whole-floor selection and owner professional tabs. Preserve exact old whole-floor identity, offer one personal property under existing verification, and require approved broker/office identity for CRM/workspace. The backend enforces the cap independently of Flutter; pending upgrades do not grant professional tools.
+
+## D-W3-UAT — One-shot fixture replacement, operational preservation
+
+The owner authorized replacing old UAT marketplace fixtures only. Match exact legacy email/phone pairs, exclude any operational role/direct privilege/platform owner, back up sanitized scoped rows privately, and verify protected account snapshots. No global truncate, FK disabling or RLS change. Only scoped immutable DELETE guards are removed/recreated within the enclosing transaction; ordinary UPDATE/history guards stay active. An unforeseen financial/contract history stops cleanup. No reset endpoint or repeated cleanup on deploy.
+
+
+## D-W4 — Explicit1039 base and focused product corrections
+
+The October15 handoff mandates source998f3456 as base and excludes1043's home startup/cache changes. It supersedes active viewing-journey requirements: no booking UI/API or viewing notifications, no alternative calendar; retain historical records and normal participant-only messages. Broker management moves into a secondary sheet.
+
+New listing input6 stores optional selected rental conditions and defers platform consent to the existing post-publication Sai attestation. No financial version is edited or automatically accepted; pending custom terms must be explicitly attested before settlement. Existing rates, payer, monthly basis and accepted historical snapshots are unchanged. Public price+rate presentation is automatic. Whole-floor selection is removed while legacy identity stays read-only.
+
+Recording is foreground-only and manually stopped; full-clip transcription uses Laravel's existing Gemini guard, never a Google recognition Activity or silence endpointing. No partial or provider-truncated transcript may execute. The full-reference-video and handset gates remain outstanding until the two source videos are supplied and actual motion is reviewed.

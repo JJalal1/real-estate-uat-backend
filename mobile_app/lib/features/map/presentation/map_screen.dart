@@ -21,7 +21,14 @@ import '../../account/data/auth_return_intent.dart';
 import '../../properties/data/favorites_repository.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_marker.dart';
+import '../../../core/widgets/app_components.dart';
+import '../../discovery/presentation/smart_search_filter_editor.dart';
 import '../../properties/presentation/saved_search_builder_screen.dart';
+import '../../properties/presentation/property_compare_actions.dart';
+import '../../discovery/data/smart_search_session.dart';
+import '../../discovery/data/marketplace_repository.dart';
+import '../../discovery/domain/smart_search_filters.dart';
+import '../../discovery/presentation/smart_search_assistant.dart';
 
 const double mapPropertyPriceIconSize = 1.0;
 
@@ -157,8 +164,10 @@ class NearbyQuery {
     this.west,
     this.north,
     this.east,
+    this.extraFilters = const {},
   });
 
+  final Map<String, dynamic> extraFilters;
   final LatLng center;
   final double radiusKm;
   final String? purpose;
@@ -194,7 +203,8 @@ class NearbyQuery {
             other.south == south &&
             other.west == west &&
             other.north == north &&
-            other.east == east;
+            other.east == east && other.extraFilters.length == extraFilters.length &&
+            extraFilters.entries.every((entry) => other.extraFilters[entry.key] == entry.value);
   }
 
   @override
@@ -215,6 +225,7 @@ class NearbyQuery {
         west,
         north,
         east,
+        Object.hashAllUnordered(extraFilters.entries.map((entry) => Object.hash(entry.key, entry.value))),
       ]);
 }
 
@@ -222,6 +233,19 @@ final nearbyPropertiesProvider =
     FutureProvider.autoDispose.family<List<PropertyMarker>, NearbyQuery>(
   (ref, query) {
     ref.watch(propertyDataRevisionProvider);
+    if (query.extraFilters.isNotEmpty) {
+      return ref.watch(propertyRepositoryProvider).nearbyFiltered({
+      ...query.extraFilters, 'latitude': query.center.latitude, 'longitude': query.center.longitude, 'radius_km': query.radiusKm,
+      if (query.purpose != null) 'purpose': query.purpose, if (query.type != null) 'type': query.type,
+      if (query.minPrice != null) (query.purpose == 'rent' ? 'min_monthly_rent' : 'min_price'): query.minPrice,
+      if (query.maxPrice != null) (query.purpose == 'rent' ? 'max_monthly_rent' : 'max_price'): query.maxPrice,
+      if (query.minBedrooms != null) 'min_bedrooms': query.minBedrooms, if (query.minBathrooms != null) 'min_bathrooms': query.minBathrooms,
+      if (query.minArea != null) 'min_area_m2': query.minArea, if (query.maxArea != null) 'max_area_m2': query.maxArea,
+      if (query.search?.isNotEmpty == true) 'search': query.search,
+      if (query.south != null) 'south': query.south, if (query.west != null) 'west': query.west,
+      if (query.north != null) 'north': query.north, if (query.east != null) 'east': query.east,
+    });
+    }
     return ref.watch(propertyRepositoryProvider).nearby(
           latitude: query.center.latitude,
           longitude: query.center.longitude,
@@ -243,8 +267,22 @@ final nearbyPropertiesProvider =
   },
 );
 
+typedef SharedSearchMapBuilder = Widget Function(BuildContext context, List<PropertyMarker> markers,
+  ValueChanged<int> onSelect, void Function(double south,double west,double north,double east) onViewport);
+// Native MapLibre is the default. Tests replace only the canvas, retaining the real journey/controller.
+final sharedSearchMapBuilderProvider = Provider<SharedSearchMapBuilder?>((ref)=>null);
+
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({this.initialLatitude, this.initialLongitude, this.initialType, this.initialFilters, this.sharedSearchJourney=false, this.searchToolbar, this.onShowList, super.key});
+  final double? initialLatitude, initialLongitude;
+  final String? initialType;
+  final SmartSearchFilters? initialFilters;
+  final bool sharedSearchJourney;
+  final Widget? searchToolbar;
+  final VoidCallback? onShowList;
+  bool get hasInitialLocation => initialLatitude != null && initialLongitude != null &&
+      initialLatitude!.isFinite && initialLongitude!.isFinite &&
+      initialLatitude!.abs() <= 90 && initialLongitude!.abs() <= 180;
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
@@ -257,7 +295,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   static const double _defaultRadiusKm = 30;
 
   MapLibreMapController? _mapController;
-  Timer? _styleLoadTimer;
+  Timer? _styleLoadTimer, _viewportTimer;
+  bool _fittingShared = false;
+  String _lastSharedViewport = '';
 
   LatLng _center = _fallback;
   LatLng? _userLocation;
@@ -285,6 +325,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final TextEditingController _searchController = TextEditingController();
   final PropertyDiscoveryHistoryStore _historyStore = const PropertyDiscoveryHistoryStore();
   String _searchText = '';
+  double _radiusKm = _defaultRadiusKm;
+  Map<String, dynamic> _extraFilters = const {};
+  bool _sharedSessionLinked = false;
   List<String> _recentSearches = const <String>[];
 
   bool _styleLoaded = false;
@@ -297,13 +340,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_restoreDiscoveryHistory());
-    _loadCurrentLocation();
+    if (widget.hasInitialLocation) _center = LatLng(widget.initialLatitude!, widget.initialLongitude!);
+    if (const ['apartment', 'house', 'villa', 'building', 'land', 'shop', 'office', 'farm'].contains(widget.initialType)) _filterType = widget.initialType;
+    if (widget.initialFilters != null) { _sharedSessionLinked = true; _applySharedFilters(widget.initialFilters!); }
+    if (widget.sharedSearchJourney) {
+      _applySharedFilters(ref.read(smartSearchSessionProvider).filters);
+      final rows=ref.read(smartSearchSessionProvider).rows;
+      if(rows.isNotEmpty && !ref.read(smartSearchSessionProvider).filters.hasMapArea) _center=LatLng(rows.first.latitude,rows.first.longitude);
+    } else {
+      if (!widget.hasInitialLocation && widget.initialFilters == null) {
+        _applySharedFilters(SmartSearchFilters.fromMap({...ref.read(homeLocationProvider).searchContext,
+          if (widget.initialType != null) 'type':widget.initialType}));
+      }
+      unawaited(_restoreDiscoveryHistory());
+    }
   }
 
   @override
   void dispose() {
-    _styleLoadTimer?.cancel();
+    _styleLoadTimer?.cancel(); _viewportTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -311,6 +366,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Future<void> _restoreDiscoveryHistory() async {
     final history = await _historyStore.load();
     if (!mounted) return;
+    if (widget.hasInitialLocation || widget.initialType != null || widget.initialFilters != null ||
+        ref.read(homeLocationProvider).manual || ref.read(homeLocationProvider).device) {
+      setState(() => _recentSearches = history.recentSearches);
+      return;
+    }
     final filters = history.lastFilters;
     final search = filters['search']?.toString().trim() ?? '';
     setState(() {
@@ -356,6 +416,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       };
 
   void _persistDiscoveryHistory() {
+    if (widget.sharedSearchJourney) return;
     unawaited(
       _historyStore.record(
         query: _searchText,
@@ -363,6 +424,61 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
     );
   }
+
+  void _applySharedFilters(SmartSearchFilters filters) {
+    final values = filters.values;
+    _filterPurpose = _historyString(values['purpose']); _filterType = _historyString(values['type']);
+    _filterMinPrice = _historyDouble(values['min_price']); _filterMaxPrice = _historyDouble(values['max_price']);
+    _filterMinBedrooms = _historyInt(values['min_bedrooms']); _filterMinBathrooms = _historyInt(values['min_bathrooms']);
+    _filterMinArea = _historyDouble(values['min_area_m2']); _filterMaxArea = _historyDouble(values['max_area_m2']);
+    _searchText = _historyString(values['search']) ?? ''; _searchController.text = _searchText;
+    _radiusKm = _historyDouble(values['radius_km']) ?? _defaultRadiusKm;
+    final lat = _historyDouble(values['latitude']), lon = _historyDouble(values['longitude']);
+    if (lat != null && lon != null) _center = LatLng(lat, lon);
+    _selectedAreaGeometry = null; _selectedAreaBounds = null;
+    if (values['area_polygon'] is String) {
+      try { _selectedAreaGeometry = MapAreaGeometry.fromEncodedRing(values['area_polygon'] as String); } catch (_) { /* Server validation remains authoritative. */ }
+      _selectedAreaBounds = _selectedAreaGeometry?.bounds;
+      if (lat == null && _selectedAreaGeometry != null) _center = _selectedAreaGeometry!.center;
+    } else if (values['south'] is num && values['west'] is num && values['north'] is num && values['east'] is num) {
+      _selectedAreaBounds = LatLngBounds(southwest: LatLng((values['south'] as num).toDouble(), (values['west'] as num).toDouble()),
+        northeast: LatLng((values['north'] as num).toDouble(), (values['east'] as num).toDouble()));
+      if (lat == null) _center = LatLng(((values['south'] as num) + (values['north'] as num)) / 2, ((values['west'] as num) + (values['east'] as num)) / 2);
+    }
+    _extraFilters = Map.unmodifiable(Map<String, dynamic>.from(values)..removeWhere((key, _) => const {
+      'purpose','type','min_price','max_price','min_bedrooms','min_bathrooms','min_area_m2','max_area_m2','search',
+      'latitude','longitude','radius_km','south','west','north','east','area_polygon'}.contains(key)));
+    _selected = null; _lastMarkerSignature = '';
+  }
+
+  SmartSearchFilters _currentSmartFilters() => SmartSearchFilters.fromMap({
+    ..._extraFilters, ..._discoveryHistorySnapshot(), 'latitude': _center.latitude, 'longitude': _center.longitude, 'radius_km': _radiusKm,
+    if (_selectedAreaGeometry != null) 'area_polygon': _selectedAreaGeometry!.encodedRing,
+    if (_selectedAreaBounds != null) ...{
+      'south': _selectedAreaBounds!.southwest.latitude, 'west': _selectedAreaBounds!.southwest.longitude,
+      'north': _selectedAreaBounds!.northeast.latitude, 'east': _selectedAreaBounds!.northeast.longitude,
+    },
+  });
+
+  Future<void> _openSmartSearch() async {
+    _sharedSessionLinked = true;
+    ref.read(smartSearchSessionProvider.notifier).replaceManually(_currentSmartFilters());
+    if (widget.initialFilters != null) { Navigator.of(context).pop(); return; }
+    await context.push('/smart-search');
+    if (!mounted) return;
+    setState(() => _applySharedFilters(ref.read(smartSearchSessionProvider).filters));
+    _persistDiscoveryHistory();
+    await _renderSelectedAreaAnnotations();
+  }
+
+  Widget _withSharedSession(Widget child) => PopScope(
+    onPopInvokedWithResult: (didPop, _) {
+      if (didPop && _sharedSessionLinked) {
+        final filters = _currentSmartFilters(), current = ref.read(smartSearchSessionProvider).filters.values;
+        if (current.length != filters.values.length || !filters.values.entries.every((entry) => current[entry.key] == entry.value)) ref.read(smartSearchSessionProvider.notifier).replaceManually(filters);
+      }
+    }, child: child,
+  );
 
   Future<void> _loadCurrentLocation() async {
     try {
@@ -425,7 +541,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _registeredPriceImages.clear();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _renderSelectedAreaAnnotations();
+      if (mounted && widget.sharedSearchJourney) {
+        if (ref.read(smartSearchSessionProvider).started) { _fitSharedRows(); } else { _sharedViewport(); }
+      } else if (mounted) { _renderSelectedAreaAnnotations(); }
     });
   }
 
@@ -437,6 +555,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _commitCameraCenter() async {
+    if (widget.sharedSearchJourney) {
+      if (!_styleLoaded || _fittingShared) return;
+      _viewportTimer?.cancel(); _viewportTimer=Timer(const Duration(milliseconds:300),_sharedViewport); return;
+    }
     if (_selectingArea) return;
     final controller = _mapController;
     if (controller == null) return;
@@ -673,7 +795,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   bool _typeUsesRooms(String? type) {
-    return type == 'apartment' || type == 'house' || type == 'villa';
+    return type == 'apartment' || type == 'floor' || type == 'house' || type == 'villa';
   }
 
   void _setQuickPurpose(String? purpose) {
@@ -700,6 +822,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   void _resetFilters() {
     setState(() {
+      _extraFilters = const {};
       _filterPurpose = null;
       _filterType = null;
       _filterMinPrice = null;
@@ -715,7 +838,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   int get _filterCount {
-    var count = 0;
+    var count = _extraFilters.length;
     if (_filterPurpose != null) count++;
     if (_filterType != null) count++;
     if (_filterMinPrice != null || _filterMaxPrice != null) count++;
@@ -726,37 +849,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _showFilters() async {
-    final result = await showModalBottomSheet<_FilterResult>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _PropertyFilterSheet(
-        initialPurpose: _filterPurpose,
-        initialType: _filterType,
-        initialMinPrice: _filterMinPrice,
-        initialMaxPrice: _filterMaxPrice,
-        initialMinBedrooms: _filterMinBedrooms,
-        initialMinBathrooms: _filterMinBathrooms,
-        initialMinArea: _filterMinArea,
-        initialMaxArea: _filterMaxArea,
-      ),
-    );
-
-    if (!mounted || result == null) return;
-    setState(() {
-      _filterPurpose = result.purpose;
-      _filterType = result.type;
-      _filterMinPrice = result.minPrice;
-      _filterMaxPrice = result.maxPrice;
-      _filterMinBedrooms = result.minBedrooms;
-      _filterMinBathrooms = result.minBathrooms;
-      _filterMinArea = result.minArea;
-      _filterMaxArea = result.maxArea;
-      _selected = null;
-      _lastMarkerSignature = '';
-    });
-    _persistDiscoveryHistory();
+    final value=await AppBottomSheet.show<SmartSearchFilters>(context,builder:(_)=>SmartSearchFilterEditor(initial:_currentSmartFilters()));
+    if(value!=null && mounted) setState(()=>_applySharedFilters(value));
   }
 
   Future<void> _showSearchSheet(List<PropertyMarker> items) async {
@@ -983,35 +1077,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
 
-  Map<String, dynamic> _currentSavedSearchFilters() {
-    final bounds = _selectedAreaBounds;
-    final filters = <String, dynamic>{
-      if (_filterPurpose != null) 'purpose': _filterPurpose,
-      if (_filterType != null) 'type': _filterType,
-      if (_filterMinPrice != null) 'min_price': _filterMinPrice,
-      if (_filterMaxPrice != null) 'max_price': _filterMaxPrice,
-      if (_filterMinBedrooms != null) 'min_bedrooms': _filterMinBedrooms,
-      if (_filterMinBathrooms != null) 'min_bathrooms': _filterMinBathrooms,
-      if (_filterMinArea != null) 'min_area_m2': _filterMinArea,
-      if (_filterMaxArea != null) 'max_area_m2': _filterMaxArea,
-      if (_searchText.trim().isNotEmpty) 'search': _searchText.trim(),
-    };
-    if (bounds != null) {
-      filters.addAll({
-        'south': bounds.southwest.latitude,
-        'west': bounds.southwest.longitude,
-        'north': bounds.northeast.latitude,
-        'east': bounds.northeast.longitude,
-      });
-    } else {
-      filters.addAll({
-        'latitude': _center.latitude,
-        'longitude': _center.longitude,
-        'radius_km': _defaultRadiusKm,
-      });
-    }
-    return filters;
-  }
+  Map<String, dynamic> _currentSavedSearchFilters() => _currentSmartFilters().apiFilters;
 
   Future<void> _saveCurrentSearch() async {
     final user = ref.read(authControllerProvider).asData?.value;
@@ -1034,7 +1100,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => SavedSearchBuilderScreen(
-          initialFilters: _currentSavedSearchFilters(),
+          initialFilters: _currentSavedSearchFilters(), fixedFilters: true,
         ),
       ),
     );
@@ -1052,10 +1118,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.sharedSearchJourney) return _sharedJourney();
     final bounds = _selectedAreaBounds;
+    final effective = Map<String, dynamic>.from(_currentSmartFilters().apiFilters)..removeWhere((key, _) => const {
+      'purpose','type','min_price','max_price','min_monthly_rent','max_monthly_rent','min_bedrooms','min_bathrooms','min_area_m2','max_area_m2','search',
+      'latitude','longitude','radius_km','south','west','north','east'}.contains(key));
     final query = NearbyQuery(
       center: _center,
-      radiusKm: _defaultRadiusKm,
+      radiusKm: _radiusKm,
+      extraFilters: effective,
       purpose: _filterPurpose,
       type: _filterType,
       minPrice: _filterMinPrice,
@@ -1087,15 +1158,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
 
     if (_listMode) {
-      return _buildListMode(properties, query, favoriteIds);
+      return _withSharedSession(_buildListMode(properties, query, favoriteIds));
     }
 
     final apiError = properties.asError?.error;
 
-    return Directionality(
+    return _withSharedSession(Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        body: Stack(
+        body: SmartSearchAssistantLayer(enabled: !_selectingArea, showComparisonTray: false, bottom: _selected == null ? 94 : 290, onPressed: _openSmartSearch, child: Stack(
           fit: StackFit.expand,
           children: [
             Positioned.fill(child: _buildMap()),
@@ -1129,9 +1200,75 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 child: _MessageCard(text: _mapMessage!),
               ),
           ],
-        ),
+        )),
       ),
-    );
+    ));
+  }
+
+  String _viewportSignature(LatLngBounds bounds) => '${bounds.southwest.latitude.toStringAsFixed(5)}:${bounds.southwest.longitude.toStringAsFixed(5)}:${bounds.northeast.latitude.toStringAsFixed(5)}:${bounds.northeast.longitude.toStringAsFixed(5)}';
+
+  Future<void> _sharedViewport() async {
+    final controller=_mapController;
+    if(controller==null || !mounted || _fittingShared)return;
+    try {
+      final bounds=await controller.getVisibleRegion();
+      if(!mounted || _fittingShared)return;
+      final signature=_viewportSignature(bounds);
+      if(signature==_lastSharedViewport)return;
+      _lastSharedViewport=signature;
+      ref.read(smartSearchSessionProvider.notifier).updateViewport(south:bounds.southwest.latitude,west:bounds.southwest.longitude,north:bounds.northeast.latitude,east:bounds.northeast.longitude);
+    } catch(_) { if(mounted)setState(()=>_mapMessage='تعذر تحديد النطاق. حرّك الخريطة للمحاولة مجددًا.'); }
+  }
+
+  Future<void> _fitSharedRows() async {
+    final rows=ref.read(smartSearchSessionProvider).rows, controller=_mapController;
+    if(controller==null || rows.isEmpty || !mounted)return;
+    final points=rows.where((p)=>p.latitude.isFinite && p.longitude.isFinite && p.latitude.abs()<=90 && p.longitude.abs()<=180).toList();
+    if(points.isEmpty)return;
+    double south=points.first.latitude,north=south,west=points.first.longitude,east=west;
+    for(final p in points){if(p.latitude<south)south=p.latitude;if(p.latitude>north)north=p.latitude;if(p.longitude<west)west=p.longitude;if(p.longitude>east)east=p.longitude;}
+    _fittingShared=true;
+    try {
+      if(south==north && west==east) { await controller.moveCamera(CameraUpdate.newLatLngZoom(LatLng(south,west),14)); }
+      else { await controller.moveCamera(CameraUpdate.newLatLngBounds(LatLngBounds(southwest:LatLng(south,west),northeast:LatLng(north,east)),left:32,top:150,right:32,bottom:180)); }
+      _lastSharedViewport=_viewportSignature(await controller.getVisibleRegion());
+    } catch(_) { /* Retain the user's existing search when camera fitting is unavailable. */ }
+    finally { _fittingShared=false; }
+  }
+
+  Widget _sharedJourney() {
+    final state=ref.watch(smartSearchSessionProvider);
+    final rows=state.rows.where((p)=>p.latitude.isFinite && p.longitude.isFinite && p.latitude.abs()<=90 && p.longitude.abs()<=180).map((p)=>PropertyMarker(
+      id:p.id,title:p.title,price:p.monthlyRent??p.price,currency:p.currency,latitude:p.latitude,longitude:p.longitude,distanceKm:0,
+      purpose:p.purpose,type:p.type,areaM2:p.areaM2,bedrooms:p.bedrooms,bathrooms:p.bathrooms,address:p.address,
+      mainImage:p.mainImage,imageUrls:p.imageUrls,isSpotlight:p.isSpotlight,monthlyRent:p.monthlyRent)).toList(growable:false);
+    if(_selected!=null && !rows.any((p)=>p.id==_selected!.id))_selected=null;
+    _queueMarkerSync(rows);
+    final canvas=ref.watch(sharedSearchMapBuilderProvider);
+    void select(int id){for(final p in rows){if(p.id==id){setState(()=>_selected=p);break;}}}
+    return Stack(fit:StackFit.expand,children:[
+      Positioned.fill(child:canvas==null ? _buildMap() : canvas(context,rows,select,(south,west,north,east)=>
+        ref.read(smartSearchSessionProvider.notifier).updateViewport(south:south,west:west,north:north,east:east))),
+      if(widget.searchToolbar!=null) PositionedDirectional(start:12,end:12,top:10,child:widget.searchToolbar!),
+      PositionedDirectional(start:12,end:12,bottom:12,child:Material(elevation:2,borderRadius:BorderRadius.circular(12),child:Padding(
+        padding:const EdgeInsets.symmetric(horizontal:10,vertical:4),child:Row(children:[
+          Expanded(child:Text(state.loading?'جارٍ البحث…':'${state.rows.length} نتيجة')),
+          if(state.more) TextButton(onPressed:state.loading?null:()=>ref.read(smartSearchSessionProvider.notifier).search(more:true),child:const Text('المزيد')),
+          IconButton(tooltip:'عرض النتائج على الخريطة',onPressed:_fitSharedRows,icon:const Icon(Icons.fit_screen)),
+          TextButton.icon(key:const ValueKey('smart-map-show-list'),onPressed:widget.onShowList,icon:const Icon(Icons.view_list_outlined),label:const Text('القائمة')),
+        ])))),
+      if(_selected case final PropertyMarker property) PositionedDirectional(start:12,end:12,bottom:80,child:AppSurface(
+        onTap:()=>_openDetails(property),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          SizedBox(width:72,height:80,child:AppPropertyMedia(imageUrl:property.mainImage,height:80)),const SizedBox(width:10),
+          Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
+            Text(property.title,maxLines:2,overflow:TextOverflow.ellipsis,style:Theme.of(context).textTheme.titleSmall),
+            Text('${_formatPrice(property.price)} ${property.currency}${property.purpose=='rent'?' شهريًا':''}'),
+            if(property.address!=null)Text(property.address!,maxLines:2,overflow:TextOverflow.ellipsis,style:Theme.of(context).textTheme.bodySmall),
+          ])),IconButton(tooltip:'إغلاق',onPressed:()=>setState(()=>_selected=null),icon:const Icon(Icons.close,size:18)),
+        ]))),
+      if(state.resultsError!=null || _mapMessage!=null) PositionedDirectional(start:12,end:12,bottom:80,child:AppSurface(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        Text(state.resultsError??_mapMessage!),if(state.resultsError!=null)TextButton(onPressed:()=>ref.read(smartSearchSessionProvider.notifier).search(),child:const Text('إعادة المحاولة'))]))),
+    ]);
   }
 
   Widget _buildMap() {
@@ -1176,11 +1313,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _buildMapControls() {
     return PositionedDirectional(
-      end: 12,
+      start: 12,
       bottom: 86,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          Material(elevation: 3, color: Colors.white, borderRadius: BorderRadius.circular(16), child: TextButton.icon(
+            key: const ValueKey('map-smart-search'), onPressed: _openSmartSearch, icon: const SmartSearchRobotIcon(), label: const Text('بحث ذكي'))),
+          const SizedBox(height: 8),
           Material(
             elevation: 5,
             color: Colors.white,
@@ -1232,7 +1372,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           _MapActionButton(
             tooltip: 'موقعي',
             icon: Icons.my_location,
-            onPressed: _userLocation == null ? null : _moveToMyLocation,
+            onPressed: _userLocation == null
+                ? _loadCurrentLocation
+                : _moveToMyLocation,
           ),
         ],
       ),
@@ -1432,7 +1574,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        body: Column(
+        body: SmartSearchAssistantLayer(onPressed: _openSmartSearch, child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
@@ -1488,7 +1630,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               child: _buildListContent(properties, query, favoriteIds),
             ),
           ],
-        ),
+        )),
         bottomNavigationBar: SafeArea(
           top: false,
           child: Padding(
@@ -1516,7 +1658,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   ) {
     return properties.when(
       loading: () => ListView.separated(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 18),
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 110),
         itemCount: 4,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (_, __) => const _LoadingPropertyCard(),
@@ -2122,19 +2264,21 @@ class _PropertyResultCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
           price: _formatPrice(property.price), currency: _currencyLabel(property.currency),
-          imageUrl: property.mainImage,
+          imageUrl: property.mainImage, imageUrls: property.imageUrls, isSpotlight: property.isSpotlight,
           location: property.address ?? '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
           categoryLabel: _typeLabel(property.type ?? ''),
           purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
           onTap: onDetails,
-          trailing: IconButton(tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-            onPressed: onFavorite,
-            icon: EbrokerImage(favorite ? 'heart_filled' : 'heart', size: 20,
-              color: favorite ? scheme.primary : EbrokerDesign.text))),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            PropertyCompareAction(propertyId: property.id, overlay: true),
+            IconButton(tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة', onPressed: onFavorite,
+              style: IconButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size(44,44), shape: const CircleBorder()),
+              icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 20, color: scheme.secondary)),
+          ])),
         Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: _PropertyFacts(property: property)),
         if (property.priceDisplayNote != null)
           Padding(padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: EbrokerText(property.priceDisplayNote!, size: 11)),
+            child: EbrokerText(localizedMoneyText(property.priceDisplayNote!), size: 11)),
         TextButton.icon(onPressed: onMap,
           icon: EbrokerImage('location', size: 18, color: scheme.primary),
           label: const Text('عرض على الخريطة')),
@@ -2411,491 +2555,6 @@ class _ResultsState extends StatelessWidget {
   }
 }
 
-class _FilterResult {
-  const _FilterResult({
-    this.purpose,
-    this.type,
-    this.minPrice,
-    this.maxPrice,
-    this.minBedrooms,
-    this.minBathrooms,
-    this.minArea,
-    this.maxArea,
-  });
-
-  final String? purpose;
-  final String? type;
-  final double? minPrice;
-  final double? maxPrice;
-  final int? minBedrooms;
-  final int? minBathrooms;
-  final double? minArea;
-  final double? maxArea;
-}
-
-class _PropertyFilterSheet extends StatefulWidget {
-  const _PropertyFilterSheet({
-    this.initialPurpose,
-    this.initialType,
-    this.initialMinPrice,
-    this.initialMaxPrice,
-    this.initialMinBedrooms,
-    this.initialMinBathrooms,
-    this.initialMinArea,
-    this.initialMaxArea,
-  });
-
-  final String? initialPurpose;
-  final String? initialType;
-  final double? initialMinPrice;
-  final double? initialMaxPrice;
-  final int? initialMinBedrooms;
-  final int? initialMinBathrooms;
-  final double? initialMinArea;
-  final double? initialMaxArea;
-
-  @override
-  State<_PropertyFilterSheet> createState() => _PropertyFilterSheetState();
-}
-
-class _PropertyFilterSheetState extends State<_PropertyFilterSheet> {
-  late String? _purpose;
-  late String? _type;
-  late int? _minBedrooms;
-  late int? _minBathrooms;
-  late final TextEditingController _minPriceController;
-  late final TextEditingController _maxPriceController;
-  late final TextEditingController _minAreaController;
-  late final TextEditingController _maxAreaController;
-
-  String? _error;
-  bool _submitting = false;
-  bool _showMore = false;
-
-  bool get _showRoomFilters =>
-      _type == 'apartment' || _type == 'house' || _type == 'villa';
-
-  @override
-  void initState() {
-    super.initState();
-    _purpose = widget.initialPurpose;
-    _type = widget.initialType;
-    _minBedrooms = widget.initialMinBedrooms;
-    _minBathrooms = widget.initialMinBathrooms;
-    _minPriceController = TextEditingController(
-      text: widget.initialMinPrice?.toStringAsFixed(0) ?? '',
-    );
-    _maxPriceController = TextEditingController(
-      text: widget.initialMaxPrice?.toStringAsFixed(0) ?? '',
-    );
-    _minAreaController = TextEditingController(
-      text: widget.initialMinArea?.toStringAsFixed(0) ?? '',
-    );
-    _maxAreaController = TextEditingController(
-      text: widget.initialMaxArea?.toStringAsFixed(0) ?? '',
-    );
-    _showMore = widget.initialMinPrice != null ||
-        widget.initialMaxPrice != null ||
-        widget.initialMinBedrooms != null ||
-        widget.initialMinBathrooms != null ||
-        widget.initialMinArea != null ||
-        widget.initialMaxArea != null;
-  }
-
-  @override
-  void dispose() {
-    _minPriceController.dispose();
-    _maxPriceController.dispose();
-    _minAreaController.dispose();
-    _maxAreaController.dispose();
-    super.dispose();
-  }
-
-  void _setType(String? value) {
-    setState(() {
-      _type = value;
-      if (!_showRoomFilters) {
-        _minBedrooms = null;
-        _minBathrooms = null;
-      }
-    });
-  }
-
-  void _reset() {
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() {
-      _purpose = null;
-      _type = null;
-      _minBedrooms = null;
-      _minBathrooms = null;
-      _minPriceController.clear();
-      _maxPriceController.clear();
-      _minAreaController.clear();
-      _maxAreaController.clear();
-      _error = null;
-      _showMore = false;
-    });
-  }
-
-  double? _parseOptionalDouble(TextEditingController controller) {
-    final value = controller.text.trim();
-    if (value.isEmpty) return null;
-    return double.tryParse(value);
-  }
-
-  void _apply() {
-    if (_submitting) return;
-    FocusManager.instance.primaryFocus?.unfocus();
-
-    final minPriceText = _minPriceController.text.trim();
-    final maxPriceText = _maxPriceController.text.trim();
-    final minAreaText = _minAreaController.text.trim();
-    final maxAreaText = _maxAreaController.text.trim();
-
-    final minPrice = _parseOptionalDouble(_minPriceController);
-    final maxPrice = _parseOptionalDouble(_maxPriceController);
-    final minArea = _parseOptionalDouble(_minAreaController);
-    final maxArea = _parseOptionalDouble(_maxAreaController);
-
-    final invalidNumber = (minPriceText.isNotEmpty && minPrice == null) ||
-        (maxPriceText.isNotEmpty && maxPrice == null) ||
-        (minAreaText.isNotEmpty && minArea == null) ||
-        (maxAreaText.isNotEmpty && maxArea == null);
-    if (invalidNumber) {
-      setState(() => _error = 'تأكد من كتابة الأرقام بشكل صحيح.');
-      return;
-    }
-
-    final hasNegative = (minPrice != null && minPrice < 0) ||
-        (maxPrice != null && maxPrice < 0) ||
-        (minArea != null && minArea < 0) ||
-        (maxArea != null && maxArea < 0);
-    if (hasNegative) {
-      setState(() => _error = 'القيم لا يمكن أن تكون سالبة.');
-      return;
-    }
-
-    if (minPrice != null && maxPrice != null && maxPrice < minPrice) {
-      setState(() => _error = 'أعلى سعر يجب أن يكون أكبر من أقل سعر.');
-      return;
-    }
-
-    if (minArea != null && maxArea != null && maxArea < minArea) {
-      setState(() => _error = 'أكبر مساحة يجب أن تكون أكبر من أقل مساحة.');
-      return;
-    }
-
-    setState(() {
-      _error = null;
-      _submitting = true;
-    });
-
-    Navigator.of(context).pop(
-      _FilterResult(
-        purpose: _purpose,
-        type: _type,
-        minPrice: minPrice,
-        maxPrice: maxPrice,
-        minBedrooms: _showRoomFilters ? _minBedrooms : null,
-        minBathrooms: _showRoomFilters ? _minBathrooms : null,
-        minArea: minArea,
-        maxArea: maxArea,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints:
-          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
-      decoration: const BoxDecoration(
-        color: EbrokerDesign.page,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 10),
-          Container(
-            width: 44,
-            height: 5,
-            decoration: BoxDecoration(
-              color: EbrokerDesign.border,
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'تصفية العقارات',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'الفلاتر الأساسية أمامك، واضغط المزيد للخيارات التفصيلية.',
-                        style: TextStyle(color: EbrokerDesign.textLight),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  onPressed: _submitting ? null : _reset,
-                  child: const Text('مسح'),
-                ),
-              ],
-            ),
-          ),
-          const Divider(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                16,
-                20,
-                MediaQuery.viewInsetsOf(context).bottom + 20,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _FilterSectionTitle('الغرض'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _choice('الكل', _purpose == null,
-                          () => setState(() => _purpose = null)),
-                      _choice('للبيع', _purpose == 'sale',
-                          () => setState(() => _purpose = 'sale')),
-                      _choice('للإيجار', _purpose == 'rent',
-                          () => setState(() => _purpose = 'rent')),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const _FilterSectionTitle('نوع العقار'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _choice('الكل', _type == null, () => _setType(null)),
-                      _choice('شقة', _type == 'apartment',
-                          () => _setType('apartment')),
-                      _choice(
-                          'منزل', _type == 'house', () => _setType('house')),
-                      _choice(
-                          'فيلا', _type == 'villa', () => _setType('villa')),
-                      _choice('أرض', _type == 'land', () => _setType('land')),
-                      _choice('محل', _type == 'shop', () => _setType('shop')),
-                      _choice(
-                          'مكتب', _type == 'office', () => _setType('office')),
-                      _choice('مزرعة', _type == 'farm', () => _setType('farm')),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Material(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: () => setState(() => _showMore = !_showMore),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Row(
-                          children: [
-                            const EbrokerIcon(Icons.tune, color: AppTheme.accent),
-                            const SizedBox(width: 9),
-                            const Expanded(
-                              child: Text(
-                                'المزيد من الفلاتر',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            EbrokerIcon(_showMore
-                                ? Icons.expand_less
-                                : Icons.expand_more),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  AnimatedCrossFade(
-                    duration: const Duration(milliseconds: 180),
-                    crossFadeState: _showMore
-                        ? CrossFadeState.showSecond
-                        : CrossFadeState.showFirst,
-                    firstChild: const SizedBox.shrink(),
-                    secondChild: Padding(
-                      padding: const EdgeInsets.only(top: 18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_showRoomFilters) ...[
-                            const _FilterSectionTitle('غرف النوم'),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                for (final number in [1, 2, 3, 4, 5])
-                                  _numberChoice(
-                                    label: '$number+',
-                                    value: _minBedrooms,
-                                    number: number,
-                                    onChanged: (value) =>
-                                        setState(() => _minBedrooms = value),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            const _FilterSectionTitle('الحمامات'),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                for (final number in [1, 2, 3, 4])
-                                  _numberChoice(
-                                    label: '$number+',
-                                    value: _minBathrooms,
-                                    number: number,
-                                    onChanged: (value) =>
-                                        setState(() => _minBathrooms = value),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                          ],
-                          const _FilterSectionTitle('المساحة (م²)'),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _minAreaController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true),
-                                  decoration:
-                                      const InputDecoration(labelText: 'من'),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: TextField(
-                                  controller: _maxAreaController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true),
-                                  decoration:
-                                      const InputDecoration(labelText: 'إلى'),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-                          const _FilterSectionTitle('السعر'),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _minPriceController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true),
-                                  decoration: const InputDecoration(
-                                      labelText: 'أقل سعر'),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: TextField(
-                                  controller: _maxPriceController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true),
-                                  decoration: const InputDecoration(
-                                      labelText: 'أعلى سعر'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 14),
-                    _MessageCard(text: _error!, error: true),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-            child: SizedBox(
-              width: double.infinity,
-              child: EbrokerFilledButton.icon(
-                onPressed: _submitting ? null : _apply,
-                icon: const EbrokerIcon(Icons.search),
-                label: const Text('عرض العقارات'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _choice(String label, bool selected, VoidCallback onTap) {
-    return EbrokerChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: _submitting ? null : (_) => onTap(),
-    );
-  }
-
-  Widget _numberChoice({
-    required String label,
-    required int? value,
-    required int number,
-    required ValueChanged<int?> onChanged,
-  }) {
-    return EbrokerChoiceChip(
-      label: Text(label),
-      selected: value == number,
-      onSelected: _submitting
-          ? null
-          : (_) => onChanged(value == number ? null : number),
-    );
-  }
-}
-
-class _FilterSectionTitle extends StatelessWidget {
-  const _FilterSectionTitle(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-    );
-  }
-}
 
 class _ApiFailureBanner extends StatelessWidget {
   const _ApiFailureBanner({required this.message, required this.onRetry});
@@ -2946,24 +2605,23 @@ class _ApiFailureBanner extends StatelessWidget {
 }
 
 class _MessageCard extends StatelessWidget {
-  const _MessageCard({required this.text, this.error = false});
+  const _MessageCard({required this.text});
 
   final String text;
-  final bool error;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: error ? const Color(0xFFFFECEC) : Colors.white,
-      elevation: error ? 0 : 4,
+      color: Colors.white,
+      elevation: 4,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
             EbrokerIcon(
-              error ? Icons.error_outline : Icons.info_outline,
-              color: error ? Colors.red.shade700 : AppTheme.accent,
+              Icons.info_outline,
+              color: AppTheme.accent,
             ),
             const SizedBox(width: 8),
             Expanded(child: Text(text)),
@@ -2976,6 +2634,10 @@ class _MessageCard extends StatelessWidget {
 
 String _typeLabel(String value) {
   switch (value) {
+    case 'floor':
+      return 'دور كامل';
+    case 'building':
+      return 'عمارة كاملة';
     case 'apartment':
       return 'شقة';
     case 'house':

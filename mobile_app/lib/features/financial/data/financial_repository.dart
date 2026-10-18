@@ -17,6 +17,14 @@ class FinancialRepository {
   final Dio _dio;
   final AuthRepository _auth;
 
+  Future<FinancialDeal> receivableDeal(int receivableId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/finance/receivables/$receivableId',
+      options: await _auth.requiredAuthOptions(),
+    );
+    return FinancialDeal.fromJson(_data(response.data));
+  }
+
   Future<FinancialDeal> deal(int agreementId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/finance/agreements/$agreementId',
@@ -137,10 +145,10 @@ class FinancialRepository {
     return _data(response.data);
   }
 
-  Future<void> attestSai(int propertyId) async {
+  Future<void> attestSai(int propertyId, {int? saiTermId}) async {
     await _dio.post<void>(
       '/properties/$propertyId/sai-attestation',
-      data: const <String, dynamic>{'accepted': true},
+      data: <String, dynamic>{'accepted': true, if (saiTermId != null) 'sai_term_id': saiTermId},
       options: await _auth.requiredAuthOptions(),
     );
     _bump();

@@ -26,6 +26,7 @@ class FinancialAgreementContractController extends AgreementContractController
 
     public function startAgreement(Request $request, MessageThread $thread): JsonResponse
     {
+        abort_unless(config('broker_experience.legacy_contract_creation'),410,'الاتفاق يتم خارج التطبيق. سجّل نتيجة الصفقة من محادثة العميل.');
         $property=Property::query()->withoutGlobalScopes()->findOrFail($thread->property_id);
         $rent=$this->prepareRentAgreementRequest($request,$property,null);
         $response=parent::startAgreement($request,$thread);
@@ -57,6 +58,7 @@ class FinancialAgreementContractController extends AgreementContractController
 
     public function startRentalContract(Request $request, PropertyAgreement $agreement): JsonResponse
     {
+        abort_unless(config('broker_experience.legacy_contract_creation'),410,'إنشاء العقود داخل التطبيق متوقف. السجلات السابقة محفوظة.');
         $response=parent::startRentalContract($request,$agreement);
         $body=$response->getData(true);$contractId=(int)($body['data']['id']??0);
         if($contractId){

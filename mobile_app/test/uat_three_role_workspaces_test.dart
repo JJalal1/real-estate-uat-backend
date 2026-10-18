@@ -59,13 +59,13 @@ void main() {
     expect(pages, isNot(contains('SupportTeamScreen(')));
   });
 
-  test('template consumer navigation preserves gated listings and viewing access', () {
+  test('template consumer navigation preserves gated listings and messaging access', () {
     final shell = read('lib/features/app_shell/presentation/app_shell_screen.dart');
     expect(shell, contains("label: 'العقارات'"));
     expect(shell, contains("label: 'الرسائل'"));
     expect(shell, contains("label: 'إعلاناتي'"));
     expect(shell, contains('requireListingEligible: true'));
-    expect(File('lib/features/account/presentation/account_screen.dart').readAsStringSync(), contains("context.push('/bookings')"));
+    expect(File('lib/features/account/presentation/account_screen.dart').readAsStringSync(), isNot(contains("context.push('/bookings')")));
     expect(shell, contains("label: 'إعلاناتي'"));
     expect(shell, contains("label: 'حسابي'"));
     expect(shell, isNot(contains("label: 'الخدمات'")));

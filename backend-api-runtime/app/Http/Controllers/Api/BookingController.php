@@ -21,12 +21,15 @@ use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
 {
+    private array $bookingLocations = [];
     public function __construct(private readonly AuditLogService $audit,private readonly UserNotificationService $notifications) {}
 
     public function mine(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $rows=ViewingBooking::query()->where(fn(Builder $q)=>$q->where('requester_user_id',$user->id)->orWhere('host_user_id',$user->id))->orderByDesc('starts_at')->limit(250)->get();
+        $query=ViewingBooking::query()->where(fn(Builder $q)=>$q->where('requester_user_id',$user->id)->orWhere('host_user_id',$user->id));
+        $this->applyDateRange($query,$request);
+        $rows=$query->orderByDesc('starts_at')->limit(250)->get();$this->loadLocations($rows);
         return response()->json(['data'=>$rows->map(fn(ViewingBooking $b)=>$this->bookingData($b,$user))->values()]);
     }
 
@@ -34,7 +37,8 @@ class BookingController extends Controller
     {
         /** @var User $user */ $user=$request->user();$global=$user->hasPermission('bookings.manage');$development=$user->hasPermission('developments.manage');abort_unless($global||$development,403);
         $q=ViewingBooking::query();if(!$global)$q->where('target_type','development_unit');
-        $rows=$q->orderByDesc('starts_at')->limit(300)->get();return response()->json(['data'=>$rows->map(fn(ViewingBooking $b)=>$this->bookingData($b,$user))->values()]);
+        $this->applyDateRange($q,$request);
+        $rows=$q->orderByDesc('starts_at')->limit(300)->get();$this->loadLocations($rows);return response()->json(['data'=>$rows->map(fn(ViewingBooking $b)=>$this->bookingData($b,$user))->values()]);
     }
 
     public function show(Request $request, ViewingBooking $booking): JsonResponse
@@ -44,7 +48,7 @@ class BookingController extends Controller
 
     public function requestForProperty(Request $request, Property $property): JsonResponse
     {
-        /** @var User $actor */ $actor=$request->user();abort_unless($property->status==='published',404);abort_if((int)$property->user_id===(int)$actor->id,409,'You cannot request a viewing for your own listing.');
+        /** @var User $actor */ $actor=$request->user();abort_unless($property->isPubliclyAvailable(),404);abort_if((int)$property->user_id===(int)$actor->id,409,'You cannot request a viewing for your own listing.');
         $host=User::query()->find($property->user_id);abort_if(!$host||!$host->isActive(),409,'The advertiser is unavailable for viewings.');$schedule=$this->schedule($request);
         return $this->createBooking($request,$actor,['type'=>'property','id'=>$property->id,'title'=>$property->title,'address'=>$property->address,'host'=>$host],$schedule);
     }
@@ -103,7 +107,7 @@ class BookingController extends Controller
 
     private function createBooking(Request $request, User $actor, array $target, array $schedule): JsonResponse
     {
-        $validated=$request->validate(['note'=>['nullable','string','max:2000']]);$booking=DB::transaction(function()use($actor,$target,$schedule,$validated): ViewingBooking{$this->acquireRequestLocks($actor->id,$target['type'],(int)$target['id']);$this->assertNoDuplicateActive($actor->id,$target['type'],$target['id'],$schedule['start'],$schedule['end']);$thread=null;if($target['type']==='property'&&$target['host'] instanceof User)$thread=$this->ensurePropertyConversation($actor,$target['host'],(int)$target['id']);$booking=ViewingBooking::query()->create(['reference'=>$this->reference(),'requester_user_id'=>$actor->id,'requester_name_snapshot'=>$actor->name,'host_user_id'=>$target['host']?->id,'host_name_snapshot'=>$target['host']?->name,'message_thread_id'=>$thread?->id,'target_type'=>$target['type'],'target_id'=>$target['id'],'target_title_snapshot'=>$target['title'],'target_address_snapshot'=>$target['address'],'starts_at'=>$schedule['start'],'ends_at'=>$schedule['end'],'timezone'=>$schedule['timezone'],'status'=>'requested','requester_note'=>$validated['note']??null,'last_action_by_user_id'=>$actor->id,'last_action_by_name_snapshot'=>$actor->name]);if($thread){PrivateMessage::query()->create(['thread_id'=>$thread->id,'sender_user_id'=>$actor->id,'sender_name_snapshot'=>$actor->name,'body'=>$this->viewingConversationMessage($booking),'created_at'=>now()]);$thread->forceFill(['last_message_at'=>now()])->save();}return $booking;});$this->event($booking,$actor,'requested',null,'requested',['starts_at'=>$booking->starts_at?->toIso8601String(),'ends_at'=>$booking->ends_at?->toIso8601String(),'message_thread_id'=>$booking->message_thread_id]);$this->audit->record($actor,'booking.requested',$booking,['target_type'=>$booking->target_type,'target_id'=>$booking->target_id,'message_thread_id'=>$booking->message_thread_id],$request,$booking->host_user_id);if($booking->host_user_id)$this->notify((int)$booking->host_user_id,'viewing_requested','طلب معاينة جديد','لديك طلب معاينة جديد لـ '.$booking->target_title_snapshot.'. افتح المحادثة للتنسيق وتأكيد الموعد.',$booking);return response()->json(['message'=>'Viewing booking requested.','data'=>$this->bookingData($booking,$actor)],201);
+        $validated=$request->validate(['note'=>['nullable','string','max:2000']]);$booking=DB::transaction(function()use($actor,$target,$schedule,$validated): ViewingBooking{$this->acquireRequestLocks($actor->id,$target['type'],(int)$target['id']);if($target['type']==='property')abort_unless(Property::query()->findOrFail((int)$target['id'])->isPubliclyAvailable(),409,'العقار لم يعد متاحًا للمعاينة.');$this->assertNoDuplicateActive($actor->id,$target['type'],$target['id'],$schedule['start'],$schedule['end']);$thread=null;if($target['type']==='property'&&$target['host'] instanceof User)$thread=$this->ensurePropertyConversation($actor,$target['host'],(int)$target['id']);$booking=ViewingBooking::query()->create(['reference'=>$this->reference(),'requester_user_id'=>$actor->id,'requester_name_snapshot'=>$actor->name,'host_user_id'=>$target['host']?->id,'host_name_snapshot'=>$target['host']?->name,'message_thread_id'=>$thread?->id,'target_type'=>$target['type'],'target_id'=>$target['id'],'target_title_snapshot'=>$target['title'],'target_address_snapshot'=>$target['address'],'starts_at'=>$schedule['start'],'ends_at'=>$schedule['end'],'timezone'=>$schedule['timezone'],'status'=>'requested','requester_note'=>$validated['note']??null,'last_action_by_user_id'=>$actor->id,'last_action_by_name_snapshot'=>$actor->name]);if($thread){PrivateMessage::query()->create(['thread_id'=>$thread->id,'sender_user_id'=>$actor->id,'sender_name_snapshot'=>$actor->name,'body'=>$this->viewingConversationMessage($booking),'created_at'=>now()]);$thread->forceFill(['last_message_at'=>now()])->save();}return $booking;});$this->event($booking,$actor,'requested',null,'requested',['starts_at'=>$booking->starts_at?->toIso8601String(),'ends_at'=>$booking->ends_at?->toIso8601String(),'message_thread_id'=>$booking->message_thread_id]);$this->audit->record($actor,'booking.requested',$booking,['target_type'=>$booking->target_type,'target_id'=>$booking->target_id,'message_thread_id'=>$booking->message_thread_id],$request,$booking->host_user_id);if($booking->host_user_id)$this->notify((int)$booking->host_user_id,'viewing_requested','طلب معاينة جديد','لديك طلب معاينة جديد لـ '.$booking->target_title_snapshot.'. افتح المحادثة للتنسيق وتأكيد الموعد.',$booking);return response()->json(['message'=>'Viewing booking requested.','data'=>$this->bookingData($booking,$actor)],201);
     }
 
     private function ensurePropertyConversation(User $requester,User $host,int $propertyId): MessageThread
@@ -123,7 +127,7 @@ class BookingController extends Controller
 
     private function currentHostForConfirmation(User $actor,ViewingBooking $booking): ?User
     {
-        if($booking->target_type==='property'){$property=Property::query()->whereKey($booking->target_id)->where('status','published')->first();abort_if(!$property,409,'The listing is no longer published.');$host=User::query()->find($property->user_id);abort_if(!$host||!$host->isActive(),409,'The advertiser is unavailable.');return $host;}
+        if($booking->target_type==='property'){$property=Property::query()->whereKey($booking->target_id)->publiclyAvailable()->first();abort_if(!$property,409,'The listing is no longer published.');$host=User::query()->find($property->user_id);abort_if(!$host||!$host->isActive(),409,'The advertiser is unavailable.');return $host;}
         $unit=DevelopmentUnit::query()->with('development.developer')->find($booking->target_id);$development=$unit?->development;abort_if(!$unit||!$development||$development->status!=='published'||$development->developer?->status!=='active'||$unit->status!=='available',409,'The development unit is no longer available for viewing.');if($booking->host_user_id){$host=User::query()->find($booking->host_user_id);if($host?->isActive())return $host;}if($booking->last_action_by_user_id){$candidate=User::query()->find($booking->last_action_by_user_id);if($candidate?->isActive()&&$this->canManage($candidate,$booking))return $candidate;}return $this->canManage($actor,$booking)?$actor:null;
     }
 
@@ -164,8 +168,24 @@ class BookingController extends Controller
 
     private function reference(): string {for($i=0;$i<8;$i++){$reference='V'.strtoupper(bin2hex(random_bytes(6)));if(!ViewingBooking::query()->where('reference',$reference)->exists())return $reference;}throw new \RuntimeException('Could not allocate viewing booking reference.');}
 
+    private function applyDateRange(Builder $query, Request $request): void
+    {
+        $v=$request->validate(['starts_from'=>['nullable','required_with:starts_before','date'], 'starts_before'=>['nullable','required_with:starts_from','date','after:starts_from']]);
+        if (!isset($v['starts_from'],$v['starts_before'])) return;
+        $from=CarbonImmutable::parse($v['starts_from'])->utc();
+        $before=CarbonImmutable::parse($v['starts_before'])->utc();
+        if ($from->diffInDays($before) > 32) throw ValidationException::withMessages(['starts_before'=>['اختر فترة لا تتجاوز شهرًا.']]);
+        $query->where('starts_at','>=',$from)->where('starts_at','<',$before);
+    }
+
+    private function loadLocations($rows): void
+    {
+        $ids=collect($rows)->where('target_type','property')->pluck('target_id')->unique();
+        $this->bookingLocations=Property::query()->publiclyAvailable()->whereIn('id',$ids)->get(['id','latitude','longitude'])->keyBy('id')->all();
+    }
+
     private function bookingData(ViewingBooking $b,User $viewer,bool $includeEvents=false): array
     {
-        $isRequester=(int)$b->requester_user_id===(int)$viewer->id;$awaitingRequester=$this->awaitsRequesterAcceptance($b);$canManage=$this->canManage($viewer,$b);$data=['id'=>$b->id,'reference'=>$b->reference,'requester_user_id'=>$b->requester_user_id,'requester_name'=>$b->requester_name_snapshot,'host_user_id'=>$b->host_user_id,'host_name'=>$b->host_name_snapshot,'message_thread_id'=>$b->message_thread_id,'target_type'=>$b->target_type,'target_id'=>$b->target_id,'target_title'=>$b->target_title_snapshot,'target_address'=>$b->target_address_snapshot,'starts_at'=>$b->starts_at?->toIso8601String(),'ends_at'=>$b->ends_at?->toIso8601String(),'timezone'=>$b->timezone,'status'=>$b->status,'requester_note'=>$b->requester_note,'host_note'=>$b->host_note,'cancellation_reason'=>$b->cancellation_reason,'confirmed_at'=>$b->confirmed_at?->toIso8601String(),'cancelled_at'=>$b->cancelled_at?->toIso8601String(),'completed_at'=>$b->completed_at?->toIso8601String(),'last_action_by_user_id'=>$b->last_action_by_user_id,'last_action_by_name'=>$b->last_action_by_name_snapshot,'is_requester'=>$isRequester,'awaiting_requester_confirmation'=>$awaitingRequester,'can_manage'=>$canManage,'can_confirm'=>($canManage&&$b->status==='requested'&&!$awaitingRequester)||($isRequester&&$awaitingRequester),'can_decline'=>$canManage&&$b->status==='requested'&&!$awaitingRequester,'can_accept_reschedule'=>$isRequester&&$awaitingRequester,'can_cancel'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true),'can_reschedule'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true)];if($includeEvents){if(!$b->relationLoaded('events'))$b->load('events');$data['events']=$b->events->map(fn(ViewingBookingEvent $e)=>['id'=>$e->id,'actor_name'=>$e->actor_name_snapshot,'event'=>$e->event,'from_status'=>$e->from_status,'to_status'=>$e->to_status,'metadata'=>$e->metadata,'created_at'=>$e->created_at?->toIso8601String()])->values();}return $data;
+        $isRequester=(int)$b->requester_user_id===(int)$viewer->id;$awaitingRequester=$this->awaitsRequesterAcceptance($b);$canManage=$this->canManage($viewer,$b);$data=['id'=>$b->id,'reference'=>$b->reference,'requester_user_id'=>$b->requester_user_id,'requester_name'=>$b->requester_name_snapshot,'host_user_id'=>$b->host_user_id,'host_name'=>$b->host_name_snapshot,'message_thread_id'=>$b->message_thread_id,'target_type'=>$b->target_type,'target_id'=>$b->target_id,'target_title'=>$b->target_title_snapshot,'target_address'=>$b->target_address_snapshot,'starts_at'=>$b->starts_at?->toIso8601String(),'ends_at'=>$b->ends_at?->toIso8601String(),'timezone'=>$b->timezone,'status'=>$b->status,'requester_note'=>$b->requester_note,'host_note'=>$b->host_note,'cancellation_reason'=>$b->cancellation_reason,'confirmed_at'=>$b->confirmed_at?->toIso8601String(),'cancelled_at'=>$b->cancelled_at?->toIso8601String(),'completed_at'=>$b->completed_at?->toIso8601String(),'last_action_by_user_id'=>$b->last_action_by_user_id,'last_action_by_name'=>$b->last_action_by_name_snapshot,'is_requester'=>$isRequester,'awaiting_requester_confirmation'=>$awaitingRequester,'can_manage'=>$canManage,'can_confirm'=>($canManage&&$b->status==='requested'&&!$awaitingRequester)||($isRequester&&$awaitingRequester),'can_decline'=>$canManage&&$b->status==='requested'&&!$awaitingRequester,'can_accept_reschedule'=>$isRequester&&$awaitingRequester,'can_cancel'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true),'can_reschedule'=>$this->canCancel($viewer,$b)&&in_array($b->status,['requested','confirmed'],true)];$location=$b->target_type==='property' ? ($this->bookingLocations[$b->target_id] ?? null) : null;$data['target_latitude']=$location?->latitude;$data['target_longitude']=$location?->longitude;if($includeEvents){if(!$b->relationLoaded('events'))$b->load('events');$data['events']=$b->events->map(fn(ViewingBookingEvent $e)=>['id'=>$e->id,'actor_name'=>$e->actor_name_snapshot,'event'=>$e->event,'from_status'=>$e->from_status,'to_status'=>$e->to_status,'metadata'=>$e->metadata,'created_at'=>$e->created_at?->toIso8601String()])->values();}return $data;
     }
 }

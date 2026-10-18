@@ -11,6 +11,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../account/data/auth_controller.dart';
 import '../../financial/data/financial_repository.dart';
 import '../../financial/domain/financial_models.dart';
+import '../../broker/data/broker_repository.dart';
 import '../data/support_repository.dart';
 import '../data/support_workspace_repository.dart';
 import '../domain/support_models.dart';
@@ -831,6 +832,9 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
               .read(supportRepositoryProvider)
               .setStatus(task.sourceId, status);
         },
+        onDealResolution: details.summary.targetType == 'broker_deal_outcome' ? (decision, note) async {
+          await ref.read(brokerRepositoryProvider).resolveSupport(task.id, decision, note, actingAsAgent: widget.actingAsAgent);
+        } : null,
       ),
     );
   }
@@ -1411,12 +1415,14 @@ class _SupportCaseDialog extends StatefulWidget {
     required this.onReply,
     required this.onInternalNote,
     required this.onStatus,
+    this.onDealResolution,
   });
 
   final SupportCaseDetails details;
   final Future<void> Function(String) onReply;
   final Future<void> Function(String) onInternalNote;
   final Future<void> Function(String) onStatus;
+  final Future<void> Function(String, String)? onDealResolution;
 
   @override
   State<_SupportCaseDialog> createState() => _SupportCaseDialogState();
@@ -1490,6 +1496,10 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                       icon: const EbrokerIcon(Icons.reply),
                       label: const Text('رد'),
                     ),
+                    if (widget.onDealResolution != null && d.summary.status != 'waiting_requester' && !['resolved', 'dismissed'].contains(d.summary.status)) ...[
+                      EbrokerFilledButton(onPressed: _busy ? null : () => _resolveBroker('retry'), child: const Text('طلب تأكيد العميل مجددًا')),
+                      EbrokerOutlinedButton(onPressed: _busy ? null : () => _resolveBroker('cancel'), child: const Text('إلغاء نتيجة الصفقة')),
+                    ],
                     EbrokerOutlinedButton.icon(
                       onPressed: _busy ? null : () => _compose(true),
                       icon: const EbrokerIcon(Icons.note_alt_outlined),
@@ -1498,15 +1508,15 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                     PopupMenuButton<String>(
                       enabled: !_busy,
                       onSelected: _setStatus,
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
                             value: 'in_progress', child: Text('قيد المعالجة')),
-                        PopupMenuItem(
+                        const PopupMenuItem(
                             value: 'waiting_requester',
                             child: Text('انتظار المستخدم')),
-                        PopupMenuItem(
+                        if (widget.onDealResolution == null) const PopupMenuItem(
                             value: 'resolved', child: Text('إغلاق كمحلولة')),
-                        PopupMenuItem(
+                        if (widget.onDealResolution == null) const PopupMenuItem(
                             value: 'dismissed', child: Text('رفض / إغلاق')),
                       ],
                       child: const Chip(
@@ -1557,6 +1567,23 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _resolveBroker(String decision) async {
+    String note = '';
+    final form = GlobalKey<FormState>();
+    final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: Text(decision == 'retry' ? 'طلب تأكيد النتيجة' : 'إلغاء النتيجة'),
+      content: Form(key: form, child: TextFormField(onChanged: (text) => note = text, minLines: 2, maxLines: 4,
+        validator: (text) => (text?.trim().length ?? 0) < 5 ? 'اكتب سبب المراجعة.' : null,
+        decoration: const InputDecoration(labelText: 'سبب القرار', helperText: 'احتساب الصفقة يتطلب تأكيد العميل الفعلي.'))),
+      actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('رجوع')),
+        EbrokerFilledButton(onPressed: () { if (form.currentState?.validate() == true) Navigator.pop(c, true); }, child: const Text('حفظ القرار'))]));
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try { await widget.onDealResolution!(decision, note.trim()); if (mounted) Navigator.pop(context); }
+    catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
+    finally { if (mounted) setState(() => _busy = false); }
   }
 
   Future<void> _setStatus(String status) async {

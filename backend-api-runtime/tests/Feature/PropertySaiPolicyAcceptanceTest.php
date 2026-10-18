@@ -17,19 +17,19 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_owner_sale_is_fixed_at_one_percent_and_owner_only_selects_payer(): void
+    public function test_owner_sale_is_fixed_at_one_percent_and_customer_paid(): void
     {
         [$owner, $headers] = $this->advertiser('owner', 'owner-sale');
         $property = $this->property($owner, 'sale', 100_000_000);
 
         $response = $this->withHeaders($headers)->putJson("/api/properties/{$property->id}/sai", [
-            'sai_payer' => 'seller',
+            'sai_payer' => 'buyer',
         ])->assertOk();
 
         $response
             ->assertJsonPath('data.sai.rate_percent', 1)
-            ->assertJsonPath('data.sai.payer', 'seller')
-            ->assertJsonPath('data.sai.display_text', 'السعي 1% - يتحملها البائع')
+            ->assertJsonPath('data.sai.payer', 'buyer')
+            ->assertJsonPath('data.sai.display_text', 'السعي 1% - يتحملها المشتري')
             ->assertJsonPath('data.sai.calculation_basis', 'final_sale_value')
             ->assertJsonPath('data.sai_management.advertiser_type', 'owner')
             ->assertJsonPath('data.sai_management.platform_share_percent', 100)
@@ -116,7 +116,7 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
         $this->assertSame(80_000.0, $amounts['broker_share']);
 
         $this->withHeaders($headers)->putJson("/api/properties/{$property->id}/sai", [
-            'sai_payer' => 'landlord',
+            'sai_payer' => 'tenant',
             'broker_sai_rate_percent' => 100.01,
             'platform_terms_decision' => 'accept',
         ])->assertUnprocessable();
@@ -128,11 +128,11 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
         $sale = $this->property($broker, 'sale', 80_000_000);
 
         $this->withHeaders($saleHeaders)->putJson("/api/properties/{$sale->id}/sai", [
-            'sai_payer' => 'seller',
+            'sai_payer' => 'buyer',
             'broker_sai_rate_percent' => 0,
         ])->assertOk()
             ->assertJsonPath('data.sai.rate_percent', 1)
-            ->assertJsonPath('data.sai.display_text', 'السعي 1% - يتحملها البائع')
+            ->assertJsonPath('data.sai.display_text', 'السعي 1% - يتحملها المشتري')
             ->assertJsonPath('data.sai_management.source_mode', 'platform_fallback')
             ->assertJsonPath('data.sai_management.platform_share_percent', 100)
             ->assertJsonPath('data.sai_management.broker_share_percent', 0)
@@ -142,11 +142,11 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
         $rent = $this->property($office, 'rent', 150_000);
 
         $this->withHeaders($rentHeaders)->putJson("/api/properties/{$rent->id}/sai", [
-            'sai_payer' => 'landlord',
+            'sai_payer' => 'tenant',
             'broker_sai_rate_percent' => 0,
         ])->assertOk()
             ->assertJsonPath('data.sai.rate_percent', 20)
-            ->assertJsonPath('data.sai.display_text', 'السعي 20% - يتحملها المؤجر')
+            ->assertJsonPath('data.sai.display_text', 'السعي 20% - يتحملها المستأجر')
             ->assertJsonPath('data.sai_management.source_mode', 'platform_fallback')
             ->assertJsonPath('data.sai_management.platform_share_percent', 100)
             ->assertJsonPath('data.sai_management.broker_share_percent', 0);
@@ -221,10 +221,17 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
         [, $buyerTwoHeaders] = $this->user('buyer-two');
         $property = $this->property($owner, 'sale', 100_000_000);
 
-        $this->withHeaders($ownerHeaders)->putJson("/api/properties/{$property->id}/sai", [
-            'sai_payer' => 'seller',
-        ])->assertOk();
-        $termOne = (int) $property->fresh()->current_sai_term_id;
+        // Historical seller-paid terms remain attached to historical contacts.
+        // New API configurations now always use the customer-paid policy.
+        $legacy = PropertySaiTerm::query()->create([
+            'property_id' => $property->id, 'version' => 1, 'advertiser_type' => 'owner',
+            'purpose' => 'sale', 'source_mode' => 'owner_fixed', 'sai_rate_percent' => 1,
+            'payer' => 'seller', 'calculation_basis' => 'final_sale_value',
+            'platform_share_percent' => 100, 'broker_share_percent' => 0,
+            'platform_terms_status' => 'not_required', 'created_by_user_id' => $owner->id,
+        ]);
+        $property->forceFill(['current_sai_term_id' => $legacy->id])->save();
+        $termOne = (int) $legacy->id;
         $property->forceFill(['status' => 'published', 'review_status' => 'approved', 'published_at' => now()])->save();
 
         $threadOne = (int) $this->withHeaders($buyerOneHeaders)
@@ -261,7 +268,7 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
         $property->forceFill(['status' => 'published', 'review_status' => 'approved', 'published_at' => now()])->save();
 
         $this->withHeaders($headers)->putJson("/api/properties/{$property->id}/sai", [
-            'sai_payer' => 'landlord',
+            'sai_payer' => 'tenant',
         ])->assertConflict();
     }
 

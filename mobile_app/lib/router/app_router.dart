@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../features/discovery/presentation/assisted_search_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -20,12 +21,16 @@ import '../features/agreements/presentation/agreement_detail_screen.dart';
 import '../features/agreements/presentation/agreements_screen.dart';
 import '../features/agreements/presentation/rental_contract_detail_screen.dart';
 import '../features/app_shell/presentation/app_shell_screen.dart';
-import '../features/bookings/presentation/bookings_screen.dart';
+import '../features/broker/presentation/broker_workspaces.dart';
+import '../features/broker/presentation/broker_activity.dart';
+import '../features/broker/presentation/broker_directory.dart';
 import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
 import '../features/messages/presentation/messages_screen.dart';
 import '../features/messages/presentation/notifications_screen.dart';
-import '../features/map/presentation/map_screen.dart';
+import '../features/properties/domain/saved_property_search.dart';
+import '../features/discovery/domain/smart_search_filters.dart';
+import '../features/discovery/presentation/marketplace_section_screen.dart';
 import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/favorites_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
@@ -47,6 +52,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
       GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
+      GoRoute(path: '/smart-search', builder: (context, state) => AssistedSearchScreen(savedSearch:state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null)),
+      GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(
+        section: state.uri.queryParameters['section'] ?? 'latest',
+        governorate: state.uri.queryParameters['governorate'], type: state.uri.queryParameters['type'],
+        latitude:double.tryParse(state.uri.queryParameters['lat']??''),longitude:double.tryParse(state.uri.queryParameters['lon']??''))),
+      GoRoute(path: '/brokers', builder: (context, state) => const BrokerDirectoryScreen()),
+      GoRoute(path: '/advertisers/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return id > 0 ? BrokerPublicProfileScreen(id: id) : const _RouteErrorScreen();
+      }),
+      GoRoute(path: '/broker/workspace', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, requireProfessional: true, child: BrokerDashboardScreen())),
+      GoRoute(path: '/broker/customers', builder: (context, state) => Stage6AuthGate(requireListingEligible: true, requireProfessional: true,
+        child: BrokerCustomersScreen(propertyId: int.tryParse(state.uri.queryParameters['property'] ?? ''), initialFilter: state.uri.queryParameters['filter'] ?? 'all'))),
+      GoRoute(path: '/broker/availability', builder: (context, state) => Stage6AuthGate(requireListingEligible: true, child: BrokerAvailabilityScreen(initiallyDue: state.uri.queryParameters['due'] == '1'))),
+      GoRoute(path: '/broker/finance', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerFinanceScreen())),
+      GoRoute(path: '/broker/activity', builder: (context, state) => Stage6AuthGate(requireProfessional: true, child: BrokerActivityScreen(initialTab: state.uri.queryParameters['tab'] == 'messages' ? 1 : 0, todayOnly: state.uri.queryParameters['today'] == '1'))),
+      GoRoute(path: '/broker/deals/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return id > 0 ? Stage6AuthGate(child: BrokerDealScreen(id: id)) : const _RouteErrorScreen();
+      }),
       GoRoute(
         path: '/auth',
         builder: (context, state) => AuthScreen(
@@ -66,8 +91,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/account-verification',
-        builder: (context, state) => const Stage6AuthGate(
-          child: AccountVerificationScreen(),
+        builder: (context, state) => Stage6AuthGate(
+          child: AccountVerificationScreen(initialType: state.uri.queryParameters['upgrade'] == 'broker' ? 'broker' : null),
         ),
       ),
       GoRoute(
@@ -191,15 +216,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             const Stage6AuthGate(child: ConversationReportsScreen()),
       ),
-      GoRoute(
-        path: '/bookings',
-        builder: (context, state) => Stage6AuthGate(
-          child: BookingsScreen(
-            initialBookingId:
-                int.tryParse(state.uri.queryParameters['booking'] ?? ''),
-          ),
-        ),
-      ),
+      GoRoute(path: '/bookings', redirect: (_, __) => '/messages'),
       GoRoute(
         path: '/services',
         builder: (context, state) =>
@@ -254,9 +271,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/add-property',
-        builder: (context, state) => const Stage6AuthGate(
+        builder: (context, state) => Stage6AuthGate(
           requireListingEligible: true,
-          child: AddPropertyWizardScreen(),
+          child: AddPropertyWizardScreen(startWithAssistant: state.uri.queryParameters['assistant'] == '1'),
         ),
       ),
       GoRoute(
@@ -275,7 +292,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/property-market',
-        builder: (context, state) => const MapScreen(),
+        builder: (context, state) => AssistedSearchScreen(initialMapMode:true,entryFilters:SmartSearchFilters.fromMap({
+          if(double.tryParse(state.uri.queryParameters['lat']??'')!=null && double.tryParse(state.uri.queryParameters['lon']??'')!=null) ...{
+            'latitude':double.parse(state.uri.queryParameters['lat']!), 'longitude':double.parse(state.uri.queryParameters['lon']!), 'radius_km':30},
+          if(state.uri.queryParameters['type']!=null)'type':state.uri.queryParameters['type'],
+          if(state.uri.queryParameters['governorate']!=null)'governorate':state.uri.queryParameters['governorate'],
+        })),
       ),
     ],
   );

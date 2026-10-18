@@ -57,12 +57,12 @@ void main() {
     expect(
       find.byWidgetPredicate(
         (widget) => widget is Text &&
-            widget.textSpan?.toPlainText().contains('25,000,000 YER') == true,
+            widget.textSpan?.toPlainText().contains('٢٥٬٠٠٠٬٠٠٠ ريال') == true,
       ),
       findsOneWidget,
     );
     expect(find.text('للبيع'), findsOneWidget);
-    expect(find.text('120 م²'), findsOneWidget);
+    expect(find.text('١٢٠ م²'), findsOneWidget);
     expect(find.byTooltip('إزالة من المفضلة'), findsOneWidget);
   });
 }

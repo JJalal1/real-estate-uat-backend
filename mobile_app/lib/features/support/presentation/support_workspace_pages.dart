@@ -98,7 +98,6 @@ class PlatformAdminHomeScreen extends ConsumerWidget {
         _DashboardCardSpec('critical_reports', 'بلاغات حرجة', Icons.crisis_alert_outlined, _DashboardAction.criticalReports),
         _DashboardCardSpec('overdue', 'حالات متأخرة', Icons.timer_off_outlined, _DashboardAction.overdueAll),
         _DashboardCardSpec('escalated', 'حالات مصعدة', Icons.trending_up, _DashboardAction.escalated),
-        _DashboardCardSpec('bookings', 'الحجوزات', Icons.calendar_month_outlined, _DashboardAction.bookings),
         _DashboardCardSpec('regions', 'المناطق', Icons.map_outlined, _DashboardAction.regions),
         _DashboardCardSpec('service_orders', 'الخدمات', Icons.home_repair_service_outlined, _DashboardAction.services),
       ],
@@ -381,12 +380,6 @@ class PlatformOperationsScreen extends ConsumerWidget {
               ),
             ),
             _OperationTile(
-              icon: Icons.calendar_month_outlined,
-              title: 'الحجوزات والمعاينات',
-              subtitle: 'الطلبات والمواعيد والحالات وإعادة الجدولة',
-              onTap: () => context.push('/bookings'),
-            ),
-            _OperationTile(
               icon: Icons.home_repair_service_outlined,
               title: 'الخدمات والمدفوعات',
               subtitle: 'طلبات الخدمات وحالة الدفع دون بيانات بطاقات حساسة',
@@ -610,9 +603,6 @@ void _openAction(BuildContext context, _DashboardAction action) {
     case _DashboardAction.users:
       context.push('/admin/access');
       return;
-    case _DashboardAction.bookings:
-      context.push('/bookings');
-      return;
     case _DashboardAction.regions:
       page = const PlatformRegionsScreen();
       break;
@@ -823,7 +813,6 @@ enum _DashboardAction {
   listingsAll,
   verificationsAll,
   users,
-  bookings,
   regions,
   services,
 }

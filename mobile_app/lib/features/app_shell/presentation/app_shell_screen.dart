@@ -13,6 +13,9 @@ import '../../admin/presentation/general_manager_pages.dart';
 import '../../discovery/presentation/marketplace_home_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
 import '../../properties/presentation/my_listings_screen.dart';
+import '../../broker/presentation/broker_workspaces.dart';
+import '../../broker/presentation/broker_connections_screen.dart';
+import 'listing_creation_menu.dart';
 import '../../support/presentation/support_tasks_screen.dart';
 import '../../support/presentation/support_workspace_pages.dart';
 
@@ -25,7 +28,7 @@ class AppShellScreen extends ConsumerStatefulWidget {
 
 class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   int _index = 0;
-  bool _exitDialogOpen = false;
+  bool _exitDialogOpen = false, _createMenuOpen = false;
   String? _lastMode;
   final Set<int> _visitedIndices = <int>{0};
 
@@ -58,6 +61,15 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     if (shouldExit == true && mounted) await SystemNavigator.pop();
   }
 
+  Future<void> _createListing() async {
+    if (_createMenuOpen) return;
+    setState(() => _createMenuOpen = true);
+    final assisted = await showListingCreationMenu(context);
+    if (!mounted) return;
+    setState(() => _createMenuOpen = false);
+    if (assisted != null) await context.push('/add-property?assistant=${assisted ? 1 : 0}');
+  }
+
   void _selectTab(int value) {
     if (value == _index) return;
     setState(() {
@@ -72,8 +84,9 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     final mode = _modeFor(user);
     final shell = _shellFor(mode, user);
 
-    if (_lastMode != mode) {
-      _lastMode = mode;
+    final accountScope = '$mode:${user?.id ?? 'guest'}';
+    if (_lastMode != accountScope) {
+      _lastMode = accountScope;
       _index = 0;
       _visitedIndices
         ..clear()
@@ -89,7 +102,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     final lazyPages = List<Widget>.generate(
       shell.pages.length,
       (pageIndex) => _visitedIndices.contains(pageIndex)
-          ? shell.pages[pageIndex]
+          ? KeyedSubtree(key: ValueKey('$accountScope:$pageIndex'), child: shell.pages[pageIndex])
           : const SizedBox.shrink(),
       growable: false,
     );
@@ -109,8 +122,8 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
                 .toList(growable: false),
             selectedIndex: _index,
             onSelected: _selectTab,
-            onCreate: const ['anonymous', 'regular', 'advertiser'].contains(mode)
-                ? () => context.push('/add-property') : null,
+            onCreate: const ['anonymous', 'regular', 'advertiser'].contains(mode) ? _createListing : null,
+            createExpanded: _createMenuOpen,
           ),
         ),
       ),
@@ -125,7 +138,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     }
     if (roles.contains('support_manager')) return 'manager';
     if (roles.contains('support_agent')) return 'agent';
-    if (user.hasVerifiedPublishingProfile == true) return 'advertiser';
+    if (user.hasVerifiedProfessionalProfile == true) return 'advertiser';
     return 'regular';
   }
 
@@ -183,6 +196,14 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           ],
         );
       case 'advertiser':
+        return const _ShellData(pages: [
+          MarketplaceHomeScreen(showAdvertiserActions: true), BrokerDashboardScreen(), BrokerConnectionsScreen(), AccountScreen(),
+        ], items: [
+          _NavItemData(label: 'الرئيسية', icon: Icons.home_outlined),
+          _NavItemData(label: 'عملي', icon: Icons.work_outline),
+          _NavItemData(label: 'العملاء', icon: Icons.people_outline),
+          _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
+        ]);
       case 'regular':
       default:
         return _ShellData(

@@ -26,6 +26,17 @@ class PropertyRepository {
   final Dio _dio;
   final AuthRepository _auth;
 
+  Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1, String? purpose}) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {'advertiser_id': id, 'page': page, 'per_page': 20, if (purpose != null) 'purpose': purpose});
+    final rows = (response.data?['data'] as List? ?? const []).whereType<Map>().map((j) => PropertySummary.fromJson(Map<String, dynamic>.from(j))).toList();
+    final meta = response.data?['meta'] as Map? ?? const {};
+    return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
+  }
+
+  Future<void> recordView(int propertyId, String viewerKey) async {
+    await _dio.post<void>('/properties/$propertyId/view', data: {'viewer_key': viewerKey}, options: await _auth.optionalAuthOptions());
+  }
+
   Future<List<PropertyMarker>> nearby({
     required double latitude,
     required double longitude,
@@ -52,8 +63,8 @@ class PropertyRepository {
         'radius_km': radiusKm,
         if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
         if (type != null && type.isNotEmpty) 'type': type,
-        if (minPrice != null) 'min_price': minPrice,
-        if (maxPrice != null) 'max_price': maxPrice,
+        if (minPrice != null) (purpose == 'rent' ? 'min_monthly_rent' : 'min_price'): minPrice,
+        if (maxPrice != null) (purpose == 'rent' ? 'max_monthly_rent' : 'max_price'): maxPrice,
         if (minBedrooms != null) 'min_bedrooms': minBedrooms,
         if (minBathrooms != null) 'min_bathrooms': minBathrooms,
         if (minArea != null) 'min_area_m2': minArea,
@@ -73,6 +84,20 @@ class PropertyRepository {
         .whereType<Map<String, dynamic>>()
         .map(PropertyMarker.fromJson)
         .toList(growable: false);
+  }
+
+  Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: filters);
+    final rows = response.data?['data'] as List? ?? const [];
+    return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
+  }
+
+  Future<String> contactPhone(int propertyId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties/$propertyId/contact', options: await _auth.requiredAuthOptions());
+    final data = response.data?['data'];
+    final phone = data is Map ? data['phone']?.toString() ?? '' : '';
+    if (!RegExp(r'^\+?[0-9]{7,15}$').hasMatch(phone)) throw StateError('لم يتوفر رقم اتصال صالح لهذا الإعلان.');
+    return phone;
   }
 
   Future<PropertyLocationAddress> resolveLocationAddress({
@@ -240,6 +265,29 @@ class PropertyRepository {
     }
   }
 
+  Future<PropertySaiEnvelope> saiForEditor(int propertyId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties/$propertyId/sai-management',
+      options: await _auth.requiredAuthOptions());
+    return PropertySaiEnvelope.fromResponse(response.data);
+  }
+
+  Future<PropertySaiManagement> saiPolicy(String purpose) async {
+    final response = await _dio.get<Map<String, dynamic>>('/listing-sai-policy',
+      queryParameters: {'purpose': purpose}, options: await _auth.requiredAuthOptions());
+    final data = response.data?['data'];
+    if (data is! Map<String, dynamic>) throw StateError('Invalid listing policy.');
+    return PropertySaiManagement.fromJson(data);
+  }
+
+  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1}) async {
+    final response = await _dio.get<Map<String, dynamic>>('/properties',
+      queryParameters: {...filters, 'page': page, 'per_page': 20, 'sort': 'latest'});
+    final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
+      .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
+    final meta = response.data?['meta'] as Map? ?? const {};
+    return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
+  }
+
   Future<PropertyDetails> details(int propertyId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/properties/$propertyId',
@@ -261,11 +309,17 @@ class PropertyRepository {
     required String payer,
     double? brokerRatePercent,
     String? platformTermsDecision,
+    bool deferPlatformTerms = false,
+    String amountType = 'percentage',
+    double? fixedAmount,
   }) async {
     final response = await _dio.put<Map<String, dynamic>>(
       '/properties/$propertyId/sai',
       data: <String, dynamic>{
         'sai_payer': payer,
+        'sai_amount_type': amountType,
+        if (amountType == 'fixed' && fixedAmount != null) 'fixed_sai_amount': fixedAmount,
+        if (deferPlatformTerms) 'defer_platform_terms': true,
         if (brokerRatePercent != null)
           'broker_sai_rate_percent': brokerRatePercent,
         if (platformTermsDecision != null)
@@ -313,6 +367,7 @@ class PropertyRepository {
     String? ownerIdBackPath,
     String? ownerSelfiePath,
     String? ownershipProofPath,
+    String? editorDraftKey, int? editorDraftRevision,
   }) async {
     final form = await _listingForm(
       input,
@@ -323,6 +378,7 @@ class PropertyRepository {
       ownerIdBackPath: ownerIdBackPath,
       ownerSelfiePath: ownerSelfiePath,
       ownershipProofPath: ownershipProofPath,
+      editorDraftKey: editorDraftKey, editorDraftRevision: editorDraftRevision,
     );
     final response = await _dio.post<Map<String, dynamic>>(
       '/properties',
@@ -343,6 +399,7 @@ class PropertyRepository {
     String? ownerIdBackPath,
     String? ownerSelfiePath,
     String? ownershipProofPath,
+    String? editorDraftKey, int? editorDraftRevision,
   }) async {
     final form = await _listingForm(
       input,
@@ -354,6 +411,7 @@ class PropertyRepository {
       ownerIdBackPath: ownerIdBackPath,
       ownerSelfiePath: ownerSelfiePath,
       ownershipProofPath: ownershipProofPath,
+      editorDraftKey: editorDraftKey, editorDraftRevision: editorDraftRevision,
     );
     final response = await _dio.post<Map<String, dynamic>>(
       '/properties/$propertyId',
@@ -456,8 +514,10 @@ class PropertyRepository {
     String? ownerIdBackPath,
     String? ownerSelfiePath,
     String? ownershipProofPath,
+    String? editorDraftKey, int? editorDraftRevision,
   }) async {
     final fields = Map<String, dynamic>.from(input.toMap());
+    if (editorDraftKey != null) { fields['editor_draft_key'] = editorDraftKey; fields['editor_draft_revision'] = editorDraftRevision; }
     final parking = fields['has_parking'];
     if (parking is bool) {
       // Multipart form fields are text. Send an explicit 1/0 so a selected
@@ -471,6 +531,10 @@ class PropertyRepository {
       fields['replace_images'] = 1;
     }
 
+    final elevator = fields['has_elevator'];
+    if (elevator is bool) fields['has_elevator'] = elevator ? 1 : 0;
+    final wholeFloor = fields['unit_occupies_entire_floor'];
+    if (wholeFloor is bool) fields['unit_occupies_entire_floor'] = wholeFloor ? 1 : 0;
     final form = FormData.fromMap(fields);
     for (final path in imagePaths.take(12)) {
       form.files.add(

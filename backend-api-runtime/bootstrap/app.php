@@ -18,12 +18,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         then: function (): void {
             Route::middleware('api')->prefix('api')->group(base_path('routes/phase5.php'));
+            Route::middleware('api')->prefix('api')->group(base_path('routes/broker_experience.php'));
             Route::middleware('api')->prefix('api')->group(base_path('routes/financial_v1.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Render terminates TLS before forwarding to Apache. Trust only the
+        // original scheme; forwarded client IP/host/port remain untrusted.
+        $middleware->trustProxies(at: '*', headers: Request::HEADER_X_FORWARDED_PROTO);
         $middleware->prepend(FastRenderHealthProbe::class);
         $middleware->append(RequestObservability::class);
+        $middleware->append(\App\Http\Middleware\RefreshBrokerAvailability::class);
         $middleware->alias([
             'auth.api' => AuthenticateApiToken::class,
             'account.active' => EnsureAccountActive::class,

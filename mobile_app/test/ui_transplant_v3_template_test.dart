@@ -1,3 +1,5 @@
+import 'support/wave6_fakes.dart';
+import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -8,6 +10,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'support/wave3_fakes.dart';
+import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_step_button.dart';
@@ -21,6 +26,7 @@ import 'package:real_estate_mobile/features/properties/data/property_market_repo
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_details_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_market_context_card.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_sai_public_line.dart';
 import 'package:real_estate_mobile/features/properties/presentation/favorites_screen.dart';
@@ -31,6 +37,7 @@ import 'package:real_estate_mobile/features/account/presentation/auth_screen.dar
 import 'package:real_estate_mobile/features/agreements/data/agreement_repository.dart';
 import 'package:real_estate_mobile/features/agreements/domain/agreement_models.dart';
 import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
+import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/bookings/data/booking_repository.dart';
 import 'package:real_estate_mobile/features/bookings/domain/booking_models.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
@@ -42,6 +49,16 @@ import 'package:real_estate_mobile/features/properties/domain/property_marker.da
 import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 
+// Layout fixtures isolate device IO; broker_convenience_test covers actual recovery files.
+class _EmptyRecovery extends ListingRecoveryStore {
+  @override
+  Future<Map<String, dynamic>?> read(int userId, int? listingId) async => null;
+  @override
+  Future<void> write(int userId, int? listingId, Map<String, dynamic> snapshot, List<String> paths) async {}
+  @override
+  Future<void> clear(int userId, int? listingId) async {}
+}
+
 class _AuthFixture extends AuthController {
   _AuthFixture(this.user);
   final AuthUser? user;
@@ -49,12 +66,12 @@ class _AuthFixture extends AuthController {
   Future<AuthUser?> build() async => user;
 }
 
-AuthUser _user({bool verified = false}) => AuthUser.fromJson({
+AuthUser _user({bool verified = false, String type = 'owner'}) => AuthUser.fromJson({
   'id': 1, 'name': 'حساب عرض تجريبي', 'phone': '+967700000000',
   'account_status': 'active', 'phone_verified_at': '2026-10-11T00:00:00Z',
   'profile_completed_at': '2026-10-11T00:00:00Z',
   if (verified) 'verification_profile': {
-    'type': 'owner', 'status': 'approved', 'reviewed_at': '2026-10-11T00:00:00Z',
+    'type': type, 'status': 'approved', 'reviewed_at': '2026-10-11T00:00:00Z',
   },
 });
 
@@ -65,13 +82,15 @@ final _property = PropertyMarker.fromJson({
 });
 
 class _MessagesFixture implements MessageRepository {
+  _MessagesFixture({this.canManageCustomer = false});
+  final bool canManageCustomer;
   final sent = <String>[];
   final sentThreadIds = <int>[];
   @override
   Future<MessageThreadDetails> details(int threadId, {int? beforeId}) async =>
     MessageThreadDetails.fromJson({
       'thread': {'id': threadId, 'property_id': 37, 'property_status': 'published',
-        'property_title': _property.title, 'other_user': {'id': 2, 'name': 'المعلن'}},
+        'can_manage_customer': canManageCustomer, 'property_title': _property.title, 'other_user': {'id': 2, 'name': 'المعلن'}},
       'messages': [
         {'id': 1, 'sender_user_id': 2, 'sender_name': 'المعلن',
           'body': 'مرحباً، كيف أستطيع مساعدتك؟', 'is_mine': false},
@@ -127,8 +146,9 @@ class _BookingsFixture implements BookingRepository {
   _BookingsFixture({this.items = const []});
   final List<ViewingBooking> items;
   final confirmed = <int>[];
+  int reads = 0;
   @override
-  Future<List<ViewingBooking>> mine() async => items;
+  Future<List<ViewingBooking>> mine({DateTime? from, DateTime? before}) async { reads++; return items; }
   @override
   Future<ViewingBooking> confirm(int bookingId, {String? note}) async {
     confirmed.add(bookingId);
@@ -152,6 +172,8 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     GoRoute(path: '/auth', builder: (_, __) => const AuthScreen()),
     GoRoute(path: '/favorites', builder: (_, __) => const Stage6AuthGate(
       child: FavoritesScreen())),
+    GoRoute(path: '/my-listings', builder: (_, __) => const Stage6AuthGate(
+      child: MyListingsScreen())),
     GoRoute(path: '/add-property', builder: (_, __) => const Stage6AuthGate(
       requireListingEligible: true, child: Scaffold(body: Text('listing destination')))),
     GoRoute(path: '/messages/:id', builder: (_, state) => ConversationScreen(
@@ -163,8 +185,15 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
   ]);
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(overrides: [
+    listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
     authControllerProvider.overrideWith(() => _AuthFixture(user)),
+    listingRecoveryStoreProvider.overrideWithValue(_EmptyRecovery()),
+    brokerDirectoryProvider.overrideWith((_) async => []),
+    brokerThreadDealProvider.overrideWith((_, __) async => null),
+    brokerWorkspaceProvider.overrideWith((_) async => {'broker_profile': {'id': 1, 'name': 'حساب عرض تجريبي', 'account_type': 'owner', 'verified': true}, 'listings': {'published': 1}, 'customer_activity': {}, 'needs_attention': {}, 'financial_summary': {}}),
     nearbyPropertiesProvider.overrideWith((ref, query) async => [_property]),
+    homeLocationAttemptedProvider.overrideWith((_) => true),
+    marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake()),
     myListingsProvider.overrideWith((ref) async => [_details(37)]),
     messageRepositoryProvider.overrideWithValue(messages ?? _MessagesFixture()),
     bookingRepositoryProvider.overrideWithValue(bookings ?? _BookingsFixture()),
@@ -174,6 +203,8 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     propertySaiPublicProvider.overrideWith((ref, id) async => const PropertySaiEnvelope()),
     propertyMarketContextProvider.overrideWith((ref, id) async => const PropertyMarketContext(
       sufficientData: false, sampleCount: 0)),
+    propertyMapPreviewBuilderProvider.overrideWithValue((context, lat, lon) => const ColoredBox(color: Color(0xffedf6f4),
+      child: Center(child: Icon(Icons.location_on_outlined, color: Color(0xff087c7c))))),
     agreementRepositoryProvider.overrideWithValue(_AgreementsFixture()),
   ], child: MaterialApp.router(theme: AppTheme.light, routerConfig: router,
     builder: (context, child) => RepaintBoundary(key: boundary,
@@ -223,15 +254,15 @@ void main() {
     }
   });
 
-  testWidgets('template button retains MaterialButton, 56 height, 4 corners and loading lock', (tester) async {
+  testWidgets('refreshed button retains MaterialButton, touch target and loading lock', (tester) async {
     _viewport(tester, const Size(412, 915));
     var taps = 0;
     await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
       body: EbrokerButton(onPressed: () => taps++, child: const Text('متابعة')))));
     final material = tester.widget<MaterialButton>(find.byType(MaterialButton));
-    expect(material.height, 56);
-    expect(material.elevation, 0.5);
-    expect((material.shape! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(4));
+    expect(material.height, 52);
+    expect(material.elevation, 0);
+    expect((material.shape! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(16));
     await tester.tap(find.text('متابعة'));
     expect(taps, 1);
     await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
@@ -245,7 +276,7 @@ void main() {
     final router = await _pump(tester);
     final nav = tester.getRect(find.byType(AppNavigationBar));
     expect(nav.height, lessThan(tester.view.physicalSize.height * 0.45));
-    await tester.tap(find.text('حسابي'));
+    await tester.tap(find.byTooltip('حسابي'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('المفضلة').hitTestable());
     await tester.pumpAndSettle();
@@ -254,10 +285,21 @@ void main() {
     expect(find.text('favorites destination'), findsNothing);
   });
 
+  for (final type in ['owner', 'broker', 'office']) {
+    testWidgets('$type sees the navigation for its approved identity', (tester) async {
+      await _pump(tester, user: _user(verified: true, type: type));
+      final labels = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((item) => item.label).toList();
+      expect(labels.contains('عملي'), type != 'owner');
+      expect(labels.contains('العملاء'), type != 'owner');
+      expect(labels.contains('حسابي'), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('wizard uses its template counter and keeps original field validation', (tester) async {
     await _pump(tester, user: _user(verified: true), initial: '/listing-preview');
-    expect(find.text('1/5'), findsOneWidget);
-    expect(find.byType(EbrokerWizardCategoryCard), findsNWidgets(7));
+    expect(find.text('1/4'), findsOneWidget);
+    expect(find.byType(EbrokerWizardCategoryCard), findsNWidgets(8));
     final grid = tester.widget<GridView>(find.byType(GridView));
     expect((grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount).crossAxisCount, 3);
     expect(find.text('نوع الملكية *'), findsOneWidget);
@@ -269,10 +311,10 @@ void main() {
     final next = find.widgetWithText(EbrokerStepButton, 'التالي');
     expect(next, findsOneWidget);
     final button = tester.widget<ElevatedButton>(find.descendant(of: next, matching: find.byType(ElevatedButton)));
-    expect((button.style!.shape!.resolve({})! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(6));
+    expect((button.style!.shape!.resolve({})! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(16));
     await tester.tap(next);
     await tester.pumpAndSettle();
-    expect(find.text('1/5'), findsOneWidget);
+    expect(find.text('1/4'), findsOneWidget);
     expect(find.byType(SnackBar), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -302,10 +344,12 @@ void main() {
 
   for (final verified in [false, true]) {
     testWidgets('center add button enforces publishing eligibility verified=$verified', (tester) async {
-      final router = await _pump(tester, user: _user(verified: verified));
+      final router = await _pump(tester, user: _user(verified: verified, type: 'broker'));
       final shape = find.byWidgetPredicate((w) => w is EbrokerImage && w.name == 'add_shape');
       expect(shape, findsOneWidget);
-      await tester.tap(find.byTooltip('إضافة عقار'));
+      await tester.tap(find.byKey(const ValueKey('home-add-property')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('create-listing-manual')));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
       expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
@@ -337,6 +381,22 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('quick reply is editable and only sends after the original send button', (tester) async {
+    final messages = _MessagesFixture(canManageCustomer: true);
+    await _pump(tester, user: _user(verified: true), initial: '/messages/19', messages: messages);
+    await tester.tap(find.byTooltip('ردود سريعة')); await tester.pumpAndSettle();
+    await tester.tap(find.text('سأرد عليك')); await tester.pumpAndSettle();
+    expect(messages.sent, isEmpty);
+    final editor = tester.widget<TextField>(find.byType(TextField));
+    expect(editor.controller!.text, isNotEmpty);
+    await tester.enterText(find.byType(TextField), 'سأرد عليك بعد العصر.');
+    expect(messages.sent, isEmpty);
+    await tester.tap(find.byWidgetPredicate((w) => w is EbrokerIcon && w.icon == Icons.send));
+    await tester.pumpAndSettle();
+    expect(messages.sent, ['سأرد عليك بعد العصر.']); expect(messages.sentThreadIds, [19]);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final page in ['/', '/auth', '/messages/19', '/listing-preview', '/properties/37', '/favorites', '/verify-phone']) {
     for (final scale in (page == '/properties/37' || page == '/favorites' || page == '/verify-phone') ? [1.0, 2.4] : [2.4]) {
     testWidgets('template screen $page supports 320 width and Arabic scale $scale', (tester) async {
@@ -344,7 +404,7 @@ void main() {
       await _pump(tester, initial: page, scale: scale, user: _user());
       expect(tester.takeException(), isNull);
       if (page == '/') {
-        await tester.tap(find.text('حسابي'));
+        await tester.tap(find.byTooltip('حسابي'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }
@@ -355,13 +415,21 @@ void main() {
 
   testWidgets('own listing source card supports enlarged Arabic without losing review controls', (tester) async {
     _viewport(tester, const Size(320, 640));
-    await _pump(tester, scale: 2.4, user: _user(verified: true));
-    await tester.tap(find.text('إعلاناتي'));
+    await _pump(tester, scale: 2.4, user: _user(verified: true, type: 'broker'));
+    await tester.tap(find.byTooltip('عملي'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('broker-tool-عقاراتي')));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byType(EbrokerPropertyHorizontalCard), 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.byType(EbrokerPropertyHorizontalCard), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('تعديل'), 300, scrollable: find.byType(Scrollable).first);
+    final listingScroll = find.ancestor(of: find.byType(EbrokerPropertyHorizontalCard), matching: find.byType(Scrollable)).last;
+    await tester.scrollUntilVisible(find.byTooltip('خيارات البطاقة').hitTestable(), 180, scrollable: listingScroll);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('خيارات البطاقة').hitTestable()); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('تعديل').hitTestable(), 100, scrollable: find.byType(Scrollable).last);
     await tester.pumpAndSettle();
     expect(find.text('تعديل').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -410,25 +478,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/properties/37');
     expect(find.byType(EbrokerPropertyHeading), findsOneWidget);
-    expect(find.text('تواصل مع المعلن'), findsOneWidget);
+    expect(find.text('اتصال'), findsOneWidget);
+    expect(find.text('محادثة'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   for (final allowed in [false, true]) {
-    testWidgets('linked viewing action follows server permission canConfirm=$allowed', (tester) async {
+    testWidgets('conversation ignores legacy viewing data and actions canConfirm=$allowed', (tester) async {
       final bookings = _BookingsFixture(items: [_booking(threadId: 20, id: 41), _booking(canConfirm: allowed)]);
       await _pump(tester, initial: '/messages/19', bookings: bookings);
-      expect(find.text('طلب معاينة مرتبط بهذه المحادثة'), findsOneWidget);
-      expect(find.text('تأكيد الموعد'), allowed ? findsOneWidget : findsNothing);
-      if (allowed) {
-        await tester.ensureVisible(find.text('تأكيد الموعد'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('تأكيد الموعد'));
-        await tester.pumpAndSettle();
-        expect(bookings.confirmed, [42]);
-      } else {
-        expect(bookings.confirmed, isEmpty);
-      }
+      expect(find.text('طلب معاينة مرتبط بهذه المحادثة'), findsNothing);
+      expect(find.text('تأكيد الموعد'), findsNothing);
+      expect(bookings.reads, 0);
+      expect(bookings.confirmed, isEmpty);
+      expect(find.byType(TextField), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
@@ -439,15 +502,21 @@ void main() {
     try {
       _viewport(tester, const Size(412, 915));
       final key = GlobalKey();
-      final router = await _pump(tester, boundary: key, user: _user(verified: true));
+      final router = await _pump(tester, boundary: key, user: _user(verified: true, type: 'broker'));
       await _capture(tester, key, 'template-home-navigation');
-      await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -260));
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -260));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-home-advertisers');
-      await tester.tap(find.text('إعلاناتي'));
+      await tester.tap(find.byTooltip('عملي'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('broker-tool-عقاراتي')));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-my-listings');
-      await tester.tap(find.text('حسابي'));
+      router.pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('حسابي'));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-account');
       router.push('/auth');

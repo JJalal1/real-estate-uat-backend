@@ -4,7 +4,7 @@ import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 
 void main() {
-  testWidgets('AppNavigationBar keeps labels visible in RTL at large text scale',
+  testWidgets('AppNavigationBar keeps full-size selected text and named RTL destinations at large scale',
       (tester) async {
     var selected = 0;
     await tester.pumpWidget(
@@ -35,17 +35,20 @@ void main() {
     );
 
     expect(find.text('العقارات'), findsOneWidget);
-    expect(find.text('الرسائل'), findsOneWidget);
-    expect(find.text('المعاينات'), findsOneWidget);
-    expect(find.text('حسابي'), findsOneWidget);
+    for (final label in ['العقارات', 'الرسائل', 'المعاينات', 'حسابي']) {
+      expect(find.byTooltip(label), findsOneWidget);
+    }
     // SVG rendering scales its vector canvas with a FittedBox internally.
     // Navigation text must never be fitted or shrink the user's text scale.
     expect(find.ancestor(
       of: find.descendant(of: find.byType(AppNavigationBar), matching: find.byType(Text)),
       matching: find.byType(FittedBox)), findsNothing);
-    await tester.tap(find.text('الرسائل'));
+    await tester.tap(find.byTooltip('الرسائل'));
     await tester.pumpAndSettle();
     expect(selected, 1);
+    expect(find.text('الرسائل'), findsOneWidget);
+    final selectedText = tester.element(find.text('الرسائل'));
+    expect(MediaQuery.textScalerOf(selectedText).scale(12), closeTo(21.6, .01));
     expect(tester.takeException(), isNull);
   });
 
@@ -80,7 +83,7 @@ void main() {
     expect(
       find.byWidgetPredicate(
         (widget) => widget is Text &&
-            widget.textSpan?.toPlainText().contains('12,500,000 YER') == true,
+            widget.textSpan?.toPlainText().contains('١٢٬٥٠٠٬٠٠٠ ريال') == true,
       ),
       findsOneWidget,
     );

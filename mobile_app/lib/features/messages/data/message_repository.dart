@@ -32,6 +32,11 @@ class MessageRepository {
     return MessageThreadSummary.fromJson(_dataMap(response.data));
   }
 
+  Future<MessageThreadSummary> startForBroker(int brokerId) async {
+    final response=await _dio.post<Map<String,dynamic>>('/brokers/$brokerId/conversation',options:await _auth.requiredAuthOptions());
+    return MessageThreadSummary.fromJson(_dataMap(response.data));
+  }
+
   Future<MessageThreadDetails> details(int threadId, {int? beforeId}) async {
     final response = await _dio.get<Map<String, dynamic>>(
         '/messages/threads/$threadId',

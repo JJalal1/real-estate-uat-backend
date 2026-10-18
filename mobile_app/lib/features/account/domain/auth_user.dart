@@ -119,6 +119,8 @@ class AuthUser {
   bool get hasVerifiedPublishingProfile =>
       verificationProfile.isApproved &&
       const {'owner', 'broker', 'office'}.contains(verificationProfile.type);
+  bool get hasVerifiedProfessionalProfile => verificationProfile.isApproved &&
+      const {'broker', 'office'}.contains(verificationProfile.type);
   bool get canCreateListing =>
       isActive && !needsProfileCompletion && hasVerifiedPublishingProfile;
   String get accountTypeLabel => verificationProfile.typeLabel;

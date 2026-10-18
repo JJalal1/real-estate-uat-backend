@@ -4,8 +4,9 @@ import 'package:real_estate_mobile/features/properties/domain/property_field_opt
 
 void main() {
   group('UAT Change Phase 2 property contract', () {
-    test('v3 payload preserves original area unit and optional contact', () {
+    test('v5 payload preserves original area unit and optional contact', () {
       const input = PropertyListingInput(
+        inputVersion: 5,
         title: 'منزل للاختبار',
         purpose: 'sale',
         type: 'house',
@@ -23,7 +24,7 @@ void main() {
       );
 
       final payload = input.toMap();
-      expect(payload['listing_input_version'], 3);
+      expect(payload['listing_input_version'], 5);
       expect(payload['tenure_type'], 'freehold');
       expect(payload['area_value'], 2);
       expect(payload['area_unit'], 'libna_sanaani');
@@ -71,3 +72,4 @@ void main() {
     });
   });
 }
+

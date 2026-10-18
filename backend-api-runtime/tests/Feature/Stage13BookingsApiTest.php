@@ -21,69 +21,66 @@ class Stage13BookingsApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_published_listing_viewing_is_private_and_self_booking_is_blocked(): void
+    public function test_retired_property_viewing_never_creates_a_booking_conversation_or_notification(): void
     {
         [$owner,$ownerHeaders]=$this->user('s13-owner@example.test','+967750000001');
-        [$requester,$requesterHeaders]=$this->user('s13-requester@example.test','+967750000002');
+        [, $requesterHeaders]=$this->user('s13-requester@example.test','+967750000002');
         [, $outsiderHeaders]=$this->user('s13-outsider@example.test','+967750000003');
-        $property=$this->property($owner,'Stage 13 listing A');$window=$this->window(2,10);
-        $response=$this->withHeaders($requesterHeaders)->postJson("/api/properties/{$property->id}/viewings",$window+['note'=>'Please confirm this viewing.'])->assertCreated()->assertJsonPath('data.status','requested');
-        $bookingId=(int)$response->json('data.id');
-        $threadId=(int)$response->json('data.message_thread_id');
-        $this->assertGreaterThan(0,$threadId);
-        $this->withHeaders($ownerHeaders)->postJson("/api/properties/{$property->id}/viewings",$window)->assertConflict();
-        $this->withHeaders($outsiderHeaders)->getJson("/api/bookings/$bookingId")->assertNotFound();
-        $this->withHeaders($requesterHeaders)->postJson("/api/bookings/$bookingId/confirm")->assertForbidden();
-        $this->assertDatabaseHas('viewing_booking_events',['viewing_booking_id'=>$bookingId,'event'=>'requested']);
-        $this->assertDatabaseHas('viewing_bookings',['id'=>$bookingId,'message_thread_id'=>$threadId]);
-        $this->assertDatabaseHas('message_thread_participants',['thread_id'=>$threadId,'user_id'=>$requester->id]);
-        $this->assertDatabaseHas('message_thread_participants',['thread_id'=>$threadId,'user_id'=>$owner->id]);
-        $this->assertDatabaseHas('private_messages',['thread_id'=>$threadId,'sender_user_id'=>$requester->id]);
-        $this->assertDatabaseHas('user_notifications',['user_id'=>$owner->id,'type'=>'viewing_requested','entity_type'=>'message_thread','entity_id'=>$threadId]);
-        $this->assertSame($requester->id,(int)ViewingBooking::query()->findOrFail($bookingId)->requester_user_id);
+        $property=$this->property($owner,'Retired viewing');
+        foreach ([$ownerHeaders,$requesterHeaders,$outsiderHeaders] as $headers) {
+            $this->withHeaders($headers)->postJson("/api/properties/{$property->id}/viewings",$this->window(2,10))
+                ->assertStatus(410)->assertJsonPath('code','viewings_retired');
+        }
+        foreach (['viewing_bookings','viewing_booking_events','message_threads','private_messages','user_notifications'] as $table) $this->assertDatabaseCount($table,0);
     }
 
-    public function test_confirmation_prevents_target_overlap_and_cancellation_releases_slot(): void
+    public function test_all_legacy_booking_actions_are_retired_and_do_not_change_history(): void
     {
         [$owner,$ownerHeaders]=$this->user('s13-owner2@example.test','+967750000004');
         [$first,$firstHeaders]=$this->user('s13-first@example.test','+967750000005');
-        [, $secondHeaders]=$this->user('s13-second@example.test','+967750000006');
-        $property=$this->property($owner,'Stage 13 listing B');$window=$this->window(3,11);
-        $one=(int)$this->withHeaders($firstHeaders)->postJson("/api/properties/{$property->id}/viewings",$window)->assertCreated()->json('data.id');
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$one/confirm",['note'=>'Confirmed'])->assertOk()->assertJsonPath('data.status','confirmed');
-        $two=(int)$this->withHeaders($secondHeaders)->postJson("/api/properties/{$property->id}/viewings",$window)->assertCreated()->json('data.id');
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$two/confirm")->assertConflict();
-        $this->withHeaders($firstHeaders)->postJson("/api/bookings/$one/cancel",['reason'=>'Schedule changed'])->assertOk()->assertJsonPath('data.status','cancelled');
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$two/confirm")->assertOk()->assertJsonPath('data.status','confirmed');
-        $threadId=(int)ViewingBooking::query()->findOrFail($one)->message_thread_id;$this->assertDatabaseHas('user_notifications',['user_id'=>$first->id,'type'=>'booking_confirmed','entity_type'=>'message_thread','entity_id'=>$threadId]);
+        [, $outsiderHeaders]=$this->user('s13-outsider2@example.test','+967750000006');
+        $property=$this->property($owner,'Legacy history');
+        $booking=$this->legacyBooking($owner,$first,$property);
+        $before=$booking->fresh()->getRawOriginal();
+        foreach ([$ownerHeaders,$firstHeaders,$outsiderHeaders] as $headers) {
+            $this->withHeaders($headers)->getJson("/api/bookings/{$booking->id}")->assertStatus(410);
+            foreach (['confirm','decline','cancel','reschedule','complete'] as $action) {
+                $this->withHeaders($headers)->postJson("/api/bookings/{$booking->id}/$action",$this->window(4,12)+['reason'=>'legacy','note'=>'legacy'])->assertStatus(410);
+            }
+        }
+        $this->assertSame($before,$booking->fresh()->getRawOriginal());
+        $this->assertDatabaseCount('viewing_booking_events',0);
+        $this->assertDatabaseCount('user_notifications',0);
     }
 
-    public function test_development_manager_can_confirm_unit_viewing_and_requester_conflicts_are_blocked(): void
+    public function test_development_viewing_and_lists_are_retired_without_exposing_a_calendar(): void
     {
         [$manager,$managerHeaders]=$this->user('s13-manager@example.test','+967750000007',['regions_manager']);
         [, $requesterHeaders]=$this->user('s13-unit-user@example.test','+967750000008');
         [$unitA,$unitB]=$this->developmentUnits($manager);
-        $window=$this->window(4,13);
-        $a=(int)$this->withHeaders($requesterHeaders)->postJson("/api/development-units/{$unitA->id}/viewings",$window)->assertCreated()->json('data.id');
-        $this->withHeaders($managerHeaders)->getJson('/api/bookings/managed')->assertOk();
-        $this->withHeaders($managerHeaders)->postJson("/api/bookings/$a/confirm")->assertOk()->assertJsonPath('data.host_user_id',$manager->id);
-        $b=(int)$this->withHeaders($requesterHeaders)->postJson("/api/development-units/{$unitB->id}/viewings",$window)->assertCreated()->json('data.id');
-        $this->withHeaders($managerHeaders)->postJson("/api/bookings/$b/confirm")->assertConflict();
         $unitB->forceFill(['status'=>'sold'])->save();
-        $later=$this->window(5,14);$this->withHeaders($requesterHeaders)->postJson("/api/development-units/{$unitB->id}/viewings",$later)->assertNotFound();
+        foreach ([$unitA,$unitB] as $unit) {
+            $this->withHeaders($requesterHeaders)->postJson("/api/development-units/{$unit->id}/viewings",$this->window(4,13))->assertStatus(410);
+        }
+        foreach (['mine','managed'] as $list) $this->withHeaders($managerHeaders)->getJson('/api/bookings/'.$list)->assertStatus(410);
+        $this->withHeaders(['Authorization'=>''])->getJson('/api/bookings/mine')->assertUnauthorized();
+        $this->assertDatabaseCount('viewing_bookings',0);
+        $this->assertDatabaseCount('message_threads',0);
     }
 
-    public function test_reschedule_returns_to_requested_and_booking_event_history_is_immutable(): void
+    public function test_retirement_preserves_immutable_booking_event_history(): void
     {
         [$owner,$ownerHeaders]=$this->user('s13-owner3@example.test','+967750000009');
-        [, $requesterHeaders]=$this->user('s13-reschedule@example.test','+967750000010');
-        $property=$this->property($owner,'Stage 13 listing C');$booking=(int)$this->withHeaders($requesterHeaders)->postJson("/api/properties/{$property->id}/viewings",$this->window(6,9))->json('data.id');
-        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/$booking/confirm")->assertOk();
-        $this->withHeaders($requesterHeaders)->postJson("/api/bookings/$booking/reschedule",$this->window(7,15)+['note'=>'New time please'])->assertOk()->assertJsonPath('data.status','requested');
-        $this->assertDatabaseCount('viewing_booking_events',3);$event=ViewingBookingEvent::query()->where('viewing_booking_id',$booking)->firstOrFail();
+        [$requester]=$this->user('s13-reschedule@example.test','+967750000010');
+        $property=$this->property($owner,'Legacy immutable history');
+        $booking=$this->legacyBooking($owner,$requester,$property);
+        $event=ViewingBookingEvent::query()->create(['viewing_booking_id'=>$booking->id,'actor_user_id'=>$requester->id,
+            'actor_name_snapshot'=>$requester->name,'event'=>'requested','to_status'=>'requested','created_at'=>now()->subDay()]);
+        $this->withHeaders($ownerHeaders)->postJson("/api/bookings/{$booking->id}/reschedule",$this->window(7,15))->assertStatus(410);
         try{DB::table('viewing_booking_events')->where('id',$event->id)->update(['event'=>'tampered']);$this->fail('Immutable event update was allowed.');}catch(QueryException){}
         try{DB::table('viewing_booking_events')->where('id',$event->id)->delete();$this->fail('Immutable event delete was allowed.');}catch(QueryException){}
         $this->assertDatabaseHas('viewing_booking_events',['id'=>$event->id,'event'=>'requested']);
+        $this->assertDatabaseCount('viewing_bookings',1);
     }
 
     public function test_booking_permission_and_prior_stage_protections_exist(): void
@@ -94,6 +91,14 @@ class Stage13BookingsApiTest extends TestCase
         $support=Role::query()->where('key','support_manager')->firstOrFail();$permission=DB::table('permissions')->where('key','bookings.manage')->value('id');
         $this->assertTrue(DB::table('role_permission')->where('role_id',$support->id)->where('permission_id',$permission)->exists());
         $this->assertDatabaseHas('permissions',['key'=>'developments.manage']);$this->assertDatabaseHas('permissions',['key'=>'conversations.review_private']);
+    }
+
+    private function legacyBooking(User $owner, User $requester, Property $property): ViewingBooking
+    {
+        return ViewingBooking::query()->create(['reference'=>'LEGACY-'.$property->id,'target_type'=>'property','target_id'=>$property->id,
+            'target_title_snapshot'=>$property->title,'requester_user_id'=>$requester->id,'requester_name_snapshot'=>$requester->name,
+            'host_user_id'=>$owner->id,'host_name_snapshot'=>$owner->name,'starts_at'=>now()->addDay(),'ends_at'=>now()->addDay()->addHour(),
+            'timezone'=>'UTC','status'=>'confirmed']);
     }
 
     private function user(string $email,string $phone,array $roles=[]): array

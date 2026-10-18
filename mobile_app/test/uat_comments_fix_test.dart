@@ -9,6 +9,7 @@ import 'package:real_estate_mobile/features/community/presentation/community_dia
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_details_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
 
 void main() {
   testWidgets('comment dialog closes without lifecycle exceptions',
@@ -108,6 +109,7 @@ void main() {
         overrides: [
           propertyRepositoryProvider.overrideWithValue(propertyRepository),
           communityRepositoryProvider.overrideWithValue(communityRepository),
+          propertyMapPreviewBuilderProvider.overrideWithValue((context, lat, lon) => const SizedBox()),
         ],
         child: const MaterialApp(
           home: PropertyDetailsScreen(propertyId: 77),
@@ -116,8 +118,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final communityButton = find.text('التعليقات والتقييم والبلاغات');
-    await tester.scrollUntilVisible(communityButton, 300);
+    final communityButton = find.text('التعليقات والتقييمات');
+    final trustDetails = find.text('التوثيق والتقييم');
+    await tester.scrollUntilVisible(trustDetails, 300, scrollable: find.byType(Scrollable).first);
+    await Scrollable.ensureVisible(tester.element(trustDetails), alignment: .5);
+    await tester.pumpAndSettle();
+    await tester.tap(trustDetails);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(communityButton, 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.text('0 تعليق ظاهر'), findsOneWidget);
     await tester.tap(communityButton);
@@ -128,7 +136,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(propertyRepository.detailsCalls, greaterThanOrEqualTo(2));
-    await tester.scrollUntilVisible(communityButton, 300);
+    await tester.scrollUntilVisible(trustDetails, -300, scrollable: find.byType(Scrollable).first);
+    await Scrollable.ensureVisible(tester.element(trustDetails), alignment: .5);
+    await tester.pumpAndSettle();
+    if (communityButton.evaluate().isEmpty) {
+      await tester.tap(trustDetails);
+      await tester.pumpAndSettle();
+    }
+    await tester.scrollUntilVisible(communityButton, 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.text('3 تعليق ظاهر'), findsOneWidget);
     expect(tester.takeException(), isNull);
