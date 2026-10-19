@@ -176,6 +176,63 @@ class BrokerListingAssistantTest extends TestCase
 
     private const OWNER_BRIEF = "شقة للايجار في اب شارع السبل ثلاث غرف واثنين حمامات\nويوجد موقف سيارات\nمطلوب ايجار مقدم ثلاثة اشهر وضمانه تجاريه\nالسعر مئة الف ريال ونسبة السعي 100%";
 
+    private const PHONE_BRIEF = "شقة في اب شارع السيل ثلاث غرف واثنين حمامات دور ثالث\nيوجد موقف سيارات ومطلوب 100 الف ريال\nونسبة السعي 100%\nمطلوب ايجار ثلاثة اشهر مقدم";
+
+    public function test_phone_recording_brief_keeps_floor_requested_rent_and_trailing_advance(): void
+    {
+        [, $headers] = $this->actor('phone-brief', 'broker');
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response($this->response(['type'=>'apartment']))]);
+        $r = $this->prepare($headers, self::PHONE_BRIEF)->assertOk()->assertJsonPath('data.source', 'ai');
+        $this->assertPhoneBrief($r);
+        Http::assertSentCount(1);
+    }
+
+    public function test_phone_recording_brief_remains_complete_during_provider_failure(): void
+    {
+        [, $headers] = $this->actor('phone-offline', 'broker');
+        config(['gemini.enabled'=>false]);
+        $r = $this->prepare($headers, self::PHONE_BRIEF)->assertOk()->assertJsonPath('data.source', 'text');
+        $this->assertPhoneBrief($r);
+        Http::assertNothingSent();
+    }
+
+    private function assertPhoneBrief($response): void
+    {
+        foreach (['type'=>'apartment', 'purpose'=>'rent', 'governorate'=>'إب', 'street'=>'السيل',
+            'bedrooms'=>3, 'bathrooms'=>2, 'floor_number'=>'3', 'has_parking'=>true,
+            'monthly_rent'=>100000, 'currency'=>'YER', 'sai_amount_type'=>'percentage', 'broker_sai_rate_percent'=>100] as $key=>$value) {
+            $response->assertJsonPath('data.fields.'.$key, $value);
+        }
+        $response->assertJsonPath('data.fields.rental_conditions.0.kind', 'advance')
+            ->assertJsonPath('data.fields.rental_conditions.0.months', 3)
+            ->assertJsonPath('data.requires_review', true)->assertJsonMissingPath('data.fields.latitude')
+            ->assertJsonMissingPath('data.fields.longitude')->assertJsonMissingPath('data.fields.unit_number');
+        foreach (['الدور الثالث', '100000 ريال', '3 أشهر', '100%'] as $fact) {
+            $this->assertStringContainsString($fact, $response->json('data.copy.description'));
+        }
+        foreach (['properties', 'property_sai_terms', 'listing_editor_drafts'] as $table) $this->assertDatabaseCount($table, 0);
+    }
+
+    public function test_colloquial_completion_keeps_alternatives_negation_and_advance_amounts_unresolved(): void
+    {
+        $parser = app(\App\Services\ExplicitListingFacts::class);
+        foreach ([
+            'شقة للإيجار مطلوب 100 ألف ريال أو 200 ألف ريال',
+            'شقة للإيجار مطلوب 100 ألف ريال مقدم',
+            'شقة للإيجار مقدم مطلوب 100 ألف ريال',
+            'شقة للإيجار مطلوب 300 ألف ريال لثلاثة أشهر',
+            'شقة للبيع أو للإيجار مطلوب 100 ألف ريال',
+            'شقة مطلوب 100 ألف ريال',
+            'شقة للإيجار غير مطلوب 100 ألف ريال',
+        ] as $brief) $this->assertArrayNotHasKey('monthly_rent', $parser->extract($brief), $brief);
+        foreach (['شقة للإيجار ليس دور ثالث', 'شقة للإيجار دور ثالث أو رابع'] as $brief) {
+            $this->assertArrayNotHasKey('floor_number', $parser->extract($brief), $brief);
+        }
+        $foreign = $parser->extract('شقة للإيجار مطلوب 100 ألف دولار');
+        $this->assertSame('USD', $foreign['currency']);
+        $this->assertSame(100000.0, $foreign['monthly_rent']);
+    }
+
     public function test_complete_owner_brief_completes_sparse_ai_response_without_any_listing_write(): void
     {
         [, $headers] = $this->actor('complete-brief', 'broker');
@@ -284,3 +341,4 @@ class BrokerListingAssistantTest extends TestCase
             'status' => 'draft', 'review_status' => 'draft']);
     }
 }
+

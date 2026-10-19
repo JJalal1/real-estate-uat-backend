@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -98,6 +97,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _whatsapp = TextEditingController();
   final _documentOwnerName = TextEditingController();
   final _relationshipNote = TextEditingController();
+  final _editorScroll = ScrollController();
 
   int _step = 0;
   String _purpose = 'sale';
@@ -111,6 +111,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   String? _relationshipType;
   double? _latitude;
   double? _longitude;
+  bool get _hasLocation => _latitude != null && _longitude != null;
   Map<String, dynamic>? _landBoundaryGeoJson;
   bool _busy = false;
   bool _resolvingLocation = false;
@@ -305,10 +306,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         text('title',_title,'عنوان الإعلان *'),
         if (_requiresSaleTenure) choice('tenure_type','نوع الملكية *',_tenureType,const {'freehold':'حر','waqf':'وقف'},(v) => setState(() => _tenureType = v)),
         text('governorate',_governorate,'المحافظة *'),
-        if (keys.contains('latitude') || keys.contains('longitude')) ...[
-          const SizedBox(height: 12), Text(_latitude == null ? 'أكد نقطة العقار على الخريطة؛ لن نخمن موقعه.' : 'تم تحديد نقطة العقار.'),
-          TextButton.icon(onPressed: _busy ? null : _selectOnMap, icon: const Icon(Icons.location_on_outlined), label: const Text('تأكيد الموقع على الخريطة')),
-        ],
+        const SizedBox(height: 12),
+        _locationCard(),
         if (keys.contains('boundary')) TextButton(onPressed: _busy ? null : _pickLandBoundary, child: const Text('تحديد حدود الأرض')),
         if (keys.contains('floor_number') && _unitNeedsFloor) Padding(padding: const EdgeInsets.only(top: 12), child: _floorSelector()),
         if (_applies('unit_number')) text('unit_number',_unitNumber,'رقم الوحدة أو موضعها *'),
@@ -331,7 +330,21 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Widget _completionActions() => _FinalActionsBar(busy:_busy,
     onPrevious:() => setState(() => _completionOnly = false),onPreview:_preview,
-    onSaveDraft:() => _persist(submit:false),onSubmit:() => _persist(submit:true));
+    primaryLabel: 'معاينة الإعلان',
+    onSaveDraft:() => _persist(submit:false),onSubmit:_reviewCompletedDraft);
+
+  void _reviewCompletedDraft() {
+    FocusScope.of(context).unfocus();
+    final validation = _validateForSubmit();
+    if (validation != null) {
+      setState(() => _completionFields.addAll(_missingFields()));
+      _message(validation);
+      if (_editorScroll.hasClients) _editorScroll.animateTo(0,
+        duration: AppMotion.fast, curve: Curves.easeOut);
+      return;
+    }
+    unawaited(_preview());
+  }
 
   Map<String, TextEditingController> get _recoveryFields => {
     'broker_sai_rate_percent': _saiRate,
@@ -621,6 +634,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   @override
   void dispose() {
+    _editorScroll.dispose();
     _descriptionRetryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _price.removeListener(_onPriceChanged);
@@ -678,11 +692,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
           actions: [IconButton(key: const ValueKey('listing-completion'), tooltip: 'نواقص الإعلان',
             onPressed: _busy ? null : _reviewCompletion, icon: const EbrokerIcon(Icons.fact_check_outlined)),
-            Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
+            if (!_completionOnly) Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
             child: EbrokerText('${_step + 1}/4', size: 16, weight: FontWeight.w600,
               color: Theme.of(context).colorScheme.primary)))],
         ),
+        bottomNavigationBar: !_recoveryReady ? null : _completionOnly ? _completionActions() : _actions(),
         body: SafeArea(
+          bottom: false,
           child: !_recoveryReady ? const AppLoadingState() : Column(
             children: [
               if (_recoveryUserId != null) Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 0), child: Text(
@@ -706,6 +722,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 ),
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _editorScroll,
                   padding: const EdgeInsetsDirectional.fromSTEB(
                     AppLayout.compactPageGutter,
                     AppSpacing.s8,
@@ -721,7 +738,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                   ),
                 ),
               ),
-              _completionOnly ? _completionActions() : _actions(),
             ],
           ),
         ),
@@ -844,84 +860,45 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     );
   }
 
+  Widget _locationCard() => AppSurface(
+    key: const ValueKey('listing-location-status'),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        EbrokerIcon(_hasLocation ? Icons.check_circle_outline : Icons.location_on_outlined,
+          color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 10),
+        Expanded(child: Text(_hasLocation ? 'تم تحديد موقع العقار على الخريطة' : 'حدد موقع العقار يدويًا على الخريطة',
+          style: Theme.of(context).textTheme.titleSmall)),
+      ]),
+      const SizedBox(height: 8),
+      Text(_hasLocation ? 'النقطة محفوظة عند الرجوع والمعاينة. عدّلها فقط إذا تغيّر موقع العقار.'
+        : 'اسم المحافظة والشارع لا يثبت نقطة العقار. افتح الخريطة وضع الدبوس على العقار ثم أكد الموقع.'),
+      const SizedBox(height: 12),
+      AppButton(key: const ValueKey('listing-select-location'),
+        label: _hasLocation ? 'تعديل الموقع على الخريطة' : 'تأكيد الموقع على الخريطة',
+        icon: Icons.map_outlined, style: _hasLocation ? AppButtonStyle.tonal : AppButtonStyle.filled,
+        onPressed: _busy || _resolvingLocation ? null : _selectOnMap, expand: true),
+    ]));
+
   Widget _locationStep() {
-    final hasLocation = _latitude != null && _longitude != null;
+    final hasLocation = _hasLocation;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const AppSectionHeader(
-          title: 'موقع العقار',
-          subtitle:
-              'النقطة على الخريطة هي المرجع الأساسي، والعنوان يساعد البحث والمراجعة.',
-        ),
-        const SizedBox(height: AppSpacing.s16),
-        AppSurface(
-          child: Row(
-            children: [
-              EbrokerIcon(
-                hasLocation
-                    ? Icons.check_circle_outline
-                    : Icons.location_on_outlined,
-                color: hasLocation
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.s12),
-              Expanded(
-                child: Text(
-                  hasLocation
-                      ? 'تم تحديد موقع العقار على الخريطة'
-                      : 'لم يتم تحديد موقع العقار بعد.',
-                ),
-              ),
-            ],
-          ),
-        ),
+        const AppSectionHeader(title: 'موقع العقار',
+          subtitle: 'ثبّت الموقع مرة واحدة، وسيبقى محفوظًا مع المسودة.'),
         const SizedBox(height: AppSpacing.s12),
-        Row(
-          children: [
-            Expanded(
-              child: AppButton(
-                label: 'اختيار من الخريطة',
-                icon: Icons.map_outlined,
-                onPressed: _busy || _resolvingLocation ? null : _selectOnMap,
-                expand: true,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.s8),
-            Expanded(
-              child: AppButton(
-                label: 'تحديد موقعي الحالي',
-                icon: Icons.my_location,
-                onPressed:
-                    _busy || _resolvingLocation ? null : _useCurrentLocation,
-                expand: true,
-              ),
-            ),
-          ],
-        ),
+        _locationCard(),
         if (_resolvingLocation) ...[
           const SizedBox(height: AppSpacing.s12),
           const LinearProgressIndicator(),
         ],
-        const SizedBox(height: AppSpacing.s20),
-        AppTextField(
-          controller: _governorate,
-          label: 'المحافظة *',
-          enabled: !_busy && hasLocation,
-        ),
+        const SizedBox(height: AppSpacing.s16),
+        AppTextField(controller: _governorate, label: 'المحافظة *', enabled: !_busy),
         const SizedBox(height: AppSpacing.s12),
-        AppTextField(
-          controller: _district,
-          label: 'المنطقة / الحي',
-          enabled: !_busy && hasLocation,
-        ),
+        AppTextField(controller: _district, label: 'المنطقة / الحي', enabled: !_busy),
         const SizedBox(height: AppSpacing.s12),
-        AppTextField(
-          controller: _street,
-          label: 'الشارع',
-          enabled: !_busy && hasLocation,
-        ),
+        AppTextField(controller: _street, label: 'الشارع', enabled: !_busy),
         if (_type == 'land' && hasLocation) ...[
           const SizedBox(height: AppSpacing.s16),
           AppInlineMessage(
@@ -1292,7 +1269,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
     if (step == 1) {
       if (_latitude == null || _longitude == null) {
-        return 'حدد موقع العقار على الخريطة أو باستخدام موقعك الحالي.';
+        return 'حدد موقع العقار يدويًا على الخريطة، ثم اضغط تأكيد هذا الموقع.';
       }
       if (_governorate.text.trim().length < 2) return 'أكمل اسم المحافظة.';
       if (_composedAddress.length < 3) return 'أكمل معلومات عنوان العقار.';
@@ -1505,7 +1482,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       onMessageChanged: (text) => _assistantBrief.text = text));
     if (!mounted || result == null) return;
     final oldPurpose = _purpose;
-    final addressChanged = const ['governorate','district','street'].any((k) => result[k] != null && result[k] != _aiFacts()[k]);
+    final changedCity = result['governorate'] is String && _governorate.text.trim().isNotEmpty &&
+      _normalizedName(result['governorate'] as String) != _normalizedName(_governorate.text);
     setState(() {
       if (result['description'] is String) _description.text = result['description'] as String;
       if (_typeLabels.containsKey(result['type'])) { _type = result['type'] as String; _typeConfirmed = true; }
@@ -1531,7 +1509,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (!_supportsElevator) _elevatorChoice = null;
       if (!_requiresSaleTenure) _tenureType = null;
       if (!_isUnitType) { _floorNumber.clear(); _unitNumber.clear(); _buildingReference.clear(); }
-      if (addressChanged) { _latitude = null; _longitude = null; _landBoundaryGeoJson = null; }
+      // Returning, address completion and Arabic spelling variants preserve
+      // the confirmed point. A genuinely different city needs its own point.
+      if (changedCity) { _latitude = null; _longitude = null; _landBoundaryGeoJson = null; }
       if (_type != 'land') _landBoundaryGeoJson = null;
       if (oldPurpose != _purpose) { _saiAccepted = false; _saiTouched = true; }
       if (const ['percentage','fixed'].contains(result['sai_amount_type'])) _saiAmountType = result['sai_amount_type'] as String;
@@ -1543,9 +1523,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (oldPurpose != _purpose) await _loadSaiPolicy();
     if (!mounted) return;
     if (prepareDraft) {
-      _completionOnly = true; _completionFields = _missingFields();
       final gaps = _completionGaps();
-      if (gaps.isNotEmpty) setState(() => _step = gaps.first.$1);
+      setState(() {
+        _completionOnly = true; _completionFields = _missingFields();
+        if (gaps.isNotEmpty) _step = gaps.first.$1;
+      });
+      if (_editorScroll.hasClients) _editorScroll.jumpTo(0);
     }
     unawaited(_saveRecovery());
     _message('طُبّق الاقتراح في الحقول. راجع بقية الإعلان قبل إرساله.');
@@ -1746,7 +1729,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       return;
     }
 
-    await AppBottomSheet.show<void>(
+    final submit = await AppBottomSheet.show<bool>(
       context,
       builder: (sheetContext) => Directionality(
         textDirection: TextDirection.rtl,
@@ -1830,6 +1813,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                   }),
                 ],
                 const SizedBox(height: AppSpacing.s20),
+                if (_validateForSubmit() == null) ...[
+                  AppButton(key: const ValueKey('listing-preview-submit'), label: 'إرسال للمراجعة',
+                    onPressed: () => Navigator.pop(sheetContext, true), expand: true),
+                  const SizedBox(height: 8),
+                ],
                 AppButton(
                   label: 'إغلاق المعاينة',
                   style: AppButtonStyle.outlined,
@@ -1845,6 +1833,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         ),
       ),
     );
+    if (mounted && submit == true) await _persist(submit: true);
   }
 
   void _onPriceChanged() {
@@ -2055,84 +2044,42 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _selectOnMap() async {
-    final selection =
-        await Navigator.of(context).push<PropertyLocationSelection>(
-      MaterialPageRoute<PropertyLocationSelection>(
-        builder: (_) => PropertyLocationPickerScreen(
-          initialLatitude: _latitude,
-          initialLongitude: _longitude,
-          reverseLookup: (latitude, longitude) => ref
-              .read(propertyRepositoryProvider)
-              .resolveLocationAddress(latitude: latitude, longitude: longitude),
-        ),
-      ),
-    );
+    final selection = await ref.read(propertyLocationPickerProvider)(context,
+      initialLatitude: _latitude, initialLongitude: _longitude);
     if (!mounted || selection == null) return;
     setState(() {
+      if (_latitude != selection.latitude || _longitude != selection.longitude) _landBoundaryGeoJson = null;
       _latitude = selection.latitude;
       _longitude = selection.longitude;
     });
-    await _fillAddress(
-        selection.address, selection.latitude, selection.longitude);
-  }
-
-  Future<void> _useCurrentLocation() async {
-    try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        _message('فعّل خدمة الموقع أو اختر موقع العقار يدوياً على الخريطة.');
-        return;
-      }
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        _message('لم يتم منح إذن الموقع. يمكنك اختيار موقع العقار من الخريطة.');
-        return;
-      }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 20),
-        ),
-      );
-      if (!mounted) return;
-      setState(() {
-        _latitude = position.latitude;
-        _longitude = position.longitude;
-      });
-      await _fillAddress(
-        const PropertyLocationAddress(),
-        position.latitude,
-        position.longitude,
-      );
-    } catch (_) {
-      _message('تعذر الحصول على الموقع الحالي. استخدم الخريطة لتحديد العقار.');
-    }
+    // The picker already attempted address lookup. Do not hold the user in a
+    // second network request; the confirmed point is saved even without it.
+    await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: false);
+    unawaited(_saveRecovery());
   }
 
   Future<void> _fillAddress(
     PropertyLocationAddress initial,
     double latitude,
-    double longitude,
+    double longitude, {bool resolveMissing = true}
   ) async {
+    final before = [_governorate.text, _district.text, _street.text];
     setState(() => _resolvingLocation = true);
     try {
       var address = initial;
-      if (!address.isComplete) {
+      if (resolveMissing && !address.isComplete) {
         final resolved = await ref
             .read(propertyRepositoryProvider)
             .resolveLocationAddress(latitude: latitude, longitude: longitude);
         address = address.mergeFallback(resolved);
       }
-      if (!mounted) return;
+      if (!mounted || _latitude != latitude || _longitude != longitude) return;
       setState(() {
-        if (address.governorate != null) {
+        if (address.governorate != null && _governorate.text == before[0]) {
           _governorate.text = address.governorate!;
         }
-        if (address.district != null) _district.text = address.district!;
-        if (address.street != null) _street.text = address.street!;
+        if (address.district != null && _district.text == before[1]) _district.text = address.district!;
+        if (address.street != null && _street.text == before[2]) _street.text = address.street!;
       });
     } catch (_) {
       if (mounted) {
@@ -2222,8 +2169,9 @@ class _BottomBar extends StatelessWidget {
 
 class _FinalActionsBar extends StatelessWidget {
   const _FinalActionsBar({required this.busy, required this.onPrevious,
-    required this.onPreview, required this.onSaveDraft, required this.onSubmit});
+    required this.onPreview, required this.onSaveDraft, required this.onSubmit, this.primaryLabel = 'إرسال للمراجعة'});
   final bool busy;
+  final String primaryLabel;
   final VoidCallback onPrevious, onPreview, onSaveDraft, onSubmit;
   @override
   Widget build(BuildContext context) => Material(color: Theme.of(context).colorScheme.surface,
@@ -2233,7 +2181,7 @@ class _FinalActionsBar extends StatelessWidget {
         Expanded(child: EbrokerStepButton(label: 'السابق', style: AppButtonStyle.outlined,
           onPressed: busy ? null : onPrevious, expand: true)),
         const SizedBox(width: 8),
-        Expanded(flex: 2, child: EbrokerStepButton(label: 'إرسال للمراجعة', icon: Icons.send_outlined,
+        Expanded(flex: 2, child: EbrokerStepButton(label: primaryLabel, icon: primaryLabel == 'إرسال للمراجعة' ? Icons.send_outlined : Icons.visibility_outlined,
           loading: busy, onPressed: busy ? null : onSubmit, expand: true)),
         const SizedBox(width: 8),
         PopupMenuButton<String>(tooltip: 'خيارات المسودة', enabled: !busy,
@@ -2273,3 +2221,4 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
+

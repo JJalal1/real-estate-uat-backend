@@ -1,5 +1,10 @@
 # AI Project State — REAL ESTATE UAT
 
+## October19 phone1090 listing flow corrections on the verified1092 source
+
+Continue from `b43a8e8d20bf8c42a5b2cf26cc3318738756f517` so the original template menu remains. The owner supplied the74.75-second1090 phone recording and requested a much simpler journey: preserve the confirmed point when returning, explicitly require manual map confirmation, and hide the redundant Sai-kind card even when the brief names it. `LISTING_FLOW_1092_AR.md` records the acceptance contract. Reviewed copy now precedes the selectable field details and its action stays fixed; assisted completion leads to preview before explicit review submission. The existing footer is Scaffold navigation so notifications appear above it. Conservative literal preparation covers the recording's `دور ثالث`, requested currency amount and trailing advance-month phrases. No schema, policy, permission, dependency or asset changes. CI/native original-byte installer verification and physical-device acceptance are separate gates; backend rollout requires the normal owner approval after reviewable evidence.
+
+
 ## October19 exact template creation menu correction on1090
 
 The owner supplied the template and current1090 screenshots and explicitly requested the original template elements, icons and animation, changing only the two choices to «ذكاء اصطناعي» and «تعبئة يدوي». `TEMPLATE_CREATION_MENU_AR.md` pins the purchased source and exact presentation parameters. The two original teal pills now live in the body Stack behind the undimmed navigation bar; the original SVG hexagon/plus and navigation vectors retain their independent template animations. Close/back/outside/tab actions and single-flight canonical editor routing are covered, with existing login/verification gates retained. No backend, database, dependencies, assets or native permissions change. Automated evidence and the exact-source installer must be verified separately; physical-device acceptance remains open.

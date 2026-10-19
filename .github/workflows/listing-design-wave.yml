@@ -1,7 +1,7 @@
 name: Listing and Design Wave Acceptance
 on:
   push:
-    branches: [work/listing-design-1087, work/template-creation-menu]
+    branches: [work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092]
   workflow_dispatch:
 permissions:
   contents: read
@@ -75,4 +75,3 @@ jobs:
       - name: Bounded preview fallback
         if: ${{ !cancelled() && steps.previews.outcome == 'failure' }}
         run: python3 -B scripts/emit_listing_design_previews.py
-

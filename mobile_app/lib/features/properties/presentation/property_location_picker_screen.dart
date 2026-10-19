@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../map/domain/map_screen_coordinate_space.dart';
 import '../domain/property_location_address.dart';
+import '../data/property_repository.dart';
+
+typedef PropertyLocationPicker = Future<PropertyLocationSelection?> Function(
+  BuildContext context, {double? initialLatitude, double? initialLongitude});
+
+final propertyLocationPickerProvider = Provider<PropertyLocationPicker>((ref) =>
+  (context, {initialLatitude, initialLongitude}) => Navigator.of(context).push<PropertyLocationSelection>(
+    MaterialPageRoute<PropertyLocationSelection>(builder: (_) => PropertyLocationPickerScreen(
+      initialLatitude: initialLatitude, initialLongitude: initialLongitude,
+      reverseLookup: (latitude, longitude) => ref.read(propertyRepositoryProvider)
+        .resolveLocationAddress(latitude: latitude, longitude: longitude)))));
 
 class PropertyLocationSelection {
   const PropertyLocationSelection({
@@ -200,6 +212,7 @@ class _PropertyLocationPickerScreenState
 
   Future<void> _confirm() async {
     if (_resolving) return;
+    final selection = _selection;
     setState(() {
       _resolving = true;
       _message = 'جارٍ قراءة المحافظة والحي والشارع…';
@@ -209,7 +222,8 @@ class _PropertyLocationPickerScreenState
     final lookup = widget.reverseLookup;
     if (lookup != null) {
       try {
-        address = await lookup(_selection.latitude, _selection.longitude);
+        address = await lookup(selection.latitude, selection.longitude)
+          .timeout(const Duration(seconds: 4));
       } catch (_) {
         address = const PropertyLocationAddress();
       }
@@ -218,8 +232,8 @@ class _PropertyLocationPickerScreenState
     if (!mounted) return;
     Navigator.of(context).pop(
       PropertyLocationSelection(
-        latitude: _selection.latitude,
-        longitude: _selection.longitude,
+        latitude: selection.latitude,
+        longitude: selection.longitude,
         address: address,
       ),
     );
@@ -409,3 +423,4 @@ class _PropertyLocationPickerScreenState
     );
   }
 }
+

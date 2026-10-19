@@ -15,6 +15,8 @@ import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_location_address.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_location_picker_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_ai_sheet.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 import 'broker_experience_ui_test.dart' show BrokerTestAuth;
@@ -55,6 +57,16 @@ class _CompleteAssistant extends _Assistant {
   }
 }
 
+class _PinnedAssistant extends _Assistant {
+  @override
+  Map<String, dynamic> get proposals => {'type':'house','purpose':'sale','governorate':'اب','district':'المدينة','street':'الروضة'};
+  @override
+  Future<Map<String, dynamic>> prepareListing(String message, Map<String, dynamic> facts, {int? propertyId, String? draftKey}) async => {
+    'fields': proposals, 'source':'ai', 'requires_review':true,
+    'copy':{'title':'منزل للبيع في إب','description':'منزل للبيع في إب، شارع الروضة.'},
+  };
+}
+
 class _Recovery extends ListingRecoveryStore {
   _Recovery(this.snapshot);
   Map<String, dynamic>? snapshot;
@@ -81,12 +93,13 @@ Map<String, dynamic> _snapshot() => {
 };
 
 Future<void> _pump(WidgetTester tester, Widget child, {required _Assistant ai, _Recovery? recovery,
-  Wave3VoiceFake? voice, double scale = 1, GlobalKey? boundary}) async {
+  Wave3VoiceFake? voice, double scale = 1, GlobalKey? boundary, PropertyLocationPicker? picker, Wave6Drafts? drafts}) async {
   tester.view.physicalSize = const Size(412, 915); tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides: [
     aiRepositoryProvider.overrideWithValue(ai), propertyRepositoryProvider.overrideWithValue(_Properties()),
-    listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
+    listingAccountDraftRepositoryProvider.overrideWithValue(drafts ?? Wave6Drafts()),
+    if (picker != null) propertyLocationPickerProvider.overrideWithValue(picker),
     authControllerProvider.overrideWith(() => BrokerTestAuth(1)),
     listingRecoveryStoreProvider.overrideWithValue(recovery ?? _Recovery(null)),
     voiceInputProvider.overrideWithValue(voice ?? Wave3VoiceFake()),
@@ -185,7 +198,9 @@ void main() {
       await _tap(tester,'listing-ai-prepare');expect(ai.received,ownerBrief);expect(applied,isNull);
       await _reveal(tester,'listing-ai-field-type');
       await _capture(tester,boundary,'complete-fields-${byVoice?'voice':'typed'}');
-      for(final field in ai.proposals.keys) { await _reveal(tester,'listing-ai-field-$field'); }
+      for(final field in ai.proposals.keys.where((key) => key != 'sai_amount_type')) { await _reveal(tester,'listing-ai-field-$field'); }
+      expect(find.text('نوع السعي'), findsNothing);
+      expect(find.byKey(const ValueKey('listing-ai-field-sai_amount_type')), findsNothing);
       await _reveal(tester,'listing-ai-apply-draft');
       await _capture(tester,boundary,'complete-copy-${byVoice?'voice':'typed'}');
       await _tap(tester,'listing-ai-apply-draft');
@@ -240,7 +255,8 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')), 'شقة في صنعاء أربع غرف');
     await _tap(tester, 'listing-ai-prepare');
     await _tap(tester, 'listing-ai-apply-draft');
-    expect(find.text('2/4'), findsOneWidget); expect(find.text('أكمل الناقص فقط'), findsOneWidget);
+    expect(find.text('أكمل الناقص فقط'), findsOneWidget);
+    expect(find.text('2/4'), findsNothing);
     expect(find.text('تأكيد الموقع على الخريطة'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1)); await tester.pumpAndSettle();
     final fields = recovery.snapshot!['fields'] as Map;
@@ -305,6 +321,118 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('confirmed map point survives back, canceled editing and account draft recovery', (tester) async {
+    final snapshot = _snapshot()..['step'] = 1..['latitude'] = null..['longitude'] = null;
+    final recovery = _Recovery(snapshot), drafts = Wave6Drafts(), boundary = GlobalKey();
+    var picks = 0;
+    PropertyLocationPicker picker = (context, {initialLatitude, initialLongitude}) async {
+      picks++;
+      if (picks == 1) {
+        expect(initialLatitude, isNull); expect(initialLongitude, isNull);
+        return const PropertyLocationSelection(latitude:13.966, longitude:44.183,
+          address:PropertyLocationAddress(governorate:'إب',street:'السيل'));
+      }
+      expect(initialLatitude,13.966); expect(initialLongitude,44.183);
+      return null;
+    };
+    await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:recovery,drafts:drafts,picker:picker,boundary:boundary);
+    await _tap(tester,'listing-select-location');
+    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
+    expect(find.text('3/4'),findsOneWidget);
+    await tester.tap(find.text('السابق'));await tester.pumpAndSettle();
+    await _tap(tester,'listing-select-location');
+    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
+    expect(recovery.snapshot!['latitude'],13.966);expect(recovery.snapshot!['longitude'],44.183);
+    expect(drafts.saves.last['latitude'],13.966);expect(drafts.saves.last['longitude'],44.183);
+    await tester.pumpWidget(const SizedBox.shrink());await tester.pumpAndSettle();
+    await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:recovery,drafts:drafts,picker:picker,boundary:boundary);
+    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    await _capture(tester,boundary,'complete-pin-restored');
+    await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
+    expect(find.text('3/4'),findsOneWidget);expect(picks,2);expect(tester.takeException(),isNull);
+  });
+
+  testWidgets('closing preview and returning through the location step never asks to select its saved point again', (tester) async {
+    final recovery = _Recovery(_snapshot());
+    await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:recovery);
+    await tester.tap(find.byTooltip('خيارات المسودة'));await tester.pumpAndSettle();
+    await tester.tap(find.text('معاينة'));await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('إغلاق المعاينة'));await tester.tap(find.text('إغلاق المعاينة'));await tester.pumpAndSettle();
+    for (var i=0;i<2;i++) {await tester.tap(find.text('السابق'));await tester.pumpAndSettle();}
+    expect(find.text('2/4'),findsOneWidget);
+    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
+    expect(find.text('3/4'),findsOneWidget);
+    await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
+    expect(recovery.snapshot!['latitude'],15.3694);expect(recovery.snapshot!['longitude'],44.1910);
+    expect(find.textContaining('حدد موقع العقار يدويًا'),findsNothing);expect(tester.takeException(),isNull);
+  });
+
+  testWidgets('reviewed street changes and Arabic city spelling preserve the already confirmed point', (tester) async {
+    final snapshot=_snapshot()..['step']=0..['latitude']=13.966..['longitude']=44.183;
+    (snapshot['fields'] as Map)['governorate']='إب';
+    final recovery=_Recovery(snapshot);
+    await _pump(tester,const ListingEditorScreen(),ai:_PinnedAssistant(),recovery:recovery);
+    await _tap(tester,'listing-draft-assistant');
+    await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),'منزل للبيع في اب شارع الروضة');
+    await _tap(tester,'listing-ai-prepare');await _tap(tester,'listing-ai-apply-draft');
+    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    expect(find.text('إرسال للمراجعة'),findsNothing);expect(find.text('معاينة الإعلان'),findsOneWidget);
+    await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
+    expect(recovery.snapshot!['latitude'],13.966);expect(recovery.snapshot!['longitude'],44.183);
+    expect((recovery.snapshot!['fields'] as Map)['street'],'الروضة');
+    expect(tester.takeException(),isNull);
+  });
+
+  testWidgets('address text alone requires manual map confirmation and its warning stays above navigation', (tester) async {
+    final snapshot=_snapshot()..['step']=1..['latitude']=null..['longitude']=null;
+    final boundary=GlobalKey();
+    await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:_Recovery(snapshot),boundary:boundary);
+    expect(find.text('حدد موقع العقار يدويًا على الخريطة'),findsOneWidget);
+    expect(find.textContaining('اسم المحافظة والشارع لا يثبت نقطة العقار'),findsOneWidget);
+    expect(find.text('تحديد موقعي الحالي'),findsNothing);
+    await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
+    expect(find.text('2/4'),findsOneWidget);
+    expect(find.text('حدد موقع العقار يدويًا على الخريطة، ثم اضغط تأكيد هذا الموقع.'),findsOneWidget);
+    final bar=tester.widget<Scaffold>(find.byType(Scaffold).first).bottomNavigationBar!;
+    expect(tester.getRect(find.byType(SnackBar)).bottom,lessThanOrEqualTo(tester.getRect(find.byWidget(bar)).top+1));
+    expect(find.text('التالي').hitTestable(),findsOneWidget);
+    await _capture(tester,boundary,'complete-required-map');expect(tester.takeException(),isNull);
+  });
+
+  testWidgets('deselecting the visible Sai value also removes its hidden discriminator from recomposition and apply', (tester) async {
+    final ai=_CompleteAssistant();Map<String,dynamic>? applied;
+    await _pump(tester,Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()async {
+      applied=await AppBottomSheet.show<Map<String,dynamic>>(context,builder:(_)=>const ListingAiSheet(prepareDraft:true,facts:{},initialMessage:ownerBrief));
+    },child:const Text('ابدأ')))),ai:ai);
+    await tester.tap(find.text('ابدأ'));await tester.pumpAndSettle();await _tap(tester,'listing-ai-prepare');
+    expect(find.text('نوع السعي'),findsNothing);
+    await _tap(tester,'listing-ai-field-broker_sai_rate_percent');await _tap(tester,'listing-ai-refresh-copy');
+    expect(ai.composedFacts!.containsKey('sai_amount_type'),isFalse);
+    expect(ai.composedFacts!.containsKey('broker_sai_rate_percent'),isFalse);
+    await _tap(tester,'listing-ai-apply-draft');
+    expect(applied!.containsKey('sai_amount_type'),isFalse);expect(applied!.containsKey('broker_sai_rate_percent'),isFalse);
+    expect(tester.takeException(),isNull);
+  });
+
+  for (final scale in [1.0,2.4]) {
+    testWidgets('review action stays visible while reading every proposed field at scale $scale',(tester)async {
+      final boundary=GlobalKey();
+      await _pump(tester,const Scaffold(body:ListingAiSheet(prepareDraft:true,facts:{},initialMessage:ownerBrief)),
+        ai:_CompleteAssistant(),scale:scale,boundary:boundary);
+      await _tap(tester,'listing-ai-prepare');
+      final action=find.byKey(const ValueKey('listing-ai-apply-draft'));
+      expect(action.hitTestable(),findsOneWidget);
+      final before=tester.getRect(action);
+      await _reveal(tester,'listing-ai-field-rental_conditions');
+      expect(action.hitTestable(),findsOneWidget);expect(tester.getRect(action),before);
+      expect(find.byKey(const ValueKey('listing-ai-field-sai_amount_type')),findsNothing);
+      await _capture(tester,boundary,'complete-sticky-$scale');expect(tester.takeException(),isNull);
+    });
+  }
+
   for (final scale in [1.0, 2.4]) {
     testWidgets('assistant remains readable and scrollable at Arabic scale $scale', (tester) async {
       final key = GlobalKey();
@@ -321,3 +449,4 @@ void main() {
     });
   }
 }
+

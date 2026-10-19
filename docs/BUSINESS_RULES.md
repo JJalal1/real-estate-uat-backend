@@ -1,5 +1,10 @@
 # Business Rules — REAL ESTATE
 
+## October19 phone-confirmed listing simplification
+
+The advertiser must explicitly confirm the property point in the map. A typed or extracted address does not set coordinates; device location helps center the map but still requires confirmation. Navigation, preview, address completion and Arabic spelling variants within the same city preserve that point and its account/local draft. A genuinely different governorate requires a fresh point, and moving a land point invalidates its old boundary. The numeric Sai proposal remains reviewable, with its discriminator derived from the selected value and never shown as a separate `نوع السعي` card. Deselecting that value removes the paired metadata from recomposition/application. Preserve financial policy, eligibility, explicit submission and financial consent. See `LISTING_FLOW_1092_AR.md`.
+
+
 ## October19 complete listing facts and refreshed interface
 
 Complete unambiguous facts in a supplied listing brief populate all corresponding applicable fields after review, even when the AI provider returns a sparse result. Literal organization is labeled honestly during provider failure. Numbers in Arabic words, monthly rent, advance requirements, guarantor and explicit Sai must remain distinct; unknown location/floor/photos are never invented. Valid proposals start selected, with explicit deselection and recomposition before application. Only explicit submission sends the draft for review, and financial consent remains separate. The centered assisted/manual add action and two professional destinations supersede previous navigation/palette/radius presentation. Real WhatsApp OTP, private evidence, financial rates and history, manual-stop voice and account eligibility stay authoritative. See `LISTING_DESIGN_WAVE_AR.md`.
@@ -250,3 +255,4 @@ The first listing step offers basic types only; a whole-floor unit is an apartme
 A modern ordinary account needs the existing owner verification before publishing one personal property. Any non-archived personal listing, including a draft, consumes that slot; editing/resuming it does not create another slot. A second creation is rejected by the backend under a user-row transaction lock and offers broker review. Approved brokers/offices can manage multiple listings and use the work/CRM screens. An approved owner retains owned-property availability, conversation/viewing/outcome actions and platform receivables without getting professional CRM. Broker activation is free and grants tools only after normal verification approval; registration remains ordinary.
 
 The historical v0 local/test listing compatibility is retained; modern registration cannot request it. No commission formulas, financial snapshots, hierarchy, contracts or public/private storage boundaries change.
+

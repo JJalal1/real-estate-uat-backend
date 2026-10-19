@@ -45,8 +45,11 @@ class ExplicitListingFacts
         foreach (['bedrooms'=>'غرفتين|غرفتان', 'bathrooms'=>'حمامين|حمامان'] as $key => $noun) {
             if (!isset($fields[$key]) && $this->positive('(?:'.$noun.')', $text)) $fields[$key] = 2;
         }
-        if (preg_match_all('/(?:الدور|الطابق)\s*(\d+|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الارضي)(?!\pL|\d)/u', $text, $m) === 1) {
-            $fields['floor_number'] = app(DynamicPropertySchema::class)->normalizeFloor($m[1][0]);
+        if (preg_match_all('/(?<!\pL)(?:ال)?(?:دور|طابق)\s*(\d+|(?:ال)?(?:اول|ثاني|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر|ارضي))(?!\pL|\d)/u', $text, $m) === 1
+            && !$this->negated($text, $m[0][0]) && !$this->alternativeAfter($text, $m[0][0])) {
+            $floor = $m[1][0];
+            if (!ctype_digit($floor) && !str_starts_with($floor, 'ال')) $floor = 'ال'.$floor;
+            $fields['floor_number'] = app(DynamicPropertySchema::class)->normalizeFloor($floor);
         }
         foreach (['has_parking'=>'موقف(?:\s*سيارات)?', 'has_elevator'=>'مصعد'] as $key => $word) {
             $no = preg_match('/(?:بدون|لا\s*يوجد|لا\s*يتوفر|ما\s*في)\s*'.$word.'/u', $text);
@@ -66,12 +69,34 @@ class ExplicitListingFacts
             $fields[$target] = $value;
             $fields['currency'] = str_contains($text, 'دولار') ? 'USD' : (str_contains($text, 'سعودي') ? 'SAR' : 'YER');
         }
+        // A single requested currency amount in an explicitly rental brief is
+        // the quoted rent. Never use an unlabelled number, advance/deposit,
+        // alternative amount or a brief whose sale/rent purpose is unclear.
+        if (($fields['purpose'] ?? '') === 'rent' && !isset($fields['monthly_rent'])
+            && preg_match_all('/(?<!\pL)(?:المطلوب|مطلوب)\s*[:=]?\s*('.$number.')\s*(ريال(?:\s*(?:يمني|سعودي))?|دولار|سعودي)(?!\pL)/u', $text, $m, PREG_SET_ORDER) === 1) {
+            $match = $m[0];
+            $tail = mb_substr($text, mb_strpos($text, $match[0]) + mb_strlen($match[0]));
+            $prefix = mb_substr($text, 0, mb_strpos($text, $match[0]));
+            if (!$this->negated($text, $match[0]) && !$this->alternativeAfter($text, $match[0])
+                && !preg_match('/(?:مقدم|تامين|ضمان|سعي|عموله)\s*$/u', $prefix)
+                && !preg_match('/^\s*(?:مقدم|تامين|ضمان|سعي|عموله|لـ?\s*'.$number.'\s*(?:اشهر|شهور|شهر))(?!\pL)/u', $tail)) {
+                $amount = $this->numbers->parse($match[1]);
+                if ($amount !== null) {
+                    $fields['monthly_rent'] = $amount;
+                    $fields['currency'] = str_contains($text, 'دولار') ? 'USD' : (str_contains($text, 'سعودي') ? 'SAR' : 'YER');
+                }
+            }
+        }
         $area = $this->one('/المساحه\s*[:=]?\s*('.$number.')\s*(?:متر مربع|متر|م²|م2)(?!\pL|\d)/u', $text);
         if ($area !== null) { $fields['area_value'] = $area; $fields['area_unit'] = 'sqm'; }
 
         $conditions = [];
         foreach (['advance'=>'(?:ايجار\s*)?مقدم', 'duration'=>'(?:مده(?:\s*(?:العقد|الايجار))?)'] as $kind => $label) {
             $months = $this->one('/(?<!\pL)'.$label.'\s*[:=]?\s*('.$number.')\s*(?:اشهر|شهور|شهر)(?!\pL)/u', $text);
+            if ($kind === 'advance') {
+                $suffixMonths = $this->one('/(?<!\pL)(?:ايجار\s*)?('.$number.')\s*(?:اشهر|شهور|شهر)\s*مقدم(?!\pL)/u', $text);
+                $months = $months !== null && $suffixMonths !== null && $months !== $suffixMonths ? null : ($months ?? $suffixMonths);
+            }
             if ($months !== null && $months >= 1 && $months <= 24 && floor($months) === $months) $conditions[] = ['kind'=>$kind, 'months'=>(int)$months];
         }
         if ($this->positive('(?:ضمانه\s*تجاريه|ضامن\s*تجاري|كفيل)', $text)) $conditions[] = ['kind'=>'guarantor'];
@@ -122,3 +147,4 @@ class ExplicitListingFacts
         return false;
     }
 }
+
