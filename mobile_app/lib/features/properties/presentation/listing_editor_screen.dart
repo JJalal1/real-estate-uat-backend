@@ -339,8 +339,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (validation != null) {
       setState(() => _completionFields.addAll(_missingFields()));
       _message(validation);
-      if (_editorScroll.hasClients) _editorScroll.animateTo(0,
-        duration: AppMotion.fast, curve: Curves.easeOut);
+      if (_editorScroll.hasClients) {
+        _editorScroll.animateTo(0, duration: AppMotion.fast, curve: Curves.easeOut);
+      }
       return;
     }
     unawaited(_preview());

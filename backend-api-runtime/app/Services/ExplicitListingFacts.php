@@ -45,7 +45,7 @@ class ExplicitListingFacts
         foreach (['bedrooms'=>'غرفتين|غرفتان', 'bathrooms'=>'حمامين|حمامان'] as $key => $noun) {
             if (!isset($fields[$key]) && $this->positive('(?:'.$noun.')', $text)) $fields[$key] = 2;
         }
-        if (preg_match_all('/(?<!\pL)(?:ال)?(?:دور|طابق)\s*(\d+|(?:ال)?(?:اول|ثاني|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر|ارضي))(?!\pL|\d)/u', $text, $m) === 1
+        if (preg_match_all('/(?<!\pL)(?:و)?(?:ال)?(?:دور|طابق)\s*(\d+|(?:ال)?(?:اول|ثاني|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر|ارضي))(?!\pL|\d)/u', $text, $m) === 1
             && !$this->negated($text, $m[0][0]) && !$this->alternativeAfter($text, $m[0][0])) {
             $floor = $m[1][0];
             if (!ctype_digit($floor) && !str_starts_with($floor, 'ال')) $floor = 'ال'.$floor;
@@ -73,7 +73,7 @@ class ExplicitListingFacts
         // the quoted rent. Never use an unlabelled number, advance/deposit,
         // alternative amount or a brief whose sale/rent purpose is unclear.
         if (($fields['purpose'] ?? '') === 'rent' && !isset($fields['monthly_rent'])
-            && preg_match_all('/(?<!\pL)(?:المطلوب|مطلوب)\s*[:=]?\s*('.$number.')\s*(ريال(?:\s*(?:يمني|سعودي))?|دولار|سعودي)(?!\pL)/u', $text, $m, PREG_SET_ORDER) === 1) {
+            && preg_match_all('/(?<!\pL)(?:و)?(?:المطلوب|مطلوب)\s*[:=]?\s*('.$number.')\s*(ريال(?:\s*(?:يمني|سعودي))?|دولار|سعودي)(?!\pL)/u', $text, $m, PREG_SET_ORDER) === 1) {
             $match = $m[0];
             $tail = mb_substr($text, mb_strpos($text, $match[0]) + mb_strlen($match[0]));
             $prefix = mb_substr($text, 0, mb_strpos($text, $match[0]));

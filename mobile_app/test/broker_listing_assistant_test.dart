@@ -325,7 +325,7 @@ void main() {
     final snapshot = _snapshot()..['step'] = 1..['latitude'] = null..['longitude'] = null;
     final recovery = _Recovery(snapshot), drafts = Wave6Drafts(), boundary = GlobalKey();
     var picks = 0;
-    PropertyLocationPicker picker = (context, {initialLatitude, initialLongitude}) async {
+    Future<PropertyLocationSelection?> picker(BuildContext context, {double? initialLatitude, double? initialLongitude}) async {
       picks++;
       if (picks == 1) {
         expect(initialLatitude, isNull); expect(initialLongitude, isNull);
@@ -334,7 +334,7 @@ void main() {
       }
       expect(initialLatitude,13.966); expect(initialLongitude,44.183);
       return null;
-    };
+    }
     await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:recovery,drafts:drafts,picker:picker,boundary:boundary);
     await _tap(tester,'listing-select-location');
     expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);

@@ -126,8 +126,9 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         setState(() => _busy = false);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final target = _resultKey.currentContext;
-          if (mounted && target != null) Scrollable.ensureVisible(target,
-            duration: const Duration(milliseconds: 220), alignment: 0);
+          if (mounted && target != null) {
+            Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 220), alignment: 0);
+          }
         });
       }
     }
