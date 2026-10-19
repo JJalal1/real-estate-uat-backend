@@ -1,7 +1,7 @@
 name: Listing and Design Wave Acceptance
 on:
   push:
-    branches: [work/listing-design-1087]
+    branches: [work/listing-design-1087, work/template-creation-menu]
   workflow_dispatch:
 permissions:
   contents: read
@@ -59,7 +59,7 @@ jobs:
         run: python3 -B ../scripts/check_v3_analysis.py
       - name: Focused interface and voice regression
         working-directory: mobile_app
-        run: flutter test test/listing_design_wave_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart test/phase3_favorites_screen_test.dart test/uat_account_types_kyc_models_test.dart
+        run: flutter test test/template_creation_menu_test.dart test/listing_design_wave_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart test/phase3_favorites_screen_test.dart test/uat_account_types_kyc_models_test.dart
       - name: Upload synthetic interface previews
         id: previews
         if: ${{ !cancelled() }}
@@ -75,3 +75,4 @@ jobs:
       - name: Bounded preview fallback
         if: ${{ !cancelled() && steps.previews.outcome == 'failure' }}
         run: python3 -B scripts/emit_listing_design_previews.py
+

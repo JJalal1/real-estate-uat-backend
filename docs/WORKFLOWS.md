@@ -1,5 +1,9 @@
 # Workflows — REAL ESTATE
 
+## October19 original template creation menu
+
+On1090 the owner explicitly replaces the white creation dialog with the original eBroker body-Stack overlay: tap the raised hexagon, select the upper «ذكاء اصطناعي» pill or the lower «تعبئة يدوي» pill, then enter the same account-gated editor with assistant=1 or0. Original project/property SVGs, teal pills, scrim and independent motion are retained; only labels and callbacks change. Center-toggle, outside, system back and tab selection close the menu; double selection cannot stack editors. See `TEMPLATE_CREATION_MENU_AR.md`.
+
 ## October19 assisted creation and consolidated navigation
 
 The centered hexagon opens assisted preparation or «أدخل البيانات» through existing account and listing-eligibility gates. Assisted entry opens the same editor's preparation sheet after draft recovery; the complete typed or manually finished recording becomes editable input. Review all extracted facts and copy, then explicitly apply them. All supplied applicable fields are filled together; the completion panel asks only for remaining true requirements/photos before ordinary submission. Work owns listing/deal/finance tools; Customers contains followup and Messages tabs. Photo comparison uses one shared set across discovery/map/favorites and retains the2–4 limit. See `LISTING_DESIGN_WAVE_AR.md`; older small floating-add/navigation descriptions below are historical.
@@ -247,3 +251,4 @@ Private deep-link targets always pass authentication/authorization after routing
 ## 16. Deferred request/matching concept
 
 Property Requests, Researcher Requests, and broker-driven suggestion/matching are deferred and are not a launch-critical prerequisite. Do not implement or expose them as the main journey unless explicitly re-approved by the product owner.
+

@@ -28,7 +28,7 @@ class AppShellScreen extends ConsumerStatefulWidget {
 
 class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   int _index = 0;
-  bool _exitDialogOpen = false, _createMenuOpen = false;
+  bool _exitDialogOpen = false, _createMenuOpen = false, _openingEditor = false;
   String? _lastMode;
   final Set<int> _visitedIndices = <int>{0};
 
@@ -61,16 +61,29 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     if (shouldExit == true && mounted) await SystemNavigator.pop();
   }
 
-  Future<void> _createListing() async {
-    if (_createMenuOpen) return;
-    setState(() => _createMenuOpen = true);
-    final assisted = await showListingCreationMenu(context);
-    if (!mounted) return;
+  void _createListing() {
+    if (_openingEditor) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _createMenuOpen = !_createMenuOpen);
+  }
+
+  void _closeCreationMenu() {
+    if (_createMenuOpen) setState(() => _createMenuOpen = false);
+  }
+
+  Future<void> _selectCreationMode(bool assisted) async {
+    if (!_createMenuOpen || _openingEditor) return;
     setState(() => _createMenuOpen = false);
-    if (assisted != null) await context.push('/add-property?assistant=${assisted ? 1 : 0}');
+    _openingEditor = true;
+    try {
+      await context.push('/add-property?assistant=${assisted ? 1 : 0}');
+    } finally {
+      _openingEditor = false;
+    }
   }
 
   void _selectTab(int value) {
+    _closeCreationMenu();
     if (value == _index) return;
     setState(() {
       _visitedIndices.add(value);
@@ -88,6 +101,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     if (_lastMode != accountScope) {
       _lastMode = accountScope;
       _index = 0;
+      _createMenuOpen = false;
       _visitedIndices
         ..clear()
         ..add(0);
@@ -112,10 +126,22 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) _confirmExit();
+          if (!didPop) {
+            if (_createMenuOpen) {
+              _closeCreationMenu();
+            } else {
+              _confirmExit();
+            }
+          }
         },
         child: Scaffold(
-          body: IndexedStack(index: _index, children: lazyPages),
+          body: Stack(children: [
+            ExcludeSemantics(excluding: _createMenuOpen,
+              child: IndexedStack(index: _index, children: lazyPages)),
+            if (const ['anonymous', 'regular', 'advertiser'].contains(mode))
+              ListingCreationMenu(isOpen: _createMenuOpen,
+                onClose: _closeCreationMenu, onSelected: _selectCreationMode),
+          ]),
           bottomNavigationBar: AppNavigationBar(
             destinations: shell.items
                 .map((item) => AppNavDestination(label: item.label, icon: item.icon))
@@ -235,3 +261,4 @@ class _NavItemData {
   final String label;
   final IconData icon;
 }
+

@@ -1,5 +1,9 @@
 # AI Project State — REAL ESTATE UAT
 
+## October19 exact template creation menu correction on1090
+
+The owner supplied the template and current1090 screenshots and explicitly requested the original template elements, icons and animation, changing only the two choices to «ذكاء اصطناعي» and «تعبئة يدوي». `TEMPLATE_CREATION_MENU_AR.md` pins the purchased source and exact presentation parameters. The two original teal pills now live in the body Stack behind the undimmed navigation bar; the original SVG hexagon/plus and navigation vectors retain their independent template animations. Close/back/outside/tab actions and single-flight canonical editor routing are covered, with existing login/verification gates retained. No backend, database, dependencies, assets or native permissions change. Automated evidence and the exact-source installer must be verified separately; physical-device acceptance remains open.
+
 ## October19 listing preparation and interface wave
 
 The owner requested complete typed/spoken factual preparation on the latest1087 source and a broad interface refresh. `LISTING_DESIGN_WAVE_AR.md` records the supplied references, exact example, updated navigation/card/login/selection behavior, tests and open physical-device gate. PR91 targets the existing private integration branch. This wave adds no schema, dependencies, asset edits, reseed, auth method or financial-policy/history changes. Delivery evidence must be recorded separately after the full original CI and native installer checks;1087 below remains the last completed delivery until then.
@@ -339,3 +343,4 @@ Real-device subjective visual acceptance remains a manual/Beta gate when an actu
 ## Update rule
 
 Whenever accepted behavior, roadmap, architecture, or product direction changes, update this file and the relevant workflow/decision/changelog docs. Current Git/code and explicit newer product-owner decisions outrank stale historical documentation.
+

@@ -28,6 +28,33 @@ class _Anonymous extends AuthController {
   Future<AuthUser?> build() async => null;
 }
 
+class _CreationMenuPreview extends StatefulWidget {
+  const _CreationMenuPreview({required this.onSelected});
+  final ValueChanged<bool> onSelected;
+  @override
+  State<_CreationMenuPreview> createState() => _CreationMenuPreviewState();
+}
+
+class _CreationMenuPreviewState extends State<_CreationMenuPreview> {
+  bool open = false;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Stack(children: [
+      const Center(child: Text('عقارات حولك')),
+      ListingCreationMenu(isOpen: open, onClose: () => setState(() => open = false),
+        onSelected: (value) { setState(() => open = false); widget.onSelected(value); }),
+    ]),
+    bottomNavigationBar: AppNavigationBar(
+      destinations: const [AppNavDestination(label:'الرئيسية',icon:Icons.home_outlined),
+        AppNavDestination(label:'عملي',icon:Icons.work_outline),
+        AppNavDestination(label:'العملاء',icon:Icons.people_outline),
+        AppNavDestination(label:'حسابي',icon:Icons.person_outline)],
+      selectedIndex: 0, onSelected: (_) => setState(() => open = false),
+      onCreate: () => setState(() => open = !open), createExpanded: open,
+    ),
+  );
+}
+
 PropertySummary _property(int id, {String type = 'house', String purpose = 'sale'}) => PropertySummary.fromJson({
   'id':id, 'title':type == 'shop' ? 'محل على شارع رئيسي' : 'منزل واسع بإطلالة هادئة', 'type':type, 'purpose':purpose,
   'price':purpose == 'rent' ? 300000 : 125000000, 'currency':'YER', 'latitude':13.96, 'longitude':44.18,
@@ -124,10 +151,8 @@ void main() {
     testWidgets('center action offers assisted or manual entry at $scale', (tester) async {
       bool? assisted;
       final key = GlobalKey();
-      await _pump(tester, Scaffold(body: const Center(child: Text('عقارات حولك')), bottomNavigationBar: Builder(builder:(context) => AppNavigationBar(
-        destinations: const [AppNavDestination(label:'الرئيسية',icon:Icons.home_outlined), AppNavDestination(label:'عملي',icon:Icons.work_outline),
-          AppNavDestination(label:'العملاء',icon:Icons.people_outline), AppNavDestination(label:'حسابي',icon:Icons.person_outline)],
-        selectedIndex:0,onSelected:(_){},onCreate:() async {assisted=await showListingCreationMenu(context);}))),scale:scale,boundary:key);
+      await _pump(tester, _CreationMenuPreview(onSelected: (value) => assisted = value),
+        scale: scale, boundary: key);
       await tester.tap(find.byKey(const ValueKey('home-add-property'))); await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('create-listing-ai')),findsOneWidget);
       await _capture(tester,key,'creation-menu-$scale');
@@ -174,3 +199,4 @@ void main() {
     expect(find.byTooltip('إزالة من المفضلة'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 }
+

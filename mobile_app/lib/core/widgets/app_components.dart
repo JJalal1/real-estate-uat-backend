@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../theme/ebroker_design.dart';
 import 'ebroker_widgets.dart';
+import 'ebroker_add_listing_button.dart';
 import 'ebroker_property_card.dart';
 import '../formatters/money.dart';
 export '../formatters/money.dart';
@@ -579,43 +580,73 @@ class AppNavigationBar extends StatelessWidget {
   final ValueChanged<int> onSelected;
   final VoidCallback? onCreate;
   final bool createExpanded;
+
+  Widget _icon(AppNavDestination item, bool active, Color color, double size) {
+    final icon = item.icon;
+    String? asset;
+    if ([Icons.home_work_outlined, Icons.home_outlined, Icons.home, Icons.travel_explore_outlined].contains(icon)) {
+      asset = active ? 'home_active' : 'home';
+    } else if ([Icons.person_outline, Icons.account_circle_outlined, Icons.person].contains(icon)) {
+      asset = active ? 'profile_active' : 'profile_outlined';
+    } else if ([Icons.chat_bubble_outline, Icons.chat_outlined, Icons.people_outline].contains(icon)) {
+      asset = active ? 'chat_active' : 'chat';
+    } else if ([Icons.inventory_2_outlined, Icons.work_outline, Icons.apartment_outlined].contains(icon)) {
+      asset = active ? 'properties_active' : 'properties';
+    }
+    return asset == null
+        ? EbrokerIcon(icon, size: size, color: color)
+        : EbrokerImage(asset, size: size, color: color);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final largeText = MediaQuery.textScalerOf(context).scale(12) > 18;
-    final duration = MediaQuery.disableAnimationsOf(context) ? Duration.zero : AppMotion.standard;
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero : const Duration(milliseconds: 200);
     final items = <Widget>[];
     for (var index = 0; index < destinations.length; index++) {
-      if (onCreate != null && index == 2) { items.add(Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Semantics(button: true, label: 'إضافة عقار', child: Tooltip(message: 'إضافة عقار', child: InkWell(
-          key: const ValueKey('home-add-property'), customBorder: const CircleBorder(), onTap: onCreate,
-          child: SizedBox.square(dimension: 62, child: Stack(alignment: Alignment.center, children: [
-            EbrokerImage('add_shape', size: 58, color: scheme.primary),
-            AnimatedRotation(turns: createExpanded ? .125 : 0, duration: duration,
-              child: const Icon(Icons.add_rounded, color: Colors.white, size: 28)),
-          ]))))),
-        if (!largeText) Text('إعلان', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.primary)),
-      ])))); }
+      if (onCreate != null && index == 2) {
+        items.add(Transform.translate(
+          offset: Offset(0, -30.rh(context)),
+          child: EbrokerAddListingButton(isOpen: createExpanded, onPressed: onCreate!),
+        ));
+      }
       final item = destinations[index], active = index == selectedIndex;
-      items.add(Expanded(child: Semantics(button: true, selected: active, label: item.label, excludeSemantics: true,
-        child: Tooltip(message: item.label, child: InkWell(onTap: () => onSelected(index), borderRadius: BorderRadius.circular(16),
-          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 12),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              AnimatedContainer(duration: duration, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(color: active ? scheme.primaryContainer : Colors.transparent, borderRadius: BorderRadius.circular(16)),
-                child: Icon(item.icon, size: 23, color: active ? scheme.primary : scheme.onSurfaceVariant)),
-              if (!largeText) ...[const SizedBox(height: 4), Text(item.label, maxLines: 1,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 11, color: active ? scheme.primary : scheme.onSurfaceVariant,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w400))],
-            ])))))));
+      final color = active ? EbrokerDesign.templateBrand
+          : const Color(0xFF4D5454).withValues(alpha: .5);
+      items.add(Expanded(
+        child: Semantics(button: true, selected: active, label: item.label, excludeSemantics: true,
+          child: Tooltip(message: item.label, child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onSelected(index),
+            child: Padding(padding: EdgeInsets.all(4.rh(context)),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                AnimatedScale(scale: active ? 1.3 : 1, duration: duration,
+                  child: _icon(item, active, color, 24.rw(context))),
+                if (!largeText) ...[
+                  SizedBox(height: 4.rh(context)),
+                  EbrokerText(item.label, size: 12, color: color, maxLines: 1, align: TextAlign.center),
+                ],
+              ]),
+            ),
+          )),
+        ),
+      ));
     }
-    return DecoratedBox(decoration: BoxDecoration(color: scheme.surface, border: Border(top: BorderSide(color: scheme.outlineVariant)),
-      boxShadow: [BoxShadow(color: scheme.secondary.withValues(alpha: .045), blurRadius: 24, offset: const Offset(0, -6))]),
-      child: SafeArea(top: false, child: ConstrainedBox(constraints: const BoxConstraints(minHeight: 80),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [Row(children: items),
-          if (largeText) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: ExcludeSemantics(
-            child: Text(destinations[selectedIndex].label, style: TextStyle(color: scheme.primary), textAlign: TextAlign.center))),
-        ]))));
+    // main_activity.dart: original 76-high white bar, scaled SVG destinations
+    // and the 56-high add button lifted 30 above the bar. No extra FAB label.
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, boxShadow: [
+        BoxShadow(color: const Color(0xFF4D5454).withValues(alpha: .2),
+          offset: const Offset(0, -1), blurRadius: 5),
+      ]),
+      child: SafeArea(top: false, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(height: 76.rh(context), child: Row(children: items)),
+        if (largeText) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: ExcludeSemantics(child: Text(destinations[selectedIndex].label,
+            style: const TextStyle(color: EbrokerDesign.templateBrand), textAlign: TextAlign.center))),
+      ])),
+    );
   }
 }
 
@@ -797,3 +828,4 @@ IconData _toneIcon(AppStatusTone tone) => switch (tone) {
       AppStatusTone.neutral => Icons.info_outline,
       AppStatusTone.error => Icons.error_outline,
     };
+
