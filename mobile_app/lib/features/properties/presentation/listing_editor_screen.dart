@@ -324,12 +324,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (keys.contains('ownership')) _ownershipEvidence(),
       ],
       const SizedBox(height: 20),
-      TextButton(onPressed: _busy ? null : () => setState(() => _completionOnly = false), child: const Text('مراجعة وتعديل كل الحقول')),
+      TextButton(onPressed: _busy ? null : () => _showFullStep(_step), child: const Text('مراجعة وتعديل كل الحقول')),
     ]);
   }
 
   Widget _completionActions() => _FinalActionsBar(busy:_busy,
-    onPrevious:() => setState(() => _completionOnly = false),onPreview:_preview,
+    onPrevious:() => _showFullStep(_step),onPreview:_preview,
     primaryLabel: 'معاينة الإعلان',
     onSaveDraft:() => _persist(submit:false),onSubmit:_reviewCompletedDraft);
 
@@ -1222,7 +1222,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 label: 'السابق',
                 style: AppButtonStyle.outlined,
                 onPressed: _busy ? null : () {
-                  if (_step > 0) { setState(() => _step--); } else { Navigator.of(context).maybePop(); }
+                  if (_step > 0) { _showFullStep(_step - 1); } else { Navigator.of(context).maybePop(); }
                 },
                 expand: true,
               ),
@@ -1242,7 +1242,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
     return _FinalActionsBar(
       busy: _busy,
-      onPrevious: () => setState(() => _step--),
+      onPrevious: () => _showFullStep(_step - 1),
       onPreview: _preview,
       onSaveDraft: () => _persist(submit: false),
       onSubmit: () => _persist(submit: true),
@@ -1250,13 +1250,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   void _next() {
+    FocusScope.of(context).unfocus();
     if (_step == 0 && !_completionOnly) { _typeConfirmed = true; _purposeConfirmed = true; }
     final message = _validationMessageForStep(_step);
     if (message != null) {
       _message(message);
       return;
     }
-    setState(() => _step++);
+    _showFullStep(_step + 1);
+  }
+
+  void _showFullStep(int step) {
+    FocusScope.of(context).unfocus();
+    setState(() { _completionOnly = false; _step = step; });
+    if (_editorScroll.hasClients) _editorScroll.jumpTo(0);
   }
 
   String? _validationMessageForStep(int step, {bool requireImages = true}) {
@@ -1400,12 +1407,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     for (var step = 0; step < target; step++) {
       final message = _validationMessageForStep(step);
       if (message != null) {
-        setState(() => _step = step);
+        _showFullStep(step);
         _message(message);
         return;
       }
     }
-    setState(() => _step = target);
+    _showFullStep(target);
   }
 
   Future<void> _reviewCompletion() async {
@@ -2050,6 +2057,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!mounted || selection == null) return;
     setState(() {
       if (_latitude != selection.latitude || _longitude != selection.longitude) _landBoundaryGeoJson = null;
+      final city = selection.address.governorate;
+      if (city != null && _normalizedName(city) != _normalizedName(_governorate.text)) {
+        _district.text = selection.address.district ?? '';
+        _street.text = selection.address.street ?? '';
+      }
       _latitude = selection.latitude;
       _longitude = selection.longitude;
     });

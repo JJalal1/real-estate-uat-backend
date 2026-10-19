@@ -345,6 +345,7 @@ void main() {
     expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(recovery.snapshot!['latitude'],13.966);expect(recovery.snapshot!['longitude'],44.183);
+    expect((recovery.snapshot!['fields'] as Map)['district'],isEmpty);
     expect(drafts.saves.last['latitude'],13.966);expect(drafts.saves.last['longitude'],44.183);
     await tester.pumpWidget(const SizedBox.shrink());await tester.pumpAndSettle();
     await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:recovery,drafts:drafts,picker:picker,boundary:boundary);
@@ -368,6 +369,19 @@ void main() {
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(recovery.snapshot!['latitude'],15.3694);expect(recovery.snapshot!['longitude'],44.1910);
     expect(find.textContaining('حدد موقع العقار يدويًا'),findsNothing);expect(tester.takeException(),isNull);
+  });
+
+  testWidgets('moving to the next full step dismisses typing and starts the new step at its top', (tester) async {
+    final snapshot=_snapshot()..['step']=0;
+    await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:_Recovery(snapshot),scale:2.4);
+    final title=find.byWidgetPredicate((widget)=>widget is TextField && widget.decoration?.labelText=='عنوان الإعلان *');
+    await tester.ensureVisible(title);await tester.pumpAndSettle();
+    await tester.tap(title);await tester.pumpAndSettle();
+    final scroll=tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+    expect(scroll.pixels,greaterThan(0));
+    await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
+    expect(find.text('2/4'),findsOneWidget);expect(scroll.pixels,0);
+    expect(tester.testTextInput.isVisible,isFalse);expect(tester.takeException(),isNull);
   });
 
   testWidgets('reviewed street changes and Arabic city spelling preserve the already confirmed point', (tester) async {
