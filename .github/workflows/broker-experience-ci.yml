@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092]
   workflow_dispatch:
 permissions:
   contents: read
@@ -344,4 +344,3 @@ jobs:
       - name: Private APK transport part 3 after artifact quota failure
         if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && steps.apk_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_apk_transport.py --part 2 --parts 3
-

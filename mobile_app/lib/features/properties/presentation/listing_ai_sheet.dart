@@ -28,6 +28,8 @@ class ListingAiSheet extends ConsumerStatefulWidget {
 class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   final _message = TextEditingController(), _description = TextEditingController(), _title = TextEditingController();
   final _selected = <String>{};
+  final _scroll = ScrollController();
+  final _resultKey = GlobalKey();
   Map<String, dynamic>? _fields;
   bool _busy = false, _hasDescription = false, _copyReady = false;
   late final VoiceCaptureController _capture;
@@ -39,7 +41,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     'monthly_rent': 'الإيجار الشهري', 'area_value': 'المساحة', 'area_unit': 'وحدة المساحة',
     'bedrooms': 'غرف النوم', 'bathrooms': 'الحمامات', 'governorate': 'المحافظة', 'district': 'الحي', 'street': 'الشارع',
     'floor_number': 'الدور', 'unit_number': 'موضع الوحدة', 'has_parking': 'موقف السيارة', 'has_elevator': 'المصعد',
-    'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية', 'sai_amount_type':'نوع السعي', 'broker_sai_rate_percent':'نسبة السعي', 'fixed_sai_amount':'مبلغ السعي بالريال', 'rental_conditions':'شروط الإيجار'};
+    'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية', 'broker_sai_rate_percent':'نسبة السعي', 'fixed_sai_amount':'مبلغ السعي بالريال', 'rental_conditions':'شروط الإيجار'};
 
   @override
   void initState() {
@@ -69,6 +71,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   @override
   void dispose() {
     _capture.removeListener(_voiceChanged); _capture.dispose();
+    _scroll.dispose();
     _message.removeListener(_briefChanged); _message.dispose(); _description.dispose(); _title.dispose();
     super.dispose();
   }
@@ -118,7 +121,17 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
       }
     } catch (error) {
       if (mounted) setState(() { _error = friendlyApiError(error); _copyReady = false; });
-    } finally { if (mounted) setState(() => _busy = false); }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final target = _resultKey.currentContext;
+          if (mounted && target != null) {
+            Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 220), alignment: 0);
+          }
+        });
+      }
+    }
   }
 
   Future<void> _refreshCopy() async {
@@ -126,12 +139,24 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     FocusScope.of(context).unfocus();
     setState(() { _busy = true; _error = null; });
     try {
-      final facts = {...widget.facts, for (final key in _selected) key: _fields![key]};
+      final facts = {...widget.facts, ..._selectedFields};
       final result = await ref.read(aiRepositoryProvider).listingCopy(facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
       if (!mounted) return;
       setState(() => _setCopy(result['copy']));
     } catch (error) { if (mounted) setState(() => _error = friendlyApiError(error)); }
     finally { if (mounted) setState(() => _busy = false); }
+  }
+
+  // Sai's numeric value already tells the reviewer what it means. Keep its
+  // backend discriminator paired with that selected value, without another card.
+  Map<String, dynamic> get _selectedFields {
+    final fields = <String, dynamic>{for (final key in _selected) key: _fields![key]};
+    if (fields.containsKey('broker_sai_rate_percent') && !fields.containsKey('fixed_sai_amount')) {
+      fields['sai_amount_type'] = 'percentage';
+    } else if (fields.containsKey('fixed_sai_amount') && !fields.containsKey('broker_sai_rate_percent')) {
+      fields['sai_amount_type'] = 'fixed';
+    }
+    return fields;
   }
 
   void _applyDraft() {
@@ -141,7 +166,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
       return;
     }
     Navigator.of(context).pop({
-      for (final key in _selected) key: _fields![key],
+      ..._selectedFields,
       'title': _title.text.trim(), 'description': _description.text.trim(),
     });
   }
@@ -165,7 +190,6 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   String _value(String key, dynamic value) => switch (key) {
     'type' => SmartSearchFilters.types[value] ?? '$value', 'purpose' => value == 'rent' ? 'للإيجار' : 'للبيع',
     'building_facade' => SmartSearchFilters.facades[value] ?? '$value', 'area_unit' => propertyAreaUnitLabel(value.toString()),
-    'sai_amount_type' => value == 'fixed' ? 'مبلغ ثابت' : 'نسبة مئوية',
     'rental_conditions' => (value as List).map((c) => switch ((c as Map)['kind']) { 'advance' => 'مقدم ${c['months']} أشهر', 'duration' => 'مدة ${c['months']} أشهر', 'guarantor' => 'ضمانة تجارية', 'deposit' => 'تأمين', _ => c['text']?.toString() ?? '' }).join('، '),
     'tenure_type' => value == 'waqf' ? 'وقف' : 'حر',
     'has_parking' || 'has_elevator' || 'unit_occupies_entire_floor' => value == true || value == 1 ? 'نعم' : 'لا',
@@ -184,7 +208,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: SizedBox(
       height: (MediaQuery.sizeOf(context).height - MediaQuery.viewInsetsOf(context).bottom) * .9,
-      child: ListView(key: const ValueKey('listing-ai-scroll'), padding: const EdgeInsets.all(18), children: [
+      child: Column(children: [Expanded(child: ListView(controller: _scroll, key: const ValueKey('listing-ai-scroll'), padding: const EdgeInsets.all(18), children: [
         Text(widget.description ? 'وصف من مواصفاتك' : widget.prepareDraft ? 'جهّز إعلانك بسرعة' : 'مساعد إضافة العقار',
           style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
@@ -209,11 +233,35 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         AppButton(key: const ValueKey('listing-ai-prepare'),
           label: _busy ? 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
           onPressed: _busy || _voiceBusy ? null : _request, expand: true),
+        SizedBox(key: _resultKey),
+        if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),
         if (_error != null || _capture.error != null) Padding(padding: const EdgeInsets.only(top: 12),
           child: AppInlineMessage(message: _error ?? _capture.error!, tone: AppStatusTone.warning)),
         if (widget.prepareDraft && _notice != null) Padding(padding: const EdgeInsets.only(top: 12),
           child: AppInlineMessage(key: const ValueKey('listing-ai-source'), message: _notice!,
             tone: _source == 'text' ? AppStatusTone.warning : AppStatusTone.info)),
+        if (widget.prepareDraft && _fields != null) ...[
+          const SizedBox(height: 16),
+          if (!_copyReady) ...[
+            const Text('حدّث النص ليطابق التفاصيل المحددة، ثم راجعه.'),
+            const SizedBox(height: 8),
+          ] else ...[
+            if (widget.hasExistingDescription) const AppInlineMessage(
+              message: 'اعتماد هذه المسودة يستبدل الوصف الحالي بالنص الذي تراجعه هنا.', tone: AppStatusTone.info),
+            Text('عنوان الإعلان', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            TextField(key: const ValueKey('listing-ai-title'), controller: _title, maxLength: 160, enabled: !_busy && !_voiceBusy,
+              decoration: const InputDecoration(labelText: 'عنوان الإعلان', floatingLabelBehavior: FloatingLabelBehavior.never)),
+            const SizedBox(height: 8),
+            Text('نص الإعلان', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            TextField(key: const ValueKey('listing-ai-copy'), controller: _description, minLines: 3, maxLines: 7,
+              maxLength: 4000, enabled: !_busy && !_voiceBusy,
+              decoration: const InputDecoration(labelText: 'نص الإعلان', floatingLabelBehavior: FloatingLabelBehavior.never)),
+            const SizedBox(height: 12),
+            const Text('راجع النص والتفاصيل. بعد المتابعة تحدد نقطة الخريطة وتضيف الصور والناقص فقط.'),
+          ],
+        ],
         if (_fields != null) ...[
           const SizedBox(height: 16),
           Text(_fields!.isEmpty ? 'لم نجد مواصفات واضحة في النص. أكمل التفاصيل يدويًا.' : 'راجع ما سيتغير',
@@ -240,36 +288,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           }),
           if (!widget.prepareDraft) ...[
             const SizedBox(height: 12), AppButton(label: 'تطبيق المواصفات المحددة', expand: true,
-              onPressed: _busy || _selected.isEmpty ? null : () => Navigator.of(context).pop({for (final key in _selected) key: _fields![key]})),
-          ],
-        ],
-        if (widget.prepareDraft && _fields != null) ...[
-          const SizedBox(height: 16),
-          if (!_copyReady) ...[
-            const Text('حدّث النص ليطابق التفاصيل المحددة، ثم راجعه.'),
-            const SizedBox(height: 8),
-            AppButton(key: const ValueKey('listing-ai-refresh-copy'), label: 'تجهيز النص من اختياري', expand: true,
-              onPressed: _busy || _voiceBusy ? null : _refreshCopy),
-          ] else ...[
-            if (widget.hasExistingDescription) const AppInlineMessage(
-              message: 'اعتماد هذه المسودة يستبدل الوصف الحالي بالنص الذي تراجعه هنا.', tone: AppStatusTone.info),
-            Text('عنوان الإعلان', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            TextField(key: const ValueKey('listing-ai-title'), controller: _title, maxLength: 160, enabled: !_busy && !_voiceBusy,
-              decoration: const InputDecoration(labelText: 'عنوان الإعلان', floatingLabelBehavior: FloatingLabelBehavior.never)),
-            const SizedBox(height: 8),
-            Text('نص الإعلان', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            TextField(key: const ValueKey('listing-ai-copy'), controller: _description, minLines: 3, maxLines: 7,
-              maxLength: 4000, enabled: !_busy && !_voiceBusy,
-              decoration: const InputDecoration(labelText: 'نص الإعلان', floatingLabelBehavior: FloatingLabelBehavior.never)),
-            const SizedBox(height: 12),
-            const Text('راجع العنوان والنص، ثم اعتمد المسودة.'),
-            const SizedBox(height: 8),
-            AppButton(key: const ValueKey('listing-ai-apply-draft'), label: 'استخدام البيانات والمتابعة', expand: true,
-              onPressed: _busy || _voiceBusy ? null : _applyDraft),
-            const SizedBox(height: 8),
-            const Text('ستُعبّأ الحقول بهذه البيانات. أضف الصور وأكمل ما لم تذكره، ثم راجع الإعلان وأرسله.'),
+              onPressed: _busy || _selected.isEmpty ? null : () => Navigator.of(context).pop(_selectedFields)),
           ],
         ],
         if (_hasDescription) ...[
@@ -278,5 +297,12 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           const SizedBox(height: 12), AppButton(label: 'استخدام الوصف بعد المراجعة', expand: true,
             onPressed: _busy ? null : () => Navigator.of(context).pop({'description': _description.text.trim()})),
         ],
+      ])),
+      if (widget.prepareDraft && _fields != null) SafeArea(top: false, child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
+        child: AppButton(key: ValueKey(_copyReady ? 'listing-ai-apply-draft' : 'listing-ai-refresh-copy'),
+          label: _copyReady ? 'استخدام البيانات والمتابعة' : 'تجهيز النص من اختياري', expand: true,
+          onPressed: _busy || _voiceBusy ? null : _copyReady ? _applyDraft : _refreshCopy))),
       ]))));
 }
+

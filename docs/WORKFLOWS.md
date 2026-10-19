@@ -1,5 +1,12 @@
 # Workflows — REAL ESTATE
 
+## October19 short assisted creation and map confirmation
+
+`describe/type or manually finish voice -> review editable title/copy and selected facts -> explicit use -> confirm map point and fill only missing requirements/photos -> preview -> explicit submit confirmation -> existing support workflow`
+
+The use action stays visible while the review scrolls. No Sai-kind card adds a separate decision. Completion shows the confirmed map state, reuses the point on Previous/preview/recovery, and never labels a filled address as a point. The map's existing device-location action remains inside the picker, followed by explicit confirmation. Address lookup is bounded and does not run twice on picker return. Existing actor/account/photo boundaries, canonical fields, financial consent and publication state remain authoritative. See `LISTING_FLOW_1092_AR.md`.
+
+
 ## October19 original template creation menu
 
 On1090 the owner explicitly replaces the white creation dialog with the original eBroker body-Stack overlay: tap the raised hexagon, select the upper «ذكاء اصطناعي» pill or the lower «تعبئة يدوي» pill, then enter the same account-gated editor with assistant=1 or0. Original project/property SVGs, teal pills, scrim and independent motion are retained; only labels and callbacks change. Center-toggle, outside, system back and tab selection close the menu; double selection cannot stack editors. See `TEMPLATE_CREATION_MENU_AR.md`.
