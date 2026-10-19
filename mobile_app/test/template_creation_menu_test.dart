@@ -124,7 +124,10 @@ void main() {
     expect(find.byType(Dialog), findsNothing);
     for (final asset in ['add_shape', 'plus_btn', 'upcoming_projects_icon',
       'properties_icon', 'home_active', 'properties', 'chat', 'profile_outlined']) {
-      expect(find.byWidgetPredicate((widget) => widget is EbrokerImage && widget.name == asset),
+      final scope = ['upcoming_projects_icon', 'properties_icon'].contains(asset)
+          ? find.byType(ListingCreationMenu) : find.byType(AppNavigationBar);
+      expect(find.descendant(of: scope, matching: find.byWidgetPredicate(
+        (widget) => widget is EbrokerImage && widget.name == asset)),
         findsOneWidget, reason: 'Use the purchased $asset vector.');
     }
     final aiIcon = find.byWidgetPredicate((widget) => widget is EbrokerImage &&
