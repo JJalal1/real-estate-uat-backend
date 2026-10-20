@@ -15,10 +15,13 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _phone = TextEditingController(text: '+967');
+  final _name = TextEditingController();
+  final _email = TextEditingController();
+  bool _useEmail = false;
   bool _busy = false;
   String? _error;
   @override
-  void dispose() { _phone.dispose(); super.dispose(); }
+  void dispose() { _phone.dispose(); _name.dispose(); _email.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +54,27 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               Text('مرحبًا بك', style: theme.textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
               const SizedBox(height: 8), Text('تسجيل الدخول أو إنشاء حساب', style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFB7C9D7))),
               const SizedBox(height: 22),
-              TextField(key: const ValueKey('auth-phone'), controller: _phone, keyboardType: TextInputType.phone,
+              TextField(key: const ValueKey('auth-name'), controller: _name, enabled: !_busy,
+                autofillHints: const [AutofillHints.name], textInputAction: TextInputAction.next,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'الاسم الرباعي',
+                  labelStyle: TextStyle(color: Color(0xFFB7C9D7)), fillColor: Color(0xFF102336))),
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, children: [
+                ChoiceChip(key: const ValueKey('auth-channel-whatsapp'), label: const Text('واتساب'), selected: !_useEmail,
+                  onSelected: _busy ? null : (_) => setState(() { _useEmail = false; _error = null; })),
+                ChoiceChip(key: const ValueKey('auth-channel-email'), label: const Text('البريد الإلكتروني'), selected: _useEmail,
+                  onSelected: _busy ? null : (_) => setState(() { _useEmail = true; _error = null; })),
+              ]),
+              const SizedBox(height: 12),
+              if (_useEmail) TextField(key: const ValueKey('auth-email'), controller: _email,
+                keyboardType: TextInputType.emailAddress, autofillHints: const [AutofillHints.email],
+                enabled: !_busy, textDirection: TextDirection.ltr, textInputAction: TextInputAction.done,
+                onSubmitted: _busy ? null : (_) => _submit(), style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'البريد الإلكتروني', hintText: 'name@example.com',
+                  floatingLabelBehavior: FloatingLabelBehavior.always, labelStyle: TextStyle(color: Color(0xFFB7C9D7)),
+                  hintStyle: TextStyle(color: Color(0xFF9AABB9)), fillColor: Color(0xFF102336)))
+              else TextField(key: const ValueKey('auth-phone'), controller: _phone, keyboardType: TextInputType.phone,
                 enabled: !_busy, autofillHints: const [AutofillHints.telephoneNumber],
                 textInputAction: TextInputAction.done, onSubmitted: _busy ? null : (_) => _submit(), textDirection: TextDirection.ltr,
                 style: const TextStyle(color: Colors.white, fontSize: 18),
@@ -62,7 +85,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF355066))),
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF9CE6D8))),
                 )),
-              const SizedBox(height: 12), Text('نرسل لك رمز تحقق من 6 أرقام عبر واتساب.',
+              const SizedBox(height: 12), Text(_useEmail ? 'نرسل لك رمز تحقق من 6 أرقام إلى بريدك. للبريد المرتبط بحساب واتساب، أكّد البريد من الملف الشخصي أولًا.' : 'نرسل لك رمز تحقق من 6 أرقام عبر واتساب.',
                 style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFB7C9D7), height: 1.6)),
               if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Semantics(liveRegion: true,
                 child: Text(_error!, style: const TextStyle(color: Color(0xFFFFC7BC), height: 1.6)))),
@@ -71,9 +94,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 style: FilledButton.styleFrom(backgroundColor: const Color(0xFF9CE6D8), foregroundColor: const Color(0xFF103A39),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)),
                 child: _busy ? const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Flexible(child: Text('إرسال رمز واتساب')),
-                    SizedBox(width: 10), Icon(Icons.arrow_back_rounded, size: 19)])),
-              const SizedBox(height: 16), Text('حساب واحد للتصفح والتواصل.\nأكمل اسمك بعد التحقق إذا كان حسابك جديدًا.',
+                  : Row(mainAxisAlignment: MainAxisAlignment.center, children: [Flexible(child: Text(_useEmail ? 'إرسال رمز البريد' : 'إرسال رمز واتساب')),
+                    const SizedBox(width: 10), const Icon(Icons.arrow_back_rounded, size: 19)])),
+              const SizedBox(height: 16), Text('نحفظ اسم الحساب الجديد بعد نجاح التحقق.\nتوثيق الجوال مطلوب للنشر والتواصل.',
                 textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFB7C9D7), height: 1.6)),
             ])),
           const SizedBox(height: 18), TextButton(onPressed: () {
@@ -86,12 +109,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Future<void> _submit() async {
     if (_busy) return;
     FocusScope.of(context).unfocus();
+    if (_name.text.trim().split(RegExp(r'\s+')).length != 4) {
+      setState(() => _error = 'أدخل الاسم الرباعي كما هو في وثيقة الهوية.'); return;
+    }
     setState(() { _busy = true; _error = null; });
     try {
-      await ref.read(authControllerProvider.notifier).startWhatsApp(phone: _phone.text);
+      final auth = ref.read(authControllerProvider.notifier);
+      if (_useEmail) { await auth.startEmail(email: _email.text, name: _name.text); }
+      else { await auth.startWhatsApp(phone: _phone.text, name: _name.text); }
       if (mounted) context.push('/verify-phone');
     } catch (error) {
       if (mounted) setState(() => _error = friendlyApiError(error));
     } finally { if (mounted) setState(() => _busy = false); }
   }
 }
+

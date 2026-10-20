@@ -15,10 +15,21 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   @override
   Future<AuthUser?> build() => _repository.restoreSession();
 
-  Future<WhatsAppAuthPending> startWhatsApp({required String phone}) async {
-    final pending = await _repository.startWhatsApp(phone: phone);
+  Future<WhatsAppAuthPending> startWhatsApp({required String phone, String? name}) async {
+    final pending = await _repository.startWhatsApp(phone: phone, name: name);
     ref.read(whatsAppAuthPendingProvider.notifier).state = pending;
     return pending;
+  }
+
+  Future<WhatsAppAuthPending> startEmail({required String email, String? name}) async {
+    final pending = await _repository.startEmail(email: email, name: name);
+    ref.read(whatsAppAuthPendingProvider.notifier).state = pending;
+    return pending;
+  }
+
+  Future<void> requestEmailVerification() => _repository.requestEmailVerification();
+  Future<void> verifyEmail(String code) async {
+    state = AsyncData(await _repository.verifyEmail(code));
   }
 
   Future<AuthResult> verifyWhatsApp(String code) async {
@@ -107,3 +118,4 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     state = AsyncData(await _repository.restoreSession());
   }
 }
+

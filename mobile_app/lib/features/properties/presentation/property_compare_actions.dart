@@ -9,7 +9,7 @@ class PropertyCompareSelection extends StateNotifier<Set<int>> {
     if (id <= 0) return false;
     final next = {...state};
     if (!next.remove(id)) {
-      if (next.length >= 4) return false;
+      if (next.length >= 2) return false;
       next.add(id);
     }
     state = Set.unmodifiable(next);
@@ -28,20 +28,24 @@ class PropertyCompareAction extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(propertyCompareSelectionProvider).contains(propertyId);
-    final label = selected ? 'محدد للمقارنة' : 'قارن';
+    final label = selected ? 'مضاف للمقارنة' : 'أضف للمقارنة';
     void toggle() {
       if (!ref.read(propertyCompareSelectionProvider.notifier).toggle(propertyId)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختر حتى أربعة عقارات للمقارنة. أزل أحد الاختيارات لإضافة آخر.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المقارنة بين عقارين فقط. أزل أحدهما أو استبدله لإضافة آخر.')));
+      } else if (ref.read(propertyCompareSelectionProvider).length == 1 && !selected) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختر عقارًا آخر لإكمال المقارنة.')));
       }
     }
-    if (overlay) { return IconButton(key: ValueKey('compare-property-$propertyId'), tooltip: label,
-      onPressed: enabled ? toggle : null, isSelected: selected,
-      style: IconButton.styleFrom(backgroundColor: selected ? Theme.of(context).colorScheme.primary : Colors.white.withValues(alpha: .96),
-        foregroundColor: selected ? Colors.white : Theme.of(context).colorScheme.secondary, minimumSize: const Size(48, 48),
-        padding: const EdgeInsets.all(10), shape: const CircleBorder()),
-      icon: Icon(selected ? Icons.check_rounded : Icons.compare_arrows_rounded, size: 20)); }
-    return TextButton.icon(key: ValueKey('compare-property-$propertyId'), onPressed: enabled ? toggle : null,
-      icon: Icon(selected ? Icons.check_circle_outline : Icons.compare_arrows, size: 18), label: Text(label));
+    final scheme = Theme.of(context).colorScheme;
+    return Align(alignment: AlignmentDirectional.centerStart, child: Semantics(selected: selected,
+      child: TextButton(key: ValueKey('compare-property-$propertyId'), onPressed: enabled ? toggle : null,
+        style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(48, 48),
+          foregroundColor: scheme.onSurfaceVariant),
+        child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(color: selected ? scheme.primaryContainer : scheme.surface,
+            border: Border.all(color: selected ? scheme.primary : scheme.outline), borderRadius: BorderRadius.circular(8)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(selected ? Icons.check : Icons.add, size: 13),
+            const SizedBox(width: 3), Flexible(child: Text(label, style: const TextStyle(fontSize: 11)))])))));
   }
 }
 
@@ -55,12 +59,13 @@ class PropertyCompareTray extends ConsumerWidget {
       child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
         TextButton.icon(key: const ValueKey('open-property-comparison'),
           style: TextButton.styleFrom(foregroundColor: Colors.white, disabledForegroundColor: Colors.white70),
-          onPressed: ids.length < 2 ? null : () => Navigator.of(context).push<void>(MaterialPageRoute<void>(
+          onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(
             builder: (_) => PropertyCompareScreen(propertyIds: ids.toList(growable: false)))),
-          icon: const Icon(Icons.compare_arrows, size: 20), label: Text('المقارنة (${ids.length}/4)')),
+          icon: const Icon(Icons.compare_arrows, size: 20), label: Text(ids.length == 1 ? 'اختر العقار الثاني (١/٢)' : 'قارن العقارين (٢/٢)')),
         IconButton(key: const ValueKey('clear-property-comparison'), onPressed: () => ref.read(propertyCompareSelectionProvider.notifier).clear(),
           tooltip: 'مسح اختيارات المقارنة', icon: const Icon(Icons.close, size: 18, color: Colors.white70)),
       ])),
     );
   }
 }
+

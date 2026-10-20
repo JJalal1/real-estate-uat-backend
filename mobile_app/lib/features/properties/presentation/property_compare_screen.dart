@@ -22,9 +22,10 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
   bool _differences=false,_syncing=false;
   final _scrolls=<String,ScrollController>{};
   @override
-  void initState(){super.initState();_ids=widget.propertyIds.where((id)=>id>0).toSet().take(4).toList();_future=_load();}
+  void initState(){super.initState();_ids=widget.propertyIds.where((id)=>id>0).toSet().take(2).toList();_future=_load();
+    if(_ids.length==1)WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_replace();});}
   @override
-  void didUpdateWidget(PropertyCompareScreen old){super.didUpdateWidget(old);if(Object.hashAll(old.propertyIds)!=Object.hashAll(widget.propertyIds)){_ids=widget.propertyIds.where((id)=>id>0).toSet().take(4).toList();_future=_load();}}
+  void didUpdateWidget(PropertyCompareScreen old){super.didUpdateWidget(old);if(Object.hashAll(old.propertyIds)!=Object.hashAll(widget.propertyIds)){_ids=widget.propertyIds.where((id)=>id>0).toSet().take(2).toList();_future=_load();}}
   @override
   void dispose(){for(final c in _scrolls.values){c.dispose();}super.dispose();}
   ScrollController _scroll(String key)=>_scrolls.putIfAbsent(key,(){final c=ScrollController();c.addListener((){
@@ -44,6 +45,7 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
   void _remove(int id){if(ref.read(propertyCompareSelectionProvider).contains(id))ref.read(propertyCompareSelectionProvider.notifier).toggle(id);
     setState((){_ids.remove(id);_future=_future.then((rows)=>rows.where((r)=>r.id!=id).toList());});}
   Future<void> _replace({int? oldId}) async{
+    if(oldId==null && _ids.length>=2)return;
     final id=await showModalBottomSheet<int>(context:context,isScrollControlled:true,useSafeArea:true,
       builder:(_)=>_ComparePicker(excluded:_ids.toSet()));
     if(id==null || !mounted)return;
@@ -59,7 +61,7 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
       body:FutureBuilder<List<_CompareItem>>(future:_future,builder:(context,snapshot){
         if(snapshot.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator());
         final items=snapshot.data??const <_CompareItem>[];
-        if(items.isEmpty)return AppEmptyState(title:'اختر عقارين على الأقل',message:'أضف العقارات التي تريد مقارنتها.',actionLabel:'اختيار عقار',onAction:_replace);
+        if(items.isEmpty)return AppEmptyState(title:'اختر عقارين للمقارنة',message:'المقارنة بين عقارين فقط.',actionLabel:'اختيار العقار الأول',onAction:_replace);
         return LayoutBuilder(builder:(context,constraints){
           final scale=MediaQuery.textScalerOf(context).scale(14)/14;
           final width=items.length==2 && scale<1.5 ? (constraints.maxWidth-40)/2 : scale>=1.5?270.0:210.0;
@@ -78,7 +80,7 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
               TextButton.icon(onPressed:item.property==null?null:()=>context.push('/properties/${item.id}'),icon:const Icon(Icons.open_in_new,size:16),label:const Text('عرض العقار')),
               TextButton.icon(onPressed:()=>_replace(oldId:item.id),icon:const Icon(Icons.swap_horiz,size:16),label:const Text('استبدال')),
             ]))]),
-            if(_ids.length<4)Align(alignment:AlignmentDirectional.centerStart,child:TextButton.icon(onPressed:_replace,icon:const Icon(Icons.add),label:const Text('إضافة عقار للمقارنة'))),
+            if(_ids.length<2)Align(alignment:AlignmentDirectional.centerStart,child:TextButton.icon(onPressed:_replace,icon:const Icon(Icons.add),label:const Text('اختر العقار الثاني'))),
             const SizedBox(height:12),AppSurface(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
               Text('الفرق باختصار',style:Theme.of(context).textTheme.titleMedium),const SizedBox(height:8),
               if(highlights.isEmpty)const Text('لا تظهر فروق قابلة للتلخيص من البيانات المتاحة. راجع المواصفات المسجلة أدناه.'),
@@ -132,3 +134,4 @@ class _ComparePickerState extends ConsumerState<_ComparePicker>{
       ])),
     ]))));
 }
+

@@ -81,6 +81,7 @@ class AuthUser {
     required this.isPlatformOwner,
     required this.roles,
     required this.permissions,
+    this.emailVerifiedAt,
   });
 
   final int id;
@@ -90,6 +91,8 @@ class AuthUser {
   final String accountType;
   final String accountStatus;
   final DateTime? phoneVerifiedAt;
+  final DateTime? emailVerifiedAt;
+  bool get isEmailVerified => emailVerifiedAt != null;
   final DateTime? profileCompletedAt;
   final String brokerVerificationStatus;
   final DateTime? brokerVerificationSubmittedAt;
@@ -157,6 +160,7 @@ class AuthUser {
         accountStatus:
             json['account_status']?.toString() ?? 'pending_verification',
         phoneVerifiedAt: _date(json['phone_verified_at']),
+        emailVerifiedAt: _date(json['email_verified_at']),
         profileCompletedAt: _date(json['profile_completed_at']),
         brokerVerificationStatus:
             json['broker_verification_status']?.toString() ?? 'not_required',
@@ -186,11 +190,16 @@ class AuthResult {
 class WhatsAppAuthPending {
   const WhatsAppAuthPending({
     required this.phone,
+    this.name,
+    this.email,
     required this.isNewAccount,
     this.debugCode,
   });
 
   final String phone;
+  final String? name, email;
+  bool get isEmail => email != null;
+  String get destination => email ?? phone;
   final bool isNewAccount;
   final String? debugCode;
 }
@@ -204,3 +213,4 @@ DateTime? _date(dynamic value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : DateTime.tryParse(text);
 }
+

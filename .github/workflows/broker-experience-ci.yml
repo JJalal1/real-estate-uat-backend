@@ -1,10 +1,11 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login]
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: broker-experience-${{ github.ref }}
   cancel-in-progress: true
@@ -13,7 +14,7 @@ env:
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
 jobs:
   source:
-    name: Private source checkpoint
+    name: Tracked source checkpoint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -135,7 +136,7 @@ jobs:
         run: >-
           php artisan test tests/Feature/BrokerExperienceApiTest.php
           tests/Feature/Wave4ListingJourneyTest.php tests/Feature/Wave4VoiceContractTest.php
-          tests/Feature/Wave5ListingRefinementTest.php
+          tests/Feature/Wave5ListingRefinementTest.php tests/Feature/EmailLoginAndNameTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Account drafts, real photos and broker contact on PostgreSQL
         run: php artisan test tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
@@ -222,6 +223,7 @@ jobs:
         working-directory: mobile_app
         run: >-
           flutter test
+          test/compact_cards_email_login_test.dart
           test/template_creation_menu_test.dart
           test/broker_experience_ui_test.dart
           test/broker_convenience_test.dart
@@ -319,28 +321,61 @@ jobs:
           signing=original-development-debug-key
           run_number=${GITHUB_RUN_NUMBER}
           EOF
-      - name: Upload broker UAT APK and exact commit evidence
-        id: apk_artifact
-        continue-on-error: true
-        if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: real-estate-broker-uat-${{ github.run_number }}
-          path: dist/
-          if-no-files-found: error
-          retention-days: 14
       - name: Verify the tested UAT APK
         id: verify_apk
         if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' }}
         env:
           APK_VERIFY_TOKEN: ${{ github.token }}
         run: python3 -B scripts/verify_built_uat_apk.py
+      - name: Upload broker UAT APK and exact commit evidence
+        id: apk_artifact
+        continue-on-error: true
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && github.event.repository.private }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-estate-broker-uat-${{ github.run_number }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
       - name: Private APK transport part 1 after artifact quota failure
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && steps.apk_artifact.outcome == 'failure' }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && github.event.repository.private && steps.apk_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_apk_transport.py --part 0 --parts 3
       - name: Private APK transport part 2 after artifact quota failure
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && steps.apk_artifact.outcome == 'failure' }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && github.event.repository.private && steps.apk_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_apk_transport.py --part 1 --parts 3
       - name: Private APK transport part 3 after artifact quota failure
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && steps.apk_artifact.outcome == 'failure' }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && github.event.repository.private && steps.apk_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_apk_transport.py --part 2 --parts 3
+      - name: Encrypt the verified APK for the approved public repository
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && !github.event.repository.private }}
+        run: python3 -B scripts/emit_ci_encrypted_apk.py
+      - name: Upload encrypted installer and public verification evidence
+        continue-on-error: true
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && !github.event.repository.private }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: recipient-encrypted-uat-${{ github.run_number }}
+          path: encrypted-dist/
+          if-no-files-found: error
+          retention-days: 3
+
+  encrypted_segment:
+    name: Encrypted installer segment ${{ matrix.part }}
+    if: ${{ !github.event.repository.private }}
+    needs: flutter
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        part: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Bounded ciphertext-only delivery
+        env:
+          APK_READ_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/read_ci_encrypted_apk_segment.py --part ${{ matrix.part }}

@@ -1,5 +1,10 @@
 # Decisions — REAL ESTATE
 
+## D-COMPACT-EMAIL — October20 supplied ADEstate references
+
+The owner explicitly requests compact cards, smaller favorites, an outlined text compare action and a two-property limit, no discovery-card Sai, three1090 navigation symbols, and name/email verification at login. Preserve current1095 and backend authority. Email does not replace phone or professional verification. Use existing challenge/token entities with separate purposes and signed-in confirmation for email linked to a phone account. No schema, automatic account merge, paid provider purchase or financial-history change is authorized. Public source and ciphertext-only installer publication are owner-approved; the private-key and plaintext public-installer boundaries remain. See `COMPACT_CARDS_EMAIL_LOGIN_AR.md`.
+
+
 ## D-LISTING-FLOW — October19 observed1090 handset correction
 
 The owner explicitly requests easy, fast listing steps, a visible manual map requirement, no redundant Sai-kind display and no repeated location request after returning. Preserve the purchased template creation menu from verified1092. Keep the canonical editor and backend workflow; fix point invalidation for mere text/spelling changes, bound the optional reverse lookup and retain explicit point confirmation. Only a real governorate change or explicit point replacement changes location state. A selected numeric Sai fact carries its discriminator internally, never as another selectable card. Review and submission remain explicit; `LISTING_FLOW_1092_AR.md` defines automated and handset acceptance.

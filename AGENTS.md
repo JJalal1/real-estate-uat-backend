@@ -1,5 +1,10 @@
 # AGENTS.md — REAL ESTATE UAT
 
+## October20 compact cards and email login
+
+The owner requests compact ADEstate-reference property cards, small favorites and text comparison, exactly two properties, no Sai on discovery cards, the1090 Material symbols for Work/Customers/Account, and name collection plus email OTP login. Preserve1095 map/listing corrections and the template creation menu. Read `docs/COMPACT_CARDS_EMAIL_LOGIN_AR.md`. Email proof cannot satisfy phone/publishing/professional gates, and a previously unverified email on a phone account requires signed-in confirmation before becoming a login credential. No financial terms/history or private-storage permissions change. Owner approval on October20 permits public source and recipient-encrypted APK delivery; plaintext public APK transport is forbidden. Provider delivery, exact-source CI, native verification and physical acceptance remain distinct gates.
+
+
 This file is the operating contract for AI coding agents working in this repository.
 Read it before proposing or applying changes.
 
@@ -184,3 +189,4 @@ Real-device subjective visual review is a Beta/launch-readiness gate. Lack of Co
 ## 14. When documentation and code disagree
 
 Code/live behavior wins for current-state facts. Product rules in this file and `docs/BUSINESS_RULES.md` win for intended behavior unless the product owner explicitly changes them. If a discrepancy is found, document it and fix the smallest correct layer before broad expansion.
+

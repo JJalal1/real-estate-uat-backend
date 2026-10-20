@@ -1,5 +1,10 @@
 # AI Project State — REAL ESTATE UAT
 
+## October20 in-progress compact cards and email login
+
+Current work starts from1095 source `fb16ace018911953eaa12c5a3243ce7f1b6dc806`, preserving its map, review and original-template menu fixes. Owner screenshots authorize denser cards, small favorite/compare controls, exactly-two comparison, hidden discovery-card Sai,1090 navigation symbols and name/email OTP entry. `COMPACT_CARDS_EMAIL_LOGIN_AR.md` defines the contract. Email delivery requires a real configured server mail transport; no deployment, inbox acceptance or phone verification is inferred. Public repository/encrypted APK publication is explicitly owner-approved on October20; the revised delivery policy protects plaintext installers. This section is implementation state, not a claim that pending CI or handset acceptance passed.
+
+
 ## October19 phone1090 listing flow corrections on the verified1092 source
 
 Continue from `b43a8e8d20bf8c42a5b2cf26cc3318738756f517` so the original template menu remains. The owner supplied the74.75-second1090 phone recording and requested a much simpler journey: preserve the confirmed point when returning, explicitly require manual map confirmation, and hide the redundant Sai-kind card even when the brief names it. `LISTING_FLOW_1092_AR.md` records the acceptance contract. Reviewed copy now precedes the selectable field details and its action stays fixed; assisted completion leads to preview before explicit review submission. The existing footer is Scaffold navigation so notifications appear above it. Conservative literal preparation covers the recording's `دور ثالث`, requested currency amount and trailing advance-month phrases. No schema, policy, permission, dependency or asset changes. CI/native original-byte installer verification and physical-device acceptance are separate gates; backend rollout requires the normal owner approval after reviewable evidence.

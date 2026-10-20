@@ -115,7 +115,7 @@ void main() {
   });
 
   for (final scale in [1.0,2.4]) {
-    testWidgets('cards show real facts, Arabic prices and comparison on the photo at $scale', (tester) async {
+    testWidgets('compact cards show facts, prices and a small comparison button below the text at $scale', (tester) async {
       final key = GlobalKey();
       await _pump(tester, Scaffold(body: ListView(padding: const EdgeInsets.all(18), children: [
         PropertySummaryCard(property: _property(1)), const SizedBox(height:14),
@@ -123,18 +123,18 @@ void main() {
       ]), bottomNavigationBar: const Padding(padding: EdgeInsets.all(16), child: PropertyCompareTray())), scale:scale, boundary:key);
       final compare = find.byKey(const ValueKey('compare-property-1'));
       final gallery = find.byType(PropertyCardGallery).first;
-      expect(tester.getRect(gallery).contains(tester.getCenter(compare)), isTrue);
+      expect(tester.getRect(gallery).contains(tester.getCenter(compare)), isFalse);
       expect(find.text('٣ غرف'), findsOneWidget); expect(find.text('٢ حمام'), findsOneWidget);
       expect(find.textContaining('١٢٥٬٠٠٠٬٠٠٠', findRichText: true), findsOneWidget);
       await tester.tap(compare); await tester.pumpAndSettle();
-      expect(tester.widget<IconButton>(compare).isSelected, isTrue);
+      expect(find.descendant(of: compare, matching: find.text('مضاف للمقارنة')), findsOneWidget);
       await _capture(tester,key,'cards-$scale'); expect(tester.takeException(),isNull);
       await tester.ensureVisible(find.byKey(const ValueKey('compare-property-2'))); await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('compare-property-2'))); await tester.pumpAndSettle();
       expect(tester.widget<TextButton>(find.byKey(const ValueKey('open-property-comparison'))).onPressed, isNotNull);
       expect(find.textContaining('شهريًا',findRichText:true),findsOneWidget);
       expect(find.textContaining('مقدم ٣ أشهر'),findsOneWidget);
-      expect(find.text('السعي ١٠٠٬٠٠٠ ريال'),findsOneWidget); expect(tester.takeException(),isNull);
+      expect(find.textContaining('السعي'),findsNothing); expect(tester.takeException(),isNull);
     });
 
     testWidgets('login keeps the WhatsApp journey readable at $scale', (tester) async {
@@ -192,8 +192,8 @@ void main() {
     final action = find.byKey(const ValueKey('compare-property-1'));
     final container = ProviderScope.containerOf(tester.element(find.byType(FavoritesScreen)));
     container.read(propertyCompareSelectionProvider.notifier).toggle(1); await tester.pumpAndSettle();
-    expect(tester.widget<IconButton>(action).isSelected, isTrue);
-    expect(tester.getRect(find.byType(PropertyCardGallery)).contains(tester.getCenter(action)), isTrue);
+    expect(find.descendant(of: action, matching: find.text('مضاف للمقارنة')), findsOneWidget);
+    expect(tester.getRect(find.byType(PropertyCardGallery)).contains(tester.getCenter(action)), isFalse);
     await tester.tap(action); await tester.pumpAndSettle();
     expect(container.read(propertyCompareSelectionProvider), isEmpty);
     expect(find.byTooltip('إزالة من المفضلة'), findsOneWidget); expect(tester.takeException(), isNull);

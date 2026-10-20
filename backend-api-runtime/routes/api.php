@@ -49,6 +49,8 @@ Route::get('/health', function () {
 Route::prefix('auth')->group(function () {
     Route::post('/whatsapp/start', [AuthController::class, 'startWhatsApp'])->middleware('throttle:6,1');
     Route::post('/whatsapp/verify', [AuthController::class, 'verifyWhatsApp'])->middleware('throttle:12,1');
+    Route::post('/email/start', [AuthController::class, 'startEmail'])->middleware('throttle:6,1');
+    Route::post('/email/login', [AuthController::class, 'verifyEmailLogin'])->middleware('throttle:12,1');
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:8,1');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:12,1');
     Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])->middleware('throttle:6,1');
@@ -60,6 +62,8 @@ Route::prefix('auth')->group(function () {
         Route::patch('/profile', [AuthController::class, 'updateProfile']);
         Route::post('/phone/request', [AuthController::class, 'requestPhoneVerification'])->middleware('throttle:6,1');
         Route::post('/phone/verify', [AuthController::class, 'verifyPhone'])->middleware('throttle:12,1');
+        Route::post('/email/request', [AuthController::class, 'requestEmailVerification'])->middleware('throttle:6,1');
+        Route::post('/email/verify', [AuthController::class, 'verifyEmail'])->middleware('throttle:12,1');
         Route::post('/legacy/claim', [AuthController::class, 'claimLegacyOwnership'])->middleware('throttle:6,1');
     });
 });
@@ -280,3 +284,4 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::get('/audit-logs', [AccessControlController::class, 'auditLogs'])->middleware('permission:audit.view');
     });
 });
+

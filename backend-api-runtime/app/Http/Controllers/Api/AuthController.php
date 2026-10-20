@@ -11,10 +11,12 @@ use App\Services\AuditLogService;
 use App\Services\LegacyOwnershipService;
 use App\Services\VerificationCodeService;
 use App\Services\WhatsAppVerificationSender;
+use App\Services\EmailVerificationSender;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +30,7 @@ class AuthController extends Controller
         private readonly AccessControlService $access,
         private readonly AuditLogService $audit,
         private readonly WhatsAppVerificationSender $whatsapp,
+        private readonly EmailVerificationSender $emailSender,
     ) {}
 
     public function register(Request $request): JsonResponse
@@ -86,6 +89,7 @@ class AuthController extends Controller
             'phone'=>['required','string','max:32','regex:/^\+?[0-9]{7,20}$/'],
         ]);
         $intent=(string)$v['intent'];
+        if ($intent === 'continue' && !empty($v['name'])) $this->validateUnifiedFullName(trim($v['name']));
         $phone=$this->normalizePhone((string)$v['phone']);
         $accountType=(string)($v['account_type'] ?? User::ACCOUNT_TYPE_REGULAR);
         $createdNow=false;
@@ -193,6 +197,7 @@ class AuthController extends Controller
             'phone'=>['required','string','max:32','regex:/^\+?[0-9]{7,20}$/'],
             'account_type'=>['nullable',Rule::in([User::ACCOUNT_TYPE_REGULAR,User::ACCOUNT_TYPE_BROKER])],
             'code'=>['required','digits:6'],
+            'name'=>['nullable','string','max:120'],
             'legacy_owner_key'=>['nullable','string','min:32','max:96'],
         ]);
         $phone=$this->normalizePhone((string)$v['phone']);
@@ -207,7 +212,9 @@ class AuthController extends Controller
             return response()->json(['message'=>'This account is banned.','code'=>'ACCOUNT_BANNED'],403);
         }
 
+        if (!empty($v['name'])) $this->validateUnifiedFullName(trim($v['name']));
         $this->verification->verify($user,VerificationChallenge::PURPOSE_PHONE,$phone,(string)$v['code']);
+        $this->completeLoginName($user, $v['name'] ?? null);
         $user->forceFill([
             'phone_verified_at'=>now(),
             'account_status'=>User::STATUS_ACTIVE,
@@ -311,7 +318,16 @@ class AuthController extends Controller
             $user->name=$name;
             $changed[]='name';
         }
-        if (array_key_exists('email',$v)) { $user->email = Str::lower(trim((string)$v['email'])); $changed[]='email'; }
+        if (array_key_exists('email',$v)) {
+            $email = Str::lower(trim((string)$v['email']));
+            if ($email !== $user->email) {
+                $user->email = $email;
+                $user->email_verified_at = null;
+                $user->verificationChallenges()->whereIn('purpose', [VerificationChallenge::PURPOSE_EMAIL, VerificationChallenge::PURPOSE_EMAIL_LOGIN])
+                    ->whereNull('consumed_at')->update(['consumed_at'=>now()]);
+                $changed[]='email';
+            }
+        }
         if (array_key_exists('phone',$v)) {
             $phone = $this->normalizePhone((string)$v['phone']);
             if ($phone !== $user->phone) {
@@ -392,6 +408,116 @@ class AuthController extends Controller
         $claimed = $this->legacyOwnership->claim($request->user(),(string)$v['legacy_owner_key']);
         $this->audit->record($request->user(),'listing.legacy_claimed',$request->user(),['listings_claimed'=>$claimed],$request,$request->user()->id);
         return response()->json(['message'=>'Legacy ownership claim completed.','data'=>['legacy_listings_claimed'=>$claimed]]);
+    }
+
+    public function startEmail(Request $request): JsonResponse
+    {
+        $this->normalizeIdentityInput($request);
+        $v = $request->validate(['email'=>['required','email','max:190','not_regex:/@(phone\.local\.invalid|example\.invalid)$/i'],
+            'name'=>['nullable','string','max:120']]);
+        if (!empty($v['name'])) $this->validateUnifiedFullName(trim($v['name']));
+        $this->emailSender->ensureConfigured();
+        $email = (string) $v['email'];
+        $this->limitEmailRequests($email);
+        $user = User::query()->firstOrCreate(['email'=>$email], [
+            'name'=>'مستخدم جديد', 'phone'=>null, 'password'=>Hash::make(Str::random(64)),
+            'account_type'=>User::ACCOUNT_TYPE_REGULAR, 'identity_policy_version'=>2,
+            'account_status'=>User::STATUS_PENDING_VERIFICATION,
+            'broker_verification_status'=>User::BROKER_VERIFICATION_NOT_REQUIRED,
+        ]);
+        $this->rejectBlockedAccount($user);
+        // An unverified email added to an existing phone account cannot become a
+        // recovery credential. That account must confirm it while signed in first.
+        $eligible = $user->email_verified_at !== null || ($user->phone === null && (int)$user->identity_policy_version >= 2);
+        $created = null;
+        if ($eligible) {
+            $this->access->ensureRegisteredUser($user);
+            $created = $this->sendEmailChallenge($user, VerificationChallenge::PURPOSE_EMAIL_LOGIN);
+        }
+        return response()->json(['message'=>'إذا كان البريد مؤهلًا للدخول، سيصلك رمز التحقق. البريد المضاف لحساب واتساب يُوثّق أولًا من الملف الشخصي.',
+            'data'=>['email'=>$email, 'expires_in_minutes'=>VerificationCodeService::EXPIRES_MINUTES,
+                'debug_code'=>$created['debug_code'] ?? null]]);
+    }
+
+    public function verifyEmailLogin(Request $request): JsonResponse
+    {
+        $this->normalizeIdentityInput($request);
+        $v = $request->validate(['email'=>['required','email','max:190'], 'code'=>['required','digits:6'],
+            'name'=>['nullable','string','max:120']]);
+        if (!empty($v['name'])) $this->validateUnifiedFullName(trim($v['name']));
+        $user = User::query()->where('email', $v['email'])->first();
+        if (!$user || ($user->email_verified_at === null && ($user->phone !== null || (int)$user->identity_policy_version < 2))) {
+            throw ValidationException::withMessages(['code'=>['رمز التحقق غير صالح أو انتهت صلاحيته.']]);
+        }
+        $this->rejectBlockedAccount($user);
+        $this->verification->verify($user, VerificationChallenge::PURPOSE_EMAIL_LOGIN, $user->email, (string)$v['code']);
+        $this->completeLoginName($user, $v['name'] ?? null);
+        // Email proof does not verify a phone, activate publishing or grant a role.
+        $user->forceFill(['email_verified_at'=>now(), 'last_login_at'=>now()])->save();
+        $token = $this->tokens->issue($user, $request);
+        $this->audit->record($user, 'auth.email_verified_login', $user, [], $request, $user->id);
+        return response()->json(['message'=>'تم التحقق من البريد.', 'data'=>[
+            'user'=>$this->userData($user->fresh()), 'token'=>$token['plain_text_token'],
+            'token_expires_at'=>$token['expires_at'], 'legacy_listings_claimed'=>0]]);
+    }
+
+    public function requestEmailVerification(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $this->rejectBlockedAccount($user);
+        if (str_ends_with($user->email, '.invalid')) {
+            throw ValidationException::withMessages(['email'=>['احفظ بريدًا صحيحًا في الملف الشخصي أولًا.']]);
+        }
+        $this->emailSender->ensureConfigured();
+        $this->limitEmailRequests($user->email);
+        $created = $this->sendEmailChallenge($user, VerificationChallenge::PURPOSE_EMAIL);
+        return response()->json(['message'=>'تم إرسال رمز تأكيد البريد.', 'data'=>[
+            'email'=>$user->email, 'debug_code'=>$created['debug_code'],
+            'expires_in_minutes'=>VerificationCodeService::EXPIRES_MINUTES]]);
+    }
+
+    public function verifyEmail(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $this->rejectBlockedAccount($user);
+        $v = $request->validate(['code'=>['required','digits:6']]);
+        $this->verification->verify($user, VerificationChallenge::PURPOSE_EMAIL, $user->email, (string)$v['code']);
+        $user->forceFill(['email_verified_at'=>now()])->save();
+        $this->audit->record($user, 'account.email_verified', $user, [], $request, $user->id);
+        return response()->json(['message'=>'تم تأكيد البريد.', 'data'=>['user'=>$this->userData($user->fresh())]]);
+    }
+
+    private function sendEmailChallenge(User $user, string $purpose): array
+    {
+        $created = $this->verification->create($user, $purpose, $user->email, allowUatCode: false);
+        try { $this->emailSender->sendCode($user->email, $created['code']); }
+        catch (\Throwable $error) {
+            $created['challenge']->forceFill(['consumed_at'=>now()])->save();
+            throw $error;
+        }
+        return $created;
+    }
+
+    private function limitEmailRequests(string $email): void
+    {
+        $key = 'email-otp:'.hash('sha256', $email);
+        abort_if(RateLimiter::tooManyAttempts($key, 5), 429, 'طلبات كثيرة لهذا البريد. حاول لاحقًا.');
+        RateLimiter::hit($key, 3600);
+    }
+
+    private function rejectBlockedAccount(User $user): void
+    {
+        abort_if(in_array($user->account_status, [User::STATUS_SUSPENDED, User::STATUS_BANNED], true), 403, 'هذا الحساب موقوف.');
+    }
+
+    private function completeLoginName(User $user, ?string $name): void
+    {
+        if ($name === null || trim($name) === '') return;
+        $name = preg_replace('/\s+/u', ' ', trim($name));
+        $this->validateUnifiedFullName($name);
+        if ($user->profile_completed_at === null && (int)$user->identity_policy_version >= 2 && !$user->verificationProfile()) {
+            $user->forceFill(['name'=>$name, 'profile_completed_at'=>now()]);
+        }
     }
 
     private function normalizeIdentityInput(Request $request): void
@@ -505,6 +631,7 @@ class AuthController extends Controller
             'phone'=>$user->phone,
             'account_type'=>$user->account_type ?? User::ACCOUNT_TYPE_REGULAR,
             'phone_verified_at'=>$user->phone_verified_at?->toIso8601String(),
+            'email_verified_at'=>$user->email_verified_at?->toIso8601String(),
             'profile_completed_at'=>$user->profile_completed_at?->toIso8601String(),
             'account_status'=>$user->account_status,
             'broker_verification_status'=>$user->broker_verification_status ?? User::BROKER_VERIFICATION_NOT_REQUIRED,
@@ -520,3 +647,4 @@ class AuthController extends Controller
         ];
     }
 }
+

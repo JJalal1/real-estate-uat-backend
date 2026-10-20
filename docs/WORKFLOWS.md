@@ -1,5 +1,12 @@
 # Workflows — REAL ESTATE
 
+## October20 compact discovery and email entry
+
+`first compare selection -> choose one more -> compare two -> remove or replace`
+
+Discovery cards show compact facts and a clear price, with a small heart and text comparison below the information. Featured cards place the price on the photo. No card Sai footer. Login collects the full name and selects WhatsApp or email, then requires a valid single-use code before storing the new name/session. Email-only users add and confirm a phone through the existing Profile/phone flow for active-account actions. A signed-in phone account confirms its own email from Profile before email login is available. Real mail configuration and inbox acceptance are separate from automated transport tests.
+
+
 ## October19 short assisted creation and map confirmation
 
 `describe/type or manually finish voice -> review editable title/copy and selected facts -> explicit use -> confirm map point and fill only missing requirements/photos -> preview -> explicit submit confirmation -> existing support workflow`

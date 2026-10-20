@@ -39,7 +39,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppAppBar(
-          title: _compareMode ? 'اختر للمقارنة (${_selected.length}/4)' : 'المفضلة',
+          title: _compareMode ? 'اختر للمقارنة (${_selected.length}/2)' : 'المفضلة',
           actions: [
             if (_compareMode)
               AppIconButton(
@@ -64,8 +64,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     padding: const EdgeInsetsDirectional.all(AppSpacing.s12),
                     child: AppButton(
                       label: _selected.length < 2
-                          ? 'اختر عقارين على الأقل'
-                          : 'مقارنة ${_selected.length} عقارات',
+                          ? 'اختر العقار الثاني'
+                          : 'قارن العقارين',
                       icon: Icons.compare_arrows_rounded,
                       onPressed: _selected.length < 2 ? null : _openComparison,
                       expand: true,
@@ -138,19 +138,17 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         location: property.address,
                         purposeLabel: _purposeLabel(property.purpose),
                         facts: _facts(property),
-                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                          PropertyCompareAction(propertyId: property.id, overlay: true),
-                          IconButton(
+                        action: PropertyCompareAction(propertyId: property.id),
+                        trailing: IconButton(
                                 tooltip: 'إزالة من المفضلة',
                                 onPressed: () => _remove(context, property.id),
-                                style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: .96),
-                                  minimumSize: const Size(48, 48), shape: const CircleBorder()),
+                                style: IconButton.styleFrom(minimumSize: const Size(48, 48), shape: const CircleBorder()),
                                 icon: EbrokerIcon(
                                   Icons.favorite_rounded,
+                                  size: 19,
                                   color: Theme.of(context).colorScheme.error,
                                 ),
                               ),
-                        ]),
                         onTap: _compareMode
                             ? () => _toggleSelection(property.id)
                             : () => context.push('/properties/${property.id}'),
@@ -177,7 +175,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   void _toggleSelection(int propertyId) {
     if (!ref.read(propertyCompareSelectionProvider.notifier).toggle(propertyId)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يمكن مقارنة أربعة عقارات كحد أقصى.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المقارنة بين عقارين فقط. أزل أحدهما لإضافة آخر.')));
     }
   }
 
@@ -248,3 +246,4 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     return buffer.toString();
   }
 }
+

@@ -583,6 +583,10 @@ class AppNavigationBar extends StatelessWidget {
 
   Widget _icon(AppNavDestination item, bool active, Color color, double size) {
     final icon = item.icon;
+    // The owner-selected1090 symbols for these three destinations.
+    if (const ['عملي', 'العملاء', 'حسابي'].contains(item.label)) {
+      return Icon(icon, size: 23, color: color);
+    }
     String? asset;
     if ([Icons.home_work_outlined, Icons.home_outlined, Icons.home, Icons.travel_explore_outlined].contains(icon)) {
       asset = active ? 'home_active' : 'home';
@@ -783,6 +787,7 @@ class AppPropertyCard extends StatelessWidget {
     this.categoryLabel = 'عقار',
     this.unavailable = false,
     this.trailing,
+    this.action,
     this.horizontal = false,
     super.key,
   });
@@ -800,12 +805,13 @@ class AppPropertyCard extends StatelessWidget {
   final String categoryLabel;
   final bool unavailable;
   final Widget? trailing;
+  final Widget? action;
   final bool horizontal;
 
   @override
   Widget build(BuildContext context) => EbrokerPropertyHorizontalCard(title: title, price: price, currency: currency,
     onTap: onTap, imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, location: location,
-    purposeLabel: purposeLabel, categoryLabel: categoryLabel, facts: facts, trailing: trailing,
+    purposeLabel: purposeLabel, categoryLabel: categoryLabel, facts: facts, trailing: trailing, action: action,
     unavailable: unavailable, imageFirst: !horizontal);
 }
 

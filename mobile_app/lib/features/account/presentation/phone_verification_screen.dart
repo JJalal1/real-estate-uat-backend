@@ -37,23 +37,23 @@ class _PhoneVerificationScreenState
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('رمز التحقق عبر واتساب')),
+        appBar: AppBar(title: Text(pending?.isEmail == true ? 'رمز التحقق عبر البريد' : 'رمز التحقق عبر واتساب')),
         body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
             Text(
               pending != null
-                  ? 'أدخل الرمز الذي أُرسل إلى واتساب: ${pending.phone}'
+                  ? 'أدخل رمز التحقق المرسل إلى ${pending.isEmail ? 'البريد' : 'واتساب'}: ${pending.destination}'
                   : user?.phone == null
-                      ? 'اطلب رمز التحقق.'
+                      ? 'أضف رقم واتساب إلى ملفك الشخصي ثم أكّد الرقم.'
                       : 'سيتم التحقق من الرقم: ${user!.phone}',
             ),
             const SizedBox(height: 16),
             if (pending == null)
               EbrokerOutlinedButton.icon(
-                onPressed: _busy ? null : _requestLegacyCode,
+                onPressed: _busy ? null : user?.phone == null ? () => context.push('/profile') : _requestLegacyCode,
                 icon: const EbrokerIcon(Icons.chat_outlined),
-                label: const Text('إرسال رمز واتساب'),
+                label: Text(user?.phone == null ? 'إضافة رقم واتساب' : 'إرسال رمز واتساب'),
               )
             else
               EbrokerOutlinedButton.icon(
@@ -96,9 +96,9 @@ class _PhoneVerificationScreenState
     }
     setState(() => _busy = true);
     try {
-      await ref
-          .read(authControllerProvider.notifier)
-          .startWhatsApp(phone: pending.phone);
+      final auth = ref.read(authControllerProvider.notifier);
+      if (pending.isEmail) { await auth.startEmail(email: pending.email!, name: pending.name); }
+      else { await auth.startWhatsApp(phone: pending.phone, name: pending.name); }
       if (mounted) {
         setState(() {});
       }
@@ -145,7 +145,7 @@ class _PhoneVerificationScreenState
             .verifyWhatsApp(_code.text);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم التحقق من رقم واتساب بنجاح.')),
+          SnackBar(content: Text(pending.isEmail ? 'تم التحقق من البريد بنجاح.' : 'تم التحقق من رقم واتساب بنجاح.')),
         );
         if (result.user.needsProfileCompletion) {
           context.go('/complete-profile');
@@ -178,3 +178,4 @@ class _PhoneVerificationScreenState
     }
   }
 }
+
