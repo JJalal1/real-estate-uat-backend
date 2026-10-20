@@ -68,7 +68,9 @@ String friendlyApiError(Object error) {
       if (code == 503 && const [
         'الدخول بالبريد غير مفعّل حاليًا. استخدم واتساب أو أعد المحاولة لاحقًا.',
         'تعذر إرسال رمز البريد. جرّب مجددًا أو استخدم واتساب.',
-      ].contains(serverMessage)) return serverMessage!;
+      ].contains(serverMessage)) {
+        return serverMessage!;
+      }
       return 'الخادم غير متاح مؤقتاً. حاول مرة أخرى بعد قليل.';
     }
     if (mappedMessage != null) {

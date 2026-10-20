@@ -72,7 +72,11 @@ class EmailLoginAndNameTest extends TestCase
         for ($i=0;$i<5;$i++) $this->postJson('/api/auth/email/login',['email'=>self::EMAIL,'code'=>'000000'])->assertUnprocessable();
         $this->verify($start)->assertUnprocessable();
         $this->assertSame(5,(int)VerificationChallenge::query()->firstOrFail()->attempts);
-        $next = $this->start();
+        // The existing IP limiter also covers these failed submissions. A resend
+        // waits for that minute window instead of bypassing the live throttle.
+        $this->start()->assertStatus(429);
+        $this->travel(61)->seconds();
+        $next = $this->start()->assertOk();
         $this->assertNotNull(VerificationChallenge::query()->oldest('id')->firstOrFail()->consumed_at);
         $this->verify($next)->assertOk();
     }
