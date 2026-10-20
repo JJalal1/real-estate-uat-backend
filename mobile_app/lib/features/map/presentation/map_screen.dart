@@ -2263,7 +2263,8 @@ class _PropertyResultCard extends StatelessWidget {
       border: Border.all(color: selected ? scheme.primary : EbrokerDesign.border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
-          price: _formatPrice(property.price), currency: _currencyLabel(property.currency),
+          price: _formatPrice(property.purpose == 'rent' ? property.monthlyRent ?? property.price : property.price), currency: _currencyLabel(property.currency),
+          priceSuffix: property.purpose == 'rent' && property.monthlyRent != null ? 'شهريًا' : null,
           imageUrl: property.mainImage, imageUrls: property.imageUrls, isSpotlight: property.isSpotlight,
           location: property.address ?? '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
           categoryLabel: _typeLabel(property.type ?? ''),

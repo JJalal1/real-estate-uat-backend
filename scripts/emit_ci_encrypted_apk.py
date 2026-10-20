@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Publish only recipient-encrypted chunks of an already native-verified UAT APK."""
+import argparse
 import base64
 import hashlib
 import json
@@ -10,6 +11,9 @@ import subprocess
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--log-fallback', action='store_true')
+    args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     policy = json.loads((root / 'docs/PUBLIC_UAT_DELIVERY.json').read_text())
     event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
@@ -44,10 +48,14 @@ def main():
             'payload_bytes': len(block), 'payload_sha256': hashlib.sha256(block).hexdigest()}
         (output / f'part-{part:02}.cms').write_bytes(encrypted)
         (output / f'part-{part:02}.json').write_text(json.dumps(meta) + '\n')
-        print('CODEX_CMS_BEGIN ' + json.dumps(meta, sort_keys=True), flush=True)
-        for index, chunk in enumerate(blocks):
-            print('CODEX_CMS_DATA ' + str(index) + ' ' + base64.b64encode(chunk).decode())
-        print('CODEX_CMS_END ' + str(part), flush=True)
+        if args.log_fallback:
+            print('CODEX_CMS_BEGIN ' + json.dumps(meta, sort_keys=True), flush=True)
+            for index, chunk in enumerate(blocks):
+                print('CODEX_CMS_DATA ' + str(index) + ' ' + base64.b64encode(chunk).decode())
+            print('CODEX_CMS_END ' + str(part), flush=True)
+    if not args.log_fallback:
+        print(json.dumps({'encrypted_parts': 32, 'source_commit': proof['source_commit'],
+                          'plaintext_publication': False, 'recipient_sha256': policy['recipient_sha256']}))
 
 
 if __name__ == '__main__':

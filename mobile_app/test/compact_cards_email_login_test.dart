@@ -56,6 +56,7 @@ Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
 Future<void> _pump(WidgetTester tester, Widget child,{double width=412,double scale=1,GlobalKey? boundary}) async {
   tester.view.physicalSize=Size(width,915); tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+  await tester.pumpWidget(const SizedBox.shrink());
   await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(_Auth.new)],
     child:MaterialApp(theme:AppTheme.light,builder:(context,child)=>MediaQuery(
       data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale)),
@@ -124,6 +125,7 @@ void main() {
           AppNavDestination(label:'حسابي',icon:Icons.account_circle_outlined)],selectedIndex:0,onSelected:(_) {},onCreate:() {})),scale:scale,boundary:key);
       final badge=find.byKey(const ValueKey('property-photo-price'));
       expect(tester.getRect(find.byType(PropertyCardGallery)).contains(tester.getCenter(badge)),isTrue);
+      expect(tester.getRect(badge).right,closeTo(tester.getRect(find.byType(PropertyCardGallery)).right-8,.1));
       expect(find.byIcon(Icons.work_outline),findsOneWidget); expect(find.byIcon(Icons.people_outline),findsOneWidget);
       expect(find.byIcon(Icons.account_circle_outlined),findsOneWidget);
       await _capture(tester,key,'featured-and-navigation-$scale'); expect(tester.takeException(),isNull);

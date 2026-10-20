@@ -790,6 +790,8 @@ class AppPropertyCard extends StatelessWidget {
     this.unavailable = false,
     this.trailing,
     this.action,
+    this.priceSuffix,
+    this.supportingText = const [],
     this.horizontal = false,
     super.key,
   });
@@ -808,13 +810,15 @@ class AppPropertyCard extends StatelessWidget {
   final bool unavailable;
   final Widget? trailing;
   final Widget? action;
+  final String? priceSuffix;
+  final List<String> supportingText;
   final bool horizontal;
 
   @override
   Widget build(BuildContext context) => EbrokerPropertyHorizontalCard(title: title, price: price, currency: currency,
     onTap: onTap, imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, location: location,
     purposeLabel: purposeLabel, categoryLabel: categoryLabel, facts: facts, trailing: trailing, action: action,
-    unavailable: unavailable, imageFirst: !horizontal);
+    unavailable: unavailable, imageFirst: !horizontal, priceSuffix: priceSuffix, supportingText: supportingText);
 }
 
 (Color, Color) _semantic(BuildContext context, AppStatusTone tone) {

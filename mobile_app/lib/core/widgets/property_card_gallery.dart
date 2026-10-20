@@ -57,14 +57,16 @@ class _PropertyCardGalleryState extends State<PropertyCardGallery> {
                 decoration: BoxDecoration(color: i == _index ? Colors.white : Colors.white70, borderRadius: BorderRadius.circular(4))),
             ]) : Text('${_index + 1}/${urls.length}', style: const TextStyle(color: Colors.white, fontSize: 11))),
         ]))),
-      if (widget.isSpotlight) PositionedDirectional(bottom: 8, start: widget.priceBadge == null ? null : 8, end: widget.priceBadge == null ? 8 : null,
+      if (widget.isSpotlight) PositionedDirectional(bottom: 8,
+        start: widget.priceBadge != null && Directionality.of(context) == TextDirection.ltr ? 8 : null,
+        end: widget.priceBadge == null || Directionality.of(context) == TextDirection.rtl ? 8 : null,
         child: Tooltip(message: 'إعلان مميز', child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
           decoration: BoxDecoration(color: Colors.white.withValues(alpha: .94), borderRadius: BorderRadius.circular(6)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [EbrokerIcon(Icons.auto_awesome_outlined, size: 13, color: Theme.of(context).colorScheme.primary),
             if (size.maxWidth > 180) ...[const SizedBox(width: 3), Text('مميز', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary))],
           ])))),
       if (widget.overlay != null) PositionedDirectional(top: 4, end: 4, child: widget.overlay!),
-      if (widget.priceBadge != null) PositionedDirectional(bottom: 8, end: 8,
+      if (widget.priceBadge != null) Positioned(bottom: 8, right: 8,
         child: ConstrainedBox(constraints: BoxConstraints(maxWidth: size.maxWidth - (widget.isSpotlight ? 68 : 16)), child: widget.priceBadge!)),
     ]));
   });
