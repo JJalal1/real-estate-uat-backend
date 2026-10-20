@@ -72,6 +72,8 @@ void main() {
     final font=FontLoader('PrimaryFont');
     for(final weight in ['Regular','Medium','SemiBold','Bold','ExtraBold']) { font.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf')); }
     await font.load();
+    final icons=await File('${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
+    await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   });
   test('verified email does not satisfy the phone or publishing gates',() {
     final user=_user(); expect(user.isEmailVerified,isTrue); expect(user.isActive,isFalse);

@@ -169,6 +169,12 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+  testWidgets('two-property comparison keeps an unavailable listing visible for replacement', (tester) async {
+    await _pump(tester, const PropertyCompareScreen(propertyIds: [11,13]));
+    expect(find.text('العقار غير متاح حاليًا'), findsOneWidget);
+    expect(find.text('استبدال'), findsNWidgets(2));
+    expect(tester.takeException(),isNull);
+  });
   for (final scale in [1.0,2.4]) {
     testWidgets('comparison keeps missing facts and unavailable columns honest at scale $scale', (tester) async {
       final key = GlobalKey();

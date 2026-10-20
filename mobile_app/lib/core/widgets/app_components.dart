@@ -581,11 +581,13 @@ class AppNavigationBar extends StatelessWidget {
   final VoidCallback? onCreate;
   final bool createExpanded;
 
-  Widget _icon(AppNavDestination item, bool active, Color color, double size) {
+  Widget _icon(BuildContext context, AppNavDestination item, bool active, Color color, double size) {
     final icon = item.icon;
     // The owner-selected1090 symbols for these three destinations.
     if (const ['عملي', 'العملاء', 'حسابي'].contains(item.label)) {
-      return Icon(icon, size: 23, color: color);
+      return Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(color: active ? Theme.of(context).colorScheme.primaryContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(16)), child: Icon(icon, size: 23, color: color));
     }
     String? asset;
     if ([Icons.home_work_outlined, Icons.home_outlined, Icons.home, Icons.travel_explore_outlined].contains(icon)) {
@@ -625,8 +627,8 @@ class AppNavigationBar extends StatelessWidget {
             onTap: () => onSelected(index),
             child: Padding(padding: EdgeInsets.all(4.rh(context)),
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                AnimatedScale(scale: active ? 1.3 : 1, duration: duration,
-                  child: _icon(item, active, color, 24.rw(context))),
+                AnimatedScale(scale: active && !const ['عملي', 'العملاء', 'حسابي'].contains(item.label) ? 1.3 : 1, duration: duration,
+                  child: _icon(context, item, active, color, 24.rw(context))),
                 if (!largeText) ...[
                   SizedBox(height: 4.rh(context)),
                   EbrokerText(item.label, size: 12, color: color, maxLines: 1, align: TextAlign.center),
