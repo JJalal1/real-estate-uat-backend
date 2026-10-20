@@ -414,12 +414,17 @@ class AuthController extends Controller
     {
         $this->normalizeIdentityInput($request);
         $v = $request->validate(['email'=>['required','email','max:190','not_regex:/@(phone\.local\.invalid|example\.invalid)$/i'],
+            'intent'=>['sometimes',Rule::in(['continue','login'])],
             'name'=>['nullable','string','max:120']]);
         if (!empty($v['name'])) $this->validateUnifiedFullName(trim($v['name']));
         $this->emailSender->ensureConfigured();
         $email = (string) $v['email'];
         $this->limitEmailRequests($email);
-        $user = User::query()->firstOrCreate(['email'=>$email], [
+        $user = User::query()->where('email', $email)->first();
+        if (!$user && ($v['intent'] ?? 'continue') === 'login') {
+            throw ValidationException::withMessages(['email'=>['لا يوجد حساب بهذا البريد. اختر إنشاء حساب جديد.']]);
+        }
+        $user ??= User::query()->firstOrCreate(['email'=>$email], [
             'name'=>'مستخدم جديد', 'phone'=>null, 'password'=>Hash::make(Str::random(64)),
             'account_type'=>User::ACCOUNT_TYPE_REGULAR, 'identity_policy_version'=>2,
             'account_status'=>User::STATUS_PENDING_VERIFICATION,

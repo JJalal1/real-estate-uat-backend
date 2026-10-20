@@ -57,6 +57,47 @@ class EmailLoginAndNameTest extends TestCase
         $this->assertSame(1,$user->apiTokens()->count());
     }
 
+    public function test_existing_whatsapp_account_logs_in_without_a_name_or_a_duplicate_account(): void
+    {
+        $user = User::factory()->create(['phone'=>'+967700000991', 'phone_verified_at'=>now(),
+            'name'=>self::NAME, 'profile_completed_at'=>now(), 'identity_policy_version'=>2, 'account_status'=>'active']);
+        $count = User::query()->count();
+        $start = $this->postJson('/api/auth/whatsapp/start', ['intent'=>'login', 'phone'=>$user->phone])
+            ->assertOk()->assertJsonPath('data.is_new_account', false);
+        $this->postJson('/api/auth/whatsapp/verify', ['phone'=>$user->phone, 'code'=>$start->json('data.debug_code')])
+            ->assertOk()->assertJsonPath('data.user.id', $user->id)->assertJsonPath('data.user.name', self::NAME);
+        $this->assertSame($count, User::query()->count());
+        $this->assertNotNull($user->fresh()->profile_completed_at);
+        $this->assertSame(1, $user->apiTokens()->count());
+    }
+
+    public function test_existing_verified_email_logs_in_without_a_name_and_keeps_the_same_account(): void
+    {
+        $user = User::factory()->create(['email'=>self::EMAIL, 'email_verified_at'=>now(),
+            'phone'=>'+967700000992', 'phone_verified_at'=>now(), 'name'=>self::NAME,
+            'profile_completed_at'=>now(), 'identity_policy_version'=>2, 'account_status'=>'active']);
+        $count = User::query()->count();
+        $start = $this->postJson('/api/auth/email/start', ['intent'=>'login', 'email'=>self::EMAIL])->assertOk();
+        $this->postJson('/api/auth/email/login', ['email'=>self::EMAIL, 'code'=>$start->json('data.debug_code')])
+            ->assertOk()->assertJsonPath('data.user.id', $user->id)->assertJsonPath('data.user.name', self::NAME);
+        $this->assertSame($count, User::query()->count());
+        $this->assertNotNull($user->fresh()->phone_verified_at);
+        $this->assertNotNull($user->fresh()->profile_completed_at);
+        $this->assertSame(1, $user->apiTokens()->count());
+    }
+
+    public function test_login_intent_never_creates_an_unknown_phone_or_email_account(): void
+    {
+        $count = User::query()->count();
+        $this->postJson('/api/auth/whatsapp/start', ['intent'=>'login', 'phone'=>'+967700000991'])
+            ->assertUnprocessable()->assertJsonValidationErrors('phone');
+        $this->postJson('/api/auth/email/start', ['intent'=>'login', 'email'=>self::EMAIL])
+            ->assertUnprocessable()->assertJsonValidationErrors('email');
+        $this->assertSame($count, User::query()->count());
+        $this->assertDatabaseCount('verification_challenges', 0);
+        $this->assertDatabaseCount('api_tokens', 0);
+    }
+
     public function test_expired_and_wrong_destination_codes_do_not_issue_tokens(): void
     {
         $start = $this->start();

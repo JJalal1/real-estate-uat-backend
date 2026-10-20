@@ -64,6 +64,21 @@ Future<void> _pump(WidgetTester tester, Widget child,{double width=412,double sc
   await tester.pumpAndSettle();
 }
 
+Future<void> _pumpAuth(WidgetTester tester, _Auth auth, {double scale=1, bool register=false, GlobalKey? boundary}) async {
+  tester.view.physicalSize=const Size(412,915); tester.view.devicePixelRatio=1;
+  addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+  final router=GoRouter(routes:[
+    GoRoute(path:'/',builder:(_,__)=>AuthScreen(startWithRegister:register)),
+    GoRoute(path:'/verify-phone',builder:(_,__)=>const PhoneVerificationScreen()),
+  ]);
+  addTearDown(router.dispose);
+  await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(()=>auth)],
+    child:MaterialApp.router(theme:AppTheme.light,routerConfig:router,
+      builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale)),
+        child:RepaintBoundary(key:boundary,child:child!)))));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
@@ -92,11 +107,27 @@ void main() {
     }));
     final repo=AuthRepository(dio), pending=await repoStart(dio);
     expect(pending.isEmail,isTrue); expect(pending.name,_name); expect(writes,isEmpty);
+    expect((calls.first.data as Map)['intent'],'continue');
     await repo.verifyWhatsApp(pending,'123456');
     expect(calls.map((c)=>c.path),['/auth/email/start','/auth/email/login']);
     expect(calls.last.data,{'email':'person@example.test','code':'123456','name':_name});
     expect(writes,['synthetic-session-token']);
   });
+  for(final email in [false,true]) {
+    test('existing-account ${email ? 'email' : 'WhatsApp'} requests omit the name and use login intent',() async {
+      late RequestOptions request;
+      final dio=Dio()..interceptors.add(InterceptorsWrapper(onRequest:(options,handler) {
+        request=options;
+        handler.resolve(Response(requestOptions:options,statusCode:200,data:{'data':{
+          'phone':'+967700000991','email':'person@example.test','is_new_account':false}}));
+      }));
+      final repo=AuthRepository(dio);
+      final pending=email ? await repo.startEmail(email:'person@example.test') : await repo.startWhatsApp(phone:'+967700000991');
+      expect((request.data as Map)['intent'],'login');
+      expect((request.data as Map).containsKey('name'),isFalse);
+      expect(pending.name,isNull); expect(pending.isNewAccount,isFalse);
+    });
+  }
   for(final scale in [1.0,2.4]) {
     testWidgets('compact RTL cards keep inline facts, price and two-property actions at $scale',(tester) async {
       final key=GlobalKey();
@@ -130,19 +161,52 @@ void main() {
       expect(find.byIcon(Icons.account_circle_outlined),findsOneWidget);
       await _capture(tester,key,'featured-and-navigation-$scale'); expect(tester.takeException(),isNull);
     });
-    testWidgets('login collects the name and sends the chosen channel at $scale',(tester) async {
+    for(final email in [false,true]) {
+    testWidgets('existing-account ${email ? 'email' : 'WhatsApp'} login needs only OTP at $scale',(tester) async {
       final auth=_Auth(), key=GlobalKey();
-      tester.view.physicalSize=const Size(412,915);tester.view.devicePixelRatio=1;
-      addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
-      final router=GoRouter(routes:[GoRoute(path:'/',builder:(_,__)=>const AuthScreen()),GoRoute(path:'/verify-phone',builder:(_,__)=>const PhoneVerificationScreen())]);
-      addTearDown(router.dispose);
-      await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(()=>auth)],child:MaterialApp.router(theme:AppTheme.light,routerConfig:router,
-        builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale)),child:RepaintBoundary(key:key,child:child!)))));
+      await _pumpAuth(tester,auth,scale:scale,boundary:key);
+      expect(find.byKey(const ValueKey('auth-name')),findsNothing);
+      expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('auth-mode-login'))).selected,isTrue);
+      // A name typed in registration must never leak into a subsequent login.
+      await tester.ensureVisible(find.byKey(const ValueKey('auth-mode-register')));
+      await tester.tap(find.byKey(const ValueKey('auth-mode-register'))); await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('auth-name')));
+      await tester.enterText(find.byKey(const ValueKey('auth-name')),'اسم');
+      await tester.ensureVisible(find.byKey(const ValueKey('auth-mode-login')));
+      await tester.tap(find.byKey(const ValueKey('auth-mode-login'))); await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('auth-name')),findsNothing);
+      if(email) {
+        await tester.ensureVisible(find.byKey(const ValueKey('auth-channel-email')));
+        await tester.tap(find.byKey(const ValueKey('auth-channel-email'))); await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byKey(const ValueKey('auth-email')));
+        await tester.enterText(find.byKey(const ValueKey('auth-email')),'person@example.test');
+      } else {
+        await tester.ensureVisible(find.byKey(const ValueKey('auth-phone')));
+        await tester.enterText(find.byKey(const ValueKey('auth-phone')),'+967700000991');
+      }
+      await tester.ensureVisible(find.byKey(const ValueKey('auth-submit'))); await tester.pumpAndSettle();
+      await _capture(tester,key,'${email ? 'email' : 'whatsapp'}-login-$scale');
+      await tester.tap(find.byKey(const ValueKey('auth-submit'))); await tester.pumpAndSettle();
+      expect(auth.channel,email ? 'email' : 'whatsapp'); expect(auth.name,isNull);
+      expect(auth.destination,email ? 'person@example.test' : '+967700000991');
+      expect(find.text(email ? 'رمز التحقق عبر البريد' : 'رمز التحقق عبر واتساب'),findsOneWidget);
+      expect(tester.takeException(),isNull);
+    });
+    }
+    testWidgets('registration alone collects the name and validates it at $scale',(tester) async {
+      final auth=_Auth(), key=GlobalKey();
+      await _pumpAuth(tester,auth,scale:scale,register:true,boundary:key);
+      expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('auth-mode-register'))).selected,isTrue);
+      expect(find.byKey(const ValueKey('auth-name')),findsOneWidget);
+      await tester.ensureVisible(find.byKey(const ValueKey('auth-submit')));
+      await tester.tap(find.byKey(const ValueKey('auth-submit')));
       await tester.pumpAndSettle();
+      expect(auth.channel,isNull);
+      expect(find.text('أدخل الاسم الرباعي كما هو في وثيقة الهوية.'),findsOneWidget);
       await tester.ensureVisible(find.byKey(const ValueKey('auth-name')));await tester.enterText(find.byKey(const ValueKey('auth-name')),_name);
       await tester.ensureVisible(find.byKey(const ValueKey('auth-channel-email')));await tester.tap(find.byKey(const ValueKey('auth-channel-email')));await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const ValueKey('auth-email')));await tester.enterText(find.byKey(const ValueKey('auth-email')),'person@example.test');
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-submit')));await tester.pumpAndSettle();await _capture(tester,key,'email-login-$scale');
+      await tester.ensureVisible(find.byKey(const ValueKey('auth-submit')));await tester.pumpAndSettle();await _capture(tester,key,'email-registration-$scale');
       await tester.tap(find.byKey(const ValueKey('auth-submit')));await tester.pumpAndSettle();
       expect(auth.channel,'email');expect(auth.name,_name);expect(auth.destination,'person@example.test');
       expect(find.text('رمز التحقق عبر البريد'),findsOneWidget);expect(tester.takeException(),isNull);

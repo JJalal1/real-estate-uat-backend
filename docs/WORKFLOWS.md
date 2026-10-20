@@ -4,7 +4,7 @@
 
 `first compare selection -> choose one more -> compare two -> remove or replace`
 
-Discovery cards show compact facts and a clear price, with a small heart and text comparison below the information. Featured cards place the price on the photo. No card Sai footer. Login collects the full name and selects WhatsApp or email, then requires a valid single-use code before storing the new name/session. Email-only users add and confirm a phone through the existing Profile/phone flow for active-account actions. A signed-in phone account confirms its own email from Profile before email login is available. Real mail configuration and inbox acceptance are separate from automated transport tests.
+Discovery cards show compact facts and a clear price, with a small heart and text comparison below the information. Featured cards place the price on the photo. No card Sai footer. Entry defaults to Login: choose WhatsApp or email, enter the registered destination, verify the single-use code, and restore the same account without requesting or sending a name. Create new account is a separate mode that collects the full name and saves it only after valid OTP. Switching back to Login omits even a previously typed name. Email-only users add and confirm a phone through the existing Profile/phone flow for active-account actions. A signed-in phone account confirms its own email from Profile before email login is available. Real mail configuration and inbox acceptance are separate from automated transport tests.
 
 
 ## October19 short assisted creation and map confirmation

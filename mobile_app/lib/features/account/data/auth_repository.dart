@@ -39,7 +39,7 @@ class AuthRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/whatsapp/start',
       data: {
-        'intent': 'continue',
+        'intent': name?.trim().isNotEmpty == true ? 'continue' : 'login',
         'phone': phone.trim(),
         if (name?.trim().isNotEmpty == true) 'name': name!.trim(),
       },
@@ -79,6 +79,7 @@ class AuthRepository {
 
   Future<WhatsAppAuthPending> startEmail({required String email, String? name}) async {
     final response = await _dio.post<Map<String, dynamic>>('/auth/email/start', data: {
+      'intent': name?.trim().isNotEmpty == true ? 'continue' : 'login',
       'email': email.trim(), if (name?.trim().isNotEmpty == true) 'name': name!.trim(),
     });
     final data = response.data?['data'];

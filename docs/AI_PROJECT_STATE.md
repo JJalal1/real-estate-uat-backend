@@ -1,5 +1,9 @@
 # AI Project State — REAL ESTATE UAT
 
+## Login correction after APK1100
+
+APK1100 was delivered from `df3e56d661292eaad1c0e00534c368f77b5fc160` after green CI100 and native/original-byte verification. The owner's handset screenshot exposed a UX error: the shared entry form required a four-part name from existing accounts. The correction defaults to Login, offers a separate Create new account choice, and sends no name for either WhatsApp or email login. Existing accounts retain their identifiers and profile data; login intent does not create unknown identities. Registration alone collects the name, preserving deferred OTP-bound persistence. Backend rollout, real email delivery and handset acceptance remain separate from source/tests/installer delivery. New exact-source checks and a corrected installer are in progress;1100 is not represented as containing this follow-up.
+
 ## October20 in-progress compact cards and email login
 
 Current work starts from1095 source `fb16ace018911953eaa12c5a3243ce7f1b6dc806`, preserving its map, review and original-template menu fixes. Owner screenshots authorize denser cards, small favorite/compare controls, exactly-two comparison, hidden discovery-card Sai,1090 navigation symbols and name/email OTP entry. `COMPACT_CARDS_EMAIL_LOGIN_AR.md` defines the contract. Email delivery requires a real configured server mail transport; no deployment, inbox acceptance or phone verification is inferred. Public repository/encrypted APK publication is explicitly owner-approved on October20; the revised delivery policy protects plaintext installers. This section is implementation state, not a claim that pending CI or handset acceptance passed.

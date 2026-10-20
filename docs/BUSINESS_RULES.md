@@ -2,7 +2,7 @@
 
 ## October20 current card and login decisions
 
-Comparison selects exactly two properties; this supersedes older2–4 UI limits. Sai is hidden on discovery/map cards without changing calculation, consent, details or history. Compact cards retain factual compatible specifications and real prices. Collect a new account's full name during login and save only after OTP proof; never rename a completed/identity-reviewed account at login. Email OTP is an additional session entry, not proof of phone or professional status. Existing phone accounts must confirm a linked email while signed in before email login can use it; no automatic account merge or privilege grant. See `COMPACT_CARDS_EMAIL_LOGIN_AR.md`.
+Comparison selects exactly two properties; this supersedes older2–4 UI limits. Sai is hidden on discovery/map cards without changing calculation, consent, details or history. Compact cards retain factual compatible specifications and real prices. Default entry is Login via WhatsApp or email OTP without a name. A separate Create new account mode collects the full name and saves only after OTP proof; never rename a completed/identity-reviewed account at login. Login must reuse an existing identity rather than create an unknown account. Email OTP is an additional session entry, not proof of phone or professional status. Existing phone accounts must confirm a linked email while signed in before email login can use it; no automatic account merge or privilege grant. See `COMPACT_CARDS_EMAIL_LOGIN_AR.md`.
 
 
 ## October19 phone-confirmed listing simplification

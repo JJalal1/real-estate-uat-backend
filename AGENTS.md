@@ -2,6 +2,8 @@
 
 ## October20 compact cards and email login
 
+The owner's follow-up corrects account entry: default to Login with WhatsApp or email OTP and no name field or name validation. Show a separate Create new account choice; collect the full name only there and save it after valid OTP. Login must reuse the existing account and never silently create an unknown identity. Preserve existing completed names and all phone/professional gates. This supersedes the earlier shared name-on-entry presentation.
+
 The owner requests compact ADEstate-reference property cards, small favorites and text comparison, exactly two properties, no Sai on discovery cards, the1090 Material symbols for Work/Customers/Account, and name collection plus email OTP login. Preserve1095 map/listing corrections and the template creation menu. Read `docs/COMPACT_CARDS_EMAIL_LOGIN_AR.md`. Email proof cannot satisfy phone/publishing/professional gates, and a previously unverified email on a phone account requires signed-in confirmation before becoming a login credential. No financial terms/history or private-storage permissions change. Owner approval on October20 permits public source and recipient-encrypted APK delivery; plaintext public APK transport is forbidden. Provider delivery, exact-source CI, native verification and physical acceptance remain distinct gates.
 
 
