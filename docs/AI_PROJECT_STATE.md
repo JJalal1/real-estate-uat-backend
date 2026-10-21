@@ -1,3 +1,13 @@
+# October21 approved brand and compact login follow-up
+
+The owner approved the Aqer vector/launcher/splash/watermark preview and requested the supplied compact login hierarchy. Continue from verified `76ab81e15c842350fb17f20b801003aa095104b8` (tree `034a76de7ca8a33e8da4279735c6c8d95a40a61c`), whose CI120 and focused9 passed and whose original APK1120 was verified. Do not return to an older source or merge the unreviewed stack.
+
+Login now uses the reference's concise heading, stacked rounded fields, mint primary action, separate account-creation action and outlined browsing action, with REF-B05's light/mint/navy colors. Actual WhatsApp/email OTP, login without a name, registration-only full name, backend identity/phone/professional gates and navigation contracts remain. No password/social-provider/demo behavior is inferred from a visual reference. Input persists through channel/mode switches and failed requests; submission and edits are disabled while the request is pending. Existing OTP regression tests retain their assertions, replacing only the obsolete mode-ChoiceChip visual assertions; additional 320px/2.4-scale tests exercise failure/retry and duplicate presses in both channels. Exact-source CI/build/visual verification for this follow-up are pending.
+
+Brand approval is recorded and does not need to be repeated. The exact previously reviewed `aqer-brand-preview-sources.zip` and reference PDF are no longer available in this workspace after recovery. No substitute geometry is invented or final mark/launcher/splash/watermark activated. Restoring that exact reviewed source is the remaining prerequisite for asset integration; owner approval is not the blocker. No dependency/API/schema/signing/package changes, merge, deployment or paid resource is included in this follow-up.
+
+---
+
 # October21 Wave2 — review branch in progress
 
 Review branch `work/wave2-review-current`, PR98 targets unmerged `work/user-work-media-batch1`. PR97 is superseded. Verified starting source `819332ba4a3f7ea5a716e17615f3eb50be85fa12`; do not merge the stack or deploy without owner approval. Read `docs/WAVE2_BRAND_TRUST_ACCOUNT_AR.md` and `docs/WAVE2_ACCOUNT_DATA_RETENTION_AR.md`.
