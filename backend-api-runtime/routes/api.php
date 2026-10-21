@@ -92,6 +92,12 @@ Route::get('/services/catalog', [ServicePaymentController::class, 'catalog']);
 Route::get('/properties/{property}/services', [ServicePaymentController::class, 'propertyServices']);
 
 Route::middleware(['auth.api', 'account.active'])->group(function () {
+    Route::get('/account/blocked-users',[\App\Http\Controllers\Api\AccountSafetyController::class,'blocked']);
+    Route::put('/users/{user}/messaging-block',[\App\Http\Controllers\Api\AccountSafetyController::class,'block'])->middleware('throttle:30,1,messaging-block');
+    Route::delete('/users/{user}/messaging-block',[\App\Http\Controllers\Api\AccountSafetyController::class,'unblock'])->middleware('throttle:30,1,messaging-block');
+    Route::get('/account/deletion-request',[\App\Http\Controllers\Api\AccountSafetyController::class,'deletionStatus']);
+    Route::post('/account/deletion-request',[\App\Http\Controllers\Api\AccountSafetyController::class,'requestDeletion'])->middleware('throttle:5,1,account-deletion');
+
     Route::post('/brokers/{broker}/conversation', [\App\Http\Controllers\Api\MessagingController::class,'startForBroker'])->middleware('throttle:12,1');
     Route::get('/listing-editor-drafts', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'index']);
     Route::get('/listing-editor-drafts/{key}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'show']);
@@ -142,7 +148,7 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::put('/advertisers/{advertiser}/rating', [CommunityController::class, 'upsertRating']);
     Route::delete('/advertisers/{advertiser}/rating', [CommunityController::class, 'deleteRating']);
 
-    Route::post('/reports', [SupportController::class, 'report']);
+    Route::post('/reports', [SupportController::class, 'report'])->middleware('throttle:10,1,content-report');
     Route::get('/support/cases/mine', [SupportController::class, 'mine']);
     Route::post('/support/cases', [SupportController::class, 'storeTicket']);
     Route::get('/support/cases/{case}', [SupportController::class, 'showMine']);
@@ -181,10 +187,10 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::get('/messages/threads', [MessagingController::class, 'threads']);
     Route::post('/properties/{property}/conversation', [MessagingController::class, 'startForProperty']);
     Route::get('/messages/threads/{thread}', [MessagingController::class, 'show']);
-    Route::post('/messages/threads/{thread}/messages', [MessagingController::class, 'send']);
+    Route::post('/messages/threads/{thread}/messages', [MessagingController::class, 'send'])->middleware('throttle:60,1,message-send');
     Route::post('/messages/threads/{thread}/external-call', [MessagingController::class, 'startExternalCall'])->middleware('throttle:12,1');
     Route::post('/messages/threads/{thread}/read', [MessagingController::class, 'markRead']);
-    Route::post('/messages/threads/{thread}/report', [MessagingController::class, 'report']);
+    Route::post('/messages/threads/{thread}/report', [MessagingController::class, 'report'])->middleware('throttle:10,1,content-report');
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
@@ -255,6 +261,7 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::prefix('admin/listing-review')->group(function () {
         Route::get('/queue', [ListingReviewController::class, 'queue'])->middleware('permission:listings.moderate');
         Route::get('/listings/{property}', [ListingReviewController::class, 'show'])->middleware('permission:listings.moderate');
+        Route::post('/listings/{property}/media-review', [ListingReviewController::class, 'reviewMedia'])->middleware(['permission:listings.moderate','throttle:60,1,media-review']);
         Route::post('/listings/{property}/start', [ListingReviewController::class, 'start'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/return', [ListingReviewController::class, 'returnForCorrection'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/approve', [ListingReviewController::class, 'approve'])->middleware('permission:listings.moderate');

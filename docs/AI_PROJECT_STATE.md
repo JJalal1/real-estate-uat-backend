@@ -1,3 +1,13 @@
+# October21 Wave2 — review branch in progress
+
+Branch `work/wave2-brand-trust-account`, PR97 targets unmerged `work/user-work-media-batch1`. Verified starting source `819332ba4a3f7ea5a716e17615f3eb50be85fa12`; do not merge the stack or deploy without owner approval. Read `docs/WAVE2_BRAND_TRUST_ACCOUNT_AR.md` and `docs/WAVE2_ACCOUNT_DATA_RETENTION_AR.md`.
+
+Implemented checkpoints: Laravel-authoritative personal message blocks with reciprocal enforcement/history retention, real duplicate-report receipts, non-destructive deletion-request support cases; scoped Flutter account safety and conversation actions; human per-file media review in ListingReview; stronger distinction between exact and merely similar standalone-property identity; bounded account-session photo reuse/lazy card creation/derived-size selection; Aqer display name and light/mint real login controls. A local GD watermark pipeline is prepared but disabled until the owner approves canonical vector geometry and its fingerprint. No production logo/splash/launcher geometry is exported in this checkpoint; no external image-analysis provider or actual account deletion is activated.
+
+Acceptance OPEN: first backend checkpoint run `39585102154` passed23 tests and failed one throttle-isolation scenario; the prefixes have since been separated, but that correction is not yet verified by a later run. New targeted Laravel, PostgreSQL and Flutter tests are committed. Local PHP/Flutter SDKs are unavailable. Updates after the first checkpoint have not produced a visible Actions run as of the latest check; do not report analysis, full regression, previews, native build or APK delivery as passed. Original five-gate workflow now includes this branch without removing any gate. No UAT/Production migration, deploy, live data mutation or paid resource creation occurred.
+
+---
+
 # AI Project State — REAL ESTATE UAT
 
 ## October21 user-work protection and listing media batch1

@@ -49,7 +49,7 @@ class ListingImageService
     public function variantPath(string $path, string $variant): string
     {
         abort_unless(array_key_exists($variant, config('listing_media.variants')), 422, 'نسخة الصورة غير صالحة.');
-        return 'listing-display/v1/'.hash('sha256', $path).'/'.$variant.'.jpg';
+        return 'listing-display/'.app(ListingWatermarkService::class)->version().'/'.hash('sha256', $path).'/'.$variant.'.jpg';
     }
 
     public function response(string $path, string $variant, bool $published = false)
@@ -111,6 +111,7 @@ class ListingImageService
                     // Opaque sRGB display JPEGs; transparent sources are composited onto white.
                     imagefill($output,0,0,imagecolorallocate($output,255,255,255));
                     imagecopyresampled($output,$image,0,0,0,0,$w,$h,$width,$height);
+                    app(ListingWatermarkService::class)->apply($output);
                     ob_start();
                     try { if (!imagejpeg($output,null,$quality)) throw new RuntimeException('Image encoding failed.'); $result[$variant]=ob_get_contents(); }
                     finally { ob_end_clean(); }

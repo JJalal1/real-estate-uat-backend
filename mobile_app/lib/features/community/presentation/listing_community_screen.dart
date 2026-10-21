@@ -343,18 +343,21 @@ class _ListingCommunityScreenState
   }
 
   Future<void> _report(String targetType, int targetId, String label) async {
+    final repository = ref.read(communityRepositoryProvider);
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     final result = await showCommunityReportDialog(context, label: label);
-    if (result == null) {
+    if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) {
       return;
     }
     await _run(() async {
-      await ref.read(communityRepositoryProvider).report(
+      final receipt = await repository.report(
             targetType: targetType,
             targetId: targetId,
             reason: result.reason,
             details: result.details,
           );
-    }, success: 'تم إرسال البلاغ إلى الدعم.');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message)));
+    });
   }
 
   Future<String?> _textDialog({

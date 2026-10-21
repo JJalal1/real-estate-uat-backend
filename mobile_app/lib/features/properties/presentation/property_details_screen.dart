@@ -307,7 +307,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               scrollDirection: Axis.horizontal, itemCount: property.images.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) => Semantics(button: true, label: 'فتح صورة العقار ${index + 1}', child: InkWell(
                 onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: property.images, initialIndex: index, privateImages:property.status!='published'))),
-                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, child: AppPropertyMedia(imageUrl: property.images[index].url, height: 96))),
+                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, child: AppPropertyMedia(imageUrl: property.images[index].cardUrl, height: 96))),
               )),
             ))),
           ],
@@ -375,12 +375,15 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 
   Future<void> _reportListing(PropertyDetails property) async {
     if (_reporting || !await _requireContactAccount() || !mounted) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final repository = ref.read(communityRepositoryProvider);
     final result = await showCommunityReportDialog(context, label: 'الإعلان');
-    if (result == null || !mounted) return;
+    if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
     setState(() => _reporting = true);
     try {
-      await ref.read(communityRepositoryProvider).report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال البلاغ إلى الدعم.')));
+      final receipt = await repository.report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message),
+        action: SnackBarAction(label: 'متابعة', onPressed: () => context.push('/support?case=${receipt.id}'))));
     } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
     finally { if (mounted) setState(() => _reporting = false); }
   }

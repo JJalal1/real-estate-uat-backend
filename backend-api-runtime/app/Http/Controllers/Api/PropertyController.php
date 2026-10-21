@@ -1052,7 +1052,7 @@ class PropertyController extends Controller
             return rtrim($request->getSchemeAndHttpHost(), '/') . '/' . ltrim($raw, '/');
         }
 
-        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id . ($variant ? '?variant='.$variant : '');
+        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id . ($variant ? '?variant='.$variant : '').(config('listing_media.watermark.enabled') ? ($variant ? '&' : '?').'v='.app(\App\Services\ListingWatermarkService::class)->version() : '');
     }
 
     private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float

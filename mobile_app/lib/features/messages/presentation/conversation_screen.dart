@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/theme/ebroker_design.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,22 +8,36 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../broker/presentation/broker_activity.dart';
 import '../data/message_repository.dart';
+import '../../account/data/account_safety_repository.dart';
+import '../../account/data/auth_controller.dart';
 import '../domain/message_models.dart';
 
-class ConversationScreen extends ConsumerStatefulWidget {
+class ConversationScreen extends ConsumerWidget {
   const ConversationScreen({required this.threadId, super.key});
   final int threadId;
   @override
-  ConsumerState<ConversationScreen> createState() => _ConversationScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
+      : _ConversationBody(key: ValueKey('$actor:$threadId'), threadId: threadId);
+  }
+}
+class _ConversationBody extends ConsumerStatefulWidget {
+  const _ConversationBody({required this.threadId, super.key});
+  final int threadId;
+  @override
+  ConsumerState<_ConversationBody> createState() => _ConversationScreenState();
 }
 
-class _ConversationScreenState extends ConsumerState<ConversationScreen> {
+class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   final _controller = TextEditingController();
   MessageThreadDetails? _details;
   bool _loading = true;
   bool _loadingOlder = false;
   bool _sending = false;
   bool _calling = false;
+  bool _blocking = false;
+  int _loadGeneration = 0;
   String? _error;
   String? _pendingMessageKey;
   String? _pendingMessageText;
@@ -50,17 +65,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
     try {
       final details =
           await ref.read(messageRepositoryProvider).details(widget.threadId);
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _details = details;
         _loading = false;
         _error = null;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
@@ -74,12 +90,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     if (current == null || !current.hasMore || beforeId == null || _loadingOlder) {
       return;
     }
+    final generation = _loadGeneration;
     setState(() => _loadingOlder = true);
     try {
       final older = await ref
           .read(messageRepositoryProvider)
           .details(widget.threadId, beforeId: beforeId);
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       final byId = <int, PrivateMessageItem>{
         for (final item in older.messages) item.id: item,
         for (final item in current.messages) item.id: item,
@@ -106,7 +123,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || _sending || _details?.thread.canSend != true) return;
     if (_pendingMessageText != null && _pendingMessageText != text) {
       _pendingMessageKey = null;
     }
@@ -118,6 +135,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     try {
       await ref.read(messageRepositoryProvider).send(widget.threadId, text,
           clientMessageId: key);
+      if (!mounted) return;
       ref.read(messageDataRevisionProvider.notifier).state++;
       _controller.clear();
       _pendingMessageKey = null;
@@ -128,6 +146,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
                 '${friendlyApiError(error)} يمكنك إعادة الإرسال بأمان ما دام النص لم يتغير.')));
+        if (error is DioException && error.response?.statusCode == 403) await _load();
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -159,6 +178,28 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     } finally {
       if (mounted) setState(() => _calling = false);
     }
+  }
+
+  Future<void> _changeBlock() async {
+    final thread = _details?.thread;
+    if (thread == null || thread.otherUserId <= 0 || _blocking) return;
+    final repo = ref.read(accountSafetyRepositoryProvider);
+    final block = !thread.blockedByMe;
+    final confirmed = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
+      scrollable: true, title: Text(block ? 'حظر هذا الحساب؟' : 'إلغاء الحظر؟'),
+      content: Text(block ? 'ستتوقف الرسائل الجديدة بينكما. تبقى المحادثة السابقة وإمكانية البلاغ محفوظة.' : 'يمكن استئناف الرسائل الجديدة إذا كانت متاحة لدى الطرف الآخر.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إلغاء')),
+        FilledButton(onPressed: () => Navigator.pop(dialog, true), child: Text(block ? 'حظر' : 'إلغاء الحظر'))]));
+    if (confirmed != true || !mounted) return;
+    setState(() => _blocking = true);
+    try {
+      await repo.setBlocked(thread.otherUserId, block);
+      if (!mounted) return;
+      ref.read(messageDataRevisionProvider.notifier).state++;
+      await _load();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    } finally { if (mounted) setState(() => _blocking = false); }
   }
 
   Widget _propertyAvailabilityBanner(MessageThreadSummary thread) {
@@ -282,9 +323,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               IconButton(
                   onPressed: _loading ? null : _report,
                   tooltip: 'بلاغ',
-                  icon: const EbrokerIcon(Icons.flag_outlined))
+                  icon: const EbrokerIcon(Icons.flag_outlined)),
+              if (thread != null && thread.otherUserId > 0) PopupMenuButton<String>(tooltip: 'خيارات المحادثة', enabled: !_blocking,
+                onSelected: (_) => _changeBlock(), itemBuilder: (_) => [PopupMenuItem(value: 'block', child: Text(thread.blockedByMe ? 'إلغاء الحظر' : 'حظر الحساب'))]),
             ]),
         body: Column(children: [
+          if (!_loading && thread?.canSend == false) Padding(padding: const EdgeInsets.all(12), child: Text(thread!.blockedByMe
+            ? 'هذا الحساب محظور لديك. تبقى المحادثة السابقة محفوظة.' : 'الرسائل الجديدة غير متاحة حاليًا. يبقى تاريخ المحادثة والبلاغ متاحين.')),
+          if (_blocking) const LinearProgressIndicator(),
           if (!_loading && thread?.isPropertyUnavailable == true) _propertyAvailabilityBanner(thread!),
           if (!_loading && thread != null) BrokerConversationTools(thread: thread),
           Expanded(
@@ -302,7 +348,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               child: Padding(
                   padding: const EdgeInsets.all(10),
                   child: Row(children: [
-                    PopupMenuButton<String>(tooltip: 'ردود سريعة', enabled: !_sending && !_loading && _error == null,
+                    PopupMenuButton<String>(tooltip: 'ردود سريعة', enabled: !_sending && !_loading && _error == null && thread?.canSend == true,
                       icon: const EbrokerIcon(Icons.quickreply_outlined, size: 22),
                       onSelected: _chooseQuickReply,
                       itemBuilder: (_) => [
@@ -314,6 +360,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                     Expanded(
                         child: TextField(
                             controller: _controller,
+                            enabled: thread?.canSend == true && !_sending && !_blocking,
                             minLines: 1,
                             maxLines: 4,
                             maxLength: 2000,
@@ -324,7 +371,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                     IconButton.filled(
                         style: IconButton.styleFrom(fixedSize: const Size(46, 46),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))),
-                        onPressed: _sending ? null : _send,
+                        onPressed: _sending || _blocking || _error != null || thread?.canSend != true ? null : _send,
                         icon: _sending
                             ? const SizedBox(
                                 width: 20,

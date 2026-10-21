@@ -49,6 +49,7 @@ certificate = re.search(r'certificate SHA-256 digest:\s*([a-fA-F0-9]+)', signer.
 badging = subprocess.run([str(tools[-1].parent / 'aapt'), 'dump', 'badging', str(apk)], text=True, capture_output=True, check=True).stdout
 assert "name='com.example.real_estate_mobile'" in badging
 assert f"versionCode='{version}'" in badging
+assert "application-label:'عقار'" in badging
 with zipfile.ZipFile(apk) as archive:
     assert archive.testzip() is None
     libraries = {name.split('/')[1]: name for name in archive.namelist() if name.startswith('lib/') and name.endswith('/libapp.so')}

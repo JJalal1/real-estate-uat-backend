@@ -361,6 +361,13 @@ class _ListingReviewCaseScreenState
             ),
           ),
         const SizedBox(height: AppSpacing.s16),
+        const AppInlineMessage(message: 'راجع صلة كل صورة بالعقار. الأرض الفارغة أو البناء غير المكتمل قد يكونان صحيحين. الاشتباه وحده لا يرفض الإعلان؛ استخدم الإرجاع للتصحيح مع سبب واضح عند الحاجة.'),
+        const SizedBox(height: AppSpacing.s8),
+        for (var index = 0; index < item.images.length; index++) Padding(padding: const EdgeInsets.only(bottom: 8), child: AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('الصورة ${index + 1} — ${_mediaDecisionLabel(item.images[index].relevance)}'),
+          if (item.images[index].reviewReason != null) Text(item.images[index].reviewReason!),
+          TextButton.icon(onPressed: _busy || !isClaimed || item.images[index].relevanceToken == null ? null : () => _reviewMedia(item.images[index]), icon: const Icon(Icons.fact_check_outlined), label: const Text('تسجيل المراجعة البشرية')),
+        ]))),
         AppSectionHeader(title: 'مستندات الإثبات (${item.proofDocuments.length})'),
         const SizedBox(height: AppSpacing.s8),
         if (item.proofDocuments.isEmpty)
@@ -400,7 +407,7 @@ class _ListingReviewCaseScreenState
                   children: [
                     for (var i = 0; i < item.reviewHistory.length; i++) ...[
                       AppListRow(
-                        title: item.reviewHistory[i].action,
+                        title: item.reviewHistory[i].action == 'media_relevance_review' ? 'مراجعة صلة الصورة بالعقار' : item.reviewHistory[i].action,
                         subtitle: [
                           if (item.reviewHistory[i].actorName != null)
                             item.reviewHistory[i].actorName!,
@@ -686,6 +693,21 @@ class _ListingReviewCaseScreenState
     return value;
   }
 
+  Future<void> _reviewMedia(ReviewMediaItem image) async {
+    final token = image.relevanceToken;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final repository = ref.read(listingReviewRepositoryProvider);
+    if (_busy || token == null) return;
+    final result = await showDialog<(String,String)>(context: context, builder: (_) => _MediaReviewDialog(image: image));
+    if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
+    setState(() => _busy = true);
+    try {
+      await repository.reviewMedia(widget.listingId, image.id, token, result.$1, result.$2);
+      if (mounted) { _reload(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حُفظت المراجعة البشرية. لم يتغير قرار نشر الإعلان.'))); }
+    } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
+    finally { if (mounted) setState(() => _busy = false); }
+  }
+
   Future<void> _runDecision(Future<void> Function() action) async {
     setState(() => _busy = true);
     try {
@@ -703,6 +725,37 @@ class _ListingReviewCaseScreenState
       if (mounted) setState(() => _busy = false);
     }
   }
+}
+
+String _mediaDecisionLabel(String decision) => switch (decision) {
+  'relevant' => 'مرتبطة بالعقار', 'uncertain' => 'تحتاج توضيحًا', 'unrelated' => 'غير مرتبطة', _ => 'بانتظار المراجعة البشرية',
+};
+class _MediaReviewDialog extends StatefulWidget {
+  const _MediaReviewDialog({required this.image});
+  final ReviewMediaItem image;
+  @override
+  State<_MediaReviewDialog> createState() => _MediaReviewDialogState();
+}
+class _MediaReviewDialogState extends State<_MediaReviewDialog> {
+  final _form = GlobalKey<FormState>();
+  late final TextEditingController _reason;
+  late String _decision;
+  @override
+  void initState() {
+    super.initState(); _reason = TextEditingController(text: widget.image.reviewReason);
+    _decision = const ['relevant','uncertain','unrelated'].contains(widget.image.relevance) ? widget.image.relevance : 'uncertain';
+  }
+  @override
+  void dispose() { _reason.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => AlertDialog(scrollable: true, title: const Text('مراجعة صلة الصورة بالعقار'),
+    content: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, children: [
+      SizedBox(height: 170, child: _ProtectedImage(url: widget.image.url)),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(value: _decision, isExpanded: true, items: [for (final value in ['relevant','uncertain','unrelated']) DropdownMenuItem(value: value, child: Text(_mediaDecisionLabel(value)))], onChanged: (value) => setState(() => _decision = value ?? 'uncertain')),
+      const SizedBox(height: 12), TextFormField(controller: _reason, minLines: 2, maxLines: 5, maxLength: 2000, decoration: const InputDecoration(labelText: 'سبب المراجعة'), validator: (value) => (value?.trim().length ?? 0) < 5 ? 'أضف سببًا واضحًا من خمسة أحرف على الأقل.' : null),
+    ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+      FilledButton(onPressed: () { if (_form.currentState!.validate()) Navigator.pop(context, (_decision, _reason.text.trim())); }, child: const Text('حفظ المراجعة'))]);
 }
 
 class _PublicationBlocks extends ConsumerWidget {
@@ -801,29 +854,35 @@ class _PublicationBlocks extends ConsumerWidget {
   }
 }
 
-class _ProtectedImage extends ConsumerWidget {
+class _ProtectedImage extends ConsumerStatefulWidget {
   const _ProtectedImage({required this.url});
-
   final String url;
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<Uint8List>(
-      future: ref.read(listingReviewRepositoryProvider).protectedImage(url),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError || snapshot.data == null) {
-          return const Center(child: EbrokerIcon(Icons.broken_image_outlined));
-        }
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadii.control),
-          child: Image.memory(snapshot.data!, fit: BoxFit.cover),
-        );
-      },
-    );
+  ConsumerState<_ProtectedImage> createState() => _ProtectedImageState();
+}
+class _ProtectedImageState extends ConsumerState<_ProtectedImage> {
+  late Future<Uint8List> _future;
+  Future<Uint8List> _load() {
+    final future=ref.read(listingReviewRepositoryProvider).protectedImage(widget.url);future.ignore();return future;
   }
+  @override
+  void initState() {
+    super.initState();_future=_load();
+    ref.listenManual(authControllerProvider.select((s) => (s.asData?.value?.id, s.asData?.value?.isActive, s.asData?.value?.permissions.toString())), (_, __) {
+      if (mounted) setState(() => _future=_load());
+    });
+  }
+  @override
+  void didUpdateWidget(_ProtectedImage oldWidget) {
+    super.didUpdateWidget(oldWidget);if (oldWidget.url!=widget.url) _future=_load();
+  }
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Uint8List>(future: _future, builder: (_, snapshot) {
+    if (snapshot.connectionState!=ConnectionState.done) return const Center(child: CircularProgressIndicator());
+    if (snapshot.hasError || snapshot.data==null) return Center(child: TextButton(onPressed: () => setState(() => _future=_load()), child: const Text('إعادة تحميل الصورة')));
+    return ClipRRect(borderRadius: BorderRadius.circular(AppRadii.control), child: Image.memory(snapshot.data!, fit: BoxFit.contain, cacheWidth: 1200,
+      errorBuilder: (_, __, ___) => const Center(child: Text('تعذر قراءة الصورة.'))));
+  });
 }
 
 class _ReviewBundle {

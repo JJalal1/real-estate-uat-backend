@@ -26,6 +26,7 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 class MessagingController extends Controller
 {
     private const MESSAGE_PAGE_SIZE = 100;
+    private array $blockStates=[];
 
     public function __construct(
         private readonly AuditLogService $audit,
@@ -41,6 +42,8 @@ class MessagingController extends Controller
             ->whereHas('participants',fn($q)=>$q->where('user_id',$user->id))
             ->with(['property:id,user_id,title,status,availability_status,availability_notified_at','participants'])
             ->orderByDesc('last_message_at')->orderByDesc('id')->limit(250)->get();
+        $otherIds=$rows->flatMap(fn($thread)=>$thread->participants->pluck('user_id'))->reject(fn($id)=>(int)$id===(int)$user->id)->unique()->all();
+        $this->blockStates=app(\App\Services\UserMessagingBlockService::class)->statesFor($user->id,$otherIds);
         $threadIds=$rows->pluck('id');
         $latestByThread=collect();
         $unreadByThread=collect();
@@ -81,6 +84,7 @@ class MessagingController extends Controller
         $key='listing:'.$property->id.':'.$pair[0].':'.$pair[1];
         [$thread,$created]=DB::transaction(function()use($property,$user,$owner,$key): array {
             $this->advisoryLock('message-thread:'.$key);
+            app(\App\Services\UserMessagingBlockService::class)->assertCanSend($user->id,$owner->id);
             $current=Property::query()->lockForUpdate()->findOrFail($property->id);
             abort_unless($current->isPubliclyAvailable() && (int)$current->user_id === (int)$owner->id,409,'العقار لم يعد متاحًا للتواصل الجديد.');
             $thread=MessageThread::query()->firstOrCreate(['conversation_key'=>$key],[
@@ -103,6 +107,8 @@ class MessagingController extends Controller
         if ((int)$actor->id === (int)$broker->id) throw ValidationException::withMessages(['broker'=>['لا يمكنك محادثة نفسك.']]);
         $pair=[(int)$actor->id,(int)$broker->id];sort($pair);$key='broker:'.$pair[0].':'.$pair[1];
         [$thread,$created]=DB::transaction(function()use($actor,$broker,$pair,$key):array{
+            // Same pair-lock order as block insertion, before FK/user row locks.
+            app(\App\Services\UserMessagingBlockService::class)->assertCanSend($actor->id,$broker->id);
             User::query()->whereIn('id',$pair)->orderBy('id')->lockForUpdate()->get();
             abort_unless(app(\App\Services\BrokerRankingService::class)->query()->where('users.id',$broker->id)->exists(),404);
             $this->advisoryLock('message-thread:'.$key);
@@ -173,6 +179,9 @@ class MessagingController extends Controller
                     return [$existing,false];
                 }
             }
+            foreach (MessageThreadParticipant::query()->where('thread_id',$thread->id)->where('user_id','<>',$user->id)->pluck('user_id') as $otherId) {
+                app(\App\Services\UserMessagingBlockService::class)->assertCanSend($user->id,(int)$otherId);
+            }
             $message=PrivateMessage::query()->create([
                 'thread_id'=>$thread->id,'sender_user_id'=>$user->id,'sender_name_snapshot'=>$user->name,'client_message_id'=>$clientId,
                 'body'=>$body,'created_at'=>now(),
@@ -202,6 +211,7 @@ class MessagingController extends Controller
         $advertiser=User::query()->findOrFail((int)$property->user_id);
         abort_unless($advertiser->isActive(),409,'المعلن غير متاح حالياً.');
 
+        abort_unless(app(\App\Services\UserMessagingBlockService::class)->canSend($user->id,$advertiser->id),403,'التواصل الجديد غير متاح حاليًا.');
         $phone=trim((string)$property->contact_phone);
         $source='listing_phone';
         if($phone===''){
@@ -215,6 +225,9 @@ class MessagingController extends Controller
         abort_if($phone==='',409,'لا يوجد رقم اتصال متاح لهذا المعلن.');
 
         $message=DB::transaction(function()use($thread,$user): PrivateMessage {
+            foreach (MessageThreadParticipant::query()->where('thread_id',$thread->id)->where('user_id','<>',$user->id)->pluck('user_id') as $otherId) {
+                app(\App\Services\UserMessagingBlockService::class)->assertCanSend($user->id,(int)$otherId);
+            }
             $message=PrivateMessage::query()->create([
                 'thread_id'=>$thread->id,
                 'sender_user_id'=>$user->id,
@@ -342,13 +355,17 @@ class MessagingController extends Controller
             $latest=PrivateMessage::query()->where('thread_id',$thread->id)->latest('id')->first();
             $unread=PrivateMessage::query()->where('thread_id',$thread->id)->where('sender_user_id','<>',$user->id)->when($me?->last_read_message_id,fn($q,$id)=>$q->where('id','>',$id))->count();
         }
+        $blocks=app(\App\Services\UserMessagingBlockService::class);
+        $state=$other?($this->blockStates[(int)$other->user_id] ?? $blocks->statesFor($user->id,[(int)$other->user_id])[(int)$other->user_id]):['can_send'=>false,'blocked_by_me'=>false];
+        $canSend=$state['can_send'];
         return [
+            'can_send'=>(bool)$canSend,'blocked_by_me'=>$state['blocked_by_me'],
             'id'=>$thread->id,'context_type'=>str_starts_with((string)$thread->conversation_key,'broker:')?'broker':'property','property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,
             'property_status'=>$thread->property?->status === 'published' && !$thread->property->isPubliclyAvailable() ? 'unavailable' : $thread->property?->status,
             'can_manage_customer'=>app(\App\Services\ListingAccessService::class)->isProfessional($user) && (int)($thread->property?->user_id ?? 0) === (int)$user->id && (int)$thread->started_by_user_id !== (int)$user->id,
             'lead_stage'=>$thread->lead_stage,
             'other_user'=>['id'=>$other?->user_id,'name'=>$other?->user_name_snapshot??'مستخدم'],
-            'can_call_advertiser'=>($thread->property?->isPubliclyAvailable() ?? false) && (int)($thread->property?->user_id??0)!==(int)$user->id,
+            'can_call_advertiser'=>$canSend && ($thread->property?->isPubliclyAvailable() ?? false) && (int)($thread->property?->user_id??0)!==(int)$user->id,
             'unread_count'=>(int)($unread??0),'last_message_preview'=>$latest?->body?mb_substr($latest->body,0,120):null,
             'last_message_at'=>$thread->last_message_at?->toIso8601String(),'created_at'=>$thread->created_at?->toIso8601String(),
         ];
