@@ -19,6 +19,12 @@ class ListingDraftPhoto extends ConsumerStatefulWidget {
 class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
   late Future<Uint8List> _bytes;
   CancelToken? _cancel;
+  Future<Uint8List> _beginLoad() {
+    final future=_load();
+    // A failure may arrive before the next frame attaches FutureBuilder.
+    future.ignore();
+    return future;
+  }
   Future<Uint8List> _load() async {
     _cancel?.cancel('Image changed');
     if (widget.authenticated) return ref.read(listingAccountDraftRepositoryProvider).photo(widget.url);
@@ -29,17 +35,17 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
   }
   @override
   void initState() {
-    super.initState(); _bytes = _load();
+    super.initState(); _bytes = _beginLoad();
     ref.listenManual(authControllerProvider.select((state)=>state.asData?.value?.id),(_,next) {
-      if (widget.authenticated && mounted) setState(() { _bytes=_load();_bytes.ignore(); });
+      if (widget.authenticated && mounted) setState(() { _bytes=_beginLoad(); });
     });
   }
   @override
-  void didUpdateWidget(ListingDraftPhoto oldWidget) { super.didUpdateWidget(oldWidget); if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated) _bytes = _load(); }
+  void didUpdateWidget(ListingDraftPhoto oldWidget) { super.didUpdateWidget(oldWidget); if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated) _bytes = _beginLoad(); }
   @override
   void dispose() { _cancel?.cancel('Image closed');super.dispose(); }
   Widget _retry() => Center(child: TextButton(onPressed: () => setState(() {
-    _bytes=_load();
+    _bytes=_beginLoad();
   }), child: const Text('إعادة تحميل الصورة',textAlign:TextAlign.center)));
   @override
   Widget build(BuildContext context) => FutureBuilder<Uint8List>(future: _bytes, builder: (_, snapshot) {

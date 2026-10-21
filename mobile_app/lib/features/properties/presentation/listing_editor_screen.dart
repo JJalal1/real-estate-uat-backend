@@ -269,6 +269,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           for (final photo in pending.$2.entries) {
             if (_remotePhotos.containsKey(photo.key) || !order.contains(photo.key) || _removedPhotoKeys.contains(photo.key)) continue;
             if (_photoStates[photo.key]=='failed' && !_retryPhotoKeys.remove(photo.key)) continue;
+            var connectionLost=false;
             final token=CancelToken();_photoCancels[photo.key]=token;_photoStates[photo.key]='uploading';_photoErrors.remove(photo.key);
             if (mounted) super.setState(() {});
             try {
@@ -287,10 +288,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 _photoStates[photo.key]='failed';_photoErrors[photo.key]=friendlyApiError(error);
               }
               _needsReconcile=true;
+              connectionLost=error is TimeoutException || error is DioException && const [DioExceptionType.connectionError,DioExceptionType.connectionTimeout,DioExceptionType.sendTimeout,DioExceptionType.receiveTimeout].contains(error.type);
               if (error is DioException && error.response?.data is Map && error.response?.data['code']=='draft_revision_conflict') rethrow;
             } finally { _photoCancels.remove(photo.key); }
             await _writeLocalRecovery();
             if (mounted) super.setState(() {});
+            // A lost connection pauses untouched files; a file-specific failure still allows the rest.
+            if (connectionLost) break;
           }
           // Persist the acknowledged revision and remote image keys even when one later file fails.
           await _writeLocalRecovery();

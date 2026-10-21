@@ -32,7 +32,7 @@ DioException _offline([int? status]) => DioException(requestOptions:RequestOptio
   response:status==null ? null:Response(requestOptions:RequestOptions(),statusCode:status,data:{'message':'الشبكة غير متاحة'}));
 
 class _Drafts extends Wave6Drafts {
-  bool failSave=false, failOneUpload=false;
+  bool failSave=false, failOneUpload=false,failTransport=false;
   int? failUploadNumber;
   Completer<void>? saveGate, uploadGate;
   final attempts=<String,int>{};
@@ -51,7 +51,7 @@ class _Drafts extends Wave6Drafts {
       await Future.any([uploadGate!.future,if(cancelToken!=null)cancelToken.whenCancel.then((error)=>throw error)]);
     }
     if(cancelToken?.isCancelled==true) { throw _offline(); }
-    if(failOneUpload && uploadCount==failUploadNumber) { failOneUpload=false;throw _offline(503); }
+    if(failOneUpload && uploadCount==failUploadNumber) { failOneUpload=false;throw _offline(failTransport ? null:503); }
     onSendProgress?.call(10,10);
     return super.upload(key,imageKey,path,revision,cancelToken:cancelToken,onSendProgress:onSendProgress);
   }
@@ -104,6 +104,8 @@ void main() {
   setUpAll(() async {
     final fonts=[('PrimaryFont','assets/ebroker/fonts/Manrope-Regular.ttf'),('NotoSansArabic','assets/fonts/NotoSansArabic-Regular.ttf'),('sans-serif','assets/fonts/NotoSansArabic-Regular.ttf')];
     for(final (family,path) in fonts) { final loader=FontLoader(family)..addFont(rootBundle.load(path));await loader.load(); }
+    final icons=await File('${Platform.environment['FLUTTER_ROOT']!}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
+    await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   });
 
   test('device recovery keeps stable photo keys, order, point and private proof after source cache disappears',() async {
@@ -210,14 +212,26 @@ void main() {
       expect(drafts.uploadCount,3);expect(drafts.drafts.values.single.images.length,2);
       final tokens=(data['image_tokens'] as Map).values.cast<String>().toList(),failed=tokens[1];
       final retry=find.byKey(ValueKey('media-retry-$failed'));await tester.ensureVisible(retry);await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('صور الإعلان (3/12)'));await tester.pumpAndSettle();
       await previewWave6(tester,boundary,'batch1-photo-failure-$scale');
-      await tester.tap(retry);await tester.pumpAndSettle();
+      await tester.ensureVisible(retry);await tester.tap(retry);await tester.pumpAndSettle();
       expect(drafts.attempts[tokens[0]],1);expect(drafts.attempts[failed],2);expect(drafts.attempts[tokens[2]],1);
       expect(drafts.drafts.values.single.images.length,3);
       expect(recovery.snapshot!['latitude'],15.37);expect(recovery.snapshot!['longitude'],44.19);
       expect(tester.takeException(),isNull);await finishWave6(tester);
     },timeout:const Timeout(Duration(seconds:45)));
   }
+
+  testWidgets('connection loss pauses untouched photos until a deliberate retry',(tester) async {
+    final dir=Directory.systemTemp.createTempSync('listing-offline-');addTearDown(()=>dir.deleteSync(recursive:true));
+    final data=_photos(dir,3),drafts=_Drafts()..failOneUpload=true..failUploadNumber=1..failTransport=true;
+    await pumpWave6(tester,const ListingEditorScreen(),recovery:Wave6Recovery(data),drafts:drafts);
+    await tester.ensureVisible(textField('وصف العقار'));await tester.enterText(textField('وصف العقار'),'الصور باقية دون اتصال');
+    await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();expect(drafts.uploadCount,1);
+    final first=(data['image_order'] as List).first as String,retry=find.byKey(ValueKey('media-retry-$first'));
+    await tester.ensureVisible(retry);await tester.tap(retry);await tester.pumpAndSettle();
+    expect(drafts.uploadCount,4);expect(drafts.drafts.values.single.images,hasLength(3));await finishWave6(tester);
+  },timeout:const Timeout(Duration(seconds:45)));
 
   testWidgets('a lost listing response recovers committed photo aliases without uploading them again',(tester) async {
     final dir=Directory.systemTemp.createTempSync('listing-promoted-');addTearDown(()=>dir.deleteSync(recursive:true));
