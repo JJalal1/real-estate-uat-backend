@@ -273,4 +273,43 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+  testWidgets('zero results never relax filters silently and expose explicit recovery', (tester) async {
+    final voice = Wave3VoiceFake();
+    final ai = Wave3AiFake()
+      ..onRefine = (_, __, revision) async => {
+        'revision': revision,
+        'filters': {
+          'search': 'حدة',
+          'type': 'apartment',
+          'purpose': 'sale',
+          'max_price': 50000000,
+          'currency': 'YER',
+        },
+      };
+    final properties = Wave3PropertiesFake()
+      ..onSearch = (_, __) async => (<PropertySummary>[], false);
+    final container = searchContainer(voice, ai, properties);
+    addTearDown(container.dispose);
+    addTearDown(voice.dispose);
+
+    await pumpHome(tester, container);
+    await _submit(tester, 'شقة للبيع في حدة حتى خمسين مليون');
+
+    expect(find.text('لا توجد عقارات بهذه الشروط'), findsOneWidget);
+    expect(find.byKey(const ValueKey('zero-results-budget')), findsOneWidget);
+    expect(find.byKey(const ValueKey('zero-results-type')), findsOneWidget);
+    expect(find.byKey(const ValueKey('zero-results-search')), findsOneWidget);
+    expect(container.read(smartSearchSessionProvider).filters.values['max_price'], 50000000);
+
+    await tester.tap(find.byKey(const ValueKey('zero-results-budget')));
+    await tester.pumpAndSettle();
+
+    expect(container.read(smartSearchSessionProvider).filters.values.containsKey('max_price'), isFalse);
+    expect(properties.queries.last.filters.containsKey('max_price'), isFalse);
+    expect(properties.queries.last.filters['search'], 'حدة');
+    expect(properties.queries.last.filters['type'], 'apartment');
+    expect(tester.takeException(), isNull);
+  });
+
+
 }
