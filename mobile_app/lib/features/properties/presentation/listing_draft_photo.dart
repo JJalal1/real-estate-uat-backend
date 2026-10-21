@@ -32,10 +32,10 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
   void didUpdateWidget(ListingDraftPhoto oldWidget) { super.didUpdateWidget(oldWidget); if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated) _bytes = _load(); }
   @override
   void dispose() { _cancel?.cancel('Image closed');super.dispose(); }
-  @override
   Widget _retry() => Center(child: TextButton(onPressed: () => setState(() {
     _bytes=_load();
   }), child: const Text('إعادة تحميل الصورة',textAlign:TextAlign.center)));
+  @override
   Widget build(BuildContext context) => FutureBuilder<Uint8List>(future: _bytes, builder: (_, snapshot) {
     if (snapshot.hasError) return _retry();
     if (snapshot.hasData) return Image.memory(snapshot.data!, fit: widget.fit, cacheWidth:widget.cacheWidth, errorBuilder: (_, __, ___) => _retry());

@@ -515,6 +515,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   void _scheduleRecovery() {
     if (!_recoveryReady || _recoveryFinished || _recoveryUserId == null || _busy || !_sessionValid || _disposed) return;
+    if (_initialEditSignature!=null && _editSignature==_initialEditSignature && _confirmedEditSignature==null && !_recoverySaved && widget.accountDraft==null) return;
     if (_hasUnsavedChanges && _accountSaved) super.setState(() => _accountSaved=false);
     _recoveryTimer?.cancel();
     _recoveryTimer = Timer(const Duration(milliseconds: 650), () => unawaited(_saveRecovery()));
@@ -869,7 +870,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _disposed=true;_pendingAccount=null;
     for (final cancel in _photoCancels.values) { cancel.cancel('Editor closed'); }
     // Never delete the only remaining copy if the durable device write failed.
-    final backup=!_recoveryFinished && _recoveryReady && userId!=null
+    final backup=!_recoveryFinished && _recoveryReady && userId!=null && (_hasUnsavedChanges || _recoverySaved)
       ? _recoveryStore.write(userId,widget.existingProperty?.id,snapshot,paths) : Future<void>.value();
     unawaited(backup.then((_)=>_mediaPicker.clearTemporaryFiles(temporary)).catchError((_) {}));
     for (final controller in <TextEditingController>[
@@ -1442,7 +1443,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       setState(() {
         final old=_localPath(key);if(old!=null)_imagePaths.remove(old);
         _removedPhotoKeys.add(key);_localPhotoKeys[path]=next;_imagePaths.add(path);_photoStates[next]='queued';
-        if(index>=0)order[index]=next;else order.add(next);_photoOrder=order;
+        if(index>=0) { order[index]=next; } else { order.add(next); }
+        _photoOrder=order;
       });
       await _saveRecovery();
     } catch (_) { if(mounted)_message('تعذر استبدال الصورة. الصورة السابقة باقية حتى اختيار بديل.'); }
@@ -2037,6 +2039,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       await Future<void>.delayed(const Duration(milliseconds: 500));
       if (mounted) _finish(draft);
     } catch (error) {
+      _accountSaved=false;_needsReconcile=true;
       if (mounted) setState(() => _stepError = friendlyApiError(error));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -2360,7 +2363,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
     if (rejected.isNotEmpty) {
       await _mediaPicker.clearTemporaryFiles(rejected);
-      if (mounted) _message('بعض الصور غير مدعومة أو كبيرة. اختر JPG أو PNG أو WebP حتى 8 ميجابايت للصورة.');
+      if (mounted) { _message('بعض الصور غير مدعومة أو كبيرة. اختر JPG أو PNG أو WebP حتى 8 ميجابايت للصورة.'); }
     }
     return accepted;
   }

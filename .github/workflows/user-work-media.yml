@@ -52,4 +52,11 @@ jobs:
           flutter pub get
       - run: python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
       - run: python3 -B ../scripts/check_v3_analysis.py
-      - run: flutter test test/wave6_product_contract_test.dart test/wave6_product_ui_test.dart test/new_wave_handoff_test.dart
+      - run: flutter test test/wave6_product_contract_test.dart test/wave6_product_ui_test.dart test/new_wave_handoff_test.dart test/user_work_media_test.dart test/current_wave_contract_test.dart test/current_wave_ui_test.dart
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: user-work-media-previews
+          path: mobile_app/build/wave6-previews/
+          if-no-files-found: ignore
+          retention-days: 3
