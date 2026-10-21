@@ -64,10 +64,11 @@ class PropertyController extends Controller
         app(\App\Services\PropertyDiscoveryFilterService::class)->applyGeometry($query, $validated);
 
         $sort = (string) $request->input('sort', 'latest');
+        app(\App\Services\PropertyDiscoveryFilterService::class)->applySearchOrdering($query, $validated, $sort);
         match ($sort) {
             'price_asc' => $query->orderBy('price')->orderByDesc('id'),
             'price_desc' => $query->orderByDesc('price')->orderByDesc('id'),
-            default => $query->latest('id'),
+            default => $query->orderByDesc('id'),
         };
 
         $page = $query->paginate($perPage);

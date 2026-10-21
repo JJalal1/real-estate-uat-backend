@@ -28,6 +28,41 @@ class PropertyRepository {
   String? alternateContactPhone(int propertyId) => _alternateContactPhones[propertyId];
   final Dio _dio;
   final AuthRepository _auth;
+  static const Duration _publicDiscoveryCacheTtl = Duration(seconds: 20);
+  static const int _publicDiscoveryCacheLimit = 32;
+  final Map<String, ({DateTime storedAt, Object value})> _publicDiscoveryCache = {};
+
+  String _publicCacheKey(String path, Map<String, dynamic> params) {
+    final entries = params.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+    final query = entries.map((entry) => '${entry.key}=${entry.value}').join('&');
+    return '$path?$query';
+  }
+
+  Future<T> _cachedPublic<T>(
+    String path,
+    Map<String, dynamic> params,
+    Future<T> Function() loader,
+  ) async {
+    final key = _publicCacheKey(path, params);
+    final now = DateTime.now();
+    final cached = _publicDiscoveryCache[key];
+    if (cached != null && now.difference(cached.storedAt) <= _publicDiscoveryCacheTtl) {
+      return cached.value as T;
+    }
+    if (cached != null) _publicDiscoveryCache.remove(key);
+
+    final value = await loader();
+    _publicDiscoveryCache[key] = (storedAt: now, value: value as Object);
+    if (_publicDiscoveryCache.length > _publicDiscoveryCacheLimit) {
+      final oldest = _publicDiscoveryCache.entries.reduce(
+        (a, b) => a.value.storedAt.isBefore(b.value.storedAt) ? a : b,
+      );
+      _publicDiscoveryCache.remove(oldest.key);
+    }
+    return value;
+  }
+
+  void _invalidatePublicDiscoveryCache() => _publicDiscoveryCache.clear();
 
   Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1, String? purpose}) async {
     final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {'advertiser_id': id, 'page': page, 'per_page': 20, if (purpose != null) 'purpose': purpose});
@@ -58,41 +93,46 @@ class PropertyRepository {
     double? north,
     double? east,
   }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/properties/nearby',
-      queryParameters: {
-        'latitude': latitude,
-        'longitude': longitude,
-        'radius_km': radiusKm,
-        if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
-        if (type != null && type.isNotEmpty) 'type': type,
-        if (minPrice != null) (purpose == 'rent' ? 'min_monthly_rent' : 'min_price'): minPrice,
-        if (maxPrice != null) (purpose == 'rent' ? 'max_monthly_rent' : 'max_price'): maxPrice,
-        if (minBedrooms != null) 'min_bedrooms': minBedrooms,
-        if (minBathrooms != null) 'min_bathrooms': minBathrooms,
-        if (minArea != null) 'min_area_m2': minArea,
-        if (maxArea != null) 'max_area_m2': maxArea,
-        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
-        if (south != null && west != null && north != null && east != null) ...{
-          'south': south,
-          'west': west,
-          'north': north,
-          'east': east,
-        },
+    final params = <String, dynamic>{
+      'latitude': latitude,
+      'longitude': longitude,
+      'radius_km': radiusKm,
+      if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
+      if (type != null && type.isNotEmpty) 'type': type,
+      if (minPrice != null) (purpose == 'rent' ? 'min_monthly_rent' : 'min_price'): minPrice,
+      if (maxPrice != null) (purpose == 'rent' ? 'max_monthly_rent' : 'max_price'): maxPrice,
+      if (minBedrooms != null) 'min_bedrooms': minBedrooms,
+      if (minBathrooms != null) 'min_bathrooms': minBathrooms,
+      if (minArea != null) 'min_area_m2': minArea,
+      if (maxArea != null) 'max_area_m2': maxArea,
+      if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      if (south != null && west != null && north != null && east != null) ...{
+        'south': south,
+        'west': west,
+        'north': north,
+        'east': east,
       },
-    );
-
-    final rows = response.data?['data'] as List<dynamic>? ?? const <dynamic>[];
-    return rows
-        .whereType<Map<String, dynamic>>()
-        .map(PropertyMarker.fromJson)
-        .toList(growable: false);
+    };
+    return _cachedPublic<List<PropertyMarker>>('/properties/nearby', params, () async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/properties/nearby',
+        queryParameters: params,
+      );
+      final rows = response.data?['data'] as List<dynamic>? ?? const <dynamic>[];
+      return rows
+          .whereType<Map<String, dynamic>>()
+          .map(PropertyMarker.fromJson)
+          .toList(growable: false);
+    });
   }
 
   Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters) async {
-    final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: filters);
-    final rows = response.data?['data'] as List? ?? const [];
-    return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
+    final params = Map<String, dynamic>.from(filters);
+    return _cachedPublic<List<PropertyMarker>>('/properties/nearby', params, () async {
+      final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: params);
+      final rows = response.data?['data'] as List? ?? const [];
+      return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
+    });
   }
 
   Future<ListingContactPolicy> listingContactPolicy() async {
@@ -294,12 +334,14 @@ class PropertyRepository {
   }
 
   Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1}) async {
-    final response = await _dio.get<Map<String, dynamic>>('/properties',
-      queryParameters: {...filters, 'page': page, 'per_page': 20, 'sort': 'latest'});
-    final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
-      .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
-    final meta = response.data?['meta'] as Map? ?? const {};
-    return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
+    final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest'};
+    return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
+      final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params);
+      final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
+        .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
+      final meta = response.data?['meta'] as Map? ?? const {};
+      return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
+    });
   }
 
   Future<PropertyDetails> details(int propertyId) async {
@@ -399,6 +441,7 @@ class PropertyRepository {
       data: form,
       options: await _listingUploadOptions(),
     );
+    _invalidatePublicDiscoveryCache();
     return _detailsFromResponse(response);
   }
 
@@ -432,6 +475,7 @@ class PropertyRepository {
       data: form,
       options: await _listingUploadOptions(),
     );
+    _invalidatePublicDiscoveryCache();
     return _detailsFromResponse(response);
   }
 
@@ -440,6 +484,7 @@ class PropertyRepository {
       '/properties/$propertyId',
       options: await _auth.requiredAuthOptions(),
     );
+    _invalidatePublicDiscoveryCache();
   }
 
   Future<PropertyIdentityResult> checkPropertyIdentity(int propertyId) async {
@@ -480,6 +525,7 @@ class PropertyRepository {
       '/properties/$propertyId/submit',
       options: await _auth.requiredAuthOptions(),
     );
+    _invalidatePublicDiscoveryCache();
     return _detailsFromResponse(response);
   }
 

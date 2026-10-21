@@ -93,16 +93,19 @@ class PropertyDiscoveryFilterService
             $query->where('purpose', 'rent')->where('monthly_rent', '<=', $validated['max_monthly_rent']);
         }
         if (isset($validated['min_monthly_rent'])) $query->where('purpose', 'rent')->where('monthly_rent', '>=', $validated['min_monthly_rent']);
-        $search = trim((string) ($validated['search'] ?? ''));
+        $search = $this->normalizeArabicSearch((string) ($validated['search'] ?? ''));
         if ($search !== '') {
-            $query->where(function (Builder $nested) use ($search) {
-                $pattern = '%' . $search . '%';
-                $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
-                $nested
-                    ->where('title', $operator, $pattern)
-                    ->orWhere('description', $operator, $pattern)
-                    ->orWhere('address', $operator, $pattern);
-            });
+            $tokens = preg_split('/\\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($tokens as $token) {
+                $query->where(function (Builder $tokenQuery) use ($token): void {
+                    foreach (['title', 'description', 'address'] as $field) {
+                        $tokenQuery->orWhereRaw(
+                            $this->normalizedArabicSql($field).' LIKE ?',
+                            ['%'.$token.'%'],
+                        );
+                    }
+                });
+            }
         }
 
         if (($validated['type'] ?? null) === 'apartment') {
@@ -133,6 +136,61 @@ class PropertyDiscoveryFilterService
                 $query->where($column, $operator, $validated[$input]);
             }
         }
+    }
+
+    public function applySearchOrdering(Builder $query, array $validated, string $sort): void
+    {
+        if ($sort !== 'latest') return;
+        $search = $this->normalizeArabicSearch((string) ($validated['search'] ?? ''));
+        if ($search === '') return;
+
+        $title = $this->normalizedArabicSql('title');
+        $address = $this->normalizedArabicSql('address');
+        $prefix = $search.'%';
+
+        $query->orderByRaw(
+            "CASE
+                WHEN {$title} = ? THEN 0
+                WHEN {$address} = ? THEN 1
+                WHEN {$title} LIKE ? THEN 2
+                WHEN {$address} LIKE ? THEN 3
+                WHEN {$title} LIKE ? THEN 4
+                WHEN {$address} LIKE ? THEN 5
+                ELSE 6
+            END",
+            [$search, $search, $prefix, $prefix, '%'.$search.'%', '%'.$search.'%'],
+        );
+    }
+
+    private function normalizeArabicSearch(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') return '';
+
+        $value = strtr($value, [
+            'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا',
+            'ى' => 'ي',
+        ]);
+        $value = preg_replace('/[ًٌٍَُِّْٰـ]/u', '', $value) ?? $value;
+        $value = preg_replace('/\\s+/u', ' ', $value) ?? $value;
+
+        return trim($value);
+    }
+
+    private function normalizedArabicSql(string $column): string
+    {
+        $expression = "LOWER(COALESCE({$column}, ''))";
+        foreach ([
+            'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي',
+            'ً' => '', 'ٌ' => '', 'ٍ' => '', 'َ' => '', 'ُ' => '', 'ِ' => '',
+            'ّ' => '', 'ْ' => '', 'ٰ' => '', 'ـ' => '',
+        ] as $from => $to) {
+            $fromSql = str_replace("'", "''", $from);
+            $toSql = str_replace("'", "''", $to);
+            $expression = "REPLACE({$expression}, '{$fromSql}', '{$toSql}')";
+        }
+
+        return $expression;
     }
 
     public function validateGeometry(array $validated): void
