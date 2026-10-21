@@ -75,6 +75,11 @@ class AccountScreen extends ConsumerWidget {
                   _AccountGroup(
                     rows: [
                       _AccountRow(
+                        'الأمان والخصوصية',
+                        Icons.security_outlined,
+                        () => context.push('/account-safety'),
+                      ),
+                      _AccountRow(
                         'الملف الشخصي',
                         Icons.manage_accounts_outlined,
                         () => context.push('/profile'),

@@ -348,13 +348,14 @@ class _ListingCommunityScreenState
       return;
     }
     await _run(() async {
-      await ref.read(communityRepositoryProvider).report(
+      final receipt = await ref.read(communityRepositoryProvider).report(
             targetType: targetType,
             targetId: targetId,
             reason: result.reason,
             details: result.details,
           );
-    }, success: 'تم إرسال البلاغ إلى الدعم.');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message)));
+    });
   }
 
   Future<String?> _textDialog({

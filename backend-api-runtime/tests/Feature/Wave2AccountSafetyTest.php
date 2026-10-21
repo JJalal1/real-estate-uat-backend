@@ -106,7 +106,7 @@ class Wave2AccountSafetyTest extends TestCase
         $this->assertArrayNotHasKey('requester',$public);
     }
 
-    public function test_account_safety_requires_auth_and_account_active_and_limits_requests(): void
+    public function test_account_safety_requires_auth_and_limits_requests(): void
     {
         $this->getJson('/api/account/blocked-users')->assertUnauthorized();
         $this->postJson('/api/account/deletion-request',['confirmed'=>true])->assertUnauthorized();

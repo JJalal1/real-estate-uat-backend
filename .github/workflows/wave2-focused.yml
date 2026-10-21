@@ -29,3 +29,25 @@ jobs:
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: php artisan key:generate --force
       - run: php artisan test tests/Feature/Wave2AccountSafetyTest.php tests/Feature/PropertyIdentityV2Test.php tests/Feature/Stage10CommunitySupportApiTest.php tests/Feature/Stage11MessagingNotificationsApiTest.php --display-warnings --fail-on-warning --fail-on-risky
+  flutter:
+    name: Account safety and editor regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile_app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+      - run: python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - run: python3 -B ../scripts/check_v3_analysis.py
+      - run: flutter test --reporter expanded test/compact_cards_email_login_test.dart test/user_work_media_test.dart test/new_wave_handoff_test.dart

@@ -89,26 +89,24 @@ class CommunityRepository {
     );
   }
 
-  Future<void> report({
-    required String targetType,
-    required int targetId,
-    required String reason,
-    required String details,
+  Future<ReportReceipt> report({
+    required String targetType, required int targetId, required String reason, required String details,
   }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/reports',
-      data: {
-        'target_type': targetType,
-        'target_id': targetId,
-        'reason': reason,
-        'details': details.trim(),
-      },
-      options: await _auth.requiredAuthOptions(),
-    );
-    final data = response.data?['data'];
-    if (data is! Map<String, dynamic>) {
-      throw StateError('Invalid report response.');
+    Map<String, dynamic>? body;
+    var alreadyReceived = false;
+    try {
+      final response = await _dio.post<Map<String, dynamic>>('/reports', data: {
+        'target_type': targetType, 'target_id': targetId, 'reason': reason, 'details': details.trim(),
+      }, options: await _auth.requiredAuthOptions());
+      body = response.data;
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      if (error.response?.statusCode != 409 || data is! Map<String, dynamic> || data['code'] != 'report_already_received') rethrow;
+      body = data; alreadyReceived = true;
     }
+    final data = body?['data'];
+    if (data is! Map<String, dynamic>) throw StateError('Invalid report response');
+    return ReportReceipt.fromJson(data, alreadyReceived: alreadyReceived);
   }
 
   ListingCommentItem _comment(Map<String, dynamic>? body) {
