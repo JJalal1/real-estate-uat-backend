@@ -96,16 +96,16 @@ class PropertyDiscoveryFilterService
         $search = $this->normalizeArabicSearch((string) ($validated['search'] ?? ''));
         if ($search !== '') {
             $tokens = preg_split('/\\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            $query->where(function (Builder $nested) use ($tokens): void {
-                foreach (['title', 'description', 'address'] as $field) {
-                    $expression = $this->normalizedArabicSql($field);
-                    $nested->orWhere(function (Builder $fieldQuery) use ($tokens, $expression): void {
-                        foreach ($tokens as $token) {
-                            $fieldQuery->whereRaw($expression.' LIKE ?', ['%'.$token.'%']);
-                        }
-                    });
-                }
-            });
+            foreach ($tokens as $token) {
+                $query->where(function (Builder $tokenQuery) use ($token): void {
+                    foreach (['title', 'description', 'address'] as $field) {
+                        $tokenQuery->orWhereRaw(
+                            $this->normalizedArabicSql($field).' LIKE ?',
+                            ['%'.$token.'%'],
+                        );
+                    }
+                });
+            }
         }
 
         if (($validated['type'] ?? null) === 'apartment') {
