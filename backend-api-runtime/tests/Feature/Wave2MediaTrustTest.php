@@ -80,11 +80,10 @@ class Wave2MediaTrustTest extends TestCase
     public function test_pinned_vector_pipeline_keeps_original_private_and_sanitizes_all_cached_variants(): void
     {
         Storage::fake('local');Storage::fake('public');
-        $resources=sys_get_temp_dir().'/aqer-synthetic-'.bin2hex(random_bytes(8));
-        mkdir($resources.'/brand',0700,true);
+        $geometryPath=resource_path('brand/aqer-approved.json');
+        $originalGeometry=is_file($geometryPath)?file_get_contents($geometryPath):null;
         $geometry=json_encode(['approval'=>'owner-approved','layers'=>[['polygons'=>[[[0.1,0.1],[0.9,0.1],[0.9,0.9],[0.1,0.9]]],'holes'=>[]]]]);
-        file_put_contents($resources.'/brand/aqer-approved.json',$geometry);
-        $originalResourcePath=resource_path();$this->app->useResourcePath($resources);
+        file_put_contents($geometryPath,$geometry);
         try {
             config(['listing_media.watermark.enabled'=>true,'listing_media.watermark.approved_sha256'=>hash('sha256',$geometry)]);
             $bytes=$this->jpegWithExif(6);$service=app(ListingImageService::class);
@@ -107,7 +106,8 @@ class Wave2MediaTrustTest extends TestCase
             $this->assertNotFalse($image);imagedestroy($image);
             $this->assertSame(0,DB::table('property_sai_terms')->count());
         } finally {
-            $this->app->useResourcePath($originalResourcePath);unlink($resources.'/brand/aqer-approved.json');rmdir($resources.'/brand');rmdir($resources);
+            if ($originalGeometry===null) unlink($geometryPath);
+            else file_put_contents($geometryPath,$originalGeometry);
         }
     }
 

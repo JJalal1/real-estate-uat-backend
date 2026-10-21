@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -199,13 +198,13 @@ void main() {
   }
 }
 class _AuthOptions extends AuthRepository {
-  _AuthOptions(Dio dio):super(dio);
+  _AuthOptions(super.dio);
   @override
   Future<Options> requiredAuthOptions() async => Options(headers:{'Authorization':'Bearer synthetic-fixture'});
 }
 
 class _DelayedOptions extends AuthRepository {
-  _DelayedOptions(Dio dio):super(dio);
+  _DelayedOptions(super.dio);
   final options=Completer<Options>();
   @override
   Future<Options> requiredAuthOptions() => options.future;

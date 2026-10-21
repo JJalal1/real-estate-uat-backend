@@ -55,18 +55,22 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 110), cacheExtent: 300,
         physics: const AlwaysScrollableScrollPhysics(), itemCount: _rows.length + 2,
         itemBuilder: (context, index) {
-          if (index == 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (index == 0) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (widget.governorate != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(widget.governorate!)),
             if (_busy && _rows.isEmpty) const AppSkeleton(height: 190, radius: 12)
             else if (_error != null) AppErrorState(message: _error!, onRetry: () => _load(more: _rows.isNotEmpty))
             else if (_rows.isEmpty) const AppEmptyState(title: 'لا توجد عقارات في هذا القسم الآن', message: 'يمكنك تغيير المنطقة أو استكشاف الأقسام الأخرى.'),
-          ]);
+            ]);
+          }
           if (index <= _rows.length) {
             final row = _rows[index - 1];
             return Padding(key: ValueKey('section-property-${row.id}'), padding: const EdgeInsets.only(bottom: 14), child: PropertySummaryCard(property: row));
           }
-          if (_more && _error == null) return TextButton(onPressed: _busy ? null : () => _load(more: true), child: _busy
-            ? const Text('جارٍ تحميل المزيد…') : const Text('المزيد من العقارات'));
+          if (_more && _error == null) {
+            return TextButton(onPressed: _busy ? null : () => _load(more: true), child: _busy
+              ? const Text('جارٍ تحميل المزيد…') : const Text('المزيد من العقارات'));
+          }
           return const SizedBox.shrink();
         })))));
   }

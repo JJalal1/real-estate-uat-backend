@@ -21,9 +21,9 @@ class MessageRepository {
   final int? _actorId;
   final int? Function()? _currentActor;
   Future<Options> _sessionOptions() async {
-    if (_currentActor != null && (_actorId == null || _currentActor!() != _actorId)) throw StateError('ACCOUNT_CHANGED');
+    if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
     final options = await _auth.requiredAuthOptions();
-    if (_currentActor != null && _currentActor!() != _actorId) throw StateError('ACCOUNT_CHANGED');
+    if (_currentActor != null && _currentActor() != _actorId) throw StateError('ACCOUNT_CHANGED');
     return options;
   }
 

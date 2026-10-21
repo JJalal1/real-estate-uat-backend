@@ -382,8 +382,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     setState(() => _reporting = true);
     try {
       final receipt = await repository.report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message),
-        action: SnackBarAction(label: 'متابعة', onPressed: () => context.push('/support?case=${receipt.id}'))));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message),
+          action: SnackBarAction(label: 'متابعة', onPressed: () => context.push('/support?case=${receipt.id}'))));
+      }
     } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
     finally { if (mounted) setState(() => _reporting = false); }
   }

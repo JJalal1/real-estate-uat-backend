@@ -66,7 +66,7 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
     try {
       await ref.read(accountSafetyRepositoryProvider).setBlocked(account.id, false);
       if (_valid) setState(() => _blocked = _blocked.where((x) => x.id != account.id).toList());
-    } catch (error) { if (_valid) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
+    } catch (error) { if (mounted && _valid) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
     finally { if (_valid) setState(() => _busy = false); }
   }
   Future<void> _requestDeletion() async {
@@ -75,7 +75,7 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
     try {
       final status = await ref.read(accountSafetyRepositoryProvider).requestDeletion();
       if (_valid) setState(() => _deletion = status);
-    } catch (error) { if (_valid) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
+    } catch (error) { if (mounted && _valid) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
     finally { if (_valid) setState(() => _busy = false); }
   }
   @override
