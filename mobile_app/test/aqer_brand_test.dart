@@ -39,7 +39,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
+    try {
     final key = GlobalKey();
     await tester.pumpWidget(MaterialApp(theme: AppTheme.light, builder: (context, child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(2.4)), child: child!),
@@ -59,5 +59,9 @@ void main() {
       await file.writeAsBytes(bytes!.buffer.asUint8List());
       image.dispose();
     });
+    } finally {
+      // Flutter verifies semantics handles before addTearDown callbacks run.
+      semantics.dispose();
+    }
   });
 }
