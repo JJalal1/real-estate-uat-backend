@@ -16,6 +16,7 @@ class DynamicPropertySchema
         $field = $this->definition()['fields'][$key] ?? null;
         if ($field === null) foreach ($this->definition()['fields'] as $candidate) { if (in_array($key,$candidate['aliases'] ?? [],true)) { $field=$candidate; break; } }
         if ($field === null) return true;
+        if ($field['retired'] ?? false) return false;
         $type = ($facts['type'] ?? null) === 'floor' ? 'apartment' : ($facts['type'] ?? null);
         $purpose = $facts['purpose'] ?? null;
         if ($type !== null && isset($field['types']) && ! in_array($type, $field['types'], true)) return false;
@@ -39,6 +40,7 @@ class DynamicPropertySchema
         $keys = [];
         foreach ($this->definition()['fields'] as $key => $field) {
             if (! $this->applies($key, $facts)) continue;
+            if (($field['required_since'] ?? 0) > (int)($facts['listing_input_version'] ?? $facts['editor_version'] ?? 9)) continue;
             if ($field['required'] ?? false) $keys[] = $key;
             else foreach ($field['required_cases'] ?? [] as $case) {
                 if ($this->matches($case, $facts)) { $keys[] = $key; break; }
@@ -79,6 +81,32 @@ class DynamicPropertySchema
         $value = trim(strtr($value, ['أ'=>'ا', 'إ'=>'ا', '٠'=>'0', '١'=>'1', '٢'=>'2', '٣'=>'3', '٤'=>'4', '٥'=>'5', '٦'=>'6', '٧'=>'7', '٨'=>'8', '٩'=>'9']));
         $value = preg_replace('/^(?:الدور|الطابق)\s*/u', '', $value);
         return ['ارضي'=>'0','الارضي'=>'0','الاول'=>'1','الثاني'=>'2','الثالث'=>'3','الرابع'=>'4','الخامس'=>'5','السادس'=>'6','السابع'=>'7','الثامن'=>'8','التاسع'=>'9','العاشر'=>'10'][$value] ?? $value;
+    }
+
+    public function validateStructure(array $facts): array
+    {
+        if (isset($facts['units_per_floor']) && is_string($facts['units_per_floor'])) {
+            $facts['units_per_floor'] = json_decode($facts['units_per_floor'], true);
+            if (!is_array($facts['units_per_floor'])) throw \Illuminate\Validation\ValidationException::withMessages(['units_per_floor'=>['أدخل عدد الوحدات لكل دور.']]);
+        }
+        foreach (['floors_count'=>50,'shop_openings'=>100] as $key=>$max) {
+            if (!isset($facts[$key]) || !$this->applies($key,$facts)) continue;
+            if (filter_var($facts[$key], FILTER_VALIDATE_INT) === false || (int)$facts[$key] < 1 || (int)$facts[$key] > $max) {
+                throw \Illuminate\Validation\ValidationException::withMessages([$key=>['أدخل عددًا صحيحًا ضمن النطاق المسموح.']]);
+            }
+            $facts[$key]=(int)$facts[$key];
+        }
+        if (isset($facts['units_per_floor']) && $this->applies('units_per_floor',$facts)) {
+            $units=$facts['units_per_floor'];
+            if (!is_array($units) || !array_is_list($units) || count($units)>50 || (isset($facts['floors_count']) && count($units)!==(int)$facts['floors_count'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['units_per_floor'=>['حدد عدد الوحدات في كل دور من أدوار العقار.']]);
+            }
+            foreach ($units as $unit) if (filter_var($unit,FILTER_VALIDATE_INT)===false || (int)$unit<1 || (int)$unit>100) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['units_per_floor'=>['عدد الوحدات في كل دور من 1 إلى 100.']]);
+            }
+            $facts['units_per_floor']=array_map('intval',$units);
+        }
+        return $facts;
     }
 
     /** Validate current editor writes without changing historical read models. */

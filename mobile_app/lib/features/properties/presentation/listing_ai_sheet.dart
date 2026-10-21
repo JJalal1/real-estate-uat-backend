@@ -1,3 +1,4 @@
+import '../domain/rental_condition_summary.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,7 +41,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   static const labels = {'title': 'عنوان الإعلان', 'type': 'نوع العقار', 'purpose': 'الغرض', 'price': 'سعر البيع',
     'monthly_rent': 'الإيجار الشهري', 'area_value': 'المساحة', 'area_unit': 'وحدة المساحة',
     'bedrooms': 'غرف النوم', 'bathrooms': 'الحمامات', 'governorate': 'المحافظة', 'district': 'الحي', 'street': 'الشارع',
-    'floor_number': 'الدور', 'unit_number': 'موضع الوحدة', 'has_parking': 'موقف السيارة', 'has_elevator': 'المصعد',
+    'floor_number': 'الدور', 'unit_number': 'موضع الوحدة', 'has_parking': 'موقف السيارة', 'floors_count': 'عدد الأدوار', 'units_per_floor': 'الوحدات في كل دور', 'shop_openings': 'عدد الفتحات',
     'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية', 'broker_sai_rate_percent':'نسبة السعي', 'fixed_sai_amount':'مبلغ السعي بالريال', 'rental_conditions':'شروط الإيجار'};
 
   @override
@@ -207,9 +208,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   String _value(String key, dynamic value) => switch (key) {
     'type' => SmartSearchFilters.types[value] ?? '$value', 'purpose' => value == 'rent' ? 'للإيجار' : 'للبيع',
     'building_facade' => SmartSearchFilters.facades[value] ?? '$value', 'area_unit' => propertyAreaUnitLabel(value.toString()),
-    'rental_conditions' => (value as List).map((c) => switch ((c as Map)['kind']) { 'advance' => 'مقدم ${c['months']} أشهر', 'duration' => 'مدة ${c['months']} أشهر', 'guarantor' => 'ضمانة تجارية', 'deposit' => 'تأمين', _ => c['text']?.toString() ?? '' }).join('، '),
+    'rental_conditions' => (value as List).map((c) => rentalConditionSummary(Map<String,dynamic>.from(c as Map))).join('، '),
     'tenure_type' => value == 'waqf' ? 'وقف' : 'حر',
-    'has_parking' || 'has_elevator' || 'unit_occupies_entire_floor' => value == true || value == 1 ? 'نعم' : 'لا',
+    'units_per_floor' => (value as List).asMap().entries.map((e) => 'الدور ${arabicDigits('${e.key+1}')}: ${arabicDigits('${e.value}')}').join('، '),
+    'has_parking' || 'unit_occupies_entire_floor' => value == true || value == 1 ? 'نعم' : 'لا',
     'price' || 'monthly_rent' || 'fixed_sai_amount' => moneyLabel(value, 'YER'),
     'broker_sai_rate_percent' => '${formatMoneyAmount(value)}٪',
     _ => arabicDigits('$value'),

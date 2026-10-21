@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "types": {
     "apartment": "شقة",
     "building": "عمارة",
@@ -91,7 +91,8 @@
       ],
       "filters": [
         "has_elevator"
-      ]
+      ],
+      "retired": true
     },
     "building_facade": {
       "types": [
@@ -199,6 +200,29 @@
           "sai_amount_type": "percentage"
         }
       ]
+    },
+    "floors_count": {
+      "types": [
+        "building",
+        "house"
+      ],
+      "required": true,
+      "required_since": 9
+    },
+    "units_per_floor": {
+      "types": [
+        "building",
+        "house"
+      ],
+      "required": true,
+      "required_since": 9
+    },
+    "shop_openings": {
+      "types": [
+        "shop"
+      ],
+      "required": true,
+      "required_since": 9
     }
   },
   "floors": [

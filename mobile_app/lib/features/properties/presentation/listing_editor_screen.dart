@@ -1,3 +1,5 @@
+import '../domain/listing_contact_policy.dart';
+import '../domain/rental_condition_summary.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -88,6 +90,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _rentalTermMonths = TextEditingController();
   final _advanceMonths = TextEditingController();
   final _area = TextEditingController();
+  final _floorsCount = TextEditingController();
+  final _shopOpenings = TextEditingController();
+  List<String> _unitsPerFloor = [];
+  bool _sameFloorUnits = false;
   final _bedrooms = TextEditingController();
   final _bathrooms = TextEditingController();
   final _governorate = TextEditingController();
@@ -96,6 +102,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _buildingReference = TextEditingController();
   final _unitNumber = TextEditingController();
   final _floorNumber = TextEditingController();
+  ListingContactPolicy _contactPolicy = const ListingContactPolicy();
+  bool _validateContacts = false;
   final _phone = TextEditingController();
   final _whatsapp = TextEditingController();
   final _documentOwnerName = TextEditingController();
@@ -219,6 +227,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   void _clearHiddenFields() {
+    if (!_applies('floors_count')) { _floorsCount.clear(); _unitsPerFloor = []; _sameFloorUnits = false; }
+    if (!_applies('shop_openings')) _shopOpenings.clear();
     if (!_applies('tenure_type')) _tenureType = null;
     if (!_applies('bedrooms')) _bedrooms.clear();
     if (!_applies('bathrooms')) _bathrooms.clear();
@@ -334,6 +344,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (keys.contains('floor_number') && _unitNeedsFloor) Padding(padding: const EdgeInsets.only(top: 12), child: _floorSelector()),
         if (_applies('unit_number')) text('unit_number',_unitNumber,'رقم الوحدة أو موضعها *'),
         if (_applies('area_value')) text('area_value',_area,_type == 'shop' ? 'المساحة بالمتر المربع *' : 'المساحة *',numeric:true),
+        if (_applies('floors_count')) ..._structureFields(),
+        if (_type == 'shop') ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات *', keyboardType: TextInputType.number, enabled: !_busy)],
+        if (_applies('floors_count')) ..._structureFields(),
+        if (_type == 'shop') text('shop_openings',_shopOpenings,'عدد الفتحات *',numeric:true),
         if (_requiresResidential) ...[text('bedrooms',_bedrooms,'غرف النوم *',numeric:true),text('bathrooms',_bathrooms,'الحمامات *',numeric:true)],
         if (_requiresStructure) choice('has_parking','موقف السيارة *',_parkingChoice,const {'yes':'يوجد','no':'لا يوجد'},(v) => setState(() => _parkingChoice = v)),
         if (_supportsFacade) choice('building_facade','واجهة البناء *',_facade,propertyFacadeLabels,(v) => setState(() => _facade = v)),
@@ -369,19 +383,36 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     unawaited(_preview());
   }
 
+  List<Widget> _structureFields() {
+    final count = (_optionalInt(_floorsCount) ?? 0).clamp(0, 50).toInt();
+    return [
+      const SizedBox(height: 12),
+      TextField(key: const ValueKey('listing-floors-count'), controller: _floorsCount,
+        decoration: const InputDecoration(labelText: 'عدد الأدوار *'), keyboardType: TextInputType.number, enabled: !_busy,
+        onChanged: (_) => setState(() { final next = (_optionalInt(_floorsCount) ?? 0).clamp(0, 50).toInt(); _unitsPerFloor = List.generate(next, (i) => i < _unitsPerFloor.length ? _unitsPerFloor[i] : (_sameFloorUnits && _unitsPerFloor.isNotEmpty ? _unitsPerFloor.first : '')); })),
+      if (count > 0) CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('نفس العدد في كل دور'),
+        value: _sameFloorUnits, onChanged: _busy ? null : (value) => setState(() { _sameFloorUnits = value ?? false; if (_sameFloorUnits) _unitsPerFloor = List.filled(count, _unitsPerFloor.isEmpty ? '' : _unitsPerFloor.first); })),
+      for (var i = 0; i < (_sameFloorUnits && count > 0 ? 1 : count); i++) Padding(padding: const EdgeInsets.only(bottom: 12),
+        child: TextFormField(key: ValueKey('listing-units-${_sameFloorUnits ? 'same' : i}'),
+          initialValue: i < _unitsPerFloor.length ? _unitsPerFloor[i] : '', enabled: !_busy, keyboardType: TextInputType.number,
+          decoration: InputDecoration(labelText: _sameFloorUnits ? 'عدد الوحدات في كل دور *' : 'الوحدات في الدور ${i + 1} *'),
+          onChanged: (value) => setState(() { if (_sameFloorUnits) { _unitsPerFloor = List.filled(count, value); } else { _unitsPerFloor = List.generate(count, (j) => j == i ? value : (j < _unitsPerFloor.length ? _unitsPerFloor[j] : '')); } }))),
+    ];
+  }
+
   Map<String, TextEditingController> get _recoveryFields => {
     'broker_sai_rate_percent': _saiRate,
     'fixed_sai_amount': _saiAmount,
     'title': _title, 'description': _description, 'ai_listing_brief': _assistantBrief, 'price': _price, 'monthly_rent': _monthlyRent,
     'rental_term_months': _rentalTermMonths, 'advance_months': _advanceMonths, 'area': _area,
-    'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'district': _district,
+    'floors_count': _floorsCount, 'shop_openings': _shopOpenings, 'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'district': _district,
     'street': _street, 'building_reference': _buildingReference, 'unit_number': _unitNumber,
     'floor_number': _floorNumber, 'phone': _phone, 'whatsapp': _whatsapp,
     'document_owner_name': _documentOwnerName, 'relationship_note': _relationshipNote,
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
-    'editor_version': 8, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
+    'editor_version': 9, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
     'type_confirmed': _typeConfirmed, 'purpose_confirmed': _purposeConfirmed, 'completion_only': _completionOnly,
     'draft_key': _draftKey, 'server_revision': _draftRevision, 'image_tokens': _localPhotoKeys, 'image_order': _photoKeys,
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
@@ -437,6 +468,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _completionOnly = data['completion_only'] == true;
       if (data['image_tokens'] is Map) _localPhotoKeys.addAll(Map<String,String>.from(data['image_tokens'] as Map));
       _photoOrder = (data['image_order'] as List? ?? const []).whereType<String>().toList();
+      _unitsPerFloor = (data['units_per_floor'] as List? ?? const []).map((e) => e?.toString() ?? '').toList();
+      _sameFloorUnits = data['same_floor_units'] == true;
       final fields = data['fields'];
       if (data['rental_conditions'] is List) _rentalConditions = (data['rental_conditions'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       _step = (data['step'] is int ? data['step'] as int : 0).clamp(0, 3).toInt();
@@ -535,10 +568,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final policy = _saiPolicy;
     if (policy == null) return 'سياسة السعي غير محملة';
     if (_fixedSai && _enteredSaiAmount.isFinite && _enteredSaiAmount > 0) {
-      return 'السعي ${_enteredSaiAmount.toStringAsFixed(2)} ريال · يتحمله ${_purpose == 'rent' ? 'المستأجر' : 'المشتري'}';
+      return 'السعي ${_enteredSaiAmount.toStringAsFixed(2)} ريال';
     }
     final rate = policy.isOwner || _enteredSaiRate == 0 ? policy.fixedRatePercent : _enteredSaiRate;
-    return 'السعي ${rate ?? '—'}% · يتحمله ${_purpose == 'rent' ? 'المستأجر' : 'المشتري'}';
+    return 'السعي ${rate ?? '—'}%';
   }
   Map<String, dynamic> get _schemaContext => {'type': _type, 'purpose': _purpose, 'unit_occupies_entire_floor': _wholeFloor, 'sai_amount_type': _saiAmountType};
   bool _applies(String key) => DynamicPropertySchema.applies(key, _schemaContext);
@@ -596,9 +629,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _draftKey = widget.accountDraft?.key ?? newListingDraftKey();
     if (widget.accountDraft != null) _adoptAccountDraft(widget.accountDraft!);
     _typeConfirmed = widget.existingProperty != null; _purposeConfirmed = widget.existingProperty != null;
-    _recoveryUserId = ref.read(authControllerProvider).asData?.value?.id;
+    final initialActor = ref.read(authControllerProvider).asData?.value;
+    _recoveryUserId = initialActor?.id;
+    if (_existing == null) _phone.text = ListingContactPolicy.normalize(initialActor?.phone ?? '');
     Future.microtask(() async {
+      if (_phone.text.isEmpty && _existing == null) { final actor = await ref.read(authControllerProvider.future); if (mounted) _phone.text = ListingContactPolicy.normalize(actor?.phone ?? ''); }
       await _restoreRecovery(); if (mounted) await _loadSaiPolicy();
+      try { final policy = await ref.read(propertyRepositoryProvider).listingContactPolicy(); if (mounted && ref.read(authControllerProvider).asData?.value?.id == _recoveryUserId) setState(() => _contactPolicy = policy); } catch (_) {}
       if (mounted && widget.startWithAssistant) { WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _assist(prepareDraft: true);
       }); }
@@ -627,6 +664,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         ? formatPropertyAreaValue(property.areaValue!)
         : property.areaM2?.toString() ?? '';
     _areaUnit = property.areaUnit ?? 'sqm';
+    _floorsCount.text = property.floorsCount?.toString() ?? '';
+    _unitsPerFloor = property.unitsPerFloor.map((e) => e.toString()).toList();
+    _sameFloorUnits = _unitsPerFloor.isNotEmpty && _unitsPerFloor.toSet().length == 1;
+    _shopOpenings.text = property.shopOpenings?.toString() ?? '';
     _bedrooms.text = property.bedrooms?.toString() ?? '';
     _bathrooms.text = property.bathrooms?.toString() ?? '';
     _parkingChoice = property.hasParking == null
@@ -647,8 +688,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _floorNumber.text = property.floorNumber ?? '';
 
     _landBoundaryGeoJson = property.landBoundaryGeoJson;
-    _phone.text = property.contactPhone ?? '';
-    _whatsapp.text = property.contactWhatsapp ?? '';
+    _phone.text = ListingContactPolicy.normalize(property.contactPhone ?? '');
+    _whatsapp.text = ListingContactPolicy.normalize(property.contactWhatsapp ?? '');
     _ownershipDocumentType = property.ownershipDocumentType;
     _documentOwnerName.text = property.documentOwnerName ?? '';
     _relationshipType = property.ownerRelationshipType;
@@ -684,6 +725,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _rentalTermMonths,
       _advanceMonths,
       _area,
+      _floorsCount,
+      _shopOpenings,
       _bedrooms,
       _bathrooms,
       _governorate,
@@ -1003,6 +1046,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [area, const SizedBox(height: 12), unit])
               : Row(children: [Expanded(flex: 2, child: area), const SizedBox(width: 8), Expanded(flex: 3, child: unit)]);
           }),
+        if (_applies('floors_count')) ..._structureFields(),
+        if (_type == 'shop') ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات *', keyboardType: TextInputType.number, enabled: !_busy)],
         if (_requiresResidential) ...[
           const SizedBox(height: AppSpacing.s12),
           Row(
@@ -1136,14 +1181,16 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const SizedBox(height: AppSpacing.s12),
         AppTextField(
           controller: _phone,
-          label: 'رقم الاتصال',
+          label: 'رقم الاتصال *',
+          helperText: _validateContacts ? _contactPolicy.error(_phone.text, required: true) : 'رقم جوال يمني من 9 أرقام',
           keyboardType: TextInputType.phone,
           enabled: !_busy,
         ),
         const SizedBox(height: AppSpacing.s12),
         AppTextField(
           controller: _whatsapp,
-          label: 'رقم واتساب',
+          label: 'رقم اتصال آخر (اختياري)',
+          helperText: _validateContacts ? _contactPolicy.error(_whatsapp.text) : null,
           keyboardType: TextInputType.phone,
           enabled: !_busy,
         ),
@@ -1330,6 +1377,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       }
     }
     if (step == 2) {
+      if (_applies('floors_count')) {
+        final count = _optionalInt(_floorsCount) ?? 0;
+        if (count < 1 || count > 50) return 'أدخل عدد الأدوار من 1 إلى 50.';
+        if (_unitsPerFloor.length != count || _unitsPerFloor.any((v) => (int.tryParse(v) ?? 0)<1 || (int.tryParse(v) ?? 0)>100)) return 'أدخل عدد الوحدات في كل دور من 1 إلى 100.';
+      }
+      if (_type == 'shop' && ((_optionalInt(_shopOpenings) ?? 0)<1 || (_optionalInt(_shopOpenings) ?? 0)>100)) return 'أدخل عدد فتحات المحل من 1 إلى 100.';
       final areaValue = double.tryParse(_area.text.trim());
       if (!_isRentalApartment && (areaValue == null || areaValue <= 0)) return 'أدخل مساحة صحيحة أكبر من صفر.';
       final images = _effectiveImageCount;
@@ -1363,6 +1416,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_requiresStructure && _facade == null) return 'اختر واجهة البناء.';
     }
     if (step == 3) {
+      _validateContacts = true;
+      final phoneError = _contactPolicy.error(_phone.text, required: true) ?? _contactPolicy.error(_whatsapp.text);
+      if (phoneError != null) return phoneError;
       if (_purpose == 'sale') {
         final value = double.tryParse(_price.text.trim());
         if (value == null || value <= 0) {
@@ -1452,7 +1508,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final message = _validationMessageForStep(step);
       if (message != null) {
         _showFullStep(step);
-        _message(message);
+        setState(() => _stepError = message);
         return;
       }
     }
@@ -1496,7 +1552,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _composedAddress,
       if (_description.text.trim().isNotEmpty) _description.text.trim(),
       if (_phone.text.trim().isNotEmpty) 'للتواصل: ${_phone.text.trim()}',
-      if (_whatsapp.text.trim().isNotEmpty) 'واتساب: ${_whatsapp.text.trim()}',
+      if (_whatsapp.text.trim().isNotEmpty) 'رقم اتصال آخر: ${_whatsapp.text.trim()}',
     ].where((line) => line.isNotEmpty).join('\n');
     await Clipboard.setData(ClipboardData(text: text));
     if (mounted) _message('نُسخ نص الإعلان. يمكنك لصقه ومراجعته قبل مشاركته.');
@@ -1517,6 +1573,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_purpose == 'rent' && (double.tryParse(_monthlyRent.text) ?? 0) > 0) 'monthly_rent': double.parse(_monthlyRent.text),
     if (!_isRentalApartment && (double.tryParse(_area.text) ?? 0) > 0) 'area_value': double.parse(_area.text),
     if (!_isRentalApartment) 'area_unit': _areaUnit,
+    if (_applies('floors_count') && (_optionalInt(_floorsCount) ?? 0) > 0) 'floors_count': _optionalInt(_floorsCount),
+    if (_applies('units_per_floor') && _unitsPerFloor.isNotEmpty && _unitsPerFloor.every((v) => (int.tryParse(v) ?? 0)>0)) 'units_per_floor': _unitsPerFloor.map(int.parse).toList(),
+    if (_type == 'shop' && (_optionalInt(_shopOpenings) ?? 0)>0) 'shop_openings': _optionalInt(_shopOpenings),
     if (_requiresResidential && (_optionalInt(_bedrooms) ?? 0) > 0) 'bedrooms': _optionalInt(_bedrooms),
     if (_requiresResidential && (_optionalInt(_bathrooms) ?? 0) > 0) 'bathrooms': _optionalInt(_bathrooms),
     if (_requiresStructure && _parkingChoice != null) 'has_parking': _parkingValue,
@@ -1543,6 +1602,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         'title': _title, if (!_isRentalApartment) 'area_value': _area, 'governorate': _governorate, 'district': _district, 'street': _street,
         if (_purpose == 'sale') 'price': _price,
         if (_purpose == 'rent') 'monthly_rent': _monthlyRent,
+        if (_applies('floors_count')) 'floors_count': _floorsCount,
+        if (_type == 'shop') 'shop_openings': _shopOpenings,
         if (_requiresResidential) 'bedrooms': _bedrooms,
         if (_requiresResidential) 'bathrooms': _bathrooms,
         if (_isUnitType) 'floor_number': _floorNumber,
@@ -1552,6 +1613,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_requiresSaleTenure && const ['freehold', 'waqf'].contains(result['tenure_type'])) _tenureType = result['tenure_type'] as String;
       if (_requiresStructure && result['has_parking'] is bool) _parkingChoice = result['has_parking'] == true ? 'yes' : 'no';
       if (_supportsFacade && propertyFacadeLabels.containsKey(result['building_facade'])) _facade = result['building_facade'] as String;
+      if (_applies('units_per_floor') && result['units_per_floor'] is List) { _unitsPerFloor = (result['units_per_floor'] as List).map((e) => e.toString()).toList(); _sameFloorUnits = _unitsPerFloor.isNotEmpty && _unitsPerFloor.toSet().length == 1; }
       if (_supportsElevator && result['has_elevator'] is bool) _elevatorChoice = result['has_elevator'] == true ? 'yes' : 'no';
       if (_type != 'apartment') _wholeFloor = false;
       if (_wholeFloor) _unitNumber.clear();
@@ -1587,7 +1649,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   PropertyListingInput _input() {
     final user = ref.read(authControllerProvider).asData?.value;
     return PropertyListingInput(
-      inputVersion: 8,
+      inputVersion: 9,
       rentalConditions: _purpose == 'rent' ? _rentalConditions : const [],
       title: _title.text.trim(),
       description: _description.text.trim(),
@@ -1604,6 +1666,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           null,
       areaValue: _isRentalApartment ? null : double.tryParse(_area.text.trim()),
       areaUnit: _isRentalApartment ? null : _area.text.trim().isEmpty ? null : _areaUnit,
+      floorsCount: _applies('floors_count') ? _optionalInt(_floorsCount) : null,
+      unitsPerFloor: _applies('units_per_floor') ? _unitsPerFloor.map((e) => int.tryParse(e) ?? 0).toList() : const [],
+      shopOpenings: _type == 'shop' ? _optionalInt(_shopOpenings) : null,
       bedrooms: _requiresResidential ? _optionalInt(_bedrooms) : null,
       bathrooms: _requiresResidential ? _optionalInt(_bathrooms) : null,
       hasParking: _requiresStructure ? _parkingValue : null,
@@ -1619,8 +1684,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       landBoundaryGeoJson: _type == 'land' ? _landBoundaryGeoJson : null,
       latitude: _latitude!,
       longitude: _longitude!,
-      contactPhone: _phone.text.trim(),
-      contactWhatsapp: _whatsapp.text.trim(),
+      contactPhone: ListingContactPolicy.normalize(_phone.text),
+      contactWhatsapp: ListingContactPolicy.normalize(_whatsapp.text),
       ownershipDocumentType:
           user?.isOwner == true ? _ownershipDocumentType : null,
       documentOwnerName:
@@ -1636,7 +1701,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!mounted) return;
     final validation = submit ? _validateForSubmit() : _validateCore();
     if (validation != null) {
-      if (!submit) { await _saveRecovery(); if (mounted) _message(_accountSaved ? 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' : 'لم يكتمل الحفظ على الحساب. أعد المحاولة قبل الخروج.'); } else { _message(validation); }
+      if (!submit) { await _saveRecovery(); if (mounted) _message(_accountSaved ? 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' : 'لم يكتمل الحفظ على الحساب. أعد المحاولة قبل الخروج.'); } else { setState(() => _stepError = validation); }
       return;
     }
 
@@ -1757,7 +1822,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Future<void> _preview() async {
     final validation = _validateCore();
     if (validation != null) {
-      _message(validation);
+      setState(() => _stepError = validation);
       return;
     }
 
@@ -1836,13 +1901,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 if (_purpose == 'rent' && _rentalConditions.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.s12),
                   Text('شروط الإيجار', style: Theme.of(context).textTheme.titleMedium),
-                  for (final condition in _rentalConditions) Text(switch (condition['kind']) {
-                    'advance' => 'مقدم إيجار: ${condition['months']} أشهر',
-                    'duration' => 'مدة العقد: ${condition['months']} أشهر',
-                    'guarantor' => 'ضمانة تجارية مطلوبة',
-                    'deposit' => 'تأمين مطلوب',
-                    _ => '${condition['text'] ?? ''}',
-                  }),
+                  for (final condition in _rentalConditions) Text(rentalConditionSummary(condition)),
                 ],
                 const SizedBox(height: AppSpacing.s20),
                 if (_validateForSubmit() == null) ...[

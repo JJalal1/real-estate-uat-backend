@@ -12,7 +12,7 @@ class ListingAiService
     public const LABELS = ['title' => 'العنوان', 'type' => 'نوع العقار', 'purpose' => 'الغرض', 'address' => 'الموقع',
         'price' => 'السعر', 'monthly_rent' => 'الإيجار الشهري', 'area_value' => 'المساحة',
         'bedrooms' => 'غرف النوم', 'bathrooms' => 'دورات المياه', 'floor_number' => 'الدور',
-        'has_parking' => 'موقف', 'has_elevator' => 'مصعد', 'building_facade' => 'الواجهة',
+        'floors_count'=>'عدد الأدوار', 'units_per_floor'=>'الوحدات في كل دور', 'shop_openings'=>'عدد الفتحات', 'has_parking' => 'موقف', 'building_facade' => 'الواجهة',
         'unit_occupies_entire_floor' => 'نطاق الوحدة', 'sai_amount_type'=>'نوع السعي', 'broker_sai_rate_percent'=>'نسبة السعي', 'fixed_sai_amount'=>'مبلغ السعي', 'rental_conditions'=>'شروط الإيجار'];
     public const TYPES = ['apartment' => 'شقة', 'house' => 'منزل', 'villa' => 'فيلا', 'building' => 'عمارة',
         'land' => 'أرض', 'farm' => 'مزرعة', 'shop' => 'محل', 'office' => 'مكتب'];
@@ -34,11 +34,16 @@ class ListingAiService
         foreach (['address', 'governorate', 'district', 'street'] as $key) $r[$key] = ['nullable', 'string', 'max:240'];
         foreach (['price', 'monthly_rent', 'area_value'] as $key) $r[$key] = ['nullable', 'numeric', 'gt:0', 'max:1000000000000'];
         foreach (['bedrooms', 'bathrooms'] as $key) $r[$key] = ['nullable', 'integer', 'between:1,50'];
-        foreach (['has_parking', 'has_elevator', 'unit_occupies_entire_floor'] as $key) $r[$key] = ['nullable', 'boolean'];
+        foreach (['has_parking', 'unit_occupies_entire_floor'] as $key) $r[$key] = ['nullable', 'boolean'];
         $r['sai_amount_type']=['nullable',Rule::in(['percentage','fixed'])];
         $r['broker_sai_rate_percent']=['nullable','numeric','between:0,100'];
         $r['fixed_sai_amount']=['nullable','numeric','between:0,1000000000000'];
         $r['rental_conditions']=['nullable','array','max:8'];
+        $r['has_elevator']=['nullable','boolean']; // legacy accepted, stripped by schema
+        $r['floors_count']=['nullable','integer','between:1,50'];
+        $r['units_per_floor']=['nullable','array','max:50'];
+        $r['units_per_floor.*']=['integer','between:1,100'];
+        $r['shop_openings']=['nullable','integer','between:1,100'];
         return $r;
     }
 
@@ -50,16 +55,17 @@ class ListingAiService
         $facts=Validator::make($input,$this->rules())->validate();
         if (isset($facts['rental_conditions'])) $facts['rental_conditions']=app(RentalConditionService::class)->normalize($facts['rental_conditions']);
         $schema = app(DynamicPropertySchema::class);
-        return $schema->validateApartmentFloor($schema->facts($facts), 'facts.floor_number');
+        return $schema->validateStructure($schema->validateApartmentFloor($schema->facts($facts), 'facts.floor_number'));
     }
 
     public function extract(string $message, array $current): array
     {
         $properties = [];
-        foreach (array_keys($this->rules()) as $key) $properties[$key] = ['type' => 'string'];
+        foreach (array_keys($this->rules()) as $key) if (!str_contains($key,'.') && $key !== 'has_elevator') $properties[$key] = ['type' => 'string'];
         foreach (['price','monthly_rent','area_value','broker_sai_rate_percent','fixed_sai_amount'] as $key) $properties[$key] = ['type'=>'number'];
-        foreach (['bedrooms','bathrooms'] as $key) $properties[$key] = ['type'=>'integer', 'minimum'=>1, 'maximum'=>50];
-        foreach (['has_parking','has_elevator','unit_occupies_entire_floor'] as $key) $properties[$key] = ['type'=>'boolean'];
+        foreach (['bedrooms','bathrooms','floors_count','shop_openings'] as $key) $properties[$key] = ['type'=>'integer', 'minimum'=>1, 'maximum'=>50];
+        $properties['units_per_floor']=['type'=>'array','items'=>['type'=>'integer','minimum'=>1,'maximum'=>100],'maxItems'=>50];
+        foreach (['has_parking','unit_occupies_entire_floor'] as $key) $properties[$key] = ['type'=>'boolean'];
         foreach (['type'=>array_keys(self::TYPES), 'purpose'=>['sale','rent'], 'currency'=>['YER','USD','SAR'],
             'area_unit'=>array_keys(self::UNITS), 'building_facade'=>array_keys(self::FACADES),
             'tenure_type'=>['freehold','waqf'], 'sai_amount_type'=>['percentage','fixed']] as $key=>$values) $properties[$key]['enum']=$values;
@@ -75,6 +81,7 @@ class ListingAiService
             .'Use current_facts only for resolving references. Do not repeat unmentioned values. Never invent specifications, identity, ownership, coordinates or approvals. '
             .'Do not add description. Commission fields may contain ONLY explicitly stated percentage or fixed amount, never calculate fees, splits, payer, financial terms or acceptance. Extract rental_conditions only when explicitly stated: advance/duration need months, guarantor/deposit have kind only, special has exact text. A whole floor is apartment + unit_occupies_entire_floor true. '
             .'price is the sale price; a monthly rental amount belongs in monthly_rent. Local amounts in ريال mean YER unless another currency is explicit. '
+            .'For a building or house extract explicitly stated floors_count and units_per_floor as one integer per floor; repeat an explicitly uniform unit count for all explicitly stated floors. For a shop extract shop_openings. Never include an elevator field. Do not invent counts. '
             .'Do not infer a floor or apartment number for a whole building, house, villa, land or farm. '
             .'Prefer governorate, district and street components when explicitly named; never invent a missing address component. '
             .'Walk through purpose, location components, rooms, bathrooms, amenities, rent/sale amount, currency, rental requirements and explicit commission before returning. '
@@ -214,7 +221,7 @@ class ListingAiService
         if (isset(self::TYPES[$facts['type'] ?? ''])) $result['type'] = self::TYPES[$facts['type']];
         if (isset($facts['purpose']) && in_array($facts['purpose'], ['sale', 'rent'], true)) $result['purpose'] = $facts['purpose'] === 'sale' ? 'معروض للبيع' : 'معروض للإيجار';
         $currency = $facts['currency'] ?? 'YER';
-        foreach (['price', 'monthly_rent', 'area_value', 'bedrooms', 'bathrooms'] as $key) {
+        foreach (['price', 'monthly_rent', 'area_value', 'bedrooms', 'bathrooms', 'floors_count', 'shop_openings'] as $key) {
             if (! isset($facts[$key]) || ! is_numeric($facts[$key]) || $facts[$key] <= 0) continue;
             if ($key === 'price' && ($facts['purpose'] ?? '') === 'rent') continue;
             if ($key === 'monthly_rent' && ($facts['purpose'] ?? '') !== 'rent') continue;
@@ -222,8 +229,9 @@ class ListingAiService
                 'area_value' => ' '.(self::UNITS[$facts['area_unit'] ?? 'sqm'] ?? 'م²'), default => '' };
             $result[$key] = self::LABELS[$key].': '.rtrim(rtrim(number_format((float) $facts[$key], 2, '.', ''), '0'), '.').$suffix;
         }
+        if (($facts['units_per_floor'] ?? [])!==[]) $result['units_per_floor']='الوحدات حسب ترتيب الأدوار: '.implode('، ',$facts['units_per_floor']);
         if (is_string($facts['floor_number'] ?? null) && trim($facts['floor_number']) !== '') $result['floor_number'] = 'الدور: '.$facts['floor_number'];
-        foreach (['has_parking', 'has_elevator'] as $key) if (isset($facts[$key])) $result[$key] = ((bool) $facts[$key] ? 'يوجد ' : 'لا يوجد ').self::LABELS[$key];
+        foreach (['has_parking'] as $key) if (isset($facts[$key])) $result[$key] = ((bool) $facts[$key] ? 'يوجد ' : 'لا يوجد ').self::LABELS[$key];
         if (isset(self::FACADES[$facts['building_facade'] ?? ''])) $result['building_facade'] = 'واجهة '.self::FACADES[$facts['building_facade']];
         if (($facts['unit_occupies_entire_floor'] ?? false) === true) $result['unit_occupies_entire_floor'] = 'الوحدة تشغل الدور كاملًا';
         return $result;

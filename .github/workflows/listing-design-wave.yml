@@ -1,7 +1,7 @@
 name: Listing and Design Wave Acceptance
 on:
   push:
-    branches: [work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login]
+    branches: [work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102]
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,7 +32,7 @@ jobs:
           printf 'APP_KEY=\n' > .env
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: php artisan key:generate --force
-      - run: php artisan test tests/Feature/EmailLoginAndNameTest.php tests/Feature/Stage6IdentityApiTest.php tests/Feature/BrokerListingAssistantTest.php tests/Feature/Wave3AiAssistantTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - run: php artisan test tests/Feature/NewWaveHandoffTest.php tests/Feature/EmailLoginAndNameTest.php tests/Feature/Stage6IdentityApiTest.php tests/Feature/BrokerListingAssistantTest.php tests/Feature/Wave3AiAssistantTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
   flutter:
     name: Refreshed Arabic interface and voice contracts
     runs-on: ubuntu-latest
@@ -59,7 +59,7 @@ jobs:
         run: python3 -B ../scripts/check_v3_analysis.py
       - name: Focused interface and voice regression
         working-directory: mobile_app
-        run: flutter test test/compact_cards_email_login_test.dart test/active_wave_discovery_test.dart test/template_creation_menu_test.dart test/listing_design_wave_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart test/phase3_favorites_screen_test.dart test/uat_account_types_kyc_models_test.dart
+        run: flutter test test/new_wave_handoff_test.dart test/compact_cards_email_login_test.dart test/active_wave_discovery_test.dart test/template_creation_menu_test.dart test/listing_design_wave_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart test/phase3_favorites_screen_test.dart test/uat_account_types_kyc_models_test.dart
       - name: Upload synthetic interface previews
         id: previews
         if: ${{ !cancelled() }}
@@ -71,6 +71,7 @@ jobs:
             mobile_app/build/compact-cards-preview/
             mobile_app/build/listing-design-preview/
             mobile_app/build/broker-preview/assistant-complete-*.png
+            mobile_app/build/broker-preview/new-wave-*.png
           if-no-files-found: error
           retention-days: 7
       - name: Bounded preview fallback

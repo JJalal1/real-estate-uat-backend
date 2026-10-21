@@ -76,8 +76,8 @@ class Wave6EditorDiscoveryTest extends TestCase
         $input=['rental_conditions'=>[['kind'=>'advance','months'=>3]]];
         $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',$input)->assertConflict();
         $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',$input+['editor_draft_key'=>$key])
-            ->assertOk()->assertJsonPath('data.requires_review',true)->assertJsonPath('data.rental_conditions.0.months',3);
-        \Illuminate\Support\Facades\Http::assertSentCount(1);
+            ->assertStatus(410)->assertJsonPath('code','RENTAL_CONDITIONS_AI_RETIRED');
+        \Illuminate\Support\Facades\Http::assertNothingSent();
         $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);
     }
 
@@ -209,7 +209,7 @@ class Wave6EditorDiscoveryTest extends TestCase
             ['error'=>['message'=>'private-provider-quota']],429,['Retry-After'=>'90'])]);
         $response=$this->withHeaders($headers)->postJson('/api/ai/listing-description',['facts'=>['type'=>'house','purpose'=>'sale']])
             ->assertStatus(429)->assertHeader('Retry-After','90')->assertJsonPath('retry_after_seconds',90);
-        \Illuminate\Support\Facades\Http::assertSentCount(1);
+        \Illuminate\Support\Facades\Http::assertNothingSent();
         $this->assertStringNotContainsString('private-provider-quota',$response->getContent());
         $this->assertDatabaseHas('ai_daily_usage',['day'=>now('UTC')->toDateString(),'request_count'=>1]);
         $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);

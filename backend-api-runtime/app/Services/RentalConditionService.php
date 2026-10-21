@@ -51,12 +51,17 @@ class RentalConditionService
     public function sentences(array $conditions): array
     {
         return array_map(fn (array $c): string => match ($c['kind']) {
-            'advance' => 'مقدم إيجار: '.$c['months'].' أشهر',
-            'duration' => 'مدة العقد: '.$c['months'].' أشهر',
-            'guarantor' => 'ضمانة تجارية مطلوبة',
-            'deposit' => 'تأمين مطلوب',
-            'special' => $c['text'],
+            'advance' => 'إيجار مقدم: '.$this->months($c['months']),
+            'duration' => 'مدة العقد: '.$this->months($c['months']),
+            'guarantor' => 'ضمانة تجارية: مطلوبة',
+            'deposit' => 'تأمين: مطلوب',
+            'special' => 'شرط خاص: '.$c['text'],
         }, $conditions);
+    }
+
+    private function months(int $months): string
+    {
+        return match ($months) { 1=>'شهر واحد', 2=>'شهران', 12=>'سنة واحدة', 24=>'سنتان', default=>$months.($months<=10 ? ' أشهر' : ' شهرًا') };
     }
 
     private function invalid(): never

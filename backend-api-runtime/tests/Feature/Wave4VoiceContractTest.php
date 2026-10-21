@@ -98,14 +98,12 @@ class Wave4VoiceContractTest extends TestCase
         $headers=['Authorization'=>'Bearer '.$token,'Accept'=>'application/json'];
         $conditions=[['kind'=>'advance','months'=>2],['kind'=>'special','text'=>'لا يسمح بالتأجير من الباطن']];
         Http::fake(['generativelanguage.googleapis.com/*'=>Http::sequence()->push($this->response(['order'=>[1,0]]))->push($this->response(['order'=>[0,0]]))]);
-        $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',['rental_conditions'=>$conditions])->assertOk()
-            ->assertJsonPath('data.requires_review',true)->assertJsonPath('data.rental_conditions',[$conditions[1],$conditions[0]])
-            ->assertJsonPath('data.text','لا يسمح بالتأجير من الباطن، مقدم إيجار: 2 أشهر.');
-        $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',['rental_conditions'=>$conditions])->assertStatus(503);
+        $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',['rental_conditions'=>$conditions])->assertStatus(410)
+            ->assertJsonPath('code','RENTAL_CONDITIONS_AI_RETIRED');
         $foreign=Property::create(['user_id'=>User::factory()->create()->id,'title'=>'Private draft','purpose'=>'sale','type'=>'house',
             'price'=>100000,'currency'=>'YER','latitude'=>15.4,'longitude'=>44.2,'status'=>'draft','review_status'=>'draft']);
         $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',['property_id'=>$foreign->id,'rental_conditions'=>$conditions])->assertNotFound();
-        Http::assertSentCount(2);
+        Http::assertNothingSent();
         $this->assertDatabaseCount('properties',1);
         $this->assertDatabaseCount('property_sai_terms',0);
     }

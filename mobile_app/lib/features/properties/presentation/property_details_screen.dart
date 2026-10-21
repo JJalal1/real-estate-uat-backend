@@ -1,3 +1,4 @@
+import '../domain/rental_condition_summary.dart';
 import 'property_summary_card.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -169,8 +170,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       if (property.hasParking != null && applies('has_parking')) AppPropertyFact(icon: Icons.local_parking_outlined, label: property.hasParking! ? 'موقف سيارة' : 'بدون موقف'),
       if (unit && property.floorNumber?.isNotEmpty == true) AppPropertyFact(icon: Icons.layers_outlined, label: DynamicPropertySchema.floorLabel(property.floorNumber)),
       if (property.unitOccupiesEntireFloor) const AppPropertyFact(icon: Icons.apartment, label: 'الوحدة تشغل الدور كاملًا'),
-      if (property.hasElevator != null && applies('has_elevator'))
-        AppPropertyFact(icon: Icons.elevator_outlined, label: property.hasElevator! ? 'يوجد مصعد' : 'بدون مصعد'),
+      if (applies('floors_count') && property.floorsCount != null) AppPropertyFact(icon: Icons.layers_outlined, label: '${property.floorsCount} أدوار'),
+      if (applies('units_per_floor') && property.unitsPerFloor.isNotEmpty) AppPropertyFact(icon: Icons.apartment_outlined, label: 'الوحدات حسب الأدوار: ${property.unitsPerFloor.join('، ')}'),
+      if (applies('shop_openings') && property.shopOpenings != null) AppPropertyFact(icon: Icons.storefront_outlined, label: '${property.shopOpenings} فتحات'),
       if (property.tenureType != null && applies('tenure_type'))
         AppPropertyFact(
           icon: Icons.account_balance_outlined,
@@ -284,10 +286,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           if (property.purpose == 'rent' && property.rentalConditions.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s24),
             EbrokerSectionPanel(title: 'شروط الإيجار', child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-              children: [for (final c in property.rentalConditions) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(switch (c['kind']) {
-                'advance' => 'مقدم إيجار: ${c['months']} أشهر', 'duration' => 'مدة العقد: ${c['months']} أشهر',
-                'guarantor' => 'ضمانة تجارية مطلوبة', 'deposit' => 'تأمين مطلوب', 'special' => c['text']?.toString() ?? '', _ => '',
-              }))])),
+              children: [for (final c in property.rentalConditions) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(rentalConditionSummary(c)))])),
           ],
           if (published && property.availabilityStatus == 'available') ...[
             const SizedBox(height: AppSpacing.s24), PropertyQuestionSection(propertyId: property.id),
@@ -350,8 +349,17 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     if (_calling || !await _requireContactAccount() || !mounted) return;
     setState(() => _calling = true);
     try {
-      final phone = await ref.read(propertyRepositoryProvider).contactPhone(property.id);
+      var phone = await ref.read(propertyRepositoryProvider).contactPhone(property.id);
       if (!mounted) return;
+      final other = ref.read(propertyRepositoryProvider).alternateContactPhone(property.id);
+      if (other != null) {
+        final selected = await AppBottomSheet.show<String>(context, builder: (sheet) => Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(title: const Text('رقم الاتصال'), subtitle: Text(phone, textDirection: TextDirection.ltr), leading: const Icon(Icons.phone_outlined), onTap: () => Navigator.pop(sheet, phone)),
+          ListTile(title: const Text('رقم اتصال آخر'), subtitle: Text(other, textDirection: TextDirection.ltr), leading: const Icon(Icons.phone_outlined), onTap: () => Navigator.pop(sheet, other)),
+        ]));
+        if (!mounted || selected == null) return;
+        phone = selected;
+      }
       final opened = await ref.read(contactActionsProvider).openDialer(phone);
       if (!mounted || opened) return;
       await showDialog<void>(context: context, builder: (dialog) => AlertDialog(title: const Text('رقم الاتصال بالإعلان'),

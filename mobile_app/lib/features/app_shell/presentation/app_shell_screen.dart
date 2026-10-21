@@ -13,8 +13,8 @@ import '../../admin/presentation/general_manager_pages.dart';
 import '../../discovery/presentation/marketplace_home_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
 import '../../properties/presentation/my_listings_screen.dart';
-import '../../broker/presentation/broker_workspaces.dart';
-import '../../broker/presentation/broker_connections_screen.dart';
+import '../../map/presentation/map_screen.dart';
+import '../../discovery/presentation/smart_search_assistant.dart';
 import 'listing_creation_menu.dart';
 import '../../support/presentation/support_tasks_screen.dart';
 import '../../support/presentation/support_workspace_pages.dart';
@@ -64,6 +64,12 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   void _createListing() {
     if (_openingEditor) return;
     FocusManager.instance.primaryFocus?.unfocus();
+    ref.read(brokerAssistantMenuProvider.notifier).state = false;
+    if (ref.read(authControllerProvider).asData?.value?.hasVerifiedProfessionalProfile == true) {
+      _openingEditor = true;
+      context.push('/add-property?assistant=0').whenComplete(() => _openingEditor = false);
+      return;
+    }
     setState(() => _createMenuOpen = !_createMenuOpen);
   }
 
@@ -84,6 +90,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
 
   void _selectTab(int value) {
     _closeCreationMenu();
+    ref.read(brokerAssistantMenuProvider.notifier).state = false;
     if (value == _index) return;
     setState(() {
       _visitedIndices.add(value);
@@ -127,7 +134,9 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         canPop: false,
         onPopInvokedWithResult: (didPop, result) {
           if (!didPop) {
-            if (_createMenuOpen) {
+            if (ref.read(brokerAssistantMenuProvider)) {
+              ref.read(brokerAssistantMenuProvider.notifier).state = false;
+            } else if (_createMenuOpen) {
               _closeCreationMenu();
             } else {
               _confirmExit();
@@ -223,11 +232,11 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         );
       case 'advertiser':
         return const _ShellData(pages: [
-          MarketplaceHomeScreen(showAdvertiserActions: true), BrokerDashboardScreen(), BrokerConnectionsScreen(), AccountScreen(),
+          MarketplaceHomeScreen(showAdvertiserActions: true), MapScreen(), Stage6AuthGate(child: MessagesScreen()), AccountScreen(),
         ], items: [
-          _NavItemData(label: 'الرئيسية', icon: Icons.home_outlined),
-          _NavItemData(label: 'عملي', icon: Icons.work_outline),
-          _NavItemData(label: 'العملاء', icon: Icons.people_outline),
+          _NavItemData(label: 'العقارات', icon: Icons.home_outlined),
+          _NavItemData(label: 'الخريطة', icon: Icons.map_outlined),
+          _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
           _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
         ]);
       case 'regular':

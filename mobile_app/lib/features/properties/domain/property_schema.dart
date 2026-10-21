@@ -9,6 +9,7 @@ abstract final class DynamicPropertySchema {
     var field = fields[key] as Map<String, dynamic>?;
     if(field==null) { for(final candidate in fields.values) { if(((candidate as Map)['aliases'] as List? ?? const []).contains(key)) { field=Map<String,dynamic>.from(candidate);break; } } }
     if (field == null) return true;
+    if (field['retired'] == true) return false;
     final type = facts['type'] == 'floor' ? 'apartment' : facts['type'], purpose = facts['purpose'];
     if (type != null && field['types'] is List && !(field['types'] as List).contains(type)) return false;
     if (purpose != null && field['purposes'] is List && !(field['purposes'] as List).contains(purpose)) return false;
@@ -17,7 +18,7 @@ abstract final class DynamicPropertySchema {
 
   static Set<String> required(Map<String, dynamic> facts) => {
     for (final entry in fields.entries)
-      if (applies(entry.key, facts) && ((entry.value as Map)['required'] == true ||
+      if (((entry.value as Map)['required_since'] as int? ?? 0) <= (facts['listing_input_version'] as int? ?? facts['editor_version'] as int? ?? 9) && applies(entry.key, facts) && ((entry.value as Map)['required'] == true ||
         ((entry.value as Map)['required_cases'] as List? ?? const []).any((c) => _matches(c as Map, facts)))) entry.key,
   };
 
