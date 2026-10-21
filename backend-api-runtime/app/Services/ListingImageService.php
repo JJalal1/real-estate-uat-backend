@@ -100,7 +100,7 @@ class ListingImageService
         try {
             $orientation = $info[2] === IMAGETYPE_JPEG ? $this->orientation($bytes) : 1;
             if (in_array($orientation,[2,4,5,7],true)) imageflip($image, $orientation === 4 ? IMG_FLIP_VERTICAL : IMG_FLIP_HORIZONTAL);
-            $angle = [3=>180,5=>270,6=>270,7=>90,8=>90][$orientation] ?? 0;
+            $angle = [3=>180,5=>90,6=>270,7=>270,8=>90][$orientation] ?? 0;
             if ($angle) { $rotated = imagerotate($image, $angle, 0); imagedestroy($image); $image = $rotated; }
             $width = imagesx($image); $height = imagesy($image); $result = [];
             foreach (config('listing_media.variants') as $variant=>[$edge,$quality]) {

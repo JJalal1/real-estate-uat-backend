@@ -31,7 +31,7 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
   void initState() {
     super.initState(); _bytes = _load();
     ref.listenManual(authControllerProvider.select((state)=>state.asData?.value?.id),(_,next) {
-      if (widget.authenticated && mounted) setState(()=>_bytes=_load());
+      if (widget.authenticated && mounted) setState(() { _bytes=_load();_bytes.ignore(); });
     });
   }
   @override

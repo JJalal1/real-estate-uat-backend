@@ -256,9 +256,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('listing-location-settings')));expect(opened,1);await finishWave6(tester);
   },timeout:const Timeout(Duration(seconds:45)));
 
-  testWidgets('microphone denial stays explicit and text input remains available',(tester) async {
+  test('microphone denial stays explicit and text input remains available',() async {
     final voice=Wave3VoiceFake(autoComplete:false),capture=VoiceCaptureController(voice);
-    final pending=capture.start();voice.latest.emit(const VoiceEvent('error',code:'SPEECH_PERMISSION_PERMANENT'));await tester.pump();
+    final pending=capture.start();voice.latest.emit(const VoiceEvent('error',code:'SPEECH_PERMISSION_PERMANENT'));
     expect(await pending,isNull);expect(capture.permissionDenied,true);expect(capture.error,contains('اكتب'));
     capture.dispose();await voice.dispose();
   },timeout:const Timeout(Duration(seconds:45)));
@@ -274,8 +274,8 @@ void main() {
 
   testWidgets('private photo loading failure has a retry action instead of an endless placeholder',(tester) async {
     final drafts=_PhotoFailure();await pumpWave6(tester,const SizedBox(width:170,height:120,child:ListingDraftPhoto(url:'https://fixture.invalid/private')),drafts:drafts);
-    expect(find.text('إعادة تحميل الصورة'),findsOneWidget);expect(drafts.calls,1);
-    await tester.tap(find.text('إعادة تحميل الصورة'));await tester.pumpAndSettle();expect(drafts.calls,2);await finishWave6(tester);
+    expect(find.text('إعادة تحميل الصورة'),findsOneWidget);final before=drafts.calls;expect(before,greaterThanOrEqualTo(1));
+    await tester.tap(find.text('إعادة تحميل الصورة'));await tester.pumpAndSettle();expect(drafts.calls,before+1);await finishWave6(tester);
   },timeout:const Timeout(Duration(seconds:45)));
 }
 

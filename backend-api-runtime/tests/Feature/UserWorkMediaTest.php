@@ -133,9 +133,31 @@ class UserWorkMediaTest extends TestCase
         $this->assertDatabaseCount('property_sai_terms',0);
     }
 
+    public function test_all_eight_exif_orientations_preserve_the_expected_corner_order(): void
+    {
+        Storage::fake('local');$service=app(ListingImageService::class);
+        $expected=[1=>[0,1,2,3],2=>[1,0,3,2],3=>[3,2,1,0],4=>[2,3,0,1],5=>[0,2,1,3],6=>[2,0,3,1],7=>[3,1,2,0],8=>[1,3,0,2]];
+        $palette=[[255,0,0],[0,255,0],[0,0,255],[255,255,0]];
+        foreach ($expected as $orientation=>$corners) {
+            $path=$service->store(UploadedFile::fake()->createWithContent('rotation.jpg',$this->jpegWithExif($orientation)),'listing-originals/orientation');
+            $image=imagecreatefromstring(Storage::disk('local')->get($service->variantPath($path,'card')));
+            $w=imagesx($image);$h=imagesy($image);$actual=[];
+            $this->assertSame($orientation>=5,$h>$w);
+            foreach ([[10,10],[$w-11,10],[10,$h-11],[$w-11,$h-11]] as [$x,$y]) {
+                $rgb=imagecolorsforindex($image,imagecolorat($image,$x,$y));$distances=[];
+                foreach ($palette as [$r,$g,$b]) $distances[]=($rgb['red']-$r)**2+($rgb['green']-$g)**2+($rgb['blue']-$b)**2;
+                $actual[]=array_search(min($distances),$distances,true);
+            }
+            imagedestroy($image);$this->assertSame($corners,$actual,'EXIF orientation '.$orientation);
+        }
+    }
+
     private function jpegWithExif(int $orientation): string
     {
-        $image=imagecreatetruecolor(800,400);imagefill($image,0,0,imagecolorallocate($image,80,140,210));
+        $image=imagecreatetruecolor(800,400);
+        foreach ([[0,0,399,199,255,0,0],[400,0,799,199,0,255,0],[0,200,399,399,0,0,255],[400,200,799,399,255,255,0]] as [$x1,$y1,$x2,$y2,$r,$g,$b]) {
+            imagefilledrectangle($image,$x1,$y1,$x2,$y2,imagecolorallocate($image,$r,$g,$b));
+        }
         ob_start();imagejpeg($image,null,92);$jpeg=ob_get_clean();imagedestroy($image);
         $make="PRIVATE_CAMERA\0";$gpsOffset=50+strlen($make);
         $tiff='II'.pack('vV',42,8).pack('v',3)
