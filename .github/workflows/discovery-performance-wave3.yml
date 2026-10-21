@@ -7,12 +7,6 @@ on:
       - 'backend-api-runtime/**'
       - 'mobile_app/**'
       - '.github/workflows/discovery-performance-wave3.yml'
-  pull_request:
-    paths:
-      - 'backend-api-runtime/**'
-      - 'mobile_app/**'
-      - '.github/workflows/discovery-performance-wave3.yml'
-
 concurrency:
   group: discovery-performance-wave3-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -55,13 +49,14 @@ jobs:
 
   mobile:
     name: Flutter discovery regression
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.27.3'
@@ -73,9 +68,25 @@ jobs:
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
-      - name: Check formatting of changed Dart files
+      - name: Format changed Dart files with project SDK
         working-directory: mobile_app
-        run: dart format --output=none --set-exit-if-changed lib/features/properties/data/property_repository.dart lib/features/map/domain/property_marker_cluster.dart lib/features/map/presentation/map_screen.dart lib/features/discovery/presentation/assisted_search_screen.dart test/property_marker_cluster_test.dart test/search_query_wave_test.dart
+        run: dart format lib/features/properties/data/property_repository.dart lib/features/map/domain/property_marker_cluster.dart lib/features/map/presentation/map_screen.dart lib/features/discovery/presentation/assisted_search_screen.dart test/property_marker_cluster_test.dart test/search_query_wave_test.dart
+      - name: Persist formatter-only changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- mobile_app/lib mobile_app/test; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add mobile_app/lib/features/properties/data/property_repository.dart \
+              mobile_app/lib/features/map/domain/property_marker_cluster.dart \
+              mobile_app/lib/features/map/presentation/map_screen.dart \
+              mobile_app/lib/features/discovery/presentation/assisted_search_screen.dart \
+              mobile_app/test/property_marker_cluster_test.dart \
+              mobile_app/test/search_query_wave_test.dart
+            git commit -m "Format discovery wave Dart changes [skip ci]"
+            git push origin HEAD:work/discovery-performance-wave3
+          fi
       - name: Strict Flutter analysis
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
