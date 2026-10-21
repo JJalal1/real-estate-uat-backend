@@ -13,7 +13,7 @@ class Wave3AiFake implements AiRepository {
   DateTime? descriptionRetryAt;
   final requests = <({String message, Map<String, dynamic> filters, int revision})>[];
   Future<Map<String, dynamic>> Function(String, Map<String, dynamic>, int)? onRefine;
-  Map<String, dynamic> fields = {'bedrooms': 4, 'has_elevator': true};
+  Map<String, dynamic> fields = {'bedrooms': 4, 'has_parking': true};
   @override
   Future<Map<String, dynamic>> refine(String message, Map<String, dynamic> filters, int revision) async {
     requests.add((message: message, filters: Map.of(filters), revision: revision));

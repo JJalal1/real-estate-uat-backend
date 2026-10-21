@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,15 @@ import 'package:real_estate_mobile/features/properties/domain/property_schema.da
 import 'package:real_estate_mobile/features/properties/domain/property_comparison.dart';
 import 'package:real_estate_mobile/features/properties/domain/rental_condition_summary.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_location_picker_screen.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_location_address.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
+import 'package:real_estate_mobile/features/broker/data/customer_help_store.dart';
+import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
+import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
+import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
+import 'broker_experience_ui_test.dart' show BrokerTestRepository;
 import 'support/wave6_fakes.dart';
 import 'wave6_product_ui_test.dart' show pumpWave6, editorSnapshot, finishWave6, textField, previewWave6;
 
@@ -26,8 +36,37 @@ class _DescriptionAi extends Wave6Ai {
   }
 }
 
+class _Help extends CustomerHelpStore {
+  final accounts=<int>{};
+  @override
+  Future<bool> seen(int accountId) async => accounts.contains(accountId);
+  @override
+  Future<void> markSeen(int accountId) async { accounts.add(accountId); }
+}
+class _Customers extends BrokerTestRepository {
+  @override
+  Future<BrokerPage<BrokerCustomer>> customers({String? stage,int? propertyId,int page=1,String? filter}) async => const BrokerPage(
+    items:[BrokerCustomer(threadId:11,customerName:'عميل اختبار',propertyId:3,propertyTitle:'شقة',stage:'new')],page:1,lastPage:1);
+}
+class _Account extends AuthController {
+  _Account(this.id);
+  final int id;
+  @override
+  Future<AuthUser?> build() async => AuthUser.fromJson({'id':id,'name':'دلال اختبار','phone':'+967771234567','account_status':'active',
+    'phone_verified_at':'2026-10-12T00:00:00Z','profile_completed_at':'2026-10-12T00:00:00Z','verification_profile':{'type':'broker','status':'approved'}});
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() async {
+    final arabic=FontLoader('NotoSansArabic')..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'));
+    await arabic.load();
+    final primary=FontLoader('PrimaryFont');
+    for(final weight in ['Regular','Medium','SemiBold','Bold','ExtraBold']) { primary.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf')); }
+    await primary.load();
+    final icons=await File('${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
+    await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
+  });
 
   test('new facts survive roundtrip and comparison; retired elevator cannot surface', () {
     final property = PropertyDetails.fromJson({'id': 11, 'title':'منزل', 'type':'house', 'purpose':'sale', 'price':1000,
@@ -84,6 +123,7 @@ void main() {
     await event(id,'recorded',path:'/private/full-recording.m4a');
     expect(await first,isNull);expect(capture.canRetry,isTrue);
     expect(commands.where((c)=>c.method=='release'),isEmpty);
+    await event(id,'recorded',path:'/private/full-recording.m4a');expect(paths,hasLength(1));
     final retried=capture.retryTranscription();await tester.pump();
     await capture.retryTranscription();expect(paths,['/private/full-recording.m4a','/private/full-recording.m4a']);
     retryResult.complete('عمارة ثلاثة أدوار، وحدتان في كل دور');await tester.pump();
@@ -121,6 +161,46 @@ void main() {
     expect(tester.widget<TextField>(field).controller!.text,'مدخل مستقل وحوش');
     expect(find.text('ترتيب وصياغة الشروط بالذكاء الاصطناعي'),findsNothing);
     await finishWave6(tester);
+  });
+
+  testWidgets('address waits for explicit point confirmation and text corrections preserve the point', (tester) async {
+    final snapshot=editorSnapshot()..['step']=1..['latitude']=null..['longitude']=null;
+    final recovery=Wave6Recovery(snapshot);
+    var picks=0, fixes=0;
+    final boundary=GlobalKey();
+    await pumpWave6(tester,ProviderScope(overrides:[
+      propertyCurrentLocationProvider.overrideWithValue(() async { fixes++; return const PropertyLocationSelection(latitude:13.96,longitude:44.18); }),
+      propertyLocationPickerProvider.overrideWithValue((context,{initialLatitude,initialLongitude}) async {
+        picks++;expect(initialLatitude,13.96);expect(initialLongitude,44.18);
+        return picks==1 ? null : const PropertyLocationSelection(latitude:13.96,longitude:44.18,
+          address:PropertyLocationAddress(governorate:'إب',district:'السبل',street:'المدخل'));
+      }),
+    ],child:const ListingEditorScreen()),recovery:recovery,boundary:boundary);
+    final governorate=textField('المحافظة *'),gps=find.byKey(const ValueKey('listing-current-location'));
+    expect(tester.widget<TextField>(governorate).enabled,isFalse);
+    await tester.ensureVisible(gps);await tester.tap(gps);await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(governorate).enabled,isFalse);
+    await tester.tap(gps);await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(governorate).enabled,isTrue);
+    expect(tester.widget<TextField>(governorate).controller!.text,'إب');
+    await tester.ensureVisible(governorate);await tester.enterText(governorate,'تعز');await tester.pump(const Duration(seconds:1));
+    expect(recovery.snapshot!['latitude'],13.96);expect(recovery.snapshot!['longitude'],44.18);
+    expect((recovery.snapshot!['fields'] as Map)['governorate'],'تعز');expect(fixes,2);expect(picks,2);
+    await previewWave6(tester,boundary,'new-wave-confirmed-location-1.0');
+    expect(tester.takeException(),isNull);await finishWave6(tester);
+  });
+
+  testWidgets('customer help is remembered once for each account', (tester) async {
+    final help=_Help();
+    Future<void> open(int id) => pumpWave6(tester,ProviderScope(overrides:[
+      authControllerProvider.overrideWith(()=>_Account(id)),customerHelpStoreProvider.overrideWithValue(help),
+      brokerRepositoryProvider.overrideWithValue(_Customers()),
+    ],child:const BrokerCustomersScreen()));
+    await open(1);expect(find.byKey(const ValueKey('customer-help-dismiss')),findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('customer-help-dismiss')));await tester.pumpAndSettle();expect(help.accounts,{1});
+    await finishWave6(tester);await open(1);expect(find.byKey(const ValueKey('customer-help-dismiss')),findsNothing);
+    await finishWave6(tester);await open(2);expect(find.byKey(const ValueKey('customer-help-dismiss')),findsOneWidget);
+    expect(find.textContaining('من أول تواصل'),findsOneWidget);await finishWave6(tester);
   });
 
   testWidgets('broker robot menu uses the two AI paths and an outside tap closes it', (tester) async {

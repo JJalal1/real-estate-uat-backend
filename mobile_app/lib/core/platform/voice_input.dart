@@ -74,7 +74,7 @@ class _NativeVoiceRecording implements RetryableVoiceRecording {
       if (call.method != 'event' || raw is! Map || current == null || raw['id'] != current._id) return;
       if (raw['type'] == 'recorded') {
         if (current._dictating) return;
-        if (current._stopping && !current._transcribing && raw['path'] is String) unawaited(current._completeClip(raw['path'] as String));
+        if (current._stopping && !current._transcribing && current._clipPath == null && raw['path'] is String) unawaited(current._completeClip(raw['path'] as String));
         return;
       }
       if (raw['type'] == 'mode') { current._dictating = current._liveDictation && raw['code'] == 'dictation'; }

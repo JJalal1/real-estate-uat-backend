@@ -158,6 +158,7 @@ class AccountScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.s8),
                       _AccountGroup(
                         rows: [
+                          _AccountRow('لوحة العمل', Icons.work_outline, () => context.push('/broker/workspace')),
                           _AccountRow('إدارة العملاء', Icons.people_outline, () => context.push('/broker/customers')),
                           _AccountRow('ملفي العام', Icons.person_outline, () => context.push('/advertisers/${user.id}')),
                           _AccountRow(

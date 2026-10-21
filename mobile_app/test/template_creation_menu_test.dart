@@ -103,6 +103,15 @@ void main() {
     await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   });
 
+  testWidgets('broker main plus opens manual entry directly once', (tester) async {
+    final observer = _EditorPushes();
+    await _pump(tester, user: brokerTestUser(), observer: observer);
+    await tester.tap(find.byKey(const ValueKey('home-add-property')));
+    await tester.pumpAndSettle();
+    expect(observer.count, 1); expect(find.text('editor-assistant=0'), findsOneWidget);
+    expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing); expect(tester.takeException(), isNull);
+  });
+
   testWidgets('template pills sit above the undimmed bar with original SVGs', (tester) async {
     final key = GlobalKey();
     await _pump(tester, user: _ownerTestUser(), boundary: key);

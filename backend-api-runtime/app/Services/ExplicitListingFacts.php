@@ -51,7 +51,7 @@ class ExplicitListingFacts
             if (!ctype_digit($floor) && !str_starts_with($floor, 'ال')) $floor = 'ال'.$floor;
             $fields['floor_number'] = app(DynamicPropertySchema::class)->normalizeFloor($floor);
         }
-        foreach (['has_parking'=>'موقف(?:\s*سيارات)?', 'has_elevator'=>'مصعد'] as $key => $word) {
+        foreach (['has_parking'=>'موقف(?:\s*سيارات)?'] as $key => $word) {
             $no = preg_match('/(?:بدون|لا\s*يوجد|لا\s*يتوفر|ما\s*في)\s*'.$word.'/u', $text);
             $yes = $this->positive('(?:يوجد|يتوفر|مع)\s*'.$word, $text);
             if ($no && !$yes) $fields[$key] = false;

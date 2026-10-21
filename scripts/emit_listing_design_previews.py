@@ -10,6 +10,7 @@ root = Path(__file__).resolve().parents[1]
 files = list((root / 'mobile_app/build/listing-design-preview').glob('*.png'))
 files += list((root / 'mobile_app/build/broker-preview').glob('assistant-complete-*.png'))
 files += list((root / 'mobile_app/build/compact-cards-preview').glob('*.png'))
+files += list((root / 'mobile_app/build/broker-preview').glob('new-wave-*.png'))
 total = 0
 for path in sorted(files):
     payload = path.read_bytes()

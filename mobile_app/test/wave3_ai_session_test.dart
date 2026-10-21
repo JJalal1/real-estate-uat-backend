@@ -81,7 +81,7 @@ void main() {
     expect(filters.chips.map((chip) => chip.$2), contains('بدون موقف'));
     expect(SmartSearchFilters.fromMap({...filters.values, 'type': 'land', 'min_bedrooms': 4, 'floor_number': '3'}).values.keys,
       isNot(anyOf(contains('has_elevator'), contains('min_bedrooms'), contains('floor_number'))));
-    expect(SmartSearchFilters.fromMap({'type':'apartment','purpose':'sale','has_elevator':false}).values['has_elevator'],false);
+    expect(SmartSearchFilters.fromMap({'type':'apartment','purpose':'sale','has_elevator':false}).values.containsKey('has_elevator'),false);
     expect(SmartSearchFilters.fromMap({'type':'apartment','purpose':'rent','has_elevator':false}).values.containsKey('has_elevator'),false);
     expect(SmartSearchFilters.fromMap({'type': 'floor'}).values, {'type': 'apartment', 'unit_occupies_entire_floor': true});
   });

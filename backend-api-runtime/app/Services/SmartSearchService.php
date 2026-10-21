@@ -118,7 +118,7 @@ class SmartSearchService
     {
         $type = $filters['type'] ?? null;
         $keys = match ($type) {
-            'apartment' => ['min_bedrooms', 'floor_number', 'has_elevator', 'has_parking'],
+            'apartment' => ['min_bedrooms', 'floor_number', 'has_parking'],
             'house', 'villa' => ['min_bedrooms', 'min_area_m2', 'has_parking'],
             'land' => ['min_area_m2', 'building_facade', 'max_area_m2', 'search'],
             'farm' => ['min_area_m2', 'max_area_m2', 'search'],
@@ -139,7 +139,7 @@ class SmartSearchService
             'building_facade' => ['type' => 'string', 'enum' => ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'multiple']]];
         foreach (['min_price', 'max_price', 'min_area_m2', 'max_area_m2'] as $key) $result[$key] = ['type' => 'number', 'minimum' => 0, 'maximum' => 1000000000000];
         foreach (['min_bedrooms', 'min_bathrooms'] as $key) $result[$key] = ['type' => 'integer', 'minimum' => 0, 'maximum' => 50];
-        foreach (['has_parking', 'has_elevator', 'unit_occupies_entire_floor'] as $key) $result[$key] = ['type' => 'boolean'];
+        foreach (['has_parking', 'unit_occupies_entire_floor'] as $key) $result[$key] = ['type' => 'boolean'];
         return $result;
     }
 }

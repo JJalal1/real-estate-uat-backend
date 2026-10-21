@@ -96,7 +96,7 @@ class Wave6EditorDiscoveryTest extends TestCase
             $facts=['type'=>$type,'purpose'=>$purpose,'area_value'=>100,'area_unit'=>'sqm','floor_number'=>'3','unit_number'=>'2','has_parking'=>true,'has_elevator'=>true,'building_facade'=>'north','bedrooms'=>3,'bathrooms'=>2];
             $clean=$schema->facts($facts);
             foreach($schema->definition()['fields'] as $key=>$_)if(!$schema->applies($key,$facts))$this->assertArrayNotHasKey($key,$clean);
-            if($type==='shop')$this->assertSame(['area_value'],$schema->required($facts));
+            if($type==='shop')$this->assertSame(['area_value','shop_openings'],$schema->required($facts));
         }
         $this->assertSame('0',$schema->normalizeFloor('الأرضي'));
         $this->assertSame('3',$schema->normalizeFloor('الدور الثالث'));
@@ -209,7 +209,7 @@ class Wave6EditorDiscoveryTest extends TestCase
             ['error'=>['message'=>'private-provider-quota']],429,['Retry-After'=>'90'])]);
         $response=$this->withHeaders($headers)->postJson('/api/ai/listing-description',['facts'=>['type'=>'house','purpose'=>'sale']])
             ->assertStatus(429)->assertHeader('Retry-After','90')->assertJsonPath('retry_after_seconds',90);
-        \Illuminate\Support\Facades\Http::assertNothingSent();
+        \Illuminate\Support\Facades\Http::assertSentCount(1);
         $this->assertStringNotContainsString('private-provider-quota',$response->getContent());
         $this->assertDatabaseHas('ai_daily_usage',['day'=>now('UTC')->toDateString(),'request_count'=>1]);
         $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);

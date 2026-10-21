@@ -64,9 +64,9 @@ void main() {
         applied = await AppBottomSheet.show<Map<String, dynamic>>(context, builder: (_) => const ListingAiSheet(facts: {'type': 'apartment'}));
       }, child: const Text('المساعد')))))));
     await tester.tap(find.text('المساعد')); await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, 'أربع غرف ومصعد');
+    await tester.enterText(find.byType(TextField).first, 'أربع غرف وموقف');
     await tester.tap(find.text('اقتراح الحقول')); await tester.pumpAndSettle(); expect(applied, isNull);
-    final elevator = find.byKey(const ValueKey('listing-ai-field-has_elevator')); await tester.ensureVisible(elevator); await tester.pumpAndSettle(); await tester.tap(elevator); await tester.pumpAndSettle();
+    final parking = find.byKey(const ValueKey('listing-ai-field-has_parking')); await tester.ensureVisible(parking); await tester.pumpAndSettle(); await tester.tap(parking); await tester.pumpAndSettle();
     final apply = find.text('تطبيق المواصفات المحددة'); await tester.ensureVisible(apply); await tester.pumpAndSettle(); await tester.tap(apply); await tester.pumpAndSettle();
     expect(applied, {'bedrooms': 4}); expect(tester.takeException(), isNull);
   });
@@ -74,7 +74,7 @@ void main() {
   testWidgets('missing listing information is stated clearly and questions do not create a conversation', (tester) async {
     await tester.pumpWidget(ProviderScope(overrides: [aiRepositoryProvider.overrideWithValue(Wave3AiFake())],
       child: MaterialApp(theme: AppTheme.light, home: const Scaffold(body: SingleChildScrollView(child: PropertyQuestionSection(propertyId: 11))))));
-    await tester.enterText(find.byType(TextField), 'هل يوجد مصعد؟'); await tester.tap(find.text('عرض الإجابة')); await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'هل يوجد موقف؟'); await tester.tap(find.text('عرض الإجابة')); await tester.pumpAndSettle();
     expect(find.text('هذه المعلومة غير مذكورة في الإعلان.'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 

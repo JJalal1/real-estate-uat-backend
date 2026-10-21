@@ -315,6 +315,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!_isSaiReady) result.add('sai');
     if (_ownershipValidation() != null) result.add('ownership');
     if (_type == 'land' && _landBoundaryGeoJson == null) result.add('boundary');
+    if (_contactPolicy.error(_phone.text, required: true) != null) result.add('contact_phone');
     return result;
   }
 
@@ -346,8 +347,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (_applies('area_value')) text('area_value',_area,_type == 'shop' ? 'المساحة بالمتر المربع *' : 'المساحة *',numeric:true),
         if (_applies('floors_count')) ..._structureFields(),
         if (_type == 'shop') ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات *', keyboardType: TextInputType.number, enabled: !_busy)],
-        if (_applies('floors_count')) ..._structureFields(),
-        if (_type == 'shop') text('shop_openings',_shopOpenings,'عدد الفتحات *',numeric:true),
         if (_requiresResidential) ...[text('bedrooms',_bedrooms,'غرف النوم *',numeric:true),text('bathrooms',_bathrooms,'الحمامات *',numeric:true)],
         if (_requiresStructure) choice('has_parking','موقف السيارة *',_parkingChoice,const {'yes':'يوجد','no':'لا يوجد'},(v) => setState(() => _parkingChoice = v)),
         if (_supportsFacade) choice('building_facade','واجهة البناء *',_facade,propertyFacadeLabels,(v) => setState(() => _facade = v)),
@@ -357,6 +356,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           basis:_effectivePrice,amountType:_saiAmountType,accepted:_saiAccepted,error:_saiPolicyError,enabled:!_busy,
           onChanged:() => setState(() => _saiTouched = true),onAcceptanceChanged:(v) => setState(() => _saiAccepted = v),
           onAmountTypeChanged:(v) => setState(() { _saiAmountType=v;_saiTouched=true; }),onRetry:_loadSaiPolicy),
+        if (keys.contains('contact_phone')) ...[const SizedBox(height: 12), AppTextField(controller: _phone, label: 'رقم الاتصال *', keyboardType: TextInputType.phone, enabled: !_busy, helperText: 'رقم جوال يمني من 9 أرقام')],
         if (keys.contains('ownership')) _ownershipEvidence(),
       ],
       const SizedBox(height: 20),
@@ -1785,8 +1785,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         } catch (error) {
           if (mounted) {
             final message = friendlyApiError(error);
-            _message(
-                'تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: $message');
+            setState(() => _stepError = 'تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: $message');
             if (message.contains('السعي')) {
               await _refreshSai(draft.id);
             }
@@ -1805,7 +1804,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       await Future<void>.delayed(const Duration(milliseconds: 500));
       if (mounted) _finish(draft);
     } catch (error) {
-      if (mounted) _message(friendlyApiError(error));
+      if (mounted) setState(() => _stepError = friendlyApiError(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -2161,8 +2160,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: false);
       unawaited(_saveRecovery());
     } on PlatformException catch (error) {
-      if (mounted) setState(() => _locationError = const ['LOCATION_DISABLED','LOCATION_DENIED'].contains(error.code)
-        ? error.message : 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
+      if (mounted) { setState(() => _locationError = const ['LOCATION_DISABLED','LOCATION_DENIED'].contains(error.code)
+        ? error.message : 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.'); }
     } catch (_) {
       if (mounted) setState(() => _locationError = 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
     } finally { if (mounted) setState(() => _selectingLocation = false); }

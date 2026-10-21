@@ -217,7 +217,7 @@ void main(){
     testWidgets('professional home has a compact house-plus CTA and dynamic sections at scale $scale',(tester)async{
       final boundary=GlobalKey();await pumpWave6(tester,const AppShellScreen(),scale:scale,boundary:boundary);
       expect(find.byKey(const ValueKey('home-add-property')),findsOneWidget);expect(find.text('إدارة عملي'),findsNothing);
-      expect(find.text('بحث ذكي'),findsOneWidget);expect(find.byTooltip('عملي'),findsOneWidget);
+      expect(find.text('بحث ذكي'),findsOneWidget);expect(find.byTooltip('الخريطة'),findsOneWidget);
       expect(find.byKey(const ValueKey('floating-smart-search')),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-home-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
