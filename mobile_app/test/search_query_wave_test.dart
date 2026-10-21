@@ -10,6 +10,7 @@ import 'package:real_estate_mobile/features/discovery/data/smart_search_session.
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/smart_search_query_summary.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 
 import 'in_app_voice_search_test.dart' show pumpHome, preview, searchContainer;
 import 'support/wave3_fakes.dart';
