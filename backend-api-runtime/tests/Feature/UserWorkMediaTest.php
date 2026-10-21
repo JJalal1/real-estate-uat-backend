@@ -69,7 +69,8 @@ class UserWorkMediaTest extends TestCase
         $this->assertSame($source,Storage::disk('local')->get($original));
         $property=$this->property($actor);$image=$property->images()->create(['path'=>$original,'sort_order'=>0,'is_primary'=>true]);
         $this->withHeaders(['Authorization'=>''])->get('/api/property-media/'.$image->id)->assertNotFound();
-        $property->update(['status'=>'published']);
+        // Isolated media-route fixture; publication/financial workflow guards are exercised by their original suites.
+        Property::withoutEvents(fn()=>$property->update(['status'=>'published']));
         foreach (['card'=>640,'detail'=>1280,'gallery'=>1920,'zoom'=>3072] as $variant=>$edge) {
             $response=$this->withHeaders(['Authorization'=>''])->get('/api/property-media/'.$image->id.'?variant='.$variant)->assertOk()->assertHeader('Content-Type','image/jpeg');
             $bytes=$response->streamedContent();$info=getimagesizefromstring($bytes);
@@ -115,7 +116,7 @@ class UserWorkMediaTest extends TestCase
         $payload['checkpoint_key']=(string)Str::uuid();$payload['image_order']=['property-'.$ids[2],'property-'.$ids[0]];
         $this->withHeaders($headers)->putJson($url,['payload'=>$payload,'expected_revision'=>5,'property_id'=>$property->id])->assertOk();
         $input['editor_draft_revision']=6;
-        $updated=$this->withHeaders($headers)->putJson('/api/properties/'.$property->id,$input)->assertOk()->json('data.images');
+        $updated=$this->withHeaders($headers)->postJson('/api/properties/'.$property->id,$input)->assertOk()->json('data.images');
         $this->assertSame([$ids[2],$ids[0]],array_column($updated,'id'));$this->assertTrue((bool)$updated[0]['is_primary']);
         app(ListingImageService::class)->removeIfUnused($removed->path);Storage::disk('local')->assertExists($removed->path);
         $this->withHeaders($headers)->getJson($url)->assertJsonPath('data.payload.image_order',$payload['image_order']);

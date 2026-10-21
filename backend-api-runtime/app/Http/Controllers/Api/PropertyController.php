@@ -876,7 +876,7 @@ class PropertyController extends Controller
             'availability_due_at' => $property->availability_due_at?->toIso8601String(),
             'view_count' => (int) $property->view_count,
             'main_image' => $mainImage ? $this->imageUrl($mainImage, $request, 'card') : null,
-            'image_urls' => $property->images->take(12)->map(fn ($image) => $this->imageUrl($image, $request))->values(),
+            'image_urls' => $property->images->take(12)->map(fn ($image) => $this->imageUrl($image, $request, 'card'))->values(),
             'image_count' => $property->images->count(),
             'floor_number' => in_array($property->type, ['apartment', 'floor', 'office', 'shop'], true) ? $property->floor_number : null,
             'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,
@@ -924,6 +924,7 @@ class PropertyController extends Controller
                     'url' => $this->imageUrl($image, $request),
                     'is_primary' => (bool) $image->is_primary,
                     'sort_order' => (int) $image->sort_order,
+                    'variants' => $image->cdn_url ? [] : array_combine(array_keys(config('listing_media.variants')), array_map(fn($v)=>$this->imageUrl($image,$request,$v),array_keys(config('listing_media.variants')))),
                 ])
                 ->values(),
         ]);
@@ -953,6 +954,7 @@ class PropertyController extends Controller
                     'url' => $this->imageUrl($image, $request),
                     'is_primary' => (bool) $image->is_primary,
                     'sort_order' => (int) $image->sort_order,
+                    'variants' => $image->cdn_url ? [] : array_combine(array_keys(config('listing_media.variants')), array_map(fn($v)=>$this->imageUrl($image,$request,$v),array_keys(config('listing_media.variants')))),
                 ])
                 ->values(),
         ]);

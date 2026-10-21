@@ -7,12 +7,16 @@ class PropertyImageItem {
     required this.url,
     required this.isPrimary,
     required this.sortOrder,
+    this.variants = const {},
   });
 
   final int id;
   final String url;
   final bool isPrimary;
   final int sortOrder;
+  final Map<String,String> variants;
+  String get galleryUrl => variants['gallery'] ?? url;
+  String get zoomUrl => variants['zoom'] ?? galleryUrl;
 
   factory PropertyImageItem.fromJson(Map<String, dynamic> json) {
     return PropertyImageItem(
@@ -20,6 +24,7 @@ class PropertyImageItem {
       url: json['url']?.toString() ?? '',
       isPrimary: json['is_primary'] == true || json['is_primary'] == 1,
       sortOrder: _asInt(json['sort_order']) ?? 0,
+      variants: {for (final entry in (json['variants'] as Map? ?? const {}).entries) if (entry.value is String) entry.key.toString():entry.value as String},
     );
   }
 }
@@ -317,7 +322,7 @@ class PropertyDetails {
   final bool isSpotlight;
 
   String? get mainImage => images.isEmpty ? null : images.first.url;
-  List<String> get imageUrls => images.map((image) => image.url).take(12).toList(growable: false);
+  List<String> get imageUrls => images.map((image) => image.galleryUrl).take(12).toList(growable: false);
   double get editablePrice => basePrice ?? price;
 
   factory PropertyDetails.fromJson(Map<String, dynamic> json) {

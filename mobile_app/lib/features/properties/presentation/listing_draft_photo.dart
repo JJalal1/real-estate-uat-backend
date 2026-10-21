@@ -16,7 +16,12 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
   @override
   void didUpdateWidget(ListingDraftPhoto oldWidget) { super.didUpdateWidget(oldWidget); if (oldWidget.url != widget.url) _bytes = ref.read(listingAccountDraftRepositoryProvider).photo(widget.url); }
   @override
-  Widget build(BuildContext context) => FutureBuilder<Uint8List>(future: _bytes, builder: (_, snapshot) => snapshot.hasData
-    ? Image.memory(snapshot.data!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))
-    : const Center(child: Icon(Icons.photo_outlined)));
+  Widget _retry() => Center(child: TextButton(onPressed: () => setState(() {
+    _bytes=ref.read(listingAccountDraftRepositoryProvider).photo(widget.url);
+  }), child: const Text('إعادة تحميل الصورة',textAlign:TextAlign.center)));
+  Widget build(BuildContext context) => FutureBuilder<Uint8List>(future: _bytes, builder: (_, snapshot) {
+    if (snapshot.hasError) return _retry();
+    if (snapshot.hasData) return Image.memory(snapshot.data!, fit: BoxFit.cover, cacheWidth:500, errorBuilder: (_, __, ___) => _retry());
+    return Center(child: Semantics(label:'جارٍ تحميل الصورة',child:const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2))));
+  });
 }

@@ -71,7 +71,7 @@ class DiscoveryLocationCoordinator {
     if (selection != _selection) return;
     _manual = _read().manual ? _read() : saved.manual;
     if (_manual != null) { _write(_manual!); return; }
-    try { await _runDevice(automatic: true); } catch (_) { /* Manual selection remains available. */ }
+    // Home initialization restores only the selected public city. The OS sheet is opened by useDevice().
   }
   Future<void> selectManual(HomeLocation location) async {
     _selection++;

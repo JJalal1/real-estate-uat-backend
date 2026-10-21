@@ -33,12 +33,28 @@ class ListingRecoveryStore {
       if (raw is! Map<String, dynamic>) return null;
       final data = Map<String, dynamic>.from(raw);
       final images = <String>[];
+      final tokens = <String,String>{};
+      final keys = (decoded['image_keys'] as List? ?? const []).whereType<String>().toList();
+      final oldTokens = (data['image_tokens'] as Map? ?? const {}).values.whereType<String>().toList();
+      var index = 0;
       for (final name in (decoded['image_files'] as List? ?? const []).take(12)) {
         if (name is! String || !RegExp(r'^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$').hasMatch(name)) continue;
         final image = File('${scope.path}/media/$name');
-        if (await image.exists()) images.add(image.path);
+        if (await image.exists()) {
+          images.add(image.path);
+          if (index < keys.length) { tokens[image.path] = keys[index]; }
+          else if (oldTokens.length == (decoded['image_files'] as List).length) { tokens[image.path] = oldTokens[index]; }
+        }
+        index++;
       }
       data['image_paths'] = images;
+      data['image_tokens'] = tokens;
+      final proof = decoded['proof_file'];
+      data.remove('ownership_proof_path');
+      if (proof is String && RegExp(r'^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$').hasMatch(proof)) {
+        final file = File('${scope.path}/media/$proof');
+        if (await file.exists()) data['ownership_proof_path'] = file.path;
+      }
       return data;
     } catch (_) { return null; }
   }
@@ -50,11 +66,17 @@ class ListingRecoveryStore {
       final scope = await _scope(userId, listingId);
       final media = Directory('${scope.path}/media');
       await media.create(recursive: true);
-      final names = <String>[];
+      final names = <String>[], keys = <String>[];
+      final data = Map<String,dynamic>.from(jsonDecode(encoded) as Map);
+      final originalTokens = (data['image_tokens'] as Map? ?? const {});
+      final tokens = <String,String>{};
       for (final path in paths) {
         final source = File(path);
-        if (!await source.exists()) continue;
-        if (source.parent.path == media.path) { names.add(source.uri.pathSegments.last); continue; }
+        if (!await source.exists()) throw FileSystemException('Selected image is no longer available');
+        final key = originalTokens[path]?.toString() ?? '';
+        if (source.parent.path == media.path) {
+          names.add(source.uri.pathSegments.last); keys.add(key); tokens[source.path]=key; continue;
+        }
         final stat = await source.stat();
         var hash = 2166136261;
         for (final byte in utf8.encode('$path:${stat.size}:${stat.modified.millisecondsSinceEpoch}')) { hash = ((hash ^ byte) * 16777619) & 0xffffffff; }
@@ -63,16 +85,33 @@ class ListingRecoveryStore {
         final name = 'image-${hash.toRadixString(16)}.$safeExtension';
         final target = File('${media.path}/$name');
         if (!await target.exists()) await source.copy(target.path);
-        names.add(name);
+        names.add(name); keys.add(key); tokens[target.path]=key;
       }
+      String? proofName;
+      final proofPath = data['ownership_proof_path'];
+      if (proofPath is String && proofPath.isNotEmpty) {
+        final source=File(proofPath);
+        if (!await source.exists()) throw FileSystemException('Selected private proof is no longer available');
+        if (source.parent.path == media.path) { proofName=source.uri.pathSegments.last; }
+        else {
+          final stat=await source.stat();
+          final ext=const ['jpg','jpeg','png','webp'].contains(proofPath.split('.').last.toLowerCase()) ? proofPath.split('.').last.toLowerCase() : 'jpg';
+          proofName='proof-${stat.size}-${stat.modified.microsecondsSinceEpoch}.$ext';
+          final target=File('${media.path}/$proofName');
+          if (!await target.exists()) await source.copy(target.path);
+        }
+        data['ownership_proof_path']='${media.path}/$proofName';
+      }
+      data['image_tokens']=tokens;
       final state = {'version': 1, 'user_id': userId, 'listing_id': listingId ?? 0,
-        'saved_at': DateTime.now().toUtc().toIso8601String(), 'data': jsonDecode(encoded), 'image_files': names};
+        'saved_at': DateTime.now().toUtc().toIso8601String(), 'data': data, 'image_files': names,
+        'image_keys': keys, if (proofName != null) 'proof_file':proofName};
       final pending = File('${scope.path}/state.pending');
       await pending.writeAsString(jsonEncode(state), flush: true);
       await pending.rename('${scope.path}/state.json');
       // Only media no longer referenced by the committed recovery state is removed.
       await for (final file in media.list()) {
-        if (file is File && !names.contains(file.uri.pathSegments.last)) await file.delete();
+        if (file is File && !names.contains(file.uri.pathSegments.last) && file.uri.pathSegments.last != proofName) await file.delete();
       }
     });
     _queue = operation.then<void>((_) {}, onError: (_, __) {});

@@ -274,7 +274,12 @@ class MainActivity : FlutterActivity() {
         val extension = when (contentResolver.getType(uri).orEmpty().lowercase()) {
             "image/png" -> ".png"
             "image/webp" -> ".webp"
-            else -> ".jpg"
+            "image/jpeg", "image/jpg" -> ".jpg"
+            "image/heic" -> ".heic"
+            "image/heif" -> ".heif"
+            "image/avif" -> ".avif"
+            "image/gif" -> ".gif"
+            else -> ".bin"
         }
         val directory = File(cacheDir, "stage5_uploads")
         if (!directory.exists()) directory.mkdirs()

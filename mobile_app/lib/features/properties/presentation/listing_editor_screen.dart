@@ -165,23 +165,45 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   List<String> _photoOrder = [];
   (Map<String, dynamic>, Map<String, String>)? _pendingAccount;
   Future<void> _accountTail = Future<void>.value();
+  final _photoStates = <String,String>{}, _photoErrors = <String,String>{};
+  final _photoProgress = <String,double>{};
+  final _photoCancels = <String,CancelToken>{};
+  final _retryPhotoKeys = <String>{};
+  bool _needsReconcile = false;
+  String? _checkpointKey, _checkpointSignature, _confirmedEditSignature, _initialEditSignature;
+  bool _allowExit = false, _exitDialogOpen = false, _disposed = false, _sessionValid = true, _persistStarting = false;
+
+  String get _editSignature {
+    final data = _serverSnapshot(_recoverySnapshot())..remove('step')..remove('server_property_id');
+    if (!_saiTouched) {
+      final fields=Map<String,dynamic>.from(data['fields'] as Map);
+      fields.remove('broker_sai_rate_percent');fields.remove('fixed_sai_amount');data['fields']=fields;
+    }
+    return jsonEncode([data,_ownershipProofPath]);
+  }
+  bool get _hasUnsavedChanges => _recoveryReady && _sessionValid &&
+    _editSignature != (_confirmedEditSignature ?? _initialEditSignature);
 
   List<String> get _photoKeys {
-    final active = <String>{..._remotePhotos.keys.where((k) => !_removedPhotoKeys.contains(k)),
-      for (final path in _imagePaths) _localPhotoKeys.putIfAbsent(path, newListingDraftKey)};
+    final active = <String>{if (!_replaceImages) ...?_existing?.images.map((i)=>'property-${i.id}').where((k)=>!_removedPhotoKeys.contains(k)),
+      ..._remotePhotos.keys.where((k) => !_removedPhotoKeys.contains(k)),
+      for (final path in _imagePaths) _localPhotoKeys.putIfAbsent(path, newListingDraftKey),
+      ..._photoOrder.where((key)=>!_removedPhotoKeys.contains(key) && !(_replaceImages && key.startsWith('property-')))};
     return [..._photoOrder.where(active.remove), ...active];
   }
-  int get _effectiveImageCount => (_replaceImages ? 0 : (_existing?.images.length ?? 0)) + _photoKeys.length;
+  int get _effectiveImageCount => _photoKeys.length;
 
   void _adoptAccountDraft(ListingAccountDraft draft) {
     _draftRevision = draft.revision;
     _remotePhotos..clear()..addAll(draft.images);
+    for (final key in draft.images.keys) { if (!_removedPhotoKeys.contains(key)) { _photoStates[key]='complete';_photoErrors.remove(key); } }
     _recoveredServerId = draft.propertyId ?? _recoveredServerId;
   }
 
   Map<String, dynamic> _serverSnapshot(Map<String, dynamic> snapshot) {
     final data = Map<String, dynamic>.from(jsonDecode(jsonEncode(snapshot)) as Map);
     data.remove('draft_key'); data.remove('server_revision'); data.remove('image_tokens');
+    for (final key in ['remote_images','removed_image_keys','photo_states','ownership_proof_path','account_checkpoint_key','account_checkpoint_signature']) { data.remove(key); }
     final fields = Map<String, dynamic>.from(data['fields'] as Map);
     const aliases = {'area':'area_value','parking':'has_parking','elevator':'has_elevator','facade':'building_facade','land_boundary':'land_boundary_geojson'};
     for (final key in fields.keys.toList()) { if (!DynamicPropertySchema.applies(aliases[key] ?? key, data)) fields.remove(key); }
@@ -193,7 +215,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _saveAccount(Map<String, dynamic> snapshot, Map<String, String> photos) {
-    if (_accountConflict) return _accountTail;
+    if (_accountConflict || !_sessionValid || _disposed) return _accountTail;
     _pendingAccount = (_serverSnapshot(snapshot), Map.of(photos));
     _accountSaved = false;
     if (_accountSyncing) return _accountTail;
@@ -202,29 +224,85 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       try {
         while (_pendingAccount != null) {
           final pending = _pendingAccount!; _pendingAccount = null;
-          var draft = await _accountRepository.save(_draftKey, pending.$1, _draftRevision,
-            propertyId: _existing?.id ?? _recoveredServerId);
+          if (_needsReconcile) {
+            try {
+              final latest=await _accountRepository.get(_draftKey).timeout(const Duration(seconds:30));
+              if (_disposed || !_sessionValid || _recoveryFinished) return;
+              if (latest.payload['checkpoint_key'] != _checkpointKey) {
+                throw DioException(requestOptions:RequestOptions(),response:Response(requestOptions:RequestOptions(),statusCode:409),type:DioExceptionType.badResponse);
+              }
+              _adoptAccountDraft(latest);
+            } on DioException catch (error) { if (error.response?.statusCode != 404 || _draftRevision != 0) rethrow; }
+            _needsReconcile=false;
+          }
+          final signature=jsonEncode(pending.$1);
+          if (_checkpointSignature != signature) { _checkpointSignature=signature;_checkpointKey=newListingDraftKey(); }
+          final payload={...pending.$1,'checkpoint_key':_checkpointKey};
+          var draft = await _accountRepository.save(_draftKey, payload, _draftRevision,
+            propertyId: _existing?.id ?? _recoveredServerId).timeout(const Duration(seconds:90));
+          if (_disposed || !_sessionValid || _recoveryFinished) return;
           _adoptAccountDraft(draft);
           final order = (pending.$1['image_order'] as List? ?? const []).whereType<String>().toSet();
           for (final key in _remotePhotos.keys.toList()) {
             if (order.contains(key)) continue;
-            draft = await _accountRepository.removeImage(_draftKey, key, _draftRevision); _adoptAccountDraft(draft);
+            draft = await _draftOperation(() => _accountRepository.removeImage(_draftKey, key, _draftRevision));
+            if (_disposed || !_sessionValid || _recoveryFinished) return;
+            _adoptAccountDraft(draft);
           }
           for (final photo in pending.$2.entries) {
-            if (_remotePhotos.containsKey(photo.key) || !order.contains(photo.key)) continue;
-            draft = await _accountRepository.upload(_draftKey, photo.key, photo.value, _draftRevision); _adoptAccountDraft(draft);
+            if (_remotePhotos.containsKey(photo.key) || !order.contains(photo.key) || _removedPhotoKeys.contains(photo.key)) continue;
+            if (_photoStates[photo.key]=='failed' && !_retryPhotoKeys.remove(photo.key)) continue;
+            final token=CancelToken();_photoCancels[photo.key]=token;_photoStates[photo.key]='uploading';_photoErrors.remove(photo.key);
+            if (mounted) super.setState(() {});
+            try {
+              draft = await _draftOperation(() => _accountRepository.upload(_draftKey, photo.key, photo.value, _draftRevision,
+                cancelToken:token,onSendProgress:(sent,total) {
+                  if (_disposed || !_sessionValid || _removedPhotoKeys.contains(photo.key)) return;
+                  _photoProgress[photo.key]=total>0 ? sent/total : 0;
+                  _photoStates[photo.key]=total>0 && sent>=total ? 'processing' : 'uploading';
+                  if (mounted) super.setState(() {});
+                }));
+              if (_disposed || !_sessionValid || _recoveryFinished) return;
+              _adoptAccountDraft(draft);
+            } catch (error) {
+              if (_disposed || !_sessionValid || _recoveryFinished) return;
+              if (!_removedPhotoKeys.contains(photo.key)) {
+                _photoStates[photo.key]='failed';_photoErrors[photo.key]=friendlyApiError(error);
+              }
+              _needsReconcile=true;
+              if (error is DioException && error.response?.data is Map && error.response?.data['code']=='draft_revision_conflict') rethrow;
+            } finally { _photoCancels.remove(photo.key); }
+            await _writeLocalRecovery();
+            if (mounted) super.setState(() {});
           }
+          // Persist the acknowledged revision and remote image keys even when one later file fails.
+          await _writeLocalRecovery();
         }
-        _accountSaved = true; _accountError = null;
+        final ready=_photoKeys.every((key)=>key.startsWith('property-') || _remotePhotos.containsKey(key));
+        _accountSaved = ready && _checkpointSignature==jsonEncode(_serverSnapshot(_recoverySnapshot()));
+        _accountError = ready ? null : 'لم يكتمل رفع بعض الصور. أعد محاولة الملف المتعثر.';
+        if (_accountSaved) _confirmedEditSignature=_editSignature;
       } catch (e) {
+        _needsReconcile=true;
         _accountSaved = false; _accountError = friendlyApiError(e);
         _accountConflict = e is DioException && e.response?.statusCode == 409;
       } finally {
         _accountSyncing = false;
-        if (mounted) super.setState(() {});
+        if (mounted && !_disposed) super.setState(() {});
       }
     }();
     return _accountTail;
+  }
+
+  Future<ListingAccountDraft> _draftOperation(Future<ListingAccountDraft> Function() operation) async {
+    try { return await operation().timeout(const Duration(minutes:2)); }
+    on DioException catch (error) {
+      if (error.response?.statusCode != 409 || error.response?.data is! Map || error.response?.data['code'] != 'draft_revision_conflict') rethrow;
+      final latest=await _accountRepository.get(_draftKey).timeout(const Duration(seconds:30));
+      if (_disposed || !_sessionValid || latest.payload['checkpoint_key'] != _checkpointKey) rethrow;
+      _adoptAccountDraft(latest);
+      return operation().timeout(const Duration(minutes:2));
+    }
   }
 
   void _clearHiddenFields() {
@@ -414,9 +492,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
-    'editor_version': 9, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
+    'editor_version': 9, 'media_version':1, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
     'type_confirmed': _typeConfirmed, 'purpose_confirmed': _purposeConfirmed, 'completion_only': _completionOnly,
     'draft_key': _draftKey, 'server_revision': _draftRevision, 'image_tokens': _localPhotoKeys, 'image_order': _photoKeys,
+    'remote_images':_remotePhotos, 'removed_image_keys':_removedPhotoKeys.toList(), 'photo_states':_photoStates,
+    'account_checkpoint_key':_checkpointKey, 'account_checkpoint_signature':_checkpointSignature,
+    if (_ownershipProofPath != null) 'ownership_proof_path':_ownershipProofPath,
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
     'tenure_type': _tenureType, 'parking': _parkingChoice, 'elevator': _elevatorChoice, 'facade': _facade,
     'ownership_document_type': _ownershipDocumentType, 'relationship_type': _relationshipType,
@@ -431,23 +512,71 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   void setState(VoidCallback fn) { super.setState(() { fn(); _clearHiddenFields(); }); _scheduleRecovery(); }
 
   void _scheduleRecovery() {
-    if (!_recoveryReady || _recoveryFinished || _recoveryUserId == null || _busy) return;
+    if (!_recoveryReady || _recoveryFinished || _recoveryUserId == null || _busy || !_sessionValid || _disposed) return;
+    if (_hasUnsavedChanges && _accountSaved) super.setState(() => _accountSaved=false);
     _recoveryTimer?.cancel();
     _recoveryTimer = Timer(const Duration(milliseconds: 650), () => unawaited(_saveRecovery()));
   }
 
-  Future<void> _saveRecovery() async {
+  Future<bool> _writeLocalRecovery() async {
     final userId = _recoveryUserId;
-    if (userId == null || !_recoveryReady || _recoveryFinished) return;
+    if (userId == null || !_recoveryReady || _recoveryFinished || _disposed) return false;
     final data = _recoverySnapshot(), images = List<String>.of(_imagePaths);
     final signature = jsonEncode([data, images]);
-    if (signature == _lastRecoverySignature && _accountSaved) return;
     try {
       await _recoveryStore.write(userId, widget.existingProperty?.id, data, images);
       _lastRecoverySignature = signature;
-      if (mounted && !_recoveryFinished) super.setState(() { _recoverySaved = true; _recoveryFailed = false; });
-    } catch (_) { if (mounted) super.setState(() => _recoveryFailed = true); }
-    await _saveAccount(data, {for (final path in images) _localPhotoKeys[path]!: path});
+      if (mounted && !_recoveryFinished && !_disposed) super.setState(() { _recoverySaved = true; _recoveryFailed = false; });
+      return true;
+    } catch (_) { if (mounted && !_disposed) super.setState(() { _recoverySaved=false;_recoveryFailed=true; });return false; }
+  }
+
+  Future<void> _saveRecovery({bool retryFailed = false}) async {
+    if (!_recoveryReady || _recoveryFinished || !_sessionValid || _disposed || _recoveryUserId==null) return;
+    final signature=jsonEncode([_recoverySnapshot(),_imagePaths]);
+    if (signature==_lastRecoverySignature && _accountSaved) return;
+    if (retryFailed) _retryPhotoKeys.addAll(_photoKeys.where((key)=>_photoStates[key]=='failed'));
+    await _writeLocalRecovery();
+    if (!_sessionValid || _disposed || _recoveryFinished) return;
+    final data=_recoverySnapshot();
+    await _saveAccount(data,{for (final path in List<String>.of(_imagePaths)) _localPhotoKeys[path]!:path});
+  }
+
+  Future<void> _requestExit() async {
+    if (_exitDialogOpen || _disposed) return;
+    if (!_hasUnsavedChanges && !_busy) { _leaveEditor();return; }
+    _exitDialogOpen=true;
+    final choice=await AppDialog.show<String>(context,title:'لديك تعديلات غير محفوظة',
+      content:const Text('يمكنك متابعة التعديل أو حفظ المسودة قبل الخروج. التجاهل يترك آخر حفظ مؤكد على الحساب.'),
+      actions:[
+        TextButton(key:const ValueKey('listing-exit-continue'),onPressed:()=>Navigator.pop(context,'continue'),child:const Text('متابعة التعديل')),
+        TextButton(key:const ValueKey('listing-exit-discard'),onPressed:_busy?null:()=>Navigator.pop(context,'discard'),child:const Text('تجاهل التغييرات')),
+        TextButton(key:const ValueKey('listing-exit-save'),onPressed:_busy?null:()=>Navigator.pop(context,'save'),child:const Text('حفظ المسودة')),
+      ]);
+    if (!mounted) return;
+    try {
+      if (choice=='discard') {
+        _recoveryTimer?.cancel();_pendingAccount=null;_recoveryFinished=true;
+        for (final cancel in _photoCancels.values) { cancel.cancel('Discarded unsaved changes'); }
+        if (_recoveryUserId!=null) await _recoveryStore.clear(_recoveryUserId!,widget.existingProperty?.id);
+        if (mounted) _leaveEditor();
+      } else if (choice=='save') {
+        await _saveRecovery(retryFailed:true);
+        if (!mounted) return;
+        if (_accountSaved && !_recoveryFailed) { _leaveEditor(); }
+        else { setState(()=>_stepError='لم يكتمل حفظ المسودة. بياناتك باقية هنا؛ أعد المحاولة أو تابع التعديل.'); }
+      }
+    } catch (_) { _recoveryFinished=false;if (mounted) setState(()=>_stepError='تعذر إتمام الخروج. بياناتك باقية هنا.'); }
+    finally { _exitDialogOpen=false; }
+  }
+
+  void _leaveEditor() {
+    setState(()=>_allowExit=true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (Navigator.of(context).canPop()) { Navigator.of(context).pop(); }
+      else { context.go('/my-listings'); }
+    });
   }
 
   Future<void> _restoreRecovery() async {
@@ -461,14 +590,26 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!mounted) return;
     final userId = _recoveryUserId;
     if (userId == null) { _recoveryReady = true; super.setState(() {}); return; }
-    final data = widget.accountDraft?.payload ?? (widget.startFresh ? null : await _recoveryStore.read(userId, widget.existingProperty?.id));
+    Map<String,dynamic>? local;
+    if (!widget.startFresh) {
+      try { local=await _recoveryStore.read(userId, widget.existingProperty?.id).timeout(const Duration(seconds:8)); }
+      catch (_) { _recoveryFailed=true; }
+    }
+    final useLocal=local!=null && (widget.accountDraft==null || local['draft_key']==widget.accountDraft!.key);
+    final data = useLocal ? local : widget.accountDraft?.payload;
     if (!mounted) return;
     if (data != null) {
       if (widget.accountDraft == null && data['draft_key'] is String) _draftKey = data['draft_key'] as String;
       if (widget.accountDraft == null && data['server_revision'] is int) _draftRevision = data['server_revision'] as int;
+      _checkpointKey=data['account_checkpoint_key'] as String?;
+      _checkpointSignature=data['account_checkpoint_signature'] as String?;
+      _needsReconcile=useLocal && _draftRevision>0;
       _typeConfirmed = data['type_confirmed'] == true || ((data['editor_version'] as num? ?? 0) < 8); _purposeConfirmed = data['purpose_confirmed'] == true || ((data['editor_version'] as num? ?? 0) < 8);
       _completionOnly = data['completion_only'] == true;
       if (data['image_tokens'] is Map) _localPhotoKeys.addAll(Map<String,String>.from(data['image_tokens'] as Map));
+      if (data['remote_images'] is Map) _remotePhotos.addAll(Map<String,String>.from(data['remote_images'] as Map));
+      _removedPhotoKeys.addAll((data['removed_image_keys'] as List? ?? const []).whereType<String>());
+      if (data['photo_states'] is Map) _photoStates.addAll(Map<String,String>.from(data['photo_states'] as Map));
       _photoOrder = (data['image_order'] as List? ?? const []).whereType<String>().toList();
       _unitsPerFloor = (data['units_per_floor'] as List? ?? const []).map((e) => e?.toString() ?? '').toList();
       _sameFloorUnits = data['same_floor_units'] == true && _unitsPerFloor.toSet().length <= 1;
@@ -492,6 +633,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _replaceImages = data['replace_images'] == true;
       if (const ['excludes_sai', 'includes_sai'].contains(data['price_display_mode'])) _priceDisplayMode = data['price_display_mode'] as String;
       _imagePaths = (data['image_paths'] as List? ?? const []).whereType<String>().toList();
+      _ownershipProofPath=data['ownership_proof_path'] as String?;
+      for (final key in _photoKeys) {
+        if (_remotePhotos.containsKey(key)) { _photoStates[key]='complete'; }
+        else if (_photoStates[key]=='uploading' || _photoStates[key]=='processing') { _photoStates[key]='queued'; }
+      }
       final serverId = data['server_property_id'];
       if (widget.existingProperty == null && serverId is int && serverId > 0) _recoveredServerId = serverId;
       if (const ['percentage', 'fixed'].contains(data['sai_amount_type'])) {
@@ -518,12 +664,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       }
 
       _recoverySaved = true;
-      if (data['proof_needs_reselection'] == true) _message('استعدنا بيانات الإعلان. أعد اختيار ملف إثبات الملكية عند إكمال المسودة.');
+      if (data['proof_needs_reselection'] == true && _ownershipProofPath==null) _message('استعدنا بيانات الإعلان. أعد اختيار ملف إثبات الملكية عند إكمال المسودة.');
     }
     _clearHiddenFields();
     if (_completionOnly) _completionFields = _missingFields();
     _recoveryReady = true;
     _lastRecoverySignature = jsonEncode([_recoverySnapshot(), _imagePaths]);
+    _initialEditSignature=useLocal ? '' : _editSignature;
     super.setState(() {});
   }
 
@@ -710,13 +857,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _monthlyRent.removeListener(_onPriceChanged);
     _advanceMonths.removeListener(_onPriceChanged);
     _recoveryTimer?.cancel();
-    final pendingRecovery = _saveRecovery();
-    unawaited(
-      pendingRecovery.whenComplete(() => _mediaPicker.clearTemporaryFiles(<String>[
-        ..._imagePaths,
-        if (_ownershipProofPath != null) _ownershipProofPath!,
-      ].where((path) => !ListingRecoveryStore.isSavedMedia(path)))).catchError((_) {}),
-    );
+    final snapshot=_recoverySnapshot(), paths=List<String>.of(_imagePaths), userId=_recoveryUserId;
+    final temporary=[...paths,if(_ownershipProofPath!=null)_ownershipProofPath!].where((path)=>!ListingRecoveryStore.isSavedMedia(path));
+    _disposed=true;_pendingAccount=null;
+    for (final cancel in _photoCancels.values) { cancel.cancel('Editor closed'); }
+    // Never delete the only remaining copy if the durable device write failed.
+    final backup=!_recoveryFinished && _recoveryReady && userId!=null
+      ? _recoveryStore.write(userId,widget.existingProperty?.id,snapshot,paths) : Future<void>.value();
+    unawaited(backup.then((_)=>_mediaPicker.clearTemporaryFiles(temporary)).catchError((_) {}));
     for (final controller in <TextEditingController>[
       _saiRate,
       _saiAmount,
@@ -751,6 +899,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authControllerProvider,(previous,next) {
+      final actor=next.asData;
+      if (actor==null || _recoveryUserId==null || actor.value?.id==_recoveryUserId || !_sessionValid) return;
+      unawaited(_writeLocalRecovery());_pendingAccount=null;
+      for (final cancel in _photoCancels.values) { cancel.cancel('Account changed'); }
+      super.setState(()=>_sessionValid=false);
+    });
     final correctionReason =
         _existing?.reviewStatus == 'returned_for_correction'
             ? _existing?.lastReviewReason
@@ -758,24 +913,26 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
     return Directionality(
       textDirection: TextDirection.rtl,
+      child: PopScope<Object?>(canPop:_allowExit || !_sessionValid || (!_hasUnsavedChanges && !_busy),
+        onPopInvokedWithResult:(didPop,result) { if (!didPop) unawaited(_requestExit()); },
       child: Scaffold(
         appBar: AppAppBar(
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
           actions: [IconButton(key: const ValueKey('listing-completion'), tooltip: 'نواقص الإعلان',
-            onPressed: _busy || _descriptionCapture.active ? null : _reviewCompletion, icon: const EbrokerIcon(Icons.fact_check_outlined)),
+            onPressed: _busy || !_sessionValid || _descriptionCapture.active ? null : _reviewCompletion, icon: const EbrokerIcon(Icons.fact_check_outlined)),
             if (!_completionOnly) Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
             child: EbrokerText('${_step + 1}/4', size: 16, weight: FontWeight.w600,
               color: Theme.of(context).colorScheme.primary)))],
         ),
-        bottomNavigationBar: !_recoveryReady ? null : _completionOnly ? _completionActions() : _actions(),
+        bottomNavigationBar: !_recoveryReady || !_sessionValid ? null : _completionOnly ? _completionActions() : _actions(),
         body: SafeArea(
           bottom: false,
-          child: !_recoveryReady ? const AppLoadingState() : Column(
+          child: !_sessionValid ? const Center(child:Text('تغيّر الحساب. عُد وافتح مسودات الحساب الحالي.')) : !_recoveryReady ? const AppLoadingState() : Column(
             children: [
               if (_recoveryUserId != null) Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 0), child: Text(
-                _recoveryFailed && _accountError != null ? 'تعذر الحفظ على الجهاز والحساب. أعد المحاولة قبل الخروج.' : _accountConflict ? 'تغيرت المسودة على جهاز آخر. افتح أحدث نسخة قبل المتابعة.' : _accountError != null ? 'تعذر الحفظ على الحساب. ${_recoverySaved ? 'تقدمك محفوظ على الجهاز.' : ''} أعد المحاولة.' : _accountSyncing ? 'جارٍ حفظ تقدمك على حسابك…' : _accountSaved ? 'حُفظ تقدمك وصورك على حسابك' : 'يُحفظ تقدمك تلقائيًا على حسابك',
+                _recoveryFailed ? 'تعذر حفظ نسخة الجهاز. مدخلاتك باقية هنا؛ أعد المحاولة قبل الخروج.' : _accountConflict ? 'تغيرت المسودة على جهاز آخر. افتح أحدث نسخة قبل المتابعة.' : _accountError != null ? 'تعذر الحفظ على الحساب. ${_recoverySaved ? 'تقدمك محفوظ على الجهاز.' : ''} أعد المحاولة.' : _accountSyncing ? 'جارٍ حفظ تقدمك على حسابك…' : _accountSaved ? 'حُفظ تقدمك وصورك على حسابك' : 'يُحفظ تقدمك تلقائيًا على حسابك',
                 style: Theme.of(context).textTheme.bodySmall)),
-              if (_accountError != null && !_accountConflict) TextButton(onPressed: _busy ? null : _saveRecovery, child: const Text('إعادة محاولة الحفظ')),
+              if (_accountError != null && !_accountConflict) TextButton(onPressed: _busy || _accountSyncing ? null : ()=>_saveRecovery(retryFailed:true), child: const Text('إعادة محاولة الحفظ')),
               if (correctionReason != null &&
                   correctionReason.trim().isNotEmpty)
                 Padding(
@@ -814,6 +971,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -1205,34 +1363,79 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Widget _listingPhotos() {
-    final existingImages = _existing?.images.length ?? 0, keys = _photoKeys;
+    final keys = _photoKeys;
+    final height=166+MediaQuery.textScalerOf(context).scale(13)*5;
     return AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text('صور الإعلان ($_effectiveImageCount/12)',style:Theme.of(context).textTheme.titleMedium),
       const SizedBox(height:8),
       AppButton(label:'إضافة صور',icon:Icons.add_photo_alternate_outlined,expand:true,style:AppButtonStyle.tonal,onPressed:_busy?null:_pickImages),
-      if (_isEditing && existingImages > 0) SwitchListTile.adaptive(contentPadding:EdgeInsets.zero,
-        title:const Text('استبدال الصور الحالية بالكامل'), value:_replaceImages,
-        onChanged:_busy ? null : (v) => setState(() => _replaceImages=v)),
-      if (!_replaceImages && existingImages > 0) SizedBox(height:110, child:ListView.separated(scrollDirection:Axis.horizontal,
-        itemCount:existingImages,separatorBuilder:(_,__) => const SizedBox(width:8),itemBuilder:(_,index) => SizedBox(width:140,
-          child:AppPropertyMedia(imageUrl:_existing!.images[index].url,height:110)))),
+      if (keys.isEmpty) const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Text('لم تضف صورًا بعد. أضف صورة واضحة للعقار لإرساله للمراجعة.')),
       if (keys.isNotEmpty) ...[
-        const SizedBox(height:12),SizedBox(height:118,child:ReorderableListView.builder(scrollDirection:Axis.horizontal,
+        const SizedBox(height:12),SizedBox(height:height,child:ReorderableListView.builder(scrollDirection:Axis.horizontal,
           itemCount:keys.length,onReorder:_busy ? (_,__) {} : (from,to) => setState(() {
             if(to>from)to--;final order=List<String>.of(keys);final key=order.removeAt(from);order.insert(to,key);_photoOrder=order;
           }),itemBuilder:(_,index) {
-            final key=keys[index];String? path;
-            for(final entry in _localPhotoKeys.entries) { if(entry.value==key && _imagePaths.contains(entry.key)) path=entry.key; }
-            return Container(key:ValueKey(key),width:120,margin:const EdgeInsetsDirectional.only(end:8),child:Stack(fit:StackFit.expand,children:[
-              ClipRRect(borderRadius:BorderRadius.circular(8),child:path!=null ? Image.file(File(path),fit:BoxFit.cover,
-                errorBuilder:(_,__,___)=>_remotePhotos[key]!=null ? ListingDraftPhoto(url:_remotePhotos[key]!) : const Icon(Icons.broken_image_outlined))
-                : ListingDraftPhoto(url:_remotePhotos[key]!)),
-              PositionedDirectional(top:2,end:2,child:IconButton.filled(tooltip:'إزالة الصورة',onPressed:_busy?null:()=>_removeDraftPhoto(key),icon:const Icon(Icons.close,size:18))),
-              if(index==0 && (_replaceImages || existingImages==0)) const PositionedDirectional(start:4,bottom:4,child:AppStatusBadge(label:'الرئيسية',tone:AppStatusTone.info)),
+            final key=keys[index], path=_localPath(key), url=_photoUrl(key);
+            final state=key.startsWith('property-') || _remotePhotos.containsKey(key) ? 'complete' : _photoStates[key] ?? (path==null ? 'failed':'queued');
+            final label=const {'complete':'مكتمل','queued':'بانتظار الرفع','uploading':'جارٍ رفع الصورة','processing':'جارٍ معالجة الصورة','failed':'تعذر رفع الصورة'}[state] ?? 'بانتظار الرفع';
+            return Container(key:ValueKey(key),width:174,margin:const EdgeInsetsDirectional.only(end:10),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+              SizedBox(height:110,child:Stack(fit:StackFit.expand,children:[
+                ClipRRect(borderRadius:BorderRadius.circular(8),child:path!=null ? Image.file(File(path),fit:BoxFit.cover,cacheWidth:400,
+                  errorBuilder:(_,__,___)=>url!=null ? _remotePhoto(url) : const Icon(Icons.broken_image_outlined))
+                  : url!=null ? _remotePhoto(url) : const Icon(Icons.photo_outlined)),
+                PositionedDirectional(top:0,end:0,child:IconButton.filled(tooltip:'إزالة الصورة',onPressed:_busy?null:()=>_removeDraftPhoto(key),icon:const Icon(Icons.close,size:18))),
+                PositionedDirectional(top:0,start:0,child:PopupMenuButton<String>(key:ValueKey('media-menu-$key'),tooltip:'خيارات الصورة',
+                  enabled:!_busy,icon:Icon(index==0 ? Icons.star:Icons.more_horiz,color:Theme.of(context).colorScheme.primary),
+                  onSelected:(action) { if(action=='primary') { setState(()=>_photoOrder=[key,...keys.where((k)=>k!=key)]); }
+                    else if(action=='replace') { unawaited(_replacePhoto(key)); } },
+                  itemBuilder:(_)=>[const PopupMenuItem(value:'primary',child:Text('جعلها الصورة الرئيسية')),const PopupMenuItem(value:'replace',child:Text('استبدال الصورة'))])),
+              ])),
+              if(index==0) const Text('الرئيسية',style:TextStyle(fontWeight:FontWeight.w600)),
+              Semantics(liveRegion:true,child:Tooltip(message:_photoErrors[key] ?? label,child:Text(label,key:ValueKey('media-status-$key'),maxLines:2,style:Theme.of(context).textTheme.bodySmall))),
+              if(state=='uploading' || state=='processing') LinearProgressIndicator(value:state=='uploading' ? _photoProgress[key] : null),
+              if(state=='failed') TextButton(key:ValueKey('media-retry-$key'),onPressed:_busy || _accountSyncing ? null : ()=>_retryPhoto(key),
+                child:Text(path==null ? 'اختر الملف مجددًا':'إعادة المحاولة')),
             ]));
-          })),const SizedBox(height:6),const Text('اسحب الصور لتغيير ترتيبها. تُحفظ الصور المرفوعة على حسابك.'),
+          })),const SizedBox(height:6),const Text('اسحب الصور لترتيبها، أو اختر الرئيسية من خيارات الصورة. إعادة المحاولة ترفع الملف المتعثر كاملًا فقط.'),
       ],
     ]));
+  }
+
+  String? _localPath(String key) {
+    for (final entry in _localPhotoKeys.entries) { if (entry.value==key && _imagePaths.contains(entry.key)) return entry.key; }
+    return null;
+  }
+  String? _photoUrl(String key) {
+    if (_remotePhotos[key] case final String url) return url;
+    for (final image in _existing?.images ?? const <PropertyImageItem>[]) { if ('property-${image.id}'==key) return image.url; }
+    return null;
+  }
+  Widget _remotePhoto(String url) => url.contains('/api/property-media/') || url.contains('/listing-editor-drafts/')
+    ? ListingDraftPhoto(url:url) : AppPropertyMedia(imageUrl:url,height:110);
+
+  Future<void> _retryPhoto(String key) async {
+    if (_localPath(key)==null) { await _replacePhoto(key);return; }
+    _retryPhotoKeys.add(key);
+    await _writeLocalRecovery();
+    if (mounted && _sessionValid) await _saveAccount(_recoverySnapshot(),{key:_localPath(key)!});
+  }
+
+  Future<void> _replacePhoto(String key) async {
+    try {
+      final picked=await _mediaPicker.pickImages();
+      if (!mounted || !_sessionValid) { await _mediaPicker.clearTemporaryFiles(picked);return; }
+      final valid=await _validImagePaths(picked);
+      if (valid.isEmpty) return;
+      await _mediaPicker.clearTemporaryFiles(valid.skip(1));
+      final path=valid.first, next=newListingDraftKey(), order=List<String>.of(_photoKeys), index=order.indexOf(key);
+      _photoCancels[key]?.cancel('Image replaced');
+      setState(() {
+        final old=_localPath(key);if(old!=null)_imagePaths.remove(old);
+        _removedPhotoKeys.add(key);_localPhotoKeys[path]=next;_imagePaths.add(path);_photoStates[next]='queued';
+        if(index>=0)order[index]=next;else order.add(next);_photoOrder=order;
+      });
+      await _saveRecovery();
+    } catch (_) { if(mounted)_message('تعذر استبدال الصورة. الصورة السابقة باقية حتى اختيار بديل.'); }
   }
 
   Widget _ownershipEvidence() {
@@ -1450,6 +1653,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   String? _validateForSubmit() {
+    if (_photoKeys.any((key)=>!key.startsWith('property-') && !_remotePhotos.containsKey(key))) return 'لم تجهز كل الصور بعد. انتظر الرفع والمعالجة، أو أعد محاولة الصورة المتعثرة.';
     final core = _validateCore();
     if (core != null) return core;
     if (!_isSaiReady) {
@@ -1703,11 +1907,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _persist({required bool submit}) async {
+    if (_persistStarting || _busy || !_sessionValid) return;
+    _persistStarting=true;
+    try { await _persistOnce(submit:submit); } finally { _persistStarting=false; }
+  }
+
+  Future<void> _persistOnce({required bool submit}) async {
     if (!_recoveryReady || !await _resolveRecoveredDraft()) return;
-    if (!mounted) return;
+    if (!mounted || !_sessionValid) return;
     final validation = submit ? _validateForSubmit() : _validateCore();
     if (validation != null) {
-      if (!submit) { await _saveRecovery(); if (mounted) _message(_accountSaved ? 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' : 'لم يكتمل الحفظ على الحساب. أعد المحاولة قبل الخروج.'); } else { setState(() => _stepError = validation); }
+      if (!submit) { await _saveRecovery(retryFailed:true); if (mounted && _sessionValid) _message(_accountSaved ? 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' : 'لم يكتمل الحفظ على الحساب. أعد المحاولة قبل الخروج.'); } else { setState(() => _stepError = validation); }
       return;
     }
 
@@ -1727,16 +1937,18 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               child: const Text('حفظ وإرسال')),
         ],
       );
-      if (confirmed != true || !mounted) return;
+      if (confirmed != true || !mounted || !_sessionValid) return;
     }
 
     setState(() => _busy = true);
     _recoveryTimer?.cancel();
     late PropertyDetails draft;
     try {
-      await _saveRecovery();
+      await _saveRecovery(retryFailed:true);
+      if (!mounted || !_sessionValid) return;
       if (!_accountSaved || _accountConflict) throw StateError('تعذر حفظ المسودة على الحساب.');
       if (!await _resolveRecoveredDraft()) return;
+      if (!mounted || !_sessionValid) return;
       final repository = ref.read(propertyRepositoryProvider);
       draft = _isEditing
           ? await repository.updateListing(
@@ -1756,13 +1968,16 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               ownershipProofPath: _ownershipProofPath,
             );
 
-      if (mounted) setState(() => _workingDraft = draft);
+      if (!mounted || !_sessionValid) return;
+      setState(() => _workingDraft = draft);
       ref.read(propertyDataRevisionProvider.notifier).state++;
       _adoptAccountDraft(await _accountRepository.get(_draftKey));
+      if (!mounted || !_sessionValid) return;
       await _clearUploadedTemporaryFiles();
       _photoOrder.clear(); _removedPhotoKeys.clear(); _remotePhotos.clear(); _localPhotoKeys.clear();
       _accountSaved = false;
       await _saveRecovery();
+      if (!mounted || !_sessionValid) return;
 
       // These writes follow the explicit Save/Submit action. Neither editing
       // the percentage nor displaying a preview mutates a server listing.
@@ -1775,6 +1990,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             amountType: _fixedSai ? 'fixed' : 'percentage',
             fixedAmount: _fixedSai ? _enteredSaiAmount : null,
             deferPlatformTerms: !policy.isOwner && _activeSaiValue > 0);
+          if (!mounted || !_sessionValid) return;
           ref.read(propertyDataRevisionProvider.notifier).state++;
         } catch (error) {
           if (mounted) _message('حُفظت المسودة، لكن تعذر حفظ السعي: ${friendlyApiError(error)}');
@@ -1785,8 +2001,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (submit) {
         try {
           final identityReady = await _checkIdentityBeforeSubmit(draft.id);
-          if (!identityReady) return;
+          if (!identityReady || !mounted || !_sessionValid) return;
           draft = await repository.submitListing(draft.id);
+          if (!mounted || !_sessionValid) return;
           ref.read(propertyDataRevisionProvider.notifier).state++;
         } catch (error) {
           if (mounted) {
@@ -1817,11 +2034,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   void _finish(PropertyDetails property) {
-    if (_startedAsEditing) {
-      Navigator.of(context).pop(property);
-    } else {
-      context.go('/my-listings');
-    }
+    setState(()=>_allowExit=true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_startedAsEditing) { Navigator.of(context).pop(property); }
+      else { context.go('/my-listings'); }
+    });
   }
 
   Future<void> _preview() async {
@@ -2094,13 +2312,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Future<void> _pickImages() async {
     try {
       final picked = await _mediaPicker.pickImages();
-      if (!mounted || picked.isEmpty) return;
-
-      final existingCount =
-          _replaceImages ? 0 : (_existing?.images.length ?? 0);
-      final available = (12 - existingCount - _photoKeys.length).clamp(0, 12);
-      final accepted = picked.take(available).toList(growable: false);
-      final discarded = picked.where((path) => !accepted.contains(path));
+      if (!mounted || !_sessionValid) { await _mediaPicker.clearTemporaryFiles(picked);return; }
+      if (picked.isEmpty) return;
+      final valid=await _validImagePaths(picked);
+      final available = (12 - _photoKeys.length).clamp(0, 12);
+      final accepted = valid.take(available).toList(growable: false);
+      final discarded = valid.where((path) => !accepted.contains(path));
       await _mediaPicker.clearTemporaryFiles(discarded);
       if (!mounted) return;
       setState(() => _imagePaths = <String>[..._imagePaths, ...accepted]);
@@ -2115,10 +2332,27 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _removeDraftPhoto(String key) async {
+    _photoCancels[key]?.cancel('Image removed');
     final paths = _localPhotoKeys.entries.where((e)=>e.value==key).map((e)=>e.key).toList();
     setState(() { _removedPhotoKeys.add(key); _photoOrder.remove(key); _imagePaths.removeWhere(paths.contains); });
     await _saveRecovery();
     try { await _mediaPicker.clearTemporaryFiles(paths); } catch (_) {}
+  }
+
+  Future<List<String>> _validImagePaths(List<String> paths) async {
+    final accepted=<String>[], rejected=<String>[];
+    for (final path in paths) {
+      final ext=path.split('.').last.toLowerCase();
+      try {
+        if (!const ['jpg','jpeg','png','webp'].contains(ext) || await File(path).length()>8*1024*1024) { rejected.add(path); }
+        else { accepted.add(path); }
+      } catch (_) { rejected.add(path); }
+    }
+    if (rejected.isNotEmpty) {
+      await _mediaPicker.clearTemporaryFiles(rejected);
+      if (mounted) _message('بعض الصور غير مدعومة أو كبيرة. اختر JPG أو PNG أو WebP حتى 8 ميجابايت للصورة.');
+    }
+    return accepted;
   }
 
   Future<void> _pickOwnershipProof() async {
