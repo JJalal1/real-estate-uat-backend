@@ -41,12 +41,9 @@ class PropertySummaryCard extends StatelessWidget {
       imageFirst: imageFirst, imageUrl: p.mainImage, imageUrls: p.imageUrls, isSpotlight: p.isSpotlight,
       propertyType: p.type, categoryLabel: ebrokerPropertyTypeLabel(p.type), location: p.address,
       purposeLabel: p.purpose == 'rent' ? 'للإيجار' : 'للبيع', priceSuffix: monthly ? 'شهريًا' : null,
-      facts: summaryPropertyFacts(p), trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published', overlay: true),
-        PropertyFavoriteAction(propertyId: p.id, enabled: p.status == 'published'),
-      ]), supportingText: [
+      facts: summaryPropertyFacts(p), trailing: PropertyFavoriteAction(propertyId: p.id, enabled: p.status == 'published'),
+      action: PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published'), supportingText: [
         if (monthly && p.price != p.monthlyRent) '${p.advanceMonths != null ? 'مقدم ${arabicDigits('${p.advanceMonths}')} أشهر' : 'القيمة المعروضة'}: ${moneyLabel(p.price, p.currency)}',
-        if (p.priceDisplayNote?.isNotEmpty == true) localizedMoneyText(p.priceDisplayNote!),
       ], onTap: onTap ?? () => context.push('/properties/${p.id}'));
   }
 }
@@ -90,9 +87,13 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
     final selected = user?.isActive == true && (ref.watch(favoritePropertyIdsProvider).asData?.value.contains(widget.propertyId) ?? false);
     return IconButton(key: ValueKey('favorite-property-${widget.propertyId}'), tooltip: selected ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
       onPressed: _busy || !widget.enabled ? null : () => _toggle(selected),
-      style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: .96), foregroundColor: Theme.of(context).colorScheme.secondary,
-        minimumSize: const Size(48, 48), padding: const EdgeInsets.all(10), shape: const CircleBorder()),
-      icon: _busy ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
-        : Icon(selected ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 20));
+      isSelected: selected,
+      style: IconButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.secondary,
+        minimumSize: const Size(48, 48), padding: const EdgeInsets.all(8), shape: const CircleBorder()),
+      icon: Container(width: 32, height: 32, alignment: Alignment.center,
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .96), shape: BoxShape.circle),
+        child: _busy ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : Icon(selected ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 19)));
   }
 }
+

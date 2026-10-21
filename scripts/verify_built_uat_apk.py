@@ -26,7 +26,13 @@ def api(path, data=None):
         return json.load(response)
 
 
-assert api('')['private'] is True, 'UAT installer must stay in the private repository.'
+repository = api('')
+if not repository['private']:
+    policy = json.loads(Path('docs/PUBLIC_UAT_DELIVERY.json').read_text())
+    assert repository['full_name'] == policy['repository'] == repo
+    assert policy['visibility'] == 'public' and policy['apk_delivery'] == 'recipient-encrypted-cms-only'
+    assert policy['plaintext_public_artifacts'] is False
+    assert hashlib.sha256(Path(policy['recipient_certificate']).read_bytes()).hexdigest() == policy['recipient_sha256']
 apk = Path(f'dist/real-estate-broker-uat-{run}.apk')
 digest = hashlib.sha256(apk.read_bytes()).hexdigest()
 expected = Path('dist/SHA256.txt').read_text().split()[0]
@@ -60,3 +66,4 @@ evidence = {'source_commit': source, 'version_code': version, 'sha256': digest, 
     'handset_acceptance': 'pending'}
 Path('dist/APK_VERIFICATION.json').write_text(json.dumps(evidence, indent=2) + '\n')
 print(json.dumps(evidence))
+

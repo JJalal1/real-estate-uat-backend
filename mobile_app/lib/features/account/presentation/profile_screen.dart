@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_otp_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -79,6 +80,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 18),
                   TextField(controller: _email, keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(labelText: 'البريد الإلكتروني')),
+                  TextButton.icon(key: const ValueKey('profile-verify-email'),
+                    onPressed: _busy || user.isEmailVerified ? null : _confirmEmail,
+                    icon: Icon(user.isEmailVerified ? Icons.verified_outlined : Icons.mark_email_read_outlined),
+                    label: Text(user.isEmailVerified ? 'البريد مؤكد' : 'تأكيد البريد لاستخدامه في الدخول')),
                   const SizedBox(height: 18),
                   EbrokerFilledButton.icon(
                     onPressed: _busy ? null : _save,
@@ -94,6 +99,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _nameLocked(AuthUser user) =>
       user.verificationProfile.status == 'pending' ||
       user.verificationProfile.status == 'approved';
+
+  Future<void> _confirmEmail() async {
+    final user = ref.read(authControllerProvider).asData?.value;
+    if (user == null) return;
+    if (_email.text.trim().toLowerCase() != user.email) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('احفظ البريد الجديد أولًا ثم أكّده.'))); return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(authControllerProvider.notifier).requestEmailVerification();
+      if (!mounted) return;
+      final value = await showDialog<String>(context: context, builder: (_) => _EmailCodeDialog(email: user.email));
+      if (value == null || !mounted) return;
+      await ref.read(authControllerProvider.notifier).verifyEmail(value);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تأكيد البريد. يمكنك الدخول به إلى الحساب نفسه.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    } finally { if (mounted) setState(() => _busy = false); }
+  }
 
   Future<void> _save() async {
     setState(() => _busy = true);
@@ -118,3 +142,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 }
+
+class _EmailCodeDialog extends StatefulWidget {
+  const _EmailCodeDialog({required this.email});
+  final String email;
+  @override
+  State<_EmailCodeDialog> createState() => _EmailCodeDialogState();
+}
+class _EmailCodeDialogState extends State<_EmailCodeDialog> {
+  final _code = TextEditingController();
+  @override
+  void dispose() { _code.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
+    child: AlertDialog(title: const Text('تأكيد البريد الإلكتروني'),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('أدخل الرمز المرسل إلى ${widget.email}'), const SizedBox(height: 16), EbrokerOtpField(controller: _code),
+      ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+        TextButton(onPressed: () => Navigator.pop(context, _code.text), child: const Text('تأكيد'))]));
+}
+

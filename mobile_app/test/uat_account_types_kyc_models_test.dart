@@ -124,13 +124,17 @@ void main() {
     expect(application.verificationFlags['office_location_registered'], isTrue);
   });
 
-  test('mobile login source exposes one WhatsApp flow without account type selector',
+  test('mobile entry separates login and registration with two OTP channels and no professional type selection',
       () async {
     final source = await File('lib/features/account/presentation/auth_screen.dart')
         .readAsString();
-    expect(source.contains('حساب واحد للتصفح والتواصل'), isTrue);
+    expect(source.contains('الاسم الرباعي'), isTrue);
     expect(source.contains('رقم واتساب'), isTrue);
-    expect(source.contains('startWhatsApp(phone: _phone.text)'), isTrue);
+    expect(source.contains('auth-mode-login'), isTrue);
+    expect(source.contains('auth-mode-register'), isTrue);
+    expect(source.contains('startWhatsApp(phone: _phone.text, name: name)'), isTrue);
+    expect(source.contains('startEmail(email: _email.text, name: name)'), isTrue);
+    expect(source.contains('auth-channel-email'), isTrue);
     expect(source.contains("context.push('/verify-phone')"), isTrue);
     expect(source.contains('مستخدم عادي'), isFalse);
     expect(source.contains('DropdownButtonFormField'), isFalse);
@@ -153,3 +157,4 @@ void main() {
     expect(normalized.contains('_picker.pickImages()'), isTrue);
   });
 }
+

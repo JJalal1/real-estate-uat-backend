@@ -1,5 +1,10 @@
 # Business Rules — REAL ESTATE
 
+## October20 current card and login decisions
+
+Comparison selects exactly two properties; this supersedes older2–4 UI limits. Sai is hidden on discovery/map cards without changing calculation, consent, details or history. Compact cards retain factual compatible specifications and real prices. Default entry is Login via WhatsApp or email OTP without a name. A separate Create new account mode collects the full name and saves only after OTP proof; never rename a completed/identity-reviewed account at login. Login must reuse an existing identity rather than create an unknown account. Email OTP is an additional session entry, not proof of phone or professional status. Existing phone accounts must confirm a linked email while signed in before email login can use it; no automatic account merge or privilege grant. See `COMPACT_CARDS_EMAIL_LOGIN_AR.md`.
+
+
 ## October19 phone-confirmed listing simplification
 
 The advertiser must explicitly confirm the property point in the map. A typed or extracted address does not set coordinates; device location helps center the map but still requires confirmation. Navigation, preview, address completion and Arabic spelling variants within the same city preserve that point and its account/local draft. A genuinely different governorate requires a fresh point, and moving a land point invalidates its old boundary. The numeric Sai proposal remains reviewable, with its discriminator derived from the selected value and never shown as a separate `نوع السعي` card. Deselecting that value removes the paired metadata from recomposition/application. Preserve financial policy, eligibility, explicit submission and financial consent. See `LISTING_FLOW_1092_AR.md`.

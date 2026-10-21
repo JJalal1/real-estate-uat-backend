@@ -150,12 +150,12 @@ void main() {
     expect(smart.without('map_area').hasMapArea, isFalse);
     expect(smart.without('map_area').apiFilters['has_parking'], 0);
   });
-  test('comparison selection caps at four unique public IDs', () {
+  test('comparison selection caps at exactly two unique public IDs and permits replacement', () {
     final selection = PropertyCompareSelection(); addTearDown(selection.dispose);
-    for (final id in [11,12,13,14]) { expect(selection.toggle(id), isTrue); }
-    expect(selection.toggle(15), isFalse); expect(selection.state.length,4);
+    for (final id in [11,12]) { expect(selection.toggle(id), isTrue); }
+    expect(selection.toggle(15), isFalse); expect(selection.state.length,2);
     expect(selection.toggle(12), isTrue); expect(selection.toggle(15), isTrue);
-    expect(selection.state, {11,13,14,15}); expect(selection.toggle(0), isFalse);
+    expect(selection.state, {11,15}); expect(selection.toggle(0), isFalse);
   });
   testWidgets('assistant stays on physical left and dismisses its hint', (tester) async {
     int taps = 0;
@@ -169,11 +169,17 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+  testWidgets('two-property comparison keeps an unavailable listing visible for replacement', (tester) async {
+    await _pump(tester, const PropertyCompareScreen(propertyIds: [11,13]));
+    expect(find.text('العقار غير متاح حاليًا'), findsOneWidget);
+    expect(find.text('استبدال'), findsNWidgets(2));
+    expect(tester.takeException(),isNull);
+  });
   for (final scale in [1.0,2.4]) {
     testWidgets('comparison keeps missing facts and unavailable columns honest at scale $scale', (tester) async {
       final key = GlobalKey();
       await _pump(tester, const PropertyCompareScreen(propertyIds: [11,12,13]), scale: scale, boundary:key);
-      expect(find.text('العقار غير متاح حاليًا'), findsOneWidget);
+      expect(find.text('استبدال'), findsNWidgets(2));
       await _capture(tester,key,'compare-$scale');
       await tester.scrollUntilVisible(find.byKey(const ValueKey('compare-all')),300,scrollable:find.byType(Scrollable).first);
       await tester.pumpAndSettle();await tester.tap(find.byKey(const ValueKey('compare-all')));await tester.pumpAndSettle();
@@ -221,3 +227,4 @@ void main() {
     });
   }
 }
+

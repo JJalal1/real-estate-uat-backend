@@ -35,12 +35,13 @@ class AuthRepository {
     }
   }
 
-  Future<WhatsAppAuthPending> startWhatsApp({required String phone}) async {
+  Future<WhatsAppAuthPending> startWhatsApp({required String phone, String? name}) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/whatsapp/start',
       data: {
-        'intent': 'continue',
+        'intent': name?.trim().isNotEmpty == true ? 'continue' : 'login',
         'phone': phone.trim(),
+        if (name?.trim().isNotEmpty == true) 'name': name!.trim(),
       },
     );
     final data = response.data?['data'];
@@ -49,6 +50,7 @@ class AuthRepository {
     }
     return WhatsAppAuthPending(
       phone: data['phone']?.toString() ?? phone.trim(),
+      name: name,
       isNewAccount: data['is_new_account'] == true || data['is_new_account'] == 1,
       debugCode: _nullableText(data['debug_code']),
     );
@@ -56,16 +58,46 @@ class AuthRepository {
 
   Future<AuthResult> verifyWhatsApp(
       WhatsAppAuthPending pending, String code) async {
+    if (pending.isEmail) {
+      final response = await _dio.post<Map<String, dynamic>>('/auth/email/login', data: {
+        'email': pending.email, 'code': code.trim(), if (pending.name != null) 'name': pending.name!.trim(),
+      });
+      return _acceptLoginResponse(response.data);
+    }
     final legacyKey = await Stage5DeviceStore.instance.ownerKey();
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/whatsapp/verify',
       data: {
         'phone': pending.phone,
+        if (pending.name != null) 'name': pending.name!.trim(),
         'code': code.trim(),
         'legacy_owner_key': legacyKey,
       },
     );
     return _acceptLoginResponse(response.data);
+  }
+
+  Future<WhatsAppAuthPending> startEmail({required String email, String? name}) async {
+    final response = await _dio.post<Map<String, dynamic>>('/auth/email/start', data: {
+      'intent': name?.trim().isNotEmpty == true ? 'continue' : 'login',
+      'email': email.trim(), if (name?.trim().isNotEmpty == true) 'name': name!.trim(),
+    });
+    final data = response.data?['data'];
+    if (data is! Map<String, dynamic>) throw StateError('Invalid email authentication response.');
+    return WhatsAppAuthPending(phone: '', email: data['email']?.toString() ?? email.trim(), name: name,
+      isNewAccount: false, debugCode: _nullableText(data['debug_code']));
+  }
+
+  Future<void> requestEmailVerification() async {
+    final token = await _store.readToken();
+    await _dio.post<void>('/auth/email/request', options: _bearer(token!));
+  }
+
+  Future<AuthUser> verifyEmail(String code) async {
+    final token = await _store.readToken();
+    final response = await _dio.post<Map<String, dynamic>>('/auth/email/verify',
+      data: {'code': code.trim()}, options: _bearer(token!));
+    return _userFromData(response.data);
   }
 
   Future<AuthResult> register({
@@ -244,3 +276,4 @@ class AuthRepository {
         },
       );
 }
+

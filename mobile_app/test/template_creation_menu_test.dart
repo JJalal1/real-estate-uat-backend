@@ -123,12 +123,16 @@ void main() {
     expect(find.text('إعلانك يبدأ هنا'), findsNothing);
     expect(find.byType(Dialog), findsNothing);
     for (final asset in ['add_shape', 'plus_btn', 'upcoming_projects_icon',
-      'properties_icon', 'home_active', 'properties', 'chat', 'profile_outlined']) {
+      'properties_icon', 'home_active']) {
       final scope = ['upcoming_projects_icon', 'properties_icon'].contains(asset)
           ? find.byType(ListingCreationMenu) : find.byType(AppNavigationBar);
       expect(find.descendant(of: scope, matching: find.byWidgetPredicate(
         (widget) => widget is EbrokerImage && widget.name == asset)),
         findsOneWidget, reason: 'Use the purchased $asset vector.');
+    }
+    // The owner's October20 reference restores only these1090 destination symbols.
+    for (final icon in [Icons.work_outline, Icons.people_outline, Icons.account_circle_outlined]) {
+      expect(find.descendant(of: find.byType(AppNavigationBar), matching: find.byIcon(icon)), findsOneWidget);
     }
     final aiIcon = find.byWidgetPredicate((widget) => widget is EbrokerImage &&
       widget.name == 'upcoming_projects_icon');

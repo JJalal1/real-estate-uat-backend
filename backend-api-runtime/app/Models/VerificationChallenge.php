@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class VerificationChallenge extends Model
 {
     public const PURPOSE_PHONE = 'phone_verification';
+    public const PURPOSE_EMAIL_LOGIN = 'email_login';
+    public const PURPOSE_EMAIL = 'email_verification';
     public const PURPOSE_PASSWORD_RESET = 'password_reset';
 
     protected $fillable = [
@@ -16,3 +18,4 @@ class VerificationChallenge extends Model
     protected $casts = ['expires_at'=>'datetime','consumed_at'=>'datetime'];
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
 }
+

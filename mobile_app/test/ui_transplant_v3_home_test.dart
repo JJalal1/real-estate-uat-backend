@@ -168,7 +168,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byKey(const ValueKey('home-property-37')), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
-    expect(find.text('السعر المعروض يشمل السعي'), findsOneWidget);
+    // The October20 owner request hides Sai on discovery cards; price and real-ID navigation remain below.
+    expect(find.textContaining('السعي'), findsNothing);
     expect(
       find.byWidgetPredicate((widget) => widget is Text &&
           widget.textSpan?.toPlainText().contains('١٠٢٬٠٠٠٬٠٠٠ ريال') == true),

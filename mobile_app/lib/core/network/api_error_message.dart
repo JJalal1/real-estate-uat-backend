@@ -65,6 +65,12 @@ String friendlyApiError(Object error) {
       return 'تم إرسال طلبات كثيرة خلال وقت قصير. حاول مرة أخرى بعد قليل.';
     }
     if (code != null && code >= 500) {
+      if (code == 503 && const [
+        'الدخول بالبريد غير مفعّل حاليًا. استخدم واتساب أو أعد المحاولة لاحقًا.',
+        'تعذر إرسال رمز البريد. جرّب مجددًا أو استخدم واتساب.',
+      ].contains(serverMessage)) {
+        return serverMessage!;
+      }
       return 'الخادم غير متاح مؤقتاً. حاول مرة أخرى بعد قليل.';
     }
     if (mappedMessage != null) {
@@ -218,3 +224,4 @@ String? _knownServerMessage(String? message) {
 bool _isArabic(String? value) {
   return value != null && RegExp(r'[\u0600-\u06FF]').hasMatch(value);
 }
+

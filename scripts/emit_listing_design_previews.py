@@ -9,6 +9,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 files = list((root / 'mobile_app/build/listing-design-preview').glob('*.png'))
 files += list((root / 'mobile_app/build/broker-preview').glob('assistant-complete-*.png'))
+files += list((root / 'mobile_app/build/compact-cards-preview').glob('*.png'))
 total = 0
 for path in sorted(files):
     payload = path.read_bytes()
@@ -23,3 +24,4 @@ for path in sorted(files):
         print('LISTING_PREVIEW_CHUNK ' + json.dumps({'name': path.name, 'offset': index, 'data': encoded[index:index+12000]}))
     print('LISTING_PREVIEW_END ' + path.name)
 print('LISTING_PREVIEW_TOTAL ' + str(len(files)))
+

@@ -2263,22 +2263,19 @@ class _PropertyResultCard extends StatelessWidget {
       border: Border.all(color: selected ? scheme.primary : EbrokerDesign.border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
-          price: _formatPrice(property.price), currency: _currencyLabel(property.currency),
+          price: _formatPrice(property.purpose == 'rent' ? property.monthlyRent ?? property.price : property.price), currency: _currencyLabel(property.currency),
+          priceSuffix: property.purpose == 'rent' && property.monthlyRent != null ? 'شهريًا' : null,
           imageUrl: property.mainImage, imageUrls: property.imageUrls, isSpotlight: property.isSpotlight,
           location: property.address ?? '${property.distanceKm.toStringAsFixed(1)} كم من مركز البحث',
           categoryLabel: _typeLabel(property.type ?? ''),
           purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
           onTap: onDetails,
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            PropertyCompareAction(propertyId: property.id, overlay: true),
+          action: PropertyCompareAction(propertyId: property.id),
+          trailing:
             IconButton(tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة', onPressed: onFavorite,
               style: IconButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size(44,44), shape: const CircleBorder()),
-              icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 20, color: scheme.secondary)),
-          ])),
+              icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 19, color: scheme.secondary))),
         Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: _PropertyFacts(property: property)),
-        if (property.priceDisplayNote != null)
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: EbrokerText(localizedMoneyText(property.priceDisplayNote!), size: 11)),
         TextButton.icon(onPressed: onMap,
           icon: EbrokerImage('location', size: 18, color: scheme.primary),
           label: const Text('عرض على الخريطة')),
@@ -2685,3 +2682,4 @@ String _formatPrice(double value) {
   }
   return value.toStringAsFixed(0);
 }
+
