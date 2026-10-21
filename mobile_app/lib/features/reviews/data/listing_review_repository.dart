@@ -77,9 +77,11 @@ class ListingReviewRepository {
   }
 
   Future<void> reviewMedia(int listingId, int imageId, String decision, String reason) async {
-    await _dio.post<Map<String, dynamic>>('/admin/listing-review/listings/$listingId/media-review',
+    final response = await _dio.post<Map<String, dynamic>>('/admin/listing-review/listings/$listingId/media-review',
       data: {'image_id': imageId, 'decision': decision, 'reason': reason.trim()},
       options: await _auth.requiredAuthOptions());
+    final data = response.data?['data'];
+    if (data is! Map || data['checker'] != 'human_review' || data['decision'] != decision || data['review_id'] == null) throw StateError('Invalid media review receipt');
   }
 
   Future<void> start(int id) => _action(id, 'start');
