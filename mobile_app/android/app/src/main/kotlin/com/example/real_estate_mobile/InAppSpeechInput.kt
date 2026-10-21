@@ -51,8 +51,15 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
                         if (!foreground) cancel()
                         else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
                             activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                            permissionPending = true
-                            activity.requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), permissionCode)
+                            val preferences = activity.getPreferences(Activity.MODE_PRIVATE)
+                            if (preferences.getBoolean("microphone_permission_requested", false) &&
+                                !activity.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
+                                fail("SPEECH_PERMISSION_PERMANENT")
+                            } else {
+                                preferences.edit().putBoolean("microphone_permission_requested", true).apply()
+                                permissionPending = true
+                                activity.requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), permissionCode)
+                            }
                         } else begin()
                     }
                 }

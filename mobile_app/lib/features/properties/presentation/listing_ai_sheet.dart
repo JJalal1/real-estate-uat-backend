@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/voice_input.dart';
+import '../../../core/platform/app_permission_settings.dart';
 import '../../../core/platform/voice_capture_controller.dart';
 import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/widgets/app_components.dart';
@@ -263,6 +264,8 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),
         if (_error != null || _capture.error != null) Padding(padding: const EdgeInsets.only(top: 12),
           child: AppInlineMessage(message: _error ?? _capture.error!, tone: AppStatusTone.warning)),
+        if (_capture.permissionDenied) TextButton.icon(onPressed:()=>ref.read(appPermissionSettingsProvider)(),
+          icon:const Icon(Icons.settings_outlined),label:const Text('فتح إعدادات الميكروفون')),
         if (widget.prepareDraft && _notice != null) Padding(padding: const EdgeInsets.only(top: 12),
           child: AppInlineMessage(key: const ValueKey('listing-ai-source'), message: _notice!,
             tone: _source == 'text' ? AppStatusTone.warning : AppStatusTone.info)),

@@ -36,7 +36,7 @@ class ListingEditorDraftController extends Controller
             'payload.purpose'=>['nullable','in:sale,rent'],'payload.step'=>['nullable','integer','between:0,3'],
             'payload.latitude'=>['nullable','numeric','between:-90,90'],'payload.longitude'=>['nullable','numeric','between:-180,180'],
             'payload.fields'=>['nullable','array'],'payload.image_order'=>['nullable','array','max:12'],
-            'payload.image_order.*'=>['string','distinct','regex:/^(?:[a-fA-F0-9-]{36}|property-[1-9][0-9]*)$/D'],
+            'payload.image_order.*'=>['string','distinct',function($attribute,$value,$fail){ if (!Str::isUuid($value) && !preg_match('/^property-[1-9][0-9]*$/D',$value)) $fail('مرجع الصورة غير صالح.'); }],
             'payload.checkpoint_key'=>['nullable','uuid'],'payload.media_version'=>['nullable','integer','in:1'],
         ]);
         abort_if(strlen(json_encode($v['payload']))>100000,422);
@@ -59,7 +59,12 @@ class ListingEditorDraftController extends Controller
                 }
                 $this->drafts->assertRevision($draft,$v['expected_revision']);
             }
-            $draft->payload=$this->drafts->clean($v['payload']);
+            $clean=$this->drafts->clean($v['payload']);
+            foreach ($clean['image_order'] as $token) if (str_starts_with($token,'property-')) {
+                $propertyId=$property?->id ?? $draft->property_id;
+                abort_unless($propertyId && \App\Models\PropertyImage::query()->where('property_id',$propertyId)->whereKey((int)substr($token,9))->exists(),422,'الصورة لا تنتمي لهذا الإعلان.');
+            }
+            $draft->payload=$clean;
             if ($property) $draft->property_id=$property->id;
             $draft->revision++;$draft->save();return $draft;
         });

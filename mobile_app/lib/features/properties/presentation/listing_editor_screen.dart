@@ -20,6 +20,7 @@ import '../../../core/local/listing_recovery_store.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/platform/voice_capture_controller.dart';
 import '../../../core/platform/voice_input.dart';
+import '../../../core/platform/app_permission_settings.dart';
 import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/ebroker_design.dart';
@@ -155,6 +156,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   String? _accountError, _descriptionError;
   String? _stepError, _locationError;
   bool _selectingLocation = false;
+  bool _locationNeedsSettings = false, _locationServiceDisabled = false;
   late final VoiceCaptureController _descriptionCapture;
   bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false;
   Timer? _descriptionRetryTimer;
@@ -582,7 +584,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Future<void> _restoreRecovery() async {
     if (_recoveryUserId == null) {
       try {
-        final actor = await ref.read(authControllerProvider.future);
+        final actor = await ref.read(authControllerProvider.future).timeout(const Duration(seconds:15));
         if (!mounted) return;
         _recoveryUserId = actor?.id;
       } catch (_) {}
@@ -783,7 +785,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _recoveryUserId = initialActor?.id;
     if (_existing == null) _phone.text = ListingContactPolicy.normalize(initialActor?.phone ?? '');
     Future.microtask(() async {
-      if (_phone.text.isEmpty && _existing == null) { final actor = await ref.read(authControllerProvider.future); if (mounted) _phone.text = ListingContactPolicy.normalize(actor?.phone ?? ''); }
+      try {
+        if (_phone.text.isEmpty && _existing == null) {
+          final actor=await ref.read(authControllerProvider.future).timeout(const Duration(seconds:15));
+          if(mounted && _sessionValid)_phone.text=ListingContactPolicy.normalize(actor?.phone ?? '');
+        }
+      } catch (_) {}
       await _restoreRecovery(); if (mounted) await _loadSaiPolicy();
       try { final policy = await ref.read(propertyRepositoryProvider).listingContactPolicy(); if (mounted && ref.read(authControllerProvider).asData?.value?.id == _recoveryUserId) setState(() => _contactPolicy = policy); } catch (_) {}
       if (mounted && widget.startWithAssistant) { WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1115,6 +1122,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         icon: const Icon(Icons.my_location, size: 19), label: const Text('تحديد موقعي الحالي')),
       if (_selectingLocation) const LinearProgressIndicator(),
       if (_locationError != null) Text(_locationError!, style: Theme.of(context).textTheme.bodySmall),
+      if (_locationNeedsSettings) TextButton(key:const ValueKey('listing-location-settings'),onPressed:()=>ref.read(_locationServiceDisabled ? locationServiceSettingsProvider : appPermissionSettingsProvider)(),child:const Text('فتح إعدادات الموقع')),
       if (_hasLocation && _completionOnly) TextButton(onPressed: () => _showFullStep(1), child: const Text('تصحيح العنوان النصي')),
     ]));
 
@@ -1286,6 +1294,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           onPressed: _busy || _descriptionBusy ? null : _dictateDescription,
           icon: const Icon(Icons.mic_none, size: 19), label: const Text('إملاء الوصف')),
         if (_descriptionCapture.error != null) Text(_descriptionCapture.error!, style: Theme.of(context).textTheme.bodySmall),
+        if (_descriptionCapture.permissionDenied) TextButton.icon(onPressed:()=>ref.read(appPermissionSettingsProvider)(),
+          icon:const Icon(Icons.settings_outlined),label:const Text('فتح إعدادات الميكروفون')),
         if (_descriptionCapture.canRetry) TextButton(onPressed: _busy || _descriptionBusy ? null : () => _dictateDescription(retry: true),
           child: const Text('إعادة محاولة تفريغ الوصف')),
         if (_descriptionBusy) const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Row(children: [SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Expanded(child: Text('جارٍ تجهيز الوصف…'))])),
@@ -2378,6 +2388,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_busy || _selectingLocation || _resolvingLocation) return;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() { _selectingLocation = true; _locationError = null; });
+    _locationNeedsSettings=false;_locationServiceDisabled=false;
     try {
       final initial = useCurrent ? await ref.read(propertyCurrentLocationProvider)() : null;
       if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
@@ -2400,8 +2411,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: false);
       unawaited(_saveRecovery());
     } on PlatformException catch (error) {
-      if (mounted) { setState(() => _locationError = const ['LOCATION_DISABLED','LOCATION_DENIED'].contains(error.code)
-        ? error.message : 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.'); }
+      if (mounted) setState(() {
+        _locationNeedsSettings=const ['LOCATION_DISABLED','LOCATION_DENIED_FOREVER'].contains(error.code);
+        _locationServiceDisabled=error.code=='LOCATION_DISABLED';
+        _locationError=const ['LOCATION_DISABLED','LOCATION_DENIED','LOCATION_DENIED_FOREVER'].contains(error.code)
+          ? error.message : 'تعذر تحديد الموقع الحالي. اختر النقطة على الخريطة.';
+      });
     } catch (_) {
       if (mounted) setState(() => _locationError = 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
     } finally { if (mounted) setState(() => _selectingLocation = false); }

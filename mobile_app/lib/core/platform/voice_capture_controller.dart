@@ -12,6 +12,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   String preview = '';
   bool liveDictation = false;
   String? error;
+  bool permissionDenied = false;
   double level = 0;
   VoiceRecording? _recording;
   StreamSubscription<VoiceEvent>? _subscription;
@@ -32,7 +33,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     final completion = Completer<String?>();
     _completion = completion;
     _stopRequested = false;
-    phase = VoicePhase.preparing; transcript = ''; preview = ''; liveDictation = false; error = null; level = 0;
+    phase = VoicePhase.preparing; transcript = ''; preview = ''; liveDictation = false; error = null; permissionDenied=false; level = 0;
     elapsed = Duration.zero;
     notifyListeners();
     try {
@@ -62,7 +63,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
             transcript = event.text.trim();
             if (transcript.length > 5000) { error = _message('SPEECH_TOO_LONG'); _finish(null); return; }
             _finish(transcript.isEmpty ? null : transcript); return;
-          case 'error': error = _message(event.code); _finish(null); return;
+          case 'error': permissionDenied=event.code.startsWith('SPEECH_PERMISSION');error = _message(event.code); _finish(null); return;
           case 'retryable_error':
             error = 'تعذّر تفريغ الصوت. التسجيل محفوظ؛ أعد محاولة التفريغ.';
             _finish(null, retainRecording: true); return;
@@ -76,7 +77,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   }
 
   String _message(String code) => switch (code) {
-    'SPEECH_PERMISSION' => 'اسمح باستخدام الميكروفون من إعدادات التطبيق، أو اكتب طلبك هنا.',
+    'SPEECH_PERMISSION' || 'SPEECH_PERMISSION_PERMANENT' => 'اسمح باستخدام الميكروفون من إعدادات التطبيق، أو اكتب طلبك هنا.',
     'SPEECH_NO_MATCH' => 'لم نلتقط كلامًا واضحًا. حاول مرة أخرى أو اكتب طلبك.',
     'SPEECH_NETWORK' => 'تعذّر تفريغ الصوت. تحقق من الاتصال أو اكتب طلبك.',
     'SPEECH_TOO_LARGE' || 'SPEECH_TOO_LONG' => 'التسجيل أطول من الحد الذي يمكن معالجته. لم ننفذ جزءًا منه؛ اختصر الطلب وأعد التسجيل.',
