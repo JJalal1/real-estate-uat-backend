@@ -200,12 +200,22 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _remotePhotos..clear()..addAll(draft.images);
     for (final key in draft.images.keys) { if (!_removedPhotoKeys.contains(key)) { _photoStates[key]='complete';_photoErrors.remove(key); } }
     _recoveredServerId = draft.propertyId ?? _recoveredServerId;
+    final promoted=draft.payload['promoted_image_keys'];
+    if (draft.propertyId!=null && promoted is Map && promoted.isNotEmpty) {
+      final aliases=Map<String,String>.from(promoted);
+      _photoOrder=_photoKeys.map((key)=>aliases[key] ?? key).toList();
+      final removed=_removedPhotoKeys.map((key)=>aliases[key] ?? key).toSet();
+      _removedPhotoKeys..clear()..addAll(removed);
+      _imagePaths.removeWhere((path)=>aliases.containsKey(_localPhotoKeys[path]));
+      _localPhotoKeys.removeWhere((path,key)=>aliases.containsKey(key));
+      for (final key in aliases.keys) { _photoStates.remove(key);_photoErrors.remove(key); }
+    }
   }
 
   Map<String, dynamic> _serverSnapshot(Map<String, dynamic> snapshot) {
     final data = Map<String, dynamic>.from(jsonDecode(jsonEncode(snapshot)) as Map);
     data.remove('draft_key'); data.remove('server_revision'); data.remove('image_tokens');
-    for (final key in ['remote_images','removed_image_keys','photo_states','ownership_proof_path','account_checkpoint_key','account_checkpoint_signature']) { data.remove(key); }
+    for (final key in ['remote_images','removed_image_keys','photo_states','ownership_proof_path','account_checkpoint_key','account_checkpoint_signature','promoted_image_keys']) { data.remove(key); }
     final fields = Map<String, dynamic>.from(data['fields'] as Map);
     const aliases = {'area':'area_value','parking':'has_parking','elevator':'has_elevator','facade':'building_facade','land_boundary':'land_boundary_geojson'};
     for (final key in fields.keys.toList()) { if (!DynamicPropertySchema.applies(aliases[key] ?? key, data)) fields.remove(key); }
@@ -225,7 +235,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _accountTail = () async {
       try {
         while (_pendingAccount != null) {
-          final pending = _pendingAccount!; _pendingAccount = null;
+          var pending = _pendingAccount!; _pendingAccount = null;
           if (_needsReconcile) {
             try {
               final latest=await _accountRepository.get(_draftKey).timeout(const Duration(seconds:30));
@@ -234,6 +244,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 throw DioException(requestOptions:RequestOptions(),response:Response(requestOptions:RequestOptions(),statusCode:409),type:DioExceptionType.badResponse);
               }
               _adoptAccountDraft(latest);
+              if (latest.payload['promoted_image_keys'] is Map && (latest.payload['promoted_image_keys'] as Map).isNotEmpty) {
+                if (!await _resolveRecoveredDraft()) throw StateError('تعذر استعادة الإعلان المحفوظ. أعد المحاولة.');
+                if (_disposed || !_sessionValid || _recoveryFinished) return;
+                pending=(_serverSnapshot(_recoverySnapshot()),{for (final path in List<String>.of(_imagePaths)) _localPhotoKeys[path]!:path});
+              }
             } on DioException catch (error) { if (error.response?.statusCode != 404 || _draftRevision != 0) rethrow; }
             _needsReconcile=false;
           }
@@ -669,6 +684,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _recoverySaved = true;
       if (data['proof_needs_reselection'] == true && _ownershipProofPath==null) _message('استعدنا بيانات الإعلان. أعد اختيار ملف إثبات الملكية عند إكمال المسودة.');
     }
+    if (_recoveredServerId!=null) await _resolveRecoveredDraft();
+    if (!mounted || !_sessionValid) return;
     _clearHiddenFields();
     if (_completionOnly) _completionFields = _missingFields();
     _recoveryReady = true;
@@ -1983,9 +2000,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (!mounted || !_sessionValid) return;
       setState(() => _workingDraft = draft);
       ref.read(propertyDataRevisionProvider.notifier).state++;
-      _adoptAccountDraft(await _accountRepository.get(_draftKey));
+      final acknowledged=await _accountRepository.get(_draftKey);
       if (!mounted || !_sessionValid) return;
       await _clearUploadedTemporaryFiles();
+      _adoptAccountDraft(acknowledged);
       _photoOrder.clear(); _removedPhotoKeys.clear(); _remotePhotos.clear(); _localPhotoKeys.clear();
       _accountSaved = false;
       await _saveRecovery();

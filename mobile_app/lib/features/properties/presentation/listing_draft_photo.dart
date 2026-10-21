@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/listing_account_draft_repository.dart';
 import '../../../core/network/api_client.dart';
+import '../../account/data/auth_controller.dart';
 import 'dart:async';
 import 'package:dio/dio.dart';
 
@@ -27,7 +28,12 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
     return Uint8List.fromList(response.data ?? const []);
   }
   @override
-  void initState() { super.initState(); _bytes = _load(); }
+  void initState() {
+    super.initState(); _bytes = _load();
+    ref.listenManual(authControllerProvider.select((state)=>state.asData?.value?.id),(_,next) {
+      if (widget.authenticated && mounted) setState(()=>_bytes=_load());
+    });
+  }
   @override
   void didUpdateWidget(ListingDraftPhoto oldWidget) { super.didUpdateWidget(oldWidget); if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated) _bytes = _load(); }
   @override
@@ -38,7 +44,7 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
   @override
   Widget build(BuildContext context) => FutureBuilder<Uint8List>(future: _bytes, builder: (_, snapshot) {
     if (snapshot.hasError) return _retry();
-    if (snapshot.hasData) return Image.memory(snapshot.data!, fit: widget.fit, cacheWidth:widget.cacheWidth, errorBuilder: (_, __, ___) => _retry());
+    if (snapshot.connectionState==ConnectionState.done && snapshot.hasData) return Image.memory(snapshot.data!, fit: widget.fit, cacheWidth:widget.cacheWidth, errorBuilder: (_, __, ___) => _retry());
     return Center(child: Semantics(label:'جارٍ تحميل الصورة',child:const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2))));
   });
 }

@@ -105,6 +105,7 @@ class ListingEditorDraftService
         abort_if($draft->property_id !== null && $draft->property_id !== (int)$property->id,409);
         $images=$draft->images;
         $removed=[];
+        $payload=$draft->payload;
         if (($draft->payload['media_version'] ?? 0) === 1) {
             $wanted=$draft->payload['image_order'] ?? [];
             foreach ($wanted as $token) if (str_starts_with($token,'property-')) {
@@ -113,6 +114,7 @@ class ListingEditorDraftService
             foreach ($property->images()->get() as $image) if (!in_array('property-'.$image->id,$wanted,true)) {
                 $removed[]=$image->path; $image->delete();
             }
+            foreach ($images as $token=>$path) if (!in_array($token,$wanted,true)) { $removed[]=$path; unset($images[$token]); }
             // An interrupted/removed local file cannot be silently skipped during promotion.
             foreach ($wanted as $token) if (Str::isUuid($token)) abort_unless(isset($images[$token]),422,'لم يكتمل رفع الصور. أعد محاولة الملف المتعثر.');
         }
@@ -125,12 +127,20 @@ class ListingEditorDraftService
             $attached[$imageKey]=$property->images()->firstOrCreate(['path'=>$images[$imageKey]],['sort_order'=>++$sort]);
         }
         if (($draft->payload['media_version'] ?? 0) === 1) {
+            $promoted=[];$committedOrder=[];
             foreach ($draft->payload['image_order'] ?? [] as $position=>$token) {
                 $image=str_starts_with($token,'property-') ? $property->images()->find((int)substr($token,9)) : ($attached[$token] ?? null);
-                if ($image) $image->forceFill(['sort_order'=>$position,'is_primary'=>$position===0])->save();
+                if ($image) {
+                    $image->forceFill(['sort_order'=>$position,'is_primary'=>$position===0])->save();
+                    $committedOrder[]='property-'.$image->id;
+                    if (Str::isUuid($token)) $promoted[$token]='property-'.$image->id;
+                }
             }
+            // Server-written aliases let a client recover a lost Property response without uploading successful files again.
+            $payload['image_order']=$committedOrder;
+            $payload['promoted_image_keys']=$promoted;
         }
-        $draft->forceFill(['property_id'=>$property->id,'images'=>[],'revision'=>$draft->revision+1])->save();
+        $draft->forceFill(['property_id'=>$property->id,'payload'=>$payload,'images'=>[],'revision'=>$draft->revision+1])->save();
         if ($removed) DB::afterCommit(fn()=>$this->removeFiles($removed));
     }
 

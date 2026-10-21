@@ -42,8 +42,8 @@ class ListingRecoveryStore {
         final image = File('${scope.path}/media/$name');
         if (await image.exists()) {
           images.add(image.path);
-          if (index < keys.length) { tokens[image.path] = keys[index]; }
-          else if (oldTokens.length == (decoded['image_files'] as List).length) { tokens[image.path] = oldTokens[index]; }
+          if (index < keys.length && keys[index].isNotEmpty) { tokens[image.path] = keys[index]; }
+          else if (oldTokens.length == (decoded['image_files'] as List).length && oldTokens[index].isNotEmpty) { tokens[image.path] = oldTokens[index]; }
         }
         index++;
       }

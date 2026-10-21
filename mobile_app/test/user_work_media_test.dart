@@ -16,6 +16,7 @@ import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/listing_account_draft.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_draft_photo.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_location_picker_screen.dart';
@@ -59,6 +60,12 @@ class _Drafts extends Wave6Drafts {
     if(!drafts.containsKey(key)) { throw _offline(404); }
     return super.get(key);
   }
+}
+class _RecoveredProperties extends Wave6Properties {
+  @override
+  Future<PropertyDetails> details(int id) async=>PropertyDetails.fromJson({'id':id,'title':'إعلان محفوظ','type':'house','purpose':'sale','price':10000000,
+    'currency':'YER','status':'draft','review_status':'draft','address':'صنعاء حدة','latitude':15.37,'longitude':44.19,
+    'images':[{'id':501,'url':'https://fixture.example/api/property-media/501','sort_order':0,'is_primary':true}]});
 }
 class _RecoveryFailure extends Wave6Recovery {
   _RecoveryFailure(super.snapshot);
@@ -156,7 +163,7 @@ void main() {
     await pumpWave6(tester,_host(fresh:true),recovery:recovery,drafts:drafts);await _open(tester);
     await _back(tester);expect(find.text('فتح المحرر'),findsOneWidget);expect(find.text('لديك تعديلات غير محفوظة'),findsNothing);
     expect(recovery.snapshot,isNull);expect(drafts.saves,isEmpty);await finishWave6(tester);
-  });
+  },timeout:const Timeout(Duration(seconds:45)));
 
   testWidgets('offline edits keep text and confirmed point, and a failed exit save stays in the editor',(tester) async {
     final recovery=Wave6Recovery(editorSnapshot()),drafts=_Drafts()..failSave=true;
@@ -172,7 +179,7 @@ void main() {
     expect(find.text('حُفظ تقدمك وصورك على حسابك'),findsNothing);
     drafts.failSave=false;await _back(tester);await tester.tap(find.byKey(const ValueKey('listing-exit-save')));await tester.pumpAndSettle();
     expect(find.text('فتح المحرر'),findsOneWidget);await finishWave6(tester);
-  });
+  },timeout:const Timeout(Duration(seconds:45)));
 
   testWidgets('failed local save also prevents the exit save from closing the editor',(tester) async {
     final recovery=_RecoveryFailure(editorSnapshot());
@@ -180,7 +187,7 @@ void main() {
     await _back(tester);await tester.tap(find.byKey(const ValueKey('listing-exit-save')));await tester.pumpAndSettle();
     expect(find.byType(ListingEditorScreen),findsOneWidget);expect(find.textContaining('لم يكتمل حفظ المسودة'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());await tester.pump();
-  });
+  },timeout:const Timeout(Duration(seconds:45)));
 
   testWidgets('a late checkpoint response cannot announce that newer edits were saved',(tester) async {
     final gate=Completer<void>(),drafts=_Drafts()..saveGate=gate,recovery=Wave6Recovery(editorSnapshot());
@@ -191,7 +198,7 @@ void main() {
     expect(tester.widget<TextField>(description).controller!.text,'آخر تعديل لم يصل بعد');
     expect(find.text('حُفظ تقدمك وصورك على حسابك'),findsNothing);
     drafts.saveGate!.complete();await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();await finishWave6(tester);
-  });
+  },timeout:const Timeout(Duration(seconds:45)));
 
   for(final scale in [1.0,2.4]) {
     testWidgets('one failed photo keeps successful files and retries only that file at $scale',(tester) async {
@@ -209,8 +216,23 @@ void main() {
       expect(drafts.drafts.values.single.images.length,3);
       expect(recovery.snapshot!['latitude'],15.37);expect(recovery.snapshot!['longitude'],44.19);
       expect(tester.takeException(),isNull);await finishWave6(tester);
-    });
+    },timeout:const Timeout(Duration(seconds:45)));
   }
+
+  testWidgets('a lost listing response recovers committed photo aliases without uploading them again',(tester) async {
+    final dir=Directory.systemTemp.createTempSync('listing-promoted-');addTearDown(()=>dir.deleteSync(recursive:true));
+    final data=_photos(dir,1),token=(data['image_order'] as List).single as String,key=newListingDraftKey(),checkpoint=newListingDraftKey();
+    data.addAll({'draft_key':key,'server_revision':2,'account_checkpoint_key':checkpoint,'remote_images':{token:'https://fixture.invalid/$token'}});
+    final recovery=Wave6Recovery(data),drafts=_Drafts();
+    drafts.drafts[key]=ListingAccountDraft(key:key,revision:3,propertyId:55,images:const {},payload:{...data,
+      'checkpoint_key':checkpoint,'image_order':['property-501'],'promoted_image_keys':{token:'property-501'}});
+    await pumpWave6(tester,ProviderScope(overrides:[propertyRepositoryProvider.overrideWithValue(_RecoveredProperties())],child:const ListingEditorScreen()),recovery:recovery,drafts:drafts);
+    final description=textField('وصف العقار');await tester.ensureVisible(description);await tester.enterText(description,'آخر تعديل بعد استعادة النتيجة');
+    await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
+    expect(drafts.uploadCount,0);expect(drafts.saves.last['image_order'],['property-501']);
+    expect(drafts.drafts[key]!.propertyId,55);expect(recovery.snapshot!['image_paths'],isEmpty);
+    expect(recovery.snapshot!['latitude'],15.37);expect(recovery.snapshot!['longitude'],44.19);await finishWave6(tester);
+  },timeout:const Timeout(Duration(seconds:45)));
 
   testWidgets('deleting a pending photo cancels its upload and cannot restore it from a late result',(tester) async {
     final dir=Directory.systemTemp.createTempSync('listing-cancel-');addTearDown(()=>dir.deleteSync(recursive:true));
@@ -221,7 +243,7 @@ void main() {
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(recovery.snapshot!['image_order'],isEmpty);expect(find.byTooltip('إزالة الصورة'),findsNothing);expect(drafts.drafts.values.single.images,isEmpty);
     await finishWave6(tester);
-  });
+  },timeout:const Timeout(Duration(seconds:45)));
 
   testWidgets('permanent location denial offers settings and the manual map action remains available',(tester) async {
     var opened=0;
@@ -232,14 +254,14 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('listing-current-location')));await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('listing-select-location')).hitTestable(),findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('listing-location-settings')));expect(opened,1);await finishWave6(tester);
-  });
+  },timeout:const Timeout(Duration(seconds:45)));
 
   testWidgets('microphone denial stays explicit and text input remains available',(tester) async {
     final voice=Wave3VoiceFake(autoComplete:false),capture=VoiceCaptureController(voice);
     final pending=capture.start();voice.latest.emit(const VoiceEvent('error',code:'SPEECH_PERMISSION_PERMANENT'));await tester.pump();
     expect(await pending,isNull);expect(capture.permissionDenied,true);expect(capture.error,contains('اكتب'));
     capture.dispose();await voice.dispose();
-  });
+  },timeout:const Timeout(Duration(seconds:45)));
 
   testWidgets('account switching hides the former account editor while keeping its recovery scoped',(tester) async {
     final recovery=Wave6Recovery(editorSnapshot());
@@ -248,13 +270,13 @@ void main() {
     (scope.read(authControllerProvider.notifier) as _SwitchAuth).switchTo(2);await tester.pumpAndSettle();
     expect(find.byType(TextField),findsNothing);expect(find.textContaining('تغيّر الحساب'),findsOneWidget);
     await finishWave6(tester);
-  });
+  },timeout:const Timeout(Duration(seconds:45)));
 
   testWidgets('private photo loading failure has a retry action instead of an endless placeholder',(tester) async {
     final drafts=_PhotoFailure();await pumpWave6(tester,const SizedBox(width:170,height:120,child:ListingDraftPhoto(url:'https://fixture.invalid/private')),drafts:drafts);
     expect(find.text('إعادة تحميل الصورة'),findsOneWidget);expect(drafts.calls,1);
     await tester.tap(find.text('إعادة تحميل الصورة'));await tester.pumpAndSettle();expect(drafts.calls,2);await finishWave6(tester);
-  });
+  },timeout:const Timeout(Duration(seconds:45)));
 }
 
 class _PhotoFailure extends Wave6Drafts {

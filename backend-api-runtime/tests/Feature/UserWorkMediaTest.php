@@ -111,6 +111,12 @@ class UserWorkMediaTest extends TestCase
         $data=$this->withHeaders($headers)->postJson('/api/properties',$input)->assertCreated()->assertJsonCount(3,'data.images')->json('data');
         $ids=array_column($data['images'],'id');$property=Property::findOrFail($data['id']);
         $this->assertTrue((bool)$data['images'][0]['is_primary']);
+        $checkpoint=$this->withHeaders($headers)->getJson($url)->assertOk()->json('data');
+        $this->assertSame(array_map(fn($id)=>'property-'.$id,$ids),$checkpoint['payload']['image_order']);
+        foreach ($keys as $i=>$token) $this->assertSame('property-'.$ids[$i],$checkpoint['payload']['promoted_image_keys'][$token]);
+        // The create response was lost: the same request cannot create another listing or another photo row.
+        $this->withHeaders($headers)->postJson('/api/properties',$input)->assertConflict();
+        $this->assertDatabaseCount('properties',1);$this->assertDatabaseCount('property_images',3);
         $removed=PropertyImage::findOrFail($ids[1]);$shared=$this->property($actor);
         $shared->images()->create(['path'=>$removed->path,'sort_order'=>0]);
         $payload['checkpoint_key']=(string)Str::uuid();$payload['image_order']=['property-'.$ids[2],'property-'.$ids[0]];
@@ -120,6 +126,10 @@ class UserWorkMediaTest extends TestCase
         $this->assertSame([$ids[2],$ids[0]],array_column($updated,'id'));$this->assertTrue((bool)$updated[0]['is_primary']);
         app(ListingImageService::class)->removeIfUnused($removed->path);Storage::disk('local')->assertExists($removed->path);
         $this->withHeaders($headers)->getJson($url)->assertJsonPath('data.payload.image_order',$payload['image_order']);
+        $foreign=$shared->images()->firstOrFail();
+        $payload['checkpoint_key']=(string)Str::uuid();$payload['image_order']=['property-'.$foreign->id];
+        $this->withHeaders($headers)->putJson($url,['payload'=>$payload,'expected_revision'=>7,'property_id'=>$property->id])->assertUnprocessable();
+        $this->withHeaders($headers)->getJson($url)->assertJsonPath('data.revision',7);
         $this->assertDatabaseCount('property_sai_terms',0);
     }
 
