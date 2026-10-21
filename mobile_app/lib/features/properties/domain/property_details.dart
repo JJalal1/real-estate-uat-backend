@@ -15,7 +15,9 @@ class PropertyImageItem {
   final bool isPrimary;
   final int sortOrder;
   final Map<String,String> variants;
-  String get galleryUrl => variants['gallery'] ?? url;
+  String get cardUrl => variants['card'] ?? url;
+  String get detailUrl => variants['detail'] ?? url;
+  String get galleryUrl => variants['gallery'] ?? detailUrl;
   String get zoomUrl => variants['zoom'] ?? galleryUrl;
 
   factory PropertyImageItem.fromJson(Map<String, dynamic> json) {

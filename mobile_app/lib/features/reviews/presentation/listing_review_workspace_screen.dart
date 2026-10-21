@@ -361,6 +361,13 @@ class _ListingReviewCaseScreenState
             ),
           ),
         const SizedBox(height: AppSpacing.s16),
+        const AppInlineMessage(message: 'راجع صلة كل صورة بالعقار. الأرض الفارغة أو البناء غير المكتمل قد يكونان صحيحين. الاشتباه وحده لا يرفض الإعلان؛ استخدم الإرجاع للتصحيح مع سبب واضح عند الحاجة.'),
+        const SizedBox(height: AppSpacing.s8),
+        for (var index = 0; index < item.images.length; index++) Padding(padding: const EdgeInsets.only(bottom: 8), child: AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('الصورة ${index + 1} — ${_mediaDecisionLabel(item.images[index].relevance)}'),
+          if (item.images[index].reviewReason != null) Text(item.images[index].reviewReason!),
+          TextButton.icon(onPressed: _busy ? null : () => _reviewMedia(item.images[index]), icon: const Icon(Icons.fact_check_outlined), label: const Text('تسجيل المراجعة البشرية')),
+        ]))),
         AppSectionHeader(title: 'مستندات الإثبات (${item.proofDocuments.length})'),
         const SizedBox(height: AppSpacing.s8),
         if (item.proofDocuments.isEmpty)
@@ -684,6 +691,30 @@ class _ListingReviewCaseScreenState
     );
     controller.dispose();
     return value;
+  }
+
+  String _mediaDecisionLabel(String decision) => switch (decision) {
+    'relevant' => 'مرتبطة بالعقار', 'uncertain' => 'تحتاج توضيحًا', 'unrelated' => 'غير مرتبطة', _ => 'بانتظار المراجعة البشرية',
+  };
+  Future<void> _reviewMedia(ReviewMediaItem image) async {
+    var decision = const ['relevant','uncertain','unrelated'].contains(image.relevance) ? image.relevance : 'uncertain';
+    final reason = TextEditingController(text: image.reviewReason);
+    final form = GlobalKey<FormState>();
+    final confirmed = await showDialog<bool>(context: context, builder: (dialog) => StatefulBuilder(builder: (context, update) => AlertDialog(
+      scrollable: true, title: const Text('مراجعة صلة الصورة بالعقار'), content: Form(key: form, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        DropdownButtonFormField<String>(value: decision, isExpanded: true, items: [for (final value in ['relevant','uncertain','unrelated']) DropdownMenuItem(value: value, child: Text(_mediaDecisionLabel(value)))], onChanged: (value) => update(() => decision = value ?? 'uncertain')),
+        const SizedBox(height: 12), TextFormField(controller: reason, minLines: 2, maxLines: 5, maxLength: 2000, decoration: const InputDecoration(labelText: 'سبب المراجعة'), validator: (value) => (value?.trim().length ?? 0) < 5 ? 'أضف سببًا واضحًا من خمسة أحرف على الأقل.' : null),
+      ])), actions: [TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إلغاء')),
+        FilledButton(onPressed: () { if (form.currentState!.validate()) Navigator.pop(dialog, true); }, child: const Text('حفظ المراجعة'))])));
+    final note = reason.text.trim();
+    // Dispose after the route transition so a closing field cannot use a disposed controller.
+    if (confirmed != true || !mounted) { Future<void>.delayed(const Duration(seconds: 1), reason.dispose); return; }
+    setState(() => _busy = true);
+    try {
+      await ref.read(listingReviewRepositoryProvider).reviewMedia(widget.listingId, image.id, decision, note);
+      if (mounted) { _reload(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حُفظت المراجعة البشرية. لم يتغير قرار نشر الإعلان.'))); }
+    } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
+    finally { reason.dispose(); if (mounted) setState(() => _busy = false); }
   }
 
   Future<void> _runDecision(Future<void> Function() action) async {

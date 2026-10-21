@@ -307,7 +307,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               scrollDirection: Axis.horizontal, itemCount: property.images.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) => Semantics(button: true, label: 'فتح صورة العقار ${index + 1}', child: InkWell(
                 onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: property.images, initialIndex: index, privateImages:property.status!='published'))),
-                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, child: AppPropertyMedia(imageUrl: property.images[index].url, height: 96))),
+                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, child: AppPropertyMedia(imageUrl: property.images[index].cardUrl, height: 96))),
               )),
             ))),
           ],

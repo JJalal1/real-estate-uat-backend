@@ -76,6 +76,12 @@ class ListingReviewRepository {
     return Uint8List.fromList(bytes);
   }
 
+  Future<void> reviewMedia(int listingId, int imageId, String decision, String reason) async {
+    await _dio.post<Map<String, dynamic>>('/admin/listing-review/listings/$listingId/media-review',
+      data: {'image_id': imageId, 'decision': decision, 'reason': reason.trim()},
+      options: await _auth.requiredAuthOptions());
+  }
+
   Future<void> start(int id) => _action(id, 'start');
 
   Future<void> approve(

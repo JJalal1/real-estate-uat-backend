@@ -181,16 +181,20 @@ class PublicationBlockItem {
 
 class ReviewMediaItem {
   const ReviewMediaItem(
-      {required this.id, required this.url, this.name, this.kind});
+      {required this.id, required this.url, this.name, this.kind, this.relevance = 'pending', this.reviewReason});
   final int id;
   final String url;
   final String? name;
   final String? kind;
+  final String relevance;
+  final String? reviewReason;
 
   factory ReviewMediaItem.fromImageJson(Map<String, dynamic> json) {
     return ReviewMediaItem(
       id: _asInt(json['id']),
       url: json['url']?.toString() ?? '',
+      relevance: (json['relevance_review'] as Map?)?['decision']?.toString() ?? 'pending',
+      reviewReason: (json['relevance_review'] as Map?)?['reason']?.toString(),
     );
   }
 

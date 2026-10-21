@@ -157,6 +157,6 @@ class PropertyFavoriteController extends Controller
             return rtrim($request->getSchemeAndHttpHost(), '/') . '/' . ltrim($raw, '/');
         }
 
-        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id;
+        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id . '?variant=card'.(config('listing_media.watermark.enabled') ? '&v='.app(\App\Services\ListingWatermarkService::class)->version() : '');
     }
 }

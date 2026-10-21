@@ -25,6 +25,45 @@ class ListingWorkflowService
         private readonly SupportTaskService $tasks,
     ) {}
 
+    /** Human fallback only: no external provider, guessed rejection or automatic image deletion. */
+    public function reviewMedia(User $actor, Property $listing, int $imageId, string $decision, string $reason, Request $request): array
+    {
+        abort_unless($actor->hasPermission('listings.moderate'),403);
+        return DB::transaction(function()use($actor,$listing,$imageId,$decision,$reason,$request):array {
+            $locked=Property::query()->lockForUpdate()->findOrFail($listing->id);
+            $this->assertReviewable($locked,$actor);
+            $image=$locked->images()->whereKey($imageId)->lockForUpdate()->firstOrFail();
+            $fingerprint=$this->mediaFingerprint($image);
+            $previous=$this->mediaReviewStates($locked)[$imageId] ?? null;
+            if ($previous && $previous['decision']===$decision && $previous['reason']===$reason) return $previous;
+            $review=$this->review($actor,$locked,'media_relevance_review',$locked->review_status,$locked->review_status,$reason,[
+                'image_id'=>$imageId,'image_fingerprint'=>$fingerprint,'decision'=>$decision,'checker'=>'human_review',
+            ]);
+            $this->audit->record($actor,'listing.media_relevance_reviewed',$locked,[
+                'image_id'=>$imageId,'decision'=>$decision,'review_id'=>$review->id,'checker'=>'human_review',
+            ],$request,$locked->user_id);
+            return ['decision'=>$decision,'reason'=>$reason,'checker'=>'human_review','review_id'=>$review->id];
+        });
+    }
+
+    public function mediaReviewStates(Property $listing): array
+    {
+        $listing->loadMissing(['images','reviews']);
+        $fingerprints=$listing->images->mapWithKeys(fn($image)=>[$image->id=>$this->mediaFingerprint($image)]);
+        $states=[];
+        foreach($listing->reviews->where('action','media_relevance_review')->sortByDesc('id') as $review) {
+            $meta=$review->metadata ?? []; $id=(int)($meta['image_id'] ?? 0);
+            if(isset($states[$id]) || !isset($fingerprints[$id]) || !hash_equals($fingerprints[$id],(string)($meta['image_fingerprint'] ?? ''))) continue;
+            $states[$id]=['decision'=>$meta['decision'],'reason'=>$review->reason,'checker'=>'human_review','review_id'=>$review->id];
+        }
+        return $states;
+    }
+
+    private function mediaFingerprint(\App\Models\PropertyImage $image): string
+    {
+        return hash('sha256',(string)$image->path.'|'.(string)$image->cdn_url);
+    }
+
     public function submit(User $actor, Property $listing, Request $request): Property
     {
         return DB::transaction(function () use ($actor, $listing, $request) {
