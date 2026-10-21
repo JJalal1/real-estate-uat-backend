@@ -5,9 +5,10 @@ import 'ebroker_widgets.dart';
 
 /// Rendered inside the existing search surface; never creates a route or popup.
 class InlineVoiceCapture extends StatefulWidget {
-  const InlineVoiceCapture({required this.capture, required this.onCancel, super.key});
+  const InlineVoiceCapture({required this.capture, required this.onCancel, this.listeningLabel = 'نستمع إليك الآن', super.key});
   final VoiceCaptureController capture;
   final VoidCallback onCancel;
+  final String listeningLabel;
   @override
   State<InlineVoiceCapture> createState() => _InlineVoiceCaptureState();
 }
@@ -33,7 +34,7 @@ class _InlineVoiceCaptureState extends State<InlineVoiceCapture> with SingleTick
     final label = switch (capture.phase) {
       VoicePhase.preparing => 'نجهّز الميكروفون…',
       VoicePhase.processing => capture.liveDictation ? 'نثبّت آخر كلماتك…' : 'نفرّغ التسجيل كاملًا…',
-      _ => 'نستمع إليك الآن',
+      _ => widget.listeningLabel,
     };
     return Column(key: const ValueKey('inline-voice-capture'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Semantics(liveRegion: true, label: label, child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: [
@@ -45,7 +46,10 @@ class _InlineVoiceCaptureState extends State<InlineVoiceCapture> with SingleTick
           child: Transform.scale(scale: listening ? 1 + .08 * _pulse.value : 1,
             child: EbrokerIcon(Icons.mic_none, size: 22, color: theme.colorScheme.primary)))),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: theme.textTheme.titleSmall), const SizedBox(height: 7),
+          Text(label, style: theme.textTheme.titleSmall),
+          if (listening) Text('${capture.elapsed.inMinutes.toString().padLeft(2, '0')}:${(capture.elapsed.inSeconds % 60).toString().padLeft(2, '0')}',
+            key: const ValueKey('voice-elapsed'), style: theme.textTheme.bodySmall),
+          const SizedBox(height: 7),
           ExcludeSemantics(child: SizedBox(height: 28, child: AnimatedBuilder(animation: _pulse, builder: (_, __) => Row(
             key: const ValueKey('voice-wave'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
               for (var i = 0; i < 9; i++) Container(width: 3, margin: const EdgeInsets.symmetric(horizontal: 2),

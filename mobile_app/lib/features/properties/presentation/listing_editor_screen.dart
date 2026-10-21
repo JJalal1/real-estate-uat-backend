@@ -16,6 +16,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/local/listing_recovery_store.dart';
 import '../../../core/platform/stage5_media_picker.dart';
+import '../../../core/platform/voice_capture_controller.dart';
+import '../../../core/platform/voice_input.dart';
+import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/app_components.dart';
@@ -141,6 +144,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   int _draftRevision = 0;
   bool _accountSaved = false, _accountSyncing = false, _accountConflict = false;
   String? _accountError, _descriptionError;
+  String? _stepError, _locationError;
+  bool _selectingLocation = false;
+  late final VoiceCaptureController _descriptionCapture;
   bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false;
   Timer? _descriptionRetryTimer;
   bool get _descriptionCoolingDown => ref.read(aiRepositoryProvider).descriptionRetryAt?.isAfter(DateTime.now()) == true;
@@ -246,11 +252,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _generateDescription() async {
-    if (_descriptionBusy || _busy || _descriptionCoolingDown) return;
+    if (_descriptionBusy || _busy || _descriptionCapture.active || _descriptionCoolingDown) return;
     final facts = _aiFacts(), before = _description.text, signature = jsonEncode(_aiFacts());
     setState(() { _descriptionBusy = true; _descriptionError = null; });
     try {
       final result = await ref.read(aiRepositoryProvider).description(facts,
+        sourceDescription: before,
         propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null);
       if (!mounted) return;
       if (_description.text != before || jsonEncode(_aiFacts()) != signature) {
@@ -269,6 +276,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         ? friendlyApiError(e) : 'تعذر إنشاء الوصف الآن، جرّب بعد لحظات');
     }
     finally { if (mounted) setState(() => _descriptionBusy = false); }
+  }
+
+  void _descriptionVoiceChanged() { if (mounted) setState(() {}); }
+  Future<void> _dictateDescription({bool retry = false}) async {
+    if (_busy || _descriptionBusy || _descriptionCapture.active) return;
+    FocusScope.of(context).unfocus();
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final text = retry ? await _descriptionCapture.retryTranscription() : await _descriptionCapture.start(wholeRecording: true);
+    if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+    final complete = text ?? _descriptionCapture.transcript;
+    if (complete.trim().isNotEmpty) {
+      _description.text = appendDictation(_description.text, complete);
+      if (_description.text.length > 5000) setState(() => _descriptionError = 'الوصف محفوظ هنا. اختصره إلى 5000 حرف قبل الحفظ.');
+    }
   }
 
   Set<String> _missingFields() {
@@ -291,7 +312,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final keys = _completionFields;
     Widget text(String key, TextEditingController controller, String label, {bool numeric = false}) =>
       !keys.contains(key) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: AppTextField(
-        controller: controller, label: label, enabled: !_busy, keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text));
+        controller: controller, label: label, enabled: !_busy && (!const ['governorate','district','street'].contains(key) || _hasLocation),
+        keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text));
     Widget choice(String key, String label, String? value, Map<String,String> options, ValueChanged<String?> change) => !keys.contains(key)
       ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: AppSelectField<String>(
         value: value, isExpanded: true, decoration: InputDecoration(labelText: label),
@@ -305,9 +327,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_typeConfirmed && _purposeConfirmed) ...[
         text('title',_title,'عنوان الإعلان *'),
         if (_requiresSaleTenure) choice('tenure_type','نوع الملكية *',_tenureType,const {'freehold':'حر','waqf':'وقف'},(v) => setState(() => _tenureType = v)),
-        text('governorate',_governorate,'المحافظة *'),
         const SizedBox(height: 12),
         _locationCard(),
+        text('governorate',_governorate,'المحافظة *'),
         if (keys.contains('boundary')) TextButton(onPressed: _busy ? null : _pickLandBoundary, child: const Text('تحديد حدود الأرض')),
         if (keys.contains('floor_number') && _unitNeedsFloor) Padding(padding: const EdgeInsets.only(top: 12), child: _floorSelector()),
         if (_applies('unit_number')) text('unit_number',_unitNumber,'رقم الوحدة أو موضعها *'),
@@ -328,7 +350,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     ]);
   }
 
-  Widget _completionActions() => _FinalActionsBar(busy:_busy,
+  Widget _completionActions() => _FinalActionsBar(busy:_busy || _descriptionCapture.active,
     onPrevious:() => _showFullStep(_step),onPreview:_preview,
     primaryLabel: 'معاينة الإعلان',
     onSaveDraft:() => _persist(submit:false),onSubmit:_reviewCompletedDraft);
@@ -338,7 +360,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final validation = _validateForSubmit();
     if (validation != null) {
       setState(() => _completionFields.addAll(_missingFields()));
-      _message(validation);
+      setState(() => _stepError = validation);
       if (_editorScroll.hasClients) {
         _editorScroll.animateTo(0, duration: AppMotion.fast, curve: Curves.easeOut);
       }
@@ -561,6 +583,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _descriptionCapture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_descriptionVoiceChanged);
     final retryAt = ref.read(aiRepositoryProvider).descriptionRetryAt;
     if (retryAt?.isAfter(DateTime.now()) == true) {
       _descriptionRetryTimer = Timer(retryAt!.difference(DateTime.now()), () { if (mounted) setState(() {}); });
@@ -635,6 +658,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   @override
   void dispose() {
+    _descriptionCapture.removeListener(_descriptionVoiceChanged); _descriptionCapture.dispose();
     _editorScroll.dispose();
     _descriptionRetryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -692,7 +716,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         appBar: AppAppBar(
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
           actions: [IconButton(key: const ValueKey('listing-completion'), tooltip: 'نواقص الإعلان',
-            onPressed: _busy ? null : _reviewCompletion, icon: const EbrokerIcon(Icons.fact_check_outlined)),
+            onPressed: _busy || _descriptionCapture.active ? null : _reviewCompletion, icon: const EbrokerIcon(Icons.fact_check_outlined)),
             if (!_completionOnly) Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
             child: EbrokerText('${_step + 1}/4', size: 16, weight: FontWeight.w600,
               color: Theme.of(context).colorScheme.primary)))],
@@ -739,6 +763,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                   ),
                 ),
               ),
+              if (_stepError != null) Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Semantics(liveRegion: true, child: Text(_stepError!, style: TextStyle(color: Theme.of(context).colorScheme.error)))),
             ],
           ),
         ),
@@ -868,17 +894,24 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         EbrokerIcon(_hasLocation ? Icons.check_circle_outline : Icons.location_on_outlined,
           color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 10),
-        Expanded(child: Text(_hasLocation ? 'تم تحديد موقع العقار على الخريطة' : 'حدد موقع العقار يدويًا على الخريطة',
+        Expanded(child: Text(_hasLocation ? 'تم تحديد موقع العقار على الخريطة' : 'حدد نقطة العقار أولًا',
           style: Theme.of(context).textTheme.titleSmall)),
       ]),
       const SizedBox(height: 8),
       Text(_hasLocation ? 'النقطة محفوظة عند الرجوع والمعاينة. عدّلها فقط إذا تغيّر موقع العقار.'
-        : 'اسم المحافظة والشارع لا يثبت نقطة العقار. افتح الخريطة وضع الدبوس على العقار ثم أكد الموقع.'),
+        : 'استخدم موقعك الحالي أو حدد النقطة يدويًا على الخريطة ثم أكدها. بعدها يمكنك تصحيح العنوان.'),
       const SizedBox(height: 12),
       AppButton(key: const ValueKey('listing-select-location'),
         label: _hasLocation ? 'تعديل الموقع على الخريطة' : 'تأكيد الموقع على الخريطة',
         icon: Icons.map_outlined, style: _hasLocation ? AppButtonStyle.tonal : AppButtonStyle.filled,
-        onPressed: _busy || _resolvingLocation ? null : _selectOnMap, expand: true),
+        onPressed: _busy || _resolvingLocation || _selectingLocation ? null : _selectOnMap, expand: true),
+      const SizedBox(height: 8),
+      TextButton.icon(key: const ValueKey('listing-current-location'),
+        onPressed: _busy || _resolvingLocation || _selectingLocation ? null : () => _selectLocation(useCurrent: true),
+        icon: const Icon(Icons.my_location, size: 19), label: const Text('تحديد موقعي الحالي')),
+      if (_selectingLocation) const LinearProgressIndicator(),
+      if (_locationError != null) Text(_locationError!, style: Theme.of(context).textTheme.bodySmall),
+      if (_hasLocation && _completionOnly) TextButton(onPressed: () => _showFullStep(1), child: const Text('تصحيح العنوان النصي')),
     ]));
 
   Widget _locationStep() {
@@ -895,11 +928,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           const LinearProgressIndicator(),
         ],
         const SizedBox(height: AppSpacing.s16),
-        AppTextField(controller: _governorate, label: 'المحافظة *', enabled: !_busy),
+        AppTextField(controller: _governorate, label: 'المحافظة *', enabled: !_busy && hasLocation),
         const SizedBox(height: AppSpacing.s12),
-        AppTextField(controller: _district, label: 'المنطقة / الحي', enabled: !_busy),
+        AppTextField(controller: _district, label: 'المنطقة / الحي', enabled: !_busy && hasLocation),
         const SizedBox(height: AppSpacing.s12),
-        AppTextField(controller: _street, label: 'الشارع', enabled: !_busy),
+        AppTextField(controller: _street, label: 'الشارع', enabled: !_busy && hasLocation),
         if (_type == 'land' && hasLocation) ...[
           const SizedBox(height: AppSpacing.s16),
           AppInlineMessage(
@@ -1039,12 +1072,22 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const Text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'),
         const SizedBox(height: 20),
         AppTextField(controller: _description, label: 'وصف العقار',
-          hint: 'اكتب ما يميز العقار أو استخدم وصفًا مقترحًا من مواصفاتك.', enabled: !_busy, maxLines: 5),
+          hint: 'اذكر التفاصيل التي لا تظهر في المواصفات: مجلس، حوش، مدخل مستقل، حمام خارجي، سطح…',
+          enabled: !_busy && !_descriptionCapture.active, maxLines: 5),
+        if (_descriptionCapture.active) InlineVoiceCapture(capture: _descriptionCapture,
+          listeningLabel: 'جارٍ تسجيل الوصف', onCancel: _descriptionCapture.cancel),
+        if (!_descriptionCapture.active) TextButton.icon(key: const ValueKey('listing-description-voice'),
+          onPressed: _busy || _descriptionBusy ? null : _dictateDescription,
+          icon: const Icon(Icons.mic_none, size: 19), label: const Text('إملاء الوصف')),
+        if (_descriptionCapture.error != null) Text(_descriptionCapture.error!, style: Theme.of(context).textTheme.bodySmall),
+        if (_descriptionCapture.canRetry) TextButton(onPressed: _busy || _descriptionBusy ? null : () => _dictateDescription(retry: true),
+          child: const Text('إعادة محاولة تفريغ الوصف')),
         if (_descriptionBusy) const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Row(children: [SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Expanded(child: Text('جارٍ تجهيز الوصف…'))])),
         if (_descriptionError != null) Text(_descriptionError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        TextButton.icon(key: const ValueKey('listing-description-generate'), onPressed: _busy || _descriptionBusy || _descriptionCoolingDown ? null : _generateDescription,
-          icon: const EbrokerIcon(Icons.edit_note_outlined, size: 18), label: const Text('إنشاء وصف بالذكاء الاصطناعي')),
-        if (_purpose == 'rent') RentalConditionsEditor(value: _rentalConditions, enabled: !_busy, onPolish: _polishRentalConditions,
+        ValueListenableBuilder<TextEditingValue>(valueListenable: _description, builder: (_, value, __) =>
+          TextButton.icon(key: const ValueKey('listing-description-generate'), onPressed: _busy || _descriptionBusy || _descriptionCapture.active || _descriptionCoolingDown ? null : _generateDescription,
+            icon: const EbrokerIcon(Icons.edit_note_outlined, size: 18), label: Text(value.text.trim().isEmpty ? 'اقتراح وصف من البيانات' : 'حسّن الوصف'))),
+        if (_purpose == 'rent') RentalConditionsEditor(value: _rentalConditions, enabled: !_busy,
           onChanged: (value) => setState(() => _rentalConditions = value)),
       ],
     );
@@ -1221,7 +1264,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               child: EbrokerStepButton(
                 label: 'السابق',
                 style: AppButtonStyle.outlined,
-                onPressed: _busy ? null : () {
+                onPressed: _busy || _descriptionCapture.active ? null : () {
                   if (_step > 0) { _showFullStep(_step - 1); } else { Navigator.of(context).maybePop(); }
                 },
                 expand: true,
@@ -1232,7 +1275,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             flex: 2,
             child: EbrokerStepButton(
               label: 'التالي',
-              onPressed: _busy ? null : _next,
+              onPressed: _busy || _descriptionCapture.active ? null : _next,
               expand: true,
             ),
           ),
@@ -1241,7 +1284,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
 
     return _FinalActionsBar(
-      busy: _busy,
+      busy: _busy || _descriptionCapture.active,
       onPrevious: () => _showFullStep(_step - 1),
       onPreview: _preview,
       onSaveDraft: () => _persist(submit: false),
@@ -1250,11 +1293,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   void _next() {
+    if (_busy || _descriptionCapture.active) return;
     FocusScope.of(context).unfocus();
     if (_step == 0 && !_completionOnly) { _typeConfirmed = true; _purposeConfirmed = true; }
     final message = _validationMessageForStep(_step);
     if (message != null) {
-      _message(message);
+      setState(() => _stepError = message);
       return;
     }
     _showFullStep(_step + 1);
@@ -1262,7 +1306,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   void _showFullStep(int step) {
     FocusScope.of(context).unfocus();
-    setState(() { _completionOnly = false; _step = step; });
+    setState(() { _completionOnly = false; _step = step; _stepError = null; });
     if (_editorScroll.hasClients) _editorScroll.jumpTo(0);
   }
 
@@ -1277,7 +1321,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
     if (step == 1) {
       if (_latitude == null || _longitude == null) {
-        return 'حدد موقع العقار يدويًا على الخريطة، ثم اضغط تأكيد هذا الموقع.';
+        return 'حدد نقطة العقار على الخريطة أو من موقعك الحالي، ثم أكد الموقع.';
       }
       if (_governorate.text.trim().length < 2) return 'أكمل اسم المحافظة.';
       if (_composedAddress.length < 3) return 'أكمل معلومات عنوان العقار.';
@@ -1483,6 +1527,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Future<void> _assist({bool prepareDraft = false}) async {
+    if (_busy || _descriptionCapture.active) return;
     final result = await AppBottomSheet.show<Map<String, dynamic>>(context, builder: (_) => ListingAiSheet(
       facts: _aiFacts(), propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null,
       prepareDraft: prepareDraft, initialMessage: _assistantBrief.text,
@@ -1490,8 +1535,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       onMessageChanged: (text) => _assistantBrief.text = text));
     if (!mounted || result == null) return;
     final oldPurpose = _purpose;
-    final changedCity = result['governorate'] is String && _governorate.text.trim().isNotEmpty &&
-      _normalizedName(result['governorate'] as String) != _normalizedName(_governorate.text);
     setState(() {
       if (result['description'] is String) _description.text = result['description'] as String;
       if (_typeLabels.containsKey(result['type'])) { _type = result['type'] as String; _typeConfirmed = true; }
@@ -1519,7 +1562,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (!_isUnitType) { _floorNumber.clear(); _unitNumber.clear(); _buildingReference.clear(); }
       // Returning, address completion and Arabic spelling variants preserve
       // the confirmed point. A genuinely different city needs its own point.
-      if (changedCity) { _latitude = null; _longitude = null; _landBoundaryGeoJson = null; }
       if (_type != 'land') _landBoundaryGeoJson = null;
       if (oldPurpose != _purpose) { _saiAccepted = false; _saiTouched = true; }
       if (const ['percentage','fixed'].contains(result['sai_amount_type'])) _saiAmountType = result['sai_amount_type'] as String;
@@ -1540,24 +1582,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
     unawaited(_saveRecovery());
     _message('طُبّق الاقتراح في الحقول. راجع بقية الإعلان قبل إرساله.');
-  }
-
-  Future<void> _polishRentalConditions() async {
-    if (_busy || _rentalConditions.isEmpty) return;
-    setState(() => _busy = true);
-    try {
-      final result = await ref.read(aiRepositoryProvider).rentalConditions(_rentalConditions,
-        propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null);
-      if (!mounted) return;
-      final rows = result['rental_conditions'];
-      if (rows is! List || result['text'] is! String) throw StateError('Invalid requirements proposal');
-      final use = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
-        title: const Text('راجع صياغة الشروط'), content: SingleChildScrollView(child: Text(result['text'] as String)),
-        actions: [TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إلغاء')),
-          TextButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('استخدام الترتيب المقترح'))]));
-      if (mounted && use == true) setState(() => _rentalConditions = rows.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList());
-    } catch (error) { if (mounted) _message(friendlyApiError(error)); }
-    finally { if (mounted) setState(() => _busy = false); }
   }
 
   PropertyListingInput _input() {
@@ -2051,24 +2075,38 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
   }
 
-  Future<void> _selectOnMap() async {
-    final selection = await ref.read(propertyLocationPickerProvider)(context,
-      initialLatitude: _latitude, initialLongitude: _longitude);
-    if (!mounted || selection == null) return;
-    setState(() {
-      if (_latitude != selection.latitude || _longitude != selection.longitude) _landBoundaryGeoJson = null;
-      final city = selection.address.governorate;
-      if (city != null && _normalizedName(city) != _normalizedName(_governorate.text)) {
-        _district.text = selection.address.district ?? '';
-        _street.text = selection.address.street ?? '';
+  Future<void> _selectOnMap() => _selectLocation();
+  Future<void> _selectLocation({bool useCurrent = false}) async {
+    if (_busy || _selectingLocation || _resolvingLocation) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    setState(() { _selectingLocation = true; _locationError = null; });
+    try {
+      final initial = useCurrent ? await ref.read(propertyCurrentLocationProvider)() : null;
+      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+      // A GPS fix only centers the existing picker; the user still confirms the
+      // actual property point. It never changes Home's discovery preference.
+      final selection = await ref.read(propertyLocationPickerProvider)(context,
+        initialLatitude: initial?.latitude ?? _latitude, initialLongitude: initial?.longitude ?? _longitude);
+      if (!mounted || selection == null || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+      if (!selection.latitude.isFinite || !selection.longitude.isFinite || selection.latitude.abs() > 90 || selection.longitude.abs() > 180) {
+        throw StateError('Invalid property point');
       }
-      _latitude = selection.latitude;
-      _longitude = selection.longitude;
-    });
-    // The picker already attempted address lookup. Do not hold the user in a
-    // second network request; the confirmed point is saved even without it.
-    await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: false);
-    unawaited(_saveRecovery());
+      setState(() {
+        if (_latitude != selection.latitude || _longitude != selection.longitude) _landBoundaryGeoJson = null;
+        final city = selection.address.governorate;
+        if (city != null && _normalizedName(city) != _normalizedName(_governorate.text)) {
+          _district.text = selection.address.district ?? ''; _street.text = selection.address.street ?? '';
+        }
+        _latitude = selection.latitude; _longitude = selection.longitude; _stepError = null;
+      });
+      await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: false);
+      unawaited(_saveRecovery());
+    } on PlatformException catch (error) {
+      if (mounted) setState(() => _locationError = const ['LOCATION_DISABLED','LOCATION_DENIED'].contains(error.code)
+        ? error.message : 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
+    } catch (_) {
+      if (mounted) setState(() => _locationError = 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
+    } finally { if (mounted) setState(() => _selectingLocation = false); }
   }
 
   Future<void> _fillAddress(
@@ -2096,8 +2134,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       });
     } catch (_) {
       if (mounted) {
-        _message(
-            'تم تثبيت الموقع، لكن تعذر جلب العنوان تلقائياً. أكمله يدوياً.');
+        setState(() => _locationError = 'تم تثبيت الموقع. تعذّر جلب العنوان تلقائيًا؛ أكمله يدويًا.');
       }
     } finally {
       if (mounted) setState(() => _resolvingLocation = false);
@@ -2149,8 +2186,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   void _message(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 2)));
   }
 }
 

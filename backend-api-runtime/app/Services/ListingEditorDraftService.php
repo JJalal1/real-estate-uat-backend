@@ -47,7 +47,7 @@ class ListingEditorDraftService
             'title','description','ai_listing_brief','price','monthly_rent','rental_term_months','advance_months','area',
             'bedrooms','bathrooms','governorate','district','street','building_reference','unit_number','floor_number','phone','whatsapp',
             'document_owner_name','relationship_note','broker_sai_rate_percent','fixed_sai_amount']));
-        foreach ($fields as $key=>$value) { abort_unless(is_scalar($value) || $value === null,422); $fields[$key] = mb_substr((string)$value,0,$key === 'description' ? 5000 : 1500); }
+        foreach ($fields as $key=>$value) { abort_unless(is_scalar($value) || $value === null,422); $fields[$key] = mb_substr((string)$value,0,$key === 'ai_listing_brief' ? 10000 : ($key === 'description' ? 5000 : 1500)); }
         $context = $payload + ['unit_occupies_entire_floor'=>false];
         $aliases = ['area'=>'area_value','parking'=>'has_parking','elevator'=>'has_elevator','facade'=>'building_facade','land_boundary'=>'land_boundary_geojson'];
         $schema = app(DynamicPropertySchema::class);

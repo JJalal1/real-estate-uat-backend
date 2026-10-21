@@ -17,7 +17,7 @@ class CountingDescriptionAi extends Wave6Ai {
   bool rateLimited=false;
   Completer<Map<String,dynamic>>? pending;
   @override
-  Future<Map<String,dynamic>> description(Map<String,dynamic> facts,{int? propertyId,String? draftKey}) async {
+  Future<Map<String,dynamic>> description(Map<String,dynamic> facts,{int? propertyId,String? draftKey, String sourceDescription = ''}) async {
     calls++;
     if(rateLimited) { descriptionRetryAt=DateTime.now().add(const Duration(seconds:30));throw DescriptionRateLimit(descriptionRetryAt!); }
     return pending?.future??Future.value({'description':'منزل للبيع من الحقائق المدخلة.'});

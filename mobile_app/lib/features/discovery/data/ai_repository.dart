@@ -38,9 +38,10 @@ class AiRepository {
     _post('/ai/listing-draft', {'mode': 'copy', 'facts': facts,
       if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
 
-  Future<Map<String, dynamic>> description(Map<String, dynamic> facts, {int? propertyId, String? draftKey}) async {
+  Future<Map<String, dynamic>> description(Map<String, dynamic> facts, {int? propertyId, String? draftKey, String sourceDescription = ''}) async {
     final auth = await _auth.requiredAuthOptions();
-    final input = {'facts': facts, if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey};
+    final input = {'facts': facts, if (sourceDescription.trim().isNotEmpty) 'description': sourceDescription.trim(),
+      if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey};
     // In-memory only; requests from different authenticated sessions never coalesce.
     final key = jsonEncode([auth.headers, input]);
     final pending = _descriptions[key];

@@ -171,18 +171,35 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     });
   }
 
-  Future<void> _voice({bool wholeRecording = false}) async {
+  Future<void> _voice() async {
     if (_busy || _voiceBusy) return;
     FocusScope.of(context).unfocus(); _voiceDraft = _message.text;
     setState(() => _error = null);
-    final text = await _capture.start(wholeRecording: wholeRecording);
+    final text = await _capture.start(wholeRecording: true);
+    await _acceptVoice(text);
+  }
+  Future<void> _retryVoice() async {
+    if (_busy || _voiceBusy || !_capture.canRetry) return;
+    _voiceDraft = _message.text;
+    setState(() => _error = null);
+    await _acceptVoice(await _capture.retryTranscription());
+  }
+  Future<void> _acceptVoice(String? text) async {
     if (!mounted) return;
-    if (text == null) { _restoreVoiceDraft(); return; }
+    if (text == null) {
+      if (_capture.transcript.isNotEmpty) {
+        _message.text = appendDictation(_voiceDraft, _capture.transcript);
+      } else { _restoreVoiceDraft(); }
+      return;
+    }
     final combined = appendDictation(_voiceDraft, text);
-    if (combined.length > 1500) {
-      _restoreVoiceDraft();
-      setState(() => _error = 'النص أطول من 1500 حرف. اختصر الوصف أو أمْلِ تفاصيل أقل.');
-    } else { _message.text = combined; }
+    if (combined.length > 5000) {
+      _message.text = combined;
+      setState(() => _error = 'النص محفوظ هنا. اختصره إلى 5000 حرف قبل تجهيز الإعلان.');
+    } else {
+      _message.text = combined;
+      if (widget.prepareDraft) await _request();
+    }
   }
   void _restoreVoiceDraft() { _restoringVoice = true; _message.text = _voiceDraft; _restoringVoice = false; }
   void _cancelVoice() { if (_capture.active) { _capture.cancel(); _restoreVoiceDraft(); } }
@@ -218,20 +235,19 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         if (!widget.description) ...[
           Text('صف العقار', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
-          TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 1500, minLines: 2, maxLines: 5, enabled: !_busy, readOnly: _voiceBusy,
+          TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 5000, minLines: 2, maxLines: 5, enabled: !_busy, readOnly: _voiceBusy,
             decoration: InputDecoration(labelText: _voiceBusy ? null : 'صف العقار', floatingLabelBehavior: FloatingLabelBehavior.never,
               hintText: _voiceBusy ? null : 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…')),
-          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice),
+          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, listeningLabel: 'جارٍ التسجيل'),
           if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _busy ? null : _voice,
             key: const ValueKey('listing-ai-voice'),
-            icon: const EbrokerIcon(Icons.mic_none, size: 20), label: const Text('أمْلِ تفاصيل العقار'))),
-          if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
-            key: const ValueKey('listing-ai-whole-recording'), onPressed: _busy ? null : () => _voice(wholeRecording: true),
-            icon: const Icon(Icons.graphic_eq_rounded, size: 19), label: const Text('تسجيل الوصف كاملًا'))),
-          if (_capture.error != null) const Text('جرّب تسجيل الوصف كاملًا، ثم اضغط إنهاء. راجع النص هنا قبل تجهيز الإعلان.'),
+            icon: const EbrokerIcon(Icons.mic_none, size: 20), label: Text(_capture.error != null ? 'إعادة التسجيل' : 'سجّل تفاصيل العقار'))),
+          if (_capture.canRetry) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
+            key: const ValueKey('listing-ai-retry-transcription'), onPressed: _busy ? null : _retryVoice,
+            icon: const Icon(Icons.refresh_rounded, size: 19), label: const Text('إعادة محاولة التفريغ'))),
         ],
         AppButton(key: const ValueKey('listing-ai-prepare'),
-          label: _busy ? 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
+          label: _busy ? widget.prepareDraft ? 'جارٍ فهم تفاصيل العقار…' : 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
           onPressed: _busy || _voiceBusy ? null : _request, expand: true),
         SizedBox(key: _resultKey),
         if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),

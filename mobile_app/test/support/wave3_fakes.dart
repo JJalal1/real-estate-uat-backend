@@ -27,7 +27,7 @@ class Wave3AiFake implements AiRepository {
   @override
   Future<Map<String, dynamic>> listingFields(String message, Map<String, dynamic> facts, {int? propertyId, String? draftKey}) async => {'fields': fields, 'requires_review': true};
   @override
-  Future<Map<String, dynamic>> description(Map<String, dynamic> facts, {int? propertyId, String? draftKey}) async => {'description': 'شقة للإيجار في صنعاء، أربع غرف.', 'requires_review': true};
+  Future<Map<String, dynamic>> description(Map<String, dynamic> facts, {int? propertyId, String? draftKey, String sourceDescription = ''}) async => {'description': 'شقة للإيجار في صنعاء، أربع غرف.', 'requires_review': true};
   @override
   Future<Map<String, dynamic>> question(int id, String question) async => {'answer': 'هذه المعلومة غير مذكورة في الإعلان.'};
   @override

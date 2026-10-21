@@ -16,6 +16,13 @@ abstract class VoiceRecording {
   Future<void> stop();
 }
 
+/// A completed private clip can be retried without opening the microphone again.
+abstract class RetryableVoiceRecording implements VoiceRecording {
+  bool get canRetry;
+  Future<void> retryTranscription();
+  void interruptTranscription();
+}
+
 abstract class VoiceInput {
   VoiceRecording start();
 }
@@ -37,12 +44,16 @@ class SystemVoiceInput implements VoiceInput {
   VoiceRecording startWholeRecording() => _NativeVoiceRecording(transcribe, false);
 }
 
-class _NativeVoiceRecording implements VoiceRecording {
+class _NativeVoiceRecording implements RetryableVoiceRecording {
   _NativeVoiceRecording(this._transcribe, this._liveDictation);
   final VoiceTranscriber? _transcribe;
   final bool _liveDictation;
   bool _dictating = false;
-  final _cancelToken = CancelToken();
+  CancelToken _cancelToken = CancelToken();
+  String? _clipPath;
+  int _attempt = 0;
+  @override
+  bool get canRetry => !_ended && _clipPath != null;
   bool _stopping = false, _transcribing = false;
   static const _channel = MethodChannel('real_estate/speech');
   static int _sequence = 0;
@@ -87,7 +98,10 @@ class _NativeVoiceRecording implements VoiceRecording {
 
   Future<void> _completeClip(String path) async {
     if (_ended || _transcribing || !_stopping) return;
+    _clipPath = path;
     _transcribing = true;
+    final attempt = ++_attempt;
+    _cancelToken = CancelToken();
     _events.add(const VoiceEvent('processing'));
     VoiceEvent outcome;
     try {
@@ -97,13 +111,34 @@ class _NativeVoiceRecording implements VoiceRecording {
     } on DioException catch (error) {
       outcome = VoiceEvent('error', code: error.response?.statusCode == 413 ? 'SPEECH_TOO_LARGE' : 'SPEECH_NETWORK');
     } catch (_) { outcome = const VoiceEvent('error', code: 'SPEECH_UNAVAILABLE'); }
-    finally { try { await _channel.invokeMethod<void>('release', {'id': _id}); } catch (_) {} }
+    if (_ended || attempt != _attempt) return;
+    _transcribing = false;
+    if (outcome.type == 'error' && const ['SPEECH_NETWORK', 'SPEECH_UNAVAILABLE'].contains(outcome.code)) {
+      _events.add(VoiceEvent('retryable_error', code: outcome.code));
+      return;
+    }
+    try { await _channel.invokeMethod<void>('release', {'id': _id}); } catch (_) {}
+    _clipPath = null;
     if (!_ended) _finish(outcome);
+  }
+
+  @override
+  Future<void> retryTranscription() async {
+    if (canRetry && !_transcribing) await _completeClip(_clipPath!);
+  }
+
+  @override
+  void interruptTranscription() {
+    if (!canRetry) return;
+    ++_attempt;
+    _cancelToken.cancel('Transcription interrupted; clip retained');
+    _transcribing = false;
   }
 
   void _finish(VoiceEvent event) {
     if (_ended) return;
     _ended = true;
+    _clipPath = null;
     if (event.type != 'final') _cancelToken.cancel('Recording ended');
     if (identical(_active, this)) _active = null;
     _events.add(event);

@@ -100,8 +100,13 @@ class ListingAiService
             'message' => 'راجع المواصفات المقترحة قبل استخدامها. لم نحفظ أو ننشر أي إعلان.'];
     }
 
-    public function description(array $facts): array
+    public function description(array $facts, string $sourceDescription = ''): array
     {
+        if (trim($sourceDescription) !== '') return $this->improveDescription($sourceDescription);
+        // This free-description field focuses on useful property features. The
+        // complete ad composer still retains its separate price/terms sections.
+        $facts = array_diff_key($facts, array_flip(['price','monthly_rent','currency','rental_conditions',
+            'sai_amount_type','broker_sai_rate_percent','fixed_sai_amount']));
         $sentences = $this->sentences($facts);
         if ($sentences === []) throw ValidationException::withMessages(['facts' => ['أدخل مواصفات العقار أولًا.']]);
         // Gemini chooses a readable order; every rendered sentence is bound to
@@ -122,6 +127,33 @@ class ListingAiService
             if (array_diff(array_keys($result), ['fact_order', 'tone']) !== []) $this->gemini->unavailable();
         } catch (ValidationException) { $this->gemini->unavailable(); }
         return app(ListingDescriptionComposer::class)->compose($facts, $result['tone'] === 'invitation');
+    }
+
+    private function improveDescription(string $source): array
+    {
+        $parts = preg_split('/(?:[\r\n]+|(?<=[.!؟؛،])\s+)/u', trim($source));
+        $details = []; $seen = [];
+        foreach ($parts as $part) {
+            $part = trim(preg_replace('/\s+/u', ' ', $part));
+            $part = preg_replace('/^[.،؛!؟]+|[.،؛!؟]+$/u', '', $part);
+            if ($part === '' || isset($seen[$part])) continue;
+            $seen[$part] = true; $details[] = $part;
+        }
+        if ($details === []) throw ValidationException::withMessages(['description'=>['اكتب التفاصيل الحقيقية التي تريد تحسينها.']]);
+        $result = $this->gemini->object(
+            'Order these user-written Arabic property details into a natural, attractive paragraph. '
+            .'Return EVERY detail index exactly once, leading with the most useful actual feature. '
+            .'The server preserves the literal details and removes exact repetition. Do not invent or rewrite text, facts, amenities or assurances.',
+            ['user_details'=>$details], ['type'=>'object','additionalProperties'=>false,'properties'=>[
+                'detail_order'=>['type'=>'array','minItems'=>count($details),'maxItems'=>count($details),
+                    'items'=>['type'=>'integer','minimum'=>0,'maximum'=>count($details)-1]]], 'required'=>['detail_order']]);
+        $order = $result['detail_order'] ?? null;
+        if (array_keys($result) !== ['detail_order'] || !is_array($order) || !array_is_list($order)) $this->gemini->unavailable();
+        $sorted = $order; sort($sorted);
+        if ($sorted !== range(0, count($details)-1)) $this->gemini->unavailable();
+        $text = implode('. ', array_map(fn ($index) => $details[$index], $order)).'.';
+        if (mb_strlen($text) > 5000) $this->gemini->unavailable();
+        return ['description'=>$text, 'fact_keys'=>['user_description'], 'requires_review'=>true];
     }
 
     public function question(Property $property, string $question): array

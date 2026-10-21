@@ -16,26 +16,37 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   VoiceRecording? _recording;
   StreamSubscription<VoiceEvent>? _subscription;
   Timer? _timeout;
+  Timer? _clock;
+  Duration elapsed = Duration.zero;
   Completer<String?>? _completion;
   bool _disposed = false;
   int _generation = 0;
   bool _stopRequested = false;
   bool get active => phase != VoicePhase.idle;
+  bool get canRetry => !active && _recording is RetryableVoiceRecording && (_recording! as RetryableVoiceRecording).canRetry;
 
   Future<String?> start({bool wholeRecording = false}) {
     if (active || _disposed) return Future.value();
+    if (canRetry) cancel();
     final generation = ++_generation;
     final completion = Completer<String?>();
     _completion = completion;
     _stopRequested = false;
     phase = VoicePhase.preparing; transcript = ''; preview = ''; liveDictation = false; error = null; level = 0;
+    elapsed = Duration.zero;
     notifyListeners();
     try {
       _recording = wholeRecording && input is SystemVoiceInput ? (input as SystemVoiceInput).startWholeRecording() : input.start();
       _subscription = _recording!.events.listen((event) {
         if (_disposed || generation != _generation || !active) return;
         switch (event.type) {
-          case 'ready': if (phase != VoicePhase.processing) phase = VoicePhase.listening;
+          case 'ready':
+            if (phase != VoicePhase.processing) {
+              phase = VoicePhase.listening;
+              _clock ??= Timer.periodic(const Duration(seconds: 1), (timer) {
+                if (!_disposed && phase == VoicePhase.listening) { elapsed = Duration(seconds: timer.tick); notifyListeners(); }
+              });
+            }
           case 'level': if (phase == VoicePhase.listening) level = event.level.clamp(0, 1).toDouble();
           case 'mode': liveDictation = event.code == 'dictation';
           case 'partial':
@@ -52,6 +63,9 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
             if (transcript.length > 5000) { error = _message('SPEECH_TOO_LONG'); _finish(null); return; }
             _finish(transcript.isEmpty ? null : transcript); return;
           case 'error': error = _message(event.code); _finish(null); return;
+          case 'retryable_error':
+            error = 'تعذّر تفريغ الصوت. التسجيل محفوظ؛ أعد محاولة التفريغ.';
+            _finish(null, retainRecording: true); return;
           case 'cancelled': transcript = ''; preview = ''; _finish(null); return;
         }
         notifyListeners();
@@ -70,18 +84,21 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     _ => 'الصوت غير متاح الآن. يمكنك كتابة طلبك هنا.',
   };
 
-  void _finish(String? result) {
+  void _finish(String? result, {bool retainRecording = false}) {
     phase = VoicePhase.idle; level = 0;
     _timeout?.cancel(); _timeout = null;
+    _clock?.cancel(); _clock = null;
     final completion = _completion; _completion = null;
-    _recording = null;
-    unawaited(_subscription?.cancel() ?? Future.value()); _subscription = null;
+    if (!retainRecording) {
+      _recording = null;
+      unawaited(_subscription?.cancel() ?? Future.value()); _subscription = null;
+    }
     if (completion != null && !completion.isCompleted) completion.complete(result);
     if (!_disposed) notifyListeners();
   }
 
   void cancel() {
-    if (!active) return;
+    if (!active && !canRetry) return;
     ++_generation;
     final recording = _recording;
     transcript = ''; preview = ''; error = null; _finish(null);
@@ -92,13 +109,36 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     if (phase != VoicePhase.listening || _stopRequested) return;
     _stopRequested = true;
     phase = VoicePhase.processing; level = 0;
+    _clock?.cancel(); _clock = null;
+    _armTimeout();
+    notifyListeners();
+    unawaited(_recording?.stop() ?? Future.value());
+  }
+
+  void _armTimeout() {
+    _timeout?.cancel();
     _timeout = Timer(const Duration(minutes: 3), () {
       if (!active) return;
+      final saved = _recording;
+      if (saved is RetryableVoiceRecording && saved.canRetry) {
+        saved.interruptTranscription();
+        error = 'استغرق التفريغ وقتًا طويلًا. التسجيل محفوظ؛ أعد المحاولة.';
+        _finish(null, retainRecording: true); return;
+      }
       error = 'تعذّر إكمال تفريغ التسجيل. لم تُطبّق أي معلومات؛ يمكنك إعادة التسجيل أو كتابة التفاصيل.';
       final recording = _recording; _finish(null); unawaited(recording?.cancel() ?? Future.value());
     });
-    notifyListeners();
-    unawaited(_recording?.stop() ?? Future.value());
+  }
+
+  Future<String?> retryTranscription() {
+    if (!canRetry || _disposed) return Future.value();
+    final recording = _recording! as RetryableVoiceRecording;
+    final completion = Completer<String?>();
+    _completion = completion; _stopRequested = true;
+    phase = VoicePhase.processing; error = null; level = 0;
+    _armTimeout(); notifyListeners();
+    unawaited(recording.retryTranscription());
+    return completion.future;
   }
   void clearError() { error = null; if (!_disposed) notifyListeners(); }
 
@@ -109,7 +149,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
 
   @override
   void dispose() {
-    _disposed = true; cancel(); _timeout?.cancel();
+    _disposed = true; cancel(); _timeout?.cancel(); _clock?.cancel();
     WidgetsBinding.instance.removeObserver(this); super.dispose();
   }
 }

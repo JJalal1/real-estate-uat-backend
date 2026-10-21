@@ -1,5 +1,9 @@
 # AGENTS.md — REAL ESTATE UAT
 
+## October21 new-wave handoff on APK1102
+
+The owner supplied WORK_HANDOFF_NEW_WAVE_AR-2.docx as the current implementation contract. Read `docs/NEW_WAVE_1102_AR.md`. Extend the current product without a general redesign: complete manually stopped listing audio with retained technical-failure retry; free-text description improvement without invented claims; retire rental-condition AI; point-first location and coordinate-preserving address edits; clearer customer management with one-time account-scoped help; broker robot search/add-AI menu and manual main plus; building/house floors and per-floor units, shop openings, globally retired elevator; registered-phone default and optional second Yemen mobile contact; and broker navigation Properties/Map/Plus/Messages/Account. This explicitly supersedes older navigation/elevator/address-entry and listing-dictation presentation decisions. New additive property fields are authorized; financial rates, payer rules, immutable history, permissions, private storage, normal listing review and APK1102 login/registration corrections remain protected. Removing buyer-payer wording is presentation only. Required CI, native verification, provider/handset acceptance and owner-approved UAT rollout remain distinct gates.
+
 ## October20 compact cards and email login
 
 The owner's follow-up corrects account entry: default to Login with WhatsApp or email OTP and no name field or name validation. Show a separate Create new account choice; collect the full name only there and save it after valid OTP. Login must reuse the existing account and never silently create an unknown identity. Preserve existing completed names and all phone/professional gates. This supersedes the earlier shared name-on-entry presentation.
