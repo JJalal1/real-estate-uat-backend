@@ -1,0 +1,29 @@
+name: User work and media acceptance
+on:
+  push:
+    branches: [work/user-work-media-batch1]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: user-work-media-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    name: Draft retries and private image derivatives
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: install -m 600 /dev/null .env
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: php artisan key:generate --force
+      - run: php artisan test tests/Feature/UserWorkMediaTest.php tests/Feature/Wave6EditorDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky

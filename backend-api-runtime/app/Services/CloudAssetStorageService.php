@@ -28,6 +28,30 @@ class CloudAssetStorageService
         return $this->store($file, $directory, true);
     }
 
+    /** Application-owned paths only; originals and safe display derivatives stay in the private bucket. */
+    public function writePrivate(string $path, string $bytes, string $mime): void
+    {
+        if (! $this->cloudEnabled()) {
+            if (! Storage::disk('local')->put($path, $bytes)) throw new RuntimeException('Image storage failed.');
+            return;
+        }
+        $response = $this->request()->withHeaders(['x-upsert'=>'true'])->withBody($bytes, $mime)
+            ->post($this->objectUrl($this->objectPath($path, true)));
+        $this->assertRemoteSuccess($response, 'Image storage failed.');
+    }
+
+    public function readBytes(string $path, bool $private): string
+    {
+        if (! $this->cloudEnabled()) {
+            $bytes = Storage::disk($private ? 'local' : 'public')->get($path);
+            if (! is_string($bytes)) throw new RuntimeException('Image unavailable.');
+            return $bytes;
+        }
+        $response = $this->request()->get($this->objectUrl($this->objectPath($path, $private)));
+        $this->assertRemoteSuccess($response, 'Image unavailable.');
+        return $response->body();
+    }
+
     public function existsPublic(string $path): bool
     {
         return $this->exists($path, false);

@@ -20,7 +20,10 @@ RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
         libpq-dev \
         libzip-dev \
         libpng-dev \
-    && docker-php-ext-install curl dom mbstring pdo_pgsql zip opcache gd \
+        libjpeg62-turbo-dev \
+        libwebp-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-install curl dom mbstring pdo_pgsql zip opcache gd exif \
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
