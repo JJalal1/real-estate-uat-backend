@@ -1,0 +1,148 @@
+name: Build current discovery UAT APK
+
+on:
+  push:
+    branches: [work/wave2-review-current]
+    paths:
+      - '.github/workflows/build-current-discovery-uat-apk.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-current-discovery-uat-apk
+  cancel-in-progress: true
+
+env:
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+  ACCEPTED_SOURCE_SHA: 2eecb546213487613eb550a751b659748bcc1cc3
+  UAT_BUILD_NUMBER: '1124'
+
+jobs:
+  build:
+    name: Verify and build current UAT APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify application source is the accepted merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "${ACCEPTED_SOURCE_SHA}:mobile_app")" = "$(git rev-parse HEAD:mobile_app)"
+          test "$(git rev-parse "${ACCEPTED_SOURCE_SHA}:backend-api-runtime")" = "$(git rev-parse HEAD:backend-api-runtime)"
+          git diff --check "${ACCEPTED_SOURCE_SHA}..HEAD"
+          echo "Application trees match accepted discovery merge: ${ACCEPTED_SOURCE_SHA}"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+
+      - name: Resolve protected Flutter dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+
+      - name: Strict Flutter analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+
+      - name: Run discovery and UAT environment tests
+        working-directory: mobile_app
+        run: |
+          flutter test test/property_marker_cluster_test.dart test/search_query_wave_test.dart test/active_wave_discovery_test.dart test/uat_map_location_picker_test.dart test/uat_cloud_readiness_test.dart --reporter expanded
+          flutter test \
+            --dart-define=APP_ENVIRONMENT=uat \
+            --dart-define=API_BASE_URL=${UAT_API_BASE_URL} \
+            test/uat_compiled_environment_test.dart
+
+      - name: Verify live UAT health and discovery read load
+        shell: bash
+        run: |
+          set -euo pipefail
+          health_url="${UAT_API_BASE_URL%/api}/api/health"
+          response="$(curl --fail --silent --show-error --retry 5 --retry-delay 5 --max-time 90 "$health_url")"
+          printf '%s' "$response" > /tmp/uat-health.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/uat-health.json',encoding='utf-8'))
+          assert data.get('status') == 'ok', data
+          assert data.get('database') is True, data
+          assert data.get('postgis') is True, data
+          print('Render UAT health OK')
+          PY
+
+          endpoint="${UAT_API_BASE_URL}/properties/nearby?latitude=15.3694&longitude=44.1910&radius_km=30"
+          rm -rf /tmp/uat-load && mkdir -p /tmp/uat-load
+          export endpoint
+          seq 1 40 | xargs -P 20 -I{} bash -c '
+            i="$1"
+            curl --fail --silent --show-error --max-time 30 \
+              -o "/tmp/uat-load/body-${i}.json" \
+              -w "%{http_code} %{time_total}\n" \
+              "$endpoint" > "/tmp/uat-load/result-${i}.txt"
+          ' _ {}
+          python3 - <<'PY'
+          import glob,json
+          from pathlib import Path
+          results=[]
+          for p in glob.glob('/tmp/uat-load/result-*.txt'):
+              code,t=Path(p).read_text().strip().split()
+              results.append((int(code),float(t)))
+          assert len(results)==40, len(results)
+          assert all(c==200 for c,_ in results), results
+          for p in glob.glob('/tmp/uat-load/body-*.json'):
+              assert isinstance(json.loads(Path(p).read_text()).get('data'),list)
+          times=sorted(t for _,t in results)
+          print(f'40/40 nearby reads OK; p50={times[len(times)//2]:.3f}s; p95={times[max(0,int(len(times)*.95)-1)]:.3f}s')
+          PY
+
+      - name: Build release UAT APK
+        working-directory: mobile_app
+        run: >-
+          flutter build apk --release
+          --build-number=${UAT_BUILD_NUMBER}
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=${UAT_API_BASE_URL}
+
+      - name: Prepare verified artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          src="mobile_app/build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$src"
+          out="dist/aqer-uat-${UAT_BUILD_NUMBER}.apk"
+          cp "$src" "$out"
+          sha256sum "$out" > dist/SHA256.txt
+          cat > dist/BUILD_INFO.txt <<EOF
+          environment=uat
+          build_number=${UAT_BUILD_NUMBER}
+          api_base_url=${UAT_API_BASE_URL}
+          accepted_source_sha=${ACCEPTED_SOURCE_SHA}
+          workflow_sha=${GITHUB_SHA}
+          android_application_id=com.example.real_estate_mobile
+          flutter_version=3.27.3
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aqer-uat-1124
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
