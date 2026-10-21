@@ -64,6 +64,8 @@ class _AuthFixture extends AuthController {
   final AuthUser? user;
   @override
   Future<AuthUser?> build() async => user;
+  @override
+  Future<void> logout() async { state = const AsyncData(null); }
 }
 
 AuthUser _user({bool verified = false, String type = 'owner'}) => AuthUser.fromJson({
@@ -370,7 +372,7 @@ void main() {
 
   testWidgets('conversation keeps existing repository send and thread identity', (tester) async {
     final messages = _MessagesFixture();
-    await _pump(tester, initial: '/messages/19', messages: messages);
+    await _pump(tester, user: _user(), initial: '/messages/19', messages: messages);
     expect(find.text('مرحباً، كيف أستطيع مساعدتك؟'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'هل العقار متاح؟');
     await tester.tap(find.byWidgetPredicate((w) => w is EbrokerIcon && w.icon == Icons.send));
@@ -378,6 +380,19 @@ void main() {
     expect(messages.sent, ['هل العقار متاح؟']);
     expect(messages.sentThreadIds, [19]);
     expect(find.text('هل العقار متاح؟'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('logout removes conversation history and composer from the prior account', (tester) async {
+    await _pump(tester, user: _user(), initial: '/messages/19');
+    expect(find.text('مرحباً، كيف أستطيع مساعدتك؟'), findsOneWidget);
+    final container = ProviderScope.containerOf(tester.element(find.byType(ConversationScreen)));
+    await container.read(authControllerProvider.notifier).logout();
+    await tester.pumpAndSettle();
+    expect(find.text('سجّل الدخول للمتابعة.'), findsOneWidget);
+    expect(find.text('مرحباً، كيف أستطيع مساعدتك؟'), findsNothing);
+    expect(find.text('أرغب بمعرفة تفاصيل العقار.'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -486,7 +501,7 @@ void main() {
   for (final allowed in [false, true]) {
     testWidgets('conversation ignores legacy viewing data and actions canConfirm=$allowed', (tester) async {
       final bookings = _BookingsFixture(items: [_booking(threadId: 20, id: 41), _booking(canConfirm: allowed)]);
-      await _pump(tester, initial: '/messages/19', bookings: bookings);
+      await _pump(tester, user: _user(), initial: '/messages/19', bookings: bookings);
       expect(find.text('طلب معاينة مرتبط بهذه المحادثة'), findsNothing);
       expect(find.text('تأكيد الموعد'), findsNothing);
       expect(bookings.reads, 0);
