@@ -105,7 +105,9 @@ class PropertyController extends Controller
 
         $this->validateBounds($validated);
 
-        $query = $this->publicQuery();
+        $query = app(\App\Services\PropertyDiscoveryFilterService::class)
+            ->publicQuery()
+            ->with('primaryImage');
         $this->applyFilters($query, $validated);
         app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
 
@@ -126,7 +128,7 @@ class PropertyController extends Controller
                 ->limit(250)
                 ->get()
                 ->map(fn (Property $property) => array_merge(
-                    $this->summaryData($property, $request),
+                    $this->nearbyData($property, $request),
                     ['distance_km' => round(((float) $property->distance_m) / 1000, 2)],
                 ))
                 ->values();
@@ -145,7 +147,7 @@ class PropertyController extends Controller
                     (float) $property->longitude,
                 );
 
-                return array_merge($this->summaryData($property, $request), [
+                return array_merge($this->nearbyData($property, $request), [
                     'distance_km' => round($distanceKm, 2),
                 ]);
             })
@@ -841,6 +843,35 @@ class PropertyController extends Controller
         foreach ($paths as $path) {
             app(\App\Services\ListingImageService::class)->removeIfUnused($path);
         }
+    }
+
+    private function nearbyData(Property $property, Request $request): array
+    {
+        $image = $property->primaryImage;
+        $imageUrl = $image ? $this->imageUrl($image, $request, 'card') : null;
+
+        $data = [
+            'id' => $property->id,
+            'title' => $property->title,
+            'purpose' => $property->purpose,
+            'type' => $property->type,
+            'price' => (float) $property->price,
+            'currency' => $property->currency,
+            'area_m2' => $property->area_m2,
+            'bedrooms' => $property->bedrooms,
+            'bathrooms' => $property->bathrooms,
+            'address' => $property->address,
+            'latitude' => (float) $property->latitude,
+            'longitude' => (float) $property->longitude,
+            'main_image' => $imageUrl,
+            'image_urls' => $imageUrl ? [$imageUrl] : [],
+            'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,
+        ];
+
+        return array_intersect_key(
+            app(\App\Services\DynamicPropertySchema::class)->facts($data, true),
+            $data,
+        );
     }
 
     private function summaryData(Property $property, Request $request): array
