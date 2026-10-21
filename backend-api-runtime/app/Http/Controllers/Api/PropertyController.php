@@ -19,6 +19,7 @@ use App\Services\PropertyIdentityService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -105,39 +106,83 @@ class PropertyController extends Controller
 
         $this->validateBounds($validated);
 
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            $cacheFacts = $validated;
+            ksort($cacheFacts);
+            $cacheKey = 'public-nearby-v1:'.hash(
+                'sha256',
+                json_encode($cacheFacts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            );
+            $cache = Cache::store('file');
+            $cached = $cache->get($cacheKey);
+            if (is_array($cached)) {
+                return response()->json(['data' => $cached], 200, [
+                    'Cache-Control' => 'public, max-age=10, stale-while-revalidate=20',
+                    'X-Aqer-Nearby-Cache' => 'HIT',
+                ]);
+            }
+
+            $load = function () use ($validated, $longitude, $latitude, $radiusKm, $request): array {
+                $query = app(\App\Services\PropertyDiscoveryFilterService::class)
+                    ->publicQuery()
+                    ->with('primaryImage');
+                $this->applyFilters($query, $validated);
+                app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
+
+                $pointSql = 'ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography';
+                $distanceSql = "ST_Distance(location, {$pointSql})";
+
+                return $query
+                    ->select('properties.*')
+                    ->selectRaw("{$distanceSql} AS distance_m", [$longitude, $latitude])
+                    ->whereNotNull('location')
+                    ->whereRaw(
+                        "ST_DWithin(location, {$pointSql}, ?)",
+                        [$longitude, $latitude, $radiusKm * 1000],
+                    )
+                    ->orderBy('distance_m')
+                    ->orderByDesc('id')
+                    ->limit(250)
+                    ->get()
+                    ->map(fn (Property $property) => array_merge(
+                        $this->nearbyData($property, $request),
+                        ['distance_km' => round(((float) $property->distance_m) / 1000, 2)],
+                    ))
+                    ->values()
+                    ->all();
+            };
+
+            try {
+                $properties = $cache->lock($cacheKey.':lock', 12)->block(
+                    12,
+                    function () use ($cache, $cacheKey, $load): array {
+                        $cached = $cache->get($cacheKey);
+                        if (is_array($cached)) return $cached;
+
+                        $properties = $load();
+                        $cache->put($cacheKey, $properties, 10);
+
+                        return $properties;
+                    },
+                );
+            } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+                $properties = $load();
+            }
+
+            return response()->json(['data' => $properties], 200, [
+                'Cache-Control' => 'public, max-age=10, stale-while-revalidate=20',
+                'X-Aqer-Nearby-Cache' => 'MISS',
+            ]);
+        }
+
+        // SQLite is used only by the automated test suite. Production uses the
+        // PostGIS branch above so the spatial index remains effective at scale.
         $query = app(\App\Services\PropertyDiscoveryFilterService::class)
             ->publicQuery()
             ->with('primaryImage');
         $this->applyFilters($query, $validated);
         app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
 
-        if (DB::connection()->getDriverName() === 'pgsql') {
-            $pointSql = 'ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography';
-            $distanceSql = "ST_Distance(location, {$pointSql})";
-
-            $properties = $query
-                ->select('properties.*')
-                ->selectRaw("{$distanceSql} AS distance_m", [$longitude, $latitude])
-                ->whereNotNull('location')
-                ->whereRaw(
-                    "ST_DWithin(location, {$pointSql}, ?)",
-                    [$longitude, $latitude, $radiusKm * 1000],
-                )
-                ->orderBy('distance_m')
-                ->orderByDesc('id')
-                ->limit(250)
-                ->get()
-                ->map(fn (Property $property) => array_merge(
-                    $this->nearbyData($property, $request),
-                    ['distance_km' => round(((float) $property->distance_m) / 1000, 2)],
-                ))
-                ->values();
-
-            return response()->json(['data' => $properties]);
-        }
-
-        // SQLite is used only by the automated test suite. Production uses the
-        // PostGIS branch above so the spatial index remains effective at scale.
         $properties = $query->limit(1000)->get()
             ->map(function (Property $property) use ($latitude, $longitude, $request) {
                 $distanceKm = $this->distanceKm(
