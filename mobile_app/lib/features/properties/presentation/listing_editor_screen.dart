@@ -184,7 +184,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return jsonEncode([data,_ownershipProofPath]);
   }
   bool get _hasUnsavedChanges => _recoveryReady && _sessionValid &&
-    _editSignature != (_confirmedEditSignature ?? _initialEditSignature);
+    (_recoveryFailed || _editSignature != (_confirmedEditSignature ?? _initialEditSignature));
 
   List<String> get _photoKeys {
     final active = <String>{if (!_replaceImages) ...?_existing?.images.map((i)=>'property-${i.id}').where((k)=>!_removedPhotoKeys.contains(k)),
@@ -1449,7 +1449,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_localPath(key)==null) { await _replacePhoto(key);return; }
     _retryPhotoKeys.add(key);
     await _writeLocalRecovery();
-    if (mounted && _sessionValid) await _saveAccount(_recoverySnapshot(),{key:_localPath(key)!});
+    if (mounted && _sessionValid) {
+      final pending={for (final path in _imagePaths)
+        if (_localPhotoKeys[path]==key || (_photoStates[_localPhotoKeys[path]] ?? 'queued')=='queued') _localPhotoKeys[path]!:path};
+      await _saveAccount(_recoverySnapshot(),pending);
+    }
   }
 
   Future<void> _replacePhoto(String key) async {

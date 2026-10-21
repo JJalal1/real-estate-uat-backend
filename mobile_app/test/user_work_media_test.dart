@@ -186,6 +186,8 @@ void main() {
   testWidgets('failed local save also prevents the exit save from closing the editor',(tester) async {
     final recovery=_RecoveryFailure(editorSnapshot());
     await pumpWave6(tester,_host(),recovery:recovery,drafts:_Drafts());await _open(tester);
+    await tester.ensureVisible(textField('وصف العقار'));await tester.enterText(textField('وصف العقار'),'تغيير لم يحفظه الجهاز');
+    await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     await _back(tester);await tester.tap(find.byKey(const ValueKey('listing-exit-save')));await tester.pumpAndSettle();
     expect(find.byType(ListingEditorScreen),findsOneWidget);expect(find.textContaining('لم يكتمل حفظ المسودة'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());await tester.pump();
