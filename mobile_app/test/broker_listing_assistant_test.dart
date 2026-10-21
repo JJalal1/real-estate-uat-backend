@@ -85,10 +85,10 @@ class _Properties extends Wave3PropertiesFake {
 }
 
 Map<String, dynamic> _snapshot() => {
-  'editor_version': 7, 'step': 3, 'type': 'house', 'purpose': 'sale', 'tenure_type': 'freehold',
+  'editor_version': 7, 'units_per_floor': ['2','1'], 'step': 3, 'type': 'house', 'purpose': 'sale', 'tenure_type': 'freehold',
   'latitude': 15.3694, 'longitude': 44.1910, 'parking': 'no', 'facade': 'north', 'sai_touched': true,
   'fields': {'title': 'منزل اختبار المساعد', 'description': 'وصف مدخل يدويًا', 'price': '10000000',
-    'area': '160', 'bedrooms': '3', 'bathrooms': '2', 'governorate': 'صنعاء', 'district': 'حدة',
+    'floors_count': '2', 'phone': '771234567', 'area': '160', 'bedrooms': '3', 'bathrooms': '2', 'governorate': 'صنعاء', 'district': 'حدة',
     'document_owner_name': 'اسم مستند خاص', 'relationship_note': 'ملاحظة علاقة خاصة', 'broker_sai_rate_percent': '2'},
 };
 
@@ -195,7 +195,7 @@ void main() {
         voice.latest.emit(const VoiceEvent('final',text:ownerBrief));await tester.pumpAndSettle();
         expect(ai.prepares,1);expect(applied,isNull);
       }else{await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),ownerBrief);}
-      if(!byVoice) await _tap(tester,'listing-ai-prepare');expect(ai.received,ownerBrief);expect(applied,isNull);
+      if(!byVoice) { await _tap(tester,'listing-ai-prepare'); } expect(ai.received,ownerBrief);expect(applied,isNull);
       await _reveal(tester,'listing-ai-field-type');
       await _capture(tester,boundary,'complete-fields-${byVoice?'voice':'typed'}');
       for(final field in ai.proposals.keys.where((key) => key != 'sai_amount_type')) { await _reveal(tester,'listing-ai-field-$field'); }
@@ -404,14 +404,15 @@ void main() {
     final snapshot=_snapshot()..['step']=1..['latitude']=null..['longitude']=null;
     final boundary=GlobalKey();
     await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:_Recovery(snapshot),boundary:boundary);
-    expect(find.text('حدد موقع العقار يدويًا على الخريطة'),findsOneWidget);
-    expect(find.textContaining('اسم المحافظة والشارع لا يثبت نقطة العقار'),findsOneWidget);
-    expect(find.text('تحديد موقعي الحالي'),findsNothing);
+    expect(find.text('حدد نقطة العقار أولًا'),findsOneWidget);
+    expect(find.textContaining('بعدها يمكنك تصحيح العنوان'),findsOneWidget);
+    expect(find.text('تحديد موقعي الحالي'),findsOneWidget);
     await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
     expect(find.text('2/4'),findsOneWidget);
-    expect(find.text('حدد موقع العقار يدويًا على الخريطة، ثم اضغط تأكيد هذا الموقع.'),findsOneWidget);
+    final error=find.text('حدد نقطة العقار على الخريطة أو من موقعك الحالي، ثم أكد الموقع.');
+    expect(error,findsOneWidget);
     final bar=tester.widget<Scaffold>(find.byType(Scaffold).first).bottomNavigationBar!;
-    expect(tester.getRect(find.byType(SnackBar)).bottom,lessThanOrEqualTo(tester.getRect(find.byWidget(bar)).top+1));
+    expect(tester.getRect(error).bottom,lessThanOrEqualTo(tester.getRect(find.byWidget(bar)).top+1));
     expect(find.text('التالي').hitTestable(),findsOneWidget);
     await _capture(tester,boundary,'complete-required-map');expect(tester.takeException(),isNull);
   });

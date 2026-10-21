@@ -1,3 +1,4 @@
+import '../../account/data/auth_controller.dart';
 import '../domain/rental_condition_summary.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,6 +91,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   Future<void> _request() async {
     if (_busy || _voiceBusy || !widget.description && _message.text.trim().isEmpty) return;
     FocusScope.of(context).unfocus();
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() { _busy = true; _error = null; });
     try {
       final api = ref.read(aiRepositoryProvider);
@@ -98,7 +100,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         : widget.prepareDraft
           ? await api.prepareListing(_message.text, widget.facts, propertyId: widget.propertyId, draftKey: widget.draftKey)
           : await api.listingFields(_message.text, widget.facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
-      if (!mounted) return;
+      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
       if (widget.description) {
         final text = result['description'];
         if (text is! String || text.trim().isEmpty) throw StateError('Empty description.');
@@ -138,11 +140,12 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   Future<void> _refreshCopy() async {
     if (_busy || _voiceBusy || _fields == null) return;
     FocusScope.of(context).unfocus();
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() { _busy = true; _error = null; });
     try {
       final facts = {...widget.facts, ..._selectedFields};
       final result = await ref.read(aiRepositoryProvider).listingCopy(facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
-      if (!mounted) return;
+      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
       setState(() => _setCopy(result['copy']));
     } catch (error) { if (mounted) setState(() => _error = friendlyApiError(error)); }
     finally { if (mounted) setState(() => _busy = false); }
@@ -175,15 +178,18 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   Future<void> _voice() async {
     if (_busy || _voiceBusy) return;
     FocusScope.of(context).unfocus(); _voiceDraft = _message.text;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() => _error = null);
     final text = await _capture.start(wholeRecording: true);
-    await _acceptVoice(text);
+    if (mounted && actor == ref.read(authControllerProvider).asData?.value?.id) await _acceptVoice(text);
   }
   Future<void> _retryVoice() async {
     if (_busy || _voiceBusy || !_capture.canRetry) return;
     _voiceDraft = _message.text;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() => _error = null);
-    await _acceptVoice(await _capture.retryTranscription());
+    final text = await _capture.retryTranscription();
+    if (mounted && actor == ref.read(authControllerProvider).asData?.value?.id) await _acceptVoice(text);
   }
   Future<void> _acceptVoice(String? text) async {
     if (!mounted) return;

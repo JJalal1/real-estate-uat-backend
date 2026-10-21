@@ -21,7 +21,7 @@ import 'package:real_estate_mobile/features/discovery/data/marketplace_repositor
 import 'broker_experience_ui_test.dart' show BrokerTestRepository, brokerTestUser;
 import 'support/wave3_fakes.dart';
 
-AuthUser _ownerTestUser() => AuthUser.fromJson({'id': 1, 'name': 'مالك اختبار', 'phone': '+967700000000', 'account_status': 'active', 'phone_verified_at': '2026-10-12T00:00:00Z', 'profile_completed_at': '2026-10-12T00:00:00Z', 'verification_profile': {'type': 'owner', 'status': 'approved'}});
+AuthUser _ownerTestUser() => AuthUser.fromJson({'id': 1, 'name': 'مالك اختبار', 'phone': '+967700000000', 'account_status': 'active', 'phone_verified_at': '2026-10-12T00:00:00Z', 'profile_completed_at': '2026-10-12T00:00:00Z', 'verification_profile': {'type': 'owner', 'status': 'approved', 'reviewed_at': '2026-10-12T00:00:00Z'}});
 
 class _UserAuth extends AuthController {
   _UserAuth(this.user);
@@ -142,7 +142,7 @@ void main() {
         findsOneWidget, reason: 'Use the purchased $asset vector.');
     }
     // The owner's October20 reference restores only these1090 destination symbols.
-    for (final icon in [Icons.work_outline, Icons.people_outline, Icons.account_circle_outlined]) {
+    for (final icon in [Icons.account_circle_outlined]) {
       expect(find.descendant(of: find.byType(AppNavigationBar), matching: find.byIcon(icon)), findsOneWidget);
     }
     final aiIcon = find.byWidgetPredicate((widget) => widget is EbrokerImage &&
@@ -189,7 +189,7 @@ void main() {
     expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing);
     expect(find.text('الخروج من التطبيق؟'), findsNothing);
     await _open(tester);
-    await tester.tap(find.byTooltip('الرئيسية'));
+    await tester.tap(find.byTooltip('العقارات'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing);
     expect(tester.takeException(), isNull);

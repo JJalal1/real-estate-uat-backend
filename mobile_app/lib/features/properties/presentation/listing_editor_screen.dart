@@ -94,6 +94,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _shopOpenings = TextEditingController();
   List<String> _unitsPerFloor = [];
   bool _sameFloorUnits = false;
+  int _unitsGeneration = 0;
   final _bedrooms = TextEditingController();
   final _bathrooms = TextEditingController();
   final _governorate = TextEditingController();
@@ -263,13 +264,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Future<void> _generateDescription() async {
     if (_descriptionBusy || _busy || _descriptionCapture.active || _descriptionCoolingDown) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     final facts = _aiFacts(), before = _description.text, signature = jsonEncode(_aiFacts());
     setState(() { _descriptionBusy = true; _descriptionError = null; });
     try {
       final result = await ref.read(aiRepositoryProvider).description(facts,
         sourceDescription: before,
         propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null);
-      if (!mounted) return;
+      if (!mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
       if (_description.text != before || jsonEncode(_aiFacts()) != signature) {
         setState(() => _descriptionError = 'تغيرت بيانات الإعلان أو الوصف أثناء التجهيز. أعد الطلب عند الحاجة.'); return;
       }
@@ -393,7 +395,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (count > 0) CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('نفس العدد في كل دور'),
         value: _sameFloorUnits, onChanged: _busy ? null : (value) => setState(() { _sameFloorUnits = value ?? false; if (_sameFloorUnits) _unitsPerFloor = List.filled(count, _unitsPerFloor.isEmpty ? '' : _unitsPerFloor.first); })),
       for (var i = 0; i < (_sameFloorUnits && count > 0 ? 1 : count); i++) Padding(padding: const EdgeInsets.only(bottom: 12),
-        child: TextFormField(key: ValueKey('listing-units-${_sameFloorUnits ? 'same' : i}'),
+        child: TextFormField(key: ValueKey('listing-units-${_sameFloorUnits ? 'same' : i}-$_unitsGeneration'),
           initialValue: i < _unitsPerFloor.length ? _unitsPerFloor[i] : '', enabled: !_busy, keyboardType: TextInputType.number,
           decoration: InputDecoration(labelText: _sameFloorUnits ? 'عدد الوحدات في كل دور *' : 'الوحدات في الدور ${i + 1} *'),
           onChanged: (value) => setState(() { if (_sameFloorUnits) { _unitsPerFloor = List.filled(count, value); } else { _unitsPerFloor = List.generate(count, (j) => j == i ? value : (j < _unitsPerFloor.length ? _unitsPerFloor[j] : '')); } }))),
@@ -469,7 +471,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (data['image_tokens'] is Map) _localPhotoKeys.addAll(Map<String,String>.from(data['image_tokens'] as Map));
       _photoOrder = (data['image_order'] as List? ?? const []).whereType<String>().toList();
       _unitsPerFloor = (data['units_per_floor'] as List? ?? const []).map((e) => e?.toString() ?? '').toList();
-      _sameFloorUnits = data['same_floor_units'] == true;
+      _sameFloorUnits = data['same_floor_units'] == true && _unitsPerFloor.toSet().length <= 1;
+      _unitsGeneration++;
       final fields = data['fields'];
       if (data['rental_conditions'] is List) _rentalConditions = (data['rental_conditions'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       _step = (data['step'] is int ? data['step'] as int : 0).clamp(0, 3).toInt();
@@ -1182,18 +1185,21 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         AppTextField(
           controller: _phone,
           label: 'رقم الاتصال *',
-          helperText: _validateContacts ? _contactPolicy.error(_phone.text, required: true) : 'رقم جوال يمني من 9 أرقام',
+          helperText: 'رقم جوال يمني من 9 أرقام',
+          onChanged: (_) { if (_validateContacts) setState(() {}); },
           keyboardType: TextInputType.phone,
           enabled: !_busy,
         ),
+        if (_validateContacts && _contactPolicy.error(_phone.text, required: true) != null) Text(_contactPolicy.error(_phone.text, required: true)!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
         const SizedBox(height: AppSpacing.s12),
         AppTextField(
           controller: _whatsapp,
           label: 'رقم اتصال آخر (اختياري)',
-          helperText: _validateContacts ? _contactPolicy.error(_whatsapp.text) : null,
+          onChanged: (_) { if (_validateContacts) setState(() {}); },
           keyboardType: TextInputType.phone,
           enabled: !_busy,
         ),
+        if (_validateContacts && _contactPolicy.error(_whatsapp.text) != null) Text(_contactPolicy.error(_whatsapp.text)!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
       ],
     );
   }
@@ -1587,12 +1593,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Future<void> _assist({bool prepareDraft = false}) async {
     if (_busy || _descriptionCapture.active) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     final result = await AppBottomSheet.show<Map<String, dynamic>>(context, builder: (_) => ListingAiSheet(
       facts: _aiFacts(), propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null,
       prepareDraft: prepareDraft, initialMessage: _assistantBrief.text,
       hasExistingDescription: _description.text.trim().isNotEmpty,
       onMessageChanged: (text) => _assistantBrief.text = text));
-    if (!mounted || result == null) return;
+    if (!mounted || result == null || actor != ref.read(authControllerProvider).asData?.value?.id) return;
     final oldPurpose = _purpose;
     setState(() {
       if (result['description'] is String) _description.text = result['description'] as String;
@@ -1613,7 +1620,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_requiresSaleTenure && const ['freehold', 'waqf'].contains(result['tenure_type'])) _tenureType = result['tenure_type'] as String;
       if (_requiresStructure && result['has_parking'] is bool) _parkingChoice = result['has_parking'] == true ? 'yes' : 'no';
       if (_supportsFacade && propertyFacadeLabels.containsKey(result['building_facade'])) _facade = result['building_facade'] as String;
-      if (_applies('units_per_floor') && result['units_per_floor'] is List) { _unitsPerFloor = (result['units_per_floor'] as List).map((e) => e.toString()).toList(); _sameFloorUnits = _unitsPerFloor.isNotEmpty && _unitsPerFloor.toSet().length == 1; }
+      if (_applies('units_per_floor') && result['units_per_floor'] is List) { _unitsGeneration++; _unitsPerFloor = (result['units_per_floor'] as List).map((e) => e.toString()).toList(); _sameFloorUnits = _unitsPerFloor.isNotEmpty && _unitsPerFloor.toSet().length == 1; }
       if (_supportsElevator && result['has_elevator'] is bool) _elevatorChoice = result['has_elevator'] == true ? 'yes' : 'no';
       if (_type != 'apartment') _wholeFloor = false;
       if (_wholeFloor) _unitNumber.clear();
@@ -1622,8 +1629,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (!_supportsElevator) _elevatorChoice = null;
       if (!_requiresSaleTenure) _tenureType = null;
       if (!_isUnitType) { _floorNumber.clear(); _unitNumber.clear(); _buildingReference.clear(); }
-      // Returning, address completion and Arabic spelling variants preserve
-      // the confirmed point. A genuinely different city needs its own point.
+      // Text corrections preserve the explicitly confirmed geographic point.
       if (_type != 'land') _landBoundaryGeoJson = null;
       if (oldPurpose != _purpose) { _saiAccepted = false; _saiTouched = true; }
       if (const ['percentage','fixed'].contains(result['sai_amount_type'])) _saiAmountType = result['sai_amount_type'] as String;

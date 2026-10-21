@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../data/customer_help_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -145,33 +146,36 @@ class BrokerCustomersScreen extends ConsumerStatefulWidget {
 }
 class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
   final _items = <BrokerCustomer>[];
-  bool _loading = true, _moreBusy = false, _helpReady = false, _helpSeen = true;
+  bool _loading = true, _moreBusy = false, _helpReady = false, _helpSeen = true, _helpUsed = false;
   int? _helpActorId;
 
   Future<void> _loadHelp() async {
+    try {
     final actor = await ref.read(authControllerProvider.future);
     if (!mounted || actor == null) return;
     final seen = await ref.read(customerHelpStoreProvider).seen(actor.id);
-    if (mounted && ref.read(authControllerProvider).asData?.value?.id == actor.id) setState(() { _helpActorId = actor.id; _helpReady = true; _helpSeen = seen; });
+    if (mounted && ref.read(authControllerProvider).asData?.value?.id == actor.id) setState(() { _helpActorId = actor.id; _helpReady = true; _helpSeen = seen || _helpUsed; });
+    if (_helpUsed) unawaited(_rememberHelp());
+    } catch (_) { /* Help storage must not block customer work. */ }
   }
   Future<void> _rememberHelp() async {
     final id = _helpActorId ?? ref.read(authControllerProvider).asData?.value?.id;
     if (id == null || ref.read(authControllerProvider).asData?.value?.id != id) return;
-    if (mounted) setState(() => _helpSeen = true);
-    await ref.read(customerHelpStoreProvider).markSeen(id);
+    if (mounted) setState(() { _helpSeen = true; _helpUsed = true; });
+    unawaited(ref.read(customerHelpStoreProvider).markSeen(id));
   }
   String? _stage, _error;
   late String _filter;
   int _page = 1, _lastPage = 1, _request = 0;
   @override
-  void initState() { super.initState(); _filter = const ['unread', 'followup_due'].contains(widget.initialFilter) ? widget.initialFilter : 'all'; Future.microtask(() async { await _loadHelp(); if (mounted) await _load(); }); }
+  void initState() { super.initState(); _filter = const ['unread', 'followup_due'].contains(widget.initialFilter) ? widget.initialFilter : 'all'; Future.microtask(_loadHelp); Future.microtask(_load); }
   Future<void> _load({bool more = false}) async {
     final request = ++_request;
     if (more) { setState(() => _moreBusy = true); } else { setState(() { _loading = true; _error = null; }); }
     try {
       final result = await ref.read(brokerRepositoryProvider).customers(stage: _stage, propertyId: widget.propertyId, filter: _filter, page: more ? _page + 1 : 1);
       if (!mounted || request != _request) return;
-      if (result.items.any((item) => item.stage != 'new' || item.privateNote.isNotEmpty || item.remindAt != null)) await _rememberHelp();
+      if (result.items.any((item) => item.stage != 'new' || item.privateNote.isNotEmpty || item.remindAt != null)) { _helpUsed = true; unawaited(_rememberHelp()); }
       if (!mounted) return;
       setState(() { if (!more) _items.clear(); _items.addAll(result.items); _page = result.page; _lastPage = result.lastPage; _loading = false; _moreBusy = false; });
     } catch (error) { if (mounted && request == _request) setState(() { _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
@@ -197,7 +201,7 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
     body: _loading ? const AppLoadingState() : _error != null ? AppErrorState(message: _error!, onRetry: _load) : RefreshIndicator(onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
         if (!widget.selectForDeal) ...[
-          Text('إدارة العملاء', style: Theme.of(context).textTheme.titleLarge),
+          if (widget.embedded) Text('إدارة العملاء', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 6),
           const Text('رتّب عملاءك وتابع كل شخص حسب مرحلته، من أول تواصل حتى إغلاق الصفقة.'),
           const SizedBox(height: 12),

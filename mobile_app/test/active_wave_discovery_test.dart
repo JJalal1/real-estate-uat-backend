@@ -57,6 +57,8 @@ class _Properties extends Wave3PropertiesFake {
   Future<void> recordView(int propertyId, String viewerKey) async {}
   @override
   Future<String> contactPhone(int propertyId) async { contacts++; return '+967700000001'; }
+  @override
+  String? alternateContactPhone(int propertyId) => null;
 }
 class _Market implements PropertyMarketRepository {
   @override

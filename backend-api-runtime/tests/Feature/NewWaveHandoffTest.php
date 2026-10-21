@@ -93,6 +93,19 @@ class NewWaveHandoffTest extends TestCase
             app(RentalConditionService::class)->sentences([['kind'=>'advance','months'=>3],['kind'=>'duration','months'=>12],['kind'=>'special','text'=>'لا يسمح بالتأجير من الباطن']]));
     }
 
+    public function test_explicit_structure_counts_are_preserved_without_a_model_and_ambiguity_stays_missing(): void
+    {
+        $parser=app(\App\Services\ExplicitListingFacts::class);
+        $facts=$parser->extract('عمارة للبيع، ثلاثة أدوار، شقتان في كل دور');
+        $this->assertSame(3,$facts['floors_count']);
+        $this->assertSame([2,2,2],$facts['units_per_floor']);
+        $shop=$parser->extract('محل للإيجار، 3 فتحات');
+        $this->assertSame(3,$shop['shop_openings']);
+        $unclear=$parser->extract('عمارة من ثلاثة أدوار أو أربعة أدوار');
+        $this->assertArrayNotHasKey('floors_count',$unclear);
+        $this->assertArrayNotHasKey('units_per_floor',$unclear);
+    }
+
     public function test_description_improvement_only_reorders_literal_details_and_rejects_invented_copy(): void
     {
         config(['gemini.enabled'=>true,'gemini.key'=>'fixture-only','gemini.model'=>'gemini-3.1-flash-lite','gemini.daily_limit'=>200]);

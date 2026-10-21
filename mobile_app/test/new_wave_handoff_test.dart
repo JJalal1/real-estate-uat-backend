@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/platform/voice_input.dart';
+import 'package:real_estate_mobile/core/widgets/app_components.dart';
+import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
 import 'package:real_estate_mobile/core/platform/voice_capture_controller.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/smart_search_assistant.dart';
 import 'package:real_estate_mobile/features/properties/domain/listing_contact_policy.dart';
@@ -53,7 +55,7 @@ class _Account extends AuthController {
   final int id;
   @override
   Future<AuthUser?> build() async => AuthUser.fromJson({'id':id,'name':'دلال اختبار','phone':'+967771234567','account_status':'active',
-    'phone_verified_at':'2026-10-12T00:00:00Z','profile_completed_at':'2026-10-12T00:00:00Z','verification_profile':{'type':'broker','status':'approved'}});
+    'phone_verified_at':'2026-10-12T00:00:00Z','profile_completed_at':'2026-10-12T00:00:00Z','verification_profile':{'type':'broker','status':'approved','reviewed_at':'2026-10-12T00:00:00Z'}});
 }
 
 void main() {
@@ -61,6 +63,8 @@ void main() {
   setUpAll(() async {
     final arabic=FontLoader('NotoSansArabic')..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'));
     await arabic.load();
+    final latin=await File('${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf').readAsBytes();
+    await (FontLoader('sans-serif')..addFont(Future.value(latin.buffer.asByteData()))..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))).load();
     final primary=FontLoader('PrimaryFont');
     for(final weight in ['Regular','Medium','SemiBold','Bold','ExtraBold']) { primary.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf')); }
     await primary.load();
@@ -141,10 +145,11 @@ void main() {
       final floors=find.byKey(const ValueKey('listing-floors-count'));
       await tester.ensureVisible(floors);await tester.pumpAndSettle();
       expect(tester.widget<TextField>(floors).controller!.text,'3');
-      await tester.ensureVisible(find.byKey(const ValueKey('listing-units-1')));await tester.enterText(find.byKey(const ValueKey('listing-units-1')),'4');
+      await tester.ensureVisible(find.byWidgetPredicate((w) => w is TextFormField && w.key is ValueKey && (w.key as ValueKey).value.toString().startsWith('listing-units-1-')));await tester.enterText(find.byWidgetPredicate((w) => w is TextFormField && w.key is ValueKey && (w.key as ValueKey).value.toString().startsWith('listing-units-1-')),'4');
       await tester.pump(const Duration(seconds:1));
       expect(recovery.snapshot!['units_per_floor'],['2','4','2']);
       expect(find.text('المصعد'),findsNothing);
+      FocusManager.instance.primaryFocus?.unfocus();await tester.pumpAndSettle();await tester.ensureVisible(floors);await tester.pumpAndSettle();
       await previewWave6(tester,boundary,'new-wave-floors-$scale');
       expect(tester.takeException(),isNull);await finishWave6(tester);
     });
@@ -186,6 +191,7 @@ void main() {
     await tester.ensureVisible(governorate);await tester.enterText(governorate,'تعز');await tester.pump(const Duration(seconds:1));
     expect(recovery.snapshot!['latitude'],13.96);expect(recovery.snapshot!['longitude'],44.18);
     expect((recovery.snapshot!['fields'] as Map)['governorate'],'تعز');expect(fixes,2);expect(picks,2);
+    FocusManager.instance.primaryFocus?.unfocus();await tester.pumpAndSettle();
     await previewWave6(tester,boundary,'new-wave-confirmed-location-1.0');
     expect(tester.takeException(),isNull);await finishWave6(tester);
   });
@@ -203,17 +209,23 @@ void main() {
     expect(find.textContaining('من أول تواصل'),findsOneWidget);await finishWave6(tester);
   });
 
-  testWidgets('broker robot menu uses the two AI paths and an outside tap closes it', (tester) async {
+  for(final scale in [1.0,2.4]) {
+  testWidgets('broker robot keeps navigation usable with both AI paths at $scale', (tester) async {
     final boundary=GlobalKey();
-    await pumpWave6(tester,const Scaffold(body:SmartSearchAssistantLayer(child:ColoredBox(color:Colors.white))),boundary:boundary);
+    await pumpWave6(tester,const AppShellScreen(),boundary:boundary,scale:scale);
+    final nav=find.byType(AppNavigationBar);
+    expect(tester.widget<AppNavigationBar>(nav).destinations.map((d)=>d.label),['العقارات','الخريطة','الرسائل','حسابي']);
     await tester.tap(find.byKey(const ValueKey('floating-smart-search')));await tester.pumpAndSettle();
     expect(find.text('بحث عن عقار بالذكاء'),findsOneWidget);expect(find.text('إضافة عقار بالذكاء'),findsOneWidget);
     expect(find.text('تعبئة يدوي'),findsNothing);
-    await previewWave6(tester,boundary,'new-wave-robot-1.0');
+    expect(tester.getRect(find.byKey(const ValueKey('create-listing-scrim'))).bottom,lessThanOrEqualTo(tester.getRect(nav).top));
+    expect(find.byKey(const ValueKey('home-add-property')).hitTestable(),findsOneWidget);
+    await previewWave6(tester,boundary,'new-wave-robot-$scale');
     final scope=ProviderScope.containerOf(tester.element(find.byType(SmartSearchAssistantLayer)));
     expect(scope.read(brokerAssistantMenuProvider),isTrue);
-    await tester.tapAt(const Offset(360,80));await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(360,250));await tester.pumpAndSettle();
     expect(scope.read(brokerAssistantMenuProvider),isFalse);expect(tester.takeException(),isNull);
     await finishWave6(tester);
   });
+  }
 }
