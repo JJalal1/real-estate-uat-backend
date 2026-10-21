@@ -60,6 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
@@ -70,7 +71,8 @@ jobs:
         working-directory: mobile_app
         run: |
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
-          flutter pub get --enforce-lockfile
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
       - name: Check formatting of changed Dart files
         working-directory: mobile_app
         run: dart format --output=none --set-exit-if-changed lib/features/properties/data/property_repository.dart lib/features/map/domain/property_marker_cluster.dart lib/features/map/presentation/map_screen.dart lib/features/discovery/presentation/assisted_search_screen.dart test/property_marker_cluster_test.dart test/search_query_wave_test.dart
