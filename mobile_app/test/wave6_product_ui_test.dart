@@ -1,3 +1,4 @@
+import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
