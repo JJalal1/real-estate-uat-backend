@@ -403,7 +403,7 @@ class PropertyController extends Controller
             'tenure_type' => ['nullable', 'string', Rule::in(self::TENURE_TYPES)],
             'price' => array_merge($required, ['numeric', 'min:0', 'max:9999999999999']),
             'currency' => ['sometimes', 'string', 'size:3'],
-            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4, 5, 6, 7, 8])],
+            'listing_input_version' => ['nullable', 'integer', Rule::in([1, 2, 3, 4, 5, 6, 7, 8, 9])],
             'rental_conditions' => ['nullable'],
             'editor_draft_key' => ['nullable','uuid'],
             'editor_draft_revision' => ['required_with:editor_draft_key','integer','min:1'],
@@ -413,7 +413,10 @@ class PropertyController extends Controller
             'bedrooms' => ['nullable', 'integer', 'min:0', 'max:100'],
             'bathrooms' => ['nullable', 'integer', 'min:0', 'max:100'],
             'has_parking' => ['nullable', 'boolean'],
-            'has_elevator' => ['nullable', 'boolean'],
+            'has_elevator' => ['nullable', 'boolean'], // accepted only for old clients, never exposed
+            'floors_count' => ['nullable','integer','between:1,50'],
+            'units_per_floor' => ['nullable'],
+            'shop_openings' => ['nullable','integer','between:1,100'],
             'building_facade' => ['nullable', 'string', Rule::in(self::FACADES)],
             'address' => ['nullable', 'string', 'max:255'],
             'building_reference' => ['nullable', 'string', 'max:160'],
@@ -446,7 +449,7 @@ class PropertyController extends Controller
     {
         $allowed = [
             'listing_input_version', 'rental_conditions', 'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
-            'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'has_elevator', 'building_facade', 'address', 'latitude', 'longitude',
+            'floors_count', 'units_per_floor', 'shop_openings', 'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'has_elevator', 'building_facade', 'address', 'latitude', 'longitude',
             'building_reference', 'unit_number', 'floor_number', 'unit_occupies_entire_floor', 'land_boundary_geojson',
             'contact_phone', 'contact_whatsapp',
             'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note',
@@ -585,6 +588,14 @@ class PropertyController extends Controller
         if ($wholeFloor) $validated['unit_number'] = null;
         if ($effectiveType === 'shop' && (int) ($validated['listing_input_version'] ?? 1) >= 4 && !array_key_exists('floor_number', $validated)) $validated['floor_number'] = null;
         if ($version >= 8) $validated = app(\App\Services\DynamicPropertySchema::class)->facts($validated + ['type'=>$type,'purpose'=>$purpose],true);
+        if ($version >= 9) {
+            $contacts=app(\App\Services\ListingContactService::class);
+            foreach (['contact_phone','contact_whatsapp'] as $key) {
+                if (array_key_exists($key,$validated) || !$partial) $validated[$key]=$contacts->normalize($validated[$key] ?? ($key==='contact_phone' ? ($existing?->user?->phone ?? request()->user()?->phone) : null),$key,$key==='contact_phone');
+            }
+            $checked = app(\App\Services\DynamicPropertySchema::class)->validateStructure($validated + ($existing ? $this->listingState($existing) : []));
+            foreach (['floors_count','units_per_floor','shop_openings'] as $key) if (array_key_exists($key,$checked)) $validated[$key]=$checked[$key];
+        }
         return $validated;
     }
 
@@ -664,7 +675,10 @@ class PropertyController extends Controller
             'bedrooms' => $property->bedrooms,
             'bathrooms' => $property->bathrooms,
             'has_parking' => $property->has_parking,
-            'has_elevator' => $property->has_elevator,
+            'has_elevator' => null,
+            'floors_count' => $property->floors_count,
+            'units_per_floor' => $property->units_per_floor,
+            'shop_openings' => $property->shop_openings,
             'building_facade' => $property->building_facade,
             'address' => $property->address,
             'latitude' => $property->latitude,
@@ -850,7 +864,10 @@ class PropertyController extends Controller
             'bedrooms' => $property->bedrooms,
             'bathrooms' => $property->bathrooms,
             'has_parking' => $property->has_parking,
-            'has_elevator' => $property->has_elevator,
+            'has_elevator' => null,
+            'floors_count' => $property->floors_count,
+            'units_per_floor' => $property->units_per_floor,
+            'shop_openings' => $property->shop_openings,
             'building_facade' => $property->building_facade,
             'address' => $property->address,
             'latitude' => (float) $property->latitude,

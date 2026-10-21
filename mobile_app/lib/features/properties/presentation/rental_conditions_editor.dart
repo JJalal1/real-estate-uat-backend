@@ -8,14 +8,12 @@ class RentalConditionsEditor extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.enabled = true,
-    this.onPolish,
     super.key,
   });
 
   final List<Map<String, dynamic>> value;
   final ValueChanged<List<Map<String, dynamic>>> onChanged;
   final bool enabled;
-  final VoidCallback? onPolish;
 
   static const labels = <String, String>{
     'advance': 'إيجار مقدم',
@@ -129,12 +127,6 @@ class _RentalConditionsEditorState extends State<RentalConditionsEditor> {
                 : null,
             icon: const Icon(Icons.add, size: 18),
             label: const Text('إضافة شرط خاص آخر'),
-          ),
-        if (_rows.isNotEmpty && widget.onPolish != null)
-          TextButton.icon(
-            onPressed: widget.enabled ? widget.onPolish : null,
-            icon: const Icon(Icons.auto_awesome, size: 18),
-            label: const Text('ترتيب وصياغة الشروط بالذكاء الاصطناعي'),
           ),
       ],
     );

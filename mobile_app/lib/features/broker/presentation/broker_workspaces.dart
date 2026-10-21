@@ -1,3 +1,5 @@
+import 'dart:async';
+import '../data/customer_help_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -144,18 +146,37 @@ class BrokerCustomersScreen extends ConsumerStatefulWidget {
 }
 class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
   final _items = <BrokerCustomer>[];
-  bool _loading = true, _moreBusy = false;
+  bool _loading = true, _moreBusy = false, _helpReady = false, _helpSeen = true, _helpUsed = false;
+  int? _helpActorId;
+
+  Future<void> _loadHelp() async {
+    try {
+    final actor = await ref.read(authControllerProvider.future);
+    if (!mounted || actor == null) return;
+    final seen = await ref.read(customerHelpStoreProvider).seen(actor.id);
+    if (mounted && ref.read(authControllerProvider).asData?.value?.id == actor.id) setState(() { _helpActorId = actor.id; _helpReady = true; _helpSeen = seen || _helpUsed; });
+    if (_helpUsed) unawaited(_rememberHelp());
+    } catch (_) { /* Help storage must not block customer work. */ }
+  }
+  Future<void> _rememberHelp() async {
+    final id = _helpActorId ?? ref.read(authControllerProvider).asData?.value?.id;
+    if (id == null || ref.read(authControllerProvider).asData?.value?.id != id) return;
+    if (mounted) setState(() { _helpSeen = true; _helpUsed = true; });
+    unawaited(ref.read(customerHelpStoreProvider).markSeen(id));
+  }
   String? _stage, _error;
   late String _filter;
   int _page = 1, _lastPage = 1, _request = 0;
   @override
-  void initState() { super.initState(); _filter = const ['unread', 'followup_due'].contains(widget.initialFilter) ? widget.initialFilter : 'all'; Future.microtask(_load); }
+  void initState() { super.initState(); _filter = const ['unread', 'followup_due'].contains(widget.initialFilter) ? widget.initialFilter : 'all'; Future.microtask(_loadHelp); Future.microtask(_load); }
   Future<void> _load({bool more = false}) async {
     final request = ++_request;
     if (more) { setState(() => _moreBusy = true); } else { setState(() { _loading = true; _error = null; }); }
     try {
       final result = await ref.read(brokerRepositoryProvider).customers(stage: _stage, propertyId: widget.propertyId, filter: _filter, page: more ? _page + 1 : 1);
       if (!mounted || request != _request) return;
+      if (result.items.any((item) => item.stage != 'new' || item.privateNote.isNotEmpty || item.remindAt != null)) { _helpUsed = true; unawaited(_rememberHelp()); }
+      if (!mounted) return;
       setState(() { if (!more) _items.clear(); _items.addAll(result.items); _page = result.page; _lastPage = result.lastPage; _loading = false; _moreBusy = false; });
     } catch (error) { if (mounted && request == _request) setState(() { _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
   }
@@ -171,14 +192,25 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
     if (stage != null && mounted) await _change(item, stage);
   }
   Future<void> _change(BrokerCustomer item, String stage) async {
-    try { await ref.read(brokerRepositoryProvider).updateCustomer(item.threadId, stage); refreshBrokerData(ref); await _load(); }
+    try { await ref.read(brokerRepositoryProvider).updateCustomer(item.threadId, stage); await _rememberHelp(); refreshBrokerData(ref); await _load(); }
     catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
   }
   @override
   Widget build(BuildContext context) => BrokerScaffold(
-    appBar: widget.embedded ? null : AppAppBar(title: widget.selectForDeal ? 'اختر عميل الصفقة' : 'العملاء'),
+    appBar: widget.embedded ? null : AppAppBar(title: widget.selectForDeal ? 'اختر عميل الصفقة' : 'إدارة العملاء'),
     body: _loading ? const AppLoadingState() : _error != null ? AppErrorState(message: _error!, onRetry: _load) : RefreshIndicator(onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
+        if (!widget.selectForDeal) ...[
+          if (widget.embedded) Text('إدارة العملاء', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 6),
+          const Text('رتّب عملاءك وتابع كل شخص حسب مرحلته، من أول تواصل حتى إغلاق الصفقة.'),
+          const SizedBox(height: 12),
+          if (_helpReady && !_helpSeen) BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Text('من قائمة العميل (…) يمكنك تغيير الحالة، إضافة ملاحظة خاصة، أو تحديد موعد متابعة.'),
+            Align(alignment: AlignmentDirectional.centerEnd, child: TextButton(key: const ValueKey('customer-help-dismiss'), onPressed: _rememberHelp, child: const Text('فهمت'))),
+          ])),
+          const SizedBox(height: 10),
+        ],
         if (!widget.selectForDeal) Padding(padding: const EdgeInsets.only(bottom: 10), child: Wrap(spacing: 8, runSpacing: 8, children: [
           for (final entry in const {'all': 'كل العملاء', 'unread': 'تحتاج ردك', 'followup_due': 'حان موعد المتابعة'}.entries) EbrokerChoiceChip(
             label: Text(entry.value), selected: _filter == entry.key, onSelected: (_) { setState(() => _filter = entry.key); _load(); }),
@@ -203,7 +235,7 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
             EbrokerCardActions(actions: [
               EbrokerCardAction(item.unreadCount > 0 ? 'الرد على العميل' : 'المحادثة', () async { await context.push('/messages/${item.threadId}'); if (mounted) _load(); }, icon: Icons.chat_bubble_outline),
               if (item.stage != 'completed') EbrokerCardAction('تحديث حالة المتابعة', () => _chooseStage(item), icon: Icons.swap_horiz_rounded),
-              EbrokerCardAction('ملاحظة وتذكير', () async { final saved = await editCustomerFollowup(context, ref, item.threadId, customer: item); if (saved && mounted) _load(); }, icon: Icons.event_note_outlined),
+              EbrokerCardAction('ملاحظة وتذكير', () async { final saved = await editCustomerFollowup(context, ref, item.threadId, customer: item); if (saved && mounted) { await _rememberHelp(); if (mounted) _load(); } }, icon: Icons.event_note_outlined),
               EbrokerCardAction('العقار', () => context.push('/properties/${item.propertyId}'), icon: Icons.home_outlined),
               if (item.deal != null) EbrokerCardAction('نتيجة الصفقة', () => context.push('/broker/deals/${item.deal!.id}'), icon: Icons.check_circle_outline),
             ]),

@@ -45,13 +45,32 @@ class ExplicitListingFacts
         foreach (['bedrooms'=>'غرفتين|غرفتان', 'bathrooms'=>'حمامين|حمامان'] as $key => $noun) {
             if (!isset($fields[$key]) && $this->positive('(?:'.$noun.')', $text)) $fields[$key] = 2;
         }
+        if (in_array($fields['type'] ?? '', ['house','building'], true)) {
+            $floors=$this->one('/(?<![-\pL\d.])('.$number.')\s*(?:ادوار|طوابق)(?!\pL)/u',$text);
+            $labelled=$this->one('/عدد\s*(?:الادوار|الطوابق)\s*[:=]?\s*('.$number.')(?!\pL|\d)/u',$text);
+            if ($floors===null || $labelled===null || $floors===$labelled) $floors ??= $labelled;
+            else $floors=null;
+            if ($floors!==null && $floors>=1 && $floors<=50 && floor($floors)===$floors) {
+                $fields['floors_count']=(int)$floors;
+                $units=$this->one('/في\s*كل\s*(?:دور|طابق)\s*[:=]?\s*('.$number.')\s*(?:وحدات|وحده|شقق|شقه)(?!\pL)/u',$text);
+                $after=$this->one('/(?<![-\pL\d.])('.$number.')\s*(?:وحدات|وحده|شقق|شقه)\s*(?:في\s*كل|لكل)\s*(?:دور|طابق)(?!\pL)/u',$text);
+                if ($units===null || $after===null || $units===$after) $units ??= $after;
+                else $units=null;
+                if ($units===null && $this->positive('(?:شقتان|شقتين|وحدتان|وحدتين)\s*في\s*كل\s*(?:دور|طابق)',$text)) $units=2.0;
+                if ($units!==null && $units>=1 && $units<=100 && floor($units)===$units) $fields['units_per_floor']=array_fill(0,(int)$floors,(int)$units);
+            }
+        }
+        if (($fields['type'] ?? '')==='shop') {
+            $openings=$this->one('/(?<![-\pL\d.])('.$number.')\s*(?:فتحات|فتحه)(?!\pL)/u',$text);
+            if ($openings!==null && $openings>=1 && $openings<=100 && floor($openings)===$openings) $fields['shop_openings']=(int)$openings;
+        }
         if (preg_match_all('/(?<!\pL)(?:و)?(?:ال)?(?:دور|طابق)\s*(\d+|(?:ال)?(?:اول|ثاني|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر|ارضي))(?!\pL|\d)/u', $text, $m) === 1
             && !$this->negated($text, $m[0][0]) && !$this->alternativeAfter($text, $m[0][0])) {
             $floor = $m[1][0];
             if (!ctype_digit($floor) && !str_starts_with($floor, 'ال')) $floor = 'ال'.$floor;
             $fields['floor_number'] = app(DynamicPropertySchema::class)->normalizeFloor($floor);
         }
-        foreach (['has_parking'=>'موقف(?:\s*سيارات)?', 'has_elevator'=>'مصعد'] as $key => $word) {
+        foreach (['has_parking'=>'موقف(?:\s*سيارات)?'] as $key => $word) {
             $no = preg_match('/(?:بدون|لا\s*يوجد|لا\s*يتوفر|ما\s*في)\s*'.$word.'/u', $text);
             $yes = $this->positive('(?:يوجد|يتوفر|مع)\s*'.$word, $text);
             if ($no && !$yes) $fields[$key] = false;

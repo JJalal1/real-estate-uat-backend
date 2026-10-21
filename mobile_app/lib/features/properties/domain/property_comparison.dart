@@ -1,3 +1,4 @@
+import 'rental_condition_summary.dart';
 import 'property_details.dart';
 import '../../../core/formatters/money.dart';
 import 'property_schema.dart';
@@ -31,11 +32,11 @@ List<ComparisonFact> propertyComparisonFacts(List<PropertyDetails?> properties, 
   add('العقار والمبنى','الدور',(p)=>p.floorNumber==null?null:DynamicPropertySchema.floorLabel(p.floorNumber),key:'floor_number');
   add('العقار والمبنى','موضع الوحدة',(p)=>p.unitNumber,key:'unit_number');
   add('العقار والمبنى','الموقف',(p)=>boolean(p.hasParking),key:'has_parking');
-  add('العقار والمبنى','المصعد',(p)=>boolean(p.hasElevator),key:'has_elevator');
+  add('العقار والمبنى','عدد الأدوار',(p)=>p.floorsCount?.toString(),key:'floors_count');
+  add('العقار والمبنى','الوحدات في كل دور',(p)=>p.unitsPerFloor.isEmpty ? null : p.unitsPerFloor.asMap().entries.map((e)=>'الدور ${e.key+1}: ${e.value}').join(' · '),key:'units_per_floor');
+  add('العقار والمبنى','عدد الفتحات',(p)=>p.shopOpenings?.toString(),key:'shop_openings');
   add('العقار والمبنى','الواجهة',(p)=>p.buildingFacade==null?null:propertyFacadeLabel(p.buildingFacade),key:'building_facade');
-  add('شروط الإيجار','الشروط المحددة',(p)=>p.rentalConditions.isEmpty?null:p.rentalConditions.map((c)=>switch(c['kind']){
-    'advance'=>'مقدم ${c['months']} أشهر','duration'=>'مدة ${c['months']} أشهر','guarantor'=>'ضمانة تجارية','deposit'=>'تأمين',_=>c['text']?.toString()??'',
-  }).join(' · '),key:'rental_conditions');
+  add('شروط الإيجار','الشروط المحددة',(p)=>p.rentalConditions.isEmpty?null:p.rentalConditions.map(rentalConditionSummary).join(' · '),key:'rental_conditions');
   add('الموقع','العنوان',(p)=>p.address);
   return rows;
 }

@@ -8,6 +8,7 @@ import '../domain/property_identity.dart';
 import '../domain/property_marker.dart';
 import '../domain/property_location_address.dart';
 import '../domain/property_sai.dart';
+import '../domain/listing_contact_policy.dart';
 
 final propertyRepositoryProvider = Provider<PropertyRepository>((ref) {
   return PropertyRepository(
@@ -23,6 +24,8 @@ final propertyDataRevisionProvider = StateProvider<int>((ref) => 0);
 class PropertyRepository {
   PropertyRepository(this._dio, this._auth);
 
+  final Map<int,String> _alternateContactPhones = {};
+  String? alternateContactPhone(int propertyId) => _alternateContactPhones[propertyId];
   final Dio _dio;
   final AuthRepository _auth;
 
@@ -92,10 +95,21 @@ class PropertyRepository {
     return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
   }
 
+  Future<ListingContactPolicy> listingContactPolicy() async {
+    final response = await _dio.get<Map<String,dynamic>>('/listing-access', options: await _auth.requiredAuthOptions());
+    final data = response.data?['data'];
+    final policy = data is Map ? data['contact_phone_policy'] : null;
+    final prefixes = policy is Map ? (policy['prefixes'] as List? ?? const []).whereType<String>().where((v) => RegExp(r'^7[0-9]$').hasMatch(v)).toList() : <String>[];
+    return prefixes.isEmpty ? const ListingContactPolicy() : ListingContactPolicy(prefixes: prefixes);
+  }
+
   Future<String> contactPhone(int propertyId) async {
     final response = await _dio.get<Map<String, dynamic>>('/properties/$propertyId/contact', options: await _auth.requiredAuthOptions());
     final data = response.data?['data'];
     final phone = data is Map ? data['phone']?.toString() ?? '' : '';
+    _alternateContactPhones.remove(propertyId);
+    final alternate = data is Map ? data['phone_alt']?.toString() ?? '' : '';
+    if (RegExp(r'^7[0-9]{8}$').hasMatch(alternate) && alternate != phone) _alternateContactPhones[propertyId] = alternate;
     if (!RegExp(r'^\+?[0-9]{7,15}$').hasMatch(phone)) throw StateError('لم يتوفر رقم اتصال صالح لهذا الإعلان.');
     return phone;
   }

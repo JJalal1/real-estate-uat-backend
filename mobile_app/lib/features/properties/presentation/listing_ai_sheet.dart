@@ -1,3 +1,5 @@
+import '../../account/data/auth_controller.dart';
+import '../domain/rental_condition_summary.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,7 +42,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   static const labels = {'title': 'عنوان الإعلان', 'type': 'نوع العقار', 'purpose': 'الغرض', 'price': 'سعر البيع',
     'monthly_rent': 'الإيجار الشهري', 'area_value': 'المساحة', 'area_unit': 'وحدة المساحة',
     'bedrooms': 'غرف النوم', 'bathrooms': 'الحمامات', 'governorate': 'المحافظة', 'district': 'الحي', 'street': 'الشارع',
-    'floor_number': 'الدور', 'unit_number': 'موضع الوحدة', 'has_parking': 'موقف السيارة', 'has_elevator': 'المصعد',
+    'floor_number': 'الدور', 'unit_number': 'موضع الوحدة', 'has_parking': 'موقف السيارة', 'floors_count': 'عدد الأدوار', 'units_per_floor': 'الوحدات في كل دور', 'shop_openings': 'عدد الفتحات',
     'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية', 'broker_sai_rate_percent':'نسبة السعي', 'fixed_sai_amount':'مبلغ السعي بالريال', 'rental_conditions':'شروط الإيجار'};
 
   @override
@@ -89,6 +91,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   Future<void> _request() async {
     if (_busy || _voiceBusy || !widget.description && _message.text.trim().isEmpty) return;
     FocusScope.of(context).unfocus();
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() { _busy = true; _error = null; });
     try {
       final api = ref.read(aiRepositoryProvider);
@@ -97,7 +100,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         : widget.prepareDraft
           ? await api.prepareListing(_message.text, widget.facts, propertyId: widget.propertyId, draftKey: widget.draftKey)
           : await api.listingFields(_message.text, widget.facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
-      if (!mounted) return;
+      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
       if (widget.description) {
         final text = result['description'];
         if (text is! String || text.trim().isEmpty) throw StateError('Empty description.');
@@ -137,11 +140,12 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   Future<void> _refreshCopy() async {
     if (_busy || _voiceBusy || _fields == null) return;
     FocusScope.of(context).unfocus();
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() { _busy = true; _error = null; });
     try {
       final facts = {...widget.facts, ..._selectedFields};
       final result = await ref.read(aiRepositoryProvider).listingCopy(facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
-      if (!mounted) return;
+      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
       setState(() => _setCopy(result['copy']));
     } catch (error) { if (mounted) setState(() => _error = friendlyApiError(error)); }
     finally { if (mounted) setState(() => _busy = false); }
@@ -171,18 +175,38 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     });
   }
 
-  Future<void> _voice({bool wholeRecording = false}) async {
+  Future<void> _voice() async {
     if (_busy || _voiceBusy) return;
     FocusScope.of(context).unfocus(); _voiceDraft = _message.text;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() => _error = null);
-    final text = await _capture.start(wholeRecording: wholeRecording);
+    final text = await _capture.start(wholeRecording: true);
+    if (mounted && actor == ref.read(authControllerProvider).asData?.value?.id) await _acceptVoice(text);
+  }
+  Future<void> _retryVoice() async {
+    if (_busy || _voiceBusy || !_capture.canRetry) return;
+    _voiceDraft = _message.text;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    setState(() => _error = null);
+    final text = await _capture.retryTranscription();
+    if (mounted && actor == ref.read(authControllerProvider).asData?.value?.id) await _acceptVoice(text);
+  }
+  Future<void> _acceptVoice(String? text) async {
     if (!mounted) return;
-    if (text == null) { _restoreVoiceDraft(); return; }
+    if (text == null) {
+      if (_capture.transcript.isNotEmpty) {
+        _message.text = appendDictation(_voiceDraft, _capture.transcript);
+      } else { _restoreVoiceDraft(); }
+      return;
+    }
     final combined = appendDictation(_voiceDraft, text);
-    if (combined.length > 1500) {
-      _restoreVoiceDraft();
-      setState(() => _error = 'النص أطول من 1500 حرف. اختصر الوصف أو أمْلِ تفاصيل أقل.');
-    } else { _message.text = combined; }
+    if (combined.length > 5000) {
+      _message.text = combined;
+      setState(() => _error = 'النص محفوظ هنا. اختصره إلى 5000 حرف قبل تجهيز الإعلان.');
+    } else {
+      _message.text = combined;
+      if (widget.prepareDraft) await _request();
+    }
   }
   void _restoreVoiceDraft() { _restoringVoice = true; _message.text = _voiceDraft; _restoringVoice = false; }
   void _cancelVoice() { if (_capture.active) { _capture.cancel(); _restoreVoiceDraft(); } }
@@ -190,9 +214,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   String _value(String key, dynamic value) => switch (key) {
     'type' => SmartSearchFilters.types[value] ?? '$value', 'purpose' => value == 'rent' ? 'للإيجار' : 'للبيع',
     'building_facade' => SmartSearchFilters.facades[value] ?? '$value', 'area_unit' => propertyAreaUnitLabel(value.toString()),
-    'rental_conditions' => (value as List).map((c) => switch ((c as Map)['kind']) { 'advance' => 'مقدم ${c['months']} أشهر', 'duration' => 'مدة ${c['months']} أشهر', 'guarantor' => 'ضمانة تجارية', 'deposit' => 'تأمين', _ => c['text']?.toString() ?? '' }).join('، '),
+    'rental_conditions' => (value as List).map((c) => rentalConditionSummary(Map<String,dynamic>.from(c as Map))).join('، '),
     'tenure_type' => value == 'waqf' ? 'وقف' : 'حر',
-    'has_parking' || 'has_elevator' || 'unit_occupies_entire_floor' => value == true || value == 1 ? 'نعم' : 'لا',
+    'units_per_floor' => (value as List).asMap().entries.map((e) => 'الدور ${arabicDigits('${e.key+1}')}: ${arabicDigits('${e.value}')}').join('، '),
+    'has_parking' || 'unit_occupies_entire_floor' => value == true || value == 1 ? 'نعم' : 'لا',
     'price' || 'monthly_rent' || 'fixed_sai_amount' => moneyLabel(value, 'YER'),
     'broker_sai_rate_percent' => '${formatMoneyAmount(value)}٪',
     _ => arabicDigits('$value'),
@@ -205,7 +230,9 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Padding(
+  Widget build(BuildContext context) {
+    ref.watch(authControllerProvider);
+    return Directionality(textDirection: TextDirection.rtl, child: Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: SizedBox(
       height: (MediaQuery.sizeOf(context).height - MediaQuery.viewInsetsOf(context).bottom) * .9,
       child: Column(children: [Expanded(child: ListView(controller: _scroll, key: const ValueKey('listing-ai-scroll'), padding: const EdgeInsets.all(18), children: [
@@ -218,20 +245,19 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         if (!widget.description) ...[
           Text('صف العقار', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
-          TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 1500, minLines: 2, maxLines: 5, enabled: !_busy, readOnly: _voiceBusy,
+          TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 5000, minLines: 2, maxLines: 5, enabled: !_busy, readOnly: _voiceBusy,
             decoration: InputDecoration(labelText: _voiceBusy ? null : 'صف العقار', floatingLabelBehavior: FloatingLabelBehavior.never,
               hintText: _voiceBusy ? null : 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…')),
-          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice),
+          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, listeningLabel: 'جارٍ التسجيل'),
           if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _busy ? null : _voice,
             key: const ValueKey('listing-ai-voice'),
-            icon: const EbrokerIcon(Icons.mic_none, size: 20), label: const Text('أمْلِ تفاصيل العقار'))),
-          if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
-            key: const ValueKey('listing-ai-whole-recording'), onPressed: _busy ? null : () => _voice(wholeRecording: true),
-            icon: const Icon(Icons.graphic_eq_rounded, size: 19), label: const Text('تسجيل الوصف كاملًا'))),
-          if (_capture.error != null) const Text('جرّب تسجيل الوصف كاملًا، ثم اضغط إنهاء. راجع النص هنا قبل تجهيز الإعلان.'),
+            icon: const EbrokerIcon(Icons.mic_none, size: 20), label: Text(_capture.error != null ? 'إعادة التسجيل' : 'سجّل تفاصيل العقار'))),
+          if (_capture.canRetry) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
+            key: const ValueKey('listing-ai-retry-transcription'), onPressed: _busy ? null : _retryVoice,
+            icon: const Icon(Icons.refresh_rounded, size: 19), label: const Text('إعادة محاولة التفريغ'))),
         ],
         AppButton(key: const ValueKey('listing-ai-prepare'),
-          label: _busy ? 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
+          label: _busy ? widget.prepareDraft ? 'جارٍ فهم تفاصيل العقار…' : 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
           onPressed: _busy || _voiceBusy ? null : _request, expand: true),
         SizedBox(key: _resultKey),
         if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),
@@ -304,5 +330,5 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           label: _copyReady ? 'استخدام البيانات والمتابعة' : 'تجهيز النص من اختياري', expand: true,
           onPressed: _busy || _voiceBusy ? null : _copyReady ? _applyDraft : _refreshCopy))),
       ]))));
+  }
 }
-

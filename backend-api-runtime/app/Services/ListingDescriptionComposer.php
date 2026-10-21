@@ -69,9 +69,12 @@ class ListingDescriptionComposer
             $layout[] = 'تشغل الوحدة الدور كاملًا';
         }
 
+        if (($facts['floors_count'] ?? 0)>0) $layout[]='يتكون العقار من '.$read('floors_count').' أدوار';
+        if (($facts['units_per_floor'] ?? [])!==[]) { $units=$read('units_per_floor'); $layout[]='عدد الوحدات حسب ترتيب الأدوار: '.implode('، ',$units); }
+        if (($facts['shop_openings'] ?? 0)>0) $layout[]='يتكون المحل من '.$read('shop_openings').' فتحات';
         $amenities = [];
         if (isset($facts['has_parking'])) $amenities[] = $read('has_parking') ? 'يتوفر موقف للسيارة' : 'لا يوجد موقف للسيارة';
-        if (isset($facts['has_elevator'])) $amenities[] = $read('has_elevator') ? 'يتوفر مصعد في المبنى' : 'لا يوجد مصعد في المبنى';
+
         if (isset(ListingAiService::FACADES[$facts['building_facade'] ?? ''])) {
             $read('building_facade');
             $amenities[] = ($type === 'land' ? 'واجهة الأرض ' : 'واجهة المبنى ').ListingAiService::FACADES[$facts['building_facade']];

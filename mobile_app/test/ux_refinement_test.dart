@@ -62,7 +62,7 @@ class _Properties implements PropertyRepository {
   }
   @override
   Future<PropertyDetails> details(int id) async => PropertyDetails.fromJson({'id': id,
-    'title': 'مسودة محفوظة', 'purpose': 'sale', 'type': 'house', 'price': 10000000,
+    'title': 'مسودة محفوظة', 'purpose': 'sale', 'type': 'house', 'price': 10000000, 'floors_count':2,'units_per_floor':[2,1], 'contact_phone':'771234567',
     'latitude': 15.3694, 'longitude': 44.1910, 'status': 'draft', 'images': []});
   @override
   Future<PropertySaiEnvelope> saiForEditor(int id) async => const PropertySaiEnvelope(management:
@@ -75,7 +75,7 @@ class _Properties implements PropertyRepository {
       final input = invocation.positionalArguments.last as PropertyListingInput;
       lastInput = input.toMap();
       return Future<PropertyDetails>.value(PropertyDetails.fromJson({'id': 500, ...lastInput!, 'status': 'draft', 'review_status': 'draft', 'images': [],
-        'rental_conditions': lastInput!['rental_conditions'] is String ? jsonDecode(lastInput!['rental_conditions'] as String) : const []}));
+        'units_per_floor': input.unitsPerFloor, 'rental_conditions': lastInput!['rental_conditions'] is String ? jsonDecode(lastInput!['rental_conditions'] as String) : const []}));
     }
     if (invocation.memberName == #configureSai) {
       deferred = invocation.namedArguments[#deferPlatformTerms] == true;
@@ -105,9 +105,9 @@ class _Messages implements MessageRepository {
 }
 
 Map<String, dynamic> _snapshot({int step = 2, String type = 'house'}) => {
-  'editor_version': 4, 'step': step, 'type': type, 'purpose': 'sale', 'tenure_type': 'freehold',
+  'editor_version': 4, if(type=='house'||type=='building') 'units_per_floor':['2','1'], 'step': step, 'type': type, 'purpose': 'sale', 'tenure_type': 'freehold',
   'latitude': 15.3694, 'longitude': 44.1910, 'parking': 'no', 'facade': 'north', 'sai_touched': true, 'sai_terms_accepted': true,
-  'fields': {'title': 'منزل اختبار التحسين', 'description': 'وصف العقار', 'price': '10000000',
+  'fields': {if(type=='house'||type=='building')'floors_count':'2',if(type=='shop')'shop_openings':'2','phone':'771234567','title': 'منزل اختبار التحسين', 'description': 'وصف العقار', 'price': '10000000',
     'area': '160', 'bedrooms': '3', 'bathrooms': '2', 'governorate': 'صنعاء', 'district': 'حدة',
     'floor_number': type == 'floor' || type == 'apartment' ? '3' : '',
     'unit_number': type == 'apartment' ? 'شمالية' : '', 'broker_sai_rate_percent': '2'},
@@ -220,7 +220,7 @@ void main() {
     await tester.scrollUntilVisible(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), 350, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), findsOneWidget);
-    expect(find.text('إنشاء وصف بالذكاء الاصطناعي'), findsOneWidget);
+    expect(find.text('حسّن الوصف'), findsOneWidget);
     await _capture(tester, boundary, 'wave4-specifications-content');
     expect(tester.takeException(), isNull);
   });
@@ -245,7 +245,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('explicit draft save carries v8 fields and customer-paid commission, without submission', (tester) async {
+  testWidgets('explicit draft save carries v9 fields and customer-paid commission, without submission', (tester) async {
     final repository = _Properties();
     final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const ListingEditorScreen()),
       GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing')))]);
@@ -253,7 +253,7 @@ void main() {
     await _pump(tester, const SizedBox(), snapshot: _snapshot(step: 3), properties: repository, router: router);
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
-    expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 8);
+    expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 9);
     expect(repository.lastInput!.containsKey('rental_conditions'), isFalse);
     expect(repository.deferred, isTrue);
     expect(repository.payer, 'buyer'); expect(repository.rate, 2);
@@ -305,7 +305,7 @@ void main() {
     await _pump(tester, const SizedBox(), snapshot: recovery, properties: repository, router: router);
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
-    expect(repository.lastInput!['listing_input_version'], 8);
+    expect(repository.lastInput!['listing_input_version'], 9);
     expect(repository.lastInput!['area_value'], isNull);
     expect(repository.lastInput!['has_elevator'], isNull);
     expect(repository.lastInput!.containsKey('unit_number'), isFalse);

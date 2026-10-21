@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,21 @@ final propertyLocationPickerProvider = Provider<PropertyLocationPicker>((ref) =>
       initialLatitude: initialLatitude, initialLongitude: initialLongitude,
       reverseLookup: (latitude, longitude) => ref.read(propertyRepositoryProvider)
         .resolveLocationAddress(latitude: latitude, longitude: longitude)))));
+
+typedef PropertyCurrentLocation = Future<PropertyLocationSelection> Function();
+final propertyCurrentLocationProvider = Provider<PropertyCurrentLocation>((ref) => () async {
+  if (!await Geolocator.isLocationServiceEnabled()) {
+    throw PlatformException(code: 'LOCATION_DISABLED', message: 'فعّل خدمة الموقع أو حدد النقطة على الخريطة.');
+  }
+  var permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
+  if (permission != LocationPermission.whileInUse && permission != LocationPermission.always) {
+    throw PlatformException(code: 'LOCATION_DENIED', message: 'لم يُمنح إذن الموقع. يمكنك تحديد النقطة على الخريطة.');
+  }
+  final position = await Geolocator.getCurrentPosition(locationSettings:
+    const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 12)));
+  return PropertyLocationSelection(latitude: position.latitude, longitude: position.longitude);
+});
 
 class PropertyLocationSelection {
   const PropertyLocationSelection({

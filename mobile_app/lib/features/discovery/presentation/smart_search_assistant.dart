@@ -1,3 +1,5 @@
+import '../../account/data/auth_controller.dart';
+import '../../app_shell/presentation/listing_creation_menu.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -24,6 +26,11 @@ class AssistantHintStore {
   }
 }
 
+final brokerAssistantMenuProvider = StateProvider<bool>((ref) {
+  ref.watch(authControllerProvider.select((state) => (state.asData?.value?.id, state.asData?.value?.hasVerifiedProfessionalProfile)));
+  return false;
+});
+
 final assistantHintStoreProvider = Provider<AssistantHintStore>((ref) => AssistantHintStore());
 
 /// Install only on public browsing bodies, above their bottom navigation.
@@ -42,7 +49,14 @@ class SmartSearchAssistantLayer extends ConsumerStatefulWidget {
 class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with SingleTickerProviderStateMixin {
   late final AnimationController _motion;
   Timer? _pulse, _hintTimer;
-  bool _hint = false;
+  bool _hint = false, _openingAction = false;
+
+  Future<void> _brokerAction(bool search) async {
+    if (_openingAction) return;
+    ref.read(brokerAssistantMenuProvider.notifier).state = false;
+    _openingAction = true;
+    try { await context.push(search ? '/smart-search' : '/add-property?assistant=1'); } finally { _openingAction = false; }
+  }
 
   @override
   void initState() {
@@ -68,13 +82,18 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final broker = ref.watch(authControllerProvider).asData?.value?.hasVerifiedProfessionalProfile == true;
+    final menuOpen = broker && ref.watch(brokerAssistantMenuProvider);
     return Stack(fit: StackFit.expand, children: [
-      widget.child,
+      ExcludeSemantics(excluding: menuOpen, child: widget.child),
+      if (broker) ListingCreationMenu(isOpen: menuOpen, onClose: () => ref.read(brokerAssistantMenuProvider.notifier).state = false,
+        onSelected: _brokerAction, manualLabel: 'إضافة عقار بالذكاء', assistedLabel: 'بحث عن عقار بالذكاء',
+        leftAligned: true, baseBottom: widget.bottom + 64, scrimOpacity: .35),
       if (widget.enabled && widget.showComparisonTray && MediaQuery.viewInsetsOf(context).bottom == 0) Positioned(right: 12, bottom: widget.bottom,
         child: ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 100), child: const PropertyCompareTray())),
       if (widget.enabled && MediaQuery.viewInsetsOf(context).bottom == 0)
         Positioned(left: 16, bottom: widget.bottom, child: Column(textDirection: TextDirection.ltr, crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          if (_hint) Padding(padding: const EdgeInsets.only(bottom: 8), child: Material(
+          if (_hint && !menuOpen) Padding(padding: const EdgeInsets.only(bottom: 8), child: Material(
             elevation: 3, color: scheme.surface, borderRadius: BorderRadius.circular(16),
             child: ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 48), child: Padding(
               padding: const EdgeInsetsDirectional.only(start: 12, end: 2), child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -89,9 +108,9 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
           ), child: Material(
             color: scheme.surface, elevation: 5, shadowColor: scheme.primary.withValues(alpha: .24), shape: const CircleBorder(),
             child: InkWell(key: const ValueKey('floating-smart-search'), customBorder: const CircleBorder(),
-              onTap: () { _dismissHint(); if (widget.onPressed != null) { widget.onPressed!(); } else { context.push('/smart-search'); } },
-              child: Tooltip(message: 'بحث ذكي', child: Semantics(button: true, label: 'فتح مساعد البحث الذكي',
-                child: const Padding(padding: EdgeInsets.all(10), child: SmartSearchRobotIcon(size: 38)))),
+              onTap: () { _dismissHint(); if (broker) { ref.read(brokerAssistantMenuProvider.notifier).state = !menuOpen; return; } if (widget.onPressed != null) { widget.onPressed!(); } else { context.push('/smart-search'); } },
+              child: Tooltip(message: menuOpen ? 'إغلاق المساعد' : broker ? 'مساعد العقار' : 'بحث ذكي', child: Semantics(button: true, label: menuOpen ? 'إغلاق المساعد' : broker ? 'فتح مساعد العقار' : 'فتح مساعد البحث الذكي',
+                child: Padding(padding: const EdgeInsets.all(10), child: menuOpen ? Icon(Icons.close, size: 38, color: scheme.primary) : const SmartSearchRobotIcon(size: 38)))),
             ),
           )),
         ])),

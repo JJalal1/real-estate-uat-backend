@@ -14,7 +14,7 @@ void main(){
     final shop=DynamicPropertySchema.sanitize({'type':'shop','purpose':'rent','area_value':2,'area_unit':'libna_sanaani','floor_number':'3','unit_number':'7','has_parking':true,'building_facade':'north'});
     expect(shop['area_value'],closeTo(88.88,.001));expect(shop['area_unit'],'sqm');
     for(final key in ['floor_number','unit_number','has_parking','building_facade']){expect(shop.containsKey(key),isFalse);}
-    expect(DynamicPropertySchema.required({'type':'shop','purpose':'rent'}),{'area_value'});
+    expect(DynamicPropertySchema.required({'type':'shop','purpose':'rent'}),{'area_value','shop_openings'});
     expect(DynamicPropertySchema.floorOptions['0'],'الأرضي');expect(DynamicPropertySchema.floorOptions['3'],'الثالث');
     final rental=DynamicPropertySchema.sanitize({'type':'apartment','purpose':'rent','area_value':120,'has_elevator':true,'has_parking':false});
     expect(rental.keys,isNot(contains('area_value')));expect(rental.keys,isNot(contains('has_elevator')));expect(rental['has_parking'],false);

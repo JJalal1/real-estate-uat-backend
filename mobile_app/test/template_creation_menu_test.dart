@@ -21,6 +21,8 @@ import 'package:real_estate_mobile/features/discovery/data/marketplace_repositor
 import 'broker_experience_ui_test.dart' show BrokerTestRepository, brokerTestUser;
 import 'support/wave3_fakes.dart';
 
+AuthUser _ownerTestUser() => AuthUser.fromJson({'id': 1, 'name': 'مالك اختبار', 'phone': '+967700000000', 'account_status': 'active', 'phone_verified_at': '2026-10-12T00:00:00Z', 'profile_completed_at': '2026-10-12T00:00:00Z', 'verification_profile': {'type': 'owner', 'status': 'approved', 'reviewed_at': '2026-10-12T00:00:00Z'}});
+
 class _UserAuth extends AuthController {
   _UserAuth(this.user);
   final AuthUser? user;
@@ -101,9 +103,18 @@ void main() {
     await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   });
 
+  testWidgets('broker main plus opens manual entry directly once', (tester) async {
+    final observer = _EditorPushes();
+    await _pump(tester, user: brokerTestUser(), observer: observer);
+    await tester.tap(find.byKey(const ValueKey('home-add-property')));
+    await tester.pumpAndSettle();
+    expect(observer.count, 1); expect(find.text('editor-assistant=0'), findsOneWidget);
+    expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing); expect(tester.takeException(), isNull);
+  });
+
   testWidgets('template pills sit above the undimmed bar with original SVGs', (tester) async {
     final key = GlobalKey();
-    await _pump(tester, user: brokerTestUser(), boundary: key);
+    await _pump(tester, user: _ownerTestUser(), boundary: key);
     await _capture(key, 'template-menu-closed', tester);
     await _open(tester);
     final nav = tester.getRect(find.byType(AppNavigationBar));
@@ -131,7 +142,7 @@ void main() {
         findsOneWidget, reason: 'Use the purchased $asset vector.');
     }
     // The owner's October20 reference restores only these1090 destination symbols.
-    for (final icon in [Icons.work_outline, Icons.people_outline, Icons.account_circle_outlined]) {
+    for (final icon in [Icons.account_circle_outlined]) {
       expect(find.descendant(of: find.byType(AppNavigationBar), matching: find.byIcon(icon)), findsOneWidget);
     }
     final aiIcon = find.byWidgetPredicate((widget) => widget is EbrokerImage &&
@@ -143,7 +154,7 @@ void main() {
 
   testWidgets('rise progresses and finishes the lower pill before the upper', (tester) async {
     final key = GlobalKey();
-    await _pump(tester, user: brokerTestUser(), boundary: key);
+    await _pump(tester, user: _ownerTestUser(), boundary: key);
     await tester.tap(find.byKey(const ValueKey('home-add-property')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 150));
@@ -163,7 +174,7 @@ void main() {
   });
 
   testWidgets('hexagon, outside, system back and tab selection all close', (tester) async {
-    await _pump(tester, user: brokerTestUser());
+    await _pump(tester, user: _ownerTestUser());
     await _open(tester);
     await tester.tap(find.byKey(const ValueKey('home-add-property')));
     await tester.pumpAndSettle();
@@ -178,7 +189,7 @@ void main() {
     expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing);
     expect(find.text('الخروج من التطبيق؟'), findsNothing);
     await _open(tester);
-    await tester.tap(find.byTooltip('الرئيسية'));
+    await tester.tap(find.byTooltip('العقارات'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing);
     expect(tester.takeException(), isNull);
@@ -187,7 +198,7 @@ void main() {
   for (final assisted in [true, false]) {
     testWidgets('$assisted opens the canonical editor once', (tester) async {
       final observer = _EditorPushes();
-      await _pump(tester, user: brokerTestUser(), observer: observer);
+      await _pump(tester, user: _ownerTestUser(), observer: observer);
       await _open(tester);
       final menu = tester.widget<ListingCreationMenu>(find.byType(ListingCreationMenu));
       await tester.tap(find.byKey(ValueKey(assisted ? 'create-listing-ai' : 'create-listing-manual')));
@@ -213,7 +224,7 @@ void main() {
 
   testWidgets('large Arabic keeps both actions separate and tappable', (tester) async {
     final key = GlobalKey();
-    await _pump(tester, user: brokerTestUser(), scale: 2.4,
+    await _pump(tester, user: _ownerTestUser(), scale: 2.4,
       size: const Size(320, 568), boundary: key);
     await _open(tester);
     final manual = tester.getRect(find.byKey(const ValueKey('create-listing-manual')));
@@ -232,7 +243,7 @@ void main() {
   });
 
   testWidgets('reduced motion opens and closes without a running ticker', (tester) async {
-    await _pump(tester, user: brokerTestUser(), reducedMotion: true);
+    await _pump(tester, user: _ownerTestUser(), reducedMotion: true);
     await tester.tap(find.byKey(const ValueKey('home-add-property')));
     await tester.pump();
     expect(find.byKey(const ValueKey('create-listing-ai')).hitTestable(), findsOneWidget);

@@ -289,8 +289,8 @@ void main() {
     testWidgets('$type sees the navigation for its approved identity', (tester) async {
       await _pump(tester, user: _user(verified: true, type: type));
       final labels = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((item) => item.label).toList();
-      expect(labels.contains('عملي'), type != 'owner');
-      expect(labels.contains('العملاء'), type != 'owner');
+      expect(labels.contains('الخريطة'), type != 'owner');
+      expect(labels.contains('الرسائل'), isTrue);
       expect(labels.contains('حسابي'), isTrue);
       expect(tester.takeException(), isNull);
     });
@@ -315,7 +315,8 @@ void main() {
     await tester.tap(next);
     await tester.pumpAndSettle();
     expect(find.text('1/4'), findsOneWidget);
-    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.text('اكتب عنواناً واضحاً من 4 أحرف على الأقل.'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -349,8 +350,7 @@ void main() {
       expect(shape, findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('home-add-property')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('create-listing-manual')));
-      await tester.pumpAndSettle();
+      if (!verified) { await tester.tap(find.byKey(const ValueKey('create-listing-manual'))); await tester.pumpAndSettle(); }
       expect(router.state.uri.path, '/add-property');
       expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -416,11 +416,11 @@ void main() {
   testWidgets('own listing source card supports enlarged Arabic without losing review controls', (tester) async {
     _viewport(tester, const Size(320, 640));
     await _pump(tester, scale: 2.4, user: _user(verified: true, type: 'broker'));
-    await tester.tap(find.byTooltip('عملي'));
+    await tester.tap(find.byTooltip('حسابي'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(find.text('عقاراتي'), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('broker-tool-عقاراتي')));
+    await tester.tap(find.text('عقاراتي'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byType(EbrokerPropertyHorizontalCard), 300, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
@@ -507,11 +507,11 @@ void main() {
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -260));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-home-advertisers');
-      await tester.tap(find.byTooltip('عملي'));
+      await tester.tap(find.byTooltip('حسابي'));
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.byKey(const ValueKey('broker-tool-عقاراتي')), 250, scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(find.text('عقاراتي'), 250, scrollable: find.byType(Scrollable).first);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('broker-tool-عقاراتي')));
+      await tester.tap(find.text('عقاراتي'));
       await tester.pumpAndSettle();
       await _capture(tester, key, 'template-my-listings');
       router.pop();

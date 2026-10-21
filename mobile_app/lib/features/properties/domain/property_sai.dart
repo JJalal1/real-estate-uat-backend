@@ -1,3 +1,5 @@
+import '../../../core/formatters/money.dart';
+
 class PropertySai {
   const PropertySai({
     required this.ratePercent,
@@ -18,6 +20,16 @@ class PropertySai {
   final String amountType;
   final double? fixedAmount;
   final String? currency;
+
+  /// Presentation only; the authoritative payer and financial contract remain intact.
+  String get presentationText {
+    if (amountType == 'fixed') {
+      if (fixedAmount == null) return 'مبلغ السعي غير متاح';
+      final value = currency?.isNotEmpty == true ? moneyLabel(fixedAmount!, currency!) : formatMoneyAmount(fixedAmount!);
+      return 'السعي $value';
+    }
+    return 'السعي ${formatMoneyAmount(ratePercent)}٪';
+  }
 
   factory PropertySai.fromJson(Map<String, dynamic> json) {
     return PropertySai(

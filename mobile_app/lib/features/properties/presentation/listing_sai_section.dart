@@ -60,8 +60,6 @@ class ListingSaiSection extends StatelessWidget {
       const Divider(height: 32),
       Text('السعي', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
       const SizedBox(height: 6),
-      Text(purpose == 'rent' ? 'يتحمله المستأجر.' : 'يتحمله المشتري.',
-          style: theme.textTheme.bodySmall),
       const SizedBox(height: 14),
       if (current == null)
         error == null ? const AppSkeleton(height: 52, radius: 6)

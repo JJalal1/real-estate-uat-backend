@@ -1,5 +1,9 @@
 # AI Project State — REAL ESTATE UAT
 
+## October21 new-wave handoff on delivered APK1102
+
+The owner supplied a scoped DOCX and nine reference images for listing audio/retry, description improvement, point-first address entry, customer management, broker robot/navigation, dynamic floors/units/shop openings, elevator retirement and Yemen listing contacts. Work continues from exact delivered1102 source `70e40d647b1065792e6d52f5170b542d071919b8` on `work/new-wave-1102`; read `NEW_WAVE_1102_AR.md`. Additive facts are authorized, with no general redesign or financial/role/history change. Implementation and new exact-source CI/native delivery are in progress. No new installer, database rollout, provider or handset acceptance is claimed.
+
 ## Login correction after APK1100
 
 APK1100 was delivered from `df3e56d661292eaad1c0e00534c368f77b5fc160` after green CI100 and native/original-byte verification. The owner's handset screenshot exposed a UX error: the shared entry form required a four-part name from existing accounts. The correction defaults to Login, offers a separate Create new account choice, and sends no name for either WhatsApp or email login. Existing accounts retain their identifiers and profile data; login intent does not create unknown identities. Registration alone collects the name, preserving deferred OTP-bound persistence. Backend rollout, real email delivery and handset acceptance remain separate from source/tests/installer delivery. New exact-source checks and a corrected installer are in progress;1100 is not represented as containing this follow-up.

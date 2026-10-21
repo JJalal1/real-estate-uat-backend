@@ -28,7 +28,7 @@ class ListingAccessService
         $count = Property::query()->withoutGlobalScopes()->where('user_id', $user->id)
             ->where('status', '<>', 'archived')->count() + ListingEditorDraft::query()->where('user_id',$user->id)->whereNull('property_id')->count();
         $limitReached = $personal && $count >= 1;
-        return ['mode' => $this->isProfessional($user) ? 'professional' : 'personal',
+        return ['contact_phone_policy'=>app(ListingContactService::class)->policy(), 'mode' => $this->isProfessional($user) ? 'professional' : 'personal',
             'listing_limit' => $personal ? 1 : null, 'listing_count' => $count,
             'can_create' => $user->canCreateListings() && ! $limitReached,
             'upgrade_required' => $limitReached,

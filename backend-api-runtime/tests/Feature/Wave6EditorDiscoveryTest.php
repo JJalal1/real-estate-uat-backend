@@ -76,8 +76,8 @@ class Wave6EditorDiscoveryTest extends TestCase
         $input=['rental_conditions'=>[['kind'=>'advance','months'=>3]]];
         $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',$input)->assertConflict();
         $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',$input+['editor_draft_key'=>$key])
-            ->assertOk()->assertJsonPath('data.requires_review',true)->assertJsonPath('data.rental_conditions.0.months',3);
-        \Illuminate\Support\Facades\Http::assertSentCount(1);
+            ->assertStatus(410)->assertJsonPath('code','RENTAL_CONDITIONS_AI_RETIRED');
+        \Illuminate\Support\Facades\Http::assertNothingSent();
         $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);
     }
 
@@ -96,7 +96,7 @@ class Wave6EditorDiscoveryTest extends TestCase
             $facts=['type'=>$type,'purpose'=>$purpose,'area_value'=>100,'area_unit'=>'sqm','floor_number'=>'3','unit_number'=>'2','has_parking'=>true,'has_elevator'=>true,'building_facade'=>'north','bedrooms'=>3,'bathrooms'=>2];
             $clean=$schema->facts($facts);
             foreach($schema->definition()['fields'] as $key=>$_)if(!$schema->applies($key,$facts))$this->assertArrayNotHasKey($key,$clean);
-            if($type==='shop')$this->assertSame(['area_value'],$schema->required($facts));
+            if($type==='shop')$this->assertSame(['area_value','shop_openings'],$schema->required($facts));
         }
         $this->assertSame('0',$schema->normalizeFloor('الأرضي'));
         $this->assertSame('3',$schema->normalizeFloor('الدور الثالث'));

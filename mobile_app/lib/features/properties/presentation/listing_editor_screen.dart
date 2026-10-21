@@ -1,3 +1,5 @@
+import '../domain/listing_contact_policy.dart';
+import '../domain/rental_condition_summary.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -16,6 +18,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/local/listing_recovery_store.dart';
 import '../../../core/platform/stage5_media_picker.dart';
+import '../../../core/platform/voice_capture_controller.dart';
+import '../../../core/platform/voice_input.dart';
+import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/app_components.dart';
@@ -85,6 +90,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _rentalTermMonths = TextEditingController();
   final _advanceMonths = TextEditingController();
   final _area = TextEditingController();
+  final _floorsCount = TextEditingController();
+  final _shopOpenings = TextEditingController();
+  List<String> _unitsPerFloor = [];
+  bool _sameFloorUnits = false;
+  int _unitsGeneration = 0;
   final _bedrooms = TextEditingController();
   final _bathrooms = TextEditingController();
   final _governorate = TextEditingController();
@@ -93,6 +103,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _buildingReference = TextEditingController();
   final _unitNumber = TextEditingController();
   final _floorNumber = TextEditingController();
+  ListingContactPolicy _contactPolicy = const ListingContactPolicy();
+  bool _validateContacts = false;
   final _phone = TextEditingController();
   final _whatsapp = TextEditingController();
   final _documentOwnerName = TextEditingController();
@@ -141,6 +153,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   int _draftRevision = 0;
   bool _accountSaved = false, _accountSyncing = false, _accountConflict = false;
   String? _accountError, _descriptionError;
+  String? _stepError, _locationError;
+  bool _selectingLocation = false;
+  late final VoiceCaptureController _descriptionCapture;
   bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false;
   Timer? _descriptionRetryTimer;
   bool get _descriptionCoolingDown => ref.read(aiRepositoryProvider).descriptionRetryAt?.isAfter(DateTime.now()) == true;
@@ -213,6 +228,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   void _clearHiddenFields() {
+    if (!_applies('floors_count')) { _floorsCount.clear(); _unitsPerFloor = []; _sameFloorUnits = false; }
+    if (!_applies('shop_openings')) _shopOpenings.clear();
     if (!_applies('tenure_type')) _tenureType = null;
     if (!_applies('bedrooms')) _bedrooms.clear();
     if (!_applies('bathrooms')) _bathrooms.clear();
@@ -246,13 +263,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _generateDescription() async {
-    if (_descriptionBusy || _busy || _descriptionCoolingDown) return;
+    if (_descriptionBusy || _busy || _descriptionCapture.active || _descriptionCoolingDown) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     final facts = _aiFacts(), before = _description.text, signature = jsonEncode(_aiFacts());
     setState(() { _descriptionBusy = true; _descriptionError = null; });
     try {
       final result = await ref.read(aiRepositoryProvider).description(facts,
+        sourceDescription: before,
         propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null);
-      if (!mounted) return;
+      if (!mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
       if (_description.text != before || jsonEncode(_aiFacts()) != signature) {
         setState(() => _descriptionError = 'تغيرت بيانات الإعلان أو الوصف أثناء التجهيز. أعد الطلب عند الحاجة.'); return;
       }
@@ -271,6 +290,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     finally { if (mounted) setState(() => _descriptionBusy = false); }
   }
 
+  void _descriptionVoiceChanged() { if (mounted) setState(() {}); }
+  Future<void> _dictateDescription({bool retry = false}) async {
+    if (_busy || _descriptionBusy || _descriptionCapture.active) return;
+    FocusScope.of(context).unfocus();
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final text = retry ? await _descriptionCapture.retryTranscription() : await _descriptionCapture.start(wholeRecording: true);
+    if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+    final complete = text ?? _descriptionCapture.transcript;
+    if (complete.trim().isNotEmpty) {
+      _description.text = appendDictation(_description.text, complete);
+      if (_description.text.length > 5000) setState(() => _descriptionError = 'الوصف محفوظ هنا. اختصره إلى 5000 حرف قبل الحفظ.');
+    }
+  }
+
   Set<String> _missingFields() {
     final facts = {..._aiFacts(), 'type':_type, 'purpose':_purpose, 'latitude':_latitude, 'longitude':_longitude};
     final required = {...DynamicPropertySchema.required(_schemaContext), 'title','governorate','latitude','longitude','price'};
@@ -284,6 +317,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!_isSaiReady) result.add('sai');
     if (_ownershipValidation() != null) result.add('ownership');
     if (_type == 'land' && _landBoundaryGeoJson == null) result.add('boundary');
+    if (_contactPolicy.error(_phone.text, required: true) != null) result.add('contact_phone');
     return result;
   }
 
@@ -291,7 +325,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final keys = _completionFields;
     Widget text(String key, TextEditingController controller, String label, {bool numeric = false}) =>
       !keys.contains(key) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: AppTextField(
-        controller: controller, label: label, enabled: !_busy, keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text));
+        controller: controller, label: label, enabled: !_busy && (!const ['governorate','district','street'].contains(key) || _hasLocation),
+        keyboardType: numeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text));
     Widget choice(String key, String label, String? value, Map<String,String> options, ValueChanged<String?> change) => !keys.contains(key)
       ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: AppSelectField<String>(
         value: value, isExpanded: true, decoration: InputDecoration(labelText: label),
@@ -305,13 +340,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_typeConfirmed && _purposeConfirmed) ...[
         text('title',_title,'عنوان الإعلان *'),
         if (_requiresSaleTenure) choice('tenure_type','نوع الملكية *',_tenureType,const {'freehold':'حر','waqf':'وقف'},(v) => setState(() => _tenureType = v)),
-        text('governorate',_governorate,'المحافظة *'),
         const SizedBox(height: 12),
         _locationCard(),
+        text('governorate',_governorate,'المحافظة *'),
         if (keys.contains('boundary')) TextButton(onPressed: _busy ? null : _pickLandBoundary, child: const Text('تحديد حدود الأرض')),
         if (keys.contains('floor_number') && _unitNeedsFloor) Padding(padding: const EdgeInsets.only(top: 12), child: _floorSelector()),
         if (_applies('unit_number')) text('unit_number',_unitNumber,'رقم الوحدة أو موضعها *'),
         if (_applies('area_value')) text('area_value',_area,_type == 'shop' ? 'المساحة بالمتر المربع *' : 'المساحة *',numeric:true),
+        if (_applies('floors_count')) ..._structureFields(),
+        if (_type == 'shop') ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات *', keyboardType: TextInputType.number, enabled: !_busy)],
         if (_requiresResidential) ...[text('bedrooms',_bedrooms,'غرف النوم *',numeric:true),text('bathrooms',_bathrooms,'الحمامات *',numeric:true)],
         if (_requiresStructure) choice('has_parking','موقف السيارة *',_parkingChoice,const {'yes':'يوجد','no':'لا يوجد'},(v) => setState(() => _parkingChoice = v)),
         if (_supportsFacade) choice('building_facade','واجهة البناء *',_facade,propertyFacadeLabels,(v) => setState(() => _facade = v)),
@@ -321,6 +358,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           basis:_effectivePrice,amountType:_saiAmountType,accepted:_saiAccepted,error:_saiPolicyError,enabled:!_busy,
           onChanged:() => setState(() => _saiTouched = true),onAcceptanceChanged:(v) => setState(() => _saiAccepted = v),
           onAmountTypeChanged:(v) => setState(() { _saiAmountType=v;_saiTouched=true; }),onRetry:_loadSaiPolicy),
+        if (keys.contains('contact_phone')) ...[const SizedBox(height: 12), AppTextField(controller: _phone, label: 'رقم الاتصال *', keyboardType: TextInputType.phone, enabled: !_busy, helperText: 'رقم جوال يمني من 9 أرقام')],
         if (keys.contains('ownership')) _ownershipEvidence(),
       ],
       const SizedBox(height: 20),
@@ -328,7 +366,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     ]);
   }
 
-  Widget _completionActions() => _FinalActionsBar(busy:_busy,
+  Widget _completionActions() => _FinalActionsBar(busy:_busy || _descriptionCapture.active,
     onPrevious:() => _showFullStep(_step),onPreview:_preview,
     primaryLabel: 'معاينة الإعلان',
     onSaveDraft:() => _persist(submit:false),onSubmit:_reviewCompletedDraft);
@@ -338,7 +376,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final validation = _validateForSubmit();
     if (validation != null) {
       setState(() => _completionFields.addAll(_missingFields()));
-      _message(validation);
+      setState(() => _stepError = validation);
       if (_editorScroll.hasClients) {
         _editorScroll.animateTo(0, duration: AppMotion.fast, curve: Curves.easeOut);
       }
@@ -347,19 +385,36 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     unawaited(_preview());
   }
 
+  List<Widget> _structureFields() {
+    final count = (_optionalInt(_floorsCount) ?? 0).clamp(0, 50).toInt();
+    return [
+      const SizedBox(height: 12),
+      TextField(key: const ValueKey('listing-floors-count'), controller: _floorsCount,
+        decoration: const InputDecoration(labelText: 'عدد الأدوار *'), keyboardType: TextInputType.number, enabled: !_busy,
+        onChanged: (_) => setState(() { final next = (_optionalInt(_floorsCount) ?? 0).clamp(0, 50).toInt(); _unitsPerFloor = List.generate(next, (i) => i < _unitsPerFloor.length ? _unitsPerFloor[i] : (_sameFloorUnits && _unitsPerFloor.isNotEmpty ? _unitsPerFloor.first : '')); })),
+      if (count > 0) CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('نفس العدد في كل دور'),
+        value: _sameFloorUnits, onChanged: _busy ? null : (value) => setState(() { _sameFloorUnits = value ?? false; if (_sameFloorUnits) _unitsPerFloor = List.filled(count, _unitsPerFloor.isEmpty ? '' : _unitsPerFloor.first); })),
+      for (var i = 0; i < (_sameFloorUnits && count > 0 ? 1 : count); i++) Padding(padding: const EdgeInsets.only(bottom: 12),
+        child: TextFormField(key: ValueKey('listing-units-${_sameFloorUnits ? 'same' : i}-$_unitsGeneration'),
+          initialValue: i < _unitsPerFloor.length ? _unitsPerFloor[i] : '', enabled: !_busy, keyboardType: TextInputType.number,
+          decoration: InputDecoration(labelText: _sameFloorUnits ? 'عدد الوحدات في كل دور *' : 'الوحدات في الدور ${i + 1} *'),
+          onChanged: (value) => setState(() { if (_sameFloorUnits) { _unitsPerFloor = List.filled(count, value); } else { _unitsPerFloor = List.generate(count, (j) => j == i ? value : (j < _unitsPerFloor.length ? _unitsPerFloor[j] : '')); } }))),
+    ];
+  }
+
   Map<String, TextEditingController> get _recoveryFields => {
     'broker_sai_rate_percent': _saiRate,
     'fixed_sai_amount': _saiAmount,
     'title': _title, 'description': _description, 'ai_listing_brief': _assistantBrief, 'price': _price, 'monthly_rent': _monthlyRent,
     'rental_term_months': _rentalTermMonths, 'advance_months': _advanceMonths, 'area': _area,
-    'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'district': _district,
+    'floors_count': _floorsCount, 'shop_openings': _shopOpenings, 'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'district': _district,
     'street': _street, 'building_reference': _buildingReference, 'unit_number': _unitNumber,
     'floor_number': _floorNumber, 'phone': _phone, 'whatsapp': _whatsapp,
     'document_owner_name': _documentOwnerName, 'relationship_note': _relationshipNote,
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
-    'editor_version': 8, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
+    'editor_version': 9, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
     'type_confirmed': _typeConfirmed, 'purpose_confirmed': _purposeConfirmed, 'completion_only': _completionOnly,
     'draft_key': _draftKey, 'server_revision': _draftRevision, 'image_tokens': _localPhotoKeys, 'image_order': _photoKeys,
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
@@ -415,6 +470,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _completionOnly = data['completion_only'] == true;
       if (data['image_tokens'] is Map) _localPhotoKeys.addAll(Map<String,String>.from(data['image_tokens'] as Map));
       _photoOrder = (data['image_order'] as List? ?? const []).whereType<String>().toList();
+      _unitsPerFloor = (data['units_per_floor'] as List? ?? const []).map((e) => e?.toString() ?? '').toList();
+      _sameFloorUnits = data['same_floor_units'] == true && _unitsPerFloor.toSet().length <= 1;
+      _unitsGeneration++;
       final fields = data['fields'];
       if (data['rental_conditions'] is List) _rentalConditions = (data['rental_conditions'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       _step = (data['step'] is int ? data['step'] as int : 0).clamp(0, 3).toInt();
@@ -513,10 +571,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final policy = _saiPolicy;
     if (policy == null) return 'سياسة السعي غير محملة';
     if (_fixedSai && _enteredSaiAmount.isFinite && _enteredSaiAmount > 0) {
-      return 'السعي ${_enteredSaiAmount.toStringAsFixed(2)} ريال · يتحمله ${_purpose == 'rent' ? 'المستأجر' : 'المشتري'}';
+      return 'السعي ${_enteredSaiAmount.toStringAsFixed(2)} ريال';
     }
     final rate = policy.isOwner || _enteredSaiRate == 0 ? policy.fixedRatePercent : _enteredSaiRate;
-    return 'السعي ${rate ?? '—'}% · يتحمله ${_purpose == 'rent' ? 'المستأجر' : 'المشتري'}';
+    return 'السعي ${rate ?? '—'}%';
   }
   Map<String, dynamic> get _schemaContext => {'type': _type, 'purpose': _purpose, 'unit_occupies_entire_floor': _wholeFloor, 'sai_amount_type': _saiAmountType};
   bool _applies(String key) => DynamicPropertySchema.applies(key, _schemaContext);
@@ -561,6 +619,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _descriptionCapture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_descriptionVoiceChanged);
     final retryAt = ref.read(aiRepositoryProvider).descriptionRetryAt;
     if (retryAt?.isAfter(DateTime.now()) == true) {
       _descriptionRetryTimer = Timer(retryAt!.difference(DateTime.now()), () { if (mounted) setState(() {}); });
@@ -573,9 +632,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _draftKey = widget.accountDraft?.key ?? newListingDraftKey();
     if (widget.accountDraft != null) _adoptAccountDraft(widget.accountDraft!);
     _typeConfirmed = widget.existingProperty != null; _purposeConfirmed = widget.existingProperty != null;
-    _recoveryUserId = ref.read(authControllerProvider).asData?.value?.id;
+    final initialActor = ref.read(authControllerProvider).asData?.value;
+    _recoveryUserId = initialActor?.id;
+    if (_existing == null) _phone.text = ListingContactPolicy.normalize(initialActor?.phone ?? '');
     Future.microtask(() async {
+      if (_phone.text.isEmpty && _existing == null) { final actor = await ref.read(authControllerProvider.future); if (mounted) _phone.text = ListingContactPolicy.normalize(actor?.phone ?? ''); }
       await _restoreRecovery(); if (mounted) await _loadSaiPolicy();
+      try { final policy = await ref.read(propertyRepositoryProvider).listingContactPolicy(); if (mounted && ref.read(authControllerProvider).asData?.value?.id == _recoveryUserId) setState(() => _contactPolicy = policy); } catch (_) {}
       if (mounted && widget.startWithAssistant) { WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _assist(prepareDraft: true);
       }); }
@@ -604,6 +667,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         ? formatPropertyAreaValue(property.areaValue!)
         : property.areaM2?.toString() ?? '';
     _areaUnit = property.areaUnit ?? 'sqm';
+    _floorsCount.text = property.floorsCount?.toString() ?? '';
+    _unitsPerFloor = property.unitsPerFloor.map((e) => e.toString()).toList();
+    _sameFloorUnits = _unitsPerFloor.isNotEmpty && _unitsPerFloor.toSet().length == 1;
+    _shopOpenings.text = property.shopOpenings?.toString() ?? '';
     _bedrooms.text = property.bedrooms?.toString() ?? '';
     _bathrooms.text = property.bathrooms?.toString() ?? '';
     _parkingChoice = property.hasParking == null
@@ -624,8 +691,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _floorNumber.text = property.floorNumber ?? '';
 
     _landBoundaryGeoJson = property.landBoundaryGeoJson;
-    _phone.text = property.contactPhone ?? '';
-    _whatsapp.text = property.contactWhatsapp ?? '';
+    _phone.text = ListingContactPolicy.normalize(property.contactPhone ?? '');
+    _whatsapp.text = ListingContactPolicy.normalize(property.contactWhatsapp ?? '');
     _ownershipDocumentType = property.ownershipDocumentType;
     _documentOwnerName.text = property.documentOwnerName ?? '';
     _relationshipType = property.ownerRelationshipType;
@@ -635,6 +702,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   @override
   void dispose() {
+    _descriptionCapture.removeListener(_descriptionVoiceChanged); _descriptionCapture.dispose();
     _editorScroll.dispose();
     _descriptionRetryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -660,6 +728,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _rentalTermMonths,
       _advanceMonths,
       _area,
+      _floorsCount,
+      _shopOpenings,
       _bedrooms,
       _bathrooms,
       _governorate,
@@ -692,7 +762,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         appBar: AppAppBar(
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
           actions: [IconButton(key: const ValueKey('listing-completion'), tooltip: 'نواقص الإعلان',
-            onPressed: _busy ? null : _reviewCompletion, icon: const EbrokerIcon(Icons.fact_check_outlined)),
+            onPressed: _busy || _descriptionCapture.active ? null : _reviewCompletion, icon: const EbrokerIcon(Icons.fact_check_outlined)),
             if (!_completionOnly) Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
             child: EbrokerText('${_step + 1}/4', size: 16, weight: FontWeight.w600,
               color: Theme.of(context).colorScheme.primary)))],
@@ -739,6 +809,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                   ),
                 ),
               ),
+              if (_stepError != null) Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Semantics(liveRegion: true, child: Text(_stepError!, style: TextStyle(color: Theme.of(context).colorScheme.error)))),
             ],
           ),
         ),
@@ -868,17 +940,24 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         EbrokerIcon(_hasLocation ? Icons.check_circle_outline : Icons.location_on_outlined,
           color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 10),
-        Expanded(child: Text(_hasLocation ? 'تم تحديد موقع العقار على الخريطة' : 'حدد موقع العقار يدويًا على الخريطة',
+        Expanded(child: Text(_hasLocation ? 'تم تحديد موقع العقار على الخريطة' : 'حدد نقطة العقار أولًا',
           style: Theme.of(context).textTheme.titleSmall)),
       ]),
       const SizedBox(height: 8),
       Text(_hasLocation ? 'النقطة محفوظة عند الرجوع والمعاينة. عدّلها فقط إذا تغيّر موقع العقار.'
-        : 'اسم المحافظة والشارع لا يثبت نقطة العقار. افتح الخريطة وضع الدبوس على العقار ثم أكد الموقع.'),
+        : 'استخدم موقعك الحالي أو حدد النقطة يدويًا على الخريطة ثم أكدها. بعدها يمكنك تصحيح العنوان.'),
       const SizedBox(height: 12),
       AppButton(key: const ValueKey('listing-select-location'),
         label: _hasLocation ? 'تعديل الموقع على الخريطة' : 'تأكيد الموقع على الخريطة',
         icon: Icons.map_outlined, style: _hasLocation ? AppButtonStyle.tonal : AppButtonStyle.filled,
-        onPressed: _busy || _resolvingLocation ? null : _selectOnMap, expand: true),
+        onPressed: _busy || _resolvingLocation || _selectingLocation ? null : _selectOnMap, expand: true),
+      const SizedBox(height: 8),
+      TextButton.icon(key: const ValueKey('listing-current-location'),
+        onPressed: _busy || _resolvingLocation || _selectingLocation ? null : () => _selectLocation(useCurrent: true),
+        icon: const Icon(Icons.my_location, size: 19), label: const Text('تحديد موقعي الحالي')),
+      if (_selectingLocation) const LinearProgressIndicator(),
+      if (_locationError != null) Text(_locationError!, style: Theme.of(context).textTheme.bodySmall),
+      if (_hasLocation && _completionOnly) TextButton(onPressed: () => _showFullStep(1), child: const Text('تصحيح العنوان النصي')),
     ]));
 
   Widget _locationStep() {
@@ -895,11 +974,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           const LinearProgressIndicator(),
         ],
         const SizedBox(height: AppSpacing.s16),
-        AppTextField(controller: _governorate, label: 'المحافظة *', enabled: !_busy),
+        AppTextField(controller: _governorate, label: 'المحافظة *', enabled: !_busy && hasLocation),
         const SizedBox(height: AppSpacing.s12),
-        AppTextField(controller: _district, label: 'المنطقة / الحي', enabled: !_busy),
+        AppTextField(controller: _district, label: 'المنطقة / الحي', enabled: !_busy && hasLocation),
         const SizedBox(height: AppSpacing.s12),
-        AppTextField(controller: _street, label: 'الشارع', enabled: !_busy),
+        AppTextField(controller: _street, label: 'الشارع', enabled: !_busy && hasLocation),
         if (_type == 'land' && hasLocation) ...[
           const SizedBox(height: AppSpacing.s16),
           AppInlineMessage(
@@ -970,6 +1049,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [area, const SizedBox(height: 12), unit])
               : Row(children: [Expanded(flex: 2, child: area), const SizedBox(width: 8), Expanded(flex: 3, child: unit)]);
           }),
+        if (_applies('floors_count')) ..._structureFields(),
+        if (_type == 'shop') ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات *', keyboardType: TextInputType.number, enabled: !_busy)],
         if (_requiresResidential) ...[
           const SizedBox(height: AppSpacing.s12),
           Row(
@@ -1039,12 +1120,22 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const Text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'),
         const SizedBox(height: 20),
         AppTextField(controller: _description, label: 'وصف العقار',
-          hint: 'اكتب ما يميز العقار أو استخدم وصفًا مقترحًا من مواصفاتك.', enabled: !_busy, maxLines: 5),
+          hint: 'اذكر التفاصيل التي لا تظهر في المواصفات: مجلس، حوش، مدخل مستقل، حمام خارجي، سطح…',
+          enabled: !_busy && !_descriptionCapture.active, maxLines: 5),
+        if (_descriptionCapture.active) InlineVoiceCapture(capture: _descriptionCapture,
+          listeningLabel: 'جارٍ تسجيل الوصف', onCancel: _descriptionCapture.cancel),
+        if (!_descriptionCapture.active) TextButton.icon(key: const ValueKey('listing-description-voice'),
+          onPressed: _busy || _descriptionBusy ? null : _dictateDescription,
+          icon: const Icon(Icons.mic_none, size: 19), label: const Text('إملاء الوصف')),
+        if (_descriptionCapture.error != null) Text(_descriptionCapture.error!, style: Theme.of(context).textTheme.bodySmall),
+        if (_descriptionCapture.canRetry) TextButton(onPressed: _busy || _descriptionBusy ? null : () => _dictateDescription(retry: true),
+          child: const Text('إعادة محاولة تفريغ الوصف')),
         if (_descriptionBusy) const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Row(children: [SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Expanded(child: Text('جارٍ تجهيز الوصف…'))])),
         if (_descriptionError != null) Text(_descriptionError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        TextButton.icon(key: const ValueKey('listing-description-generate'), onPressed: _busy || _descriptionBusy || _descriptionCoolingDown ? null : _generateDescription,
-          icon: const EbrokerIcon(Icons.edit_note_outlined, size: 18), label: const Text('إنشاء وصف بالذكاء الاصطناعي')),
-        if (_purpose == 'rent') RentalConditionsEditor(value: _rentalConditions, enabled: !_busy, onPolish: _polishRentalConditions,
+        ValueListenableBuilder<TextEditingValue>(valueListenable: _description, builder: (_, value, __) =>
+          TextButton.icon(key: const ValueKey('listing-description-generate'), onPressed: _busy || _descriptionBusy || _descriptionCapture.active || _descriptionCoolingDown ? null : _generateDescription,
+            icon: const EbrokerIcon(Icons.edit_note_outlined, size: 18), label: Text(value.text.trim().isEmpty ? 'اقتراح وصف من البيانات' : 'حسّن الوصف'))),
+        if (_purpose == 'rent') RentalConditionsEditor(value: _rentalConditions, enabled: !_busy,
           onChanged: (value) => setState(() => _rentalConditions = value)),
       ],
     );
@@ -1093,17 +1184,22 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const SizedBox(height: AppSpacing.s12),
         AppTextField(
           controller: _phone,
-          label: 'رقم الاتصال',
+          label: 'رقم الاتصال *',
+          helperText: 'رقم جوال يمني من 9 أرقام',
+          onChanged: (_) { if (_validateContacts) setState(() {}); },
           keyboardType: TextInputType.phone,
           enabled: !_busy,
         ),
+        if (_validateContacts && _contactPolicy.error(_phone.text, required: true) != null) Text(_contactPolicy.error(_phone.text, required: true)!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
         const SizedBox(height: AppSpacing.s12),
         AppTextField(
           controller: _whatsapp,
-          label: 'رقم واتساب',
+          label: 'رقم اتصال آخر (اختياري)',
+          onChanged: (_) { if (_validateContacts) setState(() {}); },
           keyboardType: TextInputType.phone,
           enabled: !_busy,
         ),
+        if (_validateContacts && _contactPolicy.error(_whatsapp.text) != null) Text(_contactPolicy.error(_whatsapp.text)!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
       ],
     );
   }
@@ -1221,7 +1317,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               child: EbrokerStepButton(
                 label: 'السابق',
                 style: AppButtonStyle.outlined,
-                onPressed: _busy ? null : () {
+                onPressed: _busy || _descriptionCapture.active ? null : () {
                   if (_step > 0) { _showFullStep(_step - 1); } else { Navigator.of(context).maybePop(); }
                 },
                 expand: true,
@@ -1232,7 +1328,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             flex: 2,
             child: EbrokerStepButton(
               label: 'التالي',
-              onPressed: _busy ? null : _next,
+              onPressed: _busy || _descriptionCapture.active ? null : _next,
               expand: true,
             ),
           ),
@@ -1241,7 +1337,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
 
     return _FinalActionsBar(
-      busy: _busy,
+      busy: _busy || _descriptionCapture.active,
       onPrevious: () => _showFullStep(_step - 1),
       onPreview: _preview,
       onSaveDraft: () => _persist(submit: false),
@@ -1250,11 +1346,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   void _next() {
+    if (_busy || _descriptionCapture.active) return;
     FocusScope.of(context).unfocus();
     if (_step == 0 && !_completionOnly) { _typeConfirmed = true; _purposeConfirmed = true; }
     final message = _validationMessageForStep(_step);
     if (message != null) {
-      _message(message);
+      setState(() => _stepError = message);
       return;
     }
     _showFullStep(_step + 1);
@@ -1262,7 +1359,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   void _showFullStep(int step) {
     FocusScope.of(context).unfocus();
-    setState(() { _completionOnly = false; _step = step; });
+    setState(() { _completionOnly = false; _step = step; _stepError = null; });
     if (_editorScroll.hasClients) _editorScroll.jumpTo(0);
   }
 
@@ -1277,7 +1374,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
     if (step == 1) {
       if (_latitude == null || _longitude == null) {
-        return 'حدد موقع العقار يدويًا على الخريطة، ثم اضغط تأكيد هذا الموقع.';
+        return 'حدد نقطة العقار على الخريطة أو من موقعك الحالي، ثم أكد الموقع.';
       }
       if (_governorate.text.trim().length < 2) return 'أكمل اسم المحافظة.';
       if (_composedAddress.length < 3) return 'أكمل معلومات عنوان العقار.';
@@ -1286,6 +1383,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       }
     }
     if (step == 2) {
+      if (_applies('floors_count')) {
+        final count = _optionalInt(_floorsCount) ?? 0;
+        if (count < 1 || count > 50) return 'أدخل عدد الأدوار من 1 إلى 50.';
+        if (_unitsPerFloor.length != count || _unitsPerFloor.any((v) => (int.tryParse(v) ?? 0)<1 || (int.tryParse(v) ?? 0)>100)) return 'أدخل عدد الوحدات في كل دور من 1 إلى 100.';
+      }
+      if (_type == 'shop' && ((_optionalInt(_shopOpenings) ?? 0)<1 || (_optionalInt(_shopOpenings) ?? 0)>100)) return 'أدخل عدد فتحات المحل من 1 إلى 100.';
       final areaValue = double.tryParse(_area.text.trim());
       if (!_isRentalApartment && (areaValue == null || areaValue <= 0)) return 'أدخل مساحة صحيحة أكبر من صفر.';
       final images = _effectiveImageCount;
@@ -1319,6 +1422,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_requiresStructure && _facade == null) return 'اختر واجهة البناء.';
     }
     if (step == 3) {
+      _validateContacts = true;
+      final phoneError = _contactPolicy.error(_phone.text, required: true) ?? _contactPolicy.error(_whatsapp.text);
+      if (phoneError != null) return phoneError;
       if (_purpose == 'sale') {
         final value = double.tryParse(_price.text.trim());
         if (value == null || value <= 0) {
@@ -1408,7 +1514,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final message = _validationMessageForStep(step);
       if (message != null) {
         _showFullStep(step);
-        _message(message);
+        setState(() => _stepError = message);
         return;
       }
     }
@@ -1452,7 +1558,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _composedAddress,
       if (_description.text.trim().isNotEmpty) _description.text.trim(),
       if (_phone.text.trim().isNotEmpty) 'للتواصل: ${_phone.text.trim()}',
-      if (_whatsapp.text.trim().isNotEmpty) 'واتساب: ${_whatsapp.text.trim()}',
+      if (_whatsapp.text.trim().isNotEmpty) 'رقم اتصال آخر: ${_whatsapp.text.trim()}',
     ].where((line) => line.isNotEmpty).join('\n');
     await Clipboard.setData(ClipboardData(text: text));
     if (mounted) _message('نُسخ نص الإعلان. يمكنك لصقه ومراجعته قبل مشاركته.');
@@ -1473,6 +1579,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_purpose == 'rent' && (double.tryParse(_monthlyRent.text) ?? 0) > 0) 'monthly_rent': double.parse(_monthlyRent.text),
     if (!_isRentalApartment && (double.tryParse(_area.text) ?? 0) > 0) 'area_value': double.parse(_area.text),
     if (!_isRentalApartment) 'area_unit': _areaUnit,
+    if (_applies('floors_count') && (_optionalInt(_floorsCount) ?? 0) > 0) 'floors_count': _optionalInt(_floorsCount),
+    if (_applies('units_per_floor') && _unitsPerFloor.isNotEmpty && _unitsPerFloor.every((v) => (int.tryParse(v) ?? 0)>0)) 'units_per_floor': _unitsPerFloor.map(int.parse).toList(),
+    if (_type == 'shop' && (_optionalInt(_shopOpenings) ?? 0)>0) 'shop_openings': _optionalInt(_shopOpenings),
     if (_requiresResidential && (_optionalInt(_bedrooms) ?? 0) > 0) 'bedrooms': _optionalInt(_bedrooms),
     if (_requiresResidential && (_optionalInt(_bathrooms) ?? 0) > 0) 'bathrooms': _optionalInt(_bathrooms),
     if (_requiresStructure && _parkingChoice != null) 'has_parking': _parkingValue,
@@ -1483,15 +1592,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Future<void> _assist({bool prepareDraft = false}) async {
+    if (_busy || _descriptionCapture.active) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     final result = await AppBottomSheet.show<Map<String, dynamic>>(context, builder: (_) => ListingAiSheet(
       facts: _aiFacts(), propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null,
       prepareDraft: prepareDraft, initialMessage: _assistantBrief.text,
       hasExistingDescription: _description.text.trim().isNotEmpty,
       onMessageChanged: (text) => _assistantBrief.text = text));
-    if (!mounted || result == null) return;
+    if (!mounted || result == null || actor != ref.read(authControllerProvider).asData?.value?.id) return;
     final oldPurpose = _purpose;
-    final changedCity = result['governorate'] is String && _governorate.text.trim().isNotEmpty &&
-      _normalizedName(result['governorate'] as String) != _normalizedName(_governorate.text);
     setState(() {
       if (result['description'] is String) _description.text = result['description'] as String;
       if (_typeLabels.containsKey(result['type'])) { _type = result['type'] as String; _typeConfirmed = true; }
@@ -1500,6 +1609,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         'title': _title, if (!_isRentalApartment) 'area_value': _area, 'governorate': _governorate, 'district': _district, 'street': _street,
         if (_purpose == 'sale') 'price': _price,
         if (_purpose == 'rent') 'monthly_rent': _monthlyRent,
+        if (_applies('floors_count')) 'floors_count': _floorsCount,
+        if (_type == 'shop') 'shop_openings': _shopOpenings,
         if (_requiresResidential) 'bedrooms': _bedrooms,
         if (_requiresResidential) 'bathrooms': _bathrooms,
         if (_isUnitType) 'floor_number': _floorNumber,
@@ -1509,6 +1620,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_requiresSaleTenure && const ['freehold', 'waqf'].contains(result['tenure_type'])) _tenureType = result['tenure_type'] as String;
       if (_requiresStructure && result['has_parking'] is bool) _parkingChoice = result['has_parking'] == true ? 'yes' : 'no';
       if (_supportsFacade && propertyFacadeLabels.containsKey(result['building_facade'])) _facade = result['building_facade'] as String;
+      if (_applies('units_per_floor') && result['units_per_floor'] is List) { _unitsGeneration++; _unitsPerFloor = (result['units_per_floor'] as List).map((e) => e.toString()).toList(); _sameFloorUnits = _unitsPerFloor.isNotEmpty && _unitsPerFloor.toSet().length == 1; }
       if (_supportsElevator && result['has_elevator'] is bool) _elevatorChoice = result['has_elevator'] == true ? 'yes' : 'no';
       if (_type != 'apartment') _wholeFloor = false;
       if (_wholeFloor) _unitNumber.clear();
@@ -1517,9 +1629,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (!_supportsElevator) _elevatorChoice = null;
       if (!_requiresSaleTenure) _tenureType = null;
       if (!_isUnitType) { _floorNumber.clear(); _unitNumber.clear(); _buildingReference.clear(); }
-      // Returning, address completion and Arabic spelling variants preserve
-      // the confirmed point. A genuinely different city needs its own point.
-      if (changedCity) { _latitude = null; _longitude = null; _landBoundaryGeoJson = null; }
+      // Text corrections preserve the explicitly confirmed geographic point.
       if (_type != 'land') _landBoundaryGeoJson = null;
       if (oldPurpose != _purpose) { _saiAccepted = false; _saiTouched = true; }
       if (const ['percentage','fixed'].contains(result['sai_amount_type'])) _saiAmountType = result['sai_amount_type'] as String;
@@ -1542,28 +1652,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _message('طُبّق الاقتراح في الحقول. راجع بقية الإعلان قبل إرساله.');
   }
 
-  Future<void> _polishRentalConditions() async {
-    if (_busy || _rentalConditions.isEmpty) return;
-    setState(() => _busy = true);
-    try {
-      final result = await ref.read(aiRepositoryProvider).rentalConditions(_rentalConditions,
-        propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null);
-      if (!mounted) return;
-      final rows = result['rental_conditions'];
-      if (rows is! List || result['text'] is! String) throw StateError('Invalid requirements proposal');
-      final use = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
-        title: const Text('راجع صياغة الشروط'), content: SingleChildScrollView(child: Text(result['text'] as String)),
-        actions: [TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إلغاء')),
-          TextButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('استخدام الترتيب المقترح'))]));
-      if (mounted && use == true) setState(() => _rentalConditions = rows.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList());
-    } catch (error) { if (mounted) _message(friendlyApiError(error)); }
-    finally { if (mounted) setState(() => _busy = false); }
-  }
-
   PropertyListingInput _input() {
     final user = ref.read(authControllerProvider).asData?.value;
     return PropertyListingInput(
-      inputVersion: 8,
+      inputVersion: 9,
       rentalConditions: _purpose == 'rent' ? _rentalConditions : const [],
       title: _title.text.trim(),
       description: _description.text.trim(),
@@ -1580,6 +1672,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           null,
       areaValue: _isRentalApartment ? null : double.tryParse(_area.text.trim()),
       areaUnit: _isRentalApartment ? null : _area.text.trim().isEmpty ? null : _areaUnit,
+      floorsCount: _applies('floors_count') ? _optionalInt(_floorsCount) : null,
+      unitsPerFloor: _applies('units_per_floor') ? _unitsPerFloor.map((e) => int.tryParse(e) ?? 0).toList() : const [],
+      shopOpenings: _type == 'shop' ? _optionalInt(_shopOpenings) : null,
       bedrooms: _requiresResidential ? _optionalInt(_bedrooms) : null,
       bathrooms: _requiresResidential ? _optionalInt(_bathrooms) : null,
       hasParking: _requiresStructure ? _parkingValue : null,
@@ -1595,8 +1690,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       landBoundaryGeoJson: _type == 'land' ? _landBoundaryGeoJson : null,
       latitude: _latitude!,
       longitude: _longitude!,
-      contactPhone: _phone.text.trim(),
-      contactWhatsapp: _whatsapp.text.trim(),
+      contactPhone: ListingContactPolicy.normalize(_phone.text),
+      contactWhatsapp: ListingContactPolicy.normalize(_whatsapp.text),
       ownershipDocumentType:
           user?.isOwner == true ? _ownershipDocumentType : null,
       documentOwnerName:
@@ -1612,7 +1707,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!mounted) return;
     final validation = submit ? _validateForSubmit() : _validateCore();
     if (validation != null) {
-      if (!submit) { await _saveRecovery(); if (mounted) _message(_accountSaved ? 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' : 'لم يكتمل الحفظ على الحساب. أعد المحاولة قبل الخروج.'); } else { _message(validation); }
+      if (!submit) { await _saveRecovery(); if (mounted) _message(_accountSaved ? 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' : 'لم يكتمل الحفظ على الحساب. أعد المحاولة قبل الخروج.'); } else { setState(() => _stepError = validation); }
       return;
     }
 
@@ -1696,8 +1791,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         } catch (error) {
           if (mounted) {
             final message = friendlyApiError(error);
-            _message(
-                'تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: $message');
+            setState(() => _stepError = 'تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: $message');
             if (message.contains('السعي')) {
               await _refreshSai(draft.id);
             }
@@ -1716,7 +1810,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       await Future<void>.delayed(const Duration(milliseconds: 500));
       if (mounted) _finish(draft);
     } catch (error) {
-      if (mounted) _message(friendlyApiError(error));
+      if (mounted) setState(() => _stepError = friendlyApiError(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1733,7 +1827,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Future<void> _preview() async {
     final validation = _validateCore();
     if (validation != null) {
-      _message(validation);
+      setState(() => _stepError = validation);
       return;
     }
 
@@ -1812,13 +1906,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 if (_purpose == 'rent' && _rentalConditions.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.s12),
                   Text('شروط الإيجار', style: Theme.of(context).textTheme.titleMedium),
-                  for (final condition in _rentalConditions) Text(switch (condition['kind']) {
-                    'advance' => 'مقدم إيجار: ${condition['months']} أشهر',
-                    'duration' => 'مدة العقد: ${condition['months']} أشهر',
-                    'guarantor' => 'ضمانة تجارية مطلوبة',
-                    'deposit' => 'تأمين مطلوب',
-                    _ => '${condition['text'] ?? ''}',
-                  }),
+                  for (final condition in _rentalConditions) Text(rentalConditionSummary(condition)),
                 ],
                 const SizedBox(height: AppSpacing.s20),
                 if (_validateForSubmit() == null) ...[
@@ -2051,24 +2139,38 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
   }
 
-  Future<void> _selectOnMap() async {
-    final selection = await ref.read(propertyLocationPickerProvider)(context,
-      initialLatitude: _latitude, initialLongitude: _longitude);
-    if (!mounted || selection == null) return;
-    setState(() {
-      if (_latitude != selection.latitude || _longitude != selection.longitude) _landBoundaryGeoJson = null;
-      final city = selection.address.governorate;
-      if (city != null && _normalizedName(city) != _normalizedName(_governorate.text)) {
-        _district.text = selection.address.district ?? '';
-        _street.text = selection.address.street ?? '';
+  Future<void> _selectOnMap() => _selectLocation();
+  Future<void> _selectLocation({bool useCurrent = false}) async {
+    if (_busy || _selectingLocation || _resolvingLocation) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    setState(() { _selectingLocation = true; _locationError = null; });
+    try {
+      final initial = useCurrent ? await ref.read(propertyCurrentLocationProvider)() : null;
+      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+      // A GPS fix only centers the existing picker; the user still confirms the
+      // actual property point. It never changes Home's discovery preference.
+      final selection = await ref.read(propertyLocationPickerProvider)(context,
+        initialLatitude: initial?.latitude ?? _latitude, initialLongitude: initial?.longitude ?? _longitude);
+      if (!mounted || selection == null || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+      if (!selection.latitude.isFinite || !selection.longitude.isFinite || selection.latitude.abs() > 90 || selection.longitude.abs() > 180) {
+        throw StateError('Invalid property point');
       }
-      _latitude = selection.latitude;
-      _longitude = selection.longitude;
-    });
-    // The picker already attempted address lookup. Do not hold the user in a
-    // second network request; the confirmed point is saved even without it.
-    await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: false);
-    unawaited(_saveRecovery());
+      setState(() {
+        if (_latitude != selection.latitude || _longitude != selection.longitude) _landBoundaryGeoJson = null;
+        final city = selection.address.governorate;
+        if (city != null && _normalizedName(city) != _normalizedName(_governorate.text)) {
+          _district.text = selection.address.district ?? ''; _street.text = selection.address.street ?? '';
+        }
+        _latitude = selection.latitude; _longitude = selection.longitude; _stepError = null;
+      });
+      await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: false);
+      unawaited(_saveRecovery());
+    } on PlatformException catch (error) {
+      if (mounted) { setState(() => _locationError = const ['LOCATION_DISABLED','LOCATION_DENIED'].contains(error.code)
+        ? error.message : 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.'); }
+    } catch (_) {
+      if (mounted) setState(() => _locationError = 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
+    } finally { if (mounted) setState(() => _selectingLocation = false); }
   }
 
   Future<void> _fillAddress(
@@ -2096,8 +2198,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       });
     } catch (_) {
       if (mounted) {
-        _message(
-            'تم تثبيت الموقع، لكن تعذر جلب العنوان تلقائياً. أكمله يدوياً.');
+        setState(() => _locationError = 'تم تثبيت الموقع. تعذّر جلب العنوان تلقائيًا؛ أكمله يدويًا.');
       }
     } finally {
       if (mounted) setState(() => _resolvingLocation = false);
@@ -2149,8 +2250,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   void _message(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 2)));
   }
 }
 

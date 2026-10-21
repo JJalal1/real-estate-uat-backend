@@ -39,15 +39,20 @@ class ListingEditorDraftService
     public function clean(array $payload): array
     {
         $allowed = ['editor_version','sai_amount_type','rental_conditions','unit_occupies_entire_floor','sai_touched','sai_terms_accepted',
-            'step','purpose','type','area_unit','tenure_type','parking','elevator','facade','ownership_document_type','relationship_type',
+            'units_per_floor','same_floor_units','step','purpose','type','area_unit','tenure_type','parking','elevator','facade','ownership_document_type','relationship_type',
             'latitude','longitude','land_boundary','replace_images','price_display_mode','server_property_id','proof_needs_reselection',
             'type_confirmed','purpose_confirmed','completion_only','image_order','fields'];
         $payload = array_intersect_key($payload,array_flip($allowed));
         $fields = array_intersect_key((array)($payload['fields'] ?? []),array_flip([
             'title','description','ai_listing_brief','price','monthly_rent','rental_term_months','advance_months','area',
-            'bedrooms','bathrooms','governorate','district','street','building_reference','unit_number','floor_number','phone','whatsapp',
+            'floors_count','shop_openings','bedrooms','bathrooms','governorate','district','street','building_reference','unit_number','floor_number','phone','whatsapp',
             'document_owner_name','relationship_note','broker_sai_rate_percent','fixed_sai_amount']));
-        foreach ($fields as $key=>$value) { abort_unless(is_scalar($value) || $value === null,422); $fields[$key] = mb_substr((string)$value,0,$key === 'description' ? 5000 : 1500); }
+        foreach ($fields as $key=>$value) { abort_unless(is_scalar($value) || $value === null,422); $fields[$key] = mb_substr((string)$value,0,$key === 'ai_listing_brief' ? 10000 : ($key === 'description' ? 5000 : 1500)); }
+        if (isset($payload['units_per_floor'])) {
+            abort_unless(is_array($payload['units_per_floor']) && array_is_list($payload['units_per_floor']) && count($payload['units_per_floor'])<=50,422);
+            $payload['units_per_floor']=array_map(function ($value) { abort_unless(is_scalar($value) || $value===null,422); return mb_substr((string)$value,0,3); },$payload['units_per_floor']);
+        }
+        $payload['same_floor_units']=($payload['same_floor_units'] ?? false) === true;
         $context = $payload + ['unit_occupies_entire_floor'=>false];
         $aliases = ['area'=>'area_value','parking'=>'has_parking','elevator'=>'has_elevator','facade'=>'building_facade','land_boundary'=>'land_boundary_geojson'];
         $schema = app(DynamicPropertySchema::class);

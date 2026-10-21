@@ -169,7 +169,7 @@ class BrokerListingAssistantTest extends TestCase
         $this->prepare($headers, 'شقة')->assertOk()->assertJsonPath('data.source', 'text');
         Http::assertSentCount(1);
         $this->prepare($headers, 'انشر', ['status' => 'published'])->assertUnprocessable();
-        $this->prepare($headers, str_repeat('a', 1501))->assertUnprocessable();
+        $this->prepare($headers, str_repeat('a', 5001))->assertUnprocessable();
         Http::assertSentCount(1);
         $this->assertDatabaseCount('properties', 0);
     }

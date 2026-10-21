@@ -42,10 +42,12 @@ class Wave3DesignApiTest extends TestCase
         $owner = User::factory()->create();
         $matching = $this->listing($owner, ['purpose' => 'rent', 'monthly_rent' => 80000, 'price' => 800000, 'has_elevator' => false]);
         $this->listing($owner, ['purpose' => 'rent', 'monthly_rent' => 150000, 'price' => 150000, 'has_elevator' => false]);
-        $this->listing($owner, ['purpose' => 'rent', 'monthly_rent' => 80000, 'has_elevator' => null]);
+        $withoutLegacyElevator = $this->listing($owner, ['purpose' => 'rent', 'monthly_rent' => 80000, 'has_elevator' => null]);
         $r = $this->getJson('/api/properties?purpose=rent&min_monthly_rent=50000&max_monthly_rent=100000&has_elevator=0')
-            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $matching->id)->assertJsonPath('data.0.monthly_rent', 80000);
-        $this->assertSame(1, $r->json('meta.total'));
+            ->assertOk()->assertJsonCount(2, 'data');
+        $this->assertEqualsCanonicalizing([$matching->id,$withoutLegacyElevator->id],array_column($r->json('data'),'id'));
+        foreach($r->json('data') as $row) { $this->assertEquals(80000,$row['monthly_rent']); $this->assertNull($row['has_elevator'] ?? null); }
+        $this->assertSame(2, $r->json('meta.total'));
     }
 
     public function test_expired_and_irrelevant_spotlights_never_appear_in_featured_results(): void

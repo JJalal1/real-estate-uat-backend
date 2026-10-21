@@ -33,15 +33,13 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('condition assistance is optional and waits for an explicit review action', (tester) async {
-    var requests = 0;
+  testWidgets('rental requirements stay manual without an AI action', (tester) async {
     const original = <Map<String, dynamic>>[{'kind': 'guarantor'}, {'kind': 'duration', 'months': 12}];
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: RentalConditionsEditor(value: original,
-      onChanged: (_) => fail('An assistant action must not apply an unreviewed change.'), onPolish: () => requests++))));
-    expect(requests, 0);
+      onChanged: (_) => fail('Rendering must not change selected requirements.')))));
     expect(find.text('تأمين مطلوب'), findsNothing);
-    await tester.tap(find.text('ترتيب وصياغة الشروط بالذكاء الاصطناعي')); await tester.pump();
-    expect(requests, 1);
+    expect(find.text('ترتيب وصياغة الشروط بالذكاء الاصطناعي'), findsNothing);
+    expect(find.byIcon(Icons.auto_awesome), findsNothing);
     expect(original, [{'kind': 'guarantor'}, {'kind': 'duration', 'months': 12}]);
     expect(tester.takeException(), isNull);
   });
