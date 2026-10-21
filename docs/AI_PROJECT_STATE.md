@@ -1,5 +1,10 @@
 # AI Project State — REAL ESTATE UAT
 
+## October21 user-work protection and listing media batch1
+
+Read `docs/USER_WORK_MEDIA_BATCH1_AR.md`. Start from the latest verified source `d84970332ee451bb176dbeff618ea346620c5e89`, not stale main or an old APK. PR96 branches from and targets `work/new-wave-1102`; the preceding open stack is not automatically approved. Extend existing account/local drafts with uncertain-request reconciliation, per-image retry/order/primary/removal and scoped recovery; request OS permission only on explicit use. Originals remain private; GD generates sanitized display variants. JPEG/WebP codec and bundled EXIF runtime support plus optional backward-compatible draft JSON fields are justified in the PR and require review before adoption. No new tables, storage protocol, Flutter/Composer dependency, paid resource, financial policy/history or role change. Original five CI gates, strict analysis, source-matched APK/native verification, encrypted public-repository delivery and physical handset acceptance remain distinct. Automated acceptance is in progress. The owner explicitly prohibits merge or deployment without approval; no rollout is authorized by this batch.
+
+
 ## October21 new-wave handoff on delivered APK1102
 
 The owner supplied a scoped DOCX and nine reference images for listing audio/retry, description improvement, point-first address entry, customer management, broker robot/navigation, dynamic floors/units/shop openings, elevator retirement and Yemen listing contacts. Work continues from exact delivered1102 source `70e40d647b1065792e6d52f5170b542d071919b8` on `work/new-wave-1102`; read `NEW_WAVE_1102_AR.md`. Additive facts are authorized, with no general redesign or financial/role/history change. Implementation and new exact-source CI/native delivery are in progress. No new installer, database rollout, provider or handset acceptance is claimed.

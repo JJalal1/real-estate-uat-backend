@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:geolocator/geolocator.dart';
@@ -28,7 +29,8 @@ final propertyCurrentLocationProvider = Provider<PropertyCurrentLocation>((ref) 
   var permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
   if (permission != LocationPermission.whileInUse && permission != LocationPermission.always) {
-    throw PlatformException(code: 'LOCATION_DENIED', message: 'لم يُمنح إذن الموقع. يمكنك تحديد النقطة على الخريطة.');
+    throw PlatformException(code: permission==LocationPermission.deniedForever ? 'LOCATION_DENIED_FOREVER':'LOCATION_DENIED',
+      message: permission==LocationPermission.deniedForever ? 'إذن الموقع مرفوض نهائيًا. افتح الإعدادات أو اختر النقطة يدويًا على الخريطة.' : 'لم يُمنح إذن الموقع. يمكنك تحديد النقطة على الخريطة.');
   }
   final position = await Geolocator.getCurrentPosition(locationSettings:
     const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 12)));
@@ -81,6 +83,9 @@ class _PropertyLocationPickerScreenState
   bool _styleLoaded = false;
   bool _draggingPin = false;
   bool _resolving = false;
+  bool _styleFailed = false, _needsSettings = false, _locating = false;
+  int _mapAttempt = 0;
+  Timer? _mapTimeout;
   String? _message;
 
   @override
@@ -91,7 +96,21 @@ class _PropertyLocationPickerScreenState
     _selection = latitude != null && longitude != null
         ? LatLng(latitude, longitude)
         : _fallback;
+    _startMapTimeout();
   }
+
+  void _startMapTimeout() {
+    _mapTimeout?.cancel();
+    _mapTimeout=Timer(const Duration(seconds:25),() {
+      if(mounted && !_styleLoaded) setState(()=>_styleFailed=true);
+    });
+  }
+  void _retryMap() {
+    setState(() { _mapAttempt++;_styleLoaded=false;_styleFailed=false;_controller=null; });
+    _startMapTimeout();
+  }
+  @override
+  void dispose() { _mapTimeout?.cancel();super.dispose(); }
 
   void _onMapCreated(MapLibreMapController controller) {
     _controller = controller;
@@ -99,8 +118,10 @@ class _PropertyLocationPickerScreenState
 
   void _onStyleLoaded() {
     if (!mounted) return;
+    _mapTimeout?.cancel();
     setState(() {
       _styleLoaded = true;
+      _styleFailed = false;
       _message = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncPinToSelection());
@@ -184,6 +205,8 @@ class _PropertyLocationPickerScreenState
   }
 
   Future<void> _moveToCurrentLocation() async {
+    if (_locating) return;
+    setState(() { _locating=true;_needsSettings=false; });
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
       if (!enabled) {
@@ -199,6 +222,7 @@ class _PropertyLocationPickerScreenState
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         if (mounted) {
+          _needsSettings=permission==LocationPermission.deniedForever;
           setState(
               () => _message = 'لم يتم منح إذن الموقع. حرّك الدبوس يدوياً.');
         }
@@ -223,7 +247,7 @@ class _PropertyLocationPickerScreenState
       if (mounted) {
         setState(() => _message = 'تعذر الحصول على موقع الهاتف الآن.');
       }
-    }
+    } finally { if(mounted)setState(()=>_locating=false); }
   }
 
   Future<void> _confirm() async {
@@ -273,6 +297,7 @@ class _PropertyLocationPickerScreenState
               children: [
                 Positioned.fill(
                   child: MapLibreMap(
+                    key:ValueKey(_mapAttempt),
                     styleString: _mapStyle,
                     initialCameraPosition:
                         CameraPosition(target: _selection, zoom: 15),
@@ -306,7 +331,7 @@ class _PropertyLocationPickerScreenState
                               child: Text(
                                 _styleLoaded
                                     ? 'اسحب الدبوس إلى العقار، أو حرّك الخريطة ليعود الدبوس إلى المنتصف.'
-                                    : 'جارٍ تحميل الخريطة…',
+                                    : _styleFailed ? 'تعذر تحميل الخريطة. أعد المحاولة عند توفر الشبكة.' : 'جارٍ تحميل الخريطة…',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -318,6 +343,11 @@ class _PropertyLocationPickerScreenState
                     ),
                   ),
                 ),
+                if (_styleFailed) Positioned.fill(child:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(24),
+                  child:Card(child:Padding(padding:const EdgeInsets.all(20),child:Column(mainAxisSize:MainAxisSize.min,children:[
+                    const Text('النقطة السابقة محفوظة. يمكنك الرجوع أو إعادة تحميل الخريطة.'),
+                    TextButton.icon(onPressed:_retryMap,icon:const Icon(Icons.refresh),label:const Text('إعادة تحميل الخريطة')),
+                  ])))))),
                 if (_styleLoaded) ...[
                   Positioned(
                     left: pin.dx - 24,
@@ -371,7 +401,7 @@ class _PropertyLocationPickerScreenState
                   child: FloatingActionButton.small(
                     heroTag: 'property-picker-current-location',
                     tooltip: 'موقعي الحالي',
-                    onPressed: _styleLoaded ? _moveToCurrentLocation : null,
+                    onPressed: _styleLoaded && !_locating ? _moveToCurrentLocation : null,
                     child: const EbrokerIcon(Icons.my_location_rounded),
                   ),
                 ),
@@ -390,6 +420,7 @@ class _PropertyLocationPickerScreenState
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            if (_needsSettings) TextButton(onPressed:Geolocator.openAppSettings,child:const Text('فتح إعدادات الموقع')),
                             if (_message != null) ...[
                               Text(
                                 _message!,

@@ -21,11 +21,11 @@ class UatHttpsMediaTest extends TestCase
         $root = 'https://real-estate-uat-api-frankfurt.onrender.com';
         $this->withHeaders(['X-Forwarded-Proto' => 'https']);
         $this->getJson('http://real-estate-uat-api-frankfurt.onrender.com/api/properties')
-            ->assertOk()->assertJsonPath('data.0.main_image', $root.'/api/property-media/'.$image->id);
+            ->assertOk()->assertJsonPath('data.0.main_image', $root.'/api/property-media/'.$image->id.'?variant=card');
         $this->getJson('http://real-estate-uat-api-frankfurt.onrender.com/api/properties/'.$property->id)
             ->assertOk()->assertJsonPath('data.images.0.url', $root.'/api/property-media/'.$image->id);
         $this->getJson('http://real-estate-uat-api-frankfurt.onrender.com/api/marketplace?'.http_build_query(['governorate' => 'صنعاء']))
-            ->assertOk()->assertJsonPath('data.sections.latest.0.main_image', $root.'/api/property-media/'.$image->id);
+            ->assertOk()->assertJsonPath('data.sections.latest.0.main_image', $root.'/api/property-media/'.$image->id.'?variant=card');
     }
 
     public function test_favorite_images_use_the_same_https_proxy_contract(): void
@@ -56,7 +56,7 @@ class UatHttpsMediaTest extends TestCase
     {
         [, , $image] = $this->listing();
         $this->getJson('http://localhost/api/properties')->assertOk()
-            ->assertJsonPath('data.0.main_image', 'http://localhost/api/property-media/'.$image->id);
+            ->assertJsonPath('data.0.main_image', 'http://localhost/api/property-media/'.$image->id.'?variant=card');
     }
 
     private function listing(): array

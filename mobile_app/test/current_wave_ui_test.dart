@@ -60,10 +60,12 @@ void main() {
     expect(tester.widget<TextButton>(button).onPressed,isNull);await tester.pump(const Duration(seconds:2));expect(ai.calls,2);
     expect(tester.takeException(),isNull);await finishWave6(tester);
   });
-  testWidgets('first home permission updates the real feed query and manual city persists',(tester)async {
+  testWidgets('explicit home location permission updates the real feed query and manual city persists',(tester)async {
     final store=MemoryLocationStore(),access=FakeLocationAccess()..decision=LocationPermission.whileInUse;
     final repository=Wave3MarketplaceFake(onFeed:(q)async=>MarketplaceFeed(label:q.governorate??(q.device?'عدن':'صنعاء')));
     await pumpWave6(tester,const MarketplaceHomeScreen(),allowLocation:true,locationStore:store,locationAccess:access,marketplace:repository);
+    expect(access.requests,0);expect(repository.queries.last.device,false);
+    await tester.tap(find.text('الموقع'));await tester.pumpAndSettle();await tester.tap(find.text('استخدم موقعي'));await tester.pumpAndSettle();
     expect(access.requests,1);expect(repository.queries.last.device,true);expect(repository.queries.last.latitude,12.8);expect(find.text('عدن'),findsOneWidget);
     await tester.tap(find.text('الموقع'));await tester.pumpAndSettle();await tester.tap(find.text('تعز'));await tester.pumpAndSettle();
     expect(repository.queries.last.governorate,'تعز');expect(store.value.manual!.governorate,'تعز');expect(access.requests,1);

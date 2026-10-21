@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/listing_account_draft.dart';
@@ -36,7 +37,7 @@ class Wave6Drafts implements ListingAccountDraftRepository {
     return drafts[key]=ListingAccountDraft(key:key,revision:revision+1,payload:copy,images:old?.images??{},propertyId:propertyId??old?.propertyId,title:(copy['fields'] as Map?)?['title']?.toString()??'مسودة محفوظة',progress:40);
   }
   @override
-  Future<ListingAccountDraft> upload(String key,String imageKey,String path,int revision) async {
+  Future<ListingAccountDraft> upload(String key,String imageKey,String path,int revision,{CancelToken? cancelToken,ProgressCallback? onSendProgress}) async {
     final old=drafts[key]!;return drafts[key]=ListingAccountDraft(key:key,revision:revision+1,payload:old.payload,propertyId:old.propertyId,images:{...old.images,imageKey:'https://fixture.invalid/$imageKey'});
   }
   @override

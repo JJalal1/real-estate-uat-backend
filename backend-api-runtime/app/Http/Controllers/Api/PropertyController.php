@@ -293,6 +293,11 @@ class PropertyController extends Controller
         try{
             $property=DB::transaction(function()use($request,$validated,$user,$cell,$asset,&$storedPublic,&$storedPrivate){
                 $lockedUser=User::query()->lockForUpdate()->findOrFail($user->id);
+                if ($request->input('editor_draft_key')) {
+                    $lockedDraft=app(\App\Services\ListingEditorDraftService::class)->owned($lockedUser,$request->input('editor_draft_key'),true);
+                    // The initial lookup happens before this account lock. Recheck after waiting for a concurrent create.
+                    abort_if($lockedDraft->property_id !== null,409,'أُنشئ الإعلان بالفعل. أعد فتح المسودة الحالية.');
+                }
                 app(\App\Services\ListingAccessService::class)->assertCanCreate($lockedUser,$request->input('editor_draft_key'));
                 $property=Property::query()->create(array_merge($this->listingPayload($validated,false),['user_id'=>$user->id,'property_asset_id'=>$asset->id,'geo_cell_id'=>$cell?->id,'owner_key'=>null,'status'=>'draft','review_status'=>'draft']));
                 $this->syncLocation($property);$this->storeImages($request,$property,0,$storedPublic);app(\App\Services\ListingEditorDraftService::class)->attach($request,$property);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
@@ -375,15 +380,8 @@ class PropertyController extends Controller
 
         abort_unless($property->status === 'published' || $isOwner || $isReviewer, 404);
         abort_if($image->cdn_url, 404);
-        if (str_starts_with($image->path,'editor-drafts/')) {
-            abort_unless($this->storage->existsPrivate($image->path),404);
-            return $this->storage->responsePrivate($image->path,null,['Cache-Control'=>$property->status==='published'?'public, max-age=86400':'private, no-store']);
-        }
-        abort_unless($this->storage->existsPublic($image->path), 404);
-
-        return $this->storage->responsePublic($image->path, null, [
-            'Cache-Control' => 'public, max-age=86400',
-        ]);
+        return app(\App\Services\ListingImageService::class)->response($image->path,
+            (string)$request->query('variant','detail'),$property->status==='published');
     }
 
     private function filterRules(): array
@@ -742,7 +740,7 @@ class PropertyController extends Controller
     {
         $files = $request->file('images', []);
         foreach ($files as $index => $file) {
-            $path = $this->storage->storePublic($file, 'properties/' . $property->id);
+            $path = app(\App\Services\ListingImageService::class)->store($file, 'listing-originals/' . $property->id);
             if (! is_string($path) || $path === '') {
                 throw new \RuntimeException('The uploaded image could not be stored.');
             }
@@ -832,7 +830,7 @@ class PropertyController extends Controller
     {
         foreach ($images as $image) {
             if (! $image->cdn_url && $image->path) {
-                if (str_starts_with($image->path,'editor-drafts/')) $this->storage->deletePrivate($image->path); else $this->storage->deletePublic($image->path);
+                app(\App\Services\ListingImageService::class)->removeIfUnused($image->path);
             }
         }
     }
@@ -840,7 +838,7 @@ class PropertyController extends Controller
     private function deletePaths(array $paths): void
     {
         foreach ($paths as $path) {
-            $this->storage->deletePublic($path);
+            app(\App\Services\ListingImageService::class)->removeIfUnused($path);
         }
     }
 
@@ -877,8 +875,8 @@ class PropertyController extends Controller
             'availability_confirmed_at' => $property->availability_confirmed_at?->toIso8601String(),
             'availability_due_at' => $property->availability_due_at?->toIso8601String(),
             'view_count' => (int) $property->view_count,
-            'main_image' => $mainImage ? $this->imageUrl($mainImage, $request) : null,
-            'image_urls' => $property->images->take(12)->map(fn ($image) => $this->imageUrl($image, $request))->values(),
+            'main_image' => $mainImage ? $this->imageUrl($mainImage, $request, 'card') : null,
+            'image_urls' => $property->images->take(12)->map(fn ($image) => $this->imageUrl($image, $request, 'card'))->values(),
             'image_count' => $property->images->count(),
             'floor_number' => in_array($property->type, ['apartment', 'floor', 'office', 'shop'], true) ? $property->floor_number : null,
             'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,
@@ -926,6 +924,7 @@ class PropertyController extends Controller
                     'url' => $this->imageUrl($image, $request),
                     'is_primary' => (bool) $image->is_primary,
                     'sort_order' => (int) $image->sort_order,
+                    'variants' => $image->cdn_url ? [] : array_combine(array_keys(config('listing_media.variants')), array_map(fn($v)=>$this->imageUrl($image,$request,$v),array_keys(config('listing_media.variants')))),
                 ])
                 ->values(),
         ]);
@@ -955,6 +954,7 @@ class PropertyController extends Controller
                     'url' => $this->imageUrl($image, $request),
                     'is_primary' => (bool) $image->is_primary,
                     'sort_order' => (int) $image->sort_order,
+                    'variants' => $image->cdn_url ? [] : array_combine(array_keys(config('listing_media.variants')), array_map(fn($v)=>$this->imageUrl($image,$request,$v),array_keys(config('listing_media.variants')))),
                 ])
                 ->values(),
         ]);
@@ -1042,7 +1042,7 @@ class PropertyController extends Controller
         ];
     }
 
-    private function imageUrl(PropertyImage $image, Request $request): string
+    private function imageUrl(PropertyImage $image, Request $request, ?string $variant = null): string
     {
         $raw = trim((string) $image->cdn_url);
         if ($raw !== '') {
@@ -1052,7 +1052,7 @@ class PropertyController extends Controller
             return rtrim($request->getSchemeAndHttpHost(), '/') . '/' . ltrim($raw, '/');
         }
 
-        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id;
+        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id . ($variant ? '?variant='.$variant : '');
     }
 
     private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float

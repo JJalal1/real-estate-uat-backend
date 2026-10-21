@@ -81,9 +81,12 @@ class UatCloudBackendApiTest extends TestCase
         $review = (string) file_get_contents(app_path('Http/Controllers/Api/ListingReviewController.php'));
 
         $this->assertStringContainsString('CloudAssetStorageService', $property);
-        $this->assertStringContainsString('storePublic', $property);
+        $images = (string) file_get_contents(app_path('Services/ListingImageService.php'));
+        $this->assertStringContainsString('ListingImageService', $property);
+        $this->assertStringContainsString('writePrivate', $images);
+        $this->assertStringNotContainsString('storePublic', $images);
         $this->assertStringContainsString('storePrivate', $property);
-        $this->assertStringContainsString('responsePublic', $property);
+        $this->assertStringContainsString('responsePrivate', $images);
         $this->assertStringNotContainsString("Storage::disk('public')", $property);
         $this->assertStringNotContainsString("Storage::disk('local')", $property);
 

@@ -38,7 +38,7 @@ class ListingEditorDraftService
 
     public function clean(array $payload): array
     {
-        $allowed = ['editor_version','sai_amount_type','rental_conditions','unit_occupies_entire_floor','sai_touched','sai_terms_accepted',
+        $allowed = ['checkpoint_key','media_version','editor_version','sai_amount_type','rental_conditions','unit_occupies_entire_floor','sai_touched','sai_terms_accepted',
             'units_per_floor','same_floor_units','step','purpose','type','area_unit','tenure_type','parking','elevator','facade','ownership_document_type','relationship_type',
             'latitude','longitude','land_boundary','replace_images','price_display_mode','server_property_id','proof_needs_reselection',
             'type_confirmed','purpose_confirmed','completion_only','image_order','fields'];
@@ -66,7 +66,7 @@ class ListingEditorDraftService
         }
         if (($payload['purpose'] ?? '') === 'rent') unset($fields['price']);
         $payload['step']=max(0,min(3,(int)($payload['step'] ?? 0)));
-        $payload['image_order']=array_values(array_filter((array)($payload['image_order'] ?? []),fn($key)=>is_string($key) && Str::isUuid($key)));
+        $payload['image_order']=array_values(array_unique(array_filter((array)($payload['image_order'] ?? []),fn($key)=>is_string($key) && (Str::isUuid($key) || preg_match('/^property-[1-9][0-9]*$/D',$key)))));
         $payload['fields']=$fields;
         return $payload;
     }
@@ -88,7 +88,10 @@ class ListingEditorDraftService
         $complete=0;
         foreach ($required as $key) if (isset($facts[$key]) && $facts[$key] !== '' && (! in_array($key,['area_value','bedrooms','bathrooms'],true) || (float)$facts[$key]>0)) $complete++;
         $images=[];
-        foreach ($draft->images as $key=>$_) $images[]=['key'=>$key,'url'=>url('/api/listing-editor-drafts/'.$draft->client_key.'/images/'.$key)];
+        foreach ($draft->images as $key=>$_) {
+            $url=url('/api/listing-editor-drafts/'.$draft->client_key.'/images/'.$key);
+            $images[]=['key'=>$key,'url'=>$url,'status'=>'complete','variants'=>array_combine(array_keys(config('listing_media.variants')),array_map(fn($v)=>$url.'?variant='.$v,array_keys(config('listing_media.variants'))))];
+        }
         return ['key'=>$draft->client_key,'property_id'=>$draft->property_id,'revision'=>$draft->revision,'payload'=>$payload,'images'=>$images,
             'title'=>$title,'progress'=>(int)round(100*$complete/max(1,count($required))),'updated_at'=>$draft->updated_at?->toIso8601String()];
     }
@@ -101,18 +104,48 @@ class ListingEditorDraftService
         $this->assertRevision($draft,(int)$request->input('editor_draft_revision',-1));
         abort_if($draft->property_id !== null && $draft->property_id !== (int)$property->id,409);
         $images=$draft->images;
+        $removed=[];
+        $payload=$draft->payload;
+        if (($draft->payload['media_version'] ?? 0) === 1) {
+            $wanted=$draft->payload['image_order'] ?? [];
+            foreach ($wanted as $token) if (str_starts_with($token,'property-')) {
+                abort_unless($property->images()->whereKey((int)substr($token,9))->exists(),422,'الصورة لا تنتمي لهذا الإعلان.');
+            }
+            foreach ($property->images()->get() as $image) if (!in_array('property-'.$image->id,$wanted,true)) {
+                $removed[]=$image->path; $image->delete();
+            }
+            foreach ($images as $token=>$path) if (!in_array($token,$wanted,true)) { $removed[]=$path; unset($images[$token]); }
+            // An interrupted/removed local file cannot be silently skipped during promotion.
+            foreach ($wanted as $token) if (Str::isUuid($token)) abort_unless(isset($images[$token]),422,'لم يكتمل رفع الصور. أعد محاولة الملف المتعثر.');
+        }
         abort_if($property->images()->count()+count($images)>12,422,'يمكن رفع 12 صورة على الأكثر.');
         $order=array_unique(array_merge($draft->payload['image_order'] ?? [],array_keys($images)));
         $sort=$property->images()->max('sort_order') ?? -1;
+        $attached=[];
         foreach ($order as $imageKey) {
             if (!isset($images[$imageKey])) continue;
-            $property->images()->firstOrCreate(['path'=>$images[$imageKey]],['sort_order'=>++$sort]);
+            $attached[$imageKey]=$property->images()->firstOrCreate(['path'=>$images[$imageKey]],['sort_order'=>++$sort]);
         }
-        $draft->forceFill(['property_id'=>$property->id,'images'=>[],'revision'=>$draft->revision+1])->save();
+        if (($draft->payload['media_version'] ?? 0) === 1) {
+            $promoted=[];$committedOrder=[];
+            foreach ($draft->payload['image_order'] ?? [] as $position=>$token) {
+                $image=str_starts_with($token,'property-') ? $property->images()->find((int)substr($token,9)) : ($attached[$token] ?? null);
+                if ($image) {
+                    $image->forceFill(['sort_order'=>$position,'is_primary'=>$position===0])->save();
+                    $committedOrder[]='property-'.$image->id;
+                    if (Str::isUuid($token)) $promoted[$token]='property-'.$image->id;
+                }
+            }
+            // Server-written aliases let a client recover a lost Property response without uploading successful files again.
+            $payload['image_order']=$committedOrder;
+            $payload['promoted_image_keys']=$promoted;
+        }
+        $draft->forceFill(['property_id'=>$property->id,'payload'=>$payload,'images'=>[],'revision'=>$draft->revision+1])->save();
+        if ($removed) DB::afterCommit(fn()=>$this->removeFiles($removed));
     }
 
     public function removeFiles(array $paths): void
     {
-        foreach ($paths as $path) if (!PropertyImage::query()->where('path',$path)->exists()) app(CloudAssetStorageService::class)->deletePrivate($path);
+        foreach ($paths as $path) app(ListingImageService::class)->removeIfUnused($path);
     }
 }

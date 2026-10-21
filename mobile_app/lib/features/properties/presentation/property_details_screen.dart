@@ -1,3 +1,4 @@
+import 'listing_draft_photo.dart';
 import '../domain/rental_condition_summary.dart';
 import 'property_summary_card.dart';
 import 'package:flutter/material.dart';
@@ -206,6 +207,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         children: [
           _Gallery(
             images: property.images,
+            privateImages:property.status!='published',
             index: _imageIndex,
             onChanged: (index) => setState(() => _imageIndex = index),
           ),
@@ -304,7 +306,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             const SizedBox(height: 24), EbrokerSectionPanel(title: 'معرض الصور', child: SizedBox(height: 96, child: ListView.separated(
               scrollDirection: Axis.horizontal, itemCount: property.images.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) => Semantics(button: true, label: 'فتح صورة العقار ${index + 1}', child: InkWell(
-                onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: property.images, initialIndex: index))),
+                onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: property.images, initialIndex: index, privateImages:property.status!='published'))),
                 child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, child: AppPropertyMedia(imageUrl: property.images[index].url, height: 96))),
               )),
             ))),
@@ -543,11 +545,13 @@ class _Gallery extends StatelessWidget {
     required this.images,
     required this.index,
     required this.onChanged,
+    this.privateImages=false,
   });
 
   final List<PropertyImageItem> images;
   final int index;
   final ValueChanged<int> onChanged;
+  final bool privateImages;
 
   @override
   Widget build(BuildContext context) {
@@ -573,13 +577,11 @@ class _Gallery extends StatelessWidget {
                         builder: (_) => _FullscreenGallery(
                           images: images,
                           initialIndex: imageIndex,
+                          privateImages:privateImages,
                         ),
                       ),
                     ),
-                    child: AppPropertyMedia(
-                      imageUrl: images[imageIndex].url,
-                      height: double.infinity,
-                    ),
+                    child: ListingDraftPhoto(url:images[imageIndex].galleryUrl,authenticated:privateImages,cacheWidth:1600),
                   ),
                 ),
               ),
@@ -594,7 +596,7 @@ class _Gallery extends StatelessWidget {
               PositionedDirectional(bottom: 12.rh(context), end: 16.rw(context),
                 child: Semantics(button: true, label: 'تكبير الصور',
                   child: GestureDetector(onTap: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: images, initialIndex: index))),
+                    MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: images, initialIndex: index,privateImages:privateImages))),
                     child: Container(padding: EdgeInsets.symmetric(horizontal: 8.rw(context), vertical: 4.rh(context)),
                       decoration: BoxDecoration(color: EbrokerDesign.surface,
                         borderRadius: BorderRadius.circular(16), border: Border.all(color: EbrokerDesign.border)),
@@ -611,10 +613,11 @@ class _Gallery extends StatelessWidget {
 }
 
 class _FullscreenGallery extends StatefulWidget {
-  const _FullscreenGallery({required this.images, required this.initialIndex});
+  const _FullscreenGallery({required this.images, required this.initialIndex,this.privateImages=false});
 
   final List<PropertyImageItem> images;
   final int initialIndex;
+  final bool privateImages;
 
   @override
   State<_FullscreenGallery> createState() => _FullscreenGalleryState();
@@ -654,18 +657,7 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                   child: InteractiveViewer(
                     minScale: 1,
                     maxScale: 4,
-                    child: Image.network(
-                      widget.images[imageIndex].url,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) => const Center(
-                        child: EbrokerIcon(Icons.broken_image_outlined, color: Colors.white54, size: 52),
-                      ),
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return const Center(child: CircularProgressIndicator());
-                      },
-                    ),
+                    child: ListingDraftPhoto(url:widget.images[imageIndex].zoomUrl,authenticated:widget.privateImages,fit:BoxFit.contain,cacheWidth:3072),
                   ),
                 ),
               ),

@@ -17,6 +17,7 @@ class Stage5PropertyApiTest extends TestCase
     {
         parent::setUp();
         Storage::fake('public');
+        Storage::fake('local');
     }
 
     public function test_complete_listing_lifecycle_with_images_under_stage6_identity(): void
@@ -35,7 +36,11 @@ class Stage5PropertyApiTest extends TestCase
         $this->assertNull($property->owner_key);
 
         $paths=$property->images()->pluck('path')->all();
-        foreach ($paths as $path) Storage::disk('public')->assertExists($path);
+        foreach ($paths as $path) {
+            Storage::disk('local')->assertExists($path);
+            Storage::disk('public')->assertMissing($path);
+            Storage::disk('local')->assertExists(app(\App\Services\ListingImageService::class)->variantPath($path,'card'));
+        }
 
         $this->withHeaders(['Authorization'=>''])->getJson("/api/properties/$id")->assertNotFound();
         $this->withHeaders($headers)->getJson("/api/properties/$id")->assertOk()->assertJsonPath('data.is_owner',true);
@@ -47,7 +52,11 @@ class Stage5PropertyApiTest extends TestCase
             'title'=>'Updated listing','replace_images'=>'1',
         ],['Accept'=>'application/json']);
         $updated->assertOk()->assertJsonPath('data.title','Updated listing')->assertJsonCount(0,'data.images');
-        foreach ($paths as $path) Storage::disk('public')->assertMissing($path);
+        foreach ($paths as $path) {
+            Storage::disk('local')->assertMissing($path);
+            Storage::disk('public')->assertMissing($path);
+            Storage::disk('local')->assertMissing(app(\App\Services\ListingImageService::class)->variantPath($path,'card'));
+        }
 
         $this->withHeaders($headers)->getJson('/api/properties/mine/list?per_page=10')
             ->assertOk()->assertJsonPath('meta.total',1)->assertJsonPath('data.0.id',$id);
