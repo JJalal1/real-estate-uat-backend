@@ -15,7 +15,7 @@ concurrency:
 
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
-  ACCEPTED_SOURCE_SHA: 2eecb546213487613eb550a751b659748bcc1cc3
+  ACCEPTED_SOURCE_SHA: 4ed5563d21c88690a3bf7b991a6ba5c67973ddc3
   UAT_BUILD_NUMBER: '1124'
 
 jobs:
