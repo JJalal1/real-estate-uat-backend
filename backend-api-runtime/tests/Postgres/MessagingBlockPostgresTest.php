@@ -46,4 +46,20 @@ class MessagingBlockPostgresTest extends TestCase
         }
 
     }
+    public function test_pair_uniqueness_self_check_foreign_keys_and_migration_reversal_are_reviewable(): void
+    {
+        $rows=DB::select("SELECT contype,pg_get_constraintdef(oid) AS definition,confdeltype FROM pg_constraint WHERE conrelid='public.user_messaging_blocks'::regclass");
+        $definitions=collect($rows)->pluck('definition')->implode(' ');
+        $this->assertStringContainsString('UNIQUE (user_id, blocked_user_id)',$definitions);
+        $this->assertStringContainsString('user_id <> blocked_user_id',$definitions);
+        $this->assertSame(2,collect($rows)->where('contype','f')->where('confdeltype','r')->count());
+        DB::beginTransaction();
+        try {
+            $migration=require database_path('migrations/2026_10_21_010000_create_user_messaging_blocks.php');
+            $migration->down();
+            $this->assertNull(DB::selectOne("SELECT to_regclass('public.user_messaging_blocks') AS target")->target);
+            $migration->up();
+            $this->assertTrue((bool)DB::selectOne("SELECT relrowsecurity FROM pg_class WHERE oid='public.user_messaging_blocks'::regclass")->relrowsecurity);
+        } finally { DB::rollBack(); }
+    }
 }

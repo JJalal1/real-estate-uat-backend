@@ -34,6 +34,7 @@ class Wave2AccountSafetyTest extends TestCase
         $this->withHeaders($b)->getJson("/api/messages/threads/$id")->assertOk()->assertJsonPath('data.thread.blocked_by_me',false)->assertJsonPath('data.thread.can_send',false);
         $this->withHeaders($b)->postJson("/api/properties/$listing->id/conversation")->assertForbidden();
         $this->withHeaders($b)->postJson("/api/messages/threads/$id/external-call")->assertForbidden();
+        $this->withHeaders($b)->getJson("/api/properties/$listing->id/contact")->assertForbidden();
         $this->withHeaders($b)->postJson("/api/messages/threads/$id/report",['reason'=>'abuse','details'=>'Please review existing history.'])->assertCreated();
         $this->assertDatabaseHas('audit_logs',['action'=>'messages.user_blocked','actor_user_id'=>$ad->id]);
     }

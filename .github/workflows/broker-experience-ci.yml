@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1, work/wave2-brand-trust-account]
   workflow_dispatch:
 permissions:
   contents: read
@@ -139,7 +139,7 @@ jobs:
           tests/Feature/Wave5ListingRefinementTest.php tests/Feature/EmailLoginAndNameTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Account drafts, real photos and broker contact on PostgreSQL
-        run: php artisan test tests/Feature/UserWorkMediaTest.php tests/Feature/NewWaveHandoffTest.php tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+        run: php artisan test tests/Feature/Wave2AccountSafetyTest.php tests/Feature/Wave2MediaTrustTest.php tests/Feature/PropertyIdentityV2Test.php tests/Feature/UserWorkMediaTest.php tests/Feature/NewWaveHandoffTest.php tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Listing scope, customer commission and private editor contracts on PostgreSQL
         run: >-
           php artisan test tests/Feature/UxRefinementApiTest.php
@@ -225,6 +225,7 @@ jobs:
         working-directory: mobile_app
         run: >-
           flutter test
+          test/wave2_trust_account_media_test.dart
           test/compact_cards_email_login_test.dart
           test/template_creation_menu_test.dart
           test/broker_experience_ui_test.dart
