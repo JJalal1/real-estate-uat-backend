@@ -71,13 +71,27 @@ class Stage5PropertyApiTest extends TestCase
         [, $headers]=$this->verifiedUser();
         $near=$this->createListing($headers,[
             'title'=>'Near property','latitude'=>'15.3694000','longitude'=>'44.1910000','price'=>'50000000',
+            'images'=>[
+                UploadedFile::fake()->image('near-main.jpg'),
+                UploadedFile::fake()->image('near-second.jpg'),
+                UploadedFile::fake()->image('near-third.jpg'),
+            ],
         ]);
         $far=$this->createListing($headers,[
             'title'=>'Far property','latitude'=>'15.4200000','longitude'=>'44.2400000','price'=>'70000000',
         ]);
 
         $this->withHeaders(['Authorization'=>''])->getJson('/api/properties/nearby?latitude=15.3694&longitude=44.1910&radius_km=30&purpose=rent&min_price=40000000&south=15.30&west=44.10&north=15.50&east=44.30')
-            ->assertOk()->assertJsonCount(2,'data')->assertJsonPath('data.0.id',$near)->assertJsonPath('data.1.id',$far);
+            ->assertOk()
+            ->assertJsonCount(2,'data')
+            ->assertJsonPath('data.0.id',$near)
+            ->assertJsonPath('data.1.id',$far)
+            ->assertJsonCount(1,'data.0.image_urls')
+            ->assertJsonPath('data.0.main_image',fn($value)=>is_string($value)&&str_contains($value,'/api/property-media/'));
+
+        $this->withHeaders(['Authorization'=>''])->getJson("/api/properties/$near")
+            ->assertOk()
+            ->assertJsonCount(3,'data.image_urls');
 
         $this->withHeaders(['Authorization'=>''])->getJson('/api/properties/nearby?latitude=15.3694&longitude=44.1910&south=15.0')->assertUnprocessable();
     }

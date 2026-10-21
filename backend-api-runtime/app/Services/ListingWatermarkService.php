@@ -6,6 +6,8 @@ use RuntimeException;
 /** Local GD only. Disabled until an owner-approved, fingerprint-pinned vector geometry exists. */
 class ListingWatermarkService
 {
+    /** @var array<string,array<string,mixed>> */
+    private static array $geometryCache = [];
     private ?array $geometry=null;
     public function version(): string
     {
@@ -18,6 +20,8 @@ class ListingWatermarkService
         if ($this->geometry!==null) return $this->geometry;
         $path=resource_path('brand/aqer-approved.json');
         $expected=(string)config('listing_media.watermark.approved_sha256');
+        $cacheKey=$path.'|'.$expected;
+        if (isset(self::$geometryCache[$cacheKey])) return $this->geometry=self::$geometryCache[$cacheKey];
         $bytes=is_file($path)?file_get_contents($path):false;
         if (!is_string($bytes) || !preg_match('/^[a-f0-9]{64}$/D',$expected) || !hash_equals($expected,hash('sha256',$bytes))) {
             throw new RuntimeException('Approved watermark geometry unavailable.');
@@ -33,6 +37,7 @@ class ListingWatermarkService
             }
         }
         if ($points<3) throw new RuntimeException('Empty watermark geometry.');
+        self::$geometryCache[$cacheKey]=$data;
         return $this->geometry=$data;
     }
     public function apply(\GdImage $output): void
