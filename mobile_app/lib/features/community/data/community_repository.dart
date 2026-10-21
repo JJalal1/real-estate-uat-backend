@@ -115,6 +115,7 @@ class CommunityRepository {
       if (error.response?.statusCode != 409 || data is! Map<String, dynamic> || data['code'] != 'report_already_received') rethrow;
       body = data; alreadyReceived = true;
     }
+    if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
     final data = body?['data'];
     if (data is! Map<String, dynamic>) throw StateError('Invalid report response');
     return ReportReceipt.fromJson(data, alreadyReceived: alreadyReceived);

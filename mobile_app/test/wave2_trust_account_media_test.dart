@@ -118,6 +118,28 @@ void main() {
       final expectation=expectLater(request,throwsStateError);actor=10;auth.options.complete(Options(headers:{'Authorization':'Bearer synthetic-new-session'}));await expectation;expect(calls,0);dio.close();
     });
   }
+  for (final status in [201,409]) {
+    test('late report receipt $status remains private after switching accounts',() async {
+      var actor=9;
+      final sent=Completer<void>(), release=Completer<void>();
+      final dio=Dio()..interceptors.add(InterceptorsWrapper(onRequest:(request,handler) async {
+        sent.complete();await release.future;
+        final response=Response<Map<String,dynamic>>(requestOptions:request,statusCode:status,data:{
+          if(status==409)'code':'report_already_received',
+          'data':{'id':9,'reference':'PRIVATE-OLD-ACCOUNT','status':'open'},
+        });
+        if(status==409) {
+          handler.reject(DioException(requestOptions:request,response:response,type:DioExceptionType.badResponse));
+        } else {
+          handler.resolve(response);
+        }
+      }));
+      final repo=CommunityRepository(dio,_AuthOptions(dio),actorId:9,currentActor:()=>actor);
+      final result=repo.report(targetType:'listing',targetId:1,reason:'misleading',details:'تفاصيل البلاغ');
+      final expectation=expectLater(result,throwsStateError);
+      await sent.future;actor=10;release.complete();await expectation;dio.close();
+    });
+  }
   test('review image resolution stays on the API origin and uses one api path',() async {
     final dio=Dio(BaseOptions(baseUrl:'https://fixture.example/api'));final calls=<RequestOptions>[];
     dio.interceptors.add(InterceptorsWrapper(onRequest:(r,h){calls.add(r);h.resolve(Response<List<int>>(requestOptions:r,statusCode:200,data:[1,2,3]));}));
