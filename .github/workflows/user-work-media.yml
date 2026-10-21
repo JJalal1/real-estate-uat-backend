@@ -57,6 +57,6 @@ jobs:
         if: always()
         with:
           name: user-work-media-previews
-          path: mobile_app/build/wave6-previews/
+          path: mobile_app/build/broker-preview/
           if-no-files-found: ignore
           retention-days: 3

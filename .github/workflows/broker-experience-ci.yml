@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1]
   workflow_dispatch:
 permissions:
   contents: read
@@ -57,7 +57,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
           coverage: none
       - name: Validate Composer metadata
         run: composer validate --no-check-publish
@@ -113,7 +113,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_pgsql
           coverage: none
       - name: Create disposable local environment
         run: |
@@ -139,7 +139,7 @@ jobs:
           tests/Feature/Wave5ListingRefinementTest.php tests/Feature/EmailLoginAndNameTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Account drafts, real photos and broker contact on PostgreSQL
-        run: php artisan test tests/Feature/NewWaveHandoffTest.php tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+        run: php artisan test tests/Feature/UserWorkMediaTest.php tests/Feature/NewWaveHandoffTest.php tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Listing scope, customer commission and private editor contracts on PostgreSQL
         run: >-
           php artisan test tests/Feature/UxRefinementApiTest.php
@@ -175,10 +175,10 @@ jobs:
           ref: ${{ env.SOURCE_COMMIT }}
       - name: Build the exact Render runtime image
         run: docker build -t real-estate-wave3-uat -f backend-api-runtime/Dockerfile.uat backend-api-runtime
-      - name: Verify PNG fixture generation in the runtime
+      - name: Verify PNG, JPEG, WebP and EXIF support in the runtime
         run: >-
           docker run --rm --entrypoint php real-estate-wave3-uat
-          -r '$image=imagecreatetruecolor(20,20); imagestring($image,1,0,0,"UAT",0); ob_start(); imagepng($image); $bytes=ob_get_clean(); imagedestroy($image); if(substr($bytes,0,8)!=="\x89PNG\r\n\x1a\n") exit(1); echo "Runtime PNG fixture support verified.\n";'
+          -r '$image=imagecreatetruecolor(20,20); foreach(["png"=>IMAGETYPE_PNG,"jpeg"=>IMAGETYPE_JPEG,"webp"=>IMAGETYPE_WEBP] as $format=>$type) { ob_start(); ("image".$format)($image); $bytes=ob_get_clean(); if(getimagesizefromstring($bytes)[2]!==$type) exit(1); } imagedestroy($image); if(!function_exists("exif_read_data")) exit(1); echo "Runtime PNG/JPEG/WebP codecs and EXIF support verified.\n";'
 
   flutter:
     name: Flutter broker experience and UAT APK
@@ -238,6 +238,7 @@ jobs:
           test/wave6_product_contract_test.dart
           test/wave6_product_ui_test.dart
           test/new_wave_handoff_test.dart
+          test/user_work_media_test.dart
           test/current_wave_contract_test.dart
           test/current_wave_ui_test.dart
           test/search_query_wave_test.dart

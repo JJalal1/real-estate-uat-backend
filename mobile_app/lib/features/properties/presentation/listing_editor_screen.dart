@@ -2414,12 +2414,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: false);
       unawaited(_saveRecovery());
     } on PlatformException catch (error) {
-      if (mounted) setState(() {
+      if (mounted) { setState(() {
         _locationNeedsSettings=const ['LOCATION_DISABLED','LOCATION_DENIED_FOREVER'].contains(error.code);
         _locationServiceDisabled=error.code=='LOCATION_DISABLED';
         _locationError=const ['LOCATION_DISABLED','LOCATION_DENIED','LOCATION_DENIED_FOREVER'].contains(error.code)
           ? error.message : 'تعذر تحديد الموقع الحالي. اختر النقطة على الخريطة.';
-      });
+      }); }
     } catch (_) {
       if (mounted) setState(() => _locationError = 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
     } finally { if (mounted) setState(() => _selectingLocation = false); }
