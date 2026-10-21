@@ -228,6 +228,14 @@ class ListingWorkflowService
             $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
             $this->assertReviewable($locked, $actor);
 
+            $unrelatedImageIds = collect($this->mediaReviewStates($locked))
+                ->filter(static fn (array $state): bool => ($state['decision'] ?? null) === 'unrelated')
+                ->keys()
+                ->values();
+            if ($unrelatedImageIds->isNotEmpty()) {
+                throw new ConflictHttpException('لا يمكن اعتماد الإعلان قبل استبدال أو معالجة الصور المصنفة غير مرتبطة بالعقار.');
+            }
+
             $owner = $locked->user()->firstOrFail();
             $this->assertAdvertiserCanPublish($owner, $locked);
             $this->brokerVerification->assertApprovalAllowed($locked);

@@ -42,6 +42,9 @@ class Wave2MediaTrustTest extends TestCase
         $this->withHeaders($ah)->getJson("/api/admin/listing-review/listings/$ad->id")->assertOk()->assertJsonPath('data.images.0.relevance_review.decision','uncertain');
         $payload['decision']='unrelated';$payload['reason']='الصورة لمنتج غير مرتبط بالعقار المعروض.';
         $this->withHeaders($ah)->postJson($url,$payload)->assertOk();
+        $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/approve",[])
+            ->assertConflict()
+            ->assertJsonPath('message','لا يمكن اعتماد الإعلان قبل استبدال أو معالجة الصور المصنفة غير مرتبطة بالعقار.');
         $this->assertSame('under_review',$ad->fresh()->review_status);
         $this->assertDatabaseCount('property_images',1);
         $this->assertDatabaseHas('audit_logs',['action'=>'listing.media_relevance_reviewed','actor_user_id'=>$agent->id]);
