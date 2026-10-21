@@ -30,31 +30,31 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
-      backgroundColor: const Color(0xFF101F30),
+      backgroundColor: const Color(0xFFF5FAFA),
       body: DecoratedBox(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topRight,
-        end: Alignment.bottomLeft, colors: [Color(0xFF132D40), Color(0xFF101F30), Color(0xFF0B1725)])),
+        end: Alignment.bottomLeft, colors: [Color(0xFFEDF9F7), Color(0xFFF5FAFA), Color(0xFFFFFFFF)])),
         child: SafeArea(child: ListView(padding: const EdgeInsets.fromLTRB(24, 12, 24, 28), children: [
-          Row(children: [Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .08),
-            borderRadius: BorderRadius.circular(14)), child: const EbrokerImage('home_active', size: 24, color: Color(0xFF9CE6D8))),
-            const SizedBox(width: 10), Expanded(child: Text('عقارات حولك', style: theme.textTheme.titleSmall?.copyWith(color: Colors.white))),
+          Row(children: [Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: Color(0xFF20384D).withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(14)), child: const EbrokerImage('home_active', size: 24, color: Color(0xFF087F82))),
+            const SizedBox(width: 10), Expanded(child: Text('عقار', style: theme.textTheme.titleSmall?.copyWith(color: Color(0xFF20384D)))),
             IconButton(tooltip: 'رجوع', onPressed: () {
               if (context.canPop()) { context.pop(); } else { context.go('/'); }
-            }, icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70))]),
+            }, icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFF607585)))]),
           const SizedBox(height: 44),
           Align(alignment: AlignmentDirectional.centerStart, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(color: const Color(0xFF9CE6D8).withValues(alpha: .1), borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: const Color(0xFF9CE6D8).withValues(alpha: .22))),
-            child: const Text('خطوة أقرب إلى مكانك', style: TextStyle(color: Color(0xFFAFEBDD), fontSize: 12)))),
+            decoration: BoxDecoration(color: const Color(0xFF087F82).withValues(alpha: .1), borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: const Color(0xFF087F82).withValues(alpha: .22))),
+            child: const Text('خطوة أقرب إلى مكانك', style: TextStyle(color: Color(0xFF087F82), fontSize: 12)))),
           const SizedBox(height: 18), Text('مكانك القادم\nيبدأ من هنا.', style: theme.textTheme.headlineLarge?.copyWith(
-            fontSize: 34, height: 1.5, color: Colors.white, fontWeight: FontWeight.w800)),
+            fontSize: 34, height: 1.5, color: Color(0xFF20384D), fontWeight: FontWeight.w800)),
           const SizedBox(height: 10), Text('احفظ ما يعجبك، تواصل مع المعلنين،\nوتابع فرصك في مكان واحد.',
-            style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFFB7C9D7), height: 1.7)),
+            style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF607585), height: 1.7)),
           const SizedBox(height: 32),
           Container(key: const ValueKey('auth-form-card'), padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(color: const Color(0xFF192F43), borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Colors.white.withValues(alpha: .08))),
+            decoration: BoxDecoration(color: const Color(0xFFFFFFFF), borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: Color(0xFF20384D).withValues(alpha: .08))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text('مرحبًا بك', style: theme.textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+              Text('مرحبًا بك', style: theme.textTheme.titleLarge?.copyWith(color: Color(0xFF20384D), fontWeight: FontWeight.w700)),
               const SizedBox(height: 16),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 ChoiceChip(key: const ValueKey('auth-mode-login'), label: const Text('تسجيل الدخول'), selected: !_register,
@@ -64,14 +64,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ]),
               const SizedBox(height: 12),
               Text(_register ? 'أدخل اسمك واختر طريقة التحقق.' : 'اختر البريد أو واتساب للدخول برمز تحقق فقط.',
-                style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFB7C9D7))),
+                style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFF607585))),
               const SizedBox(height: 16),
               if (_register) ...[
                 TextField(key: const ValueKey('auth-name'), controller: _name, enabled: !_busy,
                 autofillHints: const [AutofillHints.name], textInputAction: TextInputAction.next,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Color(0xFF20384D)),
                 decoration: const InputDecoration(labelText: 'الاسم الرباعي',
-                  labelStyle: TextStyle(color: Color(0xFFB7C9D7)), fillColor: Color(0xFF102336))),
+                  labelStyle: TextStyle(color: Color(0xFF607585)), fillColor: Color(0xFFF4F8F9))),
                 const SizedBox(height: 12),
               ],
               Wrap(spacing: 8, runSpacing: 8, children: [
@@ -84,28 +84,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               if (_useEmail) TextField(key: const ValueKey('auth-email'), controller: _email,
                 keyboardType: TextInputType.emailAddress, autofillHints: const [AutofillHints.email],
                 enabled: !_busy, textDirection: TextDirection.ltr, textInputAction: TextInputAction.done,
-                onSubmitted: _busy ? null : (_) => _submit(), style: const TextStyle(color: Colors.white),
+                onSubmitted: _busy ? null : (_) => _submit(), style: const TextStyle(color: Color(0xFF20384D)),
                 decoration: const InputDecoration(labelText: 'البريد الإلكتروني', hintText: 'name@example.com',
-                  floatingLabelBehavior: FloatingLabelBehavior.always, labelStyle: TextStyle(color: Color(0xFFB7C9D7)),
-                  hintStyle: TextStyle(color: Color(0xFF9AABB9)), fillColor: Color(0xFF102336)))
+                  floatingLabelBehavior: FloatingLabelBehavior.always, labelStyle: TextStyle(color: Color(0xFF607585)),
+                  hintStyle: TextStyle(color: Color(0xFF71818E)), fillColor: Color(0xFFF4F8F9)))
               else TextField(key: const ValueKey('auth-phone'), controller: _phone, keyboardType: TextInputType.phone,
                 enabled: !_busy, autofillHints: const [AutofillHints.telephoneNumber],
                 textInputAction: TextInputAction.done, onSubmitted: _busy ? null : (_) => _submit(), textDirection: TextDirection.ltr,
-                style: const TextStyle(color: Colors.white, fontSize: 18),
+                style: const TextStyle(color: Color(0xFF20384D), fontSize: 18),
                 decoration: InputDecoration(labelText: 'رقم واتساب', hintText: '+9677xxxxxxxx',
-                  floatingLabelBehavior: FloatingLabelBehavior.always, labelStyle: const TextStyle(color: Color(0xFFB7C9D7)),
-                  hintStyle: const TextStyle(color: Color(0xFF9AABB9)), fillColor: const Color(0xFF102336),
-                  prefixIcon: const Icon(Icons.phone_outlined, color: Color(0xFF9CE6D8)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF355066))),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF9CE6D8))),
+                  floatingLabelBehavior: FloatingLabelBehavior.always, labelStyle: const TextStyle(color: Color(0xFF607585)),
+                  hintStyle: const TextStyle(color: Color(0xFF71818E)), fillColor: const Color(0xFFF4F8F9),
+                  prefixIcon: const Icon(Icons.phone_outlined, color: Color(0xFF087F82)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFFCFDDDF))),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF087F82))),
                 )),
               const SizedBox(height: 12), Text(_useEmail ? 'نرسل لك رمز تحقق من 6 أرقام إلى بريدك. للبريد المرتبط بحساب واتساب، أكّد البريد من الملف الشخصي أولًا.' : 'نرسل لك رمز تحقق من 6 أرقام عبر واتساب.',
-                style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFB7C9D7), height: 1.6)),
+                style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFF607585), height: 1.6)),
               if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Semantics(liveRegion: true,
-                child: Text(_error!, style: const TextStyle(color: Color(0xFFFFC7BC), height: 1.6)))),
+                child: Text(_error!, style: const TextStyle(color: Color(0xFFB42318), height: 1.6)))),
               const SizedBox(height: 22),
               FilledButton(key: const ValueKey('auth-submit'), onPressed: _busy ? null : _submit,
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF9CE6D8), foregroundColor: const Color(0xFF103A39),
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF087F82), foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)),
                 child: _busy ? const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))
                   : Row(mainAxisAlignment: MainAxisAlignment.center, children: [Flexible(child: Text(_useEmail ? 'إرسال رمز البريد' : 'إرسال رمز واتساب')),
@@ -113,11 +113,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               const SizedBox(height: 16), Text(_register
                 ? 'نحفظ اسم الحساب الجديد بعد نجاح التحقق.\nتوثيق الجوال مطلوب للنشر والتواصل.'
                 : 'تدخل إلى حسابك الحالي بعد تأكيد الرمز.',
-                textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFB7C9D7), height: 1.6)),
+                textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFF607585), height: 1.6)),
             ])),
           const SizedBox(height: 18), TextButton(onPressed: () {
             if (context.canPop()) { context.pop(); } else { context.go('/'); }
-          }, child: const Text('متابعة التصفح', style: TextStyle(color: Color(0xFF9CE6D8)))),
+          }, child: const Text('متابعة التصفح', style: TextStyle(color: Color(0xFF087F82)))),
         ]))),
     ));
   }

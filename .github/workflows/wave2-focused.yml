@@ -1,0 +1,31 @@
+name: Wave2 trust identity and media acceptance
+on:
+  push:
+    branches: [work/wave2-brand-trust-account]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: wave2-focused-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    name: Account safety and identity regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: php artisan key:generate --force
+      - run: php artisan test tests/Feature/Wave2AccountSafetyTest.php tests/Feature/PropertyIdentityV2Test.php tests/Feature/Stage10CommunitySupportApiTest.php tests/Feature/Stage11MessagingNotificationsApiTest.php --display-warnings --fail-on-warning --fail-on-risky

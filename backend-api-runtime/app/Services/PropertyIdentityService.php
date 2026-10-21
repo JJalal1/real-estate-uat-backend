@@ -423,7 +423,13 @@ class PropertyIdentityService
             if ($listing->bathrooms !== null && $candidate->bathrooms !== null && (int) $listing->bathrooms === (int) $candidate->bathrooms) { $score++; $signals[] = 'bathrooms_equal'; }
             if ($listing->building_facade && $candidate->building_facade && $listing->building_facade === $candidate->building_facade) { $score++; $signals[] = 'facade_equal'; }
 
-            $independentHighConfidence = $distance <= 60 && $addressSimilarity >= 0.80 && $areaDelta !== null && $areaDelta <= 0.10;
+            // A shared street, pin, area or facade is a review hint, not proof of one house.
+            // Exact existing asset claims are checked earlier and remain authoritative.
+            $house = $this->houseMarker((string)$listing->address);
+            $candidateHouse = $this->houseMarker((string)$candidate->address);
+            $sameHouse = $house !== null && $house === $candidateHouse;
+            if ($sameHouse) $signals[] = 'same_explicit_house_reference';
+            $independentHighConfidence = $sameHouse && $distance <= 60 && $addressSimilarity >= 0.96 && $areaDelta !== null && $areaDelta <= 0.10;
             $decision = $independentHighConfidence && $score >= 11 ? 'confirmed_duplicate' : ($score >= 7 ? 'possible_duplicate' : 'distinct');
             $row = ['decision' => $decision, 'score' => min(100, $score * 8), 'signals' => $signals, 'candidate' => $this->candidatePayload($candidate, $distance, $decision === 'confirmed_duplicate')];
             if ($best === null || $row['score'] > $best['score']) $best = $row;
@@ -685,6 +691,13 @@ class PropertyIdentityService
     private function unitMarker(string $value): string
     {
         return $this->normalizedText(strtr($value, ['٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9']));
+    }
+
+    private function houseMarker(string $address): ?string
+    {
+        $text = $this->unitMarker($address);
+        return preg_match('/(?:^|\s)(?:بيت|منزل|مبني|عماره|فيلا|بنايه)\s+(?:رقم\s+)?([0-9]+)(?:\s|$)/u', $text, $match)
+            ? ltrim($match[1], '0') : null;
     }
 
     private function floorMarker(string $value): string
