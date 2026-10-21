@@ -79,6 +79,12 @@ Future<void> _pumpAuth(WidgetTester tester, _Auth auth, {double scale=1, bool re
   await tester.pumpAndSettle();
 }
 
+Future<void> _show(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  expect(finder.hitTestable(),findsOneWidget);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
@@ -168,23 +174,23 @@ void main() {
       expect(find.byKey(const ValueKey('auth-name')),findsNothing);
       expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('auth-mode-login'))).selected,isTrue);
       // A name typed in registration must never leak into a subsequent login.
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-mode-register')));
+      await _show(tester,find.byKey(const ValueKey('auth-mode-register')));
       await tester.tap(find.byKey(const ValueKey('auth-mode-register'))); await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-name')));
+      await _show(tester,find.byKey(const ValueKey('auth-name')));
       await tester.enterText(find.byKey(const ValueKey('auth-name')),'اسم');
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-mode-login')));
+      await _show(tester,find.byKey(const ValueKey('auth-mode-login')));
       await tester.tap(find.byKey(const ValueKey('auth-mode-login'))); await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('auth-name')),findsNothing);
       if(email) {
-        await tester.ensureVisible(find.byKey(const ValueKey('auth-channel-email')));
+        await _show(tester,find.byKey(const ValueKey('auth-channel-email')));
         await tester.tap(find.byKey(const ValueKey('auth-channel-email'))); await tester.pumpAndSettle();
-        await tester.ensureVisible(find.byKey(const ValueKey('auth-email')));
+        await _show(tester,find.byKey(const ValueKey('auth-email')));
         await tester.enterText(find.byKey(const ValueKey('auth-email')),'person@example.test');
       } else {
-        await tester.ensureVisible(find.byKey(const ValueKey('auth-phone')));
+        await _show(tester,find.byKey(const ValueKey('auth-phone')));
         await tester.enterText(find.byKey(const ValueKey('auth-phone')),'+967700000991');
       }
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-submit'))); await tester.pumpAndSettle();
+      await _show(tester,find.byKey(const ValueKey('auth-submit'))); await tester.pumpAndSettle();
       await _capture(tester,key,'${email ? 'email' : 'whatsapp'}-login-$scale');
       await tester.tap(find.byKey(const ValueKey('auth-submit'))); await tester.pumpAndSettle();
       expect(auth.channel,email ? 'email' : 'whatsapp'); expect(auth.name,isNull);
@@ -198,15 +204,15 @@ void main() {
       await _pumpAuth(tester,auth,scale:scale,register:true,boundary:key);
       expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('auth-mode-register'))).selected,isTrue);
       expect(find.byKey(const ValueKey('auth-name')),findsOneWidget);
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-submit')));
+      await _show(tester,find.byKey(const ValueKey('auth-submit')));
       await tester.tap(find.byKey(const ValueKey('auth-submit')));
       await tester.pumpAndSettle();
       expect(auth.channel,isNull);
       expect(find.text('أدخل الاسم الرباعي كما هو في وثيقة الهوية.'),findsOneWidget);
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-name')));await tester.enterText(find.byKey(const ValueKey('auth-name')),_name);
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-channel-email')));await tester.tap(find.byKey(const ValueKey('auth-channel-email')));await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-email')));await tester.enterText(find.byKey(const ValueKey('auth-email')),'person@example.test');
-      await tester.ensureVisible(find.byKey(const ValueKey('auth-submit')));await tester.pumpAndSettle();await _capture(tester,key,'email-registration-$scale');
+      await _show(tester,find.byKey(const ValueKey('auth-name')));await tester.enterText(find.byKey(const ValueKey('auth-name')),_name);
+      await _show(tester,find.byKey(const ValueKey('auth-channel-email')));await tester.tap(find.byKey(const ValueKey('auth-channel-email')));await tester.pumpAndSettle();
+      await _show(tester,find.byKey(const ValueKey('auth-email')));await tester.enterText(find.byKey(const ValueKey('auth-email')),'person@example.test');
+      await _show(tester,find.byKey(const ValueKey('auth-submit')));await tester.pumpAndSettle();await _capture(tester,key,'email-registration-$scale');
       await tester.tap(find.byKey(const ValueKey('auth-submit')));await tester.pumpAndSettle();
       expect(auth.channel,'email');expect(auth.name,_name);expect(auth.destination,'person@example.test');
       expect(find.text('رمز التحقق عبر البريد'),findsOneWidget);expect(tester.takeException(),isNull);
