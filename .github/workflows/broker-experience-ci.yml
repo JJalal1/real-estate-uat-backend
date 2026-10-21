@@ -267,6 +267,7 @@ jobs:
           path: |
             mobile_app/build/v3-preview/
             mobile_app/build/broker-preview/
+            mobile_app/build/wave2-preview/
           if-no-files-found: error
           retention-days: 14
       - name: Transport synthetic UI previews after artifact quota failure

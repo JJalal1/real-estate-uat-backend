@@ -25,12 +25,13 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
   List<BlockedAccount> _blocked = const [];
   DeletionRequestStatus? _deletion;
   String? _error;
-  bool _loading = true, _busy = false, _more = false;
+  bool _loading = true, _busy = false, _more = false, _confirming = false;
   int _page = 1, _generation = 0;
   bool get _valid => mounted && ref.read(authControllerProvider).asData?.value?.id == widget.actorId;
   @override
   void initState() { super.initState(); Future.microtask(_load); }
   Future<void> _load({bool more = false}) async {
+    if (!_valid) return;
     if (more && (_busy || _loading || !_more)) return;
     final generation = ++_generation;
     setState(() { _error = null; if (more) { _busy = true; } else { _loading = true; } });
@@ -51,11 +52,13 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
     }
   }
   Future<bool> _confirm({required String title, required String message, required String action}) async {
-    return await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
+    if (_confirming) return false;
+    setState(() => _confirming = true);
+    try { return await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
       scrollable: true, title: Text(title), content: Text(message), actions: [
         TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إلغاء')),
         FilledButton(onPressed: () => Navigator.pop(dialog, true), child: Text(action)),
-      ])) ?? false;
+      ])) ?? false; } finally { if (_valid) setState(() => _confirming = false); }
   }
   Future<void> _unblock(BlockedAccount account) async {
     if (_busy || !await _confirm(title: 'إلغاء الحظر؟', message: 'يمكن استئناف الرسائل الجديدة إذا كانت متاحة لدى الطرف الآخر. يبقى تاريخ المحادثة محفوظًا.', action: 'إلغاء الحظر') || !_valid) return;
@@ -77,7 +80,7 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
   }
   @override
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
-    appBar: AppBar(title: const Text('الأمان والخصوصية'), actions: [IconButton(tooltip: 'تحديث', onPressed: _loading || _busy ? null : _load, icon: const Icon(Icons.refresh))]),
+    appBar: AppBar(title: const Text('الأمان والخصوصية'), actions: [IconButton(tooltip: 'تحديث', onPressed: _loading || _busy || _confirming ? null : _load, icon: const Icon(Icons.refresh))]),
     body: _loading ? const AppLoadingState() : ListView(padding: const EdgeInsets.all(16), children: [
       if (_error != null) ...[AppErrorState(message: _error!, onRetry: _load), const SizedBox(height: 16)],
       AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -85,9 +88,9 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
         const SizedBox(height: 8), const Text('الحظر يوقف الرسائل الجديدة بينكما. تبقى المحادثات السابقة وإمكانية البلاغ محفوظة.'),
         if (_blocked.isEmpty && _error == null) const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('لا توجد حسابات محظورة.')),
         for (final account in _blocked) Padding(padding: const EdgeInsets.only(top: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(account.name), Align(alignment: AlignmentDirectional.centerEnd, child: TextButton(onPressed: _busy ? null : () => _unblock(account), child: const Text('إلغاء الحظر'))),
+          Text(account.name), Align(alignment: AlignmentDirectional.centerEnd, child: TextButton(onPressed: _busy || _confirming ? null : () => _unblock(account), child: const Text('إلغاء الحظر'))),
         ])),
-        if (_more) TextButton(onPressed: _busy ? null : () => _load(more: true), child: const Text('عرض المزيد')),
+        if (_more) TextButton(onPressed: _busy || _confirming ? null : () => _load(more: true), child: const Text('عرض المزيد')),
       ])),
       const SizedBox(height: 16),
       AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -97,7 +100,7 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
           const SizedBox(height: 12), Semantics(liveRegion: true, child: Text('${_deletion!.label} — ${_deletion!.reference}')),
           TextButton(onPressed: () => context.push('/support?case=${_deletion!.caseId}'), child: const Text('متابعة الطلب في الدعم')),
         ] else if (_error == null) Padding(padding: const EdgeInsets.only(top: 12), child: OutlinedButton.icon(
-          key: const ValueKey('request-account-deletion'), onPressed: _busy ? null : _requestDeletion,
+          key: const ValueKey('request-account-deletion'), onPressed: _busy || _confirming ? null : _requestDeletion,
           icon: const Icon(Icons.person_remove_outlined), label: const Text('طلب المراجعة'))),
       ])),
       if (_busy) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),

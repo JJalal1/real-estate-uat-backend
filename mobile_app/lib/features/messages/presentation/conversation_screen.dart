@@ -76,7 +76,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
         _error = null;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
@@ -90,12 +90,13 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     if (current == null || !current.hasMore || beforeId == null || _loadingOlder) {
       return;
     }
+    final generation = _loadGeneration;
     setState(() => _loadingOlder = true);
     try {
       final older = await ref
           .read(messageRepositoryProvider)
           .details(widget.threadId, beforeId: beforeId);
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       final byId = <int, PrivateMessageItem>{
         for (final item in older.messages) item.id: item,
         for (final item in current.messages) item.id: item,

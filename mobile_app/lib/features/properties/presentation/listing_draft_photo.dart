@@ -8,7 +8,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 
 final listingPhotoCacheProvider = Provider<ListingPhotoCache>((ref) {
-  ref.watch(authControllerProvider.select((s) => s.asData?.value?.id));
+  ref.watch(authControllerProvider.select((s) => (s.asData?.value?.id, s.asData?.value?.isActive, s.asData?.value?.permissions.toString())));
   final cache = ListingPhotoCache();
   ref.onDispose(cache.clear);
   return cache;
@@ -73,7 +73,7 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
     future.ignore();
     return future;
   }
-  String get _cacheKey => '${widget.authenticated ? "private" : "public"}:${widget.url}';
+  String get _cacheKey => '${widget.authenticated ? 'private' : 'public'}:${widget.url}';
   Future<Uint8List> _load() => ref.read(listingPhotoCacheProvider).load(_cacheKey, _fetch);
   Future<Uint8List> _fetch() async {
     if (widget.authenticated) return ref.read(listingAccountDraftRepositoryProvider).photo(widget.url);

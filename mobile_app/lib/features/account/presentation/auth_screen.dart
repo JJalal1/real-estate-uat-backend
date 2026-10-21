@@ -34,9 +34,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       body: DecoratedBox(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topRight,
         end: Alignment.bottomLeft, colors: [Color(0xFFEDF9F7), Color(0xFFF5FAFA), Color(0xFFFFFFFF)])),
         child: SafeArea(child: ListView(padding: const EdgeInsets.fromLTRB(24, 12, 24, 28), children: [
-          Row(children: [Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: Color(0xFF20384D).withValues(alpha: .08),
+          Row(children: [Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: const Color(0xFF20384D).withValues(alpha: .08),
             borderRadius: BorderRadius.circular(14)), child: const EbrokerImage('home_active', size: 24, color: Color(0xFF087F82))),
-            const SizedBox(width: 10), Expanded(child: Text('عقار', style: theme.textTheme.titleSmall?.copyWith(color: Color(0xFF20384D)))),
+            const SizedBox(width: 10), Expanded(child: Text('عقار', style: theme.textTheme.titleSmall?.copyWith(color: const Color(0xFF20384D)))),
             IconButton(tooltip: 'رجوع', onPressed: () {
               if (context.canPop()) { context.pop(); } else { context.go('/'); }
             }, icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFF607585)))]),
@@ -46,15 +46,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               border: Border.all(color: const Color(0xFF087F82).withValues(alpha: .22))),
             child: const Text('خطوة أقرب إلى مكانك', style: TextStyle(color: Color(0xFF087F82), fontSize: 12)))),
           const SizedBox(height: 18), Text('مكانك القادم\nيبدأ من هنا.', style: theme.textTheme.headlineLarge?.copyWith(
-            fontSize: 34, height: 1.5, color: Color(0xFF20384D), fontWeight: FontWeight.w800)),
+            fontSize: 34, height: 1.5, color: const Color(0xFF20384D), fontWeight: FontWeight.w800)),
           const SizedBox(height: 10), Text('احفظ ما يعجبك، تواصل مع المعلنين،\nوتابع فرصك في مكان واحد.',
             style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF607585), height: 1.7)),
           const SizedBox(height: 32),
           Container(key: const ValueKey('auth-form-card'), padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(color: const Color(0xFFFFFFFF), borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Color(0xFF20384D).withValues(alpha: .08))),
+              border: Border.all(color: const Color(0xFF20384D).withValues(alpha: .08))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text('مرحبًا بك', style: theme.textTheme.titleLarge?.copyWith(color: Color(0xFF20384D), fontWeight: FontWeight.w700)),
+              Text('مرحبًا بك', style: theme.textTheme.titleLarge?.copyWith(color: const Color(0xFF20384D), fontWeight: FontWeight.w700)),
               const SizedBox(height: 16),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 ChoiceChip(key: const ValueKey('auth-mode-login'), label: const Text('تسجيل الدخول'), selected: !_register,

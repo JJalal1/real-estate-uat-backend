@@ -29,7 +29,7 @@ class Wave2MediaTrustTest extends TestCase
         $ad->forceFill(['status'=>'draft','review_status'=>'submitted','review_assigned_to_user_id'=>null])->save();
         $image=$ad->images()->create(['path'=>'listing-originals/test/source.jpg','sort_order'=>0,'is_primary'=>true]);
         $url="/api/admin/listing-review/listings/$ad->id/media-review";
-        $payload=['image_id'=>$image->id,'decision'=>'uncertain','reason'=>'أرض فارغة تحتاج توضيحًا من المعلن.'];
+        $payload=['image_id'=>$image->id,'image_token'=>hash('sha256',$image->path.'|'),'decision'=>'uncertain','reason'=>'أرض فارغة تحتاج توضيحًا من المعلن.'];
         $this->withHeaders($oh)->postJson($url,$payload)->assertForbidden();
         $this->withHeaders($ah)->postJson($url,$payload)->assertConflict();
         $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/start")->assertOk();
@@ -47,6 +47,7 @@ class Wave2MediaTrustTest extends TestCase
         $this->assertDatabaseHas('audit_logs',['action'=>'listing.media_relevance_reviewed','actor_user_id'=>$agent->id]);
         // A replaced image may never inherit the old file's assessment.
         $image->update(['path'=>'listing-originals/test/replaced.jpg']);
+        $this->withHeaders($ah)->postJson($url,$payload)->assertConflict();
         $this->withHeaders($ah)->getJson("/api/admin/listing-review/listings/$ad->id")->assertOk()->assertJsonPath('data.images.0.relevance_review.decision','pending');
         $other=$this->publishedListing($owner,'Other listing')->images()->create(['path'=>'listing-originals/other.jpg']);
         $payload['image_id']=$other->id;

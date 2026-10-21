@@ -26,14 +26,15 @@ class ListingWorkflowService
     ) {}
 
     /** Human fallback only: no external provider, guessed rejection or automatic image deletion. */
-    public function reviewMedia(User $actor, Property $listing, int $imageId, string $decision, string $reason, Request $request): array
+    public function reviewMedia(User $actor, Property $listing, int $imageId, string $imageToken, string $decision, string $reason, Request $request): array
     {
         abort_unless($actor->hasPermission('listings.moderate'),403);
-        return DB::transaction(function()use($actor,$listing,$imageId,$decision,$reason,$request):array {
+        return DB::transaction(function()use($actor,$listing,$imageId,$imageToken,$decision,$reason,$request):array {
             $locked=Property::query()->lockForUpdate()->findOrFail($listing->id);
             $this->assertReviewable($locked,$actor);
             $image=$locked->images()->whereKey($imageId)->lockForUpdate()->firstOrFail();
             $fingerprint=$this->mediaFingerprint($image);
+            if (!hash_equals($fingerprint,$imageToken)) throw new ConflictHttpException('تغير ملف الصورة. حدّث الإعلان وراجع الصورة الجديدة.');
             $previous=$this->mediaReviewStates($locked)[$imageId] ?? null;
             if ($previous && $previous['decision']===$decision && $previous['reason']===$reason) return $previous;
             $review=$this->review($actor,$locked,'media_relevance_review',$locked->review_status,$locked->review_status,$reason,[
@@ -59,7 +60,7 @@ class ListingWorkflowService
         return $states;
     }
 
-    private function mediaFingerprint(\App\Models\PropertyImage $image): string
+    public function mediaFingerprint(\App\Models\PropertyImage $image): string
     {
         return hash('sha256',(string)$image->path.'|'.(string)$image->cdn_url);
     }

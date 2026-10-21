@@ -17,7 +17,15 @@ import 'package:real_estate_mobile/features/account/presentation/account_safety_
 import 'package:real_estate_mobile/features/community/data/community_repository.dart';
 import 'package:real_estate_mobile/features/community/domain/community_models.dart';
 import 'package:real_estate_mobile/features/messages/domain/message_models.dart';
+import 'package:real_estate_mobile/features/messages/data/message_repository.dart';
+import 'package:real_estate_mobile/features/reviews/data/listing_review_repository.dart';
+import 'package:real_estate_mobile/features/reviews/domain/listing_review_models.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'package:real_estate_mobile/features/properties/data/favorites_repository.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_section_screen.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/smart_search_assistant.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_draft_photo.dart';
 
 AuthUser _user(int id) => AuthUser.fromJson({'id':id,'name':'حساب اختبار $id','phone':'+967700000123',
@@ -98,6 +106,32 @@ void main() {
     final repo=AccountSafetyRepository(dio,_AuthOptions(dio),actorId:9,currentActor:()=>actor);
     actor=10;await expectLater(repo.requestDeletion(),throwsStateError);expect(calls,0);dio.close();
   });
+  for (final name in ['messages','reports','media-review']) {
+    test('delayed $name authentication cannot send the old operation as another account',() async {
+      var actor=9, calls=0;
+      final dio=Dio()..interceptors.add(InterceptorsWrapper(onRequest:(r,h){calls++;h.resolve(Response(requestOptions:r,statusCode:200));}));
+      final auth=_DelayedOptions(dio);
+      final Future<dynamic> request = switch(name) {
+        'messages' => MessageRepository(dio,auth,actorId:9,currentActor:()=>actor).send(1,'رسالة الحساب السابق'),
+        'reports' => CommunityRepository(dio,auth,actorId:9,currentActor:()=>actor).report(targetType:'listing',targetId:1,reason:'misleading',details:'تفاصيل الحساب السابق'),
+        _ => ListingReviewRepository(dio,auth,actorId:9,currentActor:()=>actor).reviewMedia(1,2,'a'*64,'uncertain','تحتاج الصورة إلى مراجعة'),
+      };
+      final expectation=expectLater(request,throwsStateError);actor=10;auth.options.complete(Options(headers:{'Authorization':'Bearer synthetic-new-session'}));await expectation;expect(calls,0);dio.close();
+    });
+  }
+  test('review image resolution stays on the API origin and uses one api path',() async {
+    final dio=Dio(BaseOptions(baseUrl:'https://fixture.example/api'));final calls=<RequestOptions>[];
+    dio.interceptors.add(InterceptorsWrapper(onRequest:(r,h){calls.add(r);h.resolve(Response<List<int>>(requestOptions:r,statusCode:200,data:[1,2,3]));}));
+    final repo=ListingReviewRepository(dio,_AuthOptions(dio));
+    expect(await repo.protectedImage('/api/property-media/21?variant=detail'),[1,2,3]);expect(calls.single.uri.path,'/api/property-media/21');
+    await expectLater(repo.protectedImage('https://foreign.example/api/property-media/21'),throwsStateError);
+    await expectLater(repo.protectedImage('/api/admin/users'),throwsStateError);expect(calls.length,1);dio.close();
+  });
+  test('media review token and human assessment remain distinct from an automated verdict',() {
+    final image=ReviewMediaItem.fromImageJson({'id':2,'url':'/api/property-media/2','relevance_token':'a'*64,
+      'relevance_review':{'checker':'human_review','decision':'uncertain','reason':'تحتاج توضيحًا'}});
+    expect(image.relevanceToken,'a'*64);expect(image.relevance,'uncertain');expect(image.reviewReason,'تحتاج توضيحًا');
+  });
   test('image contexts select only their derived variant with compatible fallback',() {
     final image=PropertyImageItem.fromJson({'id':1,'url':'/display/detail','variants':{'card':'/display/card','detail':'/display/detail','gallery':'/display/gallery','zoom':'/display/zoom'}});
     expect([image.cardUrl,image.detailUrl,image.galleryUrl,image.zoomUrl],['/display/card','/display/detail','/display/gallery','/display/zoom']);
@@ -122,6 +156,19 @@ void main() {
     now=now.add(const Duration(seconds:3));await cache.load('a',load);expect(calls,4);
     final gate=Completer<Uint8List>();final stale=cache.load('private',()=>gate.future);cache.clear();gate.complete(Uint8List.fromList([7]));await stale;
     expect(await cache.load('private',() async=>Uint8List.fromList([8])),[8]);
+  });
+  testWidgets('a page builds nearby cards only and repeated more taps share one request',(tester) async {
+    final repo=_Sections();tester.view.physicalSize=const Size(390,844);tester.view.devicePixelRatio=1;
+    addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(_Auth.new),
+      propertyRepositoryProvider.overrideWithValue(repo),favoritePropertyIdsProvider.overrideWith((ref) async => <int>{}),assistantHintStoreProvider.overrideWithValue(_NoHint())],
+      child:MaterialApp(theme:AppTheme.light,home:const MarketplaceSectionScreen())));
+    await tester.pumpAndSettle();expect(repo.calls,1);
+    expect(find.byType(PropertySummaryCard).evaluate().length,lessThan(20));expect(find.text('عقار اختباري 20'),findsNothing);
+    final more=find.text('المزيد من العقارات');await tester.scrollUntilVisible(more,550,scrollable:find.byType(Scrollable).first);await tester.pumpAndSettle();
+    await tester.tap(more);await tester.tap(more);await tester.pump();expect(repo.calls,2);
+    repo.next.complete((<PropertySummary>[],false));await tester.pumpAndSettle();expect(find.text('المزيد من العقارات'),findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());await tester.pumpAndSettle();
   });
   testWidgets('unblocking requires confirmation and a failed operation keeps the row',(tester) async {
     final repo=_Safety()..fail=true;await _pump(tester,repo);
@@ -155,4 +202,27 @@ class _AuthOptions extends AuthRepository {
   _AuthOptions(Dio dio):super(dio);
   @override
   Future<Options> requiredAuthOptions() async => Options(headers:{'Authorization':'Bearer synthetic-fixture'});
+}
+
+class _DelayedOptions extends AuthRepository {
+  _DelayedOptions(Dio dio):super(dio);
+  final options=Completer<Options>();
+  @override
+  Future<Options> requiredAuthOptions() => options.future;
+}
+
+class _NoHint extends AssistantHintStore {
+  @override
+  Future<bool> take() async => false;
+}
+class _Sections extends PropertyRepository {
+  _Sections():super(Dio(),AuthRepository(Dio()));
+  int calls=0;
+  final next=Completer<(List<PropertySummary>,bool)>();
+  @override
+  Future<(List<PropertySummary>,bool)> searchListings(Map<String,dynamic> filters,{int page=1}) async {
+    calls++;if(page>1)return next.future;
+    return (List.generate(20,(index)=>PropertySummary.fromJson({'id':index+1,'title':'عقار اختباري ${index+1}',
+      'type':'house','purpose':'sale','price':1000000,'currency':'YER','latitude':15.3,'longitude':44.2,'status':'published'})),true);
+  }
 }

@@ -375,11 +375,13 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 
   Future<void> _reportListing(PropertyDetails property) async {
     if (_reporting || !await _requireContactAccount() || !mounted) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final repository = ref.read(communityRepositoryProvider);
     final result = await showCommunityReportDialog(context, label: 'الإعلان');
-    if (result == null || !mounted) return;
+    if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
     setState(() => _reporting = true);
     try {
-      final receipt = await ref.read(communityRepositoryProvider).report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
+      final receipt = await repository.report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message),
         action: SnackBarAction(label: 'متابعة', onPressed: () => context.push('/support?case=${receipt.id}'))));
     } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
