@@ -9,6 +9,7 @@ import '../../../core/widgets/app_components.dart';
 import '../../financial/presentation/financial_account_screen.dart';
 import '../../properties/presentation/favorites_screen.dart';
 import '../data/auth_controller.dart';
+import '../../../core/branding/aqer_brand.dart';
 import '../../broker/data/broker_repository.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -22,7 +23,7 @@ class AccountScreen extends ConsumerWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         body: auth.when(
-          loading: () => const AppLoadingState(),
+          loading: () => const AqerAccountLoading(),
           error: (_, __) => AppErrorState(
             message: 'تعذر تحميل بيانات الحساب.',
             onRetry: () => ref.read(authControllerProvider.notifier).refresh(),

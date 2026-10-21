@@ -70,7 +70,9 @@ jobs:
       - name: Generate temporary test key
         run: php artisan key:generate --force
       - name: Shared property schema consistency
-        run: python3 ../scripts/generate_property_schema.py --check
+        run: |
+          python3 ../scripts/generate_property_schema.py --check
+          python3 ../scripts/verify_aqer_brand.py
       - name: Full Laravel regression
         run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
 
@@ -225,6 +227,7 @@ jobs:
         working-directory: mobile_app
         run: >-
           flutter test
+          test/aqer_brand_test.dart
           test/wave2_trust_account_media_test.dart
           test/compact_cards_email_login_test.dart
           test/template_creation_menu_test.dart

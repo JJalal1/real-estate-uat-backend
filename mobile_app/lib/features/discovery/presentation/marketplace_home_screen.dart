@@ -6,6 +6,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/ebroker_design.dart';
+import '../../../core/branding/aqer_brand.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../properties/presentation/property_summary_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -102,7 +103,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       appBar: AppBar(toolbarHeight: (58 + (MediaQuery.textScalerOf(context).scale(15) - 15) * 2).clamp(58, 112).toDouble(),
         backgroundColor: EbrokerDesign.page, elevation: 0, automaticallyImplyLeading: false, titleSpacing: 18,
         title: Semantics(button: true, label: 'تغيير المنطقة', child: InkWell(onTap: _chooseLocation, child: Row(children: [
-          EbrokerImage('home_active', size: 24, color: theme.colorScheme.primary), const SizedBox(width: 10),
+          const AqerBrandMark(size: 32), const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const EbrokerText('الموقع', size: 11),
             Row(children: [Flexible(child: EbrokerText(label, size: 15, weight: FontWeight.w600, maxLines: 1)), const SizedBox(width: 4),
               if (_locationBusy) const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))

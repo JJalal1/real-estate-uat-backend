@@ -111,6 +111,28 @@ class Wave2MediaTrustTest extends TestCase
         }
     }
 
+    public function test_shipped_owner_approved_identity_is_pinned_and_usable_only_on_explicit_activation(): void
+    {
+        $path=resource_path('brand/aqer-approved.json');
+        $this->assertSame('owner-approved',json_decode(file_get_contents($path),true)['approval']);
+        $this->assertSame(hash_file('sha256',$path),config('listing_media.watermark.approved_sha256'));
+        $this->assertFalse(config('listing_media.watermark.enabled'));
+        $this->assertSame('v1',app(ListingWatermarkService::class)->version());
+        config(['listing_media.watermark.enabled'=>true]);
+        $service=app(ListingWatermarkService::class);
+        $this->assertSame('v2-wm-'.substr(hash_file('sha256',$path),0,20),$service->version());
+        foreach([30,220] as $background) {
+            $image=imagecreatetruecolor(640,480);
+            imagefill($image,0,0,imagecolorallocate($image,$background,$background,$background));
+            ob_start();imagepng($image);$before=ob_get_clean();
+            $service->apply($image);
+            ob_start();imagepng($image);$after=ob_get_clean();
+            $this->assertNotSame(hash('sha256',$before),hash('sha256',$after));
+            $this->assertSame([640,480],array_slice(getimagesizefromstring($after),0,2));
+            imagedestroy($image);
+        }
+    }
+
     private function user(string $email,string $phone,array $roles=[]): array
     {
         $user=User::query()->create(['name'=>'Stage 11 User','email'=>$email,'phone'=>$phone,'phone_verified_at'=>now(),'account_status'=>User::STATUS_ACTIVE,'password'=>Hash::make('StrongPass123!')]);

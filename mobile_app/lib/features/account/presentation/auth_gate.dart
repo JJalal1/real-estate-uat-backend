@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/auth_controller.dart';
+import '../../../core/branding/aqer_brand.dart';
 
 class Stage6AuthGate extends ConsumerWidget {
   const Stage6AuthGate({
@@ -23,7 +24,7 @@ class Stage6AuthGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return ref.watch(authControllerProvider).when(
           loading: () =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
+              const Scaffold(body: AqerAccountLoading()),
           error: (_, __) => Scaffold(
             appBar: AppBar(),
             body: Center(

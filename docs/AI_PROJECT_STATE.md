@@ -1,3 +1,11 @@
+# October21 actual Aqer brand assets integrated
+
+The owner reattached the exact reference PDF and requested the missing identity assets plus a complete role-by-role handset guide. The1121 compact-login baseline is a3ac4b562dbcffdf974884149d15a5f09fbad7e7 (CI121 and focused10 green). The previously approved brand is now rebuilt from the same pinned PDF contours and integrated into Android launcher/adaptive/monochrome icons, native launch, Flutter Home/login/account loading and iOS icon/launch source slots. The outlined Arabic/Aqer wordmark uses the reference glyph geometry. SVG masters, reference-image fingerprints, deterministic authoring scripts, measurements and a46-asset pin inventory prevent loss of the canonical identity again. See docs/brand/README_AR.md. Native iOS compilation is outside this Android delivery.
+
+The supplied watermark geometry and its SHA now exist. The renderer remains opt-in; no live backend flag is changed. Current read-only UAT inspection confirms the draft table exists and the personal messaging-block table has not been deployed. The handset guide must distinguish immediate app/UI tests from backend-gated tests; do not describe undeployed account/media contracts as live. Known test-account roles were read without modifying any accounts. Do not print OTPs, secrets or private documents in the guide. Exact-source CI, actual Flutter brand previews, native build and original-byte APK receipt for this asset follow-up are pending.
+
+---
+
 # October21 approved brand and compact login follow-up
 
 The owner approved the Aqer vector/launcher/splash/watermark preview and requested the supplied compact login hierarchy. Continue from verified `76ab81e15c842350fb17f20b801003aa095104b8` (tree `034a76de7ca8a33e8da4279735c6c8d95a40a61c`), whose CI120 and focused9 passed and whose original APK1120 was verified. Do not return to an older source or merge the unreviewed stack.

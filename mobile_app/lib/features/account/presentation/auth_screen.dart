@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/branding/aqer_brand.dart';
 import '../data/auth_controller.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -90,14 +91,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           IconButton(
                             tooltip: 'رجوع',
                             onPressed: _leave,
-                            icon: const Icon(Icons.arrow_forward_rounded),
+                            icon: const Icon(Icons.arrow_back_rounded),
                             color: AppTheme.textStrong,
                           ),
                           const Spacer(),
-                          Text('عقار', style: theme.textTheme.titleLarge?.copyWith(
-                            color: AppTheme.brandStrong,
-                            fontWeight: FontWeight.w800,
-                          )),
+                          const AqerBrandWordmark(width: 124),
                         ]),
                         const SizedBox(height: 28),
                         Semantics(
