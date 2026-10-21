@@ -60,6 +60,9 @@ jobs:
       - name: Focused interface and voice regression
         working-directory: mobile_app
         run: flutter test test/new_wave_handoff_test.dart test/compact_cards_email_login_test.dart test/active_wave_discovery_test.dart test/template_creation_menu_test.dart test/listing_design_wave_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart test/phase3_favorites_screen_test.dart test/uat_account_types_kyc_models_test.dart
+      - name: Inspect current wave synthetic previews
+        if: ${{ !cancelled() && github.ref_name == 'work/new-wave-1102' }}
+        run: python3 -B scripts/emit_listing_design_previews.py --new-wave-only
       - name: Upload synthetic interface previews
         id: previews
         if: ${{ !cancelled() }}

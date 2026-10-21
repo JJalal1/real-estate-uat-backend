@@ -230,7 +230,9 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Padding(
+  Widget build(BuildContext context) {
+    ref.watch(authControllerProvider);
+    return Directionality(textDirection: TextDirection.rtl, child: Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: SizedBox(
       height: (MediaQuery.sizeOf(context).height - MediaQuery.viewInsetsOf(context).bottom) * .9,
       child: Column(children: [Expanded(child: ListView(controller: _scroll, key: const ValueKey('listing-ai-scroll'), padding: const EdgeInsets.all(18), children: [
@@ -328,5 +330,5 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           label: _copyReady ? 'استخدام البيانات والمتابعة' : 'تجهيز النص من اختياري', expand: true,
           onPressed: _busy || _voiceBusy ? null : _copyReady ? _applyDraft : _refreshCopy))),
       ]))));
+  }
 }
-
