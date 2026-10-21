@@ -1,7 +1,7 @@
 name: Wave2 trust identity and media acceptance
 on:
   push:
-    branches: [work/wave2-brand-trust-account]
+    branches: [work/wave2-brand-trust-account, work/wave2-review-current]
   workflow_dispatch:
 permissions:
   contents: read
