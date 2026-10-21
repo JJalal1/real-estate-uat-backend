@@ -232,6 +232,7 @@ void main(){
       await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
       voice.latest.emit(const VoiceEvent('final',text:'محل للإيجار في حدة، المساحة خمسة وستون مترًا والإيجار خمسة وسبعون ألفًا والسعي خمسون بالمئة'));await tester.pumpAndSettle();
       final scroll=find.descendant(of:find.byKey(const ValueKey('listing-ai-scroll')),matching:find.byType(Scrollable)).first;
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-field-type')),250,scrollable:scroll);
       expect(find.byKey(const ValueKey('listing-ai-field-type')),findsOneWidget);
       await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-apply-draft')),350,scrollable:scroll);await tester.tap(find.byKey(const ValueKey('listing-ai-apply-draft')));await tester.pumpAndSettle();
       expect(find.text('أكمل الناقص فقط'),findsOneWidget);expect(find.text('تأكيد الموقع على الخريطة'),findsOneWidget);

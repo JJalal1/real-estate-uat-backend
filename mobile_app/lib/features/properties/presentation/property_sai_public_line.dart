@@ -55,7 +55,7 @@ class PropertySaiPublicLine extends ConsumerWidget {
           );
         }
 
-        return PropertySaiDisplayLine(text: sai.displayText);
+        return PropertySaiDisplayLine(text: sai.presentationText);
       },
     );
   }

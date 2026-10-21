@@ -141,16 +141,17 @@ class _ListingCreationMenuState extends State<ListingCreationMenu>
 
   Size _measure(BuildContext context, String label, double width, double maxWidth) {
     final painter = TextPainter(
-      text: TextSpan(text: label, style: TextStyle(
+      text: TextSpan(text: label, style: DefaultTextStyle.of(context).style.merge(TextStyle(
         fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'],
         fontSize: 12.rf(context), fontWeight: FontWeight.w500, height: 1.3,
-      )),
+      ))),
       textDirection: TextDirection.rtl,
       textScaler: MediaQuery.textScalerOf(context),
     )..layout(maxWidth: math.max(0.0, maxWidth - 43.rw(context)));
-    final result = Size(
-      math.min(maxWidth, math.max(width, painter.width + 43.rw(context))),
-      math.max(44.rh(context), painter.height + 20.rh(context)),
+    final chosenWidth = math.min(maxWidth, math.max(width, painter.width + 43.rw(context) + 4));
+    painter.layout(maxWidth: math.max(0.0, chosenWidth - 43.rw(context)));
+    final result = Size(chosenWidth,
+      math.max(44.rh(context), (painter.height + 20.rh(context)).ceilToDouble()),
     );
     painter.dispose();
     return result;

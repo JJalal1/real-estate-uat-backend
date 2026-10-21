@@ -67,7 +67,7 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
           final width=items.length==2 && scale<1.5 ? (constraints.maxWidth-40)/2 : scale>=1.5?270.0:210.0;
           Widget columns(String key,List<Widget> children)=>SingleChildScrollView(controller:_scroll(key),scrollDirection:Axis.horizontal,
             child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[for(final child in children)Padding(padding:const EdgeInsetsDirectional.only(end:8),child:SizedBox(width:width,child:child))]));
-          final facts=propertyComparisonFacts(items.map((i)=>i.property).toList(),sai:items.map((i)=>i.sai?.sai?.displayText).toList());
+          final facts=propertyComparisonFacts(items.map((i)=>i.property).toList(),sai:items.map((i)=>i.sai?.sai?.presentationText).toList());
           final filtered=facts.where((f)=>!_differences || f.differs).toList();
           final highlights=propertyComparisonHighlights(items.map((i)=>i.property).toList());
           return ListView(padding:const EdgeInsets.fromLTRB(16,16,16,40),children:[

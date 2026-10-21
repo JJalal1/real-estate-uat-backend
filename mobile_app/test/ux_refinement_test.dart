@@ -75,7 +75,7 @@ class _Properties implements PropertyRepository {
       final input = invocation.positionalArguments.last as PropertyListingInput;
       lastInput = input.toMap();
       return Future<PropertyDetails>.value(PropertyDetails.fromJson({'id': 500, ...lastInput!, 'status': 'draft', 'review_status': 'draft', 'images': [],
-        'rental_conditions': lastInput!['rental_conditions'] is String ? jsonDecode(lastInput!['rental_conditions'] as String) : const []}));
+        'units_per_floor': input.unitsPerFloor, 'rental_conditions': lastInput!['rental_conditions'] is String ? jsonDecode(lastInput!['rental_conditions'] as String) : const []}));
     }
     if (invocation.memberName == #configureSai) {
       deferred = invocation.namedArguments[#deferPlatformTerms] == true;

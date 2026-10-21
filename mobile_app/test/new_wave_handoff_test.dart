@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/rendering.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -95,6 +97,8 @@ void main() {
     expect(policy.error('',required:true),isNotNull);expect(policy.error(''),isNull);
     expect(policy.error('+12025550103'),isNotNull);expect(policy.error('721234567'),isNotNull);
     expect(const ListingContactPolicy(prefixes:['79']).error('791234567'),isNull);
+    const sai = PropertySai(ratePercent:2,payer:'buyer',payerLabel:'المشتري',calculationBasis:'sale_price',displayText:'السعي 2% يتحمله المشتري');
+    expect(sai.presentationText, isNot(contains('المشتري')));expect(sai.payer,'buyer');
     expect(rentalConditionSummary({'kind':'duration','months':12}),'مدة العقد: سنة واحدة');
     expect(rentalConditionSummary({'kind':'guarantor'}),'ضمانة تجارية: مطلوبة');
   });
@@ -218,6 +222,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('floating-smart-search')));await tester.pumpAndSettle();
     expect(find.text('بحث عن عقار بالذكاء'),findsOneWidget);expect(find.text('إضافة عقار بالذكاء'),findsOneWidget);
     expect(find.text('تعبئة يدوي'),findsNothing);
+    for (final label in ['بحث عن عقار بالذكاء','إضافة عقار بالذكاء']) {
+      final paragraph=tester.renderObject<RenderParagraph>(find.text(label));
+      final pill=find.byKey(ValueKey(label.startsWith('بحث') ? 'create-listing-ai' : 'create-listing-manual'));
+      expect(paragraph.getMaxIntrinsicHeight(paragraph.size.width) + 16,lessThanOrEqualTo(tester.getSize(pill).height));
+    }
     expect(tester.getRect(find.byKey(const ValueKey('create-listing-scrim'))).bottom,lessThanOrEqualTo(tester.getRect(nav).top));
     expect(find.byKey(const ValueKey('home-add-property')).hitTestable(),findsOneWidget);
     await previewWave6(tester,boundary,'new-wave-robot-$scale');
