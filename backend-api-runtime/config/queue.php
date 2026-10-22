@@ -44,6 +44,17 @@ return [
             'after_commit' => false,
         ],
 
+        // Video transcoding has a 240s job timeout; a 90s queue lease would
+        // allow another worker to process the same video before it finishes.
+        'database_video' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'video',
+            'retry_after' => 300,
+            'after_commit' => true,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),
