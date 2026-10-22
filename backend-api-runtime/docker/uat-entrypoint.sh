@@ -19,6 +19,13 @@ php artisan cache:clear || true
 # printing secrets.
 php artisan uat:cloud-check
 
+# Opt-in synthetic storage canary for the new video protocol. It never reads
+# real listings and is off by default. If enabled, a failed range/download
+# causes this UAT deployment to fail closed rather than open broken playback.
+if [ "${UAT_VIDEO_STORAGE_PROBE_ON_STARTUP:-false}" = "true" ]; then
+  php artisan uat:video-storage-probe
+fi
+
 if [ "${UAT_RUN_MIGRATIONS:-false}" = "true" ]; then
   php artisan migrate --force
 fi

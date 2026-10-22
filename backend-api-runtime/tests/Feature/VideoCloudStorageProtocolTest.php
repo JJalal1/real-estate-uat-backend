@@ -39,7 +39,7 @@ class VideoCloudStorageProtocolTest extends TestCase
         $this->assertSame('56789', $bytes);
         Http::assertSent(fn (Request $request) =>
             $request->method() === 'GET'
-            && str_contains($request->url(), '/storage/v1/object/real-estate-uat/private/listing-videos/9/output.mp4')
+            && str_contains($request->url(), '/storage/v1/object/authenticated/real-estate-uat/private/listing-videos/9/output.mp4')
             && $request->hasHeader('Range', 'bytes=5-9')
             && $request->hasHeader('apikey', 'sb_secret_test_not_a_real_key')
             && ! $request->hasHeader('Authorization')
@@ -90,4 +90,33 @@ class VideoCloudStorageProtocolTest extends TestCase
             @unlink($temp);
         }
     }
+    public function test_private_video_poster_uses_authenticated_download_not_unprotected_path(): void
+    {
+        Http::fake(['*' => Http::response('synthetic-jpeg-data', 200, ['Content-Type' => 'image/jpeg'])]);
+        $response = app(CloudAssetStorageService::class)->responsePrivateVideoPoster('listing-video-display/9/poster.jpg');
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('synthetic-jpeg-data', $response->getContent());
+        $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        Http::assertSent(fn (Request $request) =>
+            $request->method() === 'GET'
+            && str_contains($request->url(), '/storage/v1/object/authenticated/real-estate-uat/private/listing-video-display/9/poster.jpg')
+        );
+    }
+
+    public function test_private_video_original_download_uses_authenticated_api(): void
+    {
+        Http::fake(['*' => Http::response('test', 200)]);
+        $target = tempnam(sys_get_temp_dir(), 'aqer-cloud-range-');
+        $this->assertNotFalse($target);
+        try {
+            app(CloudAssetStorageService::class)->downloadPrivateToPath('listing-videos/9/original.mp4', $target);
+            Http::assertSent(fn (Request $request) =>
+                $request->method() === 'GET'
+                && str_contains($request->url(), '/storage/v1/object/authenticated/real-estate-uat/private/listing-videos/9/original.mp4')
+            );
+        } finally {
+            @unlink($target);
+        }
+    }
+
 }

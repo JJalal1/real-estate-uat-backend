@@ -20,11 +20,7 @@ final class ListingVideoMediaController extends Controller
     {
         $this->assertAllowed($request, $video);
         abort_unless($video->status === 'ready' && $video->poster_path, 404);
-        return $this->storage->responsePrivate($video->poster_path, null, [
-            'Content-Type' => 'image/jpeg',
-            'Cache-Control' => 'private, no-store',
-            'X-Content-Type-Options' => 'nosniff',
-        ]);
+        return $this->storage->responsePrivateVideoPoster($video->poster_path);
     }
 
     public function stream(Request $request, ListingVideo $video): Response

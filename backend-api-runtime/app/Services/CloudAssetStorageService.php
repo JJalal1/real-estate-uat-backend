@@ -107,7 +107,7 @@ class CloudAssetStorageService
 
         $response = $this->request()
             ->withOptions(['sink' => $target])
-            ->get($this->objectUrl($this->objectPath($path, true)));
+            ->get($this->privateAuthenticatedGetUrl($path));
         $this->assertRemoteSuccess($response, 'Private media download failed.');
     }
 
@@ -135,7 +135,7 @@ class CloudAssetStorageService
 
         $response = $this->request()
             ->withHeaders(['Range' => 'bytes='.$start.'-'.$end])
-            ->get($this->objectUrl($this->objectPath($path, true)));
+            ->get($this->privateAuthenticatedGetUrl($path));
         if ($response->status() !== 206) {
             throw new RuntimeException('Private storage did not honor byte range.');
         }
@@ -147,6 +147,65 @@ class CloudAssetStorageService
             throw new RuntimeException('Private media range incomplete.');
         }
         return $bytes;
+    }
+
+    /** Video posters are private derivatives; use Supabase's authenticated download endpoint. */
+    public function responsePrivateVideoPoster(string $path): Response
+    {
+        $headers = [
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ];
+        if (! $this->cloudEnabled()) {
+            return Storage::disk('local')->response($path, null, $headers);
+        }
+        $remote = $this->request()->get($this->privateAuthenticatedGetUrl($path));
+        if (in_array($remote->status(), [400, 404], true)) abort(404);
+        $this->assertRemoteSuccess($remote, 'Private video poster unavailable.');
+        if (strlen($remote->body()) > 8 * 1024 * 1024) {
+            throw new RuntimeException('Private video poster exceeds maximum safe response size.');
+        }
+        return response($remote->body(), 200, $headers);
+    }
+
+    /**
+     * A safe synthetic canary for the real private UAT bucket. It never reads,
+     * modifies, or logs any user media or server key. Clean up even on error.
+     */
+    public function probePrivateVideoStorage(): void
+    {
+        if (! $this->cloudEnabled()) throw new RuntimeException('Cloud storage is disabled.');
+        $path = 'uat-health/video-range-'.bin2hex(random_bytes(14)).'.bin';
+        $source = tempnam(sys_get_temp_dir(), 'aqer-private-probe-');
+        $download = tempnam(sys_get_temp_dir(), 'aqer-private-download-');
+        if (! is_string($source) || ! is_string($download)) {
+            if (is_string($source)) @unlink($source);
+            if (is_string($download)) @unlink($download);
+            throw new RuntimeException('Private video probe temporary files unavailable.');
+        }
+        $bytes = 'aqer-private-video-range-'.bin2hex(random_bytes(30));
+        $uploaded = false;
+        try {
+            if (file_put_contents($source, $bytes) !== strlen($bytes)) {
+                throw new RuntimeException('Private video probe write failed.');
+            }
+            $this->writePrivateFromFile($path, $source, 'application/octet-stream');
+            $uploaded = true;
+            if ($this->readPrivateRange($path, 5, 15) !== substr($bytes, 5, 11)) {
+                throw new RuntimeException('Private video probe range mismatch.');
+            }
+            $this->downloadPrivateToPath($path, $download);
+            if (hash_file('sha256', $download) !== hash('sha256', $bytes)) {
+                throw new RuntimeException('Private video probe download mismatch.');
+            }
+        } finally {
+            // A timed-out upload could succeed server-side after a client error,
+            // so attempt best-effort deletion even if $uploaded is false.
+            try { $this->deletePrivate($path); } catch (\Throwable) {}
+            @unlink($source);
+            @unlink($download);
+        }
     }
 
     public function readBytes(string $path, bool $private): string
@@ -356,6 +415,13 @@ class CloudAssetStorageService
             : (string) config('services.supabase_storage.public_prefix', 'public');
 
         return trim($prefix, '/').'/'.ltrim($logicalPath, '/');
+    }
+
+    /** Private GET differs from the POST /object/{bucket}/{path} upload API. */
+    private function privateAuthenticatedGetUrl(string $path): string
+    {
+        return $this->storageBaseUrl().'/object/authenticated/'
+            .rawurlencode($this->bucket()).'/'.$this->encodePath($this->objectPath($path, true));
     }
 
     private function objectUrl(string $objectPath): string
