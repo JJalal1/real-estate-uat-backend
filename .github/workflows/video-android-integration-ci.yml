@@ -42,7 +42,7 @@ jobs:
           flutter pub get
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
       - name: Verify new poster and disabled autoplay widget
-        run: flutter test test/property_video_section_test.dart --reporter expanded
+        run: flutter test test/property_video_section_test.dart test/stage9_review_models_test.dart --reporter expanded
       - name: Compile native Kotlin player and picker
         run: >-
           flutter build apk --debug

@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../../properties/domain/property_field_options.dart';
+import '../../properties/presentation/property_video_section.dart';
 import '../data/listing_review_repository.dart';
 import '../domain/listing_duplicate_candidate.dart';
 import '../domain/listing_review_models.dart';
@@ -231,7 +232,10 @@ class _ListingReviewCaseScreenState
     final repository = ref.read(listingReviewRepositoryProvider);
     final detail = await repository.detail(widget.listingId);
     final duplicates = await repository.duplicateCandidates(widget.listingId);
-    return _ReviewBundle(detail: detail, duplicates: duplicates);
+    final headers = detail.video == null
+        ? const <String, String>{}
+        : await repository.protectedVideoHeaders(detail.video!);
+    return _ReviewBundle(detail: detail, duplicates: duplicates, videoHeaders: headers);
   }
 
   void _reload() {
@@ -392,6 +396,25 @@ class _ListingReviewCaseScreenState
             ),
           ),
         const SizedBox(height: AppSpacing.s16),
+        if (item.videoStatus != null) ...[
+          const AppSectionHeader(
+            title: 'فيديو الإعلان — مراجعة بشرية إلزامية',
+            subtitle: 'شغّل الفيديو وراجع المحتوى قبل اعتماد الإعلان.',
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          AppSurface(
+            child: item.video == null
+                ? const AppInlineMessage(
+                    message: 'الفيديو لم يكتمل تجهيزه؛ لا يمكن اعتماد الإعلان.',
+                    tone: AppStatusTone.warning,
+                  )
+                : PropertyVideoSection(
+                    video: item.video!,
+                    requestHeaders: bundle.videoHeaders,
+                  ),
+          ),
+          const SizedBox(height: AppSpacing.s16),
+        ],
         _duplicateSection(bundle.duplicates),
         const SizedBox(height: AppSpacing.s16),
         AppSectionHeader(title: 'سجل المراجعة (${item.reviewHistory.length})'),
@@ -437,7 +460,7 @@ class _ListingReviewCaseScreenState
                 label: 'قبول ونشر',
                 icon: Icons.check_circle_outline,
                 loading: _busy,
-                onPressed: _busy ? null : () => _approve(bundle.duplicates),
+                onPressed: _busy ? null : () => _approve(bundle.detail, bundle.duplicates),
               ),
               AppButton(
                 label: 'إرجاع للتصحيح',
@@ -522,7 +545,8 @@ class _ListingReviewCaseScreenState
     );
   }
 
-  Future<void> _approve(List<ListingDuplicateCandidate> duplicates) async {
+  Future<void> _approve(ReviewListingDetail listing, List<ListingDuplicateCandidate> duplicates) async {
+    bool videoReviewConfirmed = false;
     String? reviewReason;
     String? duplicateReason;
 
@@ -531,7 +555,7 @@ class _ListingReviewCaseScreenState
           builder: (dialogContext) {
             final reviewController = TextEditingController();
             final duplicateController = TextEditingController();
-            return AlertDialog(
+            return StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
               title: const Text('اعتماد الإعلان ونشره'),
               content: SingleChildScrollView(
                 child: Column(
@@ -556,10 +580,20 @@ class _ListingReviewCaseScreenState
                     TextField(
                       controller: reviewController,
                       maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'ملاحظة اعتماد (اختياري)',
-                      ),
+                      decoration: const InputDecoration(labelText: 'ملاحظة اعتماد (اختياري)'),
                     ),
+                    if (listing.videoStatus != null) ...[
+                      const SizedBox(height: AppSpacing.s12),
+                      CheckboxListTile(
+                        key: const Key('listingVideoReviewConfirm'),
+                        title: const Text('شاهدت الفيديو وراجعت محتواه وأوافق على نشره'),
+                        value: videoReviewConfirmed,
+                        onChanged: listing.video == null
+                            ? null
+                            : (value) => setDialogState(() => videoReviewConfirmed = value == true),
+                        controlAffinity: ListTileControlAffinity.leading,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -576,6 +610,12 @@ class _ListingReviewCaseScreenState
                       );
                       return;
                     }
+                    if (listing.videoStatus != null && !videoReviewConfirmed) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(content: Text('شاهد الفيديو ثم أكّد مراجعته قبل الاعتماد.')),
+                      );
+                      return;
+                    }
                     reviewReason = reviewController.text.trim();
                     duplicateReason = duplicateController.text.trim();
                     Navigator.pop(dialogContext, true);
@@ -583,7 +623,7 @@ class _ListingReviewCaseScreenState
                   child: const Text('اعتماد ونشر'),
                 ),
               ],
-            );
+            ));
           },
         ) ??
         false;
@@ -593,6 +633,7 @@ class _ListingReviewCaseScreenState
           widget.listingId,
           reason: reviewReason,
           duplicateReviewReason: duplicateReason,
+          videoReviewConfirmed: listing.videoStatus != null && videoReviewConfirmed,
         ));
   }
 
@@ -886,10 +927,11 @@ class _ProtectedImageState extends ConsumerState<_ProtectedImage> {
 }
 
 class _ReviewBundle {
-  const _ReviewBundle({required this.detail, required this.duplicates});
+  const _ReviewBundle({required this.detail, required this.duplicates, required this.videoHeaders});
 
   final ReviewListingDetail detail;
   final List<ListingDuplicateCandidate> duplicates;
+  final Map<String, String> videoHeaders;
 }
 
 class _InfoRow extends StatelessWidget {

@@ -9,6 +9,7 @@ import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../domain/listing_duplicate_candidate.dart';
 import '../domain/listing_review_models.dart';
+import '../../properties/domain/property_details.dart';
 
 final listingReviewRepositoryProvider =
     Provider<ListingReviewRepository>((ref) {
@@ -50,6 +51,160 @@ class ListingReviewRepository {
   Future<ReviewListingDetail> detail(int id) async {
     final row = await _detailJson(id);
     return ReviewListingDetail.fromJson(row);
+  }
+
+  Future<Map<String, String>> protectedVideoHeaders(PropertyVideoItem video) async {
+    final api = Uri.parse(_dio.options.baseUrl);
+    final stream = Uri.tryParse(video.streamUrl);
+    final poster = Uri.tryParse(video.posterUrl);
+    final prefix = api.path.replaceFirst(RegExp(r'/
+    final row = await _detailJson(id);
+    final raw = row['likely_duplicate_candidates'];
+    if (raw is! List) return const <ListingDuplicateCandidate>[];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(ListingDuplicateCandidate.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> _detailJson(int id) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/admin/listing-review/listings/$id',
+      options: await _sessionOptions(),
+    );
+    final row = response.data?['data'];
+    if (row is! Map<String, dynamic>) {
+      throw StateError('Invalid review detail response.');
+    }
+    return row;
+  }
+
+  Future<Uint8List> protectedImage(String url) async {
+    final base=Uri.parse(_dio.options.baseUrl), target=Uri.parse(_dio.options.baseUrl).resolve(url);
+    if (target.origin != base.origin || !RegExp('^${RegExp.escape(base.path)}/(?:property-media|listing-documents)/[0-9]+\$').hasMatch(target.path)) {
+      throw StateError('Invalid protected image location');
+    }
+    final cancel=CancelToken();
+    final response = await _dio.get<List<int>>(target.toString(),
+      options: (await _sessionOptions()).copyWith(responseType: ResponseType.bytes), cancelToken: cancel)
+      .timeout(const Duration(seconds: 25), onTimeout: () { cancel.cancel('Image deadline'); throw TimeoutException('تعذر تحميل الصورة.'); });
+    final bytes=response.data;
+    if (bytes==null || bytes.isEmpty || bytes.length>12*1024*1024) throw StateError('Invalid protected image response');
+    return Uint8List.fromList(bytes);
+  }
+
+  Future<void> reviewMedia(int listingId, int imageId, String imageToken, String decision, String reason) async {
+    final response = await _dio.post<Map<String, dynamic>>('/admin/listing-review/listings/$listingId/media-review',
+      data: {'image_id': imageId, 'image_token': imageToken, 'decision': decision, 'reason': reason.trim()},
+      options: await _sessionOptions());
+    final data = response.data?['data'];
+    if (data is! Map || data['checker'] != 'human_review' || data['decision'] != decision || data['review_id'] == null) throw StateError('Invalid media review receipt');
+  }
+
+  Future<void> start(int id) => _action(id, 'start');
+
+  Future<void> approve(
+    int id, {
+    String? reason,
+    String? duplicateReviewReason,
+    bool videoReviewConfirmed = false,
+  }) async {
+    await _dio.post<void>(
+      '/admin/listing-review/listings/$id/approve',
+      data: <String, dynamic>{
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+        if (duplicateReviewReason != null &&
+            duplicateReviewReason.trim().isNotEmpty)
+          'duplicate_review_reason': duplicateReviewReason.trim(),
+        if (videoReviewConfirmed) 'video_review_confirmed': true,
+      },
+      options: await _sessionOptions(),
+    );
+  }
+
+  Future<void> returnForCorrection(int id, String reason) =>
+      _action(id, 'return', reason: reason);
+
+  Future<void> rejectFinal(int id, String reason) =>
+      _action(id, 'reject-final', reason: reason);
+
+  Future<void> linkPropertyAsset(
+    int listingId,
+    int propertyAssetId,
+    String reason,
+  ) async {
+    await _dio.post<void>(
+      '/admin/listing-review/listings/$listingId/link-property',
+      data: <String, dynamic>{
+        'property_asset_id': propertyAssetId,
+        'reason': reason.trim(),
+      },
+      options: await _sessionOptions(),
+    );
+  }
+
+  Future<void> _action(int id, String action, {String? reason}) async {
+    await _dio.post<void>(
+      '/admin/listing-review/listings/$id/$action',
+      data: reason == null ? null : <String, dynamic>{'reason': reason.trim()},
+      options: await _sessionOptions(),
+    );
+  }
+
+  /// Compatibility shim for the retired broker-region verification screen.
+  Future<List<BrokerVerificationQueueItem>> brokerVerifications({
+    String status = 'pending',
+  }) async {
+    return const <BrokerVerificationQueueItem>[];
+  }
+
+  Future<BrokerVerificationRecord> respondBrokerVerification(
+    int verificationId,
+    String status, {
+    String? note,
+  }) {
+    throw StateError(
+      'Broker region verification workflow is retired. Use support review.',
+    );
+  }
+
+  Future<List<PublicationBlockItem>> blocks() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/admin/listing-review/blocks',
+      queryParameters: const <String, dynamic>{'active': 1},
+      options: await _sessionOptions(),
+    );
+    final rows = response.data?['data'];
+    if (rows is! List) return const <PublicationBlockItem>[];
+    return rows
+        .whereType<Map<String, dynamic>>()
+        .map(PublicationBlockItem.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<void> liftBlock(int id, String reason) async {
+    await _dio.post<void>(
+      '/admin/listing-review/blocks/$id/lift',
+      data: <String, dynamic>{'reason': reason.trim()},
+      options: await _sessionOptions(),
+    );
+  }
+}
+), '');
+    if (api.scheme != 'https' ||
+        stream?.origin != api.origin ||
+        poster?.origin != api.origin ||
+        stream?.path != '$prefix/property-videos/${video.id}/stream' ||
+        poster?.path != '$prefix/property-videos/${video.id}/poster' ||
+        stream?.hasQuery == true || poster?.hasQuery == true ||
+        stream?.hasFragment == true || poster?.hasFragment == true) {
+      throw StateError('INVALID_VIDEO_ORIGIN');
+    }
+    final authorization = (await _sessionOptions()).headers?['Authorization']?.toString();
+    if (authorization == null || !authorization.startsWith('Bearer ')) {
+      throw StateError('AUTH_REQUIRED');
+    }
+    return <String, String>{'Authorization': authorization};
   }
 
   Future<List<ListingDuplicateCandidate>> duplicateCandidates(int id) async {

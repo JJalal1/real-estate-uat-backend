@@ -1,3 +1,4 @@
+import '../../properties/domain/property_details.dart';
 class BrokerVerificationRecord {
   const BrokerVerificationRecord({
     required this.id,
@@ -110,6 +111,8 @@ class ReviewListingItem {
     required this.ownerVerificationStatus,
     required this.proofCount,
     required this.brokerVerification,
+    this.video,
+    this.videoStatus,
     this.reason,
   });
 
@@ -125,6 +128,8 @@ class ReviewListingItem {
   final String ownerVerificationStatus;
   final int proofCount;
   final BrokerVerificationState brokerVerification;
+  final PropertyVideoItem? video;
+  final String? videoStatus;
   final String? reason;
 
   factory ReviewListingItem.fromJson(Map<String, dynamic> json) {
@@ -149,6 +154,8 @@ class ReviewListingItem {
       proofCount: documents is List ? documents.length : 0,
       brokerVerification:
           BrokerVerificationState.fromJson(json['broker_verification']),
+      video: PropertyVideoItem.tryParse(json['video']),
+      videoStatus: json['video'] is Map ? (json['video'] as Map)['status']?.toString() : null,
       reason: _nullable(json['last_review_reason']),
     );
   }

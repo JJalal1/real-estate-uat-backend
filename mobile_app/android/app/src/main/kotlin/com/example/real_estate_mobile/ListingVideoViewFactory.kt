@@ -20,6 +20,14 @@ class ListingVideoViewFactory : PlatformViewFactory(StandardMessageCodec.INSTANC
         val url = (parameters?.get("url") as? String).orEmpty()
         val uri = Uri.parse(url)
         require(uri.scheme == "https" && !uri.host.isNullOrBlank()) { "HTTPS video required" }
+        val rawHeaders = parameters?.get("headers") as? Map<*, *>
+        val bearer = rawHeaders?.get("Authorization") as? String
+        require(bearer == null ||
+            (bearer.startsWith("Bearer ") && !bearer.contains("\\r") && !bearer.contains("\\n"))
+        ) { "Invalid media authorization" }
+        val mediaHeaders = if (bearer != null)
+            mapOf("Authorization" to bearer, "android-allow-cross-domain-redirect" to "0")
+        else null
 
         return object : PlatformView {
             val container = FrameLayout(context)
@@ -34,7 +42,8 @@ class ListingVideoViewFactory : PlatformViewFactory(StandardMessageCodec.INSTANC
                     player.setOnInfoListener { _, _, _ -> false }
                     video.start()
                 }
-                video.setVideoURI(uri)
+                if (mediaHeaders != null) video.setVideoURI(uri, mediaHeaders)
+                else video.setVideoURI(uri)
             }
 
             override fun getView(): View = container
