@@ -40,6 +40,115 @@ class CloudAssetStorageService
         $this->assertRemoteSuccess($response, 'Image storage failed.');
     }
 
+    /**
+     * Stream an accepted video from PHP's upload temp file to private storage.
+     * Unlike storePrivate(), this avoids loading a 50 MiB video into PHP memory.
+     */
+    public function storePrivateStreamed(UploadedFile $file, string $directory): string
+    {
+        $path = $file->hashName(trim($directory, '/'));
+        $source = $file->getRealPath();
+        if (! is_string($source) || ! is_file($source)) {
+            throw new RuntimeException('Video source is unavailable.');
+        }
+
+        $this->writePrivateFromFile($path, $source, (string) $file->getMimeType());
+        return $path;
+    }
+
+    /**
+     * Use resource-backed requests and filesystem streams. Called by the
+     * isolated video processing job for private derivative uploads too.
+     */
+    public function writePrivateFromFile(string $path, string $source, string $mime): void
+    {
+        if (! is_file($source)) throw new RuntimeException('Private media source is missing.');
+        $stream = fopen($source, 'rb');
+        if ($stream === false) throw new RuntimeException('Cannot open private media source.');
+        try {
+            if (! $this->cloudEnabled()) {
+                if (! Storage::disk('local')->put($path, $stream)) {
+                    throw new RuntimeException('Private media write failed.');
+                }
+                return;
+            }
+
+            $response = $this->request()
+                ->withHeaders(['x-upsert' => 'false'])
+                ->withBody($stream, $mime)
+                ->post($this->objectUrl($this->objectPath($path, true)));
+            $this->assertRemoteSuccess($response, 'Private media upload failed.');
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /** Download private media to a sandboxed temporary file without buffering. */
+    public function downloadPrivateToPath(string $path, string $target): void
+    {
+        if (! $this->cloudEnabled()) {
+            $input = Storage::disk('local')->readStream($path);
+            if (! is_resource($input)) throw new RuntimeException('Private media is unavailable.');
+            $output = fopen($target, 'wb');
+            if ($output === false) {
+                fclose($input);
+                throw new RuntimeException('Temporary media file is unavailable.');
+            }
+            try {
+                if (stream_copy_to_stream($input, $output) === false) {
+                    throw new RuntimeException('Private media download failed.');
+                }
+            } finally {
+                fclose($input);
+                fclose($output);
+            }
+            return;
+        }
+
+        $response = $this->request()
+            ->withOptions(['sink' => $target])
+            ->get($this->objectUrl($this->objectPath($path, true)));
+        $this->assertRemoteSuccess($response, 'Private media download failed.');
+    }
+
+    /** Bounded partial read; never fetch the entire video to satisfy a seek. */
+    public function readPrivateRange(string $path, int $start, int $end): string
+    {
+        if ($start < 0 || $end < $start || $end - $start >= 2 * 1024 * 1024) {
+            throw new RuntimeException('Invalid private media range.');
+        }
+
+        if (! $this->cloudEnabled()) {
+            $stream = Storage::disk('local')->readStream($path);
+            if (! is_resource($stream)) throw new RuntimeException('Private media unavailable.');
+            try {
+                if (fseek($stream, $start) !== 0) throw new RuntimeException('Private media seek failed.');
+                $bytes = stream_get_contents($stream, $end - $start + 1);
+                if (! is_string($bytes) || strlen($bytes) !== $end - $start + 1) {
+                    throw new RuntimeException('Private media range incomplete.');
+                }
+                return $bytes;
+            } finally {
+                fclose($stream);
+            }
+        }
+
+        $response = $this->request()
+            ->withHeaders(['Range' => 'bytes='.$start.'-'.$end])
+            ->get($this->objectUrl($this->objectPath($path, true)));
+        if ($response->status() !== 206) {
+            throw new RuntimeException('Private storage did not honor byte range.');
+        }
+        if (! str_starts_with((string) $response->header('Content-Range'), 'bytes '.$start.'-'.$end.'/')) {
+            throw new RuntimeException('Private storage returned unexpected range.');
+        }
+        $bytes = $response->body();
+        if (strlen($bytes) !== $end - $start + 1) {
+            throw new RuntimeException('Private media range incomplete.');
+        }
+        return $bytes;
+    }
+
     public function readBytes(string $path, bool $private): string
     {
         if (! $this->cloudEnabled()) {
