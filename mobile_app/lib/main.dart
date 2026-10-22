@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
+import 'core/release/release_gate.dart';
 import 'router/app_router.dart';
 
 void main() {
@@ -33,6 +34,9 @@ class RealEstateApp extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) => ReleaseGate(
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }
