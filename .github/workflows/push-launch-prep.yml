@@ -119,13 +119,16 @@ jobs:
           out=build/app/outputs/flutter-apk
           sha256sum "$out/app-release.apk" > "$out/app-release.apk.sha256"
           printf 'source_sha=%s\nworkflow_run=%s\nbuild_number=%s\nenvironment=UAT\npush_enabled=false\nsigning=UAT-debug-allowed\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$BUILD_NUMBER" > "$out/build-info.txt"
-      - name: Upload auditable UAT APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: aqer-uat-android-${{ github.run_number }}-${{ github.sha }}
-          path: |
-            mobile_app/build/app/outputs/flutter-apk/app-release.apk
-            mobile_app/build/app/outputs/flutter-apk/app-release.apk.sha256
-            mobile_app/build/app/outputs/flutter-apk/build-info.txt
-          if-no-files-found: error
-          retention-days: 14
+      # Do not upload a plaintext installer from a public repository.
+      # The approved Broker Experience CI delivers recipient-encrypted APKs
+      # and performs native package/signature/SHA verification.
+      - name: Verify local APK and retain source evidence in this job
+        working-directory: mobile_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s build/app/outputs/flutter-apk/app-release.apk
+          sha256sum -c build/app/outputs/flutter-apk/app-release.apk.sha256
+          grep -Fx "source_sha=$GITHUB_SHA" build/app/outputs/flutter-apk/build-info.txt
+          grep -Fx 'push_enabled=false' build/app/outputs/flutter-apk/build-info.txt
+          echo 'UAT APK built and verified locally; plaintext artifact publication forbidden.'
