@@ -47,3 +47,27 @@ jobs:
           tests/Feature/AccountErasureLaunchTest.php
           tests/Feature/Wave2MediaTrustTest.php
           --display-warnings --fail-on-warning --fail-on-risky
+
+  mobile:
+    name: Account erasure Flutter analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve protected dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Analyze account erasure UI and client
+        working-directory: mobile_app
+        run: flutter analyze lib/features/account/data/account_safety_repository.dart lib/features/account/presentation/account_safety_screen.dart
