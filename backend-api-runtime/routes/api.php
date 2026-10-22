@@ -199,6 +199,8 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'read']);
+    Route::post('/push/devices', [\App\Http\Controllers\Api\PushDeviceController::class, 'store'])->middleware('throttle:20,1,push-device-register');
+    Route::delete('/push/devices', [\App\Http\Controllers\Api\PushDeviceController::class, 'destroy'])->middleware('throttle:20,1,push-device-remove');
 
     Route::get('/admin/dashboard', [AdminWorkspaceController::class, 'dashboard'])->middleware('permission:dashboard.view');
     Route::get('/admin/settings', [AdminWorkspaceController::class, 'settings'])->middleware('permission:settings.view');

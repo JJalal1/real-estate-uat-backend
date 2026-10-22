@@ -150,6 +150,7 @@ class AccountErasureService
             'saved_property_searches' => ['user_id'],
             'user_notifications' => ['user_id'],
             'user_notification_preferences' => ['user_id'],
+            'user_push_devices' => ['user_id'],
             'broker_customer_followups' => ['user_id'],
             'support_team_members' => ['user_id'],
         ];

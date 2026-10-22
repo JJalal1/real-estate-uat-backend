@@ -1,0 +1,131 @@
+name: Push Launch Preparation
+
+on:
+  push:
+    branches: [work/push-launch-prep, work/wave2-review-current]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/push-launch-prep.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: push-launch-prep-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+  UAT_SHARE_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com
+  AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+  AQER_PUSH_ENABLED: 'false'
+
+jobs:
+  backend:
+    name: Push backend regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, openssl, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare Laravel test environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Syntax check push launch files
+        run: |
+          php -l config/push.php
+          php -l app/Models/UserPushDevice.php
+          php -l app/Http/Controllers/Api/PushDeviceController.php
+          php -l app/Jobs/SendUserPushNotification.php
+          php -l app/Services/FcmPushSender.php
+          php -l database/migrations/2026_10_22_010000_create_user_push_devices.php
+          php -l tests/Feature/PushLaunchPrepTest.php
+      - name: Run push and launch regressions
+        run: >-
+          php artisan test
+          tests/Feature/PushLaunchPrepTest.php
+          tests/Feature/AccountErasureLaunchTest.php
+          tests/Feature/LaunchReadinessWave4Test.php
+          tests/Feature/Wave2MediaTrustTest.php
+          --display-warnings --fail-on-warning --fail-on-risky
+
+  mobile:
+    name: Push Android release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve protected dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Strict Flutter analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Run launch behavior tests
+        working-directory: mobile_app
+        run: >-
+          flutter test
+          test/launch_readiness_wave4_test.dart
+          test/search_query_wave_test.dart
+          test/property_marker_cluster_test.dart
+          --reporter expanded
+      - name: Allocate never-reused UAT build number
+        shell: bash
+        run: echo "BUILD_NUMBER=$((1127 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+      - name: Build UAT release with push deliberately disabled
+        working-directory: mobile_app
+        run: >-
+          flutter build apk --release
+          --build-number=${BUILD_NUMBER}
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=${UAT_API_BASE_URL}
+          --dart-define=APP_BUILD_NUMBER=${BUILD_NUMBER}
+          --dart-define=APP_SHARE_BASE_URL=${UAT_SHARE_BASE_URL}
+      - name: Record APK source and checksum
+        working-directory: mobile_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=build/app/outputs/flutter-apk
+          sha256sum "$out/app-release.apk" > "$out/app-release.apk.sha256"
+          printf 'source_sha=%s\nworkflow_run=%s\nbuild_number=%s\nenvironment=UAT\npush_enabled=false\nsigning=UAT-debug-allowed\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$BUILD_NUMBER" > "$out/build-info.txt"
+      - name: Upload auditable UAT APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aqer-uat-android-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            mobile_app/build/app/outputs/flutter-apk/app-release.apk
+            mobile_app/build/app/outputs/flutter-apk/app-release.apk.sha256
+            mobile_app/build/app/outputs/flutter-apk/build-info.txt
+          if-no-files-found: error
+          retention-days: 14

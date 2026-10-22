@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Jobs\SendUserPushNotification;
 use App\Models\UserNotification;
 use App\Models\UserNotificationPreference;
+use App\Models\UserPushDevice;
 
 class UserNotificationService
 {
@@ -22,7 +24,7 @@ class UserNotificationService
             return null;
         }
 
-        return UserNotification::query()->create([
+        $notification=UserNotification::query()->create([
             'user_id' => $userId,
             'type' => $type,
             'title' => $title,
@@ -32,6 +34,19 @@ class UserNotificationService
             'data' => $data ?: null,
             'created_at' => now(),
         ]);
+
+        if (config('push.enabled',false)) {
+            UserPushDevice::query()
+                ->where('user_id',$userId)
+                ->whereNull('disabled_at')
+                ->pluck('id')
+                ->each(fn($deviceId)=>SendUserPushNotification::dispatch(
+                    $notification->id,
+                    (int)$deviceId,
+                )->afterCommit());
+        }
+
+        return $notification;
     }
 
     private function enabled(int $userId, string $category): bool
