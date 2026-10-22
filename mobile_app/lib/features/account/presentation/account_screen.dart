@@ -43,6 +43,13 @@ class AccountScreen extends ConsumerWidget {
                   leading: const EbrokerIcon(Icons.auto_awesome_outlined),
                   onTap: () => context.push('/smart-search')),
                 const SizedBox(height: AppSpacing.s12),
+                AppListRow(
+                  title: 'شوهد مؤخرًا',
+                  subtitle: 'سجل محلي على هذا الجهاز فقط',
+                  leading: const EbrokerIcon(Icons.history_outlined),
+                  onTap: () => context.push('/recent'),
+                ),
+                const SizedBox(height: AppSpacing.s12),
                 if (user == null) ...[
                   AppListRow(title: 'المفضلة', leading: const EbrokerImage('heart'),
                     onTap: () => context.push('/favorites')),
