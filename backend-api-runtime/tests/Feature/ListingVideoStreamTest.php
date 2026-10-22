@@ -66,7 +66,10 @@ class ListingVideoStreamTest extends TestCase
             ->assertStatus(206)
             ->assertHeader('Content-Range', 'bytes 5-9/20')
             ->assertSee('56789', false);
-        $this->assertSame('private, no-store', $this->app['router']->getRoutes()->match(\Illuminate\Http\Request::create('/api/property-videos/'.$video->id.'/stream', 'GET')) ? $this->withHeaders(['Range' => 'bytes=0-4'])->get('/api/property-videos/'.$video->id.'/stream')->headers->get('Cache-Control') : null);
+        $this->withHeaders(['Range' => 'bytes=0-4'])
+            ->get('/api/property-videos/'.$video->id.'/stream')
+            ->assertStatus(206)
+            ->assertHeader('Cache-Control', 'private, no-store');
         $this->get('/api/property-videos/'.$video->id.'/poster')->assertOk();
         $this->withHeaders(['Range' => 'bytes=20-99'])
             ->get('/api/property-videos/'.$video->id.'/stream')
