@@ -157,10 +157,13 @@ class ListingVideoApiTest extends TestCase
         app()->instance(CloudAssetStorageService::class, $storage);
         [$owner, $headers] = $this->actor('no-db-lock');
         $property = $this->property($owner);
+        $baseline = DB::connection()->transactionLevel();
         $this->withHeaders($headers)->post('/api/properties/'.$property->id.'/video', [
             'upload_id' => (string) Str::uuid(), 'video' => $this->video(),
         ])->assertStatus(202);
-        $this->assertSame(0, $storage->openTransactionsDuringUpload);
+        // RefreshDatabase wraps tests in an outer transaction; no additional
+        // application-level transaction is allowed during external I/O.
+        $this->assertSame($baseline, $storage->openTransactionsDuringUpload);
         $this->assertDatabaseHas('listing_videos', [
             'property_id' => $property->id, 'status' => 'uploaded',
         ]);
