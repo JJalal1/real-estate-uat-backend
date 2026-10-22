@@ -1,0 +1,55 @@
+name: Aqer Video Android Native Integration
+
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'mobile_app/**'
+      - '.github/workflows/video-android-integration-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  video-android-integration:
+    name: Video Android native compile and Flutter tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile_app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve preserved Flutter dependencies
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Verify new poster and disabled autoplay widget
+        run: flutter test test/property_video_section_test.dart --reporter expanded
+      - name: Compile native Kotlin player and picker
+        run: >-
+          flutter build apk --debug
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
+          --dart-define=AQER_VIDEO_UPLOADS_ENABLED=false
+      - name: Keep installers private to workflow
+        run: |
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk
+          echo 'Compiled UAT Android video integration. No APK upload in public repo.'
