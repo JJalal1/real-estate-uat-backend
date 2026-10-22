@@ -66,10 +66,15 @@ class ListingVideoStreamTest extends TestCase
             ->assertStatus(206)
             ->assertHeader('Content-Range', 'bytes 5-9/20')
             ->assertSee('56789', false);
-        $this->withHeaders(['Range' => 'bytes=0-4'])
+        $privateRange = $this->withHeaders(['Range' => 'bytes=0-4'])
             ->get('/api/property-videos/'.$video->id.'/stream')
-            ->assertStatus(206)
-            ->assertHeader('Cache-Control', 'private, no-store');
+            ->assertStatus(206);
+        // Symfony normalizes Cache-Control directive order. Assert the
+        // two required protections semantically rather than their order.
+        $directives = array_map('trim', explode(',',
+            (string) $privateRange->headers->get('Cache-Control')));
+        $this->assertContains('private', $directives);
+        $this->assertContains('no-store', $directives);
         $this->get('/api/property-videos/'.$video->id.'/poster')->assertOk();
         $this->withHeaders(['Range' => 'bytes=20-99'])
             ->get('/api/property-videos/'.$video->id.'/stream')
