@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Api\PushDeviceController;
 use App\Jobs\SendUserPushNotification;
 use App\Models\User;
 use App\Models\UserPushDevice;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class PushLaunchPrepTest extends TestCase
@@ -37,6 +40,28 @@ class PushLaunchPrepTest extends TestCase
         $this->assertStringNotContainsString($token,$raw->token);
         $this->assertSame(hash('sha256',$token),$raw->token_hash);
         $this->assertSame($token,$device->fresh()->token);
+    }
+
+    public function test_push_disabled_does_not_collect_device_tokens(): void
+    {
+        config()->set('push.enabled',false);
+        $user=$this->user();
+        $request=Request::create('/api/push/devices','POST',[
+            'platform'=>'android',
+            'token'=>str_repeat('token-',20),
+            'installation_id'=>'installation-1234567890',
+            'app_build'=>1127,
+        ]);
+        $request->setUserResolver(fn ()=>$user);
+
+        try {
+            app(PushDeviceController::class)->store($request);
+            $this->fail('Disabled push registration should fail.');
+        } catch (HttpException $error) {
+            $this->assertSame(409,$error->getStatusCode());
+        }
+
+        $this->assertDatabaseCount('user_push_devices',0);
     }
 
     public function test_push_disabled_keeps_in_app_notification_without_queueing_external_delivery(): void
