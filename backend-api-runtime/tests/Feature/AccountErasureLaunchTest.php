@@ -123,14 +123,8 @@ class AccountErasureLaunchTest extends TestCase
     {
         Storage::fake('local');
         $user=$this->user();
-        $roleId=DB::table('roles')->insertGetId([
-            'key'=>'support_agent',
-            'name_ar'=>'موظف دعم',
-            'name_en'=>'Support Agent',
-            'is_system'=>true,
-            'created_at'=>now(),
-            'updated_at'=>now(),
-        ]);
+        $roleId=(int) DB::table('roles')->where('key','support_agent')->value('id');
+        $this->assertGreaterThan(0,$roleId);
         DB::table('user_role')->insert([
             'user_id'=>$user->id,
             'role_id'=>$roleId,
