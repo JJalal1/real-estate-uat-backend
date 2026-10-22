@@ -10,7 +10,9 @@ use App\Services\AccountErasureService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Tests\TestCase;
 
 class AccountErasureLaunchTest extends TestCase
@@ -104,12 +106,51 @@ class AccountErasureLaunchTest extends TestCase
             ->assertSee('تم حذف الحساب ومسح بيانات الهوية الشخصية');
     }
 
+    public function test_external_start_does_not_reveal_whether_account_exists(): void
+    {
+        $this->post('/account-deletion/start',['login'=>'+967799999999'])
+            ->assertRedirect()
+            ->assertSessionHas('account_deletion_started',true)
+            ->assertSessionMissing('account_deletion_user_id');
+
+        $this->post('/account-deletion/confirm',[
+            'code'=>'123456',
+            'confirm_phrase'=>'حذف حسابي نهائيًا',
+        ])->assertSessionHasErrors('code');
+    }
+
+    public function test_staff_account_cannot_use_consumer_erasure_path(): void
+    {
+        Storage::fake('local');
+        $user=$this->user();
+        $roleId=DB::table('roles')->insertGetId([
+            'key'=>'support_agent',
+            'name_ar'=>'موظف دعم',
+            'name_en'=>'Support Agent',
+            'is_system'=>true,
+            'created_at'=>now(),
+            'updated_at'=>now(),
+        ]);
+        DB::table('user_role')->insert([
+            'user_id'=>$user->id,
+            'role_id'=>$roleId,
+            'assigned_by_user_id'=>null,
+            'created_at'=>now(),
+        ]);
+
+        $this->expectException(ConflictHttpException::class);
+        app(AccountErasureService::class)->erase(
+            $user->fresh('roles'),
+            Request::create('/api/account','DELETE'),
+        );
+    }
+
     public function test_platform_owner_cannot_be_erased(): void
     {
         Storage::fake('local');
         $user=$this->user(['is_platform_owner'=>true]);
 
-        $this->expectException(\LogicException::class);
+        $this->expectException(ConflictHttpException::class);
         app(AccountErasureService::class)->erase(
             $user,
             Request::create('/api/account','DELETE'),
