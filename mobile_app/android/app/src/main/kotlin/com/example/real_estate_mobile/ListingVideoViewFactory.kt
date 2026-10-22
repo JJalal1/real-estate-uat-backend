@@ -22,9 +22,28 @@ class ListingVideoViewFactory : PlatformViewFactory(StandardMessageCodec.INSTANC
         require(uri.scheme == "https" && !uri.host.isNullOrBlank()) { "HTTPS video required" }
         val rawHeaders = parameters?.get("headers") as? Map<*, *>
         val bearer = rawHeaders?.get("Authorization") as? String
-        require(bearer == null ||
-            (bearer.startsWith("Bearer ") && !bearer.contains("\\r") && !bearer.contains("\\n"))
-        ) { "Invalid media authorization" }
+        require(bearer == null || (
+            bearer.startsWith("Bearer ") &&
+            bearer.length in 10..2048 &&
+            bearer.all { it.code in 32..126 }
+        )) { "Invalid media authorization" }
+        if (bearer != null) {
+            // Defense in depth: Flutter also validates these values before
+            // handing over its session. Native code refuses to send a bearer
+            // to any other origin, URI with query/fragment, or non-video route.
+            val allowedOrigin = Uri.parse(
+                (parameters?.get("apiOrigin") as? String).orEmpty()
+            )
+            require(
+                allowedOrigin.scheme == "https" &&
+                allowedOrigin.host == uri.host &&
+                allowedOrigin.port == uri.port &&
+                uri.userInfo.isNullOrEmpty() &&
+                uri.query == null && uri.fragment == null &&
+                Regex("^/api/property-videos/[1-9][0-9]*/stream$")
+                    .matches(uri.path.orEmpty())
+            ) { "Protected video must use the exact API media route" }
+        }
         val mediaHeaders = if (bearer != null)
             mapOf("Authorization" to bearer, "android-allow-cross-domain-redirect" to "0")
         else null

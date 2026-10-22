@@ -62,6 +62,7 @@ class ListingReviewRepository {
         stream?.origin != api.origin || poster?.origin != api.origin ||
         stream?.path != '$prefix/property-videos/${video.id}/stream' ||
         poster?.path != '$prefix/property-videos/${video.id}/poster' ||
+        stream?.userInfo.isNotEmpty == true || poster?.userInfo.isNotEmpty == true ||
         stream?.hasQuery == true || poster?.hasQuery == true ||
         stream?.hasFragment == true || poster?.hasFragment == true) {
       throw StateError('INVALID_VIDEO_ORIGIN');

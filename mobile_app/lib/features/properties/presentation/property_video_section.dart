@@ -41,7 +41,10 @@ class _PropertyVideoSectionState extends State<PropertyVideoSection> {
           url?.origin != api?.origin ||
           poster?.origin != api?.origin ||
           url?.path != '$prefix/property-videos/${widget.video.id}/stream' ||
-          poster?.path != '$prefix/property-videos/${widget.video.id}/poster') {
+          poster?.path != '$prefix/property-videos/${widget.video.id}/poster' ||
+          url?.hasQuery == true || poster?.hasQuery == true ||
+          url?.hasFragment == true || poster?.hasFragment == true ||
+          url?.userInfo.isNotEmpty == true || poster?.userInfo.isNotEmpty == true) {
         return const SizedBox.shrink();
       }
     }
@@ -65,6 +68,7 @@ class _PropertyVideoSectionState extends State<PropertyVideoSection> {
                     creationParams: <String, Object>{
                       'url': widget.video.streamUrl,
                       if (widget.requestHeaders.isNotEmpty) 'headers': widget.requestHeaders,
+                      if (widget.requestHeaders.isNotEmpty) 'apiOrigin': Uri.parse(ApiEnvironmentConfig.resolveBaseUrl()).origin,
                     },
                     creationParamsCodec: const StandardMessageCodec(),
                   )
