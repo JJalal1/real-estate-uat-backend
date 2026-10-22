@@ -128,6 +128,7 @@ class ListingReviewController extends Controller
         $v = $request->validate([
             'reason' => ['nullable', 'string', 'max:2000'],
             'duplicate_review_reason' => ['nullable', 'string', 'max:2000'],
+            'video_review_confirmed' => ['sometimes', 'boolean'],
         ]);
         return response()->json([
             'message' => 'Listing approved and published.',
@@ -304,6 +305,23 @@ class ListingReviewController extends Controller
                 'latest' => null,
             ],
         ];
+
+        if (config('listing_video.uploads_enabled', false)) {
+            // Reviewer-only response: never expose original private bucket paths.
+            $video = \App\Models\ListingVideo::query()
+                ->where('property_id', $p->id)->first();
+            if ($video !== null) {
+                $ready = $video->status === 'ready';
+                $data['video'] = [
+                    'id' => (int) $video->id,
+                    'status' => $video->status,
+                    'moderation_status' => $video->moderation_status,
+                    'duration_ms' => $video->duration_ms,
+                    'poster_url' => $ready ? url('/api/property-videos/'.$video->id.'/poster') : null,
+                    'stream_url' => $ready ? url('/api/property-videos/'.$video->id.'/stream') : null,
+                ];
+            }
+        }
 
         if ($full) {
             $p->loadMissing('reviews.actor');

@@ -188,6 +188,63 @@ class Stage9ListingReviewApiTest extends TestCase
         $this->assertSame($moderator->name, $after->actor_name_snapshot);
     }
 
+
+    public function test_video_requires_processing_and_explicit_staff_confirmation_to_publish(): void
+    {
+        config()->set('listing_video.uploads_enabled', true);
+        config()->set('services.supabase_storage.enabled', false);
+        [, $ownerHeaders] = $this->user('s9-video-owner@example.test', '+967710000035');
+        [$moderator, $modHeaders] = $this->user('s9-video-mod@example.test', '+967710000036', ['support_agent']);
+        $id = $this->createReady($ownerHeaders, 'Video approval listing');
+        $playback = 'listing-video-display/approval/safe.mp4';
+        $poster = 'listing-video-display/approval/poster.jpg';
+        Storage::disk('local')->put($playback, '0123456789ABCDEFGHIJ');
+        Storage::disk('local')->put($poster, 'jpeg-test');
+        $video = \App\Models\ListingVideo::query()->create([
+            'property_id' => $id,
+            'upload_id' => (string) \Illuminate\Support\Str::uuid(),
+            'status' => 'uploaded',
+            'original_path' => 'listing-videos/approval/original.mp4',
+            'mime_type' => 'video/mp4',
+            'size_bytes' => 20,
+            'content_sha256' => str_repeat('a', 64),
+        ]);
+        // Submitting an incomplete video must fail closed.
+        $this->withHeaders($ownerHeaders)->postJson("/api/properties/$id/submit")->assertStatus(409);
+        $video->forceFill([
+            'status' => 'ready', 'playback_path' => $playback,
+            'poster_path' => $poster, 'playback_size_bytes' => 20,
+        ])->save();
+        $this->withHeaders($ownerHeaders)->postJson("/api/properties/$id/submit")->assertOk();
+        $this->withHeaders($modHeaders)->getJson("/api/admin/listing-review/listings/$id")
+            ->assertOk()
+            ->assertJsonPath('data.video.id', $video->id)
+            ->assertJsonPath('data.video.status', 'ready')
+            ->assertJsonPath('data.video.moderation_status', 'pending');
+        $this->withHeaders($modHeaders)->get("/api/property-videos/{$video->id}/stream")
+            ->assertStatus(206);
+        $this->withHeaders(['Authorization' => ''])
+            ->get("/api/property-videos/{$video->id}/stream")->assertNotFound();
+        $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$id/start")
+            ->assertOk();
+        $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$id/approve")
+            ->assertStatus(409);
+        $this->assertDatabaseHas('listing_videos', ['id' => $video->id, 'moderation_status' => 'pending']);
+        $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$id/approve", [
+            'video_review_confirmed' => true,
+            'reason' => 'Watched and confirmed this video.',
+        ])->assertOk()->assertJsonPath('data.review_status', 'approved');
+        $this->assertDatabaseHas('listing_videos', [
+            'id' => $video->id,
+            'moderation_status' => 'approved',
+            'moderated_by_user_id' => $moderator->id,
+        ]);
+        $this->withHeaders(['Authorization' => ''])->getJson("/api/properties/$id")
+            ->assertOk()->assertJsonPath('data.video.id', $video->id);
+        $this->withHeaders(['Authorization' => ''])
+            ->get("/api/property-videos/{$video->id}/stream")->assertStatus(206);
+    }
+
     private function createReady(array $headers, string $title): int
     {
         $response = $this->withHeaders($headers)->post('/api/properties', $this->payload([

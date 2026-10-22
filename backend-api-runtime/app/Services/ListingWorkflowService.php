@@ -253,6 +253,7 @@ class ListingWorkflowService
             $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
             $this->assertReviewable($locked, $actor);
 
+            $approvedVideoId = null;
             if (config('listing_video.uploads_enabled', false)) {
                 $video = \App\Models\ListingVideo::query()
                     ->where('property_id', $locked->id)->lockForUpdate()->first();
@@ -268,6 +269,7 @@ class ListingWorkflowService
                         'moderated_at' => now(),
                         'moderated_by_user_id' => $actor->id,
                     ])->save();
+                    $approvedVideoId = (int) $video->id;
                 }
             }
 
@@ -322,7 +324,10 @@ class ListingWorkflowService
                 'review_assigned_at' => null,
             ])->save();
 
-            $this->review($actor, $locked, 'approved', $from, 'approved', $reason);
+            $this->review($actor, $locked, 'approved', $from, 'approved', $reason, [
+                'video_id' => $approvedVideoId,
+                'video_review_confirmed' => $approvedVideoId !== null,
+            ]);
             $this->audit->record(
                 $actor,
                 'listing.approved',
