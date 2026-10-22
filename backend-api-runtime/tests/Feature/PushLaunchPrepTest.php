@@ -94,6 +94,16 @@ class PushLaunchPrepTest extends TestCase
         config()->set('push.enabled',true);
         $user=$this->user();
 
+        $device=UserPushDevice::query()->create([
+            'user_id'=>$user->id,
+            'platform'=>'android',
+            'token'=>str_repeat('active-token-',12),
+            'token_hash'=>hash('sha256',str_repeat('active-token-',12)),
+            'installation_hash'=>hash('sha256','active-installation-1234567890'),
+            'app_build'=>1127,
+            'last_seen_at'=>now(),
+        ]);
+
         $notification=app(UserNotificationService::class)->create(
             $user->id,
             'listing_review_approved',
@@ -106,7 +116,8 @@ class PushLaunchPrepTest extends TestCase
         Bus::assertDispatched(
             SendUserPushNotification::class,
             fn (SendUserPushNotification $job) =>
-                $job->notificationId === $notification?->id,
+                $job->notificationId === $notification?->id &&
+                $job->deviceId === $device->id,
         );
     }
 
@@ -124,7 +135,17 @@ class PushLaunchPrepTest extends TestCase
             1,
         );
 
-        app(FcmPushSender::class)->send($notification);
+        $device=UserPushDevice::query()->create([
+            'user_id'=>$user->id,
+            'platform'=>'android',
+            'token'=>str_repeat('disabled-token-',12),
+            'token_hash'=>hash('sha256',str_repeat('disabled-token-',12)),
+            'installation_hash'=>hash('sha256','disabled-installation-1234567890'),
+            'app_build'=>1127,
+            'last_seen_at'=>now(),
+        ]);
+
+        app(FcmPushSender::class)->send($notification,$device);
 
         Http::assertNothingSent();
     }
