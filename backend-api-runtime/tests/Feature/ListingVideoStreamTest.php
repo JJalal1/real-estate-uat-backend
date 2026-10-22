@@ -18,6 +18,7 @@ class ListingVideoStreamTest extends TestCase
         $owner = User::query()->create([
             'name' => 'Stream owner',
             'email' => 'video-stream-owner@example.test',
+            'password' => 'StreamTestPass123!',
             'account_status' => User::STATUS_ACTIVE,
         ]);
         return Property::query()->create([
