@@ -125,6 +125,11 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::post('/properties/{property}', [PropertyController::class, 'update']);
     Route::delete('/properties/{property}', [PropertyController::class, 'destroy']);
     Route::post('/properties/{property}/submit', [PropertyController::class, 'submit']);
+    // Approved #3 video is fail-closed until processing and playback are verified.
+    Route::post('/properties/{property}/video', [\\App\\Http\\Controllers\\Api\\ListingVideoController::class, 'upload'])->middleware('throttle:5,1,video-upload');
+    Route::get('/properties/{property}/video', [\\App\\Http\\Controllers\\Api\\ListingVideoController::class, 'show']);
+    Route::delete('/properties/{property}/video', [\\App\\Http\\Controllers\\Api\\ListingVideoController::class, 'remove'])->middleware('throttle:10,1,video-delete');
+
     Route::post('/properties/{property}/identity/check', [PropertyIdentityController::class, 'check']);
     Route::post('/properties/{property}/identity/self-verify', [PropertyIdentityController::class, 'selfVerify']);
     Route::put('/properties/{property}/sai', [PropertySaiController::class, 'update']);
