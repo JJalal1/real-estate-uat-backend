@@ -10,7 +10,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
-            android:name=".MainActivity"
+            android:name="com.example.real_estate_mobile.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
@@ -35,7 +35,7 @@
                     android:host="app"
                     android:pathPrefix="/properties" />
             </intent-filter>
-            <intent-filter android:autoVerify="false">
+            <intent-filter android:autoVerify="${aqerAppLinkAutoVerify}">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
