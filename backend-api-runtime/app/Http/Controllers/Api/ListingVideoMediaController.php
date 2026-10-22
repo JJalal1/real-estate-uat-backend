@@ -22,7 +22,7 @@ final class ListingVideoMediaController extends Controller
         abort_unless($video->status === 'ready' && $video->poster_path, 404);
         return $this->storage->responsePrivate($video->poster_path, null, [
             'Content-Type' => 'image/jpeg',
-            'Cache-Control' => $video->property->status === 'published' ? 'public, max-age=3600' : 'private, no-store',
+            'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
@@ -64,7 +64,7 @@ final class ListingVideoMediaController extends Controller
             'Content-Length' => (string) strlen($body),
             'Content-Type' => 'video/mp4',
             'Content-Disposition' => 'inline',
-            'Cache-Control' => $video->property->status === 'published' ? 'public, max-age=300' : 'private, no-store',
+            'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
