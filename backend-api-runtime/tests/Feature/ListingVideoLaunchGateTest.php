@@ -13,7 +13,7 @@ class ListingVideoLaunchGateTest extends TestCase
     {
         config()->set('listing_video.uploads_enabled', false);
         $this->getJson('/api/properties/1/video')->assertNotFound();
-        $this->postJson('/api/properties/1/video', ['upload_id' => 'not-a-uuid'])->assertUnauthorized();
+        $this->postJson('/api/properties/1/video', ['upload_id' => 'not-a-uuid'])->assertNotFound();
     }
 
     public function test_video_processing_is_off_by_default(): void
