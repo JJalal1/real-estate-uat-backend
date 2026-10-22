@@ -2,7 +2,7 @@ name: Push Launch Preparation
 
 on:
   push:
-    branches: [work/push-launch-prep]
+    branches: [work/push-launch-prep, work/wave2-review-current]
     paths:
       - 'backend-api-runtime/**'
       - 'mobile_app/**'
@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: push-launch-prep
+  group: push-launch-prep-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -99,12 +99,33 @@ jobs:
           test/search_query_wave_test.dart
           test/property_marker_cluster_test.dart
           --reporter expanded
+      - name: Allocate never-reused UAT build number
+        shell: bash
+        run: echo "BUILD_NUMBER=$((1127 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
       - name: Build UAT release with push deliberately disabled
         working-directory: mobile_app
         run: >-
           flutter build apk --release
-          --build-number=1127
+          --build-number=${BUILD_NUMBER}
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${UAT_API_BASE_URL}
-          --dart-define=APP_BUILD_NUMBER=1127
+          --dart-define=APP_BUILD_NUMBER=${BUILD_NUMBER}
           --dart-define=APP_SHARE_BASE_URL=${UAT_SHARE_BASE_URL}
+      - name: Record APK source and checksum
+        working-directory: mobile_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=build/app/outputs/flutter-apk
+          sha256sum "$out/app-release.apk" > "$out/app-release.apk.sha256"
+          printf 'source_sha=%s\nworkflow_run=%s\nbuild_number=%s\nenvironment=UAT\npush_enabled=false\nsigning=UAT-debug-allowed\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$BUILD_NUMBER" > "$out/build-info.txt"
+      - name: Upload auditable UAT APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aqer-uat-android-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            mobile_app/build/app/outputs/flutter-apk/app-release.apk
+            mobile_app/build/app/outputs/flutter-apk/app-release.apk.sha256
+            mobile_app/build/app/outputs/flutter-apk/build-info.txt
+          if-no-files-found: error
+          retention-days: 14
