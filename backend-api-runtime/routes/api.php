@@ -83,6 +83,11 @@ Route::get('/properties/{property}/comments', [CommunityController::class, 'comm
 Route::get('/properties/{property}/sai', [PropertySaiController::class, 'show']);
 Route::get('/properties/{property}', [PropertyController::class, 'show']);
 Route::get('/property-media/{image}', [PropertyController::class, 'media']);
+
+// Private originals never have a public endpoint. These routes serve only
+// processed derivatives after listing publication (or to owner/reviewer).
+Route::get('/property-videos/{video}/poster', [\App\Http\Controllers\Api\ListingVideoMediaController::class, 'poster']);
+Route::get('/property-videos/{video}/stream', [\App\Http\Controllers\Api\ListingVideoMediaController::class, 'stream']);
 Route::get('/advertisers/{advertiser}/ratings/summary', [CommunityController::class, 'ratingSummary']);
 Route::get('/regions/cells', [RegionsController::class, 'publicCells']);
 Route::get('/regions/resolve', [RegionsController::class, 'resolvePoint']);
