@@ -22,6 +22,8 @@ class _ReleaseGateState extends ConsumerState<ReleaseGate> {
 
   bool _checking = true;
   bool _required = false;
+  bool _optionalAvailable = false;
+  bool _optionalDismissed = false;
   String? _message;
   Uri? _storeUri;
 
@@ -37,10 +39,12 @@ class _ReleaseGateState extends ConsumerState<ReleaseGate> {
       final data = response.data?['data'];
       if (data is! Map) return;
       final minimum = _asInt(data['minimum_supported_build']) ?? 1;
+      final latest = _asInt(data['latest_build']) ?? minimum;
       final store = Uri.tryParse(data['store_url']?.toString() ?? '');
       if (!mounted) return;
       setState(() {
         _required = _buildNumber < minimum;
+        _optionalAvailable = !_required && _buildNumber < latest;
         _message = data['message']?.toString();
         _storeUri = store?.hasScheme == true ? store : null;
       });
@@ -56,58 +60,100 @@ class _ReleaseGateState extends ConsumerState<ReleaseGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (_checking || !_required) return widget.child;
+    if (_checking) return widget.child;
 
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Material(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.system_update_alt_rounded, size: 54),
-                    const SizedBox(height: 18),
-                    Text(
-                      'يلزم تحديث عقار',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _message?.trim().isNotEmpty == true
-                          ? _message!
-                          : 'هذا الإصدار قديم ولا يمكن استخدامه بأمان.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 22),
-                    FilledButton.icon(
-                      onPressed: _storeUri == null
-                          ? _check
-                          : () => launchUrl(
-                                _storeUri!,
-                                mode: LaunchMode.externalApplication,
-                              ),
-                      icon: Icon(
-                        _storeUri == null
-                            ? Icons.refresh_rounded
-                            : Icons.open_in_new_rounded,
+    if (_required) {
+      return Directionality(
+        textDirection: TextDirection.rtl,
+        child: Material(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.system_update_alt_rounded, size: 54),
+                      const SizedBox(height: 18),
+                      Text(
+                        'يلزم تحديث عقار',
+                        style: Theme.of(context).textTheme.headlineSmall,
                       ),
-                      label: Text(
-                        _storeUri == null ? 'إعادة التحقق' : 'تحديث التطبيق',
+                      const SizedBox(height: 10),
+                      Text(
+                        _message?.trim().isNotEmpty == true
+                            ? _message!
+                            : 'هذا الإصدار قديم ولا يمكن استخدامه بأمان.',
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 22),
+                      FilledButton.icon(
+                        onPressed: _storeUri == null
+                            ? _check
+                            : () => launchUrl(
+                                  _storeUri!,
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                        icon: Icon(
+                          _storeUri == null
+                              ? Icons.refresh_rounded
+                              : Icons.open_in_new_rounded,
+                        ),
+                        label: Text(
+                          _storeUri == null ? 'إعادة التحقق' : 'تحديث التطبيق',
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
+      );
+    }
+
+    if (!_optionalAvailable || _optionalDismissed || _storeUri == null) {
+      return widget.child;
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        PositionedDirectional(
+          top: 0,
+          start: 0,
+          end: 0,
+          child: SafeArea(
+            bottom: false,
+            child: MaterialBanner(
+              leading: const Icon(Icons.system_update_outlined),
+              content: Text(
+                _message?.trim().isNotEmpty == true
+                    ? _message!
+                    : 'يتوفر إصدار أحدث من عقار.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => setState(() => _optionalDismissed = true),
+                  child: const Text('لاحقًا'),
+                ),
+                FilledButton(
+                  onPressed: () => launchUrl(
+                    _storeUri!,
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  child: const Text('تحديث'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
