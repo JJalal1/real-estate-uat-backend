@@ -45,6 +45,7 @@ class AccountDeletionWebController extends Controller
         ]);
 
         if ($user && $destination) {
+            if ($channel==='email') $email->ensureConfigured();
             $created=$verification->create(
                 $user,
                 VerificationChallenge::PURPOSE_ACCOUNT_DELETION,
@@ -52,7 +53,6 @@ class AccountDeletionWebController extends Controller
                 allowUatCode:$channel==='phone',
             );
             if ($channel==='email') {
-                $email->ensureConfigured();
                 $email->sendCode($destination,(string)$created['code']);
             } else {
                 $whatsapp->sendCode($destination,(string)$created['code']);
