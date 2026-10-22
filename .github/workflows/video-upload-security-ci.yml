@@ -1,0 +1,38 @@
+name: Approved Video Security Gate
+
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'backend-api-runtime/**'
+      - '.github/workflows/video-upload-security-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  video-admission-and-private-storage:
+    name: Video admission and private storage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite
+          coverage: none
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare testing configuration
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+      - name: Video security and streamed private storage regression
+        run: php artisan test tests/Feature/ListingVideoUploadPolicyTest.php tests/Feature/VideoPrivateStorageTest.php --fail-on-warning --fail-on-risky --fail-on-skipped
