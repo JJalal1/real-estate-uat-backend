@@ -33,6 +33,7 @@ import 'package:real_estate_mobile/features/properties/presentation/favorites_sc
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_gate.dart';
+import 'package:real_estate_mobile/features/account/presentation/account_screen.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_screen.dart';
 import 'package:real_estate_mobile/features/agreements/data/agreement_repository.dart';
 import 'package:real_estate_mobile/features/agreements/domain/agreement_models.dart';
