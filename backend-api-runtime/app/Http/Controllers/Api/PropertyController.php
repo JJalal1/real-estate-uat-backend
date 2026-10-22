@@ -1060,7 +1060,24 @@ class PropertyController extends Controller
             $data['duplicate_check_metadata'] = $property->duplicate_check_metadata;
             $data['ownership_proof_present'] = $property->documents()->where('kind', 'ownership_proof')->exists();
         }
-        return array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true),$data);
+        $details = array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true), $data);
+        if (config('listing_video.uploads_enabled', false)) {
+            $video = \App\Models\ListingVideo::query()
+                ->where('property_id', $property->id)
+                ->where('status', 'ready')
+                ->first();
+            if ($video !== null && ($property->status === 'published'
+                || ($viewer !== null && ((int) $viewer->id === (int) $property->user_id
+                    || $viewer->hasPermission('listings.moderate'))))) {
+                $details['video'] = [
+                    'id' => (int) $video->id,
+                    'duration_ms' => $video->duration_ms,
+                    'poster_url' => url('/api/property-videos/'.$video->id.'/poster'),
+                    'stream_url' => url('/api/property-videos/'.$video->id.'/stream'),
+                ];
+            }
+        }
+        return $details;
     }
 
     private function advertiserDisplayName(?User $user): string
