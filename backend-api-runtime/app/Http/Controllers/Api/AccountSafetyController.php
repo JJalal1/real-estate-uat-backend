@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SupportCase;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\AccountErasureService;
 use App\Services\SupportCaseService;
 use App\Services\UserMessagingBlockService;
 use Illuminate\Http\Request;
@@ -44,6 +45,17 @@ class AccountSafetyController extends Controller
     public function deletionStatus(Request $request)
     {
         return response()->json(['data'=>$this->deletionData($this->deletionQuery($request->user())->first())]);
+    }
+    public function erase(Request $request, AccountErasureService $erasure)
+    {
+        $v=$request->validate([
+            'confirm_phrase'=>['required','string','in:حذف حسابي نهائيًا'],
+        ]);
+        $data=$erasure->erase($request->user(),$request);
+        return response()->json([
+            'message'=>'تم حذف الحساب وإلغاء الوصول ومسح بيانات الهوية الشخصية.',
+            'data'=>$data,
+        ]);
     }
     public function requestDeletion(Request $request,SupportCaseService $support)
     {

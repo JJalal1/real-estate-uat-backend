@@ -78,6 +78,74 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
     } catch (error) { if (mounted && _valid) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
     finally { if (_valid) setState(() => _busy = false); }
   }
+  Future<void> _eraseAccount() async {
+    if (_busy || !_valid) return;
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialog) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('حذف الحساب نهائيًا'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'سيُلغى دخولك وتُزال بيانات هويتك ووثائق التحقق وتُؤرشف إعلاناتك. '
+                'تبقى فقط السجلات المالية والعقود وسجل التدقيق والرسائل المشتركة اللازمة لسلامة حقوق الأطراف، تحت هوية محذوفة.',
+              ),
+              const SizedBox(height: 16),
+              const Text('للتأكيد اكتب: حذف حسابي نهائيًا'),
+              const SizedBox(height: 8),
+              TextField(
+                key: const ValueKey('account-erasure-confirmation'),
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'حذف حسابي نهائيًا'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              key: const ValueKey('erase-account-forever'),
+              onPressed: () => Navigator.pop(
+                dialog,
+                controller.text.trim() == 'حذف حسابي نهائيًا',
+              ),
+              child: const Text('حذف الحساب'),
+            ),
+          ],
+        ),
+      ),
+    ) ?? false;
+    controller.dispose();
+    if (!confirmed || !_valid) return;
+
+    setState(() => _busy = true);
+    try {
+      await ref.read(accountSafetyRepositoryProvider).eraseAccount();
+      await ref.read(authControllerProvider.notifier).logout();
+      if (!mounted) return;
+      context.go('/');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حذف الحساب ومسح بيانات الهوية الشخصية.')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(error))),
+        );
+      }
+    } finally {
+      if (mounted && _valid) setState(() => _busy = false);
+    }
+  }
   @override
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
     appBar: AppBar(title: const Text('الأمان والخصوصية'), actions: [IconButton(tooltip: 'تحديث', onPressed: _loading || _busy || _confirming ? null : _load, icon: const Icon(Icons.refresh))]),
@@ -94,14 +162,33 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
       ])),
       const SizedBox(height: 16),
       AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('طلب حذف الحساب', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8), const Text('أرسل طلبًا للدعم لمراجعة حذف الحساب. لا يُنفذ حذف نهائي حاليًا، ويظل حسابك وبياناتك محفوظين أثناء المراجعة.'),
+        Text('حذف الحساب', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        const Text(
+          'الحذف نهائي: تُلغى الجلسات، تُمسح بيانات الهوية ووثائق التحقق، وتُؤرشف الإعلانات. '
+          'السجلات المالية والعقود وسجل التدقيق والرسائل المشتركة تبقى فقط بالقدر اللازم لحماية حقوق الأطراف.',
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          key: const ValueKey('delete-account-forever'),
+          onPressed: _busy || _confirming ? null : _eraseAccount,
+          icon: const Icon(Icons.delete_forever_outlined),
+          label: const Text('حذف الحساب نهائيًا'),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          key: const ValueKey('request-account-deletion'),
+          onPressed: _busy || _confirming ? null : _requestDeletion,
+          child: const Text('أحتاج مراجعة الدعم قبل الحذف'),
+        ),
         if (_deletion?.hasRequest == true) ...[
-          const SizedBox(height: 12), Semantics(liveRegion: true, child: Text('${_deletion!.label} — ${_deletion!.reference}')),
-          TextButton(onPressed: () => context.push('/support?case=${_deletion!.caseId}'), child: const Text('متابعة الطلب في الدعم')),
-        ] else if (_error == null) Padding(padding: const EdgeInsets.only(top: 12), child: OutlinedButton.icon(
-          key: const ValueKey('request-account-deletion'), onPressed: _busy || _confirming ? null : _requestDeletion,
-          icon: const Icon(Icons.person_remove_outlined), label: const Text('طلب المراجعة'))),
+          const SizedBox(height: 8),
+          Semantics(liveRegion: true, child: Text('${_deletion!.label} — ${_deletion!.reference}')),
+          TextButton(
+            onPressed: () => context.push('/support?case=${_deletion!.caseId}'),
+            child: const Text('متابعة الطلب في الدعم'),
+          ),
+        ],
       ])),
       if (_busy) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
     ])));

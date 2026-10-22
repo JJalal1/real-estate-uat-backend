@@ -512,7 +512,7 @@ class AuthController extends Controller
 
     private function rejectBlockedAccount(User $user): void
     {
-        abort_if(in_array($user->account_status, [User::STATUS_SUSPENDED, User::STATUS_BANNED], true), 403, 'هذا الحساب موقوف.');
+        abort_if(in_array($user->account_status, [User::STATUS_SUSPENDED, User::STATUS_BANNED, User::STATUS_DELETED], true), 403, 'هذا الحساب غير متاح.');
     }
 
     private function completeLoginName(User $user, ?string $name): void
