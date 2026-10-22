@@ -58,6 +58,7 @@ class FcmPushSender
         $data=[
             'notification_id'=>(string)$notification->id,
             'type'=>$notification->type,
+            'route'=>$this->routeFor($notification),
         ];
         if ($notification->entity_type) $data['entity_type']=$notification->entity_type;
         if ($notification->entity_id) $data['entity_id']=(string)$notification->entity_id;
@@ -81,6 +82,18 @@ class FcmPushSender
                 ],
             ],
         ];
+    }
+
+    private function routeFor(UserNotification $notification): string
+    {
+        $id=(int)($notification->entity_id ?? 0);
+        if ($id>0 && in_array($notification->entity_type,['property','listing'],true)) {
+            return '/properties/'.$id;
+        }
+        if ($id>0 && in_array($notification->entity_type,['message_thread','conversation'],true)) {
+            return '/messages/'.$id;
+        }
+        return '/notifications';
     }
 
     private function stringValue(mixed $value): string
