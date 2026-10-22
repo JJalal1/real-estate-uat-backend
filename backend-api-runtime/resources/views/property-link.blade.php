@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>{{ $property->title }} | عقار</title>
-    <meta name="description" content="{{ IlluminateSupportStr::limit(strip_tags((string) $property->description), 150) }}">
+    <meta name="description" content="{{ mb_strimwidth(strip_tags((string) $property->description), 0, 150, '…', 'UTF-8') }}">
     <meta property="og:title" content="{{ $property->title }} | عقار">
-    <meta property="og:description" content="{{ IlluminateSupportStr::limit(strip_tags((string) $property->description), 150) }}">
+    <meta property="og:description" content="{{ mb_strimwidth(strip_tags((string) $property->description), 0, 150, '…', 'UTF-8') }}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url('/l/properties/'.$property->id) }}">
     <style>
@@ -23,7 +23,7 @@
         <div class="brand">عقار | Aqer عقارات اليمن</div>
         <h1>{{ $property->title }}</h1>
         <p class="muted">{{ $property->address }}</p>
-        <p>{{ IlluminateSupportStr::limit(strip_tags((string) $property->description), 260) }}</p>
+        <p>{{ mb_strimwidth(strip_tags((string) $property->description), 0, 260, '…', 'UTF-8') }}</p>
         <p><strong>{{ number_format((float) $property->price) }} {{ $property->currency }}</strong></p>
         <a class="button" href="realestate://app/properties/{{ $property->id }}">فتح في تطبيق عقار</a>
     </div>
