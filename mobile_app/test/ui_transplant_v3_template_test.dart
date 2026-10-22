@@ -280,6 +280,18 @@ void main() {
     expect(nav.height, lessThan(tester.view.physicalSize.height * 0.45));
     await tester.tap(find.byTooltip('حسابي'));
     await tester.pumpAndSettle();
+    // The guest account page has a pinned header and scrollable shortcuts;
+    // Favorites may begin below the visible viewport on smaller devices.
+    final accountScroll = find.descendant(
+      of: find.byType(AccountScreen),
+      matching: find.byType(Scrollable),
+    ).first;
+    await tester.scrollUntilVisible(
+      find.text('المفضلة'),
+      120,
+      scrollable: accountScroll,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('المفضلة').hitTestable());
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/favorites');
