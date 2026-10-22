@@ -19,6 +19,7 @@ class User extends Authenticatable
     public const STATUS_PENDING_VERIFICATION = 'pending_verification';
     public const STATUS_SUSPENDED = 'suspended';
     public const STATUS_BANNED = 'banned';
+    public const STATUS_DELETED = 'deleted';
 
     public const ACCOUNT_TYPE_REGULAR = 'regular';
     public const ACCOUNT_TYPE_BROKER = 'broker';
