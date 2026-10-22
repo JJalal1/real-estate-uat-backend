@@ -52,13 +52,24 @@ final class ProcessListingVideo implements ShouldQueue
         if (! $video) return;
 
         $directory = sys_get_temp_dir().'/aqer-video-'.bin2hex(random_bytes(12));
-        $playbackPath = 'listing-video-display/'.$video->id.'/'.bin2hex(random_bytes(12)).'.mp4';
-        $posterPath = 'listing-video-display/'.$video->id.'/'.bin2hex(random_bytes(12)).'.jpg';
+        // Stable per-video derivative keys make every crashed/aborted attempt
+        // discoverable without listing the entire private bucket. A retry
+        // removes stale partial objects before re-uploading with x-upsert=false.
+        // A fresh processing lease cannot reach here, so no active worker's
+        // assets may be overwritten by a duplicate queue delivery.
+        $playbackPath = 'listing-video-display/'.$video->id.'/playback.mp4';
+        $posterPath = 'listing-video-display/'.$video->id.'/poster.jpg';
 
         try {
             if (! mkdir($directory, 0700)) {
                 throw new RuntimeException('video_temp_unavailable');
             }
+            // A previous worker may have crashed AFTER storing an object but
+            // BEFORE recording a ready row. Never leak those orphaned bytes
+            // or use an accidental implicit cloud overwrite on retries.
+            $storage->deletePrivate($playbackPath);
+            $storage->deletePrivate($posterPath);
+
             $input = $directory.'/source';
             $storage->downloadPrivateToPath($video->original_path, $input);
             if (hash_file('sha256', $input) !== $video->content_sha256) {

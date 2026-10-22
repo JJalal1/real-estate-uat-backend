@@ -76,16 +76,37 @@ class ListingVideoFullCycleTest extends TestCase
             $this->assertNotEmpty($record->original_path);
             Storage::disk('local')->assertExists($record->original_path);
             $this->assertSame([], Storage::disk('public')->allFiles());
+
+            // Simulate a worker killed after storing partial cloud objects.
+            // A real Supabase x-upsert=false request would reject overwrites.
+            $stalePlayback = 'listing-video-display/'.$record->id.'/playback.mp4';
+            $stalePoster = 'listing-video-display/'.$record->id.'/poster.jpg';
+            Storage::disk('local')->put($stalePlayback, 'orphaned-crash-output');
+            Storage::disk('local')->put($stalePoster, 'orphaned-crash-poster');
+            $cloud = new class extends CloudAssetStorageService {
+                public function writePrivateFromFile(string $path, string $source, string $mime): void
+                {
+                    if (str_starts_with($path, 'listing-video-display/')
+                        && Storage::disk('local')->exists($path)) {
+                        throw new \RuntimeException('cloud_storage_would_reject_existing_derivative');
+                    }
+                    parent::writePrivateFromFile($path, $source, $mime);
+                }
+            };
             (new ProcessListingVideo($record->id))->handle(
-                app(CloudAssetStorageService::class),
+                $cloud,
                 app(ListingVideoTranscoder::class),
             );
 
             $ready = $record->fresh();
             $this->assertSame('ready', $ready->status);
             $this->assertGreaterThan(0, $ready->playback_size_bytes);
+            $this->assertSame($stalePlayback, $ready->playback_path);
+            $this->assertSame($stalePoster, $ready->poster_path);
             Storage::disk('local')->assertExists($ready->playback_path);
             Storage::disk('local')->assertExists($ready->poster_path);
+            $this->assertNotSame('orphaned-crash-output', Storage::disk('local')->get($stalePlayback));
+            $this->assertNotSame('orphaned-crash-poster', Storage::disk('local')->get($stalePoster));
 
             // Re-delivering a queue job must not reprocess ready media.
             (new ProcessListingVideo($record->id))->handle(
