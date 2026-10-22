@@ -37,6 +37,7 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingCameraFile: File? = null
     private var speechInput: InAppSpeechInput? = null
+    private var pushBridge: PushBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -44,6 +45,9 @@ class MainActivity : FlutterActivity() {
 
         speechInput?.dispose()
         speechInput = InAppSpeechInput(this, flutterEngine.dartExecutor.binaryMessenger)
+
+        pushBridge?.dispose()
+        pushBridge = PushBridge(this, flutterEngine.dartExecutor.binaryMessenger)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -237,6 +241,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (pushBridge?.onPermissionResult(requestCode, grantResults) == true) return
         speechInput?.onPermissionResult(requestCode, grantResults)
     }
 
@@ -251,6 +256,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        pushBridge?.dispose()
+        pushBridge = null
         speechInput?.dispose()
         speechInput = null
         super.onDestroy()
