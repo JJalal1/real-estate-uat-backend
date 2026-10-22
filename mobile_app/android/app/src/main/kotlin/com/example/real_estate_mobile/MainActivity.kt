@@ -41,6 +41,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        flutterEngine.platformViewsController.registry.registerViewFactory("aqer/listing-video", ListingVideoViewFactory())
         ContactActions(this, flutterEngine.dartExecutor.binaryMessenger)
 
         speechInput?.dispose()
