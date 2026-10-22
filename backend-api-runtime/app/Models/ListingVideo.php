@@ -9,7 +9,7 @@ final class ListingVideo extends Model
 {
     protected $fillable = [
         'property_id', 'upload_id', 'status', 'original_path', 'playback_path',
-        'poster_path', 'mime_type', 'size_bytes', 'content_sha256', 'duration_ms',
+        'poster_path', 'mime_type', 'size_bytes', 'playback_size_bytes', 'content_sha256', 'duration_ms',
         'width', 'height', 'attempts', 'failure_code', 'processed_at',
     ];
 
