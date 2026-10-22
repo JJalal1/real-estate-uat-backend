@@ -36,6 +36,7 @@ import 'my_listings_screen.dart';
 import 'property_market_context_card.dart';
 import 'property_sai_public_line.dart';
 import 'property_question_section.dart';
+import 'property_video_section.dart';
 
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
@@ -246,6 +247,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             ) : null,
           ),
           PropertySaiPublicLine(propertyId: property.id),
+          if (property.video != null) ...[
+            const SizedBox(height: AppSpacing.s24),
+            PropertyVideoSection(video: property.video!),
+          ],
           if (!published) ...[
             const SizedBox(height: AppSpacing.s12),
             AppStatusBadge(label: _statusLabel(property.status),
