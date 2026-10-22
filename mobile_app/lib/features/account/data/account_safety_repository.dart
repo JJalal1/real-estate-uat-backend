@@ -78,6 +78,20 @@ class AccountSafetyRepository {
     if (!status.hasRequest) throw StateError('Missing request receipt');
     return status;
   }
+  Future<void> eraseAccount() async {
+    final response = await _dio.delete<Map<String, dynamic>>(
+      '/account',
+      data: {'confirm_phrase': 'حذف حسابي نهائيًا'},
+      options: await _options(),
+    );
+    final data = response.data?['data'];
+    if (data is! Map ||
+        data['account_deleted'] != true ||
+        data['access_revoked'] != true ||
+        data['personal_identity_erased'] != true) {
+      throw StateError('Invalid account deletion confirmation');
+    }
+  }
   DeletionRequestStatus _deletion(Map<String, dynamic>? body) {
     final data = body?['data'];
     if (data is! Map || data['status'] is! String) throw StateError('Invalid deletion request response');
