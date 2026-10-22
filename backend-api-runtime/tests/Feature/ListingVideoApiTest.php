@@ -6,6 +6,8 @@ use App\Models\Property;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\ListingVideo;
+use App\Services\CloudAssetStorageService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -138,4 +140,72 @@ class ListingVideoApiTest extends TestCase
             'video' => $this->video(),
         ])->assertStatus(409);
     }
+    public function test_remote_video_upload_never_holds_a_database_transaction(): void
+    {
+        config()->set('listing_video.uploads_enabled', true);
+        config()->set('services.supabase_storage.enabled', false);
+        Storage::fake('local');
+        $storage = new class extends CloudAssetStorageService {
+            public ?int $openTransactionsDuringUpload = null;
+
+            public function writePrivateFromFile(string $path, string $source, string $mime): void
+            {
+                $this->openTransactionsDuringUpload = DB::connection()->transactionLevel();
+                parent::writePrivateFromFile($path, $source, $mime);
+            }
+        };
+        app()->instance(CloudAssetStorageService::class, $storage);
+        [$owner, $headers] = $this->actor('no-db-lock');
+        $property = $this->property($owner);
+        $this->withHeaders($headers)->post('/api/properties/'.$property->id.'/video', [
+            'upload_id' => (string) Str::uuid(), 'video' => $this->video(),
+        ])->assertStatus(202);
+        $this->assertSame(0, $storage->openTransactionsDuringUpload);
+        $this->assertDatabaseHas('listing_videos', [
+            'property_id' => $property->id, 'status' => 'uploaded',
+        ]);
+    }
+
+    public function test_failed_private_upload_can_retry_same_idempotency_key_safely(): void
+    {
+        config()->set('listing_video.uploads_enabled', true);
+        config()->set('services.supabase_storage.enabled', false);
+        Storage::fake('local');
+        $storage = new class extends CloudAssetStorageService {
+            public bool $failNextUpload = true;
+
+            public function writePrivateFromFile(string $path, string $source, string $mime): void
+            {
+                if ($this->failNextUpload) {
+                    $this->failNextUpload = false;
+                    throw new \RuntimeException('Synthetic cloud interruption');
+                }
+                parent::writePrivateFromFile($path, $source, $mime);
+            }
+        };
+        app()->instance(CloudAssetStorageService::class, $storage);
+        [$owner, $headers] = $this->actor('retry-after-fail');
+        $property = $this->property($owner);
+        $url = '/api/properties/'.$property->id.'/video';
+        $key = (string) Str::uuid();
+
+        $this->withHeaders($headers)->post($url, [
+            'upload_id' => $key, 'video' => $this->video(),
+        ])->assertStatus(500);
+        $failed = ListingVideo::query()->firstOrFail();
+        $this->assertSame('upload_failed', $failed->status);
+        $oldPath = $failed->original_path;
+        Storage::disk('local')->assertMissing($oldPath);
+
+        $this->withHeaders($headers)->post($url, [
+            'upload_id' => $key, 'video' => $this->video(),
+        ])->assertStatus(202)->assertJsonPath('data.status', 'uploaded');
+
+        $accepted = ListingVideo::query()->firstOrFail();
+        $this->assertSame($failed->id, $accepted->id);
+        $this->assertNotSame($oldPath, $accepted->original_path);
+        Storage::disk('local')->assertExists($accepted->original_path);
+        $this->assertDatabaseCount('listing_videos', 1);
+    }
+
 }

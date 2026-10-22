@@ -35,5 +35,6 @@ class ListingVideoPostgresTest extends TestCase
         $names = array_map(fn ($row) => $row->conname, $constraints);
         $this->assertContains('listing_videos_status_check', $names);
         $this->assertContains('listing_videos_property_upload_unique', $names);
+        $this->assertContains('listing_videos_one_per_property_unique', $names);
     }
 }

@@ -12,7 +12,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('property_id')->constrained('properties')->cascadeOnDelete();
             $table->uuid('upload_id');
-            $table->string('status', 24)->default('uploaded');
+            $table->string('status', 24)->default('uploading');
             $table->string('original_path', 500);
             $table->string('playback_path', 500)->nullable();
             $table->unsignedBigInteger('playback_size_bytes')->nullable();
@@ -28,6 +28,7 @@ return new class extends Migration {
             $table->timestamp('processed_at')->nullable();
             $table->timestamps();
             $table->unique(['property_id', 'upload_id'], 'listing_videos_property_upload_unique');
+            $table->unique('property_id', 'listing_videos_one_per_property_unique');
             $table->index(['property_id', 'status'], 'listing_videos_property_status_idx');
             $table->index(['status', 'created_at'], 'listing_videos_processing_idx');
         });
@@ -38,7 +39,7 @@ return new class extends Migration {
             DB::statement('ALTER TABLE public.listing_videos ENABLE ROW LEVEL SECURITY');
             DB::statement('REVOKE ALL ON TABLE public.listing_videos FROM PUBLIC, anon, authenticated');
             DB::statement('REVOKE ALL ON SEQUENCE public.listing_videos_id_seq FROM PUBLIC, anon, authenticated');
-            DB::statement("ALTER TABLE public.listing_videos ADD CONSTRAINT listing_videos_status_check CHECK (status IN ('uploaded','processing','ready','failed'))");
+            DB::statement("ALTER TABLE public.listing_videos ADD CONSTRAINT listing_videos_status_check CHECK (status IN ('uploading','upload_failed','uploaded','processing','ready','failed'))");
         }
     }
 
