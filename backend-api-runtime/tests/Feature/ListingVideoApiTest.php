@@ -76,7 +76,9 @@ class ListingVideoApiTest extends TestCase
     public function test_owned_draft_video_upload_is_idempotent_and_original_is_private(): void
     {
         config()->set('listing_video.uploads_enabled', true);
-        config()->set('listing_video.processing_enabled', false);
+        // Uploads must fail closed when the asynchronous worker is not enabled.
+        // Queue::fake() in setUp() isolates this API regression from the worker.
+        config()->set('listing_video.processing_enabled', true);
         Storage::fake('local');
         Storage::fake('public');
         [$user, $headers] = $this->actor('owner');
