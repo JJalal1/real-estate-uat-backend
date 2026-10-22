@@ -15,6 +15,7 @@ return new class extends Migration {
             $table->string('status', 24)->default('uploaded');
             $table->string('original_path', 500);
             $table->string('playback_path', 500)->nullable();
+            $table->unsignedBigInteger('playback_size_bytes')->nullable();
             $table->string('poster_path', 500)->nullable();
             $table->string('mime_type', 80);
             $table->unsignedBigInteger('size_bytes');
