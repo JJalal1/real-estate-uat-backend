@@ -14,7 +14,7 @@ final class ListingVideoTranscoder
     public function transcode(string $input, string $directory): array
     {
         $probe = new Process([
-            'ffprobe', '-v', 'error',
+            'ffprobe', '-v', 'error', '-protocol_whitelist', 'file,pipe',
             '-show_entries', 'format=duration:stream=codec_type,codec_name,width,height',
             '-of', 'json', $input,
         ]);
@@ -32,8 +32,9 @@ final class ListingVideoTranscoder
         $poster = $directory.'/poster.jpg';
         $this->run([
             'ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y',
-            '-i', $input, '-map', '0:v:0', '-map', '0:a:0?',
+            '-protocol_whitelist', 'file,pipe', '-i', $input, '-map', '0:v:0', '-map', '0:a:0?',
             '-vf', 'scale=w=1280:h=720:force_original_aspect_ratio=decrease',
+            '-threads', '1', '-filter_threads', '1',
             '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27',
             '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
             '-c:a', 'aac', '-b:a', '96k', '-ac', '2',

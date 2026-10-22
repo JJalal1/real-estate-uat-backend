@@ -51,7 +51,7 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => 'video',
-            'retry_after' => 300,
+            'retry_after' => 660,
             'after_commit' => true,
         ],
 

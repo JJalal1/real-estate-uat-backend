@@ -19,7 +19,7 @@ final class ProcessListingVideo implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
-    public int $timeout = 240;
+    public int $timeout = 540;
 
     public function __construct(public readonly int $videoId) {}
 
@@ -37,9 +37,9 @@ final class ProcessListingVideo implements ShouldQueue
         $video = DB::transaction(function (): ?ListingVideo {
             $record = ListingVideo::query()->lockForUpdate()->find($this->videoId);
             if (! $record || $record->status === 'ready') return null;
-            // Recover a crashed worker after its 300s queue visibility lease.
+            // Recover a crashed worker after its 660s queue visibility lease.
             // A fresh processing lease means another worker still owns it.
-            if ($record->status === 'processing' && $record->updated_at?->isAfter(now()->subSeconds(300))) {
+            if ($record->status === 'processing' && $record->updated_at?->isAfter(now()->subSeconds(660))) {
                 return null;
             }
             if (! in_array($record->status, ['uploaded', 'failed', 'processing'], true)) return null;
@@ -52,14 +52,13 @@ final class ProcessListingVideo implements ShouldQueue
         if (! $video) return;
 
         $directory = sys_get_temp_dir().'/aqer-video-'.bin2hex(random_bytes(12));
-        if (! mkdir($directory, 0700) && ! is_dir($directory)) {
-            throw new RuntimeException('video_temp_unavailable');
-        }
-
         $playbackPath = 'listing-video-display/'.$video->id.'/'.bin2hex(random_bytes(12)).'.mp4';
         $posterPath = 'listing-video-display/'.$video->id.'/'.bin2hex(random_bytes(12)).'.jpg';
 
         try {
+            if (! mkdir($directory, 0700)) {
+                throw new RuntimeException('video_temp_unavailable');
+            }
             $input = $directory.'/source';
             $storage->downloadPrivateToPath($video->original_path, $input);
             if (hash_file('sha256', $input) !== $video->content_sha256) {

@@ -24,7 +24,10 @@ final class ListingVideoController extends Controller
 
     public function upload(Request $request, Property $property): JsonResponse
     {
-        abort_unless(config('listing_video.uploads_enabled', false), 404);
+        // No uploads are accepted while the processing worker is disabled:
+        // otherwise private originals accumulate forever with status "uploaded".
+        abort_unless(config('listing_video.uploads_enabled', false)
+            && config('listing_video.processing_enabled', false), 404);
         /** @var User $actor */
         $actor = $request->user();
         abort_unless((int) $property->user_id === (int) $actor->id, 404);

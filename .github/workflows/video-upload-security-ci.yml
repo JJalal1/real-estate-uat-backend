@@ -41,4 +41,4 @@ jobs:
           command -v ffprobe
           command -v ffmpeg
       - name: Video security and streamed private storage regression
-        run: php artisan test tests/Feature/ListingVideoUploadPolicyTest.php tests/Feature/VideoPrivateStorageTest.php tests/Feature/ListingVideoProcessingPolicyTest.php tests/Feature/ListingVideoLaunchGateTest.php tests/Feature/ListingVideoTranscoderTest.php tests/Feature/ListingVideoApiTest.php tests/Feature/ListingVideoStreamTest.php --fail-on-warning --fail-on-risky --fail-on-skipped
+        run: php artisan test tests/Feature/ListingVideoUploadPolicyTest.php tests/Feature/VideoPrivateStorageTest.php tests/Feature/ListingVideoProcessingPolicyTest.php tests/Feature/ListingVideoLaunchGateTest.php tests/Feature/ListingVideoTranscoderTest.php tests/Feature/ListingVideoApiTest.php tests/Feature/ListingVideoStreamTest.php tests/Feature/ListingVideoFullCycleTest.php --fail-on-warning --fail-on-risky --fail-on-skipped
