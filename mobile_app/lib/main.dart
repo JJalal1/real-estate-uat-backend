@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_controller.dart';
 import 'router/app_router.dart';
 
 void main() {
@@ -16,6 +17,7 @@ class RealEstateApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    final themeMode = ref.watch(appThemeModeProvider);
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
@@ -28,6 +30,8 @@ class RealEstateApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: themeMode,
       routerConfig: router,
     );
   }
