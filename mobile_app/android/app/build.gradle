@@ -5,6 +5,14 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+def aqerStoreFile = System.getenv("AQER_RELEASE_STORE_FILE")
+def aqerStorePassword = System.getenv("AQER_RELEASE_STORE_PASSWORD")
+def aqerKeyAlias = System.getenv("AQER_RELEASE_KEY_ALIAS")
+def aqerKeyPassword = System.getenv("AQER_RELEASE_KEY_PASSWORD")
+def aqerAllowDebugRelease = (System.getenv("AQER_ALLOW_DEBUG_RELEASE_SIGNING") ?: "false").toBoolean()
+def aqerHasReleaseSigning = [aqerStoreFile, aqerStorePassword, aqerKeyAlias, aqerKeyPassword].every { it != null && !it.trim().isEmpty() }
+def aqerBuildingRelease = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
+
 android {
     namespace = "com.example.real_estate_mobile"
     compileSdk = flutter.compileSdkVersion
@@ -21,20 +29,42 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.real_estate_mobile"
+        applicationId = project.findProperty("AQER_APPLICATION_ID") ?: "com.example.real_estate_mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["aqerAppLinkHost"] = project.findProperty("AQER_APP_LINK_HOST") ?: "real-estate-uat-api-frankfurt.onrender.com"
+        manifestPlaceholders["aqerAppLinkAutoVerify"] = project.findProperty("AQER_APP_LINK_AUTO_VERIFY") ?: "false"
+    }
+
+    signingConfigs {
+        if (aqerHasReleaseSigning) {
+            release {
+                storeFile file(aqerStoreFile)
+                storePassword aqerStorePassword
+                keyAlias aqerKeyAlias
+                keyPassword aqerKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            if (aqerHasReleaseSigning) {
+                signingConfig = signingConfigs.release
+            } else if (aqerAllowDebugRelease) {
+                signingConfig = signingConfigs.debug
+            } else if (aqerBuildingRelease) {
+                throw new GradleException(
+                    "Production release signing is not configured. " +
+                    "Set AQER_RELEASE_STORE_FILE/AQER_RELEASE_STORE_PASSWORD/" +
+                    "AQER_RELEASE_KEY_ALIAS/AQER_RELEASE_KEY_PASSWORD. " +
+                    "UAT may explicitly set AQER_ALLOW_DEBUG_RELEASE_SIGNING=true."
+                )
+            }
         }
     }
 }

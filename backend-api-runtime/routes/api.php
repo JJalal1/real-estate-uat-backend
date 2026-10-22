@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ListingReviewController;
 use App\Http\Controllers\Api\MessagingController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PropertyController;
+use App\Http\Controllers\Api\ReleaseController;
 use App\Http\Controllers\Api\PropertyFavoriteController;
 use App\Http\Controllers\Api\PropertyIdentityController;
 use App\Http\Controllers\Api\PropertySaiController;
@@ -45,6 +46,8 @@ Route::get('/health', function () {
         ], 503);
     }
 });
+
+Route::get('/release', [ReleaseController::class, 'show']);
 
 Route::prefix('auth')->group(function () {
     Route::post('/whatsapp/start', [AuthController::class, 'startWhatsApp'])->middleware('throttle:6,1');

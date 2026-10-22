@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/contact_actions.dart';
+import '../../../core/platform/platform_share.dart';
 import '../../broker/data/broker_repository.dart';
 import '../../community/data/community_repository.dart';
 import '../../community/presentation/community_dialogs.dart';
@@ -25,6 +26,7 @@ import '../../account/data/auth_return_intent.dart';
 import '../../community/presentation/listing_community_screen.dart';
 import '../../messages/data/message_repository.dart';
 import '../data/favorites_repository.dart';
+import '../data/recent_properties_store.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
@@ -56,12 +58,17 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _changingFavorite = false;
   bool _consumingPendingFavorite = false;
   bool _viewRecorded = false;
+  bool _recentRecorded = false;
   bool _calling = false, _reporting = false;
 
   @override
   void didUpdateWidget(covariant PropertyDetailsScreen old) {
     super.didUpdateWidget(old);
-    if (old.propertyId != widget.propertyId) { _viewRecorded = false; _imageIndex = 0; }
+    if (old.propertyId != widget.propertyId) {
+      _viewRecorded = false;
+      _recentRecorded = false;
+      _imageIndex = 0;
+    }
   }
 
   Future<void> _recordView() async {
@@ -87,6 +94,14 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     if (!_viewRecorded && loaded != null && !loaded.isOwner && loaded.status == 'published') {
       _viewRecorded = true;
       Future<void>.microtask(_recordView);
+    }
+
+    if (!_recentRecorded && loaded != null && loaded.status == 'published') {
+      _recentRecorded = true;
+      Future<void>.microtask(() async {
+        await ref.read(recentPropertiesStoreProvider).record(loaded.toSummary());
+        if (mounted) ref.invalidate(recentPropertiesProvider);
+      });
     }
 
     if (user != null &&
@@ -125,8 +140,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               ),
             AppIconButton(
               icon: Icons.ios_share_outlined,
-              tooltip: 'نسخ رابط العقار',
-              onPressed: _copyShareReference,
+              tooltip: 'مشاركة العقار',
+              onPressed: loaded == null ? null : () => _shareProperty(loaded),
             ),
           ],
         ),
@@ -471,13 +486,21 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     }
   }
 
-  Future<void> _copyShareReference() async {
-    final link = propertyAppDeepLink(widget.propertyId).toString();
-    await Clipboard.setData(ClipboardData(text: link));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم نسخ رابط العقار ويمكن فتحه في التطبيق.')),
-    );
+  Future<void> _shareProperty(PropertyDetails property) async {
+    final link = propertyPublicShareLink(property.id).toString();
+    final price = property.currency.trim().isEmpty
+        ? property.price.toStringAsFixed(0)
+        : '${property.price.toStringAsFixed(0)} ${property.currency}';
+    final text = 'عقار: ${property.title}\nالسعر: $price\n$link';
+    try {
+      await PlatformShare.text(text: text, subject: property.title);
+    } on PlatformException {
+      await Clipboard.setData(ClipboardData(text: link));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذرت المشاركة المباشرة، فتم نسخ رابط العقار.')),
+      );
+    }
   }
 
   Future<void> _openCommunity(PropertyDetails property) async {

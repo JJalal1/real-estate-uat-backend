@@ -36,6 +36,7 @@ import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/favorites_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
 import '../features/properties/presentation/property_details_screen.dart';
+import '../features/properties/presentation/recent_properties_screen.dart';
 import '../features/regions/presentation/regions_management_screen.dart';
 import '../features/reviews/presentation/listing_review_screen.dart';
 import '../features/services/presentation/services_screen.dart';
@@ -283,6 +284,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const Stage6AuthGate(
           child: MyListingsScreen(),
         ),
+      ),
+      GoRoute(
+        path: '/recent',
+        builder: (context, state) => const RecentPropertiesScreen(),
       ),
       GoRoute(
         path: '/favorites',
