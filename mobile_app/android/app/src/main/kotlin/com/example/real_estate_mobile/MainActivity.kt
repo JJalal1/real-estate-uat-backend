@@ -245,6 +245,12 @@ class MainActivity : FlutterActivity() {
         speechInput?.onPermissionResult(requestCode, grantResults)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pushBridge?.onNewIntent(intent)
+    }
+
     override fun onResume() {
         super.onResume()
         speechInput?.onResume()
