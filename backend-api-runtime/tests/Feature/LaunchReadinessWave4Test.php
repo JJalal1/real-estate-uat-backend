@@ -27,6 +27,24 @@ class LaunchReadinessWave4Test extends TestCase
             ->assertJsonPath('data.store_url', 'https://play.google.com/store/apps/details?id=example');
     }
 
+    public function test_android_asset_links_are_empty_until_signing_identity_is_configured(): void
+    {
+        Config::set('app_links.android.package_name', 'com.aqer.yemen');
+        Config::set('app_links.android.sha256_cert_fingerprints', []);
+
+        $this->getJson('/.well-known/assetlinks.json')
+            ->assertOk()
+            ->assertExactJson([]);
+
+        Config::set('app_links.android.sha256_cert_fingerprints', ['AA:BB:CC']);
+        $this->getJson('/.well-known/assetlinks.json')
+            ->assertOk()
+            ->assertJsonPath('0.relation.0', 'delegate_permission/common.handle_all_urls')
+            ->assertJsonPath('0.target.namespace', 'android_app')
+            ->assertJsonPath('0.target.package_name', 'com.aqer.yemen')
+            ->assertJsonPath('0.target.sha256_cert_fingerprints.0', 'AA:BB:CC');
+    }
+
     public function test_public_property_share_page_only_serves_published_available_listing(): void
     {
         $owner = User::query()->create([
