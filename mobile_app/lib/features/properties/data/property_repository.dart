@@ -479,6 +479,47 @@ class PropertyRepository {
     return _detailsFromResponse(response);
   }
 
+  /// Approved listing video upload. Endpoint is intentionally disabled on UAT
+  /// until the processing worker and security/acceptance gates are ready.
+  Future<Map<String, dynamic>> uploadListingVideo(
+    int propertyId, {
+    required String path,
+    required String uploadId,
+    ProgressCallback? onSendProgress,
+  }) async {
+    final data = FormData.fromMap(<String, Object>{
+      'upload_id': uploadId,
+      'video': await MultipartFile.fromFile(path),
+    });
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/properties/$propertyId/video',
+      data: data,
+      options: (await _listingUploadOptions()).copyWith(
+        sendTimeout: const Duration(minutes: 4),
+        receiveTimeout: const Duration(minutes: 4),
+      ),
+      onSendProgress: onSendProgress,
+    );
+    return Map<String, dynamic>.from(response.data?['data'] as Map? ?? const {});
+  }
+
+  Future<Map<String, dynamic>?> listingVideoStatus(int propertyId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/properties/$propertyId/video',
+      options: await _auth.requiredAuthOptions(),
+    );
+    final value = response.data?['data'];
+    return value is Map ? Map<String, dynamic>.from(value) : null;
+  }
+
+  Future<void> deleteListingVideo(int propertyId) async {
+    await _dio.delete<void>(
+      '/properties/$propertyId/video',
+      options: await _auth.requiredAuthOptions(),
+    );
+    _invalidatePublicDiscoveryCache();
+  }
+
   Future<void> deleteListing(int propertyId) async {
     await _dio.delete<void>(
       '/properties/$propertyId',
