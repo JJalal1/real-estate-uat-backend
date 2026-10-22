@@ -23,6 +23,7 @@ class PushBridge(
         const val CHANNEL = "real_estate/push"
         const val PERMISSION_REQUEST = 7430
         private const val PREFS = "aqer_push"
+        private const val USER_OPTED_IN = "user_opted_in"
         private const val INSTALLATION_ID = "installation_id"
         private const val NOTIFICATION_CHANNEL = "aqer_general"
     }
@@ -68,7 +69,7 @@ class PushBridge(
             result.success(status(configured = configured(), granted = false))
             return true
         }
-        resolveToken(result)
+        resolveToken(result, rememberConsent = true)
         return true
     }
 
@@ -104,12 +105,18 @@ class PushBridge(
             )
             return
         }
-        resolveToken(result)
+        resolveToken(result, rememberConsent = true)
     }
 
     private fun currentRegistration(result: MethodChannel.Result) {
         if (!configured()) {
             result.success(status(configured = false, granted = false))
+            return
+        }
+        // Do not obtain or register a Firebase token before the user opts in,
+        // including Android 12 and older where no runtime permission exists.
+        if (!userOptedIn()) {
+            result.success(status(configured = true, granted = false))
             return
         }
         initializeFirebase()
@@ -121,7 +128,7 @@ class PushBridge(
         resolveToken(result)
     }
 
-    private fun resolveToken(result: MethodChannel.Result) {
+    private fun resolveToken(result: MethodChannel.Result, rememberConsent: Boolean = false) {
         try {
             initializeFirebase()
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
@@ -134,6 +141,7 @@ class PushBridge(
                     result.error("PUSH_TOKEN_EMPTY", "Firebase did not return a device token.", null)
                     return@addOnCompleteListener
                 }
+                if (rememberConsent) setUserOptIn(true)
                 result.success(
                     mapOf(
                         "configured" to true,
@@ -149,6 +157,9 @@ class PushBridge(
     }
 
     private fun deleteToken(result: MethodChannel.Result) {
+        // Logout clears consent as well as the Firebase token, so a different
+        // account on this device cannot be enrolled without choosing opt-in.
+        setUserOptIn(false)
         if (!configured()) {
             result.success(null)
             return
@@ -162,6 +173,15 @@ class PushBridge(
         } catch (error: Exception) {
             result.error("PUSH_DELETE_FAILED", error.message, null)
         }
+    }
+
+    private fun userOptedIn(): Boolean =
+        activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(USER_OPTED_IN, false)
+
+    private fun setUserOptIn(enabled: Boolean) {
+        activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(USER_OPTED_IN, enabled).apply()
     }
 
     private fun configured(): Boolean =
