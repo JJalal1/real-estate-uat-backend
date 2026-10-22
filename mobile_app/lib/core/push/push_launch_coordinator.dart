@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../router/app_router.dart';
+import '../../features/account/data/auth_controller.dart';
+import '../../features/messages/data/push_registration_repository.dart';
 
 class PushLaunchCoordinator extends ConsumerStatefulWidget {
   const PushLaunchCoordinator({required this.child, super.key});
@@ -30,6 +32,16 @@ class _PushLaunchCoordinatorState extends ConsumerState<PushLaunchCoordinator>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _consumeRoute();
+      _syncRegistration();
+    }
+  }
+
+  Future<void> _syncRegistration() async {
+    if (ref.read(authControllerProvider).asData?.value == null) return;
+    try {
+      await ref.read(pushRegistrationRepositoryProvider).syncIfGranted();
+    } catch (_) {
+      // Token refresh/sync is best-effort and never blocks app resume.
     }
   }
 
