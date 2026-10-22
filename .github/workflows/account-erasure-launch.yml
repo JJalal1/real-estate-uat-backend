@@ -1,0 +1,49 @@
+name: Account Erasure Launch Gate
+
+on:
+  push:
+    branches: [work/account-erasure-launch]
+    paths:
+      - 'backend-api-runtime/**'
+      - '.github/workflows/account-erasure-launch.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Account erasure regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare test environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Syntax check erasure flow
+        run: |
+          php -l app/Services/AccountErasureService.php
+          php -l app/Http/Controllers/AccountDeletionWebController.php
+          php -l app/Http/Controllers/Api/AccountSafetyController.php
+          php -l tests/Feature/AccountErasureLaunchTest.php
+      - name: Run erasure and auth regressions
+        run: >-
+          php artisan test
+          tests/Feature/AccountErasureLaunchTest.php
+          tests/Feature/Wave2MediaTrustTest.php
+          --display-warnings --fail-on-warning --fail-on-risky
