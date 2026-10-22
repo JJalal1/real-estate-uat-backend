@@ -298,6 +298,10 @@ jobs:
         id: build_apk
         if: ${{ !cancelled() && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
         working-directory: mobile_app
+        # This job builds the disposable UAT package only. Production signing
+        # remains mandatory for any release without this explicit opt-in.
+        env:
+          AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
         run: >-
           flutter build apk --release
           --build-number=$((1000 + GITHUB_RUN_NUMBER))
