@@ -11,46 +11,37 @@ use RuntimeException;
 
 class FcmPushSender
 {
-    public function send(UserNotification $notification): void
+    public function send(UserNotification $notification, UserPushDevice $device): void
     {
         if (! config('push.enabled',false)) return;
         if (config('push.provider','fcm') !== 'fcm') {
             throw new RuntimeException('Unsupported push provider.');
         }
+        if ((int)$device->user_id !== (int)$notification->user_id || $device->disabled_at) {
+            return;
+        }
 
-        $devices=UserPushDevice::query()
-            ->where('user_id',$notification->user_id)
-            ->whereNull('disabled_at')
-            ->orderBy('id')
-            ->get();
-
-        if ($devices->isEmpty()) return;
-
-        $accessToken=$this->accessToken();
-        $projectId=$this->projectId();
-        $client=$this->client()->withToken($accessToken);
-
-        foreach ($devices as $device) {
-            $response=$client->post(
-                'https://fcm.googleapis.com/v1/projects/'.rawurlencode($projectId).'/messages:send',
+        $response=$this->client()
+            ->withToken($this->accessToken())
+            ->post(
+                'https://fcm.googleapis.com/v1/projects/'.rawurlencode($this->projectId()).'/messages:send',
                 ['message'=>$this->message($notification,(string)$device->token)],
             );
 
-            if ($response->successful()) {
-                $device->forceFill(['last_seen_at'=>now()])->save();
-                continue;
-            }
-
-            $body=$response->body();
-            if ($response->status()===404 || str_contains($body,'UNREGISTERED')) {
-                $device->forceFill(['disabled_at'=>now()])->save();
-                continue;
-            }
-
-            throw new RuntimeException(
-                'FCM delivery failed with HTTP '.$response->status().'.',
-            );
+        if ($response->successful()) {
+            $device->forceFill(['last_seen_at'=>now()])->save();
+            return;
         }
+
+        $body=$response->body();
+        if ($response->status()===404 || str_contains($body,'UNREGISTERED')) {
+            $device->forceFill(['disabled_at'=>now()])->save();
+            return;
+        }
+
+        throw new RuntimeException(
+            'FCM delivery failed with HTTP '.$response->status().'.',
+        );
     }
 
     private function message(UserNotification $notification,string $token): array
