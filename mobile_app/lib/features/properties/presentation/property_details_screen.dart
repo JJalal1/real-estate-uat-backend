@@ -99,8 +99,13 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     if (!_recentRecorded && loaded != null && loaded.status == 'published') {
       _recentRecorded = true;
       Future<void>.microtask(() async {
-        await ref.read(recentPropertiesStoreProvider).record(loaded.toSummary());
-        if (mounted) ref.invalidate(recentPropertiesProvider);
+        try {
+          await ref.read(recentPropertiesStoreProvider).record(loaded.toSummary());
+          if (mounted) ref.invalidate(recentPropertiesProvider);
+        } catch (_) {
+          // Recent local history is best-effort: missing storage, denied IO,
+          // or a mock platform must not crash property details.
+        }
       });
     }
 
