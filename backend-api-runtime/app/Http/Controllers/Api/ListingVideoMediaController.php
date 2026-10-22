@@ -74,6 +74,6 @@ final class ListingVideoMediaController extends Controller
         $user = $this->tokens->authenticate($request, false);
         $owner = $user && (int) $property->user_id === (int) $user->id;
         $moderator = $user && $user->hasPermission('listings.moderate');
-        abort_unless($property->isPubliclyAvailable() || $owner || $moderator, 404);
+        abort_unless(($property->isPubliclyAvailable() && $video->moderation_status === 'approved') || $owner || $moderator, 404);
     }
 }

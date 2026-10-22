@@ -95,6 +95,13 @@ class ListingVideoFullCycleTest extends TestCase
             $this->assertSame(1, $ready->fresh()->attempts);
             $this->assertSame($ready->playback_path, $ready->fresh()->playback_path);
 
+            // Simulate the explicit staff confirmation for a published
+            // listing fixture; the workflow requires video_review_confirmed.
+            $ready->forceFill([
+                'moderation_status' => 'approved',
+                'moderated_at' => now(),
+                'moderated_by_user_id' => $owner->id,
+            ])->save();
             $listing->forceFill([
                 'status' => 'published', 'review_status' => 'approved',
                 'availability_status' => 'available', 'published_at' => now(),

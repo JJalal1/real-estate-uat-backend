@@ -44,6 +44,7 @@ class ListingVideoStreamTest extends TestCase
             'property_id' => $property->id,
             'upload_id' => 'bcf7c61e-e795-46f9-947e-876a67e6dfc8',
             'status' => 'ready',
+            'moderation_status' => 'approved',
             'original_path' => 'listing-videos/fixture/original.mp4',
             'playback_path' => $path,
             'playback_size_bytes' => 20,
@@ -91,4 +92,23 @@ class ListingVideoStreamTest extends TestCase
         $this->get('/api/property-videos/'.$video->id.'/poster')->assertNotFound();
         $this->get('/api/property-videos/'.$video->id.'/stream')->assertNotFound();
     }
+    public function test_unreviewed_video_cannot_be_streamed_from_published_listing(): void
+    {
+        config()->set('listing_video.uploads_enabled', true);
+        config()->set('services.supabase_storage.enabled', false);
+        Storage::fake('local');
+        $property = $this->property('published');
+        $video = $this->video($property);
+        $video->forceFill([
+            'moderation_status' => 'pending',
+            'moderated_at' => null,
+            'moderated_by_user_id' => null,
+        ])->save();
+
+        $this->get('/api/property-videos/'.$video->id.'/stream')->assertNotFound();
+        $this->get('/api/property-videos/'.$video->id.'/poster')->assertNotFound();
+        $detail = $this->getJson('/api/properties/'.$property->id)->assertOk();
+        $this->assertNull($detail->json('data.video'));
+    }
+
 }

@@ -13,6 +13,10 @@ return new class extends Migration {
             $table->foreignId('property_id')->constrained('properties')->cascadeOnDelete();
             $table->uuid('upload_id');
             $table->string('status', 24)->default('uploading');
+            // The listing reviewer must explicitly approve the video as well.
+            $table->string('moderation_status', 20)->default('pending');
+            $table->timestamp('moderated_at')->nullable();
+            $table->foreignId('moderated_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('original_path', 500);
             $table->string('playback_path', 500)->nullable();
             $table->unsignedBigInteger('playback_size_bytes')->nullable();
@@ -40,6 +44,7 @@ return new class extends Migration {
             DB::statement('REVOKE ALL ON TABLE public.listing_videos FROM PUBLIC, anon, authenticated');
             DB::statement('REVOKE ALL ON SEQUENCE public.listing_videos_id_seq FROM PUBLIC, anon, authenticated');
             DB::statement("ALTER TABLE public.listing_videos ADD CONSTRAINT listing_videos_status_check CHECK (status IN ('uploading','upload_failed','uploaded','processing','ready','failed'))");
+            DB::statement("ALTER TABLE public.listing_videos ADD CONSTRAINT listing_videos_moderation_check CHECK (moderation_status IN ('pending','approved'))");
         }
     }
 

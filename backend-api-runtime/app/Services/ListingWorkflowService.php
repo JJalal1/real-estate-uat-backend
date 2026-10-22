@@ -75,6 +75,22 @@ class ListingWorkflowService
             if ($locked->images()->count() < 1) {
                 throw new ConflictHttpException('At least one listing image is required before submission.');
             }
+            if (config('listing_video.uploads_enabled', false)) {
+                $video = \App\Models\ListingVideo::query()
+                    ->where('property_id', $locked->id)->lockForUpdate()->first();
+                if ($video !== null) {
+                    if ($video->status !== 'ready') {
+                        throw new ConflictHttpException('انتظر اكتمال معالجة الفيديو قبل إرسال الإعلان للمراجعة.');
+                    }
+                    // A new submission is a fresh moderation event, even when
+                    // the listing was previously returned for correction.
+                    $video->forceFill([
+                        'moderation_status' => 'pending',
+                        'moderated_at' => null,
+                        'moderated_by_user_id' => null,
+                    ])->save();
+                }
+            }
 
             $this->assertAdvertiserCanPublish($actor, $locked);
             $asset = PropertyAsset::query()->whereKey($locked->property_asset_id)->lockForUpdate()->firstOrFail();
@@ -184,6 +200,15 @@ class ListingWorkflowService
         return DB::transaction(function () use ($actor, $listing, $reason, $request) {
             $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
             $this->assertReviewable($locked, $actor);
+            if (config('listing_video.uploads_enabled', false)) {
+                \App\Models\ListingVideo::query()
+                    ->where('property_id', $locked->id)
+                    ->update([
+                        'moderation_status' => 'pending',
+                        'moderated_at' => null,
+                        'moderated_by_user_id' => null,
+                    ]);
+            }
             $from = $locked->review_status;
             $locked->forceFill([
                 'status' => 'draft',
@@ -227,6 +252,24 @@ class ListingWorkflowService
         return DB::transaction(function () use ($actor, $listing, $reason, $request, $duplicateReviewReason) {
             $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
             $this->assertReviewable($locked, $actor);
+
+            if (config('listing_video.uploads_enabled', false)) {
+                $video = \App\Models\ListingVideo::query()
+                    ->where('property_id', $locked->id)->lockForUpdate()->first();
+                if ($video !== null) {
+                    if ($video->status !== 'ready') {
+                        throw new ConflictHttpException('الفيديو لم يكتمل تجهيزه، لا يمكن اعتماد الإعلان.');
+                    }
+                    if (! $request->boolean('video_review_confirmed')) {
+                        throw new ConflictHttpException('يلزم تأكيد مشاهدة ومراجعة الفيديو قبل اعتماد الإعلان.');
+                    }
+                    $video->forceFill([
+                        'moderation_status' => 'approved',
+                        'moderated_at' => now(),
+                        'moderated_by_user_id' => $actor->id,
+                    ])->save();
+                }
+            }
 
             $unrelatedImageIds = collect($this->mediaReviewStates($locked))
                 ->filter(static fn (array $state): bool => ($state['decision'] ?? null) === 'unrelated')
