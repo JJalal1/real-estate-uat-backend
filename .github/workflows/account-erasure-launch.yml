@@ -5,6 +5,7 @@ on:
     branches: [work/account-erasure-launch-v2]
     paths:
       - 'backend-api-runtime/**'
+      - 'mobile_app/**'
       - '.github/workflows/account-erasure-launch.yml'
 
 permissions:
@@ -41,22 +42,32 @@ jobs:
           php -l app/Http/Controllers/AccountDeletionWebController.php
           php -l app/Http/Controllers/Api/AccountSafetyController.php
           php -l tests/Feature/AccountErasureLaunchTest.php
-      - name: Run erasure and auth regressions
+      - name: Run erasure and launch regressions
         run: >-
           php artisan test
           tests/Feature/AccountErasureLaunchTest.php
+          tests/Feature/LaunchReadinessWave4Test.php
           tests/Feature/Wave2MediaTrustTest.php
+          tests/Feature/Stage5PropertyApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky
 
   mobile:
-    name: Account erasure Flutter analysis
+    name: Combined launch Flutter gate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
+    env:
+      UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+      UAT_SHARE_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com
+      AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.27.3'
@@ -68,6 +79,23 @@ jobs:
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
-      - name: Analyze account erasure UI and client
+      - name: Strict Flutter analysis
         working-directory: mobile_app
-        run: flutter analyze lib/features/account/data/account_safety_repository.dart lib/features/account/presentation/account_safety_screen.dart
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Run combined launch tests
+        working-directory: mobile_app
+        run: >-
+          flutter test
+          test/launch_readiness_wave4_test.dart
+          test/search_query_wave_test.dart
+          test/property_marker_cluster_test.dart
+          --reporter expanded
+      - name: Build combined UAT release APK
+        working-directory: mobile_app
+        run: >-
+          flutter build apk --release
+          --build-number=1126
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=${UAT_API_BASE_URL}
+          --dart-define=APP_BUILD_NUMBER=1126
+          --dart-define=APP_SHARE_BASE_URL=${UAT_SHARE_BASE_URL}
