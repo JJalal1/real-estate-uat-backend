@@ -76,7 +76,7 @@ final class ListingVideoController extends Controller
                 ]);
 
                 if (config('listing_video.processing_enabled', false)) {
-                    ProcessListingVideo::dispatch($video->id)->onQueue('video')->afterCommit();
+                    ProcessListingVideo::dispatch($video->id)->onConnection('database_video')->onQueue('video')->afterCommit();
                 }
 
                 return $video;
