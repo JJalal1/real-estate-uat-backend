@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import com.google.firebase.FirebaseApp
@@ -28,6 +29,7 @@ class PushBridge(
 
     private val channel = MethodChannel(messenger, CHANNEL)
     private var pendingPermissionResult: MethodChannel.Result? = null
+    private var pendingRoute: String? = routeFromIntent(activity.intent)
 
     init {
         channel.setMethodCallHandler { call, result ->
@@ -36,6 +38,11 @@ class PushBridge(
                 "currentRegistration" -> currentRegistration(result)
                 "requestRegistration" -> requestRegistration(result)
                 "deleteToken" -> deleteToken(result)
+                "consumeRoute" -> {
+                    val route = pendingRoute
+                    pendingRoute = null
+                    result.success(route)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -44,6 +51,10 @@ class PushBridge(
     fun dispose() {
         channel.setMethodCallHandler(null)
         pendingPermissionResult = null
+    }
+
+    fun onNewIntent(intent: Intent) {
+        routeFromIntent(intent)?.let { pendingRoute = it }
     }
 
     fun onPermissionResult(requestCode: Int, grantResults: IntArray): Boolean {
@@ -59,6 +70,17 @@ class PushBridge(
         }
         resolveToken(result)
         return true
+    }
+
+    private fun routeFromIntent(intent: Intent?): String? {
+        val explicit = intent?.getStringExtra("route")?.trim().orEmpty()
+        if (explicit.startsWith("/") && explicit.length <= 300) return explicit
+
+        val type = intent?.getStringExtra("entity_type")?.trim().orEmpty()
+        val id = intent?.getStringExtra("entity_id")?.toIntOrNull() ?: 0
+        if (id > 0 && (type == "property" || type == "listing")) return "/properties/$id"
+        if (id > 0 && (type == "message_thread" || type == "conversation")) return "/messages/$id"
+        return null
     }
 
     private fun requestRegistration(result: MethodChannel.Result) {
