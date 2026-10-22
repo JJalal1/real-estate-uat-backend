@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/contact_actions.dart';
+import '../../../core/platform/platform_share.dart';
 import '../../broker/data/broker_repository.dart';
 import '../../community/data/community_repository.dart';
 import '../../community/presentation/community_dialogs.dart';
@@ -471,13 +472,21 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     }
   }
 
-  Future<void> _copyShareReference() async {
-    final link = propertyAppDeepLink(widget.propertyId).toString();
-    await Clipboard.setData(ClipboardData(text: link));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم نسخ رابط العقار ويمكن فتحه في التطبيق.')),
-    );
+  Future<void> _shareProperty(PropertyDetails property) async {
+    final link = propertyPublicShareLink(property.id).toString();
+    final price = property.currency.trim().isEmpty
+        ? property.price.toStringAsFixed(0)
+        : '${property.price.toStringAsFixed(0)} ${property.currency}';
+    final text = 'عقار: ${property.title}\nالسعر: $price\n$link';
+    try {
+      await PlatformShare.text(text: text, subject: property.title);
+    } on PlatformException {
+      await Clipboard.setData(ClipboardData(text: link));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذرت المشاركة المباشرة، فتم نسخ رابط العقار.')),
+      );
+    }
   }
 
   Future<void> _openCommunity(PropertyDetails property) async {
