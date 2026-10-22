@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ListingReviewController;
 use App\Http\Controllers\Api\MessagingController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PropertyController;
+use App\Http\Controllers\Api\ReleaseController;
 use App\Http\Controllers\Api\PropertyFavoriteController;
 use App\Http\Controllers\Api\PropertyIdentityController;
 use App\Http\Controllers\Api\PropertySaiController;
@@ -23,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
+Route::get('/release', [ReleaseController::class, 'show']);
     try {
         DB::select('select 1');
         $postgis = true;
