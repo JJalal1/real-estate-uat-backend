@@ -6,7 +6,7 @@ RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y --no
     ca-certificates curl ffmpeg libcurl4-openssl-dev libonig-dev libxml2-dev libpq-dev libzip-dev \
     libpng-dev libjpeg62-turbo-dev libwebp-dev \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
-    && docker-php-ext-install curl dom mbstring pdo_pgsql zip opcache gd exif \
+    && docker-php-ext-install curl dom mbstring pdo_pgsql zip opcache gd exif pcntl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
@@ -15,6 +15,12 @@ COPY . /var/www/html
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress \
     && chown -R www-data:www-data storage bootstrap/cache /var/www/html
+# queue:work uses pcntl to enforce the 540s job timeout and respond to SIGTERM.
+# Fail image builds if the critical signals/encoders are absent.
+RUN php -r 'if (!extension_loaded("pcntl")) { fwrite(STDERR, "pcntl missing\\n"); exit(1); }' \\
+    && command -v ffmpeg \\
+    && command -v ffprobe
+
 USER www-data
 # This flag belongs ONLY on the isolated video queue consumer.
 ENV VIDEO_WORKER_HEARTBEAT_ENABLED=true

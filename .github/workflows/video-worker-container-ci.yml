@@ -1,0 +1,42 @@
+name: Isolated Video Worker Container Gate
+
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'backend-api-runtime/Dockerfile.video-worker'
+      - 'backend-api-runtime/app/Jobs/ProcessListingVideo.php'
+      - 'backend-api-runtime/app/Services/ListingVideoTranscoder.php'
+      - '.github/workflows/video-worker-container-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-worker-container-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-verify:
+    name: Build isolated FFmpeg worker and check pcntl signals
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build exact deployment Dockerfile without credentials
+        run: |
+          docker build --file backend-api-runtime/Dockerfile.video-worker --tag aqer-video-worker:ci backend-api-runtime
+      - name: Verify worker essentials as nonroot (no UAT access)
+        run: |
+          docker run --rm --network none --entrypoint sh aqer-video-worker:ci -eu -c '
+            test "$(id -u)" -ne 0
+            php -r '\''if (!extension_loaded("pcntl") || !extension_loaded("pdo_pgsql")) exit(1);'\''
+            command -v ffmpeg
+            command -v ffprobe
+            php artisan --version
+          '
+      - name: No installer or private media artifacts
+        run: |
+          echo 'Worker image is tested in CI only; it is not deployed or published.'
