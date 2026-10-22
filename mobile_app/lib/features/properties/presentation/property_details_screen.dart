@@ -26,6 +26,7 @@ import '../../account/data/auth_return_intent.dart';
 import '../../community/presentation/listing_community_screen.dart';
 import '../../messages/data/message_repository.dart';
 import '../data/favorites_repository.dart';
+import '../data/recent_properties_store.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
@@ -57,12 +58,17 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _changingFavorite = false;
   bool _consumingPendingFavorite = false;
   bool _viewRecorded = false;
+  bool _recentRecorded = false;
   bool _calling = false, _reporting = false;
 
   @override
   void didUpdateWidget(covariant PropertyDetailsScreen old) {
     super.didUpdateWidget(old);
-    if (old.propertyId != widget.propertyId) { _viewRecorded = false; _imageIndex = 0; }
+    if (old.propertyId != widget.propertyId) {
+      _viewRecorded = false;
+      _recentRecorded = false;
+      _imageIndex = 0;
+    }
   }
 
   Future<void> _recordView() async {
@@ -88,6 +94,14 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     if (!_viewRecorded && loaded != null && !loaded.isOwner && loaded.status == 'published') {
       _viewRecorded = true;
       Future<void>.microtask(_recordView);
+    }
+
+    if (!_recentRecorded && loaded != null && loaded.status == 'published') {
+      _recentRecorded = true;
+      Future<void>.microtask(() async {
+        await ref.read(recentPropertiesStoreProvider).record(loaded.toSummary());
+        if (mounted) ref.invalidate(recentPropertiesProvider);
+      });
     }
 
     if (user != null &&
