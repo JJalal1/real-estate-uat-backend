@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Jobs\SendUserPushNotification;
 use App\Models\UserNotification;
 use App\Models\UserNotificationPreference;
+use App\Models\UserPushDevice;
 
 class UserNotificationService
 {
@@ -35,7 +36,14 @@ class UserNotificationService
         ]);
 
         if (config('push.enabled',false)) {
-            SendUserPushNotification::dispatch($notification->id)->afterCommit();
+            UserPushDevice::query()
+                ->where('user_id',$userId)
+                ->whereNull('disabled_at')
+                ->pluck('id')
+                ->each(fn($deviceId)=>SendUserPushNotification::dispatch(
+                    $notification->id,
+                    (int)$deviceId,
+                )->afterCommit());
         }
 
         return $notification;
