@@ -72,6 +72,7 @@ final class ProcessListingVideo implements ShouldQueue
                 $record->fill([
                     'status' => 'ready',
                     'playback_path' => $playbackPath,
+                    'playback_size_bytes' => filesize($output['playback_file']),
                     'poster_path' => $posterPath,
                     'duration_ms' => $output['duration_ms'],
                     'width' => $output['width'],
