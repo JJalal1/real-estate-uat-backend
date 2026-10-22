@@ -17,6 +17,8 @@ env:
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
   ACCEPTED_SOURCE_SHA: 92bdd0c4a9de37290d68d6b876a1f8fdd0f36b46
   UAT_BUILD_NUMBER: '1124'
+  AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+  APP_SHARE_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com
 
 jobs:
   build:
@@ -117,6 +119,8 @@ jobs:
           --build-number=${UAT_BUILD_NUMBER}
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${UAT_API_BASE_URL}
+          --dart-define=APP_BUILD_NUMBER=${UAT_BUILD_NUMBER}
+          --dart-define=APP_SHARE_BASE_URL=${APP_SHARE_BASE_URL}
 
       - name: Prepare verified artifact
         shell: bash
