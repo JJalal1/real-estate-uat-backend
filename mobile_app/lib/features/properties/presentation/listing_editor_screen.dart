@@ -1404,9 +1404,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       AppButton(label:'إضافة صور',icon:Icons.add_photo_alternate_outlined,expand:true,style:AppButtonStyle.tonal,onPressed:_busy?null:_pickImages),
       if (keys.isEmpty) const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Text('لم تضف صورًا بعد. أضف صورة واضحة للعقار لإرساله للمراجعة.')),
       if (const bool.fromEnvironment('AQER_VIDEO_UPLOADS_ENABLED', defaultValue: false))
-        if (_existing case final property? when property.status == 'draft' && property.canEdit) ...[
+        if (_existing != null && _existing!.status == 'draft' && _existing!.canEdit) ...[
           const SizedBox(height: AppSpacing.s12),
-          ListingVideoUploadPanel(propertyId: property.id),
+          ListingVideoUploadPanel(propertyId: _existing!.id),
         ],
       if (keys.isNotEmpty) ...[
         const SizedBox(height:12),SizedBox(height:height,child:ReorderableListView.builder(scrollDirection:Axis.horizontal,
