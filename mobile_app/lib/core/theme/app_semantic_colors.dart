@@ -53,6 +53,31 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     skeletonHighlight: Color(0xFFF0F3F4),
   );
 
+  static const dark = AppSemanticColors(
+    success: Color(0xFF75D69A),
+    onSuccess: Color(0xFF062E17),
+    successContainer: Color(0xFF123C24),
+    onSuccessContainer: Color(0xFFB6F2C8),
+    warning: Color(0xFFFFC44D),
+    onWarning: Color(0xFF3B2900),
+    warningContainer: Color(0xFF4E3800),
+    onWarningContainer: Color(0xFFFFE3A3),
+    info: Color(0xFF7BCBFF),
+    onInfo: Color(0xFF00344F),
+    infoContainer: Color(0xFF0C405B),
+    onInfoContainer: Color(0xFFCBEAFF),
+    neutral: Color(0xFFCAD3DB),
+    onNeutral: Color(0xFF24313B),
+    neutralContainer: Color(0xFF293640),
+    onNeutralContainer: Color(0xFFE6EDF2),
+    disabledContainer: Color(0xFF303B43),
+    onDisabledContainer: Color(0xFF9EABB4),
+    disabledOutline: Color(0xFF53616B),
+    skeletonBase: Color(0xFF2C3942),
+    skeletonHighlight: Color(0xFF3A4852),
+  );
+
+
   final Color success;
   final Color onSuccess;
   final Color successContainer;
