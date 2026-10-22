@@ -1,0 +1,111 @@
+name: Launch Readiness Wave 4
+
+on:
+  push:
+    branches: [work/launch-readiness-wave4]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/launch-readiness-wave4.yml'
+  pull_request:
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - '.github/workflows/launch-readiness-wave4.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: launch-readiness-wave4-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+  UAT_SHARE_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com
+  AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+
+jobs:
+  backend:
+    name: Laravel launch readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare Laravel test environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Syntax check release files
+        run: |
+          php -l config/release.php
+          php -l app/Http/Controllers/Api/ReleaseController.php
+          php -l tests/Feature/LaunchReadinessWave4Test.php
+      - name: Run launch and property regressions
+        run: >-
+          php artisan test
+          tests/Feature/LaunchReadinessWave4Test.php
+          tests/Feature/Stage5PropertyApiTest.php
+          tests/Feature/DiscoverySearchQualityTest.php
+          --display-warnings --fail-on-warning --fail-on-risky
+
+  mobile:
+    name: Flutter launch readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve protected dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Check focused diff
+        run: git diff --check a080755fd7cea731bded2a7e8e34aa7f4a8766be..HEAD -- mobile_app backend-api-runtime
+      - name: Strict Flutter analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Run launch readiness tests
+        working-directory: mobile_app
+        run: >-
+          flutter test
+          test/launch_readiness_wave4_test.dart
+          test/search_query_wave_test.dart
+          test/property_marker_cluster_test.dart
+          --reporter expanded
+      - name: Build UAT release APK with explicit non-production signing allowance
+        working-directory: mobile_app
+        run: >-
+          flutter build apk --release
+          --build-number=1125
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=API_BASE_URL=${UAT_API_BASE_URL}
+          --dart-define=APP_BUILD_NUMBER=1125
+          --dart-define=APP_SHARE_BASE_URL=${UAT_SHARE_BASE_URL}
