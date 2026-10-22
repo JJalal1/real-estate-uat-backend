@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\UserNotification;
+use App\Models\UserPushDevice;
 use App\Services\FcmPushSender;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,7 +18,10 @@ class SendUserPushNotification implements ShouldQueue
     public int $tries=3;
     public int $timeout=30;
 
-    public function __construct(public readonly int $notificationId) {}
+    public function __construct(
+        public readonly int $notificationId,
+        public readonly int $deviceId,
+    ) {}
 
     public function backoff(): array
     {
@@ -29,6 +33,12 @@ class SendUserPushNotification implements ShouldQueue
         if (! config('push.enabled',false)) return;
         $notification=UserNotification::query()->withoutGlobalScopes()->find($this->notificationId);
         if (! $notification) return;
-        $sender->send($notification);
+        $device=UserPushDevice::query()
+            ->whereKey($this->deviceId)
+            ->where('user_id',$notification->user_id)
+            ->whereNull('disabled_at')
+            ->first();
+        if (! $device) return;
+        $sender->send($notification,$device);
     }
 }
