@@ -28,6 +28,7 @@ class ListingVideoFullCycleTest extends TestCase
         config()->set('services.supabase_storage.enabled', false);
         config()->set('listing_video.uploads_enabled', true);
         config()->set('listing_video.processing_enabled', true);
+        config()->set('listing_video.worker_heartbeat_required', false);
         Storage::fake('local');
         Storage::fake('public');
         Queue::fake();

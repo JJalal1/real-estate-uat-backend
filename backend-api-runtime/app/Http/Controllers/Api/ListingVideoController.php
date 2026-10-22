@@ -9,6 +9,7 @@ use App\Models\Property;
 use App\Models\User;
 use App\Services\CloudAssetStorageService;
 use App\Services\ListingVideoUploadPolicy;
+use App\Services\ListingVideoWorkerHealth;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ final class ListingVideoController extends Controller
     public function __construct(
         private readonly CloudAssetStorageService $storage,
         private readonly ListingVideoUploadPolicy $policy,
+        private readonly ListingVideoWorkerHealth $workerHealth,
     ) {}
 
     /**
@@ -35,6 +37,9 @@ final class ListingVideoController extends Controller
         /** @var User|null $actor */
         $actor = $request->user();
         abort_unless($actor && (int) $property->user_id === (int) $actor->id, 404);
+        // Do not accept 50 MiB originals into a queue with no live processor.
+        abort_unless($this->workerHealth->healthy(), 503,
+            'معالجة الفيديو غير متاحة حاليًا. حاول لاحقًا.');
 
         $data = $request->validate([
             'upload_id' => ['required', 'uuid'],

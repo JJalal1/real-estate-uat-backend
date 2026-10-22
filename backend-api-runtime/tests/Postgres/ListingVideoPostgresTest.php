@@ -30,6 +30,20 @@ class ListingVideoPostgresTest extends TestCase
             }
         }
 
+        $health = DB::selectOne("SELECT relrowsecurity AS enabled
+            FROM pg_class WHERE oid = 'public.listing_video_worker_health'::regclass");
+        $this->assertTrue((bool) $health->enabled);
+        foreach (['anon', 'authenticated'] as $role) {
+            $access = DB::selectOne('SELECT has_table_privilege(?, ?, ?) AS allowed', [
+                $role, 'public.listing_video_worker_health', 'SELECT',
+            ]);
+            $this->assertFalse((bool) $access->allowed);
+            $access = DB::selectOne('SELECT has_table_privilege(?, ?, ?) AS allowed', [
+                $role, 'public.listing_video_worker_health', 'UPDATE',
+            ]);
+            $this->assertFalse((bool) $access->allowed);
+        }
+
         $constraints = DB::select("SELECT conname FROM pg_constraint
             WHERE conrelid = 'public.listing_videos'::regclass");
         $names = array_map(fn ($row) => $row->conname, $constraints);

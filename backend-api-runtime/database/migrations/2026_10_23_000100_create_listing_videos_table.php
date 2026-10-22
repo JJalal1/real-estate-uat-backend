@@ -37,9 +37,18 @@ return new class extends Migration {
             $table->index(['status', 'created_at'], 'listing_videos_processing_idx');
         });
 
+        // Shared, database-backed health signal from the *isolated* worker.
+        // No browser/mobile roles may read or forge a heartbeat.
+        Schema::create('listing_video_worker_health', function (Blueprint $table): void {
+            $table->unsignedInteger('id')->primary();
+            $table->timestamp('last_seen_at');
+        });
+
         // Laravel alone owns authorization; never publish the private original
         // or processed video record through Supabase's direct Data API.
         if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE public.listing_video_worker_health ENABLE ROW LEVEL SECURITY');
+            DB::statement('REVOKE ALL ON TABLE public.listing_video_worker_health FROM PUBLIC, anon, authenticated');
             DB::statement('ALTER TABLE public.listing_videos ENABLE ROW LEVEL SECURITY');
             DB::statement('REVOKE ALL ON TABLE public.listing_videos FROM PUBLIC, anon, authenticated');
             DB::statement('REVOKE ALL ON SEQUENCE public.listing_videos_id_seq FROM PUBLIC, anon, authenticated');
@@ -50,6 +59,7 @@ return new class extends Migration {
 
     public function down(): void
     {
+        Schema::dropIfExists('listing_video_worker_health');
         Schema::dropIfExists('listing_videos');
     }
 };

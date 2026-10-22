@@ -24,6 +24,7 @@ class ListingVideoApiTest extends TestCase
     {
         parent::setUp();
         config()->set('listing_video.processing_enabled', true);
+        config()->set('listing_video.worker_heartbeat_required', false);
         Queue::fake();
     }
 
@@ -210,5 +211,28 @@ class ListingVideoApiTest extends TestCase
         Storage::disk('local')->assertExists($accepted->original_path);
         $this->assertDatabaseCount('listing_videos', 1);
     }
+
+    public function test_new_upload_fails_closed_without_healthy_processing_worker(): void
+    {
+        config()->set('listing_video.uploads_enabled', true);
+        config()->set('listing_video.worker_heartbeat_required', true);
+        [$owner, $headers] = $this->actor('no-worker');
+        $property = $this->property($owner);
+        $url = '/api/properties/'.$property->id.'/video';
+        $payload = ['upload_id' => 'not-a-uuid'];
+        $this->withHeaders($headers)->post($url, $payload)->assertStatus(503);
+        $this->assertDatabaseCount('listing_videos', 0);
+
+        // An idle worker records its heartbeat via Laravel Queue::looping.
+        app(\App\Services\ListingVideoWorkerHealth::class)->beat();
+        $this->withHeaders($headers)->post($url, $payload)->assertStatus(422);
+
+        DB::table('listing_video_worker_health')->where('id', 1)->update([
+            'last_seen_at' => now()->subMinutes(15),
+        ]);
+        $this->withHeaders($headers)->post($url, $payload)->assertStatus(503);
+        $this->assertDatabaseCount('listing_videos', 0);
+    }
+
 
 }

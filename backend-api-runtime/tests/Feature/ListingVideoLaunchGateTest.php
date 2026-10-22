@@ -20,5 +20,6 @@ class ListingVideoLaunchGateTest extends TestCase
     {
         $this->assertFalse((bool) config('listing_video.uploads_enabled', false));
         $this->assertFalse((bool) config('listing_video.processing_enabled', false));
+        $this->assertTrue((bool) config('listing_video.worker_heartbeat_required', false));
     }
 }
