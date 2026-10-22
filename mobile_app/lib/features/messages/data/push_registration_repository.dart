@@ -32,7 +32,9 @@ class PushRegistrationRepository {
 
   Future<bool> syncIfGranted() async {
     final registration = await _registration('currentRegistration');
-    if (!registration.configured || !registration.granted || registration.token == null) {
+    if (!registration.configured) return false;
+    if (!registration.granted || registration.token == null) {
+      await _removeServerRegistration(registration.installationId);
       return false;
     }
     await _register(registration);
@@ -41,7 +43,9 @@ class PushRegistrationRepository {
 
   Future<bool> requestAndRegister() async {
     final registration = await _registration('requestRegistration');
-    if (!registration.configured || !registration.granted || registration.token == null) {
+    if (!registration.configured) return false;
+    if (!registration.granted || registration.token == null) {
+      await _removeServerRegistration(registration.installationId);
       return false;
     }
     await _register(registration);
@@ -53,11 +57,7 @@ class PushRegistrationRepository {
     try {
       registration = await _registration('currentRegistration');
       if (registration.configured && registration.installationId.isNotEmpty) {
-        await _dio.delete<void>(
-          '/push/devices',
-          data: {'installation_id': registration.installationId},
-          options: await _auth.requiredAuthOptions(),
-        );
+        await _removeServerRegistration(registration.installationId);
       }
     } catch (_) {
       // Logout must still clear the local Firebase token if the API is offline.
@@ -68,6 +68,15 @@ class PushRegistrationRepository {
         // A missing/disabled native push provider must never block logout.
       }
     }
+  }
+
+  Future<void> _removeServerRegistration(String installationId) async {
+    if (installationId.trim().isEmpty) return;
+    await _dio.delete<void>(
+      '/push/devices',
+      data: {'installation_id': installationId},
+      options: await _auth.requiredAuthOptions(),
+    );
   }
 
   Future<void> _register(PushNativeRegistration registration) async {
