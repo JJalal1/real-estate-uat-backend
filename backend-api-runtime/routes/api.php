@@ -99,6 +99,7 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::delete('/users/{user}/messaging-block',[\App\Http\Controllers\Api\AccountSafetyController::class,'unblock'])->middleware('throttle:30,1,messaging-block');
     Route::get('/account/deletion-request',[\App\Http\Controllers\Api\AccountSafetyController::class,'deletionStatus']);
     Route::post('/account/deletion-request',[\App\Http\Controllers\Api\AccountSafetyController::class,'requestDeletion'])->middleware('throttle:5,1,account-deletion');
+    Route::delete('/account',[\App\Http\Controllers\Api\AccountSafetyController::class,'erase'])->middleware('throttle:2,60,account-erasure');
 
     Route::post('/brokers/{broker}/conversation', [\App\Http\Controllers\Api\MessagingController::class,'startForBroker'])->middleware('throttle:12,1');
     Route::get('/listing-editor-drafts', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'index']);
