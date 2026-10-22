@@ -24,7 +24,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
-Route::get('/release', [ReleaseController::class, 'show']);
     try {
         DB::select('select 1');
         $postgis = true;
@@ -47,6 +46,8 @@ Route::get('/release', [ReleaseController::class, 'show']);
         ], 503);
     }
 });
+
+Route::get('/release', [ReleaseController::class, 'show']);
 
 Route::prefix('auth')->group(function () {
     Route::post('/whatsapp/start', [AuthController::class, 'startWhatsApp'])->middleware('throttle:6,1');
