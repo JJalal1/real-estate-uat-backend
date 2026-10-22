@@ -32,7 +32,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
       - name: Prepare testing configuration
         run: |
-          printf 'APP_ENV=testing\nDB_CONNECTION=sqlite\nDB_DATABASE=:memory:\n' > .env
+          printf 'APP_ENV=testing\nDB_CONNECTION=sqlite\nDB_DATABASE=:memory:\nAPP_KEY=\n' > .env
           php artisan key:generate --force
       - name: Video security and streamed private storage regression
         run: php artisan test tests/Feature/ListingVideoUploadPolicyTest.php tests/Feature/VideoPrivateStorageTest.php tests/Feature/ListingVideoProcessingPolicyTest.php tests/Feature/ListingVideoLaunchGateTest.php --fail-on-warning --fail-on-risky --fail-on-skipped
