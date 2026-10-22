@@ -27,6 +27,8 @@ class MainActivity : FlutterActivity() {
         private const val SHARE_CHANNEL = "real_estate/share"
         private const val PICK_IMAGES_REQUEST = 7419
         private const val TAKE_PHOTO_REQUEST = 7420
+        private const val PICK_VIDEO_REQUEST = 7421
+        private const val VIDEO_MAX_BYTES = 50L * 1024L * 1024L
         private const val MAX_IMAGES = 12
         private const val KEY_ALIAS = "real_estate_stage6_auth_key"
         private const val PREFS_NAME = "real_estate_stage6_secure"
@@ -54,6 +56,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "pickImages" -> openImagePicker(result)
+                    "pickVideo" -> openVideoPicker(result)
                     "takePhoto" -> openCamera(result)
                     "clearTemporaryFiles" -> clearTemporaryFiles(call.arguments, result)
                     else -> result.notImplemented()
@@ -189,6 +192,67 @@ class MainActivity : FlutterActivity() {
         startActivityForResult(intent, PICK_IMAGES_REQUEST)
     }
 
+    private fun openVideoPicker(result: MethodChannel.Result) {
+        if (pendingResult != null) {
+            result.error("PICKER_BUSY", "Media picker is already open.", null)
+            return
+        }
+        pendingResult = result
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "video/*"
+        }
+        try {
+            startActivityForResult(intent, PICK_VIDEO_REQUEST)
+        } catch (error: Exception) {
+            pendingResult = null
+            result.error("VIDEO_PICK_FAILED", error.message, null)
+        }
+    }
+
+    private fun handleVideoPickerResult(resultCode: Int, intent: Intent?) {
+        val result = pendingResult
+        pendingResult = null
+        if (result == null) return
+        if (resultCode != Activity.RESULT_OK || intent?.data == null) {
+            result.success(null)
+            return
+        }
+        val uri = intent.data!!
+        val directory = File(cacheDir, "stage5_uploads")
+        if (!directory.exists() && !directory.mkdirs()) {
+            result.error("VIDEO_CACHE_FAILED", "Cannot create media cache.", null)
+            return
+        }
+        val output = File(directory, "aqer_video_${System.nanoTime()}.mp4")
+        try {
+            contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                val size = descriptor.statSize
+                if (size > VIDEO_MAX_BYTES) throw IllegalArgumentException("الفيديو أكبر من 50 ميجابايت")
+            }
+            val input = contentResolver.openInputStream(uri)
+                ?: throw IllegalStateException("Cannot open selected video")
+            input.use { source ->
+                FileOutputStream(output).use { destination ->
+                    val buffer = ByteArray(64 * 1024)
+                    var copied = 0L
+                    while (true) {
+                        val n = source.read(buffer)
+                        if (n < 0) break
+                        copied += n.toLong()
+                        if (copied > VIDEO_MAX_BYTES) throw IllegalArgumentException("الفيديو أكبر من 50 ميجابايت")
+                        destination.write(buffer, 0, n)
+                    }
+                    if (copied < 16) throw IllegalArgumentException("ملف فيديو غير صالح")
+                }
+            }
+            result.success(output.absolutePath)
+        } catch (error: Exception) {
+            output.delete()
+            result.error("VIDEO_PICK_FAILED", error.message, null)
+        }
+    }
+
     private fun openCamera(result: MethodChannel.Result) {
         if (pendingResult != null) {
             result.error("PICKER_BUSY", "The media picker is already open.", null)
@@ -236,6 +300,7 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
             PICK_IMAGES_REQUEST -> handleImagePickerResult(resultCode, data)
+            PICK_VIDEO_REQUEST -> handleVideoPickerResult(resultCode, data)
             TAKE_PHOTO_REQUEST -> handleCameraResult(resultCode)
         }
     }
