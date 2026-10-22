@@ -17,8 +17,8 @@ RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framewor
     && chown -R www-data:www-data storage bootstrap/cache /var/www/html
 # queue:work uses pcntl to enforce the 540s job timeout and respond to SIGTERM.
 # Fail image builds if the critical signals/encoders are absent.
-RUN php -r 'if (!extension_loaded("pcntl")) { fwrite(STDERR, "pcntl missing\\n"); exit(1); }' \\
-    && command -v ffmpeg \\
+RUN php -r 'if (!extension_loaded("pcntl")) { fwrite(STDERR, "pcntl missing\\n"); exit(1); }' \
+    && command -v ffmpeg \
     && command -v ffprobe
 
 USER www-data
