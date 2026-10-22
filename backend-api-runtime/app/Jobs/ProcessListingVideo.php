@@ -37,7 +37,12 @@ final class ProcessListingVideo implements ShouldQueue
         $video = DB::transaction(function (): ?ListingVideo {
             $record = ListingVideo::query()->lockForUpdate()->find($this->videoId);
             if (! $record || $record->status === 'ready') return null;
-            if (! in_array($record->status, ['uploaded', 'failed'], true)) return null;
+            // Recover a crashed worker after its 300s queue visibility lease.
+            // A fresh processing lease means another worker still owns it.
+            if ($record->status === 'processing' && $record->updated_at?->isAfter(now()->subSeconds(300))) {
+                return null;
+            }
+            if (! in_array($record->status, ['uploaded', 'failed', 'processing'], true)) return null;
             $record->status = 'processing';
             $record->attempts++;
             $record->failure_code = null;
