@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/auth_user.dart';
 import 'auth_repository.dart';
+import '../../messages/data/push_registration_repository.dart';
 
 final authControllerProvider =
     AsyncNotifierProvider<AuthController, AuthUser?>(AuthController.new);
@@ -13,7 +16,21 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   AuthRepository get _repository => ref.read(authRepositoryProvider);
 
   @override
-  Future<AuthUser?> build() => _repository.restoreSession();
+  Future<AuthUser?> build() async {
+    final user = await _repository.restoreSession();
+    if (user != null) _syncPushIfGranted();
+    return user;
+  }
+
+  void _syncPushIfGranted() {
+    unawaited(() async {
+      try {
+        await ref.read(pushRegistrationRepositoryProvider).syncIfGranted();
+      } catch (_) {
+        // Push registration is best-effort and must not block authentication.
+      }
+    }());
+  }
 
   Future<WhatsAppAuthPending> startWhatsApp({required String phone, String? name}) async {
     final pending = await _repository.startWhatsApp(phone: phone, name: name);
@@ -30,6 +47,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   Future<void> requestEmailVerification() => _repository.requestEmailVerification();
   Future<void> verifyEmail(String code) async {
     state = AsyncData(await _repository.verifyEmail(code));
+    _syncPushIfGranted();
   }
 
   Future<AuthResult> verifyWhatsApp(String code) async {
@@ -38,6 +56,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     final result = await _repository.verifyWhatsApp(pending, code);
     ref.read(whatsAppAuthPendingProvider.notifier).state = null;
     state = AsyncData(result.user);
+    _syncPushIfGranted();
     return result;
   }
 
@@ -54,6 +73,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
       password: password,
     );
     state = AsyncData(result.user);
+    _syncPushIfGranted();
     return result;
   }
 
@@ -63,11 +83,17 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }) async {
     final result = await _repository.login(login: login, password: password);
     state = AsyncData(result.user);
+    _syncPushIfGranted();
     return result;
   }
 
   Future<void> logout() async {
     try {
+      try {
+        await ref.read(pushRegistrationRepositoryProvider).unregister();
+      } catch (_) {
+        // Push cleanup cannot block logout.
+      }
       await _repository.logout();
     } finally {
       // The repository clears the local token even when the server is offline.
@@ -116,6 +142,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
 
   Future<void> refresh() async {
     state = AsyncData(await _repository.restoreSession());
+    if (state.asData?.value != null) _syncPushIfGranted();
   }
 }
 
