@@ -1075,7 +1075,7 @@ class PropertyController extends Controller
                 ->where('property_id', $property->id)
                 ->where('status', 'ready')
                 ->first();
-            if ($video !== null && ($property->status === 'published'
+            if ($video !== null && ($property->isPubliclyAvailable()
                 || ($viewer !== null && ((int) $viewer->id === (int) $property->user_id
                     || $viewer->hasPermission('listings.moderate'))))) {
                 $details['video'] = [
