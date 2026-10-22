@@ -24,6 +24,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val MEDIA_CHANNEL = "real_estate/media"
         private const val SECURE_CHANNEL = "real_estate/secure_store"
+        private const val SHARE_CHANNEL = "real_estate/share"
         private const val PICK_IMAGES_REQUEST = 7419
         private const val TAKE_PHOTO_REQUEST = 7420
         private const val MAX_IMAGES = 12
@@ -50,6 +51,32 @@ class MainActivity : FlutterActivity() {
                     "pickImages" -> openImagePicker(result)
                     "takePhoto" -> openCamera(result)
                     "clearTemporaryFiles" -> clearTemporaryFiles(call.arguments, result)
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "shareText" -> {
+                        val text = call.argument<String>("text").orEmpty().trim()
+                        if (text.isEmpty()) {
+                            result.error("SHARE_EMPTY", "Nothing to share.", null)
+                            return@setMethodCallHandler
+                        }
+                        val subject = call.argument<String>("subject")?.trim().orEmpty()
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                            if (subject.isNotEmpty()) putExtra(Intent.EXTRA_SUBJECT, subject)
+                        }
+                        try {
+                            startActivity(Intent.createChooser(send, "مشاركة عبر"))
+                            result.success(null)
+                        } catch (error: Exception) {
+                            result.error("SHARE_FAILED", error.message, null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
