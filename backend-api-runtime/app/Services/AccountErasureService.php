@@ -34,6 +34,11 @@ class AccountErasureService
 
         $verificationPaths = $this->verificationPaths($user);
         $professionalPhoto = trim((string) ($user->public_professional_photo_path ?? ''));
+        $videoPaths = $this->listingVideoPaths($user);
+
+        foreach ($videoPaths as $path) {
+            $this->storage->deletePrivate($path);
+        }
 
         foreach ($verificationPaths as $path) {
             $this->storage->deletePrivate($path);
@@ -55,6 +60,10 @@ class AccountErasureService
 
             $this->archiveListings($locked);
             $this->deleteTransientData($locked);
+            if (Schema::hasTable('listing_videos')) {
+                DB::table('listing_videos')->whereIn('property_id',
+                    DB::table('properties')->where('user_id', $locked->id)->select('id'))->delete();
+            }
 
             if (Schema::hasTable('account_verification_profiles')) {
                 DB::table('account_verification_profiles')->where('user_id', $locked->id)->delete();
@@ -122,6 +131,23 @@ class AccountErasureService
                 ->where('user_id', $user->id)->pluck('path')->filter()->all());
         }
         return array_values(array_unique(array_filter($paths, 'is_string')));
+    }
+
+    /** Delete media originals and derivatives; retain financial/legal listing records. */
+    private function listingVideoPaths(User $user): array
+    {
+        if (! Schema::hasTable('listing_videos')) return [];
+        $records = DB::table('listing_videos')
+            ->join('properties', 'properties.id', '=', 'listing_videos.property_id')
+            ->where('properties.user_id', $user->id)
+            ->get(['listing_videos.original_path', 'listing_videos.playback_path', 'listing_videos.poster_path']);
+        $paths = [];
+        foreach ($records as $video) {
+            foreach ([$video->original_path, $video->playback_path, $video->poster_path] as $path) {
+                if (is_string($path) && $path !== '') $paths[] = $path;
+            }
+        }
+        return array_values(array_unique($paths));
     }
 
     private function archiveListings(User $user): void
