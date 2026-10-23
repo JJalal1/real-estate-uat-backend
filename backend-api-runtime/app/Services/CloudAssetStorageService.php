@@ -338,7 +338,7 @@ class CloudAssetStorageService
             try {
                 $this->deletePrivate($logicalPath);
                 $cleaned = true;
-            } catch (\\Throwable) {
+            } catch (\Throwable) {
                 throw new RuntimeException('Signed TUS canary cleanup failed.');
             }
         }
