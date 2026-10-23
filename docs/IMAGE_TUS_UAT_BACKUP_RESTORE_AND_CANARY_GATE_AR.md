@@ -28,3 +28,12 @@
 المرجع: https://supabase.com/docs/guides/storage/uploads/resumable-uploads
 
 **لا ينفذ هذا المستند أي اختبار أو هجرة.** متابعة العمل البرمجي في PR #115 مستقلة، وProduction والفيديو المؤجل خارج النطاق.
+
+
+## نتيجة تجربة UAT الحية — 23 أكتوبر 2026
+- PR #117 دُمج في فرع UAT لإضافة أمر اصطناعي مستقل `uat:signed-tus-storage-probe`، وليس ميزة #11 أو هجرة قاعدتها.
+- أول تشغيل على Render `dep-dbdsitom7kps73bigba0` بالعلم `UAT_IMAGE_TUS_PROBE_ON_STARTUP=true` انتهى `update_failed`، ودليل السجل: `Signed TUS creation did not return HTTP 201` ثم `Signed TUS canary cleanup failed`. **بالتالي اختبار TUS الحقيقي فاشل وليس ناجحًا.**
+- أعدنا علم الاختبار إلى `false`، وكذلك `LISTING_IMAGE_RESUMABLE_ENABLED=false` و`UAT_RUN_MIGRATIONS=false`. بدأ نشر الاستعادة `dep-dbdsjct9fdbs738ha3r0`، ويحتاج التحقق من حالة `live` قبل اعتماد الاستقرار.
+- فحص Supabase `storage.objects` بعد الفشل: **صفر** ملفات تحت `private/uat-health/tus-%`. هذا يؤكد عدم وجود كائن مكتمل متروك بهذا المسار، ولا يؤكد تنظيف جلسة TUS غير المكتملة.
+- الإجراء التالي: افصل استثناء التنظيف عن استثناء طلب TUS الأصلي، وشخّص **كود HTTP فقط بدون body/token**، وراجع اشتراطات `TUS POST` وترويسات `x-signature` في وثائق Supabase، ثم اختبر في PR معزول قبل إعادة التشغيل مرة واحدة على UAT.
+- لا تغير جداول Supabase أو تفعّل ميزة #11 أو تُنشئ تكلفة. لا يوجد backup قابل للاستعادة مثبت حتى الآن.
