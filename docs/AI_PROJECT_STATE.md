@@ -1,4 +1,18 @@
-# October21 actual Aqer brand assets integrated
+# October24 current handoff — #11 blocked, #12 deployed and measured
+
+This section supersedes historical instructions and status below. The owner authorized routine fixes, merges and UAT deployment on `work/wave2-review-current`, with no Production, paid resources or separate acceptance APK. Read `docs/AQER_11_12_EXECUTIVE_HANDOFF_AR_2026-10-24.md` and the updated 32-item matrix first.
+
+PR118 merged as `23ddba16d33e50b45a954d9d5e0d2dfe67737d8a`. The signed Supabase TUS canary passed twice: 6,291,456 bytes, HEAD exact offset, then 46 bytes, verified SHA256/length and deleted object. A forged signature was rejected. Probe is OFF again; this is protocol evidence, not full Flutter/API intent acceptance.
+
+PR119 merged as `6a0475e82b3a12f59cab3eb78ba75ee4e283186b`, exactly matching tested tree `ce128dc6ae3ae08548e68db4f9b03eaf0116668b`. Render `dep-dbdttugae00c73b0087g` is Live. After-deploy run40032116209 attempt2 proves adaptive_available=true: constrained details save74.59%, cards79.56%, 304 empty bodies, Flutter one shared request and zero return bytes. Full CI:352 Laravel/4323 assertions,175 PG/2775 assertions,498 Flutter plus separate live test and native build. Initial missing derivatives may take longer to generate; this does not prove lower p95 latency.
+
+PR115 stays Draft and isolated. Session-finalize retries, scoped signature renewal,27-hour cleanup window/locking and PG deny-all checks were repaired and its source was synchronized with #12. The full original PG audit then found an unindexed user_id FK, repaired in the undeployed migration without weakening the test. Current exact-source CI is recorded in the handoff; do not infer final CI from an earlier SHA.
+
+NO real full UAT database dump/independent restore has been achieved. Do not apply the upload-intents migration or enable it:59 live migrations, intents table absent, private bucket, RLS retained. Financial aggregates across15 tables remained unchanged. These are safety checks, not a backup. UAT end-to-end ownership/expiry/delete/reopen/cleanup and consolidated handset acceptance remain open. Video #3/#21 remain temporarily paused, not removed from the32 items. Next suggested work:#13 viewport/lazy verification; return to #11 as soon as the backup/restore gate can actually be met.
+
+---
+
+# October21 actual Aqer brand assets integrated (historical)
 
 The owner reattached the exact reference PDF and requested the missing identity assets plus a complete role-by-role handset guide. The1121 compact-login baseline is a3ac4b562dbcffdf974884149d15a5f09fbad7e7 (CI121 and focused10 green). The previously approved brand is now rebuilt from the same pinned PDF contours and integrated into Android launcher/adaptive/monochrome icons, native launch, Flutter Home/login/account loading and iOS icon/launch source slots. The outlined Arabic/Aqer wordmark uses the reference glyph geometry. SVG masters, reference-image fingerprints, deterministic authoring scripts, measurements and a46-asset pin inventory prevent loss of the canonical identity again. See docs/brand/README_AR.md. Native iOS compilation is outside this Android delivery.
 
@@ -394,4 +408,3 @@ Real-device subjective visual acceptance remains a manual/Beta gate when an actu
 ## Update rule
 
 Whenever accepted behavior, roadmap, architecture, or product direction changes, update this file and the relevant workflow/decision/changelog docs. Current Git/code and explicit newer product-owner decisions outrank stale historical documentation.
-

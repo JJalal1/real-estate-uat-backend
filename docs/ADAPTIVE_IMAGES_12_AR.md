@@ -19,4 +19,14 @@
 ## #11 أثناء هذا العمل
 PR #118 دُمج. canary TUS الحي نجح بعد 6MiB ثم HEAD ثم tail PATCH مع SHA-256 وحذف. علم الاختبار OFF وخدمة Render Live. PR #115 عولج تعارضه، وهو Draft. لا توجد نسخة قاعدة UAT مُصدّرة ومختبرة الاستعادة؛ الهجرة غير مطبقة والميزة OFF. لا يعلن إغلاق #11.
 
-نتائج المصدر الجديد وقياسات UAT النهائية ستضاف بعد CI والنشر. #3/#21 مؤجلان مؤقتًا، وProduction لم يتغير.
+## النتيجة المثبتة — 24 أكتوبر 2026
+
+PR #119 دُمج إلى UAT عند `6a0475e82b3a12f59cab3eb78ba75ee4e283186b`، بشجرة مطابقة للمصدر المختبر `ef4d16e7fca6b5e42fd72b9fa9bd475b540adca7`. Render deploy `dep-dbdttugae00c73b0087g` Live منذ 2026-10-23 22:27:03 UTC.
+
+- CI الأصلي: 352 Laravel /4,323 assertions مع تخطي PostGIS في SQLite، و175 PostgreSQL /2,775 assertions، و498 Flutter full مع اختبار حي opt-in متخطى نُفذ مستقلًا؛ native build ناجح. المخصص: 47 Flutter و14 Laravel /249 assertions، والتحليل بلا diagnostics.
+- بعد النشر، run40032116209 attempt2 job120690776224 أثبت `adaptive_available=true`، thumb200 وETag304 بجسم صفر، واختبار Flutter حي واحد ناجح مع طلب مشترك واحد وreturn_bytes=0.
+- مجموع ثلاثة مراجع fixtures اصطناعية: تفاصيل gallery765,344B → card194,483B (**74.59%**)، بطاقات card194,483B → thumb39,743B (**79.56%**). بعض المراجع تشترك في أصل؛ ليست عينة عامة من الصور.
+- قراءة مضبوطة 64KiB/s بعد النشر: gallery3,941ms → thumb998ms لأول مرجع. توليد thumb القديم عند أول طلب كلّف 1,898–2,806ms؛ لا ندعي تحسن كل latency من تقليل bytes.
+- لا migration أو grants أو تغيير خصوصية. قبول Android الحقيقي وشبكاته ينتظر الجولة المجَمعة؛ لا شهادة إغلاق قبول نهائي.
+
+[تقرير التسليم والأدلة الكاملة](AQER_11_12_EXECUTIVE_HANDOFF_AR_2026-10-24.md). #3/#21 مؤجلان مؤقتًا، وProduction لم يتغير.
