@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import '../../../core/network/adaptive_image_policy.dart';
 import '../../../core/platform/media_network_monitor.dart';
+import '../../../core/widgets/viewport_media.dart';
 
 final listingPhotoCacheProvider = Provider<ListingPhotoCache>((ref) {
   ref.watch(authControllerProvider.select((s) => (s.asData?.value?.id, s.asData?.value?.isActive, s.asData?.value?.permissions.toString())));
@@ -101,7 +102,7 @@ class _PhotoEntry {
   int references = 0;
 }
 
-class ListingDraftPhoto extends ConsumerStatefulWidget {
+class ListingDraftPhoto extends StatelessWidget {
   const ListingDraftPhoto({required this.url, this.authenticated = true, this.fit = BoxFit.cover, this.cacheWidth = 500, this.network, this.onRetry, super.key});
   final String url;
   final bool authenticated;
@@ -110,9 +111,24 @@ class ListingDraftPhoto extends ConsumerStatefulWidget {
   final ImageNetworkConditions? network;
   final VoidCallback? onRetry;
   @override
-  ConsumerState<ListingDraftPhoto> createState() => _ListingDraftPhotoState();
+  Widget build(BuildContext context) => ViewportMedia(builder: (_) => _VisibleListingDraftPhoto(
+    url: url, authenticated: authenticated, fit: fit, cacheWidth: cacheWidth, network: network, onRetry: onRetry));
 }
-class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
+
+class _VisibleListingDraftPhoto extends ConsumerStatefulWidget {
+  const _VisibleListingDraftPhoto({required this.url, required this.authenticated, required this.fit,
+    required this.cacheWidth, required this.network, required this.onRetry});
+  final String url;
+  final bool authenticated;
+  final BoxFit fit;
+  final int? cacheWidth;
+  final ImageNetworkConditions? network;
+  final VoidCallback? onRetry;
+  @override
+  ConsumerState<_VisibleListingDraftPhoto> createState() => _ListingDraftPhotoState();
+}
+
+class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
   late Future<Uint8List> _bytes;
   ListingPhotoLease? _lease;
   Uint8List? _displayBytes;
@@ -152,7 +168,7 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
     });
   }
   @override
-  void didUpdateWidget(ListingDraftPhoto oldWidget) {
+  void didUpdateWidget(_VisibleListingDraftPhoto oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated) {
       if (Uri.parse(oldWidget.url).replace(query: '').toString() != Uri.parse(widget.url).replace(query: '').toString() ||

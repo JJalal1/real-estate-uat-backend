@@ -8,6 +8,7 @@ import 'ebroker_property_card.dart';
 import '../formatters/money.dart';
 import '../network/adaptive_image_policy.dart';
 import '../../features/properties/presentation/adaptive_property_photo.dart';
+import 'viewport_media.dart';
 export '../formatters/money.dart';
 
 export 'app_select_field.dart';
@@ -733,7 +734,7 @@ class AppPropertyMedia extends StatelessWidget {
           else if (AdaptiveImagePolicy.supportsVariants(imageUrl!))
             AdaptivePropertyPhoto(url: imageUrl!)
           else
-            Image.network(
+            ViewportMedia(builder: (_) => Image.network(
               imageUrl!,
               cacheWidth: cacheWidth,
               fit: BoxFit.cover,
@@ -742,7 +743,7 @@ class AppPropertyMedia extends StatelessWidget {
                 if (progress == null) return child;
                 return const AppSkeleton(height: 190, radius: 0);
               },
-            ),
+            )),
           if (badge != null)
             PositionedDirectional(top: AppSpacing.s12, start: AppSpacing.s12, child: badge!),
           if (overlay != null)

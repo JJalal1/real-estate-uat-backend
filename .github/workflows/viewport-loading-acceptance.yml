@@ -18,12 +18,16 @@ jobs:
           flutter-version: '3.27.3'
           channel: stable
           cache: true
-      - name: Measure current implementation before viewport repair
+      - name: Verify viewport scheduling and existing media behavior
         working-directory: mobile_app
         run: |
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get
-          flutter test test/viewport_network_measurement_test.dart --dart-define=AQER_VIEWPORT_HTTP_PROBE=true --dart-define=AQER_EXPECT_VIEWPORT_GATING=false --reporter expanded
+          python3 -B ../scripts/check_v3_analysis.py
+          flutter test test/viewport_media_test.dart test/adaptive_image_quality_test.dart test/user_work_media_test.dart test/wave2_trust_account_media_test.dart --reporter expanded
+      - name: Measure repaired viewport over actual HTTP and UAT Storage
+        working-directory: mobile_app
+        run: flutter test test/viewport_network_measurement_test.dart --dart-define=AQER_VIEWPORT_HTTP_PROBE=true --reporter expanded
       - uses: actions/upload-artifact@v4
         if: always()
         with:
