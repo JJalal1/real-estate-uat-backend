@@ -25,6 +25,9 @@ return new class extends Migration {
             // until all possible PATCH retries have expired, then purge.
             $table->timestamp('purge_after');
             $table->timestamps();
+            // PostgreSQL does not index referencing columns automatically.
+            // Cover account erasure's SET NULL lookup without a table scan.
+            $table->index('user_id');
             $table->unique(['listing_editor_draft_id', 'image_key'], 'listing_image_intent_draft_key_unique');
             $table->index(['status', 'purge_after']);
         });
