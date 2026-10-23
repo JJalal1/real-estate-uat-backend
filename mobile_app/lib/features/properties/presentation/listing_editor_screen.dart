@@ -273,7 +273,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             final token=CancelToken();_photoCancels[photo.key]=token;_photoStates[photo.key]='uploading';_photoErrors.remove(photo.key);
             if (mounted) super.setState(() {});
             try {
-              draft = await _draftOperation(() => _accountRepository.upload(_draftKey, photo.key, photo.value, _draftRevision,
+              draft = await _draftOperation(() => _accountRepository.uploadResumable(_draftKey, photo.key, photo.value, _draftRevision,
                 cancelToken:token,onSendProgress:(sent,total) {
                   if (_disposed || !_sessionValid || _removedPhotoKeys.contains(photo.key)) return;
                   _photoProgress[photo.key]=total>0 ? sent/total : 0;
