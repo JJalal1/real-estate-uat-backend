@@ -41,6 +41,50 @@ class CloudAssetStorageService
     }
 
     /**
+     * Issue a narrow, two-hour upload token for a single private original.
+     * Never return our service key or allow a caller-supplied bucket/path.
+     * The result works with Supabase Storage TUS's x-signature header.
+     */
+    public function createPrivateResumableTicket(string $logicalPath): array
+    {
+        if (! $this->cloudEnabled()) throw new RuntimeException('Cloud storage is not enabled.');
+        if (! preg_match('~^editor-drafts/[0-9]+/[a-f0-9-]{36}/[a-f0-9-]{36}-[a-f0-9]{64}\\.(jpg|png|webp)$~D', $logicalPath)) {
+            throw new RuntimeException('Invalid private upload path.');
+        }
+
+        $objectName = $this->objectPath($logicalPath, true);
+        $response = $this->request()->post(
+            $this->storageBaseUrl().'/object/upload/sign/'.rawurlencode($this->bucket()).'/'.$this->encodePath($objectName),
+            (object) [],
+        );
+        $this->assertRemoteSuccess($response, 'Cannot authorize resumable image.');
+        $remoteUrl = $response->json('url');
+        if (! is_string($remoteUrl) || $remoteUrl === '') throw new RuntimeException('Upload signature missing.');
+        $query = parse_url($remoteUrl, PHP_URL_QUERY);
+        parse_str(is_string($query) ? $query : '', $parameters);
+        $token = $parameters['token'] ?? null;
+        if (! is_string($token) || $token === '') throw new RuntimeException('Upload token missing.');
+
+        $url = parse_url(rtrim((string) config('services.supabase_storage.url'), '/'));
+        $host = $url['host'] ?? '';
+        $scheme = $url['scheme'] ?? '';
+        if ($scheme !== 'https' || ! is_string($host) || $host === '') throw new RuntimeException('Unsafe cloud storage endpoint.');
+        // Direct storage hostname is recommended by the provider. Self-hosted HTTPS
+        // installations retain their configured host instead.
+        if (preg_match('/^([a-z0-9-]+)\\.supabase\\.co$/D', $host, $match)) {
+            $host = $match[1].'.storage.supabase.co';
+        }
+
+        return [
+            'endpoint' => 'https://'.$host.'/storage/v1/upload/resumable',
+            'bucket' => $this->bucket(),
+            'object_name' => $objectName,
+            'signature' => $token,
+            'chunk_size' => 6 * 1024 * 1024,
+        ];
+    }
+
+    /**
      * Stream an accepted video from PHP's upload temp file to private storage.
      * Unlike storePrivate(), this avoids loading a 50 MiB video into PHP memory.
      */
