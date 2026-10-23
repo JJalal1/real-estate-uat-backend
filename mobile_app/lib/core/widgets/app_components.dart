@@ -6,6 +6,8 @@ import 'ebroker_widgets.dart';
 import 'ebroker_add_listing_button.dart';
 import 'ebroker_property_card.dart';
 import '../formatters/money.dart';
+import '../network/adaptive_image_policy.dart';
+import '../../features/properties/presentation/adaptive_property_photo.dart';
 export '../formatters/money.dart';
 
 export 'app_select_field.dart';
@@ -728,6 +730,8 @@ class AppPropertyMedia extends StatelessWidget {
         children: [
           if (imageUrl == null || imageUrl!.isEmpty)
             EbrokerPropertyPlaceholder(type: propertyType)
+          else if (AdaptiveImagePolicy.supportsVariants(imageUrl!))
+            AdaptivePropertyPhoto(url: imageUrl!)
           else
             Image.network(
               imageUrl!,
@@ -840,4 +844,3 @@ IconData _toneIcon(AppStatusTone tone) => switch (tone) {
       AppStatusTone.neutral => Icons.info_outline,
       AppStatusTone.error => Icons.error_outline,
     };
-
