@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -105,6 +104,9 @@ void main() {
     stdout.writeln('AQER_VIEWPORT_HTTP ${jsonEncode(report)}');
     await tester.runAsync(() => File('viewport-http-metrics.json').writeAsString(jsonEncode(report)));
     await tester.pumpWidget(const SizedBox());
+    dio.close(force: true);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester.pump(const Duration(seconds: 4));
   }, skip: !_enabled, timeout: const Timeout(Duration(minutes: 2)));
 
   testWidgets('count real UAT image HTTP transfers for hidden images and return', (tester) async {
@@ -123,12 +125,12 @@ void main() {
         urls.add((data['images'] as List).first['url'] as String);
       }
     });
-    var requests = 0, bytes = 0;
+    var requests = 0, bytes = 0, completed = 0;
     dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
       if (o.uri.path.contains('/property-media/')) requests++;
       h.next(o);
     }, onResponse: (r, h) {
-      if (r.data is List<int>) bytes += (r.data as List<int>).length;
+      if (r.data is List<int>) { bytes += (r.data as List<int>).length; completed++; }
       h.next(r);
     }));
     final scroll = ScrollController();
@@ -140,9 +142,17 @@ void main() {
       ],
     ])))));
     await _networkFrames(tester, frames: 45);
+    for (var i = 0; i < 900 && completed < (_required ? 1 : 3); i++) {
+      await _networkFrames(tester, frames: 1);
+    }
+    expect(completed, _required ? 1 : 3);
     final initial = requests, initialBytes = bytes;
     scroll.jumpTo(1000);
     await _networkFrames(tester, frames: 30);
+    for (var i = 0; i < 900 && completed < (_required ? 2 : 3); i++) {
+      await _networkFrames(tester, frames: 1);
+    }
+    expect(completed, _required ? 2 : 3);
     final afterScroll = requests;
     scroll.jumpTo(0);
     await _networkFrames(tester, frames: 12);
@@ -155,5 +165,8 @@ void main() {
     stdout.writeln('AQER_VIEWPORT_UAT ${jsonEncode(report)}');
     await tester.runAsync(() => File('viewport-uat-metrics.json').writeAsString(jsonEncode(report)));
     await tester.pumpWidget(const SizedBox());
+    dio.close(force: true);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester.pump(const Duration(seconds: 4));
   }, skip: !_enabled, timeout: const Timeout(Duration(minutes: 5)));
 }
