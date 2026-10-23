@@ -208,6 +208,144 @@ class CloudAssetStorageService
         }
     }
 
+    /**
+     * Disposable UAT-only signed TUS protocol canary. Unlike the existing
+     * private storage probe it verifies the *unprivileged*, signed TUS flow:
+     * rejected invalid signature, POST creation, 6 MiB PATCH, HEAD resume,
+     * final PATCH, authenticated byte verification, and cleanup.
+     *
+     * Deliberately does not interact with listing data or DB migrations.
+     */
+    public function probePrivateSignedTusStorage(): void
+    {
+        if (! $this->cloudEnabled() || ! app()->environment('staging')) {
+            throw new RuntimeException('Signed TUS probe requires private Cloud UAT.');
+        }
+
+        $logicalPath = 'uat-health/tus-'.bin2hex(random_bytes(14)).'.bin';
+        $objectPath = $this->objectPath($logicalPath, true);
+        $bucket = $this->bucket();
+
+        $rawHost = (string) parse_url((string) config('services.supabase_storage.url'), PHP_URL_HOST);
+        if (! preg_match('/^([a-z0-9-]+)\\.supabase\\.co$/D', $rawHost, $matches)) {
+            throw new RuntimeException('Signed TUS UAT probe requires a verified Supabase project host.');
+        }
+        $origin = 'https://'.$matches[1].'.storage.supabase.co';
+        $endpoint = $origin.'/storage/v1/upload/resumable';
+
+        $chunk = str_repeat('A', 6 * 1024 * 1024);
+        $tail = 'aqer-uat-tus-tail-'.bin2hex(random_bytes(14));
+        $total = strlen($chunk) + strlen($tail);
+        $hash = hash_init('sha256');
+        hash_update($hash, $chunk);
+        hash_update($hash, $tail);
+        $expectedHash = hash_final($hash);
+        $metadata = implode(',', [
+            'bucketName '.base64_encode($bucket),
+            'objectName '.base64_encode($objectPath),
+            'contentType '.base64_encode('application/octet-stream'),
+            'cacheControl '.base64_encode('0'),
+        ]);
+
+        $cleaned = false;
+        try {
+            $sign = $this->request()->post(
+                $this->storageBaseUrl().'/object/upload/sign/'
+                    .rawurlencode($bucket).'/'.$this->encodePath($objectPath),
+                (object) [],
+            );
+            $this->assertRemoteSuccess($sign, 'Signed TUS authorization failed.');
+
+            // Storage SDKs return both token and a path with ?token=...;
+            // neither value is ever emitted into application logs.
+            $signature = $sign->json('token');
+            if (! is_string($signature) || $signature === '') {
+                $signedUrl = $sign->json('url');
+                if (! is_string($signedUrl)) {
+                    throw new RuntimeException('Signed TUS authorization returned no token.');
+                }
+                parse_str((string) parse_url($signedUrl, PHP_URL_QUERY), $parameters);
+                $signature = $parameters['token'] ?? null;
+            }
+            if (! is_string($signature) || $signature === '') {
+                throw new RuntimeException('Signed TUS authorization returned no token.');
+            }
+
+            $createHeaders = [
+                'Tus-Resumable' => '1.0.0',
+                'Upload-Length' => (string) $total,
+                'Upload-Metadata' => $metadata,
+            ];
+            $connect = fn (array $headers) => Http::withHeaders($headers)
+                ->connectTimeout(15)->timeout(90)
+                ->withOptions(['allow_redirects' => false]);
+
+            // A forged signature MUST be denied, even on the private bucket.
+            $denied = $connect($createHeaders + ['x-signature' => 'invalid-uat-canary'])
+                ->withBody('', 'application/offset+octet-stream')->post($endpoint);
+            if ($denied->status() < 400 || $denied->status() >= 500) {
+                throw new RuntimeException('Signed TUS rejected-token security probe failed.');
+            }
+
+            $created = $connect($createHeaders + ['x-signature' => $signature])
+                ->withBody('', 'application/offset+octet-stream')->post($endpoint);
+            if ($created->status() !== 201) {
+                throw new RuntimeException('Signed TUS creation did not return HTTP 201.');
+            }
+            $location = $created->header('Location');
+            if (! is_string($location) || $location === '') {
+                throw new RuntimeException('Signed TUS creation supplied no session location.');
+            }
+
+            if (str_starts_with($location, '/storage/v1/upload/resumable/')) {
+                $sessionUrl = $origin.$location;
+            } else {
+                $sessionUrl = $location;
+            }
+            if (! str_starts_with($sessionUrl, $origin.'/storage/v1/upload/resumable/')
+                || parse_url($sessionUrl, PHP_URL_QUERY) !== null
+                || parse_url($sessionUrl, PHP_URL_FRAGMENT) !== null) {
+                throw new RuntimeException('Signed TUS session changed origin or path.');
+            }
+
+            $tusHeaders = ['Tus-Resumable' => '1.0.0', 'x-signature' => $signature];
+            $first = $connect($tusHeaders + ['Upload-Offset' => '0'])
+                ->withBody($chunk, 'application/offset+octet-stream')->patch($sessionUrl);
+            if ($first->status() !== 204 || $first->header('Upload-Offset') !== (string) strlen($chunk)) {
+                throw new RuntimeException('Signed TUS initial chunk was not acknowledged.');
+            }
+            // Model interruption between chunks: the second request must use
+            // the server's HEAD result, not the client's remembered count.
+            $head = $connect($tusHeaders)->head($sessionUrl);
+            if (! $head->successful() || $head->header('Upload-Offset') !== (string) strlen($chunk)) {
+                throw new RuntimeException('Signed TUS HEAD did not preserve offset.');
+            }
+            $last = $connect($tusHeaders + ['Upload-Offset' => $head->header('Upload-Offset')])
+                ->withBody($tail, 'application/offset+octet-stream')->patch($sessionUrl);
+            if ($last->status() !== 204 || $last->header('Upload-Offset') !== (string) $total) {
+                throw new RuntimeException('Signed TUS resumed chunk was not acknowledged.');
+            }
+
+            $download = $this->request()->get($this->privateAuthenticatedGetUrl($logicalPath));
+            $this->assertRemoteSuccess($download, 'Signed TUS private verification failed.');
+            $result = $download->body();
+            if (strlen($result) !== $total || hash('sha256', $result) !== $expectedHash) {
+                throw new RuntimeException('Signed TUS private bytes mismatch.');
+            }
+        } finally {
+            // A failed PATCH can still commit server-side. Delete even when
+            // we did not receive a completion acknowledgement.
+            try {
+                $this->deletePrivate($logicalPath);
+                $cleaned = true;
+            } catch (\Throwable) {
+                throw new RuntimeException('Signed TUS canary cleanup failed.');
+            }
+        }
+
+        if (! $cleaned) throw new RuntimeException('Signed TUS canary did not clean up.');
+    }
+
     public function readBytes(string $path, bool $private): string
     {
         if (! $this->cloudEnabled()) {
