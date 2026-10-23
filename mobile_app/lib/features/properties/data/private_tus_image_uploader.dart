@@ -33,6 +33,7 @@ class PrivateTusImageUploader {
     }
     final resolved = endpoint.resolve(location);
     if (resolved.scheme != 'https' || resolved.origin != endpoint.origin ||
+        resolved.userInfo.isNotEmpty || resolved.hasQuery || resolved.hasFragment ||
         !resolved.path.startsWith('/storage/v1/upload/resumable/')) {
       throw StateError('Storage upload location changed origin or route');
     }
@@ -122,6 +123,13 @@ class PrivateTusImageUploader {
         progress?.call(offset,length);
       }
     } finally { await handle.close(); }
-    if (await sessionFile.exists()) await sessionFile.delete();
+    // Retain even a complete session until Laravel confirms finalization.
+    // A lost finalize response must not force a conflicting second POST.
+  }
+
+  Future<void> forget(String scope) async {
+    final file = await _session(scope);
+    if (await file.exists()) await file.delete();
   }
 }
+

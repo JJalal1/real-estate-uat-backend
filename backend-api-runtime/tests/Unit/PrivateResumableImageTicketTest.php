@@ -48,4 +48,20 @@ class PrivateResumableImageTicketTest extends TestCase
         $this->expectException(RuntimeException::class);
         app(CloudAssetStorageService::class)->createPrivateResumableTicket('../public/users/7/secrets.jpg');
     }
+
+    public function test_server_role_jwt_cannot_be_returned_as_a_public_key(): void
+    {
+        $claims = rtrim(strtr(base64_encode('{"role":"service_role"}'), '+/', '-_'), '=');
+        config(['services.supabase_storage.enabled'=>true,
+            'services.supabase_storage.url'=>'https://exampleproj.supabase.co',
+            'services.supabase_storage.server_key'=>'server-only',
+            'services.supabase_storage.publishable_key'=>'eyJhbGciOiJIUzI1NiJ9.'.$claims.'.signature']);
+        Http::fake(['*'=>Http::response(['url'=>'/upload?token=scoped'],200)]);
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('separate publishable key');
+        app(CloudAssetStorageService::class)->createPrivateResumableTicket(
+            'editor-drafts/2/11111111-1111-4111-8111-111111111111/'
+            .'22222222-2222-4222-8222-222222222222-'.str_repeat('a',64).'.jpg');
+    }
 }
+

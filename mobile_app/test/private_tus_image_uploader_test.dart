@@ -48,6 +48,13 @@ void main() {
     expect(creations,1);
     expect(patchOffsets,[0,PrivateTusImageUploader.chunkSize,PrivateTusImageUploader.chunkSize]);
     expect(remoteOffset,PrivateTusImageUploader.chunkSize+3);
+    // Simulate a lost Laravel finalize reply: completed HEAD reuses the
+    // session and sends zero additional bytes before finalization is retried.
+    await perform();
+    expect(creations,1);
+    expect(patchOffsets.length,3);
+    await uploader.forget('account-A/draft/image');
+    expect(Directory('${folder.path}/aqer_tus').listSync(),isEmpty);
   });
 
   test('rejects cross-origin upload location', () async {
@@ -64,3 +71,4 @@ void main() {
       objectName:'photo',signature:'token',publishableKey:'sb_publishable_demo',mime:'image/png',cancelToken:CancelToken()),throwsStateError);
   });
 }
+

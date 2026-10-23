@@ -74,13 +74,19 @@ class ListingAccountDraftRepository {
     final signature=data['signature'] as String;
     final auth=(options.headers?['Authorization']??options.headers?['authorization']??'').toString();
     final scope=sha256.convert(utf8.encode('$auth|$key|$imageKey|$hash')).toString();
-    await PrivateTusImageUploader(Dio()).upload(source:path,scope:scope,
+    final transport = Dio(BaseOptions(connectTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 90), receiveTimeout: const Duration(seconds: 90)));
+    final uploader = PrivateTusImageUploader(transport);
+    try {
+    await uploader.upload(source:path,scope:scope,
       endpoint:data['endpoint'] as String,bucket:data['bucket'] as String,
       objectName:data['object_name'] as String,signature:signature,publishableKey:data['publishable_key'] as String,mime:mime,
       cancelToken:token,progress:onSendProgress);
     final finished=await _dio.post<dynamic>('$_base/$key/images/$imageKey/resumable-finalize',
       data:{'expected_revision':revision},options:options,cancelToken:token);
+    await uploader.forget(scope);
     return _draft(finished);
+    } finally { transport.close(force: true); }
   }
 
   Future<ListingAccountDraft> removeImage(String key, String imageKey, int revision) async =>
@@ -98,3 +104,4 @@ class ListingAccountDraftRepository {
     return Uint8List.fromList(r.data ?? const []);
   }
 }
+

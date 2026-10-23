@@ -164,3 +164,19 @@ Artisan::command('listing-media:purge-expired-upload-intents', function (\App\Se
     return $result['failed'] === 0 ? 0 : 1;
 })->purpose('Delete expired, uncommitted image uploads.');
 Schedule::command('listing-media:purge-expired-upload-intents')->hourly()->withoutOverlapping();
+Artisan::command('uat:signed-tus-storage-probe', function (CloudAssetStorageService $storage): int {
+    if (! app()->environment('staging') || ! $storage->cloudEnabled()) {
+        $this->error('This test requires private UAT storage.');
+        return 1;
+    }
+    try {
+        $storage->probePrivateSignedTusStorage();
+        $this->info('Private UAT signed TUS canary passed: rejected forged token, resumed verified bytes and cleanup.');
+        return 0;
+    } catch (\Throwable $error) {
+        report($error);
+        $this->error('Private UAT signed TUS canary did not pass; inspect protected application logs.');
+        return 1;
+    }
+})->purpose('Opt-in signed TUS test; synthetic private bytes only.');
+

@@ -278,6 +278,37 @@ class UserWorkMediaTest extends TestCase
         $this->assertDatabaseMissing('listing_image_upload_intents',['id'=>$intent->id]);
     }
 
+    public function test_expired_signature_can_be_renewed_and_quarantine_tracks_the_last_issuance(): void
+    {
+        config(['listing_media.resumable_uploads_enabled'=>true]);
+        [$actor, $owner] = $this->actor('tus-renewal');
+        $key = (string) Str::uuid(); $imageKey = (string) Str::uuid();
+        $this->withHeaders($owner)->putJson('/api/listing-editor-drafts/'.$key, [
+            'payload'=>['media_version'=>1,'image_order'=>[$imageKey],'fields'=>[]],
+            'expected_revision'=>0,
+        ])->assertOk();
+        $draft = ListingEditorDraft::where('client_key',$key)->firstOrFail();
+        $sha = str_repeat('a',64);
+        $intent = \App\Models\ListingImageUploadIntent::create([
+            'user_id'=>$actor->id,'listing_editor_draft_id'=>$draft->id,'image_key'=>$imageKey,
+            'path'=>'editor-drafts/'.$actor->id.'/'.$key.'/'.$imageKey.'-'.$sha.'.png',
+            'sha256'=>$sha,'byte_length'=>300,'mime'=>'image/png','status'=>'pending',
+            'signed_until'=>now()->subMinute(),'purge_after'=>now()->addHours(23),
+        ]);
+        $this->mock(\App\Services\CloudAssetStorageService::class, function ($mock) use ($intent): void {
+            $mock->shouldReceive('createPrivateResumableTicket')->once()->with($intent->path)
+                ->andReturn(['signature'=>'synthetic-scoped-token']);
+        });
+        $service = app(\App\Services\ListingImageUploadIntentService::class);
+        $service->issue($actor,$key,$imageKey,$sha,300,'image/png',1);
+        $this->assertDatabaseCount('listing_image_upload_intents',1);
+        $this->assertTrue($intent->fresh()->signed_until->greaterThan(now()->addMinutes(109)));
+        $this->assertTrue($intent->fresh()->purge_after->greaterThan(now()->addHours(25)));
+        $intent->status = 'canceled'; $intent->save();
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $service->issue($actor,$key,$imageKey,$sha,300,'image/png',1);
+    }
+
     private function jpegWithExif(int $orientation): string
     {
         $image=imagecreatetruecolor(800,400);
@@ -311,3 +342,4 @@ class UserWorkMediaTest extends TestCase
             'address'=>'صنعاء حدة','latitude'=>13.96,'longitude'=>44.18,'status'=>'draft','review_status'=>'draft']);
     }
 }
+

@@ -35,8 +35,13 @@ class ListingImageUploadIntentService
                 ->where('image_key', $imageKey)->lockForUpdate()->first();
             if ($existing) {
                 abort_unless($existing->sha256 === $sha && $existing->byte_length === $bytes
-                    && $existing->mime === $mime && $existing->status === 'pending'
-                    && $existing->signed_until->isFuture(), 409);
+                    && $existing->mime === $mime && $existing->status === 'pending', 409);
+                // Each provider signature can authorize a new 24-hour TUS
+                // session. Extend quarantine from the LAST issuance, not the
+                // first; otherwise a late retry can recreate a purged orphan.
+                $existing->signed_until = now()->addMinutes(110);
+                $existing->purge_after = now()->addHours(26);
+                $existing->save();
                 return $existing;
             }
             $extension = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'][$mime];
@@ -153,3 +158,4 @@ class ListingImageUploadIntentService
         return $this->drafts->present($result);
     }
 }
+
