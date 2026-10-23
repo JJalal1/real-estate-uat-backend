@@ -158,4 +158,3 @@ class ListingImageUploadIntentService
         return $this->drafts->present($result);
     }
 }
-

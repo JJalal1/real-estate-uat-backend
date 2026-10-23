@@ -104,4 +104,3 @@ class ListingAccountDraftRepository {
     return Uint8List.fromList(r.data ?? const []);
   }
 }
-

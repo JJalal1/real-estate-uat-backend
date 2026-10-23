@@ -342,4 +342,3 @@ class UserWorkMediaTest extends TestCase
             'address'=>'صنعاء حدة','latitude'=>13.96,'longitude'=>44.18,'status'=>'draft','review_status'=>'draft']);
     }
 }
-

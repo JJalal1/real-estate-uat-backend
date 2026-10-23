@@ -71,4 +71,3 @@ void main() {
       objectName:'photo',signature:'token',publishableKey:'sb_publishable_demo',mime:'image/png',cancelToken:CancelToken()),throwsStateError);
   });
 }
-
