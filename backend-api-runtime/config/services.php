@@ -41,6 +41,7 @@ return [
         'enabled' => filter_var(env('UAT_CLOUD_STORAGE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'url' => env('SUPABASE_URL'),
         'server_key' => env('SUPABASE_STORAGE_SERVER_KEY'),
+        'publishable_key' => env('SUPABASE_STORAGE_PUBLISHABLE_KEY'),
         'bucket' => env('SUPABASE_STORAGE_BUCKET', 'real-estate-uat'),
         'public_prefix' => env('UAT_PUBLIC_STORAGE_PREFIX', 'public'),
         'private_prefix' => env('UAT_PRIVATE_STORAGE_PREFIX', 'private'),
