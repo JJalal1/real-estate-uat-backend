@@ -11,6 +11,9 @@ use App\Services\CompletePropertyFinancialService;
 use App\Services\FinancialAwareSupportTaskService;
 use App\Services\PropertyFinancialService;
 use App\Services\SupportTaskService;
+use App\Services\ListingVideoWorkerHealth;
+use Illuminate\Queue\Events\Looping;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +31,22 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // The isolated video queue:work process marks itself alive. The web
+        // service never writes this signal and cannot pretend the worker exists.
+        if ($this->app->runningInConsole()
+            && config('listing_video.processing_enabled', false)
+            && config('listing_video.worker_heartbeat_enabled', false)) {
+            Queue::looping(static function (Looping $event): void {
+                if ($event->connectionName !== 'database_video'
+                    || ! in_array('video', explode(',', (string) $event->queue), true)) {
+                    return;
+                }
+                static $lastBeat = 0;
+                if (time() - $lastBeat < 45) return;
+                app(ListingVideoWorkerHealth::class)->beat();
+                $lastBeat = time();
+            });
+        }
         if (! $this->app->routesAreCached()) {
             Route::middleware(['api', 'auth.api', 'account.active'])
                 ->prefix('api/admin/workspace')

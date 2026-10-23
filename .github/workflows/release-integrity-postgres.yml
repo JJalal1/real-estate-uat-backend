@@ -63,4 +63,4 @@ jobs:
       - name: Run full migration chain against PostgreSQL 17 / PostGIS
         run: php artisan migrate --force
       - name: Verify area band regressions in real PostgreSQL
-        run: php artisan test tests/Postgres/PropertyMarketContextPostgresTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+        run: php artisan test tests/Postgres/PropertyMarketContextPostgresTest.php tests/Postgres/ListingVideoPostgresTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped

@@ -394,8 +394,17 @@ class PropertyController extends Controller
         /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);
         if(in_array($property->review_status,['submitted','under_review','rejected_blocked'],true)) abort(409,'This listing cannot be deleted in its current review state.');
         $images=$property->images()->get();$docs=$property->documents()->get();
+        $videos = \Illuminate\Support\Facades\Schema::hasTable('listing_videos') ? $property->videos()->get() : collect();
         DB::transaction(function()use($property,$user,$request):void{$this->identity->releaseRepresentationForListing($property);$property->delete();$this->audit->record($user,'listing.deleted',$property,['property_asset_id'=>$property->property_asset_id],$request,$user->id);});
-        $this->deleteImageFiles($images);$this->deleteProofFiles($docs);return response()->json(['message'=>'Listing deleted.']);
+        $this->deleteImageFiles($images);$this->deleteProofFiles($docs);
+        foreach ($videos as $video) {
+            foreach ([$video->original_path, $video->playback_path, $video->poster_path] as $path) {
+                if (is_string($path) && $path !== '') {
+                    try { $this->storage->deletePrivate($path); } catch (\Throwable) {}
+                }
+            }
+        }
+        return response()->json(['message'=>'Listing deleted.']);
     }
 
     public function submit(Request $request, Property $property): JsonResponse
@@ -1060,7 +1069,24 @@ class PropertyController extends Controller
             $data['duplicate_check_metadata'] = $property->duplicate_check_metadata;
             $data['ownership_proof_present'] = $property->documents()->where('kind', 'ownership_proof')->exists();
         }
-        return array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true),$data);
+        $details = array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true), $data);
+        if (config('listing_video.uploads_enabled', false)) {
+            $video = \App\Models\ListingVideo::query()
+                ->where('property_id', $property->id)
+                ->where('status', 'ready')
+                ->first();
+            if ($video !== null && (($property->isPubliclyAvailable() && $video->moderation_status === 'approved')
+                || ($viewer !== null && ((int) $viewer->id === (int) $property->user_id
+                    || $viewer->hasPermission('listings.moderate'))))) {
+                $details['video'] = [
+                    'id' => (int) $video->id,
+                    'duration_ms' => $video->duration_ms,
+                    'poster_url' => url('/api/property-videos/'.$video->id.'/poster'),
+                    'stream_url' => url('/api/property-videos/'.$video->id.'/stream'),
+                ];
+            }
+        }
+        return $details;
     }
 
     private function advertiserDisplayName(?User $user): string

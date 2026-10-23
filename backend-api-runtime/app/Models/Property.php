@@ -100,5 +100,6 @@ class Property extends Model
     public function comments(): HasMany { return $this->hasMany(ListingComment::class)->orderBy('id'); }
     public function brokerVerifications(): HasMany { return $this->hasMany(ListingBrokerVerification::class, 'listing_id')->orderBy('id'); }
     public function images(): HasMany { return $this->hasMany(PropertyImage::class)->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'); }
+    public function videos(): HasMany { return $this->hasMany(ListingVideo::class)->orderBy('id'); }
     public function primaryImage(): HasOne { return $this->hasOne(PropertyImage::class)->where('is_primary', true)->orderBy('sort_order')->orderBy('id'); }
 }
