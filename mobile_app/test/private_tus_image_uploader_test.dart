@@ -39,8 +39,8 @@ void main() {
     }));
     final uploader=PrivateTusImageUploader(dio,directory:()async=>folder);
     Future<void> perform()=>uploader.upload(source:source.path,scope:'account-A/draft/image',
-      endpoint:'https://store.example/storage/v1/upload/resumable',bucket:'private',
-      objectName:'private/editor-drafts/test.png',signature:'signed-only',mime:'image/png',
+      endpoint:'https://store.example/storage/v1/upload/resumable/sign',bucket:'private',
+      objectName:'private/editor-drafts/test.png',signature:'signed-only',publishableKey:'sb_publishable_demo',mime:'image/png',
       cancelToken:CancelToken());
     await expectLater(perform(),throwsA(isA<DioException>()));
     expect(remoteOffset,PrivateTusImageUploader.chunkSize);
@@ -60,7 +60,7 @@ void main() {
         headers:Headers.fromMap({'location':['https://attacker.example/upload']})))));
     final uploader=PrivateTusImageUploader(dio,directory:()async=>folder);
     await expectLater(uploader.upload(source:source.path,scope:'account-A',
-      endpoint:'https://store.example/storage/v1/upload/resumable',bucket:'private',
-      objectName:'photo',signature:'token',mime:'image/png',cancelToken:CancelToken()),throwsStateError);
+      endpoint:'https://store.example/storage/v1/upload/resumable/sign',bucket:'private',
+      objectName:'photo',signature:'token',publishableKey:'sb_publishable_demo',mime:'image/png',cancelToken:CancelToken()),throwsStateError);
   });
 }
