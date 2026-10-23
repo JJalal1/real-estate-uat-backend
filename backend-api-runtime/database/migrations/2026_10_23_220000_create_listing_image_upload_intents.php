@@ -10,8 +10,10 @@ return new class extends Migration {
     {
         Schema::create('listing_image_upload_intents', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('listing_editor_draft_id')->constrained('listing_editor_drafts')->cascadeOnDelete();
+            // Preserve a cleanup tombstone if a user/draft is erased. A
+            // cascading delete here would leak a TUS original in Storage.
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('listing_editor_draft_id')->nullable()->constrained('listing_editor_drafts')->nullOnDelete();
             $table->uuid('image_key');
             $table->string('path', 255)->unique();
             $table->char('sha256', 64);
