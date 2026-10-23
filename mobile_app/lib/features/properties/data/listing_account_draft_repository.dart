@@ -76,7 +76,7 @@ class ListingAccountDraftRepository {
     final scope=sha256.convert(utf8.encode('$auth|$key|$imageKey|$hash')).toString();
     await PrivateTusImageUploader(Dio()).upload(source:path,scope:scope,
       endpoint:data['endpoint'] as String,bucket:data['bucket'] as String,
-      objectName:data['object_name'] as String,signature:signature,mime:mime,
+      objectName:data['object_name'] as String,signature:signature,publishableKey:data['publishable_key'] as String,mime:mime,
       cancelToken:token,progress:onSendProgress);
     final finished=await _dio.post<dynamic>('$_base/$key/images/$imageKey/resumable-finalize',
       data:{'expected_revision':revision},options:options,cancelToken:token);
