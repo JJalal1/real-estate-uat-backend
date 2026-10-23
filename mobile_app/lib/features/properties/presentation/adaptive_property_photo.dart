@@ -17,6 +17,7 @@ class AdaptivePropertyPhoto extends ConsumerStatefulWidget {
 
 class _AdaptivePropertyPhotoState extends ConsumerState<AdaptivePropertyPhoto> with WidgetsBindingObserver {
   late Future<ImageNetworkConditions> _network;
+  int _retryGeneration = 0;
   @override
   void initState() {
     super.initState(); WidgetsBinding.instance.addObserver(this);
@@ -25,7 +26,14 @@ class _AdaptivePropertyPhotoState extends ConsumerState<AdaptivePropertyPhoto> w
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && mounted) {
-      setState(() { _network = ref.read(mediaNetworkMonitorProvider).snapshot(); });
+      setState(() { _network = ref.read(mediaNetworkMonitorProvider).snapshot(refresh: true); });
+    }
+  }
+  @override
+  void didUpdateWidget(AdaptivePropertyPhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url || oldWidget.use != widget.use) {
+      _network = ref.read(mediaNetworkMonitorProvider).snapshot();
     }
   }
   @override
@@ -42,10 +50,13 @@ class _AdaptivePropertyPhotoState extends ConsumerState<AdaptivePropertyPhoto> w
       final monitor = ref.read(mediaNetworkMonitorProvider);
       final variant = monitor.policy.choose(use: widget.use, logicalEdge: edge,
         pixelRatio: dpr, network: snapshot.data!);
-      return ListingDraftPhoto(url: AdaptiveImagePolicy.variantUrl(widget.url, variant),
+      return ListingDraftPhoto(key:ValueKey(_retryGeneration),url: AdaptiveImagePolicy.variantUrl(widget.url, variant),
         authenticated: widget.authenticated, fit: widget.fit,
         cacheWidth: variant == 'zoom' ? 3072 : (edge * dpr).round().clamp(128, 1920).toInt(),
-        network: snapshot.data);
+        network: snapshot.data, onRetry:() => setState(() {
+          _retryGeneration++;
+          _network = ref.read(mediaNetworkMonitorProvider).snapshot(refresh: true);
+        }));
     });
   });
 }

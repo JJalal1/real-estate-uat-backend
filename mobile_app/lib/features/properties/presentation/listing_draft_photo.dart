@@ -47,7 +47,11 @@ class ListingPhotoCache {
     });
   }
   Future<Uint8List> load(String key, Future<Uint8List> Function() loader, {CancelToken? cancellation, bool retain = false}) {
-    _entries.removeWhere((_, e) => e.references == 0 && e.completedAt != null && _clock().difference(e.completedAt!) > ttl);
+    _entries.removeWhere((_, e) {
+      final expired = e.references == 0 && e.completedAt != null && _clock().difference(e.completedAt!) > ttl;
+      if (expired && e.data != null) MemoryImage(e.data!).evict();
+      return expired;
+    });
     final previous = _entries.remove(key);
     if (previous != null) { if (retain) previous.references++; _entries[key] = previous; return previous.future; }
     final epoch = _epoch, entry = _PhotoEntry()..cancellation = cancellation..references = retain ? 1 : 0;
@@ -65,7 +69,11 @@ class ListingPhotoCache {
     entry.future.ignore();
     _entries[key] = entry; _trim(); return entry.future;
   }
-  void forget(String key) { _entries.remove(key); }
+  void forget(String key) {
+    final entry = _entries.remove(key);
+    entry?.cancellation?.cancel('Image retry');
+    if (entry?.data != null) MemoryImage(entry!.data!).evict();
+  }
   void _trim() {
     while (_entries.length > maxEntries || _entries.values.fold<int>(0, (sum, e) => sum + e.bytes) > maxBytes) {
       final idle = _entries.entries.where((e) => e.value.references == 0);
@@ -94,12 +102,13 @@ class _PhotoEntry {
 }
 
 class ListingDraftPhoto extends ConsumerStatefulWidget {
-  const ListingDraftPhoto({required this.url, this.authenticated = true, this.fit = BoxFit.cover, this.cacheWidth = 500, this.network, super.key});
+  const ListingDraftPhoto({required this.url, this.authenticated = true, this.fit = BoxFit.cover, this.cacheWidth = 500, this.network, this.onRetry, super.key});
   final String url;
   final bool authenticated;
   final BoxFit fit;
   final int? cacheWidth;
   final ImageNetworkConditions? network;
+  final VoidCallback? onRetry;
   @override
   ConsumerState<ListingDraftPhoto> createState() => _ListingDraftPhotoState();
 }
@@ -153,18 +162,21 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
   }
   @override
   void dispose() { _lease?.close(); super.dispose(); }
-  Widget _retry() => Center(child: TextButton(onPressed: () => setState(() {
+  Widget _retry() => Center(child: TextButton(onPressed: () {
+    if (widget.onRetry != null) { widget.onRetry!(); return; }
+    setState(() {
     ref.read(listingPhotoCacheProvider).forget(_cacheKey);
     _bytes=_beginLoad();
-  }), child: const Text('إعادة تحميل الصورة',textAlign:TextAlign.center)));
+    });
+  }, child: const Text('إعادة تحميل الصورة',textAlign:TextAlign.center)));
   @override
   Widget build(BuildContext context) => FutureBuilder<Uint8List>(future: _bytes, builder: (_, snapshot) {
     if (snapshot.connectionState==ConnectionState.done && snapshot.hasData) { _displayBytes = snapshot.data; }
-    if (_displayBytes != null) return Stack(fit: StackFit.expand, children: [
+    if (_displayBytes != null) { return Stack(fit: StackFit.expand, children: [
       Image.memory(_displayBytes!, fit: widget.fit, cacheWidth:widget.cacheWidth, gaplessPlayback:true,
         errorBuilder: (_, __, ___) => _retry()),
       if (snapshot.hasError) Align(alignment:Alignment.bottomCenter, child: _retry()),
-    ]);
+    ]); }
     if (snapshot.hasError) return _retry();
     return Center(child: Semantics(label:'جارٍ تحميل الصورة',child:const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2))));
   });

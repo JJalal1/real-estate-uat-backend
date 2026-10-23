@@ -9,8 +9,8 @@ class MediaNetworkMonitor {
   final policy = AdaptiveImagePolicy();
   Future<ImageNetworkConditions>? _pending;
   DateTime? _checked;
-  Future<ImageNetworkConditions> snapshot() {
-    if (_pending != null && _checked != null &&
+  Future<ImageNetworkConditions> snapshot({bool refresh = false}) {
+    if (!refresh && _pending != null && _checked != null &&
         DateTime.now().difference(_checked!) < const Duration(seconds: 2)) { return _pending!; }
     _checked = DateTime.now();
     return _pending = _read();
