@@ -9,6 +9,12 @@ on:
       - 'backend-api-runtime/config/listing_media.php'
       - 'backend-api-runtime/tests/Unit/PrivateResumableImageTicketTest.php'
       - 'backend-api-runtime/tests/Unit/ResumableImageFinalizationTest.php'
+      - 'backend-api-runtime/app/Services/ListingImageUploadIntentService.php'
+      - 'backend-api-runtime/app/Http/Controllers/Api/ListingEditorDraftController.php'
+      - 'backend-api-runtime/routes/api.php'
+      - 'backend-api-runtime/app/Models/ListingImageUploadIntent.php'
+      - 'backend-api-runtime/database/migrations/2026_10_23_220000_create_listing_image_upload_intents.php'
+      - 'backend-api-runtime/tests/Feature/UserWorkMediaTest.php'
       - '.github/workflows/listing-media-resume-stage1.yml'
 
 permissions:
@@ -40,7 +46,10 @@ jobs:
         run: |
           php -l app/Services/CloudAssetStorageService.php
           php -l app/Services/ListingImageService.php
+          php -l app/Services/ListingImageUploadIntentService.php
+          php -l app/Http/Controllers/Api/ListingEditorDraftController.php
+          php -l database/migrations/2026_10_23_220000_create_listing_image_upload_intents.php
           php -l config/listing_media.php
           php -l tests/Unit/PrivateResumableImageTicketTest.php
           php -l tests/Unit/ResumableImageFinalizationTest.php
-          php artisan test tests/Unit/PrivateResumableImageTicketTest.php tests/Unit/ResumableImageFinalizationTest.php --fail-on-warning --fail-on-risky
+          php artisan test tests/Unit/PrivateResumableImageTicketTest.php tests/Unit/ResumableImageFinalizationTest.php tests/Feature/UserWorkMediaTest.php --fail-on-warning --fail-on-risky
