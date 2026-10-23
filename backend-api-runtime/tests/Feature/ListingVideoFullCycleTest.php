@@ -89,7 +89,7 @@ class ListingVideoFullCycleTest extends TestCase
             $interrupted = new class extends CloudAssetStorageService {
                 public function downloadPrivateToPath(string $path, string $target): void
                 {
-                    throw new \\RuntimeException('synthetic_worker_interruption');
+                    throw new \RuntimeException('synthetic_worker_interruption');
                 }
             };
             try {
@@ -98,7 +98,7 @@ class ListingVideoFullCycleTest extends TestCase
                     app(ListingVideoTranscoder::class),
                 );
                 $this->fail('Expected simulated worker interruption.');
-            } catch (\\RuntimeException $error) {
+            } catch (\RuntimeException $error) {
                 $this->assertSame('synthetic_worker_interruption', $error->getMessage());
             }
             $afterInterruption = $record->fresh();
