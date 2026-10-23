@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../broker/presentation/broker_activity.dart';
 import '../data/message_repository.dart';
 import '../../account/data/account_safety_repository.dart';
@@ -65,7 +66,9 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     final generation = ++_loadGeneration;
+    setState(() { _loading = true; _error = null; });
     try {
       final details =
           await ref.read(messageRepositoryProvider).details(widget.threadId);
@@ -78,6 +81,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     } catch (error) {
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
+        if (!isTransientApiFailure(error)) _details = null;
         _loading = false;
         _error = friendlyApiError(error);
       });
@@ -123,7 +127,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending || _details?.thread.canSend != true) return;
+    if (text.isEmpty || _sending || _loading || _blocking || _error != null || _details?.thread.canSend != true) return;
     if (_pendingMessageText != null && _pendingMessageText != text) {
       _pendingMessageKey = null;
     }
@@ -328,6 +332,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
                 onSelected: (_) => _changeBlock(), itemBuilder: (_) => [PopupMenuItem(value: 'block', child: Text(thread.blockedByMe ? 'إلغاء الحظر' : 'حظر الحساب'))]),
             ]),
         body: Column(children: [
+          if (_details != null && (_loading || _error != null)) AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
           if (!_loading && thread?.canSend == false) Padding(padding: const EdgeInsets.all(12), child: Text(thread!.blockedByMe
             ? 'هذا الحساب محظور لديك. تبقى المحادثة السابقة محفوظة.' : 'الرسائل الجديدة غير متاحة حاليًا. يبقى تاريخ المحادثة والبلاغ متاحين.')),
           if (_blocking) const LinearProgressIndicator(),
@@ -338,10 +343,10 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
                 decoration: const BoxDecoration(image: DecorationImage(
                   image: AssetImage('assets/ebroker/chat_background/doodle.png'),
                   repeat: ImageRepeat.repeat, opacity: 0.08)),
-                child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(child: Text(_error!))
+                child: _loading && _details == null
+                  ? const AppLoadingState(label: 'جارٍ تحميل المحادثة…')
+                  : _error != null && _details == null
+                      ? AppErrorState(message: _error!, onRetry: _load)
                       : _messageList())),
           SafeArea(
               top: false,

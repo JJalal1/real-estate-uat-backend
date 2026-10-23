@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../properties/presentation/property_location_picker_screen.dart';
 import '../data/account_verification_repository.dart';
@@ -12,17 +13,26 @@ import '../data/auth_controller.dart';
 import '../domain/account_verification.dart';
 import '../domain/yemen_admin_divisions.dart';
 
-class AccountVerificationScreen extends ConsumerStatefulWidget {
+class AccountVerificationScreen extends ConsumerWidget {
   const AccountVerificationScreen({this.initialType, super.key});
   final String? initialType;
 
   @override
-  ConsumerState<AccountVerificationScreen> createState() =>
-      _AccountVerificationScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول أولاً.')))
+      : _AccountVerificationBody(key: ValueKey(actor), initialType: initialType);
+  }
+}
+class _AccountVerificationBody extends ConsumerStatefulWidget {
+  const _AccountVerificationBody({this.initialType, super.key});
+  final String? initialType;
+  @override
+  ConsumerState<_AccountVerificationBody> createState() => _AccountVerificationScreenState();
 }
 
 class _AccountVerificationScreenState
-    extends ConsumerState<AccountVerificationScreen> {
+    extends ConsumerState<_AccountVerificationBody> {
   final _picker = const Stage5MediaPicker();
   final _governorate = TextEditingController();
   final _district = TextEditingController();
@@ -43,6 +53,7 @@ class _AccountVerificationScreenState
   double? _longitude;
   bool _initialized = false;
   bool _busy = false;
+  int _loadVersion = 0;
 
   @override
   void initState() {
@@ -71,8 +82,10 @@ class _AccountVerificationScreenState
   }
 
   Future<AccountVerificationApplication> _load() async {
+    final version = ++_loadVersion;
     final application =
         await ref.read(accountVerificationRepositoryProvider).status();
+    if (!mounted || version != _loadVersion) return application;
     if (!_initialized) {
       _applyApplication(application);
       _initialized = true;
@@ -136,19 +149,16 @@ class _AccountVerificationScreenState
                       _application == null) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  if (snapshot.hasError && _application == null) {
-                    return Center(
-                      child: EbrokerFilledButton.icon(
-                        onPressed: _reload,
-                        icon: const EbrokerIcon(Icons.refresh),
-                        label: const Text('إعادة المحاولة'),
-                      ),
-                    );
+                  if (snapshot.hasError && (_application == null || !isTransientApiFailure(snapshot.error!))) {
+                    return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _reload);
                   }
                   final application = snapshot.data ?? _application!;
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                     children: [
+                      if (snapshot.connectionState == ConnectionState.waiting || snapshot.hasError)
+                        AppRefreshStatus(loading: snapshot.connectionState == ConnectionState.waiting,
+                          error: snapshot.hasError ? friendlyApiError(snapshot.error!) : null, onRetry: _reload),
                       _StatusCard(application: application),
                       const SizedBox(height: 16),
                       Text(
@@ -701,7 +711,6 @@ class _AccountVerificationScreenState
       .toList(growable: false);
 
   void _reload() {
-    _initialized = false;
     setState(() => _future = _load());
   }
 

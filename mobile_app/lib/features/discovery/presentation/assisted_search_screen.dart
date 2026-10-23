@@ -214,7 +214,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           if (state.loading && state.rows.isEmpty) ...[
             const AppSkeleton(height: 170, radius: 12), const SizedBox(height: 12), const AppSkeleton(height: 170, radius: 12),
           ] else if (state.resultsError != null)
-            AppErrorState(message: state.resultsError!, onRetry: () => controller.search(more: state.rows.isNotEmpty))
+            AppErrorState(message: state.resultsError!, onRetry: controller.retryResults)
           else if (state.rows.isEmpty)
             _SmartSearchEmptyState(
               filters: state.filters,

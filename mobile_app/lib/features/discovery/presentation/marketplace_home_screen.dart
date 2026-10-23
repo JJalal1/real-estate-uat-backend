@@ -114,7 +114,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'), icon: const EbrokerImage('notification', size: 21)))]),
       body: SmartSearchAssistantLayer(onPressed: () {
         context.push('/smart-search');
-      }, child: RefreshIndicator(onRefresh: () async { try { ref.invalidate(marketplaceFeedProvider(_query)); await ref.read(marketplaceFeedProvider(_query).future); } catch (_) {} },
+      }, child: RefreshIndicator(onRefresh: () async { try { ref.read(marketplaceRepositoryProvider).invalidateFeed(_query); ref.invalidate(marketplaceFeedProvider(_query)); await ref.read(marketplaceFeedProvider(_query).future); } catch (_) {} },
         child: CustomScrollView(key: const PageStorageKey('marketplace-home'), cacheExtent: 0,
           physics: const AlwaysScrollableScrollPhysics(), slivers: [
           SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 0), child: Row(children: [
@@ -136,7 +136,11 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               Padding(padding: const EdgeInsetsDirectional.only(end: 6), child: EbrokerCategoryCard(label: category.$1, icon: ebrokerCategoryIcon(category.$2),
                 selected: _type == category.$2, onTap: () => setState(() => _type = category.$2))),
           ]))),
+          if (feed.hasValue && (feed.isRefreshing || (feed.hasError && isTransientApiFailure(feed.error!)))) SliverToBoxAdapter(
+            child: AppRefreshStatus(loading: feed.isLoading, error: feed.hasError ? friendlyApiError(feed.error!) : null,
+              onRetry: () => ref.invalidate(marketplaceFeedProvider(_query)))),
           feed.when(
+            skipLoadingOnReload: false, skipError: feed.hasValue && feed.hasError && isTransientApiFailure(feed.error!),
             loading: () => const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(18), child: AppSkeleton(key: ValueKey('home-feed-loading'), height: 270, radius: 12))),
             error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(marketplaceFeedProvider(_query)))),
             data: _feedSliver,

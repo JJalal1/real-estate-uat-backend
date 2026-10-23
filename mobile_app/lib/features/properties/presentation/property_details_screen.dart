@@ -41,6 +41,7 @@ import 'property_question_section.dart';
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
   ref.watch(propertyDataRevisionProvider);
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(propertyRepositoryProvider).details(propertyId);
 });
 
@@ -61,6 +62,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _viewRecorded = false;
   bool _recentRecorded = false;
   bool _calling = false, _reporting = false;
+  String? _loadedScope;
 
   @override
   void didUpdateWidget(covariant PropertyDetailsScreen old) {
@@ -84,6 +86,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   Widget build(BuildContext context) {
     final details = ref.watch(propertyDetailsProvider(widget.propertyId));
     final user = ref.watch(authControllerProvider).asData?.value;
+    final scope = '${user?.id}:${widget.propertyId}';
+    if (details.asData != null) _loadedScope = scope;
+    final retain = _loadedScope == scope && details.hasValue && details.hasError && isTransientApiFailure(details.error!);
     final pendingFavorite = ref.watch(pendingFavoriteAfterAuthProvider);
     final favoriteIds = user == null
         ? const <int>{}
@@ -152,12 +157,19 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           ],
         ),
         body: details.when(
+          skipLoadingOnReload: false,
+          skipError: retain,
           loading: () => const _PropertyDetailsSkeleton(),
           error: (error, _) => AppErrorState(
             message: friendlyApiError(error),
             onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId)),
           ),
-          data: (property) => _buildContent(property, favoriteIds),
+          data: (property) => Column(children: [
+            if (details.isLoading || retain) AppRefreshStatus(loading: details.isLoading,
+              error: retain ? friendlyApiError(details.error!) : null,
+              onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId))),
+            Expanded(child: _buildContent(property, favoriteIds)),
+          ]),
         ),
         bottomNavigationBar: showPrimaryActions
             ? _PropertyPrimaryActions(

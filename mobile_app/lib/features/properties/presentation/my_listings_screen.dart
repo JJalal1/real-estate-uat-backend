@@ -39,6 +39,8 @@ class MyListingsScreen extends ConsumerStatefulWidget {
 class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   String _filter = 'all';
   final Set<int> _updating = {};
+  int? _loadedActor;
+  bool _hasLoaded = false;
 
   Future<void> _availability(PropertyDetails item, String state) async {
     if (_updating.contains(item.id)) return;
@@ -67,6 +69,9 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   @override
   Widget build(BuildContext context) {
     final listings = ref.watch(myListingsProvider);
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    if (listings.asData != null) { _loadedActor = actor; _hasLoaded = true; }
+    final retain = _hasLoaded && _loadedActor == actor && listings.hasValue && listings.hasError && isTransientApiFailure(listings.error!);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -77,7 +82,10 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
           icon: const EbrokerIcon(Icons.add_home_work_outlined),
           child: const Text('إضافة عقار'),
         ),
-        body: listings.when(
+        body: Column(children: [
+          if (listings.hasValue && (listings.isRefreshing || retain)) AppRefreshStatus(loading: listings.isLoading,
+            error: retain ? friendlyApiError(listings.error!) : null, onRetry: () => ref.invalidate(myListingsProvider)),
+          Expanded(child: listings.when(skipLoadingOnReload: false, skipError: retain,
           loading: () => const _MyListingsSkeleton(),
           error: (error, _) => AppErrorState(
             message: friendlyApiError(error),
@@ -99,7 +107,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
             return RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(myListingsProvider);
-                await ref.read(myListingsProvider.future);
+                try { await ref.read(myListingsProvider.future); } catch (_) { /* The state renders failure and retry. */ }
               },
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -180,7 +188,8 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
               ),
             );
           },
-        ),
+        )),
+        ]),
       ),
     );
   }

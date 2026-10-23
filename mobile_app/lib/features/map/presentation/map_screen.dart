@@ -1394,7 +1394,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ])),IconButton(tooltip:'إغلاق',onPressed:()=>setState(()=>_selected=null),icon:const Icon(Icons.close,size:18)),
         ]))),
       if(state.resultsError!=null || _mapMessage!=null) PositionedDirectional(start:12,end:12,bottom:80,child:AppSurface(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        Text(state.resultsError??_mapMessage!),if(state.resultsError!=null)TextButton(onPressed:()=>ref.read(smartSearchSessionProvider.notifier).search(),child:const Text('إعادة المحاولة'))]))),
+        Text(state.resultsError??_mapMessage!),if(state.resultsError!=null)TextButton(onPressed:state.loading?null:()=>ref.read(smartSearchSessionProvider.notifier).retryResults(),child:const Text('إعادة المحاولة'))]))),
     ]);
   }
 
@@ -2809,4 +2809,3 @@ String _formatPrice(double value) {
   }
   return value.toStringAsFixed(0);
 }
-

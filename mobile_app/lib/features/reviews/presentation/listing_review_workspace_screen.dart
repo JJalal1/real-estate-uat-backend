@@ -15,11 +15,13 @@ import '../domain/listing_review_models.dart';
 
 final reviewQueueProvider =
     FutureProvider.autoDispose<List<ReviewListingItem>>((ref) {
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(listingReviewRepositoryProvider).queue();
 });
 
 final publicationBlocksProvider =
     FutureProvider.autoDispose<List<PublicationBlockItem>>((ref) {
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(listingReviewRepositoryProvider).blocks();
 });
 
@@ -83,7 +85,7 @@ class _ReviewQueue extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(reviewQueueProvider);
-            await ref.read(reviewQueueProvider.future);
+            try { await ref.read(reviewQueueProvider.future); } catch (_) { /* The state renders failure and retry. */ }
           },
           child: ListView.separated(
             physics: const AlwaysScrollableScrollPhysics(),

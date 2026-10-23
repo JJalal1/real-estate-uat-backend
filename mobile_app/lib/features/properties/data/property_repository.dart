@@ -31,11 +31,13 @@ class PropertyRepository {
   static const Duration _publicDiscoveryCacheTtl = Duration(seconds: 20);
   static const int _publicDiscoveryCacheLimit = 32;
   final Map<String, ({DateTime storedAt, Object value})> _publicDiscoveryCache = {};
+  int _publicCacheEpoch = 0;
 
   String _publicCacheKey(String path, Map<String, dynamic> params) {
     final entries = params.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
-    final query = entries.map((entry) => '${entry.key}=${entry.value}').join('&');
-    return '$path?$query';
+    return Uri(path: path, queryParameters: {
+      for (final entry in entries) entry.key: entry.value.toString(),
+    }).toString();
   }
 
   Future<T> _cachedPublic<T>(
@@ -51,8 +53,11 @@ class PropertyRepository {
     }
     if (cached != null) _publicDiscoveryCache.remove(key);
 
+    final epoch = _publicCacheEpoch;
     final value = await loader();
-    _publicDiscoveryCache[key] = (storedAt: now, value: value as Object);
+    // A pre-mutation request may finish late but must never repopulate the cache.
+    if (epoch != _publicCacheEpoch) return value;
+    _publicDiscoveryCache[key] = (storedAt: DateTime.now(), value: value as Object);
     if (_publicDiscoveryCache.length > _publicDiscoveryCacheLimit) {
       final oldest = _publicDiscoveryCache.entries.reduce(
         (a, b) => a.value.storedAt.isBefore(b.value.storedAt) ? a : b,
@@ -62,7 +67,7 @@ class PropertyRepository {
     return value;
   }
 
-  void _invalidatePublicDiscoveryCache() => _publicDiscoveryCache.clear();
+  void _invalidatePublicDiscoveryCache() { _publicCacheEpoch++; _publicDiscoveryCache.clear(); }
 
   Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1, String? purpose}) async {
     final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {'advertiser_id': id, 'page': page, 'per_page': 20, if (purpose != null) 'purpose': purpose});
@@ -333,10 +338,11 @@ class PropertyRepository {
     return PropertySaiManagement.fromJson(data);
   }
 
-  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1}) async {
+  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken}) async {
+    if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
     final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest'};
     return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
-      final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params);
+      final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken);
       final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
         .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
       final meta = response.data?['meta'] as Map? ?? const {};

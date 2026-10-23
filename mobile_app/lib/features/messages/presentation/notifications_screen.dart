@@ -6,24 +6,34 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../account/data/auth_controller.dart';
 import '../data/message_repository.dart';
 import '../domain/message_models.dart';
 import '../domain/notification_destination.dart';
 import 'notification_preferences_screen.dart';
 
-class NotificationsScreen extends ConsumerStatefulWidget {
+class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
   @override
-  ConsumerState<NotificationsScreen> createState() =>
-      _NotificationsScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
+      : _NotificationsBody(key: ValueKey(actor));
+  }
+}
+class _NotificationsBody extends ConsumerStatefulWidget {
+  const _NotificationsBody({super.key});
+  @override
+  ConsumerState<_NotificationsBody> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
   bool _loading = true;
   String? _error;
   List<AppNotificationItem> _items = const [];
   bool _actionPending = false;
+  int _request = 0;
 
   @override
   void initState() {
@@ -31,18 +41,25 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     Future.microtask(_load);
   }
 
+  @override
+  void dispose() { _request++; super.dispose(); }
+
   Future<void> _load() async {
+    if (!mounted) return;
+    final request = ++_request;
+    setState(() { _loading = true; _error = null; });
     try {
       final items = await ref.read(messageRepositoryProvider).notifications();
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
         _items = items;
         _loading = false;
         _error = null;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
+        if (!isTransientApiFailure(error)) _items = const [];
         _loading = false;
         _error = friendlyApiError(error);
       });
@@ -144,14 +161,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     style: Theme.of(context).textTheme.bodyMedium),
                 ),
               ),
-              if (_loading)
+              if (_items.isNotEmpty && (_loading || _error != null))
+                SliverToBoxAdapter(child: AppRefreshStatus(loading: _loading, error: _error, onRetry: _load)),
+              if (_loading && _items.isEmpty)
                 const SliverPadding(
                   padding: EdgeInsetsDirectional.all(
                     AppLayout.compactPageGutter,
                   ),
                   sliver: SliverToBoxAdapter(child: _NotificationSkeleton()),
                 )
-              else if (_error != null)
+              else if (_error != null && _items.isEmpty)
                 SliverToBoxAdapter(
                   child: AppErrorState(message: _error!, onRetry: _load),
                 )
