@@ -34,9 +34,18 @@ class Wave2MediaTrustTest extends TestCase
         $this->withHeaders($ah)->postJson($url,$payload)->assertConflict();
         $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/start")->assertOk();
         $this->withHeaders($bh)->postJson($url,$payload)->assertConflict();
+        // A reviewer may not publish a photo that was never confirmed.
+        $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/approve", [])
+            ->assertConflict()
+            ->assertJsonPath('message','راجع صلة جميع صور الإعلان بالعقار واعتمد الصور المناسبة قبل النشر.');
         $one=$this->withHeaders($ah)->postJson($url,$payload)->assertOk()->assertJsonPath('data.checker','human_review');
         $this->withHeaders($ah)->postJson($url,$payload)->assertOk()->assertJsonPath('data.review_id',$one->json('data.review_id'));
         $this->assertSame(1,ListingReview::where('action','media_relevance_review')->count());
+        // Ambiguous/uncertain decisions are not equivalent to approval.
+        $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/approve", [])
+            ->assertConflict()
+            ->assertJsonPath('message','راجع صلة جميع صور الإعلان بالعقار واعتمد الصور المناسبة قبل النشر.');
+
         $this->assertSame('under_review',$ad->fresh()->review_status);
         $this->assertDatabaseHas('property_images',['id'=>$image->id,'path'=>$image->path]);
         $this->withHeaders($ah)->getJson("/api/admin/listing-review/listings/$ad->id")->assertOk()->assertJsonPath('data.images.0.relevance_review.decision','uncertain');
