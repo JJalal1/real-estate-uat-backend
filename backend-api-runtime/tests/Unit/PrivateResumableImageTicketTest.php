@@ -16,6 +16,7 @@ class PrivateResumableImageTicketTest extends TestCase
             'services.supabase_storage.url' => 'https://exampleproj.supabase.co',
             'services.supabase_storage.bucket' => 'real-estate-uat',
             'services.supabase_storage.server_key' => 'secret-used-server-side-only',
+            'services.supabase_storage.publishable_key' => 'sb_publishable_fake_public',
         ]);
         Http::fake(['*' => Http::response([
             'url' => '/storage/v1/object/upload/sign/real-estate-uat/private/editor-drafts/2/mock?token=short-lived-upload-token',
@@ -25,8 +26,9 @@ class PrivateResumableImageTicketTest extends TestCase
             .'22222222-2222-4222-8222-222222222222-'.str_repeat('a', 64).'.jpg';
         $ticket = app(CloudAssetStorageService::class)->createPrivateResumableTicket($path);
 
-        $this->assertSame('https://exampleproj.storage.supabase.co/storage/v1/upload/resumable', $ticket['endpoint']);
+        $this->assertSame('https://exampleproj.storage.supabase.co/storage/v1/upload/resumable/sign', $ticket['endpoint']);
         $this->assertSame('real-estate-uat', $ticket['bucket']);
+        $this->assertSame('sb_publishable_fake_public', $ticket['publishable_key']);
         $this->assertSame('private/'.$path, $ticket['object_name']);
         $this->assertSame('short-lived-upload-token', $ticket['signature']);
         $this->assertSame(6 * 1024 * 1024, $ticket['chunk_size']);
