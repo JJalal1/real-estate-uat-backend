@@ -11,7 +11,7 @@ class MediaNetworkMonitor {
   DateTime? _checked;
   Future<ImageNetworkConditions> snapshot() {
     if (_pending != null && _checked != null &&
-        DateTime.now().difference(_checked!) < const Duration(seconds: 2)) return _pending!;
+        DateTime.now().difference(_checked!) < const Duration(seconds: 2)) { return _pending!; }
     _checked = DateTime.now();
     return _pending = _read();
   }

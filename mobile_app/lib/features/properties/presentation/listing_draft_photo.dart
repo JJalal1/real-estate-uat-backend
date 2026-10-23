@@ -147,7 +147,7 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated) {
       if (Uri.parse(oldWidget.url).replace(query: '').toString() != Uri.parse(widget.url).replace(query: '').toString() ||
-          oldWidget.authenticated != widget.authenticated) _displayBytes = null;
+          oldWidget.authenticated != widget.authenticated) { _displayBytes = null; }
       _bytes = _beginLoad();
     }
   }
@@ -159,7 +159,7 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
   }), child: const Text('إعادة تحميل الصورة',textAlign:TextAlign.center)));
   @override
   Widget build(BuildContext context) => FutureBuilder<Uint8List>(future: _bytes, builder: (_, snapshot) {
-    if (snapshot.connectionState==ConnectionState.done && snapshot.hasData) _displayBytes = snapshot.data;
+    if (snapshot.connectionState==ConnectionState.done && snapshot.hasData) { _displayBytes = snapshot.data; }
     if (_displayBytes != null) return Stack(fit: StackFit.expand, children: [
       Image.memory(_displayBytes!, fit: widget.fit, cacheWidth:widget.cacheWidth, gaplessPlayback:true,
         errorBuilder: (_, __, ___) => _retry()),

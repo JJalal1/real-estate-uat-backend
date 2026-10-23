@@ -29,6 +29,7 @@ jobs:
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: |
           install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
           php artisan key:generate --force
           php artisan test tests/Feature/AdaptiveImageQualityTest.php tests/Feature/UserWorkMediaTest.php tests/Feature/Wave2MediaTrustTest.php --fail-on-warning --fail-on-risky
   flutter:

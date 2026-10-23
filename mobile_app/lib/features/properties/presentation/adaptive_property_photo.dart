@@ -37,8 +37,8 @@ class _AdaptivePropertyPhotoState extends ConsumerState<AdaptivePropertyPhoto> w
     final edge = width > height ? width : height;
     final dpr = MediaQuery.devicePixelRatioOf(context);
     return FutureBuilder<ImageNetworkConditions>(future: _network, builder: (context, snapshot) {
-      if (!snapshot.hasData) return const Center(child: SizedBox(width: 22, height: 22,
-        child: CircularProgressIndicator(strokeWidth: 2)));
+      if (!snapshot.hasData) { return const Center(child: SizedBox(width: 22, height: 22,
+        child: CircularProgressIndicator(strokeWidth: 2))); }
       final monitor = ref.read(mediaNetworkMonitorProvider);
       final variant = monitor.policy.choose(use: widget.use, logicalEdge: edge,
         pixelRatio: dpr, network: snapshot.data!);

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -89,5 +88,16 @@ void main() {
     final one=cache.acquire('one',(_) => a.future),two=cache.acquire('two',(_) => b.future);
     a.complete(Uint8List.fromList([1]));b.complete(Uint8List.fromList([2]));
     await Future.wait([one.future,two.future]);one.close();two.close();cache.clear();
+  });
+  test('account change cancels pending bytes and a late reply cannot repopulate the new cache', () async {
+    final cache=ListingPhotoCache();final late=Completer<Uint8List>();CancelToken? token;
+    final old=cache.acquire('private:same-url',(t){token=t;return late.future;});
+    cache.clear();expect(token!.isCancelled,isTrue);
+    var calls=0;
+    final current=cache.acquire('private:same-url',(_)async{calls++;return Uint8List.fromList([9]);});
+    expect(await current.future,[9]);
+    late.complete(Uint8List.fromList([1]));await old.future;old.close();current.close();
+    final returned=cache.acquire('private:same-url',(_)async{calls++;return Uint8List.fromList([2]);});
+    expect(await returned.future,[9]);expect(calls,1);returned.close();cache.clear();
   });
 }

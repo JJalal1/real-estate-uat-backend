@@ -20,6 +20,7 @@ use Tests\TestCase;
 class Wave4ListingJourneyTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Concerns\ConfirmsListingImages;
 
     protected function setUp(): void
     {
@@ -51,6 +52,7 @@ class Wave4ListingJourneyTest extends TestCase
         $this->withHeaders($headers)->post("/api/properties/$id",['images'=>[UploadedFile::fake()->image('real-property.jpg')]])->assertOk();
         $this->withHeaders($headers)->postJson("/api/properties/$id/submit")->assertOk()->assertJsonPath('data.review_status','submitted');
         $this->withHeaders($supportHeaders)->postJson("/api/admin/listing-review/listings/$id/start")->assertOk();
+        $this->confirmListingImages($id, $supportHeaders);
         $this->withHeaders($supportHeaders)->postJson("/api/admin/listing-review/listings/$id/approve",['reason'=>'Reviewed submitted property facts and photos.'])->assertOk()->assertJsonPath('data.status','published');
         $this->withHeaders(['Authorization'=>''])->getJson("/api/properties/$id")->assertOk()
             ->assertJsonPath('data.display_price',100000)->assertJsonPath('data.price_display_note','السعي 50%')
