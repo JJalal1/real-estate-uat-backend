@@ -58,8 +58,15 @@ def verify(original, resolved):
     before, original_sdks = parse_lock(original)
     after, resolved_sdks = parse_lock(resolved)
     changed = [name for name, record in before.items() if after.get(name) != record]
-    if changed:
-        raise ValueError("Original locked packages changed or removed: " + ", ".join(sorted(changed)))
+    # The resumable uploader needs crypto as an explicit, audited dependency.
+    # Its archive/version remain byte-for-byte pinned; only the dependency
+    # classification changes from transitive to direct main.
+    expected_crypto = before["crypto"].replace(
+        "dependency: transitive", "dependency: direct main")
+    unexpected = [name for name in changed
+                  if name != "crypto" or after.get(name) != expected_crypto]
+    if unexpected:
+        raise ValueError("Original locked packages changed or removed: " + ", ".join(sorted(unexpected)))
     added = set(after) - set(before)
     if added != set(MISSING_PACKAGES):
         raise ValueError("Unexpected added dependency set: " + ", ".join(sorted(added)))
