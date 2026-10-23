@@ -298,5 +298,5 @@ void main() {
 class _PhotoFailure extends Wave6Drafts {
   int calls=0;
   @override
-  Future<Uint8List> photo(String url) async { calls++;throw _offline(); }
+  Future<Uint8List> photo(String url, {CancelToken? cancelToken}) async { calls++;throw _offline(); }
 }

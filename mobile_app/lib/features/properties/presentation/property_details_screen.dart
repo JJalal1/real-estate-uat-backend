@@ -1,4 +1,5 @@
-import 'listing_draft_photo.dart';
+import 'adaptive_property_photo.dart';
+import '../../../core/network/adaptive_image_policy.dart';
 import '../domain/rental_condition_summary.dart';
 import 'property_summary_card.dart';
 import 'package:flutter/material.dart';
@@ -327,7 +328,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               scrollDirection: Axis.horizontal, itemCount: property.images.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) => Semantics(button: true, label: 'فتح صورة العقار ${index + 1}', child: InkWell(
                 onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: property.images, initialIndex: index, privateImages:property.status!='published'))),
-                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, child: AppPropertyMedia(imageUrl: property.images[index].cardUrl, height: 96))),
+                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, height: 96,
+                  child: AdaptivePropertyPhoto(url: property.images[index].cardUrl,
+                    authenticated:property.status!='published',use:PropertyImageUse.thumbnail))),
               )),
             ))),
           ],
@@ -614,7 +617,8 @@ class _Gallery extends StatelessWidget {
                         ),
                       ),
                     ),
-                    child: ListingDraftPhoto(url:images[imageIndex].galleryUrl,authenticated:privateImages,cacheWidth:1600),
+                    child: AdaptivePropertyPhoto(key:ValueKey(images[imageIndex].id),
+                      url:images[imageIndex].galleryUrl,authenticated:privateImages,use:PropertyImageUse.detail),
                   ),
                 ),
               ),
@@ -659,6 +663,7 @@ class _FullscreenGallery extends StatefulWidget {
 class _FullscreenGalleryState extends State<_FullscreenGallery> {
   late final PageController _controller;
   late int _index;
+  final _highResolution = <int>{};
 
   @override
   void initState() {
@@ -690,7 +695,14 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                   child: InteractiveViewer(
                     minScale: 1,
                     maxScale: 4,
-                    child: ListingDraftPhoto(url:widget.images[imageIndex].zoomUrl,authenticated:widget.privateImages,fit:BoxFit.contain,cacheWidth:3072),
+                    onInteractionUpdate: (details) {
+                      if (details.scale > 1.15 && !_highResolution.contains(imageIndex)) {
+                        setState(() => _highResolution.add(imageIndex));
+                      }
+                    },
+                    child: SizedBox.expand(child: AdaptivePropertyPhoto(key:ValueKey(widget.images[imageIndex].id),
+                      url:widget.images[imageIndex].zoomUrl,authenticated:widget.privateImages,fit:BoxFit.contain,
+                      use:_highResolution.contains(imageIndex) ? PropertyImageUse.zoom : PropertyImageUse.fullscreen)),
                   ),
                 ),
               ),
@@ -702,6 +714,13 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const EbrokerIcon(Icons.close_rounded),
                 ),
+              ),
+              PositionedDirectional(
+                top: AppSpacing.s8,
+                end: AppSpacing.s8,
+                child: TextButton(onPressed:_highResolution.contains(_index) ? null :
+                  () => setState(() => _highResolution.add(_index)),
+                  child:const Text('تحميل صورة أوضح',style:TextStyle(color:Colors.white))),
               ),
               PositionedDirectional(
                 bottom: AppSpacing.s16,
