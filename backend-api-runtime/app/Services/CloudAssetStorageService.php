@@ -41,7 +41,7 @@ class CloudAssetStorageService
     }
 
     /**
-     * Issue a narrow, two-hour upload token for a single private original.
+     * Issue a narrow signed upload token for a single private original.
      * Never return our service key or allow a caller-supplied bucket/path.
      * The result works with Supabase Storage TUS's x-signature header.
      */
