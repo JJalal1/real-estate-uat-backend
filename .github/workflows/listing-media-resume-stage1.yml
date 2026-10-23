@@ -1,0 +1,44 @@
+name: Listing Media Resume Stage 1
+
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'backend-api-runtime/app/Services/CloudAssetStorageService.php'
+      - 'backend-api-runtime/app/Services/ListingImageService.php'
+      - 'backend-api-runtime/config/listing_media.php'
+      - 'backend-api-runtime/tests/Unit/PrivateResumableImageTicketTest.php'
+      - '.github/workflows/listing-media-resume-stage1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  private-upload-ticket:
+    name: Scoped TUS ticket tests and PHP syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare test environment
+        run: |
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Syntax and scoped upload ticket
+        run: |
+          php -l app/Services/CloudAssetStorageService.php
+          php -l app/Services/ListingImageService.php
+          php -l config/listing_media.php
+          php -l tests/Unit/PrivateResumableImageTicketTest.php
+          php artisan test tests/Unit/PrivateResumableImageTicketTest.php --fail-on-warning --fail-on-risky
