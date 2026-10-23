@@ -84,6 +84,34 @@ class ListingVideoFullCycleTest extends TestCase
             $stalePoster = 'listing-video-display/'.$record->id.'/poster.jpg';
             Storage::disk('local')->put($stalePlayback, 'orphaned-crash-output');
             Storage::disk('local')->put($stalePoster, 'orphaned-crash-poster');
+            // First delivery fails after the processing reservation. Confirm
+            // it cannot publish a partial result and cleans orphan derivatives.
+            $interrupted = new class extends CloudAssetStorageService {
+                public function downloadPrivateToPath(string $path, string $target): void
+                {
+                    throw new \\RuntimeException('synthetic_worker_interruption');
+                }
+            };
+            try {
+                (new ProcessListingVideo($record->id))->handle(
+                    $interrupted,
+                    app(ListingVideoTranscoder::class),
+                );
+                $this->fail('Expected simulated worker interruption.');
+            } catch (\\RuntimeException $error) {
+                $this->assertSame('synthetic_worker_interruption', $error->getMessage());
+            }
+            $afterInterruption = $record->fresh();
+            $this->assertSame('failed', $afterInterruption->status);
+            $this->assertSame('processing_failed', $afterInterruption->failure_code);
+            $this->assertSame(1, $afterInterruption->attempts);
+            Storage::disk('local')->assertMissing($stalePlayback);
+            Storage::disk('local')->assertMissing($stalePoster);
+
+            // Imitate an ambiguous crash leaving derivatives a second time.
+            // A re-delivery must clean these before a new cloud upload.
+            Storage::disk('local')->put($stalePlayback, 'orphaned-crash-output');
+            Storage::disk('local')->put($stalePoster, 'orphaned-crash-poster');
             $cloud = new class extends CloudAssetStorageService {
                 public function writePrivateFromFile(string $path, string $source, string $mime): void
                 {
@@ -114,7 +142,7 @@ class ListingVideoFullCycleTest extends TestCase
                 app(CloudAssetStorageService::class),
                 app(ListingVideoTranscoder::class),
             );
-            $this->assertSame(1, $ready->fresh()->attempts);
+            $this->assertSame(2, $ready->fresh()->attempts);
             $this->assertSame($ready->playback_path, $ready->fresh()->playback_path);
 
             // Simulate the explicit staff confirmation for a published
