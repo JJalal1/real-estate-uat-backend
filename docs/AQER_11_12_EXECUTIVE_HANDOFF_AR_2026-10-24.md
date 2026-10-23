@@ -40,7 +40,7 @@ Flutter يختار الملف المطلوب فعلًا حسب مساحة الع
 
 الكاش ذاكرة جلسة فقط، بحد خمول 18 صورة/24MiB/دقيقتين؛ الطلب مشترك ويُلغى عند مغادرة آخر عارض. تبديل الحساب يمحو الكاش ويلغي النقل ويُخلي الصور المفكوكة، والرد القديم لا يعيد بياناته إلى الجلسة الجديدة. واجهات التفاصيل والمعرض والمصغرات تعرض حالات التحميل/الخطأ وإعادة المحاولة.
 
-القياس قبل النشر كان على API `23ddba16…`، وبعده على `6a0475e8…`. استخدمنا **ثلاثة مراجع fixtures منشورة اصطناعية 60–62؛ قد تشترك في أصل صورة**، لا عينة سوق عامة. الأرقام حجم payload دون ترويسات/TLS، وأزمنة الجدار تشمل API وStorage.
+القياس قبل النشر كان على API `23ddba16…`، وبعده على `6a0475e8…`. استخدمنا **ثلاثة مراجع fixtures منشورة اصطناعية 60–62؛ قد تشترك في أصل صورة**، لا عينة سوق عامة. الأرقام حجم payload دون ترويسات/TLS، وأزمنة الجدار تشمل API وStorage. راجعنا المصدر السابق: صورة رأس التفاصيل كانت تطلب gallery صراحة، والبطاقات card؛ المقارنة تقابل الطلب السابق والاختيار الجديد، وليست تغيير cacheWidth فقط.
 
 | المسار على المراجع الثلاثة | قبل اختيار الملف | بعد الاختيار | التوفير |
 |---|---:|---:|---:|
@@ -153,13 +153,13 @@ PR #118 اجتاز workflows الأربعة وخمسة jobs على `0640fa83…`
 | 30 | المسودات وحماية الخروج | قبول هاتف قديم فقط |
 | 31 | حذف الحساب الحقيقي | UAT موجود؛ قبول هاتف لاحقًا |
 | 32 | المظهر فاتح/داكن/النظام | قبول هاتف |
-
 ## ملحق التحقق من فرع #11 بعد توحيد #12
 
 الرأس المصحح: `3f89182521910bfd910a960bb5a4f2a55a919be3`، شجرة `9c6ba0d5ed6126a47768df90b7430411044217e2`. لم يدمج في UAT.
 
-- [Broker Experience CI /40035235366](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40035235366): checkpoint وDocker وLaravel وPostgreSQL ناجحة؛ بناء Flutter/native قيد الفحص عند كتابة هذا الملحق.
+- [Broker Experience CI /40035235366](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40035235366): **ناجح بالكامل**؛ البوابات الخمس checkpoint وDocker وLaravel وPostgreSQL وFlutter/native ناجحة، وfallback المشفر skipped لعدم الحاجة.
 - Laravel الكامل: **362 passed /4,387 assertions** وskip واحد لـPostGIS على SQLite.
 - PostgreSQL17/PostGIS: **181 tests /2,832 assertions** في ثماني مجموعات، مع فهرس FK وRLS ناجحين.
+- Flutter: **357 selected** و**500 full passed /1 skipped** لاختبار UAT opt-in الذي نجح منفصلًا في workflow التكيف؛ compiled UAT endpoint وبناء APK والتحقق Native والتشفير ناجحة. بناء CI ليس APK قبول منفصلة مسلّمة للمالك.
 - [Listing Media Resume Stage1 /40035235290](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40035235290)، [Adaptive Image Quality /40035235296](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40035235296)، [Release Integrity PG /40035235373](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40035235373)، [Signed TUS contract /40035235295](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40035235295)، [Private Storage Preflight /40035235317](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40035235317): جميعها ناجحة.
-- [Launch Readiness Wave4 /40035235323](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40035235323): التحليل والاختبارات نجحت؛ بناء Android قيد الفحص. تشغيل فحص التخزين الموروث لا يعني تنفيذ الفيديو المؤجل.
+- [Launch Readiness Wave4 /40035235323](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40035235323): Laravel وFlutter والتحليل وبناء Android جميعها ناجحة. **workflows السبعة ناجحة على الرأس نفسه**. تشغيل فحص التخزين الموروث لا يعني تنفيذ الفيديو المؤجل.
