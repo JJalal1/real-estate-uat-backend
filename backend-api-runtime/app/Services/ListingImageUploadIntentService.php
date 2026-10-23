@@ -40,7 +40,7 @@ class ListingImageUploadIntentService
                 // session. Extend quarantine from the LAST issuance, not the
                 // first; otherwise a late retry can recreate a purged orphan.
                 $existing->signed_until = now()->addMinutes(110);
-                $existing->purge_after = now()->addHours(26);
+                $existing->purge_after = now()->addHours(27);
                 $existing->save();
                 return $existing;
             }
@@ -51,7 +51,7 @@ class ListingImageUploadIntentService
                 'mime'=>$mime,
                 'path'=>'editor-drafts/'.$actor->id.'/'.$draftKey.'/'.$imageKey.'-'.$sha.'.'.$extension,
                 'status'=>'pending','signed_until'=>now()->addMinutes(110),
-                'purge_after'=>now()->addHours(26),
+                'purge_after'=>now()->addHours(27),
             ]);
         });
         // The server key is used only in CloudAssetStorageService.
@@ -101,34 +101,39 @@ class ListingImageUploadIntentService
             ->orderBy('id')->limit(max(1, min($limit, 500)))->pluck('id');
 
         foreach ($ids as $id) {
-            $intent = ListingImageUploadIntent::find($id);
-            if (! $intent || ! in_array($intent->status, ['pending', 'canceled'], true)
-                || $intent->purge_after->isFuture()) continue;
-            $checked++;
-            // Never remove a committed original or any still referenced path.
-            $referenced = \App\Models\PropertyImage::query()->where('path', $intent->path)->exists();
-            if (! $referenced) {
-                foreach (ListingEditorDraft::query()->select(['id', 'images'])->cursor() as $draft) {
-                    if (in_array($intent->path, array_values($draft->images ?? []), true)) {
-                        $referenced = true;
-                        break;
+            // Serialize against ticket renewal/finalization. A stale GC read
+            // must never delete an object after its quarantine was extended.
+            $outcome = DB::transaction(function () use ($id): array {
+                $intent = ListingImageUploadIntent::query()->whereKey($id)
+                    ->whereIn('status', ['pending', 'canceled'])
+                    ->where('purge_after', '<', now())->lockForUpdate()->first();
+                if (! $intent) return [0, 0, 0];
+                $referenced = \App\Models\PropertyImage::query()->where('path', $intent->path)->exists();
+                if (! $referenced) {
+                    foreach (ListingEditorDraft::query()->select(['id', 'images'])->cursor() as $draft) {
+                        if (in_array($intent->path, array_values($draft->images ?? []), true)) {
+                            $referenced = true;
+                            break;
+                        }
                     }
                 }
-            }
-            if ($referenced) {
-                $intent->status = 'complete'; $intent->save();
-                continue;
-            }
-            try {
-                foreach (array_keys(config('listing_media.variants')) as $variant) {
-                    $this->cloud->deletePrivate($this->images->variantPath($intent->path, $variant));
+                if ($referenced) {
+                    $intent->status = 'complete'; $intent->save();
+                    return [1, 0, 0];
                 }
-                $this->cloud->deletePrivate($intent->path);
-                $intent->delete(); $removed++;
-            } catch (\Throwable $error) {
-                report($error);
-                $failed++;
-            }
+                try {
+                    foreach (array_keys(config('listing_media.variants')) as $variant) {
+                        $this->cloud->deletePrivate($this->images->variantPath($intent->path, $variant));
+                    }
+                    $this->cloud->deletePrivate($intent->path);
+                    $intent->delete();
+                    return [1, 1, 0];
+                } catch (\Throwable $error) {
+                    report($error);
+                    return [1, 0, 1];
+                }
+            });
+            $checked += $outcome[0]; $removed += $outcome[1]; $failed += $outcome[2];
         }
         return compact('checked', 'removed', 'failed');
     }
