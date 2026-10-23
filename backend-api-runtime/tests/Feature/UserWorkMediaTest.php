@@ -246,6 +246,38 @@ class UserWorkMediaTest extends TestCase
         Storage::disk('local')->assertExists($path);
     }
 
+    public function test_deleted_draft_retains_cleanup_tombstone_until_orphan_is_removed(): void
+    {
+        Storage::fake('local');
+        [, $owner] = $this->actor('tus-deleted-draft');
+        $key = (string) Str::uuid();
+        $imageKey = (string) Str::uuid();
+        $url = '/api/listing-editor-drafts/'.$key;
+        $this->withHeaders($owner)->putJson($url, [
+            'payload'=>['media_version'=>1,'image_order'=>[$imageKey],'fields'=>[]],
+            'expected_revision'=>0,
+        ])->assertOk();
+        $draft = ListingEditorDraft::where('client_key',$key)->firstOrFail();
+        $sha = str_repeat('e',64);
+        $path = 'editor-drafts/'.$draft->user_id.'/'.$key.'/'.$imageKey.'-'.$sha.'.png';
+        Storage::disk('local')->put($path,'orphan');
+        $intent = \App\Models\ListingImageUploadIntent::create([
+            'user_id'=>$draft->user_id,'listing_editor_draft_id'=>$draft->id,
+            'image_key'=>$imageKey,'path'=>$path,'sha256'=>$sha,'byte_length'=>6,
+            'mime'=>'image/png','status'=>'pending',
+            'signed_until'=>now()->subHours(3),'purge_after'=>now()->subMinute(),
+        ]);
+        $this->withHeaders($owner)->deleteJson($url)->assertOk();
+        $this->assertDatabaseMissing('listing_editor_drafts',['id'=>$draft->id]);
+        $this->assertDatabaseHas('listing_image_upload_intents',[
+            'id'=>$intent->id,'listing_editor_draft_id'=>null,'status'=>'canceled',
+        ]);
+        $outcome = app(\App\Services\ListingImageUploadIntentService::class)->purgeExpired();
+        $this->assertSame(1,$outcome['removed']);
+        Storage::disk('local')->assertMissing($path);
+        $this->assertDatabaseMissing('listing_image_upload_intents',['id'=>$intent->id]);
+    }
+
     private function jpegWithExif(int $orientation): string
     {
         $image=imagecreatetruecolor(800,400);
