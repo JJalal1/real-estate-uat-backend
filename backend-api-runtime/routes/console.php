@@ -151,3 +151,14 @@ Schedule::command('support:process-contact-followups')->hourly();
     $this->info("Private customer reminders: {$sent}.");
 });
 \Illuminate\Support\Facades\Schedule::command('broker:process-followups')->everyMinute()->withoutOverlapping();
+
+Artisan::command('listing-media:purge-expired-upload-intents', function (\App\Services\ListingImageUploadIntentService $intents): int {
+    if (! config('listing_media.resumable_uploads_enabled', false)) {
+        $this->info('Resumable image uploads disabled; no cleanup performed.');
+        return 0;
+    }
+    $result = $intents->purgeExpired(100);
+    $this->info("Upload sweep: {$result['checked']} checked, {$result['removed']} removed, {$result['failed']} failed.");
+    return $result['failed'] === 0 ? 0 : 1;
+})->purpose('Delete expired, uncommitted image uploads.');
+Schedule::command('listing-media:purge-expired-upload-intents')->hourly()->withoutOverlapping();
