@@ -16,6 +16,8 @@ on:
       - 'backend-api-runtime/database/migrations/2026_10_23_220000_create_listing_image_upload_intents.php'
       - 'backend-api-runtime/tests/Feature/UserWorkMediaTest.php'
       - '.github/workflows/listing-media-resume-stage1.yml'
+      - 'mobile_app/**'
+      - 'scripts/verify_v3_dependency_lock.py'
 
 permissions:
   contents: read
@@ -53,3 +55,30 @@ jobs:
           php -l tests/Unit/PrivateResumableImageTicketTest.php
           php -l tests/Unit/ResumableImageFinalizationTest.php
           php artisan test tests/Unit/PrivateResumableImageTicketTest.php tests/Unit/ResumableImageFinalizationTest.php tests/Feature/UserWorkMediaTest.php --fail-on-warning --fail-on-risky
+
+  flutter-tus:
+    name: Flutter private TUS resume and origin security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve pinned dependencies and verify lock
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Analyze staged TUS files
+        working-directory: mobile_app
+        run: flutter analyze lib/features/properties/data/private_tus_image_uploader.dart lib/features/properties/data/listing_account_draft_repository.dart test/private_tus_image_uploader_test.dart
+      - name: Resume-from-offset and origin tests
+        working-directory: mobile_app
+        run: flutter test test/private_tus_image_uploader_test.dart --reporter expanded
