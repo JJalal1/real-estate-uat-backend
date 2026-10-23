@@ -26,6 +26,12 @@ if [ "${UAT_VIDEO_STORAGE_PROBE_ON_STARTUP:-false}" = "true" ]; then
   php artisan uat:video-storage-probe
 fi
 
+# One-shot opt-in signed TUS protocol canary for synthetic private bytes only.
+# Does not require a schema migration or activate listing resumable uploads.
+if [ "${UAT_IMAGE_TUS_PROBE_ON_STARTUP:-false}" = "true" ]; then
+  php artisan uat:signed-tus-storage-probe
+fi
+
 if [ "${UAT_RUN_MIGRATIONS:-false}" = "true" ]; then
   php artisan migrate --force
 fi
