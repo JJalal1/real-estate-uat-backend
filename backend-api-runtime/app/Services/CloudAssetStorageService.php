@@ -231,7 +231,7 @@ class CloudAssetStorageService
             throw new RuntimeException('Signed TUS UAT probe requires a verified Supabase project host.');
         }
         $origin = 'https://'.$matches[1].'.storage.supabase.co';
-        $endpoint = $origin.'/storage/v1/upload/resumable';
+        $endpoint = $origin.'/storage/v1/upload/resumable/sign';
 
         $chunk = str_repeat('A', 6 * 1024 * 1024);
         $tail = 'aqer-uat-tus-tail-'.bin2hex(random_bytes(14));
@@ -248,6 +248,7 @@ class CloudAssetStorageService
         ]);
 
         $cleaned = false;
+        $originalFailure = null;
         try {
             $sign = $this->request()->post(
                 $this->storageBaseUrl().'/object/upload/sign/'
@@ -276,7 +277,11 @@ class CloudAssetStorageService
                 'Upload-Length' => (string) $total,
                 'Upload-Metadata' => $metadata,
             ];
-            $connect = fn (array $headers) => Http::withHeaders($headers)
+            $publishableKey = trim((string) config('services.supabase_storage.publishable_key'));
+            if ($publishableKey === '' || str_starts_with($publishableKey, 'sb_secret_')) {
+                throw new RuntimeException('Signed TUS requires a separate publishable key.');
+            }
+            $connect = fn (array $headers) => Http::withHeaders(['apikey' => $publishableKey] + $headers)
                 ->connectTimeout(15)->timeout(90)
                 ->withOptions(['allow_redirects' => false]);
 
@@ -290,7 +295,7 @@ class CloudAssetStorageService
             $created = $connect($createHeaders + ['x-signature' => $signature])
                 ->withBody('', 'application/offset+octet-stream')->post($endpoint);
             if ($created->status() !== 201) {
-                throw new RuntimeException('Signed TUS creation did not return HTTP 201.');
+                throw new RuntimeException('Signed TUS creation returned HTTP '.$created->status().', expected 201.');
             }
             $location = $created->header('Location');
             if (! is_string($location) || $location === '') {
@@ -332,14 +337,19 @@ class CloudAssetStorageService
             if (strlen($result) !== $total || hash('sha256', $result) !== $expectedHash) {
                 throw new RuntimeException('Signed TUS private bytes mismatch.');
             }
+        } catch (\Throwable $error) {
+            $originalFailure = $error;
+            throw $error;
         } finally {
-            // A failed PATCH can still commit server-side. Delete even when
-            // we did not receive a completion acknowledgement.
+            // Never mask a protocol failure with a secondary cleanup error.
             try {
                 $this->deletePrivate($logicalPath);
                 $cleaned = true;
-            } catch (\Throwable) {
-                throw new RuntimeException('Signed TUS canary cleanup failed.');
+            } catch (\Throwable $cleanupError) {
+                if ($originalFailure === null) {
+                    throw new RuntimeException('Signed TUS canary cleanup failed; HTTP/object deletion must be investigated.');
+                }
+                report(new RuntimeException('Signed TUS secondary cleanup failure; preserve original exception.'));
             }
         }
 
