@@ -1,0 +1,11 @@
+{
+  "bundle": "REAL_ESTATE_UAT_RENDER_REPO_FINAL",
+  "version": "1.0",
+  "source": "user-uploaded backend-upload.zip",
+  "accepted_baseline": "CLOUD_READINESS V1.0 SUCCESS run 20260826_003027",
+  "cloud_overlay": "Cloud backend REST-storage/Render overlay previously Laravel-regression-tested locally; Docker build delegated to Render",
+  "local_docker_required": false,
+  "user_project_mutated": false,
+  "env_files_included": false,
+  "retired_broker_workflow_restored": false
+}

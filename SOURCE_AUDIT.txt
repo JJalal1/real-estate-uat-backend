@@ -1,0 +1,50 @@
+REAL ESTATE UAT RENDER REPO FINAL - SOURCE AUDIT
+bundle=REAL_ESTATE_UAT_RENDER_REPO_FINAL
+version=1.0
+source=user-uploaded backend-upload.zip
+accepted_baseline=CLOUD_READINESS V1.0 SUCCESS run 20260826_003027
+
+BASELINE VERIFICATION
+backend_files_checked=16
+backend_hash_mismatches=0
+listing_review_current_baseline_sha256=5d8b72df6f3cd2793f4c57ad48eaa2998583350feffe60917f06917332c244fd
+retired_broker_workflow_methods_in_current_listing_controller=0
+
+CLEANING
+all_env_variants_excluded=true
+local_sqlite_excluded=true
+runtime_logs_cache_views_excluded=true
+fix_backup_directories_excluded=true
+vendor_node_modules_excluded=true
+
+CLOUD OVERLAY
+cloud_asset_storage_service=true
+property_controller_cloud_storage=true
+broker_document_cloud_storage=true
+listing_document_cloud_storage=true
+direct_storage_disk_calls_in_audited_controllers=0
+render_yaml_at_repository_root=true
+postgis_health_check=true
+staging_cloud_check=true
+uat_test_otp_fail_closed_in_production=true
+
+STATIC VERIFICATION
+php_lint_files=146
+php_lint_failures=0
+entrypoint_sh_syntax=passed
+render_yaml_parse=passed
+json_parse=passed
+structural_guards=passed
+high_confidence_secret_scan_hits=0
+env_like_files_in_final_repo=0
+
+DOCKERFILE
+base_image=php:8.4.23-apache-bookworm
+required_php_extensions=curl,dom,mbstring,pdo_pgsql,zip,opcache
+composer_install=no-dev
+local_docker_build=not_run_by_design
+remote_docker_build_target=Render
+
+IMPORTANT
+This audit proves the supplied source baseline and static deployment bundle checks performed here.
+It does NOT claim that Render/Supabase credentials, network connectivity, remote image build, migrations, or live health checks have already succeeded. Those can only be proven during the first cloud deployment.

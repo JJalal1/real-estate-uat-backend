@@ -1,0 +1,661 @@
+{
+  "baseline_commit": "dc2805c9215dcd500fc7034effa953a4c3751761",
+  "inventory_kind": "all original presentation files plus shared design and router",
+  "file_count": 77,
+  "route_count": 35,
+  "routes": [
+    "/",
+    "/auth",
+    "/verify-phone",
+    "/complete-profile",
+    "/account-verification",
+    "/forgot-password",
+    "/profile",
+    "/admin/access",
+    "/admin/dashboard",
+    "/admin/settings",
+    "/admin/audit-log",
+    "/admin/listing-review",
+    "/broker/account-verification",
+    "/admin/broker-account-verifications",
+    "/admin/account-verifications",
+    "/admin/regions",
+    "/messages",
+    "/messages/:id",
+    "/agreements",
+    "/agreements/:id",
+    "/rental-contracts/:id",
+    "/notifications",
+    "/admin/message-reports",
+    "/bookings",
+    "/services",
+    "/support",
+    "/admin/support",
+    "/support/workspace",
+    "/support/users",
+    "/support/worklog",
+    "/properties/:id",
+    "/add-property",
+    "/my-listings",
+    "/favorites",
+    "/property-market"
+  ],
+  "presentation_files": [
+    {
+      "path": "mobile_app/lib/core/theme/app_semantic_colors.dart",
+      "git_blob_sha": "d7fc025667451d0430477da55777a9533b0345b4",
+      "size": 6072,
+      "proposed_stage": 1,
+      "pinned_behavior": false,
+      "feature": "shared"
+    },
+    {
+      "path": "mobile_app/lib/core/theme/app_theme.dart",
+      "git_blob_sha": "fb795ba227a75f229f24bf177257c3b40a28e4bc",
+      "size": 7852,
+      "proposed_stage": 1,
+      "pinned_behavior": false,
+      "feature": "shared"
+    },
+    {
+      "path": "mobile_app/lib/core/theme/app_tokens.dart",
+      "git_blob_sha": "7829e323737a4793ef1b89968bd55873341b6e38",
+      "size": 3424,
+      "proposed_stage": 1,
+      "pinned_behavior": false,
+      "feature": "shared"
+    },
+    {
+      "path": "mobile_app/lib/core/theme/app_typography.dart",
+      "git_blob_sha": "f36dbb1f471be893983d817dec9ba085825e3dee",
+      "size": 3117,
+      "proposed_stage": 1,
+      "pinned_behavior": false,
+      "feature": "shared"
+    },
+    {
+      "path": "mobile_app/lib/core/widgets/app_components.dart",
+      "git_blob_sha": "37af01e68a1b84e7f06c460b35298b514a9af8bf",
+      "size": 29424,
+      "proposed_stage": 1,
+      "pinned_behavior": false,
+      "feature": "shared"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/access_control_screen.dart",
+      "git_blob_sha": "72526c5d0179d0956daf41b131f751290221af6f",
+      "size": 20640,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/account_screen.dart",
+      "git_blob_sha": "e191825e4741ec2de66ff50cb6b6957951d1eb2d",
+      "size": 12080,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/account_verification_admin_screen.dart",
+      "git_blob_sha": "59b79d8a2f80d83dd42c98cb7661cdff147e57e4",
+      "size": 18935,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/account_verification_screen.dart",
+      "git_blob_sha": "00dd26b644c4118ec62ac4b654990f271e90d496",
+      "size": 32117,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/auth_gate.dart",
+      "git_blob_sha": "b49ab121b242ac5d9af3442173bcb3ecb124858b",
+      "size": 4490,
+      "proposed_stage": 3,
+      "pinned_behavior": true,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/auth_screen.dart",
+      "git_blob_sha": "e26f960b9e4c217a247c28beb627df1742915d4e",
+      "size": 3752,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/broker_account_verification_screen.dart",
+      "git_blob_sha": "f1b4245727832aa17e42a0f8fa967012ae905d80",
+      "size": 9063,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/broker_verification_admin_screen.dart",
+      "git_blob_sha": "68d0438ef09014c50f789b23eec22e5856912194",
+      "size": 8284,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/complete_profile_screen.dart",
+      "git_blob_sha": "38e5949ee039901ed24d50acf7d556933edf689c",
+      "size": 3583,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/forgot_password_screen.dart",
+      "git_blob_sha": "00b64eec7c82d89aa0fa7238d571f302b253e49f",
+      "size": 4477,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/phone_verification_screen.dart",
+      "git_blob_sha": "dbd9670ae220e2e17811a2e04e1fad6657e1a408",
+      "size": 5935,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/account/presentation/profile_screen.dart",
+      "git_blob_sha": "e51763a16dfe2d4aaac26da87becd3a8c530eab6",
+      "size": 3802,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/admin/presentation/admin_dashboard_screen.dart",
+      "git_blob_sha": "2199b785c73d2d56e60b22da5bbbc6922e6836b6",
+      "size": 10287,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/admin/presentation/audit_log_screen.dart",
+      "git_blob_sha": "6baa635bc65b9ce17f890d42206925aab1998a08",
+      "size": 2715,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_accounts_screen.dart",
+      "git_blob_sha": "88f8ad7250a486aab5b79c2148bf30bd3436b1fd",
+      "size": 15950,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_finance_hubs.dart",
+      "git_blob_sha": "401dd4e665251284de78c6248b28a2e71d5fd6eb",
+      "size": 7433,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_finance_screens.dart",
+      "git_blob_sha": "81a65d8d1afedf4be99c374d1a4656fa5a978194",
+      "size": 22018,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_pages.dart",
+      "git_blob_sha": "1e0a11ee4ab2abbf863b8089555fe3858ae85dd5",
+      "size": 54225,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/admin/presentation/platform_settings_screen.dart",
+      "git_blob_sha": "da600ca64694d0ebabd3a8ca87fc15c75b6175e6",
+      "size": 7949,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/agreements/presentation/agreement_detail_screen.dart",
+      "git_blob_sha": "ad822973416178a2584337b1dff5023a0e2daab3",
+      "size": 13923,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/agreements/presentation/agreement_forms.dart",
+      "git_blob_sha": "9f15f5bfc4cd7ebf7cb1384c7d19dd2fef9b625c",
+      "size": 18727,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/agreements/presentation/agreements_screen.dart",
+      "git_blob_sha": "5e43c947e52d999d37d7bb1f2250b62c8f27dee6",
+      "size": 5984,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/agreements/presentation/conversation_agreement_card.dart",
+      "git_blob_sha": "9948a76fb9152d4de922c66c5ae6d8769633790b",
+      "size": 5601,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/agreements/presentation/rental_contract_detail_screen.dart",
+      "git_blob_sha": "aeddfb0129743f8a89cc3c2b04a487cc0ea360ff",
+      "size": 16427,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/app_shell/presentation/app_shell_screen.dart",
+      "git_blob_sha": "85718bc92136dad7a4d0cbb59686b0bdc8dfd574",
+      "size": 8697,
+      "proposed_stage": 1,
+      "pinned_behavior": false,
+      "feature": "shared"
+    },
+    {
+      "path": "mobile_app/lib/features/bookings/presentation/booking_request_sheet.dart",
+      "git_blob_sha": "74f0d90446dac072825358a4b6918513ca0ffb29",
+      "size": 8567,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/bookings/presentation/bookings_screen.dart",
+      "git_blob_sha": "9543e43969e31f3343f26b46a3204de9e19190cc",
+      "size": 14154,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/community/presentation/community_dialogs.dart",
+      "git_blob_sha": "e2e48c954debd3ff6d2458e9a2efe7e381c352f2",
+      "size": 8253,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/community/presentation/listing_community_screen.dart",
+      "git_blob_sha": "96a7b2bb1529a7834571bbd394748ca4acf4c443",
+      "size": 15327,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/developments/presentation/development_admin_screen.dart",
+      "git_blob_sha": "66db98d0db8fa82b35a45d86f617ab414f29a5d2",
+      "size": 13843,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/developments/presentation/development_details_screen.dart",
+      "git_blob_sha": "7e3ffe437f6da4a9bbe42979ea8edfc31bd05210",
+      "size": 5427,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/developments/presentation/developments_screen.dart",
+      "git_blob_sha": "272651f4fb5ee9236af1641f87ed4c9bfc8269c5",
+      "size": 5011,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/financial/presentation/deal_financial_screen.dart",
+      "git_blob_sha": "e664b6efde770ac6859302bc77982e124833437c",
+      "size": 25161,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/financial/presentation/financial_account_screen.dart",
+      "git_blob_sha": "ce3ffe71497a47e52ef3428f4d17640c82e38ebb",
+      "size": 13929,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/financial/presentation/receivable_payment_screen.dart",
+      "git_blob_sha": "500d2b36de257e18655be1c1410c8bc2759079bd",
+      "size": 13289,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/map/presentation/map_screen.dart",
+      "git_blob_sha": "68c729ccc376befeeb5872c3371346690c95457d",
+      "size": 103022,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/messages/presentation/conversation_reports_screen.dart",
+      "git_blob_sha": "0c3b84a6b35d988496e4f4fbe8bfd41c04b88b92",
+      "size": 6408,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/messages/presentation/conversation_screen.dart",
+      "git_blob_sha": "9a5651981c473a1d47af66d8d4bbba7761853ca9",
+      "size": 22492,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/messages/presentation/messages_screen.dart",
+      "git_blob_sha": "ead5fdfb01d3a748fdd2261295d6b463e0a19d42",
+      "size": 14675,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/messages/presentation/notification_preferences_screen.dart",
+      "git_blob_sha": "ea0ac27ed492bb5840a20d5ad695aabe212bca13",
+      "size": 8273,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/messages/presentation/notifications_screen.dart",
+      "git_blob_sha": "21ab7393e9ef9a8cfb5a2d891946c41e6a2c5ec5",
+      "size": 14579,
+      "proposed_stage": 4,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/projects/presentation/projects_screen.dart",
+      "git_blob_sha": "c5739d78ea4264f7d57274ded06b33034ec1715c",
+      "size": 14555,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/add_property_wizard_screen.dart",
+      "git_blob_sha": "c188410bf940f5e8415144052b04b1f4a432059b",
+      "size": 662,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/favorites_screen.dart",
+      "git_blob_sha": "2309fa692e56b08752ab8c87caf9376087aeed6b",
+      "size": 9807,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/listing_editor_screen.dart",
+      "git_blob_sha": "c0f5ea9bf9b220f5f2ca29c1fd4709a8afe5b272",
+      "size": 73525,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/my_listings_screen.dart",
+      "git_blob_sha": "91cb54af62255cbcb420f52455f5445032733881",
+      "size": 26495,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/property_compare_screen.dart",
+      "git_blob_sha": "c231443fc0c872ba16ffa693e93b6a8684b26c3a",
+      "size": 10580,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/property_details_screen.dart",
+      "git_blob_sha": "94f6649ee23755980475987f59ecffed71ff782d",
+      "size": 33978,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/property_land_boundary_picker_screen.dart",
+      "git_blob_sha": "4bd665b0cd024961fb5b60f6ee4f0b858e9a7dd4",
+      "size": 7054,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/property_location_picker_screen.dart",
+      "git_blob_sha": "09712a50e837c337017ac5ccff2d85341885f1b5",
+      "size": 14567,
+      "proposed_stage": 3,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/property_market_context_card.dart",
+      "git_blob_sha": "66faf13a03093aa08e8789698802034ff81634e7",
+      "size": 8851,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/property_sai_configuration_sheet.dart",
+      "git_blob_sha": "6bff4116ad02521ba20f71eb366a273cd0858aad",
+      "size": 9712,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/property_sai_public_line.dart",
+      "git_blob_sha": "caa53ce4834acdee7e8357c6886562691707adfe",
+      "size": 2963,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/saved_search_builder_screen.dart",
+      "git_blob_sha": "1b1dfe309b083d6f0fad8621748964c92c858995",
+      "size": 19565,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/properties/presentation/saved_searches_screen.dart",
+      "git_blob_sha": "6f6e1bd1d628f62f31740847d7d0319dcb7d2af1",
+      "size": 13157,
+      "proposed_stage": 2,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/regions/presentation/platform_regions_screen.dart",
+      "git_blob_sha": "c64e09c7433646360854bf1ed13e74331a9a8182",
+      "size": 12431,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/regions/presentation/regions_management_screen.dart",
+      "git_blob_sha": "de2903fd56e4ba30ba245d8ce55f3fdf9d5f2fe0",
+      "size": 21452,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/reviews/presentation/broker_listing_verifications_screen.dart",
+      "git_blob_sha": "f555e16297f16f27b6a61f831711cd297211ec98",
+      "size": 7324,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/reviews/presentation/listing_review_screen.dart",
+      "git_blob_sha": "68a0acad0aa1451f3966af0c604fb1f4561de670",
+      "size": 494,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/reviews/presentation/listing_review_workspace_screen.dart",
+      "git_blob_sha": "b80de7100fed549f0879e20781503ccd10fff64b",
+      "size": 33104,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/services/presentation/professional_workspace_screen.dart",
+      "git_blob_sha": "01c8c922040cfbfceca4d85104ff139b301bcf3a",
+      "size": 12359,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/services/presentation/property_journey_screen.dart",
+      "git_blob_sha": "ff29268b06b9ce180c6e166d282ffa0aad49e642",
+      "size": 14149,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/services/presentation/services_screen.dart",
+      "git_blob_sha": "7b6c3f3ae5947ad30b898606e93b1ae31ac6d04f",
+      "size": 13476,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/support/presentation/account_verification_support_screen.dart",
+      "git_blob_sha": "36b1e3ff57e9916ee5e7410750a9aa34f13dde98",
+      "size": 15814,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/support/presentation/support_admin_screen.dart",
+      "git_blob_sha": "3a8941a1e2c0d10a426989e0afab15eedf935bec",
+      "size": 28428,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/support/presentation/support_center_screen.dart",
+      "git_blob_sha": "550ced6bf8c008747ce610c0d612b275849d7c4c",
+      "size": 14291,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/support/presentation/support_tasks_screen.dart",
+      "git_blob_sha": "6a405e928a77b70584a74712c0bf1e7aeaea8932",
+      "size": 65499,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/support/presentation/support_users_screen.dart",
+      "git_blob_sha": "c4eaa9d7a4efd74775b777eed88ef37a85885ba8",
+      "size": 6399,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/support/presentation/support_work_log_screen.dart",
+      "git_blob_sha": "7017a80094988001248119abf0c3f336b64260f5",
+      "size": 4979,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/support/presentation/support_workspace_pages.dart",
+      "git_blob_sha": "eadf622633713fde3aa65d062b8c94b72e518e0a",
+      "size": 37571,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/features/support/presentation/support_workspace_screen.dart",
+      "git_blob_sha": "e5b415d9b92dce57fced1b5da338d3a6a5b008c3",
+      "size": 9131,
+      "proposed_stage": 5,
+      "pinned_behavior": false,
+      "feature": "presentation"
+    },
+    {
+      "path": "mobile_app/lib/router/app_router.dart",
+      "git_blob_sha": "89ae86ee056585f1ea50423005282e695ce12a06",
+      "size": 11236,
+      "proposed_stage": 1,
+      "pinned_behavior": false,
+      "feature": "shared"
+    }
+  ]
+}

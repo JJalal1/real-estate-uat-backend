@@ -1,0 +1,444 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+import '../theme/ebroker_design.dart';
+import '../theme/app_tokens.dart';
+import 'property_type_icon.dart';
+
+class EbrokerIcon extends StatelessWidget {
+  const EbrokerIcon(this.icon, {this.size, this.color, this.semanticLabel, this.textDirection, super.key});
+  final IconData? icon;
+  final double? size;
+  final Color? color;
+  final String? semanticLabel;
+  final TextDirection? textDirection;
+  String? get _asset {
+    if ([Icons.home_work_outlined, Icons.home_outlined, Icons.home, Icons.travel_explore_outlined].contains(icon)) return 'home';
+    if ([Icons.person_outline, Icons.account_circle_outlined, Icons.person].contains(icon)) return 'profile_outlined';
+    if ([Icons.chat_outlined, Icons.chat_bubble_outline, Icons.chat_bubble_outline_rounded].contains(icon)) return 'chat';
+    if ([Icons.search, Icons.search_rounded].contains(icon)) return 'search';
+    if ([Icons.favorite_border, Icons.favorite_border_rounded].contains(icon)) return 'heart';
+    if ([Icons.favorite, Icons.favorite_rounded].contains(icon)) return 'heart_filled';
+    if ([Icons.notifications_outlined, Icons.notifications_none_outlined].contains(icon)) return 'notification';
+    if ([Icons.location_on_outlined, Icons.location_on, Icons.location_on_rounded].contains(icon)) return 'location';
+    if ([Icons.map_outlined, Icons.map].contains(icon)) return 'propertymap';
+    if ([Icons.filter_list, Icons.tune, Icons.tune_rounded].contains(icon)) return 'filter';
+    if ([Icons.add, Icons.add_home_outlined, Icons.add_home_work_outlined].contains(icon)) return 'plus_btn';
+    if ([Icons.calendar_month_outlined, Icons.event_available_outlined].contains(icon)) return 'calendar';
+    if ([Icons.inventory_2_outlined, Icons.apartment_outlined].contains(icon)) return 'properties';
+    if ([Icons.edit_outlined, Icons.edit].contains(icon)) return 'edit';
+    if ([Icons.phone_outlined, Icons.phone, Icons.call_outlined].contains(icon)) return 'call';
+    if ([Icons.close, Icons.close_rounded].contains(icon)) return 'close_circle';
+    if (icon == Icons.send) return 'send';
+    if (icon == Icons.logout) return 'logout';
+    if ([Icons.ios_share_outlined, Icons.share_outlined].contains(icon)) return 'share_icon';
+    if ([Icons.notification_important_outlined, Icons.notifications_active_outlined, Icons.notifications_none_rounded, Icons.notifications_off_outlined, Icons.notifications_outlined].contains(icon)) return 'notification';
+    if ([Icons.history, Icons.history_outlined, Icons.history_rounded, Icons.hourglass_bottom, Icons.hourglass_top, Icons.hourglass_top_outlined, Icons.pending_actions_outlined, Icons.schedule_outlined, Icons.timer_off_outlined, Icons.timer_outlined, Icons.update_rounded].contains(icon)) return 'clock';
+    if ([Icons.calendar_month_outlined, Icons.date_range_outlined, Icons.event_available_outlined, Icons.event_busy_outlined].contains(icon)) return 'calendar';
+    if ([Icons.check_circle, Icons.check_circle_outline, Icons.check_circle_rounded, Icons.domain_verification_outlined, Icons.how_to_reg_outlined, Icons.task_alt, Icons.task_alt_outlined, Icons.task_alt_rounded, Icons.verified_outlined, Icons.verified_user_outlined].contains(icon)) return 'verified';
+    if ([Icons.admin_panel_settings_outlined, Icons.privacy_tip_outlined, Icons.security_outlined, Icons.shield, Icons.shield_outlined].contains(icon)) return 'agent/shield-tick';
+    if ([Icons.assignment_ind_outlined, Icons.badge_outlined, Icons.manage_accounts_outlined, Icons.supervisor_account_outlined].contains(icon)) return 'agent/user-check';
+    if ([Icons.groups_2_outlined, Icons.groups_outlined, Icons.people_alt_outlined, Icons.person_search_outlined, Icons.support_agent, Icons.support_agent_outlined].contains(icon)) return 'interested_users';
+    if ([Icons.analytics_outlined, Icons.insights_outlined, Icons.insights_rounded, Icons.monitor_heart_outlined, Icons.query_stats_outlined, Icons.trending_up].contains(icon)) return 'agent/chart';
+    if ([Icons.settings_outlined, Icons.settings_suggest_outlined].contains(icon)) return 'configuration';
+    if ([Icons.article_outlined, Icons.description_outlined, Icons.fact_check_outlined, Icons.gavel_outlined, Icons.menu_book_outlined, Icons.note_alt_outlined, Icons.receipt_long, Icons.receipt_long_outlined, Icons.upload_file_outlined].contains(icon)) return 'article';
+    if ([Icons.apartment, Icons.apartment_outlined, Icons.business, Icons.business_center_outlined, Icons.business_outlined, Icons.category_outlined, Icons.holiday_village_outlined, Icons.inventory_2_outlined, Icons.location_city_outlined, Icons.real_estate_agent_outlined].contains(icon)) return 'properties_icon';
+    if ([Icons.account_balance_outlined, Icons.account_balance_wallet_outlined, Icons.monetization_on_outlined, Icons.payments_outlined].contains(icon)) return 'bank';
+    if ([Icons.crisis_alert_outlined, Icons.error_outline, Icons.flag_outlined, Icons.report_gmailerrorred_outlined, Icons.report_outlined, Icons.report_problem_outlined].contains(icon)) return 'report';
+    if ([Icons.priority_high, Icons.priority_high_rounded, Icons.warning_amber_outlined, Icons.warning_amber_rounded].contains(icon)) return 'warning';
+    if ([Icons.help_outline, Icons.info_outline].contains(icon)) return 'info';
+    if ([Icons.phone_callback_outlined, Icons.phone_in_talk_outlined, Icons.phone_outlined, Icons.send_to_mobile_outlined].contains(icon)) return 'call';
+    if ([Icons.add_photo_alternate_outlined, Icons.broken_image_outlined, Icons.image, Icons.open_in_full].contains(icon)) return 'gallery';
+    if ([Icons.visibility_outlined].contains(icon)) return 'eye';
+    if ([Icons.visibility_off_outlined].contains(icon)) return 'eye_slash';
+    if ([Icons.key_outlined, Icons.lock_outline].contains(icon)) return 'lock';
+    if ([Icons.mark_email_read_outlined, Icons.mark_email_unread_outlined].contains(icon)) return 'email';
+    if ([Icons.add_comment_outlined, Icons.forum_outlined, Icons.mark_chat_read_outlined, Icons.mark_chat_unread_outlined, Icons.quickreply_outlined, Icons.send_outlined].contains(icon)) return 'chat';
+    if ([Icons.apps_outlined, Icons.dashboard_outlined, Icons.grid_view_outlined, Icons.space_dashboard_outlined].contains(icon)) return 'agent/dashboard';
+    if ([Icons.add_location_alt_outlined, Icons.my_location, Icons.my_location_rounded, Icons.place_outlined].contains(icon)) return 'location';
+    if ([Icons.explore_outlined, Icons.location_off_outlined, Icons.public, Icons.public_off].contains(icon)) return 'location_pin';
+    if ([Icons.delete_outline, Icons.delete_outline_rounded].contains(icon)) return 'bin';
+    if ([Icons.draw_outlined, Icons.draw_rounded, Icons.edit_note_outlined].contains(icon)) return 'edit';
+    if ([Icons.copy, Icons.link].contains(icon)) return 'share_icon';
+    if ([Icons.check, Icons.check_rounded].contains(icon)) return 'right';
+    if ([Icons.arrow_back, Icons.arrow_back_rounded, Icons.chevron_left, Icons.chevron_left_rounded].contains(icon)) return 'arrow_left';
+    if ([Icons.arrow_forward].contains(icon)) return 'arrow_right';
+    if ([Icons.expand_more].contains(icon)) return 'down_arrow';
+    if ([Icons.add_road_outlined, Icons.map_outlined, Icons.route_outlined].contains(icon)) return 'propertymap';
+    if ([Icons.autorenew, Icons.refresh, Icons.refresh_rounded, Icons.restart_alt].contains(icon)) return 'update';
+    return null;
+  }
+  @override
+  Widget build(BuildContext context) {
+    final asset = _asset;
+    if (asset == null) return Icon(icon, size: size, color: color, semanticLabel: semanticLabel, textDirection: textDirection);
+    return Semantics(label: semanticLabel, child: EbrokerImage(asset,
+      size: size ?? IconTheme.of(context).size ?? 24,
+      color: color ?? IconTheme.of(context).color ?? EbrokerDesign.text));
+  }
+}
+
+// Presentation ports of the purchased eBroker 1.8.0 widgets. The widget trees,
+// measurements and asset paths come from that pinned source; callbacks and
+// validation are supplied by our existing application, never template Cubits.
+class EbrokerImage extends StatelessWidget {
+  const EbrokerImage(this.name, {this.size = 24, this.color, super.key});
+  final String name;
+  final double size;
+  final Color? color;
+  @override
+  Widget build(BuildContext context) => SvgPicture.asset(
+    'assets/ebroker/svg/$name.svg', width: size, height: size,
+    colorFilter: color == null ? null : ColorFilter.mode(color!, BlendMode.srcIn),
+    excludeFromSemantics: true,
+  );
+}
+
+// utils/custom_text.dart: height 1.3, responsive sizes and weight come from
+// the template. Manrope is the primary family, Arabic uses the device fallback.
+class EbrokerText extends StatelessWidget {
+  const EbrokerText(this.text, {this.size = 14, this.weight = FontWeight.w400,
+    this.color, this.maxLines = 10, this.align, super.key});
+  final String text;
+  final double size;
+  final FontWeight weight;
+  final Color? color;
+  final int maxLines;
+  final TextAlign? align;
+  @override
+  Widget build(BuildContext context) => Text(text,
+    maxLines: maxLines, overflow: TextOverflow.ellipsis, softWrap: true,
+    textAlign: align,
+    style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: size.rf(context),
+      fontWeight: weight, color: color ?? EbrokerDesign.text, height: 1.3),
+  );
+}
+
+// Shared adaptive button; the existing callback and loading contracts stay intact.
+class EbrokerButton extends StatelessWidget {
+  const EbrokerButton({required this.onPressed, required this.child,
+    this.icon, this.style, this.outlined = false, this.tonal = false,
+    this.loading = false, this.expand = false, super.key});
+  final VoidCallback? onPressed;
+  final Widget child;
+  final Widget? icon;
+  final ButtonStyle? style;
+  final bool outlined;
+  final bool tonal;
+  final bool loading;
+  final bool expand;
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final states = <WidgetState>{if (onPressed == null || loading) WidgetState.disabled};
+    final foreground = style?.foregroundColor?.resolve(states) ??
+      (outlined || tonal ? scheme.primary : Colors.white);
+    final background = style?.backgroundColor?.resolve(states) ??
+      (outlined ? Colors.transparent : tonal ? scheme.primaryContainer : scheme.primary);
+    return MaterialButton(
+      focusElevation: 0, hoverElevation: 0, highlightElevation: 0,
+      minWidth: expand ? double.infinity : null,
+      height: 52,
+      padding: style?.padding?.resolve(states) ?? const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      shape: RoundedRectangleBorder(
+        side: outlined ? BorderSide(color: scheme.primary) : BorderSide.none,
+        borderRadius: BorderRadius.circular(AppRadii.control),
+      ),
+      elevation: 0, color: background, disabledColor: scheme.surfaceContainerHigh,
+      textColor: foreground, disabledTextColor: scheme.onSurfaceVariant,
+      onPressed: loading || onPressed == null ? null : () {
+        FocusManager.instance.primaryFocus?.unfocus(); onPressed!();
+      },
+      child: DefaultTextStyle(
+        softWrap: true,
+        style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: 15, fontWeight: FontWeight.w600,
+          color: onPressed == null || loading ? scheme.onSurfaceVariant : foreground, height: 1.4),
+        child: IconTheme(data: IconThemeData(color: foreground, size: 20),
+          child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (loading) SizedBox(width: 16, height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: foreground)),
+              if (icon != null && !loading) ...[icon!, const SizedBox(width: 4)],
+              if (!loading) Flexible(child: child),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class EbrokerFilledButton extends EbrokerButton {
+  const EbrokerFilledButton({required super.onPressed, required super.child, super.style, super.key});
+  const EbrokerFilledButton.icon({required super.onPressed, required Widget label,
+    required super.icon, super.style, super.key}) : super(child: label);
+  const EbrokerFilledButton.tonal({required super.onPressed, required super.child,
+    super.style, super.key}) : super(tonal: true);
+  const EbrokerFilledButton.tonalIcon({required super.onPressed, required Widget label,
+    required super.icon, super.style, super.key}) : super(child: label, tonal: true);
+}
+class EbrokerOutlinedButton extends EbrokerButton {
+  const EbrokerOutlinedButton({required super.onPressed, required super.child,
+    super.style, super.key}) : super(outlined: true);
+  const EbrokerOutlinedButton.icon({required super.onPressed, required Widget label,
+    required super.icon, super.style, super.key}) : super(child: label, outlined: true);
+}
+
+// add_property/steps/step2_property_details_screen.dart::_buildPropertyTypeOption.
+// The original radio option replaces Material 3 segmented controls, while the
+// values, disabled states and callbacks remain those of the calling workflow.
+class EbrokerSegmentedButton<T> extends StatelessWidget {
+  const EbrokerSegmentedButton({required this.segments, required this.selected,
+    required this.onSelectionChanged, this.showSelectedIcon = true,
+    this.emptySelectionAllowed = false, super.key});
+  final List<ButtonSegment<T>> segments;
+  final Set<T> selected;
+  final ValueChanged<Set<T>>? onSelectionChanged;
+  final bool showSelectedIcon;
+  final bool emptySelectionAllowed;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    Widget option(ButtonSegment<T> segment) {
+      final active = selected.contains(segment.value);
+      final enabled = onSelectionChanged != null && segment.enabled;
+      return Semantics(button: true, selected: active, enabled: enabled,
+        child: GestureDetector(
+          onTap: enabled ? () => onSelectionChanged!(
+            active && emptySelectionAllowed ? <T>{} : {segment.value}) : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: active ? Theme.of(context).colorScheme.primaryContainer : EbrokerDesign.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: active ? primary : EbrokerDesign.border,
+                width: active ? 1.5 : 1)),
+            child: DefaultTextStyle(
+              style: TextStyle(fontFamily: 'PrimaryFont',
+                fontFamilyFallback: const ['sans-serif'],
+                fontSize: 14.rf(context), height: 1.3, color: EbrokerDesign.text,
+                fontWeight: active ? FontWeight.w500 : FontWeight.w400),
+              child: Row(children: [
+                if (showSelectedIcon) ...[
+                  Icon(active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    size: 20, color: active ? primary : EbrokerDesign.textLight),
+                  SizedBox(width: 8.rh(context)),
+                ],
+                if (segment.icon != null) ...[segment.icon!, SizedBox(width: 8.rh(context))],
+                if (segment.label != null) Expanded(child: segment.label!),
+              ]),
+            ),
+          ),
+        ),
+      );
+    }
+    return LayoutBuilder(builder: (context, constraints) {
+      final stacked = constraints.maxWidth < 400 && MediaQuery.textScalerOf(context).scale(14) > 20;
+      if (stacked) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [for (var i = 0; i < segments.length; i++) ...[
+            if (i > 0) SizedBox(height: 12.rh(context)), option(segments[i]),
+          ]]);
+      }
+      return Row(children: [for (var i = 0; i < segments.length; i++) ...[
+        if (i > 0) SizedBox(width: 12.rh(context)), Expanded(child: option(segments[i])),
+      ]]);
+    });
+  }
+}
+
+// filter_screen.dart::_buildOptionChip: original 12/8 padding, 4px corners,
+// solid selected brand and 5% neutral background. Workflow state stays outside.
+class EbrokerChoiceChip extends StatelessWidget {
+  const EbrokerChoiceChip({required this.label, required this.selected,
+    required this.onSelected, this.avatar, super.key});
+  final Widget label;
+  final bool selected;
+  final ValueChanged<bool>? onSelected;
+  final Widget? avatar;
+  @override
+  Widget build(BuildContext context) => Semantics(button: true, selected: selected,
+    enabled: onSelected != null,
+    child: GestureDetector(onTap: onSelected == null ? null : () => onSelected!(!selected),
+      child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Theme.of(context).colorScheme.primaryContainer : Colors.white,
+          border: Border.all(color: selected ? Theme.of(context).colorScheme.primary.withValues(alpha: .25) : EbrokerDesign.border),
+          borderRadius: BorderRadius.circular(999)),
+        child: DefaultTextStyle(style: TextStyle(fontFamily: 'PrimaryFont',
+          fontFamilyFallback: const ['sans-serif'],
+          fontSize: 14.rf(context), height: 1.3,
+          color: selected ? Theme.of(context).colorScheme.onPrimaryContainer : EbrokerDesign.text),
+          child: IconTheme(data: IconThemeData(color: selected ? Theme.of(context).colorScheme.primary : EbrokerDesign.text),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (avatar != null) ...[avatar!, const SizedBox(width: 8)],
+              Flexible(child: label),
+            ])),
+        ),
+      ),
+    ),
+  );
+}
+
+class EbrokerFilterChip extends EbrokerChoiceChip {
+  const EbrokerFilterChip({required super.label, required super.selected,
+    required super.onSelected, super.avatar, super.key});
+}
+
+class EbrokerActionChip extends StatelessWidget {
+  const EbrokerActionChip({required this.label, required this.onPressed,
+    this.avatar, super.key});
+  final Widget label;
+  final VoidCallback? onPressed;
+  final Widget? avatar;
+  @override
+  Widget build(BuildContext context) => EbrokerChoiceChip(label: label,
+    avatar: avatar, selected: false,
+    onSelected: onPressed == null ? null : (_) => onPressed!());
+}
+
+// add_property/steps/step1_categories_screen.dart category tile, fed by our
+// existing taxonomy instead of the template's remote category/Cubit model.
+class EbrokerWizardCategoryCard extends StatelessWidget {
+  const EbrokerWizardCategoryCard({required this.label, required this.icon,
+    required this.selected, required this.onTap, super.key});
+  final String label;
+  final String icon;
+  final bool selected;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Semantics(button: true, selected: selected, enabled: onTap != null,
+      child: GestureDetector(onTap: onTap,
+        child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          decoration: BoxDecoration(color: selected ? Theme.of(context).colorScheme.primaryContainer : EbrokerDesign.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: selected ? primary : EbrokerDesign.border.withValues(alpha: .7))),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            PropertyTypeIcon(label: label, size: 28.rw(context), color: selected ? primary : EbrokerDesign.text),
+            SizedBox(height: 6.rh(context)),
+            EbrokerText(label, size: 12, weight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: selected ? primary : EbrokerDesign.text, align: TextAlign.center, maxLines: 1),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// Keep the purchased fallback composition, using our identity rather than
+// displaying the template vendor's eBroker wordmark in our marketplace.
+class EbrokerPropertyPlaceholder extends StatelessWidget {
+  const EbrokerPropertyPlaceholder({this.size = 44, this.type, super.key});
+  final double size;
+  final String? type;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: EbrokerDesign.page,
+    child: LayoutBuilder(builder: (context, constraints) {
+      final captionHeight = MediaQuery.textScalerOf(context).scale(12.rf(context)) * 1.3;
+      final compact = constraints.maxHeight < size + 4 + captionHeight;
+      final image = PropertyTypeIcon(type: type, size: size, color: Theme.of(context).colorScheme.primary.withValues(alpha: .45));
+      if (compact) return Semantics(label: 'صورة العقار غير متاحة', child: Center(child: image));
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        image,
+        const SizedBox(height: 4),
+        EbrokerText('الصورة غير متاحة', size: 10, maxLines: 1, align: TextAlign.center,
+          color: Theme.of(context).colorScheme.primary),
+      ]));
+    }));
+}
+
+// home/widgets/header_card.dart::TitleHeader.
+class EbrokerTitleHeader extends StatelessWidget {
+  const EbrokerTitleHeader({required this.title, this.onSeeAll, this.action = 'رؤية الكل', super.key});
+  final String title;
+  final VoidCallback? onSeeAll;
+  final String action;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsetsDirectional.only(top: 20, bottom: 16, start: 18, end: 18),
+    child: Row(children: [
+      Expanded(child: EbrokerText(title, size: 16, weight: FontWeight.w700, maxLines: 2)),
+      if (onSeeAll != null) InkWell(onTap: onSeeAll,
+        child: Padding(padding: const EdgeInsetsDirectional.only(start: 4),
+          child: EbrokerText(action, size: 12, color: EbrokerDesign.textLight))),
+    ]),
+  );
+}
+
+// home/widgets/category_card.dart. Values come from our discovery taxonomy.
+class EbrokerCategoryCard extends StatelessWidget {
+  const EbrokerCategoryCard({required this.label, required this.icon, required this.onTap, this.selected = false, super.key});
+  final String label, icon;
+  final VoidCallback onTap;
+  final bool selected;
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(button: true, selected: selected, child: Material(color: Colors.transparent,
+      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 180),
+          constraints: const BoxConstraints(minHeight: 48), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(color: selected ? scheme.secondary : scheme.surface,
+            border: Border.all(color: selected ? scheme.secondary : scheme.outlineVariant), borderRadius: BorderRadius.circular(999)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            PropertyTypeIcon(label: label, size: 18, color: selected ? Colors.white : scheme.primary), const SizedBox(width: 8),
+            EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? Colors.white : scheme.onSurface, maxLines: 1),
+          ])))));
+  }
+}
+
+// home/widgets/sell_rent_label.dart.
+class EbrokerPurposeLabel extends StatelessWidget {
+  const EbrokerPurposeLabel(this.label, {super.key});
+  final String label;
+  @override
+  Widget build(BuildContext context) {
+    final color = label.contains('إيجار') ? const Color(0xFF896024) : const Color(0xFF1C6092);
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(48)),
+      child: EbrokerText(label, size: 11, weight: FontWeight.w500, color: color));
+  }
+}
+
+// profile/profile_settings/profile_tile.dart. Our callbacks/permissions survive.
+class EbrokerProfileTile extends StatelessWidget {
+  const EbrokerProfileTile({required this.title, this.leading, this.subtitle,
+    this.trailing, this.onTap, super.key});
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => InkWell(onTap: onTap,
+    child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(children: [
+        if (leading != null) ...[
+          Container(padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(14)),
+            child: IconTheme(data: const IconThemeData(size: 24, color: EbrokerDesign.text), child: leading!)),
+          const SizedBox(width: 8),
+        ],
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          EbrokerText(title, size: 16, weight: FontWeight.w700),
+          if (subtitle != null) EbrokerText(subtitle!, size: 12, color: EbrokerDesign.textLight),
+        ])),
+        if (trailing != null) trailing!,
+      ]),
+    ),
+  );
+}
+
+// Presentation labels for the unchanged server property taxonomy.
+String ebrokerPropertyTypeLabel(String? type) => const <String, String>{
+  'apartment': 'شقة', 'floor': 'دور كامل', 'building': 'عمارة كاملة', 'house': 'منزل', 'villa': 'فيلا', 'land': 'أرض',
+  'shop': 'محل', 'office': 'مكتب', 'farm': 'مزرعة',
+}[type] ?? 'عقار';
+
+String ebrokerCategoryIcon(String? type) => const <String, String>{
+  'apartment': 'properties', 'floor': 'properties', 'building': 'properties', 'house': 'home', 'villa': 'home',
+  'land': 'location_pin', 'shop': 'listing_feature', 'office': 'properties_icon',
+  'farm': 'propertymap',
+}[type] ?? 'properties_icon';

@@ -1,0 +1,86 @@
+name: Adaptive Image Quality
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - 'scripts/probe_adaptive_images.py'
+      - '.github/workflows/adaptive-image-quality.yml'
+permissions:
+  contents: read
+jobs:
+  backend:
+    name: Adaptive derivatives privacy and media lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          php artisan key:generate --force
+          php artisan test tests/Feature/AdaptiveImageQualityTest.php tests/Feature/UserWorkMediaTest.php tests/Feature/Wave2MediaTrustTest.php --fail-on-warning --fail-on-risky
+  flutter:
+    name: Adaptive selection cache cancellation and regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve protected dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Strict analysis and media regressions
+        working-directory: mobile_app
+        run: |
+          python3 -B ../scripts/check_v3_analysis.py
+          flutter test test/adaptive_image_quality_test.dart test/user_work_media_test.dart test/wave2_trust_account_media_test.dart --reporter expanded
+  live-measurement:
+    name: Real UAT transfer measurements and Flutter cache integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Measure existing synthetic fixtures only
+        run: python3 scripts/probe_adaptive_images.py --output adaptive-image-uat-metrics.json
+      - name: Real Flutter to Laravel to private Storage read and cache reuse
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          flutter test test/adaptive_image_uat_test.dart --dart-define=AQER_LIVE_IMAGE_PROBE=true --reporter expanded
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adaptive-image-uat-metrics
+          path: adaptive-image-uat-metrics.json
+          retention-days: 14

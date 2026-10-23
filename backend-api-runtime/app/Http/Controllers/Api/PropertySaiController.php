@@ -1,0 +1,96 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Property;
+use App\Models\User;
+use App\Services\ApiTokenService;
+use App\Services\PropertySaiService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+class PropertySaiController extends Controller
+{
+    public function __construct(
+        private readonly PropertySaiService $sai,
+        private readonly ApiTokenService $tokens,
+    ) {}
+
+    public function policy(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['purpose' => ['required', Rule::in(['sale', 'rent'])]]);
+        return response()->json(['data' => $this->sai->policy($request->user(), $validated['purpose'])]);
+    }
+
+    public function management(Request $request, Property $property): JsonResponse
+    {
+        abort_unless((int) $request->user()->id === (int) $property->user_id, 403);
+        return response()->json(['data' => [
+            'sai' => $this->sai->publicData($property),
+            'sai_management' => $this->sai->managementData($property, $request->user()),
+        ]]);
+    }
+
+    public function show(Request $request, Property $property): JsonResponse
+    {
+        $viewer = $this->tokens->authenticate($request, false);
+        $isOwner = $viewer !== null && (int) $viewer->id === (int) $property->user_id;
+        abort_unless($property->status === 'published' || $isOwner, 404);
+
+        $data = ['sai' => $this->sai->publicData($property)];
+        // A published listing response is always public-safe, even when its
+        // advertiser is logged in. Internal split/acceptance data is exposed
+        // only while that advertiser is configuring a non-public listing.
+        if ($isOwner && $property->status !== 'published') {
+            $data['sai_management'] = $this->sai->managementData($property, $viewer);
+        }
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function update(Request $request, Property $property): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'sai_payer' => ['sometimes', 'string', Rule::in(['seller', 'buyer', 'landlord', 'tenant'])],
+            'broker_sai_rate_percent' => ['nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
+            'sai_amount_type' => ['sometimes', Rule::in(['percentage', 'fixed'])],
+            'fixed_sai_amount' => ['nullable', 'required_if:sai_amount_type,fixed', 'prohibited_unless:sai_amount_type,fixed', 'numeric', 'min:0', 'max:999999999999.99', 'decimal:0,2'],
+            'defer_platform_terms' => ['sometimes', 'boolean'],
+            'platform_terms_decision' => ['nullable', 'string', Rule::in(['accept', 'reject'])],
+        ]);
+
+        $brokerRate = array_key_exists('broker_sai_rate_percent', $validated)
+            && $validated['broker_sai_rate_percent'] !== null
+            ? (float) $validated['broker_sai_rate_percent']
+            : null;
+
+        $term = $this->sai->configure(
+            $user,
+            $property,
+            (string) ($validated['sai_payer'] ?? ($property->purpose === 'rent' ? 'tenant' : 'buyer')),
+            $brokerRate,
+            isset($validated['platform_terms_decision']) ? (string) $validated['platform_terms_decision'] : null,
+            $request,
+            $request->boolean('defer_platform_terms'),
+            (string) ($validated['sai_amount_type'] ?? 'percentage'),
+            isset($validated['fixed_sai_amount']) ? (float) $validated['fixed_sai_amount'] : null,
+        );
+
+        $fresh = $property->fresh(['user.accountVerificationProfile']);
+
+        return response()->json([
+            'message' => $term->platform_terms_status === 'rejected'
+                ? 'تم حفظ رفض الشرط. لا يمكن إرسال الإعلان للمراجعة حتى قبول الشروط أو اختيار سعي 0%.'
+                : 'تم حفظ شروط السعي.',
+            'data' => [
+                'sai' => $this->sai->publicData($fresh),
+                'sai_management' => $this->sai->managementData($fresh, $user),
+            ],
+        ]);
+    }
+}
