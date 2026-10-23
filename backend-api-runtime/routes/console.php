@@ -23,6 +23,23 @@ Artisan::command('support:process-contact-followups', function (SupportTaskServi
     $this->info("Contact follow-ups: {$result['overdue_notified']} overdue notification(s), {$result['escalated']} escalation(s).");
 })->purpose('Notify overdue contact follow-ups and auto-escalate them after an additional 24 hours.');
 
+
+Artisan::command('uat:video-storage-probe', function (CloudAssetStorageService $storage): int {
+    if (! app()->environment('staging') || ! $storage->cloudEnabled()) {
+        $this->error('Private media probe requires the Cloud UAT environment.');
+        return 1;
+    }
+    try {
+        $storage->probePrivateVideoStorage();
+        $this->info('Private UAT video storage canary passed: streamed upload, exact range and full download.');
+        return 0;
+    } catch (\Throwable) {
+        // Do not echo storage URLs, response bodies or provider credentials.
+        $this->error('Private UAT video storage canary failed.');
+        return 1;
+    }
+})->purpose('Probe private Supabase Storage video protocol using disposable synthetic bytes.');
+
 Artisan::command('uat:cloud-check', function (CloudAssetStorageService $storage) {
     $errors = [];
 
