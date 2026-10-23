@@ -127,6 +127,7 @@ class ListingEditorDraftController extends Controller
             $this->drafts->assertEditable($request->user(),$draft->property_id?Property::query()->findOrFail($draft->property_id):null);
             $images=$draft->images;if(!isset($images[$imageKey])) return $draft;
             $this->drafts->assertRevision($draft,$request->integer('expected_revision'));
+            \App\Models\ListingImageUploadIntent::query()->where('listing_editor_draft_id',$draft->id)->where('image_key',$imageKey)->where('status','pending')->update(['status'=>'canceled']);
             $path=$images[$imageKey];unset($images[$imageKey]);$draft->images=$images;$draft->revision++;$draft->save();return $draft;
         });
         if($path)$this->drafts->removeFiles([$path]);return response()->json(['data'=>$this->drafts->present($result)]);
@@ -139,6 +140,7 @@ class ListingEditorDraftController extends Controller
             if($draft->property_id){$property=Property::query()->lockForUpdate()->find($draft->property_id);
                 if($property && $property->status==='draft'){$this->drafts->assertEditable($request->user(),$property);
                     app(PropertyIdentityService::class)->releaseRepresentationForListing($property,'editor_draft_deleted');$property->status='archived';$property->save();}}
+            \App\Models\ListingImageUploadIntent::query()->where('listing_editor_draft_id',$draft->id)->where('status','pending')->update(['status'=>'canceled']);
             $paths=array_values($draft->images);$draft->delete();return $paths;
         });
         $this->drafts->removeFiles($paths);return response()->json(['message'=>'حذفت المسودة.']);
