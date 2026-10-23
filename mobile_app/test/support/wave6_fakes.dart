@@ -52,7 +52,7 @@ class Wave6Drafts implements ListingAccountDraftRepository {
   @override
   Future<void> delete(String key) async {drafts.remove(key);}
   @override
-  Future<Uint8List> photo(String url) async=>Uint8List.fromList(base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
+  Future<Uint8List> photo(String url, {CancelToken? cancelToken}) async=>Uint8List.fromList(base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
 }
 
 PropertyDetails wave6Property(int id,{String type='apartment',String purpose='sale',double price=20000000,double? area=120,String currency='YER'})=>PropertyDetails.fromJson({

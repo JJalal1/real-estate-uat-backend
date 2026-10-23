@@ -13,6 +13,7 @@ use Tests\TestCase;
 class Phase2ListingJourneyApiTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Concerns\ConfirmsListingImages;
 
     protected function setUp(): void
     {
@@ -74,6 +75,8 @@ class Phase2ListingJourneyApiTest extends TestCase
             ->postJson("/api/admin/listing-review/listings/$secondId/start")
             ->assertOk()
             ->assertJsonPath('data.review_status', 'under_review');
+
+        $this->confirmListingImages($secondId, $supportHeaders);
 
         $this->withHeaders($supportHeaders)
             ->postJson("/api/admin/listing-review/listings/$secondId/approve")
@@ -165,6 +168,7 @@ class Phase2ListingJourneyApiTest extends TestCase
 
         $this->withHeaders($firstHeaders)->postJson("/api/properties/$firstId/submit")->assertOk();
         $this->withHeaders($supportHeaders)->postJson("/api/admin/listing-review/listings/$firstId/start")->assertOk();
+        $this->confirmListingImages($firstId, $supportHeaders);
         $this->withHeaders($supportHeaders)->postJson("/api/admin/listing-review/listings/$firstId/approve")
             ->assertOk()
             ->assertJsonPath('data.status', 'published');

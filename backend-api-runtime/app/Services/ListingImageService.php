@@ -85,17 +85,25 @@ class ListingImageService
     public function response(string $path, string $variant, bool $published = false)
     {
         $target = $this->variantPath($path, $variant);
+        $headers = [
+            'Content-Type'=>'image/jpeg', 'X-Content-Type-Options'=>'nosniff',
+            'Cache-Control'=>$published ? 'public, max-age=86400' : 'private, no-store',
+            'X-Aqer-Image-Variant'=>$variant,
+        ];
+        if ($published) {
+            $headers['ETag'] = '"'.hash('sha256', $target.json_encode(config('listing_media.variants.'.$variant))).'"';
+            if (request()->header('If-None-Match') === $headers['ETag']) {
+                return response('', 304, $headers);
+            }
+        }
         if (! $this->storage->existsPrivate($target)) {
             // Compatibility for historical internal images: sanitize on demand, never return the raw original.
             $bytes = $this->storage->readBytes($path, self::isPrivate($path));
-            foreach ($this->encode($bytes, $this->inspect($bytes)) as $name=>$encoded) {
+            foreach ($this->encode($bytes, $this->inspect($bytes), [$variant]) as $name=>$encoded) {
                 $this->storage->writePrivate($this->variantPath($path, $name), $encoded, 'image/jpeg');
             }
         }
-        return $this->storage->responsePrivate($target, null, [
-            'Content-Type'=>'image/jpeg', 'X-Content-Type-Options'=>'nosniff',
-            'Cache-Control'=>$published ? 'public, max-age=86400' : 'private, no-store',
-        ]);
+        return $this->storage->responsePrivate($target, null, $headers);
     }
 
     public function removeIfUnused(string $path): void
@@ -123,7 +131,7 @@ class ListingImageService
         return $info;
     }
 
-    private function encode(string $bytes, array $info): array
+    private function encode(string $bytes, array $info, ?array $only = null): array
     {
         $image = @imagecreatefromstring($bytes);
         if (!$image) throw ValidationException::withMessages(['image'=>['تعذر قراءة الصورة. اختر صورة أخرى.']]);
@@ -134,6 +142,7 @@ class ListingImageService
             if ($angle) { $rotated = imagerotate($image, $angle, 0); imagedestroy($image); $image = $rotated; }
             $width = imagesx($image); $height = imagesy($image); $result = [];
             foreach (config('listing_media.variants') as $variant=>[$edge,$quality]) {
+                if ($only !== null && ! in_array($variant, $only, true)) continue;
                 $scale = min(1, $edge / max($width,$height));
                 $w = max(1,(int)round($width*$scale)); $h = max(1,(int)round($height*$scale));
                 $output = imagecreatetruecolor($w,$h);

@@ -92,13 +92,13 @@ class ListingAccountDraftRepository {
   Future<ListingAccountDraft> removeImage(String key, String imageKey, int revision) async =>
     _draft(await _dio.delete<dynamic>('$_base/$key/images/$imageKey', data: {'expected_revision': revision}, options: await _options));
   Future<void> delete(String key) async { await _dio.delete<dynamic>('$_base/$key', options: await _options); }
-  Future<Uint8List> photo(String url) async {
+  Future<Uint8List> photo(String url, {CancelToken? cancelToken}) async {
     final target=Uri.parse(url), base=Uri.parse(_dio.options.baseUrl);
     if (target.origin != base.origin || !(target.path.startsWith('${base.path}/listing-editor-drafts/') ||
         RegExp('^${RegExp.escape(base.path)}/property-media/[0-9]+\$').hasMatch(target.path))) {
       throw StateError('Invalid private image location');
     }
-    final token=CancelToken();
+    final token=cancelToken ?? CancelToken();
     final r = await _dio.get<List<int>>(url, options: (await _options).copyWith(responseType: ResponseType.bytes),cancelToken:token)
       .timeout(const Duration(seconds:25),onTimeout:() { token.cancel('Image deadline'); throw TimeoutException('تعذر تحميل الصورة.'); });
     return Uint8List.fromList(r.data ?? const []);
