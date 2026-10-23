@@ -152,6 +152,41 @@ class UserWorkMediaTest extends TestCase
         }
     }
 
+    public function test_resumable_endpoints_are_off_by_default_and_ownership_is_enforced_when_enabled(): void
+    {
+        Storage::fake('local');
+        [, $owner] = $this->actor('tus-owner');
+        [, $other] = $this->actor('tus-other');
+        $key = (string) Str::uuid();
+        $photo = (string) Str::uuid();
+        $url = '/api/listing-editor-drafts/'.$key;
+        $payload = [
+            'checkpoint_key'=>(string)Str::uuid(),
+            'media_version'=>1,
+            'type'=>'shop',
+            'image_order'=>[$photo],
+            'fields'=>[],
+        ];
+        $this->withHeaders($owner)->putJson($url,['payload'=>$payload,'expected_revision'=>0])->assertOk();
+        $ticketUrl = $url.'/images/'.$photo.'/resumable-ticket';
+        $body = [
+            'expected_revision'=>1,
+            'sha256'=>str_repeat('a', 64),
+            'byte_length'=>2048,
+            'mime'=>'image/png',
+        ];
+        $this->withHeaders($owner)->postJson($ticketUrl,$body)->assertNotFound();
+        $this->withHeaders($owner)->postJson($url.'/images/'.$photo.'/resumable-finalize',['expected_revision'=>1])->assertNotFound();
+
+        config(['listing_media.resumable_uploads_enabled'=>true]);
+        // A different account cannot enumerate or reserve someone else's image.
+        $this->withHeaders($other)->postJson($ticketUrl,$body)->assertNotFound();
+        $this->assertDatabaseCount('listing_image_upload_intents',0);
+        $this->withHeaders($owner)->postJson($ticketUrl,[...$body,'byte_length'=>8388609])->assertUnprocessable();
+        $this->withHeaders($owner)->postJson($ticketUrl,[...$body,'mime'=>'text/plain'])->assertUnprocessable();
+        $this->assertDatabaseCount('listing_image_upload_intents',0);
+    }
+
     private function jpegWithExif(int $orientation): string
     {
         $image=imagecreatetruecolor(800,400);
