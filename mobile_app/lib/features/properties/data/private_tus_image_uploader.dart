@@ -46,12 +46,13 @@ class PrivateTusImageUploader {
     required String bucket,
     required String objectName,
     required String signature,
+    required String publishableKey,
     required String mime,
     required CancelToken cancelToken,
     ProgressCallback? progress,
   }) async {
     final target = Uri.parse(endpoint);
-    if (target.scheme != 'https' || target.path != '/storage/v1/upload/resumable' ||
+    if (target.scheme != 'https' || target.path != '/storage/v1/upload/resumable/sign' ||
         target.userInfo.isNotEmpty || target.hasQuery || target.hasFragment) {
       throw StateError('Invalid resumable endpoint');
     }
@@ -70,7 +71,10 @@ class PrivateTusImageUploader {
         }
       } catch (_) { /* Old or tampered session: start clean. */ }
     }
-    final headers = <String, dynamic>{'Tus-Resumable':'1.0.0', 'x-signature':signature};
+    if (!publishableKey.startsWith('sb_publishable_') && !publishableKey.startsWith('eyJ')) {
+      throw StateError('Unsupported public storage key');
+    }
+    final headers = <String, dynamic>{'Tus-Resumable':'1.0.0', 'x-signature':signature, 'apikey':publishableKey};
     int offset = 0;
     if (session != null) {
       try {
