@@ -75,8 +75,14 @@ class CloudAssetStorageService
             $host = $match[1].'.storage.supabase.co';
         }
 
+        $publishableKey = trim((string) config('services.supabase_storage.publishable_key'));
+        if ($publishableKey === '' || str_starts_with($publishableKey, 'sb_secret_')) {
+            throw new RuntimeException('Signed TUS requires a separate publishable key.');
+        }
+
         return [
-            'endpoint' => 'https://'.$host.'/storage/v1/upload/resumable',
+            'publishable_key' => $publishableKey,
+            'endpoint' => 'https://'.$host.'/storage/v1/upload/resumable/sign',
             'bucket' => $this->bucket(),
             'object_name' => $objectName,
             'signature' => $token,
