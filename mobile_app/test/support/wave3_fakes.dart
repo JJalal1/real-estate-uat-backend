@@ -39,7 +39,7 @@ class Wave3PropertiesFake implements PropertyRepository {
   final queries = <({Map<String, dynamic> filters, int page})>[];
   Future<(List<PropertySummary>, bool)> Function(Map<String, dynamic>, int)? onSearch;
   @override
-  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken}) async {
+  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
     queries.add((filters: Map.of(filters), page: page));
     return onSearch == null ? ([wave3Property(11)], false) : onSearch!(filters, page);
   }

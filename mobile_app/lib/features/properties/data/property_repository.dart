@@ -44,8 +44,10 @@ class PropertyRepository {
     String path,
     Map<String, dynamic> params,
     Future<T> Function() loader,
+    {bool refresh = false}
   ) async {
     final key = _publicCacheKey(path, params);
+    if (refresh) { _publicCacheEpoch++; _publicDiscoveryCache.remove(key); }
     final now = DateTime.now();
     final cached = _publicDiscoveryCache[key];
     if (cached != null && now.difference(cached.storedAt) <= _publicDiscoveryCacheTtl) {
@@ -338,7 +340,7 @@ class PropertyRepository {
     return PropertySaiManagement.fromJson(data);
   }
 
-  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken}) async {
+  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
     if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
     final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest'};
     return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
@@ -347,7 +349,7 @@ class PropertyRepository {
         .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
       final meta = response.data?['meta'] as Map? ?? const {};
       return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
-    });
+    }, refresh: refresh);
   }
 
   Future<PropertyDetails> details(int propertyId) async {

@@ -1,7 +1,5 @@
 name: Viewport and loading acceptance
 on:
-  push:
-    branches: [work/viewport-loading-acceptance]
   pull_request:
     branches: [work/wave2-review-current]
 permissions:
@@ -29,7 +27,7 @@ jobs:
           flutter test test/loading_recovery_test.dart test/viewport_media_test.dart test/adaptive_image_quality_test.dart test/user_work_media_test.dart test/wave2_trust_account_media_test.dart --reporter expanded
       - name: Measure repaired viewport over actual HTTP and UAT Storage
         working-directory: mobile_app
-        run: flutter test test/viewport_network_measurement_test.dart --dart-define=AQER_VIEWPORT_HTTP_PROBE=true --reporter expanded
+        run: flutter test test/viewport_network_measurement_test.dart test/discovery_http_acceptance_test.dart --dart-define=AQER_VIEWPORT_HTTP_PROBE=true --dart-define=AQER_DISCOVERY_HTTP_PROBE=true --reporter expanded
       - uses: actions/upload-artifact@v4
         if: always()
         with:

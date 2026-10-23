@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,9 +40,9 @@ class _Search extends Wave3PropertiesFake {
   final transfers = <CancelToken>[];
   @override
   Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters,
-    {int page = 1, CancelToken? cancelToken}) {
+    {int page = 1, CancelToken? cancelToken, bool refresh = false}) {
     if (cancelToken != null) transfers.add(cancelToken);
-    return super.searchListings(filters, page: page, cancelToken: cancelToken);
+    return super.searchListings(filters, page: page, cancelToken: cancelToken, refresh: refresh);
   }
 }
 class _NoHint extends AssistantHintStore {

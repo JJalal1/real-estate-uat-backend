@@ -120,15 +120,16 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     _failedMore = more;
     state = state.copyWith(loading: true, started: true, clearResultsError: true);
     try {
-      final result = await _properties.searchListings(filters.apiFilters, page: page, cancelToken: transfer);
+      final result = await _properties.searchListings(filters.apiFilters, page: page, cancelToken: transfer, refresh: !more && state.page > 0);
       if (!mounted || request != _results || revision != state.revision) return;
       final rows = more ? List<PropertySummary>.of(state.rows) : <PropertySummary>[];
       final ids = rows.map((row) => row.id).toSet();
       rows.addAll(result.$1.where((row) => ids.add(row.id)));
       state = state.copyWith(rows: List.unmodifiable(rows), page: page, more: result.$2, loading: false);
     } catch (error) {
-      if (mounted && request == _results && revision == state.revision) state = state.copyWith(loading: false,
-        rows: isTransientApiFailure(error) ? null : const [], resultsError: friendlyApiError(error));
+      if (mounted && request == _results && revision == state.revision) {
+        state = state.copyWith(loading: false, rows: isTransientApiFailure(error) ? null : const [], resultsError: friendlyApiError(error));
+      }
     }
   }
 

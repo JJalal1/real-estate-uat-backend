@@ -52,13 +52,13 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
         if (const ['sale', 'rent'].contains(widget.section)) 'purpose': widget.section,
         if (widget.section=='nearby' && widget.latitude!=null && widget.longitude!=null)...{'latitude':widget.latitude,'longitude':widget.longitude,'radius_km':30},
         if (widget.section == 'spotlight') 'spotlight': 1,
-      }, page: page, cancelToken: transfer);
+      }, page: page, cancelToken: transfer, refresh: !more && _page > 0);
       if (!mounted || request != _request) return;
       setState(() { if (!more) _rows.clear(); final ids = _rows.map((r) => r.id).toSet(); _rows.addAll(r.$1.where((r) => ids.add(r.id))); _page = page; _more = r.$2; _busy = false; });
-    } catch (error) { if (mounted && request == _request) setState(() {
+    } catch (error) { if (mounted && request == _request) { setState(() {
       if (!isTransientApiFailure(error)) _rows.clear();
       _busy = false; _error = friendlyApiError(error);
-    }); }
+    }); } }
   }
 
   @override

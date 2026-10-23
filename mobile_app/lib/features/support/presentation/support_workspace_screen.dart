@@ -22,8 +22,8 @@ class SupportWorkspaceScreen extends ConsumerWidget {
     if (user == null) return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
     final provider = _supportSummaryProvider(user.id);
     final state = ref.watch(provider);
-    final isManager = user?.isPlatformOwner == true ||
-        user?.hasPermission('support.view_team_metrics') == true;
+    final isManager = user.isPlatformOwner == true ||
+        user.hasPermission('support.view_team_metrics') == true;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -89,8 +89,8 @@ class SupportWorkspaceScreen extends ConsumerWidget {
                         'البلاغات',
                         'بلاغات الإعلانات والتعليقات والتقييمات والتحويل لمسؤول أعلى.',
                         '/admin/support?kind=report'),
-                    if (user?.hasPermission('users.view') == true ||
-                        user?.isPlatformOwner == true)
+                    if (user.hasPermission('users.view') == true ||
+                        user.isPlatformOwner == true)
                       _row(
                           context,
                           Icons.person_search_outlined,
@@ -103,16 +103,16 @@ class SupportWorkspaceScreen extends ConsumerWidget {
                         'المحادثات المبلغ عنها',
                         'لا تظهر المحادثات الخاصة إلا عند وجود بلاغ، وفتح المحتوى يحتاج صلاحية مستقلة.',
                         '/admin/message-reports'),
-                    if (user?.hasPermission('support.view_worklog') == true ||
-                        user?.isPlatformOwner == true)
+                    if (user.hasPermission('support.view_worklog') == true ||
+                        user.isPlatformOwner == true)
                       _row(
                           context,
                           Icons.history_outlined,
                           'سجل العمل والمتابعة',
                           'الإجراءات والتذاكر المحولة والمغلقة ووقت كل إجراء.',
                           '/support/worklog'),
-                    if (user?.hasPermission('accounts.verify_profiles') == true ||
-                        user?.isPlatformOwner == true)
+                    if (user.hasPermission('accounts.verify_profiles') == true ||
+                        user.isPlatformOwner == true)
                       _row(
                           context,
                           Icons.verified_user_outlined,

@@ -123,10 +123,10 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       Future<void>.microtask(_load);
     }
     if (user == null) return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
-    final manager = user?.isPlatformOwner == true ||
-        user?.roles.contains('super_admin') == true ||
-        user?.roles.contains('support_manager') == true ||
-        user?.hasPermission('support.manage') == true;
+    final manager = user.isPlatformOwner == true ||
+        user.roles.contains('super_admin') == true ||
+        user.roles.contains('support_manager') == true ||
+        user.hasPermission('support.manage') == true;
     final managerMode = manager && !widget.actingAsAgent;
 
     return Directionality(
