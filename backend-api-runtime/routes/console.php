@@ -153,10 +153,12 @@ Schedule::command('support:process-contact-followups')->hourly();
 \Illuminate\Support\Facades\Schedule::command('broker:process-followups')->everyMinute()->withoutOverlapping();
 
 Artisan::command('listing-media:purge-expired-upload-intents', function (\App\Services\ListingImageUploadIntentService $intents): int {
-    if (! config('listing_media.resumable_uploads_enabled', false)) {
-        $this->info('Resumable image uploads disabled; no cleanup performed.');
+    if (! \Illuminate\Support\Facades\Schema::hasTable('listing_image_upload_intents')) {
+        $this->info('Image upload intent table not installed; no cleanup needed.');
         return 0;
     }
+    // Continue cleanup even after new uploads are disabled: prior signatures
+    // and orphan objects must not be left behind when rolling back a flag.
     $result = $intents->purgeExpired(100);
     $this->info("Upload sweep: {$result['checked']} checked, {$result['removed']} removed, {$result['failed']} failed.");
     return $result['failed'] === 0 ? 0 : 1;
