@@ -125,7 +125,7 @@ class ListingEditorDraftController extends Controller
         $result=DB::transaction(function()use($request,$key,$imageKey,&$path){
             User::query()->lockForUpdate()->findOrFail($request->user()->id);$draft=$this->drafts->owned($request->user(),$key,true);
             $this->drafts->assertEditable($request->user(),$draft->property_id?Property::query()->findOrFail($draft->property_id):null);
-            $images=$draft->images;if(!isset($images[$imageKey])) return $draft;
+            $images=$draft->images;if(!isset($images[$imageKey])) { \App\Models\ListingImageUploadIntent::query()->where('listing_editor_draft_id',$draft->id)->where('image_key',$imageKey)->where('status','pending')->update(['status'=>'canceled']); return $draft; }
             $this->drafts->assertRevision($draft,$request->integer('expected_revision'));
             \App\Models\ListingImageUploadIntent::query()->where('listing_editor_draft_id',$draft->id)->where('image_key',$imageKey)->where('status','pending')->update(['status'=>'canceled']);
             $path=$images[$imageKey];unset($images[$imageKey]);$draft->images=$images;$draft->revision++;$draft->save();return $draft;
