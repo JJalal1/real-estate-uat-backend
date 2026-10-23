@@ -1,0 +1,59 @@
+name: Listing Image Approval Regression
+
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'backend-api-runtime/app/Services/ListingWorkflowService.php'
+      - 'backend-api-runtime/app/Http/Controllers/Api/ListingReviewController.php'
+      - 'backend-api-runtime/tests/Feature/Wave2MediaTrustTest.php'
+      - 'backend-api-runtime/tests/Feature/Stage9ListingReviewApiTest.php'
+      - 'backend-api-runtime/tests/Feature/UatListingSupportClaimApiTest.php'
+      - 'backend-api-runtime/tests/Feature/UatChangePhase3BrokerVerificationApiTest.php'
+      - 'backend-api-runtime/tests/Concerns/ConfirmsListingImages.php'
+      - '.github/workflows/listing-image-approval-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-approval-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  image-approval:
+    name: All image-review and listing-approval API regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare isolated SQLite test runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Syntax check approval gate and regressions
+        run: |
+          php -l app/Services/ListingWorkflowService.php
+          php -l tests/Concerns/ConfirmsListingImages.php
+          php -l tests/Feature/Wave2MediaTrustTest.php
+      - name: Run listing approval and moderation tests
+        run: >-
+          php artisan test
+          tests/Feature/Wave2MediaTrustTest.php
+          tests/Feature/Stage9ListingReviewApiTest.php
+          tests/Feature/UatListingSupportClaimApiTest.php
+          tests/Feature/UatChangePhase3BrokerVerificationApiTest.php
+          --display-warnings --fail-on-warning --fail-on-risky
