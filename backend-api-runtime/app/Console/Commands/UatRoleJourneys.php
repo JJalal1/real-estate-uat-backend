@@ -130,6 +130,8 @@ class UatRoleJourneys extends Command
     private function journeys(): void
     {
         foreach (array_keys($this->actors) as $actor) $this->wire('authenticated_'.$actor,$actor,'GET','/api/auth/me');
+        $this->wire('broker_cannot_enter_platform_settings','publisher','GET','/api/admin/settings',[],403);
+        $this->wire('support_manager_cannot_enter_finance','manager','GET','/api/admin/finance/summary',[],403);
         $key = (string) Str::uuid(); $first = (string) Str::uuid(); $second = (string) Str::uuid();
         $url = '/api/listing-editor-drafts/'.$key;
         $payload = ['checkpoint_key'=>(string)Str::uuid(),'media_version'=>1,'type'=>'shop','purpose'=>'rent',
@@ -170,6 +172,7 @@ class UatRoleJourneys extends Command
         $input = ['listing_input_version'=>9,'title'=>'اختبار UAT اصطناعي '.$this->run,'description'=>'بيانات اختبار اصطناعية لا تمثل عقارًا حقيقيًا',
             'type'=>'shop','purpose'=>'rent','price'=>75000,'monthly_rent'=>75000,'currency'=>'YER','area_value'=>65,'area_unit'=>'sqm',
             'shop_openings'=>1,'address'=>'صنعاء UAT '.$this->run.' مبنى اصطناعي مستقل','building_reference'=>$this->prefix.'building','unit_number'=>'109A',
+            'contact_phone'=>'700000000','contact_whatsapp'=>'700000000',
             'latitude'=>15.123456,'longitude'=>44.654321,'editor_draft_key'=>$key,'editor_draft_revision'=>3];
         $created = $this->wire('canonical_v9_listing_create','publisher','POST','/api/properties',$input,201);
         $id = (int) $created->json('data.id'); $images = $created->json('data.images');
