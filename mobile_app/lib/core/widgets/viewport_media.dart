@@ -17,6 +17,9 @@ class ViewportMedia extends StatefulWidget {
 class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserver {
   final _positions = <ScrollPosition>{};
   bool _visible = false, _scheduled = false, _foreground = true;
+  bool _mediaWasBuilt = false;
+
+  bool get _deferNewMedia => _positions.any((position) => position.recommendDeferredLoading(context));
 
   @override
   void initState() {
@@ -72,8 +75,7 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
       if (!mounted) return;
       // Keep an already visible image, but defer new transfers during a fast
       // gesture on either axis. Recheck when scrolling settles even at an edge.
-      final visible = _intersectsViewport() && (_visible ||
-        !_positions.any((position) => position.recommendDeferredLoading(context)));
+      final visible = _intersectsViewport() && (_mediaWasBuilt || !_deferNewMedia);
       if (visible != _visible) setState(() => _visible = visible);
     });
   }
@@ -122,11 +124,17 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
   }
 
   @override
-  Widget build(BuildContext context) => _MediaGeometryObserver(onLayout: _schedule,
-    child: _visible ? widget.builder(context) : LayoutBuilder(builder: (_, bounds) =>
+  Widget build(BuildContext context) {
+    // A post-frame visibility decision can precede a new ballistic activity.
+    // Recheck before constructing the network child, not just before setState.
+    final show = _visible && (_mediaWasBuilt || !_deferNewMedia);
+    _mediaWasBuilt = show;
+    return _MediaGeometryObserver(onLayout: _schedule,
+    child: show ? widget.builder(context) : LayoutBuilder(builder: (_, bounds) =>
       widget.placeholder ?? SizedBox(width: bounds.hasBoundedWidth ? bounds.maxWidth : 96,
         height: bounds.hasBoundedHeight ? bounds.maxHeight : 96,
         child: const ExcludeSemantics(child: SizedBox.shrink()))));
+  }
 }
 
 class _MediaGeometryObserver extends SingleChildRenderObjectWidget {
