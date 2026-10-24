@@ -11,10 +11,12 @@ import '../domain/property_sai.dart';
 import '../domain/listing_contact_policy.dart';
 
 final propertyRepositoryProvider = Provider<PropertyRepository>((ref) {
-  return PropertyRepository(
+  final repository = PropertyRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
   );
+  ref.listen(propertyDataRevisionProvider, (_, __) => repository._invalidatePublicDiscoveryCache());
+  return repository;
 });
 
 /// Incremented after a successful listing mutation so every dependent screen

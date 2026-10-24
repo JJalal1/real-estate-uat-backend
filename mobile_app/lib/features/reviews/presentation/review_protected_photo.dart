@@ -36,19 +36,19 @@ class _VisibleEvidenceState extends ConsumerState<_VisibleEvidence> {
   Future<Uint8List>? _future;
   String? _url;
   int _retry = 0;
-  void _reload() { setState(() { _lease?.release(); _lease = null; _cache = null; _retry++; }); }
+  void _reload() { setState(() { _lease?.close(); _lease = null; _cache = null; _retry++; }); }
   @override
-  void dispose() { _lease?.release(); super.dispose(); }
+  void dispose() { _lease?.close(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
     final actor = ref.watch(authControllerProvider).asData?.value;
     if (actor == null) {
-      _lease?.release(); _lease = null; _cache = null; _future = null;
+      _lease?.close(); _lease = null; _cache = null; _future = null;
       return const Center(child: Text('سجّل الدخول لعرض الصورة.'));
     }
     final cache = ref.watch(_reviewPhotoCacheProvider);
     if (_lease == null || !identical(_cache, cache) || _url != widget.url) {
-      _lease?.release(); _cache = cache; _url = widget.url;
+      _lease?.close(); _cache = cache; _url = widget.url;
       _lease = cache.acquire('${widget.url}:$_retry', (cancel) => ref.read(listingReviewRepositoryProvider).protectedImage(widget.url, cancelToken: cancel));
       _future = _lease!.future;
     }

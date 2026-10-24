@@ -475,4 +475,22 @@ void main() {
     expect(tester.takeException(), isNull);
   }, timeout: const Timeout(Duration(seconds: 45)));
 
+  test('a broker availability revision invalidates repository discovery results', () async {
+    var calls = 0;
+    final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
+      calls++; handler.resolve(Response(requestOptions: request, statusCode: 200,
+        data: {'data': <dynamic>[], 'meta': {'current_page': 1, 'last_page': 1}}));
+    }));
+    addTearDown(() => dio.close(force: true));
+    final container = ProviderContainer(overrides: [dioProvider.overrideWithValue(dio),
+      authRepositoryProvider.overrideWithValue(_AuthOptions(dio))]);
+    addTearDown(container.dispose);
+    final repo = container.read(propertyRepositoryProvider);
+    await repo.searchListings({'purpose': 'sale'}); await repo.searchListings({'purpose': 'sale'});
+    expect(calls, 1);
+    container.read(propertyDataRevisionProvider.notifier).state++;
+    await repo.searchListings({'purpose': 'sale'});
+    expect(calls, 2);
+  }, timeout: const Timeout(Duration(seconds: 45)));
+
 }
