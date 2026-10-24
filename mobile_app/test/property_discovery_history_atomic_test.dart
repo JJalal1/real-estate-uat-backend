@@ -47,7 +47,7 @@ void main() {
     await store.record(query: 'موجود', filters: {'type': 'house'});
     final before = await store.load();
     final bad = PropertyDiscoveryHistoryStore(
-      supportDirectory: () async => Directory('${dir.path}/missing/child'),
+      supportDirectory: () async => Directory('${dir.path}/property_discovery_history_v1.json'),
     );
     await bad.record(query: 'خطأ', filters: {'type': 'farm'});
     final after = await store.load();
