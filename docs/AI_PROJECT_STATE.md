@@ -1,3 +1,15 @@
+# October24 viewport/loading continuation — PR120
+
+This section supersedes older instructions below. Intake UAT SHA c8aac3041027fa900c19e472bdea30568da35ad1; same release app and work/wave2-review-current. The owner authorizes safe routine fixes/merge/UAT rollout, never Production or paid resources. Read docs/AQER_13_16_EXECUTIVE_HANDOFF_AR_2026-10-24.md and the decisions/matrix.
+
+PR120 adds geometry-based viewport gates (nested axes, tabs/routes/lifecycle), real HTTP before/after counting, cancellation and bounded completed-byte reuse. v1 synthetic HTTP first-screen21->2 requests; real UAT39743->11337 payload bytes, return0 extra. Public feed remains bounded summary metadata, not a claim of zero offscreen rows. Focused75 + actual HTTP4 passed at cabf6aae; latest exact-head full CI/native gate still must be checked before merge.
+
+Core loading/error/empty/retry paths retain same-actor content only on transient failures; retry correct page, deduplicate, invalidate L1/L2 on revision/mutation, cancel outdated transport, preserve typed/edited work, and hide revoked/cross-account data. Fixes include real Sliver intrinsic-layout and Future-returning setState crashes. #14/15/18/19/24/25 received targeted acceptance; consolidated signed-in UAT and handset journeys remain.
+
+#4 uses the already approved pinned geometry. Derivative cleanup now removes v1/v2 after the final reference disappears, including rollback. Live activation is pending its recorded rollout, not implied by a code flag. Blueprint branch was stale and is corrected; migrations OFF, manually managed watermark flag preserved. No new migration, role/history/finance/dependency/provider. #11 remains Draft115, table absent,59 live migrations; no actual full dump/restore achieved. #3/#21 budget-paused, #20 off, #8/#22/#26 final identities/providers gated. No per-item acceptance installer.
+
+---
+
 # October24 current handoff — #11 blocked, #12 deployed and measured
 
 This section supersedes historical instructions and status below. The owner authorized routine fixes, merges and UAT deployment on `work/wave2-review-current`, with no Production, paid resources or separate acceptance APK. Read `docs/AQER_11_12_EXECUTIVE_HANDOFF_AR_2026-10-24.md` and the updated 32-item matrix first.
