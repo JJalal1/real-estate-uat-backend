@@ -36,6 +36,31 @@
                     android:scheme="realestate"
                     android:host="app"
                     android:pathPrefix="/properties" />
+                <!-- External custom links must reach Flutter's authenticated router. -->
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/advertisers" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/messages" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/bookings" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/agreements" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/rental-contracts" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/broker/deals" />
             </intent-filter>
             <intent-filter android:autoVerify="${aqerAppLinkAutoVerify}">
                 <action android:name="android.intent.action.VIEW" />
