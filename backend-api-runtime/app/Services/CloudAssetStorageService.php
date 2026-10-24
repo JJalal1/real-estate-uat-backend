@@ -538,8 +538,14 @@ class CloudAssetStorageService
 
     private function deleteRemoteObject(string $objectPath): void
     {
-        $response = $this->request()->delete($this->objectUrl($objectPath));
-        if ($response->successful() || $response->status() === 404) {
+        // Storage's bulk contract returns [] for an absent key. A missing
+        // historical derivative must not abort cleanup of the live variants
+        // and original; never interpret a generic 400/404 as authorization.
+        $response = $this->request()->delete(
+            $this->storageBaseUrl().'/object/'.rawurlencode($this->bucket()),
+            ['prefixes' => [$objectPath]],
+        );
+        if ($response->successful()) {
             return;
         }
 

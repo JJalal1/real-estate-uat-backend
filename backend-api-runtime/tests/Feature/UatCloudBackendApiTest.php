@@ -69,7 +69,9 @@ class UatCloudBackendApiTest extends TestCase
         });
         Http::assertSent(function (HttpRequest $request): bool {
             return $request->method() === 'DELETE'
-                && str_contains($request->url(), '/storage/v1/object/real-estate-uat/private/broker_kyc/42/')
+                && $request->url() === 'https://example.supabase.co/storage/v1/object/real-estate-uat'
+                && count($request['prefixes']) === 1
+                && str_starts_with($request['prefixes'][0], 'private/broker_kyc/42/')
                 && $request->hasHeader('apikey', 'sb_secret_test_server_only');
         });
     }
