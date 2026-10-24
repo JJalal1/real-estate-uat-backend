@@ -45,20 +45,27 @@ void main() {
     await session.search();
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
-    await tester.ensureVisible(find.text('المزيد من العقارات'));
+    expect(container.read(smartSearchSessionProvider).more, isTrue);
+    // ListView creates offscreen children lazily; ensureVisible requires a
+    // built element, so scroll until the pagination button is actually built.
+    final list = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.text('المزيد من العقارات'), 250, scrollable: list);
     await tester.tap(find.text('المزيد من العقارات'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
+    expect(container.read(smartSearchSessionProvider).rows.map((row) => row.id).toList(), [11]);
+    await tester.scrollUntilVisible(find.byType(AppRefreshStatus), -250, scrollable: list);
     expect(find.byType(AppRefreshStatus), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
     expect(find.byType(AppErrorState), findsNothing);
     expect(find.text('إعادة المحاولة'), findsOneWidget);
 
     secondPageFails = false;
-    await tester.ensureVisible(find.text('إعادة المحاولة'));
     await tester.tap(find.text('إعادة المحاولة'));
     await tester.pumpAndSettle();
     expect(properties.queries.map((q) => q.page).toList(), [1, 2, 2]);
+    expect(container.read(smartSearchSessionProvider).rows.map((row) => row.id).toList(), [11, 12]);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('smart-search-result-12')), 250, scrollable: list);
     expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
     expect(find.byKey(const ValueKey('smart-search-result-12')), findsOneWidget);
     expect(find.byType(AppRefreshStatus), findsNothing);
