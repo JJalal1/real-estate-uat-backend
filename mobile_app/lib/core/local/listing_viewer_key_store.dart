@@ -8,7 +8,18 @@ final listingViewerKeyProvider = FutureProvider<String>((ref) => ListingViewerKe
 
 class ListingViewerKeyStore {
   static Future<String>? _operation;
-  static Future<String> key() => _operation ??= _load();
+  static Future<String> key() {
+    final inFlight = _operation;
+    if (inFlight != null) return inFlight;
+    final operation = _load();
+    _operation = operation;
+    // A temporary disk or plugin error must not permanently poison all
+    // later calls to obtain a valid per-installation viewer identifier.
+    operation.then<void>((_) {}, onError: (Object _, StackTrace __) {
+      if (identical(_operation, operation)) _operation = null;
+    });
+    return operation;
+  }
   static Future<String> _load() async {
     final root = await getApplicationSupportDirectory();
     await root.create(recursive: true);
