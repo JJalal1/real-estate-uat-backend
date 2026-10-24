@@ -347,7 +347,7 @@ class _AgreementDetailPageState extends ConsumerState<_AgreementDetailScreenForA
   Widget _acceptance(String label, bool accepted) => Row(children: [
         EbrokerIcon(accepted ? Icons.check_circle : Icons.radio_button_unchecked, size: 20),
         const SizedBox(width: 8),
-        Text('$label: ${accepted ? 'وافق' : 'لم يوافق بعد'}'),
+        Expanded(child: Text('$label: ${accepted ? 'وافق' : 'لم يوافق بعد'}')),
       ]);
 
   Widget _row(String label, String value) => Padding(

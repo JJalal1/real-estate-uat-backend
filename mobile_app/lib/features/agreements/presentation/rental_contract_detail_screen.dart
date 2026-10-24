@@ -462,7 +462,7 @@ class _RentalContractPageState
             size: 20,
           ),
           const SizedBox(width: 8),
-          Text('$label: ${accepted ? 'وافق' : 'لم يوافق بعد'}'),
+          Expanded(child: Text('$label: ${accepted ? 'وافق' : 'لم يوافق بعد'}')),
         ],
       );
 

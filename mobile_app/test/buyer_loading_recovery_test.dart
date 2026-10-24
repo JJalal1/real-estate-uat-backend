@@ -78,6 +78,10 @@ Future<void> _mount(WidgetTester tester, Widget page, _Account account, _Agreeme
   for (var i = 0; i < 6; i++) { await tester.pump(const Duration(milliseconds: 20)); }
 }
 Future<void> _retry(WidgetTester tester) async {
+  final scroll = find.byType(Scrollable);
+  if (scroll.evaluate().isNotEmpty) {
+    tester.state<ScrollableState>(scroll.first).position.jumpTo(0); await tester.pumpAndSettle();
+  }
   final button = find.text('إعادة المحاولة');
   await tester.ensureVisible(button); await tester.pumpAndSettle();
   await tester.tap(button); await tester.pumpAndSettle();
@@ -127,6 +131,7 @@ void main() {
       await tester.tap(find.byTooltip('تحديث')); await tester.pumpAndSettle();
       expect(find.textContaining(reference), findsOneWidget);
       final accept = find.textContaining('أوافق على النسخة');
+      await tester.scrollUntilVisible(accept, 300, scrollable: find.byType(Scrollable).first);
       await tester.ensureVisible(accept); await tester.pumpAndSettle(); await tester.tap(accept); await tester.pumpAndSettle();
       expect(repo.acceptCalls, 0);
       repo.onAgreement = () async => throw _failure(403); repo.onContract = () async => throw _failure(403);
