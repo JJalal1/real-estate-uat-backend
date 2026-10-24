@@ -65,8 +65,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(properties.queries.map((q) => q.page).toList(), [1, 2, 2]);
     expect(container.read(smartSearchSessionProvider).rows.map((row) => row.id).toList(), [11, 12]);
-    await tester.scrollUntilVisible(find.byKey(const ValueKey('smart-search-result-12')), 250, scrollable: list);
+    // Check both cards independently: a lazy ListView can unmount the first
+    // while scrolling to the second, even though both remain in session state.
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('smart-search-result-11')), -250, scrollable: list);
     expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('smart-search-result-12')), 250, scrollable: list);
     expect(find.byKey(const ValueKey('smart-search-result-12')), findsOneWidget);
     expect(find.byType(AppRefreshStatus), findsNothing);
     expect(tester.takeException(), isNull);
