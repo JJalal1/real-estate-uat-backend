@@ -122,12 +122,12 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                 )
               else if (_error != null && _items.isEmpty)
                 SliverFillRemaining(
-                  hasScrollBody: false,
+                  hasScrollBody: true,
                   child: AppErrorState(message: _error!, onRetry: _load),
                 )
               else if (_items.isEmpty)
                 const SliverFillRemaining(
-                  hasScrollBody: false,
+                  hasScrollBody: true,
                   child: AppEmptyState(
                     title: 'لا توجد محادثات بعد',
                     message:
@@ -137,7 +137,7 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                 )
               else if (visible.isEmpty)
                 const SliverFillRemaining(
-                  hasScrollBody: false,
+                  hasScrollBody: true,
                   child: AppEmptyState(
                     title: 'ما عندك رسائل غير مقروءة',
                     message: 'كل المحادثات مقروءة الآن.',

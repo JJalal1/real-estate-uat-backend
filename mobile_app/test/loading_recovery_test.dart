@@ -12,6 +12,16 @@ import 'package:real_estate_mobile/features/broker/presentation/broker_workspace
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
+import 'package:real_estate_mobile/features/account/data/account_verification_repository.dart';
+import 'package:real_estate_mobile/features/account/domain/account_verification.dart';
+import 'package:real_estate_mobile/features/account/presentation/account_verification_screen.dart';
+import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/listing_account_draft.dart';
+import 'package:real_estate_mobile/features/properties/presentation/listing_draft_entry_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
+import 'package:real_estate_mobile/features/support/data/support_repository.dart';
+import 'package:real_estate_mobile/features/support/domain/support_models.dart';
+import 'package:real_estate_mobile/features/support/presentation/support_admin_screen.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
@@ -27,6 +37,7 @@ import 'package:real_estate_mobile/features/properties/presentation/property_det
 import 'package:real_estate_mobile/features/discovery/presentation/smart_search_assistant.dart';
 
 import 'support/wave3_fakes.dart';
+import 'support/wave6_fakes.dart';
 
 DioException _failure([int code = 503]) {
   final request = RequestOptions(path: '/synthetic-only');
@@ -94,10 +105,38 @@ class _Customers implements BrokerRepository {
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
 }
 const _customer = BrokerCustomer(threadId: 1, customerName: 'عميل اصطناعي', propertyId: 77, propertyTitle: 'عقار اصطناعي', stage: 'new');
+class _Verification implements AccountVerificationRepository {
+  Future<AccountVerificationApplication> Function()? onStatus;
+  @override
+  Future<AccountVerificationApplication> status() => onStatus!();
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
+}
+AccountVerificationApplication _verification() => AccountVerificationApplication.fromJson({
+  'user_id': 1, 'name': 'حساب اصطناعي', 'type': 'broker', 'status': 'needs_more_info',
+  'details': {'governorate': 'أمانة العاصمة', 'district': 'السبعين', 'work_areas': ['قيمة من الخادم']},
+});
+class _Drafts extends Wave6Drafts {
+  int calls = 0;
+  final pending = Completer<ListingAccountDraft>();
+  @override
+  Future<ListingAccountDraft> get(String key) { calls++; return pending.future; }
+}
+class _Support implements SupportRepository {
+  Future<List<SupportCaseSummary>> Function()? onCases;
+  @override
+  Future<SupportAdminSummary> adminSummary() async => SupportAdminSummary.fromJson({'new_tickets': 7});
+  @override
+  Future<List<SupportCaseSummary>> adminCases({String? kind, String? status, bool? escalated, bool assignedToMe = false, int? assignedToUserId}) => onCases!();
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
+}
 class _Details extends Wave3PropertiesFake {
   Future<PropertyDetails> Function(int)? onDetails;
   @override
   Future<PropertyDetails> details(int id) => onDetails!(id);
+  @override
+  Future<List<PropertyDetails>> myListings() async => [_property(77)];
 }
 PropertyDetails _property(int id, {String title = 'تفاصيل اصطناعية'}) => PropertyDetails.fromJson({
   'id': id, 'title': title, 'type': 'house', 'purpose': 'sale', 'status': 'draft',
@@ -219,14 +258,22 @@ void main() {
   testWidgets('an abandoned pending home request cancels instead of becoming a retained cache entry', (tester) async {
     final pending = Completer<MarketplaceFeed>();
     final repo = _Feed(onFeed: (_) => pending.future);
-    final container = ProviderContainer(overrides: [marketplaceRepositoryProvider.overrideWithValue(repo)]);
     const query = (latitude: 15.3, longitude: 44.2, governorate: null, type: null, device: false);
-    final subscription = container.listen(marketplaceFeedProvider(query), (_, __) {});
-    await tester.pump();
-    subscription.close(); await tester.pump(); await tester.pump();
+    var visible = true;
+    late StateSetter change;
+    await tester.pumpWidget(ProviderScope(overrides: [marketplaceRepositoryProvider.overrideWithValue(repo)],
+      child: StatefulBuilder(builder: (_, set) {
+        change = set;
+        return visible ? Consumer(builder: (_, ref, __) {
+          ref.watch(marketplaceFeedProvider(query));
+          return const SizedBox();
+        }) : const SizedBox();
+      })));
+    await tester.pumpAndSettle();
+    change(() => visible = false);
+    await tester.pumpAndSettle();
     expect(repo.transfers.single.isCancelled, isTrue);
     pending.complete(const MarketplaceFeed(label: 'اصطناعي')); await tester.pump();
-    container.dispose();
     expect(tester.takeException(), isNull);
   }, timeout: const Timeout(Duration(seconds: 45)));
 
@@ -362,5 +409,70 @@ void main() {
       expect(tester.takeException(), isNull);
     }, timeout: const Timeout(Duration(seconds: 45)));
   }
+
+  testWidgets('verification refresh preserves edited fields through failure and successful retry', (tester) async {
+    tester.view.physicalSize = const Size(390, 900); tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    final auth = _Auth(), repo = _Verification()..onStatus = () async => _verification();
+    await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => auth),
+      accountVerificationRepositoryProvider.overrideWithValue(repo)], child: const MaterialApp(home: AccountVerificationScreen())));
+    await tester.pumpAndSettle();
+    final field = find.byWidgetPredicate((w) => w is TextField && w.decoration?.labelText == 'المناطق التي تعمل فيها');
+    await tester.ensureVisible(field); await tester.enterText(field, 'تعديل لم أرسله');
+    repo.onStatus = () async => throw _failure();
+    await tester.tap(find.byTooltip('تحديث الحالة')); await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, 'تعديل لم أرسله');
+    expect(find.byType(AppRefreshStatus), findsOneWidget);
+    repo.onStatus = () async => _verification();
+    await tester.ensureVisible(find.text('إعادة المحاولة')); await tester.tap(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, 'تعديل لم أرسله');
+    auth.change(null); await tester.pumpAndSettle();
+    expect(field, findsNothing);
+    expect(tester.takeException(), isNull);
+  }, timeout: const Timeout(Duration(seconds: 45)));
+
+  testWidgets('repeated draft resume starts one read and a late failure stays outside the next account', (tester) async {
+    final drafts = _Drafts(), auth = _Auth();
+    drafts.drafts['synthetic'] = const ListingAccountDraft(key: 'synthetic', revision: 1, payload: {}, title: 'مسودة اصطناعية', progress: 40);
+    await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => auth),
+      listingAccountDraftRepositoryProvider.overrideWithValue(drafts), propertyRepositoryProvider.overrideWithValue(Wave6Properties())],
+      child: const MaterialApp(home: ListingDraftEntryScreen())));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('متابعة الإعلان')); await tester.tap(find.text('متابعة الإعلان')); await tester.pump();
+    expect(drafts.calls, 1);
+    auth.change(null); await tester.pumpAndSettle();
+    drafts.pending.completeError(_failure()); await tester.pumpAndSettle();
+    expect(find.text('مسودة اصطناعية'), findsNothing);
+    expect(find.text('سجّل الدخول للمتابعة.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, timeout: const Timeout(Duration(seconds: 45)));
+
+  testWidgets('empty private listing filter renders without intrinsic-layout exceptions', (tester) async {
+    final repo = _Details()..onDetails = (id) async => _property(id);
+    await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(_Auth.new),
+      propertyRepositoryProvider.overrideWithValue(repo)], child: const MaterialApp(home: MyListingsScreen())));
+    await tester.pumpAndSettle();
+    final filter = find.text('منشورة (0)');
+    await tester.ensureVisible(filter); await tester.tap(filter); await tester.pumpAndSettle();
+    expect(find.text('لا توجد إعلانات في هذه الحالة'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, timeout: const Timeout(Duration(seconds: 45)));
+
+  testWidgets('staff case refresh retains current rows on 503 and clears them at logout', (tester) async {
+    final repo = _Support()..onCases = () async => [SupportCaseSummary.fromJson({'id': 1,
+      'subject': 'تذكرة اصطناعية', 'reference': 'SYNTHETIC-1', 'status': 'open'})];
+    final auth = _Auth();
+    await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => auth),
+      supportRepositoryProvider.overrideWithValue(repo)], child: const MaterialApp(home: SupportAdminScreen())));
+    await tester.pumpAndSettle();
+    expect(find.text('تذكرة اصطناعية'), findsOneWidget);
+    repo.onCases = () async => throw _failure();
+    await tester.tap(find.byTooltip('تحديث طلبات الدعم')); await tester.pumpAndSettle();
+    expect(find.text('تذكرة اصطناعية'), findsOneWidget);
+    expect(find.text('إعادة المحاولة'), findsOneWidget);
+    auth.change(null); await tester.pumpAndSettle();
+    expect(find.text('تذكرة اصطناعية'), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
 }

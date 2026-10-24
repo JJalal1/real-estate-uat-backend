@@ -89,7 +89,8 @@ void main() {
 
   testWidgets('live UAT Arabic search, disjoint pages, empty results and access/error contracts', (tester) async {
     final dio = Dio(BaseOptions(baseUrl: 'https://real-estate-uat-api-frankfurt.onrender.com/api',
-      connectTimeout: const Duration(seconds: 80), receiveTimeout: const Duration(seconds: 80)));
+      connectTimeout: const Duration(seconds: 80), receiveTimeout: const Duration(seconds: 80),
+      headers: {'Accept': 'application/json'}));
     addTearDown(() => dio.close(force: true));
     final times = <int>[]; var calls = 0;
     Future<Response<dynamic>> get(String path, {Map<String, dynamic>? query}) async {

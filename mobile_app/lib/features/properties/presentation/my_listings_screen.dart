@@ -140,7 +140,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
                   ),
                   if (filtered.isEmpty)
                     const SliverFillRemaining(
-                      hasScrollBody: false,
+                      hasScrollBody: true,
                       child: AppEmptyState(
                         title: 'لا توجد إعلانات في هذه الحالة',
                         message: 'اختر حالة ثانية لعرض بقية إعلاناتك.',

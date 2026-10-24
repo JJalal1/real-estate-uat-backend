@@ -31,6 +31,7 @@ class SupportWorkspaceScreen extends ConsumerWidget {
           title: Text(isManager ? 'لوحة مدير الدعم' : 'لوحة موظف الدعم'),
           actions: [
             IconButton(
+                tooltip: 'تحديث لوحة الدعم',
                 onPressed: state.isLoading ? null : () => ref.invalidate(provider),
                 icon: const EbrokerIcon(Icons.refresh))
           ],
