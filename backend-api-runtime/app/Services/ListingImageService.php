@@ -70,10 +70,11 @@ class ListingImageService
         if ($cached !== null) return $cached;
         // Compatibility for historical internal images: sanitize on demand, never return the raw original.
         $bytes = $this->storage->readBytes($path, self::isPrivate($path));
-        foreach ($this->encode($bytes, $this->inspect($bytes), [$variant]) as $name=>$encoded) {
-            $this->storage->writePrivate($this->variantPath($path, $name), $encoded, 'image/jpeg');
-        }
-        return $this->storage->responsePrivate($target, null, $headers);
+        $encoded = $this->encode($bytes, $this->inspect($bytes), [$variant])[$variant];
+        $this->storage->writePrivate($target, $encoded, 'image/jpeg');
+        // The acknowledged upload already came from these exact safe bytes.
+        // A second remote download adds worker occupancy without validation.
+        return response($encoded, 200, $headers);
     }
 
     public function removeIfUnused(string $path): void

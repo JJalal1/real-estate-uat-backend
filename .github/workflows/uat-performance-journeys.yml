@@ -12,6 +12,64 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  backend-contracts:
+    name: Measured backend contracts (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: aqer_perf
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aqer_perf"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: ${{ matrix.database == 'pgsql' && 'aqer_perf' || ':memory:' }}
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_pgsql, pdo_sqlite
+          coverage: none
+      - run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          php artisan key:generate --force
+      - if: matrix.database == 'pgsql'
+        run: psql -h 127.0.0.1 -U postgres -d aqer_perf -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+      - name: Measure pinned baseline with identical synthetic prices and terms
+        shell: bash
+        run: |
+          set -euo pipefail
+          controller=app/Http/Controllers/Api/FinancialPropertyController.php
+          cp "$controller" /tmp/aqer-financial-controller.php
+          trap 'cp /tmp/aqer-financial-controller.php "$controller"' EXIT
+          git show e7aad95bd744be0527d4594590d02e58f4e41b7a:backend-api-runtime/app/Http/Controllers/Api/FinancialPropertyController.php > "$controller"
+          AQER_PERF_BASELINE=1 php artisan test tests/Feature/UatPerformanceRegressionTest.php --filter=test_marketplace_measurement --fail-on-warning --fail-on-risky
+      - name: Verify repaired query count, privacy and existing financial semantics
+        run: php artisan test tests/Feature/UatPerformanceRegressionTest.php tests/Feature/AdaptiveImageQualityTest.php tests/Feature/FinancialV1ApiTest.php tests/Feature/FinancialV1CompletionTest.php tests/Feature/RenderHealthProbePerformanceTest.php --fail-on-warning --fail-on-risky
   read-only-performance:
     name: Bounded real UAT cold and warm measurements
     runs-on: ubuntu-latest

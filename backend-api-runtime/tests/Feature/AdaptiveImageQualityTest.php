@@ -92,7 +92,7 @@ class AdaptiveImageQualityTest extends TestCase
         request()->headers->remove('If-None-Match');
     }
 
-    public function test_cloud_missing_derivative_is_sanitized_once_then_downloaded(): void
+    public function test_cloud_missing_derivative_is_sanitized_once_and_served_after_acknowledged_write(): void
     {
         config(['services.supabase_storage.enabled'=>true,
             'services.supabase_storage.url'=>'https://synthetic-storage.example',
@@ -106,7 +106,8 @@ class AdaptiveImageQualityTest extends TestCase
             return Http::response($stored ?? '', $stored === null ? 404 : 200, ['Content-Type'=>'image/jpeg']);
         });
         $response = app(ListingImageService::class)->response('listing-originals/synthetic.jpg', 'thumb', false);
-        Http::assertSentCount(4); // missing display, original, encoded write, encoded download.
+        Http::assertSentCount(3); // missing display, original, acknowledged encoded write; no download.
+        $this->assertSame($stored, $response->getContent());
         $info = getimagesizefromstring($response->getContent());
         $this->assertSame('image/jpeg', $info['mime']);
         $this->assertLessThanOrEqual(320, max($info[0], $info[1]));
