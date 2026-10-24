@@ -10,7 +10,7 @@ void main() {
       '/properties', '/advertisers', '/messages', '/bookings',
       '/agreements', '/rental-contracts', '/broker/deals',
     ]) {
-      expect(manifest.contains('android:pathPrefix="' + route + '"'), isTrue, reason: route);
+      expect(manifest.contains('android:pathPrefix="$route"'), isTrue, reason: route);
     }
     expect(manifest, contains('android:scheme="realestate"'));
     expect(manifest, contains('android:scheme="https"'));
