@@ -13,12 +13,14 @@ void main() {
       savePreference: (_) async {},
     );
     addTearDown(controller.dispose);
+    ThemeMode? selected;
+    controller.addListener((mode) => selected = mode, fireImmediately: true);
 
     await controller.setMode(ThemeMode.dark);
     restore.complete('light');
     await Future<void>.delayed(Duration.zero);
 
-    expect(controller.debugState, ThemeMode.dark);
+    expect(selected, ThemeMode.dark);
   });
 
   test('writes are ordered and a failed save does not prevent later choices', () async {
@@ -39,6 +41,8 @@ void main() {
       },
     );
     addTearDown(controller.dispose);
+    ThemeMode? selected;
+    controller.addListener((mode) => selected = mode, fireImmediately: true);
 
     final one = controller.setMode(ThemeMode.light);
     await started.future;
