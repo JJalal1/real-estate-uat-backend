@@ -149,6 +149,7 @@ class Wave2MediaTrustTest extends TestCase
     {
         Storage::fake('local'); Storage::fake('public');
         [$owner] = $this->user('watermark-cleanup@example.test', '+967731200006');
+        $listing = $this->publishedListing($owner, 'Synthetic cleanup');
         foreach ([false, true] as $enabledAtDelete) {
             $service = app(ListingImageService::class);
             config(['listing_media.watermark.enabled'=>false]);
@@ -160,7 +161,7 @@ class Wave2MediaTrustTest extends TestCase
                 $service->response($path, $variant, true);
                 $targets[] = $service->variantPath($path, $variant);
             }
-            $image = $this->publishedListing($owner, 'Synthetic cleanup')->images()->create(['path'=>$path]);
+            $image = $listing->images()->create(['path'=>$path]);
             config(['listing_media.watermark.enabled'=>$enabledAtDelete]);
             $service->removeIfUnused($path);
             foreach ([$path, ...$targets] as $target) Storage::disk('local')->assertExists($target);
