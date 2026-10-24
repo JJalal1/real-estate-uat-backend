@@ -154,6 +154,7 @@ PropertyDetails _property(int id, {String title = 'تفاصيل اصطناعية
 });
 
 void main() {
+  WidgetController.hitTestWarningShouldBeFatal = true;
   test('only transient network and server failures retain account content', () {
     for (final code in [429, 500, 503]) { expect(isTransientApiFailure(_failure(code)), isTrue); }
     for (final code in [400, 401, 403, 404, 409, 422]) { expect(isTransientApiFailure(_failure(code)), isFalse); }
@@ -227,6 +228,7 @@ void main() {
     result.completeError(_failure()); await refreshing; await tester.pumpAndSettle();
     expect(find.text('عقار تجريبي 11'), findsOneWidget);
     repo.onSearch = (_, __) async => ([wave3Property(12)], false);
+    await tester.ensureVisible(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
     await tester.tap(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
     expect(repo.queries.last.page, 1);
     expect(find.text('عقار تجريبي 11'), findsNothing);
@@ -321,10 +323,12 @@ void main() {
     expect(find.text('محادثة اصطناعية'), findsOneWidget);
     expect(find.text('إعادة المحاولة'), findsOneWidget);
     repo.onThreads = () async => throw _failure(403);
+    await tester.ensureVisible(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
     await tester.tap(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
     expect(find.text('محادثة اصطناعية'), findsNothing);
     final late = Completer<List<MessageThreadSummary>>();
     repo.onThreads = () => late.future;
+    await tester.ensureVisible(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
     await tester.tap(find.text('إعادة المحاولة')); await tester.pump();
     auth.change(null); await tester.pumpAndSettle();
     late.complete([_thread]); await tester.pumpAndSettle();
@@ -344,6 +348,7 @@ void main() {
     expect(find.text('رسالة اصطناعية محفوظة'), findsOneWidget);
     expect(find.text('نص لم أرسله'), findsOneWidget);
     repo.onDetails = () async => throw _failure(404);
+    await tester.ensureVisible(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
     await tester.tap(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
     expect(find.text('رسالة اصطناعية محفوظة'), findsNothing);
     expect(find.text('نص لم أرسله'), findsOneWidget);
@@ -514,6 +519,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AppErrorState), findsOneWidget);
     repo.onDashboard = () async => AdminDashboardSummary.fromJson({});
+    await tester.ensureVisible(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
     await tester.tap(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
     expect(find.text('إدارة النظام'), findsOneWidget);
     auth.change(null); await tester.pumpAndSettle();

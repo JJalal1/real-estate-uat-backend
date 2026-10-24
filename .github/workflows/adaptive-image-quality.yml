@@ -82,5 +82,7 @@ jobs:
         if: always()
         with:
           name: adaptive-image-uat-metrics
-          path: adaptive-image-uat-metrics.json
+          path: |
+            adaptive-image-uat-metrics.json
+            synthetic-watermark-*.jpg
           retention-days: 14
