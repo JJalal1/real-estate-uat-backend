@@ -39,8 +39,7 @@ class AccountErasureService
             $this->storage->deletePrivate($path);
         }
         if ($professionalPhoto !== '') {
-            $this->storage->deletePublic($professionalPhoto);
-            $this->storage->deletePrivate($professionalPhoto);
+            app(ProfessionalPhotoService::class)->remove($professionalPhoto);
         }
 
         $anonymizedEmail = sprintf(

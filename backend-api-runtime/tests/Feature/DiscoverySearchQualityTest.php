@@ -29,7 +29,8 @@ class DiscoverySearchQualityTest extends TestCase
 
         $this->getJson('/api/properties?search=شقه%20حده')
             ->assertOk()
-            ->assertJsonPath('meta.total', 0);
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $match->id);
 
         $this->getJson('/api/properties?search=شقة%20حدة')
             ->assertOk()
@@ -67,6 +68,25 @@ class DiscoverySearchQualityTest extends TestCase
             ->assertOk()
             ->assertJsonPath('meta.total', 2)
             ->assertJsonPath('data.0.id', $exact->id);
+    }
+
+    public function test_common_taa_haa_spelling_keeps_scope_negative_results_and_stored_facts(): void
+    {
+        $owner = $this->owner();
+        $match = $this->listing($owner,['title'=>'وحدة مكتبية تجريبية','address'=>'صنعاء حدة']);
+        $hidden = $this->listing($owner,['title'=>'وحده مكتبيه تجريبيه','status'=>'draft','review_status'=>'draft']);
+        $other = $this->listing($owner,['title'=>'فيلا مستقلة','address'=>'تعز']);
+        foreach (['وحدة مكتبية تجريبية','وحده مكتبيه تجريبيه','وَحدة مَكتبية تَجريبية'] as $query) {
+            $this->getJson('/api/properties?'.http_build_query(['search'=>$query,'advertiser_id'=>$owner->id]))
+                ->assertOk()->assertJsonPath('meta.total',1)->assertJsonPath('data.0.id',$match->id);
+        }
+        $this->getJson('/api/properties?'.http_build_query(['search'=>'وحده جغرافية غير موجودة']))
+            ->assertOk()->assertJsonPath('meta.total',0);
+        $this->getJson('/api/properties?'.http_build_query(['search'=>'وحده مكتبيه','currency'=>'USD']))
+            ->assertOk()->assertJsonPath('meta.total',0);
+        $this->assertSame('وحدة مكتبية تجريبية',$match->fresh()->title);
+        $this->assertSame('draft',$hidden->fresh()->status);
+        $this->assertSame('فيلا مستقلة',$other->fresh()->title);
     }
 
     private function owner(): User

@@ -132,6 +132,12 @@ class UatRoleJourneys extends Command
         foreach (array_keys($this->actors) as $actor) $this->wire('authenticated_'.$actor,$actor,'GET','/api/auth/me');
         $this->wire('broker_cannot_enter_platform_settings','publisher','GET','/api/admin/settings',[],403);
         $this->wire('support_manager_cannot_enter_finance','manager','GET','/api/admin/finance/summary',[],403);
+        $this->wire('regular_cannot_upload_professional_photo','other','POST','/api/broker/profile/photo',[],403,$this->syntheticJpeg(6),'photo');
+        $this->wire('professional_photo_upload','publisher','POST','/api/broker/profile/photo',[],200,$this->syntheticJpeg(6),'photo');
+        $profilePath = $this->actors['publisher']->fresh()->public_professional_photo_path;
+        $profilePhoto = $this->wire('public_professional_photo_is_sanitized',null,'GET','/api/advertisers/'.$this->actors['publisher']->id.'/photo');
+        $this->check(str_starts_with($profilePhoto->body(),"\xff\xd8") && !str_contains($profilePhoto->body(),'Exif')
+            && !str_contains($profilePhoto->body(),'UAT_PRIVATE_CAMERA'),'professional_photo_metadata_removed');
         $key = (string) Str::uuid(); $first = (string) Str::uuid(); $second = (string) Str::uuid();
         $url = '/api/listing-editor-drafts/'.$key;
         $payload = ['checkpoint_key'=>(string)Str::uuid(),'media_version'=>1,'type'=>'office','purpose'=>'rent',
@@ -169,9 +175,10 @@ class UatRoleJourneys extends Command
         $this->check(str_contains((string)$safe->header('Cache-Control'),'no-store'), 'draft_image_private_no_store');
         $originalPath = ListingEditorDraft::where('user_id',$this->actors['publisher']->id)->where('client_key',$key)->firstOrFail()->images[$first];
         $this->check(hash_equals(hash('sha256',$source),hash('sha256',app(CloudAssetStorageService::class)->readBytes($originalPath,true))), 'private_original_sha256_preserved');
-        $input = ['listing_input_version'=>9,'title'=>'اختبار UAT اصطناعي '.$this->run,'description'=>'بيانات اختبار اصطناعية لا تمثل عقارًا حقيقيًا',
+        $input = ['listing_input_version'=>9,'title'=>'UAT وحدة مكتبية تجريبية '.$this->run,'description'=>'بيانات اختبار اصطناعية لا تمثل عقارًا حقيقيًا',
             'type'=>'office','purpose'=>'rent','price'=>75000,'monthly_rent'=>75000,'currency'=>'YER','area_value'=>65,'area_unit'=>'sqm',
-            'floor_number'=>'0','address'=>'صنعاء UAT '.$this->run.' مبنى اصطناعي مستقل','building_reference'=>$this->prefix.'building','unit_number'=>'109',
+            'floor_number'=>'0','has_parking'=>0,'building_facade'=>'north',
+            'address'=>'صنعاء UAT '.$this->run.' مبنى اصطناعي مستقل','building_reference'=>$this->prefix.'building','unit_number'=>'109',
             'contact_phone'=>'700000000','contact_whatsapp'=>'700000000',
             'latitude'=>15.123456,'longitude'=>44.654321,'editor_draft_key'=>$key,'editor_draft_revision'=>3];
         $created = $this->wire('canonical_v9_listing_create','publisher','POST','/api/properties',$input,201);
@@ -230,6 +237,13 @@ class UatRoleJourneys extends Command
             ['decision'=>'relevant','reason'=>'Synthetic affirmative protocol fixture; not a human content acceptance claim']));
         $approved = $this->wire('publish_after_authorized_review','reviewer','POST',$reviewUrl.'/approve',['reason'=>'Synthetic UAT approval; test data only']);
         $this->check($approved->json('data.status') === 'published','published_only_after_review');
+        foreach (['search_canonical_arabic'=>'وحدة مكتبية تجريبية','search_common_spelling'=>'وحده مكتبيه تجريبيه',
+                  'search_diacritics'=>'وَحدة مَكتبية تَجريبية'] as $case=>$query) {
+            $found = $this->wire($case,null,'GET','/api/properties?'.http_build_query(['search'=>$query,'advertiser_id'=>$this->actors['publisher']->id]));
+            $this->check(array_column($found->json('data'),'id') === [$id], $case.'_exact_fixture_only');
+        }
+        $empty = $this->wire('search_true_empty',null,'GET','/api/properties?'.http_build_query(['search'=>'aqer-zero-unrelated-109','advertiser_id'=>$this->actors['publisher']->id]));
+        $this->check($empty->json('meta.total') === 0 && $empty->json('data') === [],'zero_results_are_not_an_error');
         $duplicateInput = $input;
         unset($duplicateInput['editor_draft_key'], $duplicateInput['editor_draft_revision']);
         $duplicateInput['title'] = 'نسخة اصطناعية لمحاولة النشر المكرر';
@@ -269,6 +283,8 @@ class UatRoleJourneys extends Command
         $this->check($erased->json('data.account_deleted') === true && $erased->json('data.access_revoked') === true,'account_erasure_receipt');
         $this->wire('erased_session_revoked','publisher','GET','/api/auth/me',[],401);
         $this->wire('erased_account_image_unpublished',null,'GET','/api/property-media/'.$imageId.'?variant=thumb',[],404);
+        $this->wire('erased_professional_photo_unavailable',null,'GET','/api/advertisers/'.$target.'/photo',[],404);
+        $this->check(!app(CloudAssetStorageService::class)->existsPrivate($profilePath),'erased_professional_photo_deleted_from_storage');
         $this->check(Property::withoutGlobalScopes()->findOrFail($id)->status === 'archived','erasure_archives_listing');
         $this->check(DB::table('listing_reviews')->where('listing_id',$id)->where('action','approved')->exists(),'immutable_review_history_retained');
         $this->check(DB::table('private_messages')->where('thread_id',$thread)->count() === 2,'shared_message_history_retained');
