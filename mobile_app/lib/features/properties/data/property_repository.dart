@@ -69,7 +69,9 @@ class PropertyRepository {
     return value;
   }
 
-  void _invalidatePublicDiscoveryCache() { _publicCacheEpoch++; _publicDiscoveryCache.clear(); }
+  void _invalidatePublicDiscoveryCache() {
+    _publicCacheEpoch++; _publicDiscoveryCache.clear(); clearPublicDiscoveryHttpCache(_dio);
+  }
 
   Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1, String? purpose}) async {
     final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {'advertiser_id': id, 'page': page, 'per_page': 20, if (purpose != null) 'purpose': purpose});
@@ -99,6 +101,7 @@ class PropertyRepository {
     double? west,
     double? north,
     double? east,
+    CancelToken? cancelToken,
   }) async {
     final params = <String, dynamic>{
       'latitude': latitude,
@@ -124,6 +127,7 @@ class PropertyRepository {
       final response = await _dio.get<Map<String, dynamic>>(
         '/properties/nearby',
         queryParameters: params,
+        cancelToken: cancelToken,
       );
       final rows = response.data?['data'] as List<dynamic>? ?? const <dynamic>[];
       return rows
@@ -133,10 +137,10 @@ class PropertyRepository {
     });
   }
 
-  Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters) async {
+  Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters, {CancelToken? cancelToken}) async {
     final params = Map<String, dynamic>.from(filters);
     return _cachedPublic<List<PropertyMarker>>('/properties/nearby', params, () async {
-      final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: params);
+      final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: params, cancelToken: cancelToken);
       final rows = response.data?['data'] as List? ?? const [];
       return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
     });

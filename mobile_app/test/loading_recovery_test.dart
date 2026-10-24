@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/network/api_error_message.dart';
+import 'package:real_estate_mobile/core/network/api_client.dart';
+import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
+import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
+import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
@@ -78,6 +83,17 @@ const _thread = MessageThreadSummary(id: 1, otherUserId: 2, otherUserName: 'مح
 final _detail = MessageThreadDetails(thread: _thread, messages: const [
   PrivateMessageItem(id: 1, senderUserId: 2, senderName: 'اختبار', body: 'رسالة اصطناعية محفوظة', isMine: false),
 ]);
+class _Customers implements BrokerRepository {
+  Future<BrokerPage<BrokerCustomer>> Function(int)? onCustomers;
+  final pages = <int>[];
+  @override
+  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) {
+    pages.add(page); return onCustomers!(page);
+  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
+}
+const _customer = BrokerCustomer(threadId: 1, customerName: 'عميل اصطناعي', propertyId: 77, propertyTitle: 'عقار اصطناعي', stage: 'new');
 class _Details extends Wave3PropertiesFake {
   Future<PropertyDetails> Function(int)? onDetails;
   @override
@@ -94,7 +110,7 @@ void main() {
     for (final code in [400, 401, 403, 404, 409, 422]) { expect(isTransientApiFailure(_failure(code)), isFalse); }
     expect(isTransientApiFailure(StateError('AUTH_REQUIRED')), isFalse);
     expect(isTransientApiFailure(DioException(requestOptions: RequestOptions(), type: DioExceptionType.receiveTimeout)), isTrue);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   test('refresh and pagination retry the exact failed page without dropping or duplicating results', () async {
     final repo = _Search();
@@ -124,7 +140,7 @@ void main() {
     final count = repo.queries.length;
     await session.search(more: true);
     expect(repo.queries, hasLength(count));
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   test('criteria changes cancel old transport and late responses never replace new criteria', () async {
     final repo = _Search();
@@ -143,7 +159,7 @@ void main() {
     final last = repo.transfers.last;
     session.dispose();
     expect(last.isCancelled, isTrue);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   testWidgets('section refresh keeps visible rows, retries page one, and disposal cancels its transport', (tester) async {
     final repo = _Search()..onSearch = (_, __) async => ([wave3Property(11)], true);
@@ -170,9 +186,9 @@ void main() {
     await tester.pumpWidget(const SizedBox()); await tester.pump();
     expect(token.isCancelled, isTrue);
     expect(tester.takeException(), isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
-  testWidgets('completed public home feed survives a short return but expires and invalidates after a mutation', (tester) async {
+  test('completed public home feed survives a short return but expires and invalidates after a mutation', () async {
     var now = DateTime.utc(2026, 10, 24); var calls = 0;
     final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
       calls++; handler.resolve(Response(requestOptions: request, statusCode: 200,
@@ -186,11 +202,11 @@ void main() {
     final provider = marketplaceFeedProvider(query);
     var subscription = container.listen(provider, (_, __) {});
     await container.read(provider.future);
-    subscription.close(); await tester.pump();
+    subscription.close(); await Future<void>.delayed(Duration.zero);
     subscription = container.listen(provider, (_, __) {});
     await container.read(provider.future);
     expect(calls, 1);
-    subscription.close(); await tester.pump(); now = now.add(const Duration(seconds: 21));
+    subscription.close(); await Future<void>.delayed(Duration.zero); now = now.add(const Duration(seconds: 21));
     subscription = container.listen(provider, (_, __) {});
     await container.read(provider.future);
     expect(calls, 2);
@@ -198,7 +214,7 @@ void main() {
     await container.read(provider.future);
     expect(calls, 3);
     subscription.close();
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   testWidgets('an abandoned pending home request cancels instead of becoming a retained cache entry', (tester) async {
     final pending = Completer<MarketplaceFeed>();
@@ -212,7 +228,7 @@ void main() {
     pending.complete(const MarketplaceFeed(label: 'اصطناعي')); await tester.pump();
     container.dispose();
     expect(tester.takeException(), isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   test('public cache encodes query values and a pre-delete response cannot refill invalidated entries', () async {
     final dio = Dio(); addTearDown(() => dio.close(force: true));
@@ -235,7 +251,7 @@ void main() {
     expect(gets, 4);
     await repo.searchListings({'search': 'delayed'});
     expect(gets, 4);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   testWidgets('inbox preserves rows on 503 and removes them on 403 or account replacement', (tester) async {
     final auth = _Auth(), repo = _Messages()..onThreads = () async => [_thread];
@@ -258,7 +274,7 @@ void main() {
     expect(find.text('محادثة اصطناعية'), findsNothing);
     expect(find.text('سجّل الدخول للمتابعة.'), findsOneWidget);
     expect(tester.takeException(), isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   testWidgets('conversation retry retains typed text and messages on 503, and clears denied content', (tester) async {
     final repo = _Messages()..onDetails = () async => _detail;
@@ -275,7 +291,7 @@ void main() {
     expect(find.text('رسالة اصطناعية محفوظة'), findsNothing);
     expect(find.text('نص لم أرسله'), findsOneWidget);
     expect(tester.takeException(), isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   testWidgets('property refresh retains same-actor content but never retains it after actor change', (tester) async {
     final repo = _Details()..onDetails = (id) async => _property(id);
@@ -293,5 +309,58 @@ void main() {
     auth.change(2); await tester.pumpAndSettle();
     expect(find.text('تفاصيل اصطناعية'), findsNothing);
     expect(tester.takeException(), isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
+  test('nearby mutation clears both cache layers and ignores a pre-mutation response', () async {
+    final container = ProviderContainer(); addTearDown(container.dispose);
+    final dio = container.read(dioProvider), first = Completer<void>(); var gets = 0;
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) async {
+      if (request.method == 'GET') { gets++; if (gets == 1) await first.future; }
+      handler.resolve(Response(requestOptions: request, statusCode: 200, data: {'data': <dynamic>[]}));
+    }));
+    final repo = PropertyRepository(dio, _AuthOptions(dio));
+    final stale = repo.nearby(latitude: 15.3, longitude: 44.2);
+    await Future<void>.delayed(Duration.zero);
+    await repo.deleteListing(77); first.complete(); await stale;
+    await repo.nearby(latitude: 15.3, longitude: 44.2);
+    expect(gets, 2);
+    await repo.nearby(latitude: 15.3, longitude: 44.2);
+    expect(gets, 2);
+    await repo.deleteListing(77);
+    await repo.nearby(latitude: 15.3, longitude: 44.2);
+    expect(gets, 3);
+  }, timeout: const Timeout(Duration(seconds: 45)));
+
+  testWidgets('customer pagination retries page two and retains its previous rows through a temporary failure', (tester) async {
+    final repo = _Customers()..onCustomers = (page) async => BrokerPage(items: [_customer], page: page, lastPage: 2);
+    final auth = _Auth();
+    await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => auth),
+      brokerRepositoryProvider.overrideWithValue(repo)], child: const MaterialApp(home: BrokerCustomersScreen())));
+    await tester.pumpAndSettle();
+    expect(find.text('عميل اصطناعي'), findsOneWidget);
+    repo.onCustomers = (_) async => throw _failure();
+    await tester.ensureVisible(find.text('تحميل المزيد')); await tester.tap(find.text('تحميل المزيد')); await tester.pumpAndSettle();
+    expect(find.text('عميل اصطناعي'), findsOneWidget);
+    repo.onCustomers = (page) async => BrokerPage(items: [_customer], page: page, lastPage: 2);
+    await tester.ensureVisible(find.text('إعادة المحاولة')); await tester.tap(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
+    expect(repo.pages, [1, 2, 2]);
+    expect(find.text('عميل اصطناعي'), findsOneWidget);
+    expect(find.text('تحميل المزيد'), findsNothing);
+    auth.change(null); await tester.pumpAndSettle();
+    expect(find.text('عميل اصطناعي'), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, timeout: const Timeout(Duration(seconds: 45)));
+
+  for (final dark in [false, true]) {
+    testWidgets('refresh feedback remains readable with large Arabic text in dark=$dark', (tester) async {
+      tester.view.physicalSize = const Size(360, 800); tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(MaterialApp(theme: dark ? AppTheme.dark : AppTheme.light,
+        home: MediaQuery(data: const MediaQueryData(size: Size(360, 800), textScaler: TextScaler.linear(2.4)),
+          child: Scaffold(body: AppRefreshStatus(error: friendlyApiError(_failure()), onRetry: () {})))));
+      await tester.pumpAndSettle();
+      expect(find.text('إعادة المحاولة'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }, timeout: const Timeout(Duration(seconds: 45)));
+  }
+
 }

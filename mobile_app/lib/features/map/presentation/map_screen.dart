@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -292,6 +293,8 @@ final nearbyPropertiesProvider =
     FutureProvider.autoDispose.family<List<PropertyMarker>, NearbyQuery>(
   (ref, query) {
     ref.watch(propertyDataRevisionProvider);
+    final transfer = CancelToken();
+    ref.onDispose(() => transfer.cancel('Map viewport superseded'));
     if (query.extraFilters.isNotEmpty) {
       return ref.watch(propertyRepositoryProvider).nearbyFiltered({
       ...query.extraFilters, 'latitude': query.center.latitude, 'longitude': query.center.longitude, 'radius_km': query.radiusKm,
@@ -303,7 +306,7 @@ final nearbyPropertiesProvider =
       if (query.search?.isNotEmpty == true) 'search': query.search,
       if (query.south != null) 'south': query.south, if (query.west != null) 'west': query.west,
       if (query.north != null) 'north': query.north, if (query.east != null) 'east': query.east,
-    });
+    }, cancelToken: transfer);
     }
     return ref.watch(propertyRepositoryProvider).nearby(
           latitude: query.center.latitude,
@@ -322,6 +325,7 @@ final nearbyPropertiesProvider =
           west: query.west,
           north: query.north,
           east: query.east,
+          cancelToken: transfer,
         );
   },
 );
