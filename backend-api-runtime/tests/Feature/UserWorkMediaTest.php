@@ -152,6 +152,163 @@ class UserWorkMediaTest extends TestCase
         }
     }
 
+    public function test_resumable_endpoints_are_off_by_default_and_ownership_is_enforced_when_enabled(): void
+    {
+        Storage::fake('local');
+        [, $owner] = $this->actor('tus-owner');
+        [, $other] = $this->actor('tus-other');
+        $key = (string) Str::uuid();
+        $photo = (string) Str::uuid();
+        $url = '/api/listing-editor-drafts/'.$key;
+        $payload = [
+            'checkpoint_key'=>(string)Str::uuid(),
+            'media_version'=>1,
+            'type'=>'shop',
+            'image_order'=>[$photo],
+            'fields'=>[],
+        ];
+        $this->withHeaders($owner)->putJson($url,['payload'=>$payload,'expected_revision'=>0])->assertOk();
+        $ticketUrl = $url.'/images/'.$photo.'/resumable-ticket';
+        $body = [
+            'expected_revision'=>1,
+            'sha256'=>str_repeat('a', 64),
+            'byte_length'=>2048,
+            'mime'=>'image/png',
+        ];
+        $this->withHeaders($owner)->postJson($ticketUrl,$body)->assertNotFound();
+        $this->withHeaders($owner)->postJson($url.'/images/'.$photo.'/resumable-finalize',['expected_revision'=>1])->assertNotFound();
+
+        config(['listing_media.resumable_uploads_enabled'=>true]);
+        // A different account cannot enumerate or reserve someone else's image.
+        $this->withHeaders($other)->postJson($ticketUrl,$body)->assertNotFound();
+        $this->assertDatabaseCount('listing_image_upload_intents',0);
+        $this->withHeaders($owner)->postJson($ticketUrl,[...$body,'byte_length'=>8388609])->assertUnprocessable();
+        $this->withHeaders($owner)->postJson($ticketUrl,[...$body,'mime'=>'text/plain'])->assertUnprocessable();
+        $this->assertDatabaseCount('listing_image_upload_intents',0);
+    }
+
+    public function test_removing_uncommitted_image_cancels_ticket_and_expired_cleanup_deletes_only_orphans(): void
+    {
+        Storage::fake('local');
+        [, $owner] = $this->actor('tus-cleanup-owner');
+        $key = (string) Str::uuid();
+        $imageKey = (string) Str::uuid();
+        $url = '/api/listing-editor-drafts/'.$key;
+        $this->withHeaders($owner)->putJson($url, [
+            'payload'=>['media_version'=>1,'image_order'=>[$imageKey], 'fields'=>[]],
+            'expected_revision'=>0,
+        ])->assertOk();
+        $draft = ListingEditorDraft::where('client_key', $key)->firstOrFail();
+        $sha = str_repeat('c',64);
+        $path = 'editor-drafts/'.$draft->user_id.'/'.$key.'/'.$imageKey.'-'.$sha.'.png';
+        $intent = \App\Models\ListingImageUploadIntent::create([
+            'user_id'=>$draft->user_id,'listing_editor_draft_id'=>$draft->id,
+            'image_key'=>$imageKey,'path'=>$path,'sha256'=>$sha,'byte_length'=>300,
+            'mime'=>'image/png','status'=>'pending',
+            'signed_until'=>now()->subHours(3),'purge_after'=>now()->subMinute(),
+        ]);
+        Storage::disk('local')->put($path,'orphan');
+        $this->withHeaders($owner)->deleteJson($url.'/images/'.$imageKey,[
+            'expected_revision'=>1,
+        ])->assertOk();
+        $this->assertSame('canceled', $intent->fresh()->status);
+        $result = app(\App\Services\ListingImageUploadIntentService::class)->purgeExpired();
+        $this->assertSame(1,$result['removed']);
+        Storage::disk('local')->assertMissing($path);
+        $this->assertDatabaseMissing('listing_image_upload_intents',['id'=>$intent->id]);
+    }
+
+    public function test_upload_cleanup_never_deletes_media_referenced_by_a_committed_draft(): void
+    {
+        Storage::fake('local');
+        [, $owner] = $this->actor('tus-cleanup-safe');
+        $key = (string) Str::uuid();
+        $imageKey = (string) Str::uuid();
+        $url = '/api/listing-editor-drafts/'.$key;
+        $this->withHeaders($owner)->putJson($url,[
+            'payload'=>['media_version'=>1,'image_order'=>[$imageKey],'fields'=>[]],
+            'expected_revision'=>0,
+        ])->assertOk();
+        $draft = ListingEditorDraft::where('client_key',$key)->firstOrFail();
+        $sha = str_repeat('d',64);
+        $path = 'editor-drafts/'.$draft->user_id.'/'.$key.'/'.$imageKey.'-'.$sha.'.png';
+        Storage::disk('local')->put($path,'committed-data');
+        $draft->images = [$imageKey=>$path]; $draft->save();
+        $intent = \App\Models\ListingImageUploadIntent::create([
+            'user_id'=>$draft->user_id,'listing_editor_draft_id'=>$draft->id,
+            'image_key'=>$imageKey,'path'=>$path,'sha256'=>$sha,'byte_length'=>14,
+            'mime'=>'image/png','status'=>'pending',
+            'signed_until'=>now()->subHours(3),'purge_after'=>now()->subMinute(),
+        ]);
+        $result = app(\App\Services\ListingImageUploadIntentService::class)->purgeExpired();
+        $this->assertSame(0,$result['removed']);
+        $this->assertSame('complete',$intent->fresh()->status);
+        Storage::disk('local')->assertExists($path);
+    }
+
+    public function test_deleted_draft_retains_cleanup_tombstone_until_orphan_is_removed(): void
+    {
+        Storage::fake('local');
+        [, $owner] = $this->actor('tus-deleted-draft');
+        $key = (string) Str::uuid();
+        $imageKey = (string) Str::uuid();
+        $url = '/api/listing-editor-drafts/'.$key;
+        $this->withHeaders($owner)->putJson($url, [
+            'payload'=>['media_version'=>1,'image_order'=>[$imageKey],'fields'=>[]],
+            'expected_revision'=>0,
+        ])->assertOk();
+        $draft = ListingEditorDraft::where('client_key',$key)->firstOrFail();
+        $sha = str_repeat('e',64);
+        $path = 'editor-drafts/'.$draft->user_id.'/'.$key.'/'.$imageKey.'-'.$sha.'.png';
+        Storage::disk('local')->put($path,'orphan');
+        $intent = \App\Models\ListingImageUploadIntent::create([
+            'user_id'=>$draft->user_id,'listing_editor_draft_id'=>$draft->id,
+            'image_key'=>$imageKey,'path'=>$path,'sha256'=>$sha,'byte_length'=>6,
+            'mime'=>'image/png','status'=>'pending',
+            'signed_until'=>now()->subHours(3),'purge_after'=>now()->subMinute(),
+        ]);
+        $this->withHeaders($owner)->deleteJson($url)->assertOk();
+        $this->assertDatabaseMissing('listing_editor_drafts',['id'=>$draft->id]);
+        $this->assertDatabaseHas('listing_image_upload_intents',[
+            'id'=>$intent->id,'listing_editor_draft_id'=>null,'status'=>'canceled',
+        ]);
+        $outcome = app(\App\Services\ListingImageUploadIntentService::class)->purgeExpired();
+        $this->assertSame(1,$outcome['removed']);
+        Storage::disk('local')->assertMissing($path);
+        $this->assertDatabaseMissing('listing_image_upload_intents',['id'=>$intent->id]);
+    }
+
+    public function test_expired_signature_can_be_renewed_and_quarantine_tracks_the_last_issuance(): void
+    {
+        config(['listing_media.resumable_uploads_enabled'=>true]);
+        [$actor, $owner] = $this->actor('tus-renewal');
+        $key = (string) Str::uuid(); $imageKey = (string) Str::uuid();
+        $this->withHeaders($owner)->putJson('/api/listing-editor-drafts/'.$key, [
+            'payload'=>['media_version'=>1,'image_order'=>[$imageKey],'fields'=>[]],
+            'expected_revision'=>0,
+        ])->assertOk();
+        $draft = ListingEditorDraft::where('client_key',$key)->firstOrFail();
+        $sha = str_repeat('a',64);
+        $intent = \App\Models\ListingImageUploadIntent::create([
+            'user_id'=>$actor->id,'listing_editor_draft_id'=>$draft->id,'image_key'=>$imageKey,
+            'path'=>'editor-drafts/'.$actor->id.'/'.$key.'/'.$imageKey.'-'.$sha.'.png',
+            'sha256'=>$sha,'byte_length'=>300,'mime'=>'image/png','status'=>'pending',
+            'signed_until'=>now()->subMinute(),'purge_after'=>now()->addHours(23),
+        ]);
+        $this->mock(\App\Services\CloudAssetStorageService::class, function ($mock) use ($intent): void {
+            $mock->shouldReceive('createPrivateResumableTicket')->once()->with($intent->path)
+                ->andReturn(['signature'=>'synthetic-scoped-token']);
+        });
+        $service = app(\App\Services\ListingImageUploadIntentService::class);
+        $service->issue($actor,$key,$imageKey,$sha,300,'image/png',1);
+        $this->assertDatabaseCount('listing_image_upload_intents',1);
+        $this->assertTrue($intent->fresh()->signed_until->greaterThan(now()->addMinutes(109)));
+        $this->assertTrue($intent->fresh()->purge_after->greaterThan(now()->addHours(25)));
+        $intent->status = 'canceled'; $intent->save();
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $service->issue($actor,$key,$imageKey,$sha,300,'image/png',1);
+    }
+
     private function jpegWithExif(int $orientation): string
     {
         $image=imagecreatetruecolor(800,400);

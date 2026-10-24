@@ -1,0 +1,84 @@
+name: Listing Media Resume Stage 1
+
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'backend-api-runtime/app/Services/CloudAssetStorageService.php'
+      - 'backend-api-runtime/app/Services/ListingImageService.php'
+      - 'backend-api-runtime/config/listing_media.php'
+      - 'backend-api-runtime/tests/Unit/PrivateResumableImageTicketTest.php'
+      - 'backend-api-runtime/tests/Unit/ResumableImageFinalizationTest.php'
+      - 'backend-api-runtime/app/Services/ListingImageUploadIntentService.php'
+      - 'backend-api-runtime/app/Http/Controllers/Api/ListingEditorDraftController.php'
+      - 'backend-api-runtime/routes/api.php'
+      - 'backend-api-runtime/app/Models/ListingImageUploadIntent.php'
+      - 'backend-api-runtime/database/migrations/2026_10_23_220000_create_listing_image_upload_intents.php'
+      - 'backend-api-runtime/tests/Feature/UserWorkMediaTest.php'
+      - '.github/workflows/listing-media-resume-stage1.yml'
+      - 'mobile_app/**'
+      - 'scripts/verify_v3_dependency_lock.py'
+
+permissions:
+  contents: read
+
+jobs:
+  private-upload-ticket:
+    name: Scoped TUS ticket tests and PHP syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare test environment
+        run: |
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Syntax and scoped upload ticket
+        run: |
+          php -l app/Services/CloudAssetStorageService.php
+          php -l app/Services/ListingImageService.php
+          php -l app/Services/ListingImageUploadIntentService.php
+          php -l app/Http/Controllers/Api/ListingEditorDraftController.php
+          php -l database/migrations/2026_10_23_220000_create_listing_image_upload_intents.php
+          php -l config/listing_media.php
+          php -l tests/Unit/PrivateResumableImageTicketTest.php
+          php -l tests/Unit/ResumableImageFinalizationTest.php
+          php artisan test tests/Unit/PrivateResumableImageTicketTest.php tests/Unit/ResumableImageFinalizationTest.php tests/Feature/UserWorkMediaTest.php --fail-on-warning --fail-on-risky
+
+  flutter-tus:
+    name: Flutter private TUS resume and origin security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve pinned dependencies and verify lock
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Analyze staged TUS files
+        working-directory: mobile_app
+        run: flutter analyze lib/features/properties/data/private_tus_image_uploader.dart lib/features/properties/data/listing_account_draft_repository.dart test/private_tus_image_uploader_test.dart
+      - name: Resume-from-offset and origin tests
+        working-directory: mobile_app
+        run: flutter test test/private_tus_image_uploader_test.dart --reporter expanded

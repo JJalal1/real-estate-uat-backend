@@ -41,6 +41,10 @@ class Wave6Drafts implements ListingAccountDraftRepository {
     final old=drafts[key]!;return drafts[key]=ListingAccountDraft(key:key,revision:revision+1,payload:old.payload,propertyId:old.propertyId,images:{...old.images,imageKey:'https://fixture.invalid/$imageKey'});
   }
   @override
+  Future<ListingAccountDraft> uploadResumable(String key,String imageKey,String path,int revision,
+    {CancelToken? cancelToken,ProgressCallback? onSendProgress}) =>
+      upload(key,imageKey,path,revision,cancelToken:cancelToken,onSendProgress:onSendProgress);
+  @override
   Future<ListingAccountDraft> removeImage(String key,String imageKey,int revision) async {
     final old=drafts[key]!,images=Map<String,String>.from(drafts[key]!.images)..remove(imageKey);
     return drafts[key]=ListingAccountDraft(key:key,revision:revision+1,payload:old.payload,propertyId:old.propertyId,images:images);

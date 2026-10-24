@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:crypto/crypto.dart';
+import 'private_tus_image_uploader.dart';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +48,47 @@ class ListingAccountDraftRepository {
       token.cancel('Upload deadline'); throw TimeoutException('تعذر إكمال رفع الصورة. أعد محاولة هذه الصورة فقط.');
     }));
   }
+  /// Staged TUS path is an explicit UAT build flag and never a silent production switch.
+  static const resumableBuildEnabled = bool.fromEnvironment('AQER_IMAGE_TUS_ENABLED',defaultValue:false);
+
+  Future<ListingAccountDraft> uploadResumable(String key,String imageKey,String path,int revision,
+      {CancelToken? cancelToken,ProgressCallback? onSendProgress}) async {
+    final token=cancelToken??CancelToken();
+    if (!resumableBuildEnabled) {
+      return upload(key,imageKey,path,revision,cancelToken:token,onSendProgress:onSendProgress);
+    }
+    final file=File(path),length=await file.length();
+    if(length<=0 || length>8*1024*1024) throw StateError('حجم الصورة غير مقبول');
+    final bytes=await file.readAsBytes();
+    final hash=sha256.convert(bytes).toString();
+    if (bytes.length!=length) throw StateError('تغير ملف الصورة أثناء التجهيز');
+    final mime=bytes.length>=3 && bytes[0]==0xff && bytes[1]==0xd8 && bytes[2]==0xff
+      ? 'image/jpeg' : bytes.length>=8 && bytes[0]==0x89 && bytes[1]==0x50 && bytes[2]==0x4e && bytes[3]==0x47
+      ? 'image/png' : bytes.length>=12 && String.fromCharCodes(bytes.sublist(0,4))=='RIFF' &&
+        String.fromCharCodes(bytes.sublist(8,12))=='WEBP' ? 'image/webp' : null;
+    if(mime==null) throw StateError('نوع الصورة غير مدعوم');
+    final options=await _options;
+    final ticket=await _dio.post<dynamic>('$_base/$key/images/$imageKey/resumable-ticket',
+      data:{'expected_revision':revision,'sha256':hash,'byte_length':length,'mime':mime},options:options,cancelToken:token);
+    final data=Map<String,dynamic>.from(ticket.data['data'] as Map);
+    final signature=data['signature'] as String;
+    final auth=(options.headers?['Authorization']??options.headers?['authorization']??'').toString();
+    final scope=sha256.convert(utf8.encode('$auth|$key|$imageKey|$hash')).toString();
+    final transport = Dio(BaseOptions(connectTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 90), receiveTimeout: const Duration(seconds: 90)));
+    final uploader = PrivateTusImageUploader(transport);
+    try {
+    await uploader.upload(source:path,scope:scope,
+      endpoint:data['endpoint'] as String,bucket:data['bucket'] as String,
+      objectName:data['object_name'] as String,signature:signature,publishableKey:data['publishable_key'] as String,mime:mime,
+      cancelToken:token,progress:onSendProgress);
+    final finished=await _dio.post<dynamic>('$_base/$key/images/$imageKey/resumable-finalize',
+      data:{'expected_revision':revision},options:options,cancelToken:token);
+    await uploader.forget(scope);
+    return _draft(finished);
+    } finally { transport.close(force: true); }
+  }
+
   Future<ListingAccountDraft> removeImage(String key, String imageKey, int revision) async =>
     _draft(await _dio.delete<dynamic>('$_base/$key/images/$imageKey', data: {'expected_revision': revision}, options: await _options));
   Future<void> delete(String key) async { await _dio.delete<dynamic>('$_base/$key', options: await _options); }
