@@ -25,8 +25,10 @@ class RecentPropertiesScreen extends ConsumerWidget {
                         await ref.read(recentPropertiesStoreProvider).clear();
                         ref.invalidate(recentPropertiesProvider);
                       } catch (_) {
-                        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('تعذر مسح السجل. حاول مرة أخرى.')));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('تعذر مسح السجل. حاول مرة أخرى.')));
+                        }
                       }
                     }
                   : null,
