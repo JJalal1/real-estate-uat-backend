@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/account/presentation/access_control_screen.dart';
+import '../features/account/presentation/account_safety_screen.dart';
 import '../features/account/presentation/account_verification_admin_screen.dart';
 import '../features/account/presentation/account_verification_screen.dart';
 import '../features/account/presentation/auth_gate.dart';
@@ -35,6 +36,7 @@ import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/favorites_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
 import '../features/properties/presentation/property_details_screen.dart';
+import '../features/properties/presentation/recent_properties_screen.dart';
 import '../features/regions/presentation/regions_management_screen.dart';
 import '../features/reviews/presentation/listing_review_screen.dart';
 import '../features/services/presentation/services_screen.dart';
@@ -99,6 +101,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/forgot-password',
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
+      GoRoute(path: '/account-safety', builder: (context, state) => const Stage6AuthGate(child: AccountSafetyScreen())),
       GoRoute(
         path: '/profile',
         builder: (context, state) => const Stage6AuthGate(
@@ -281,6 +284,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const Stage6AuthGate(
           child: MyListingsScreen(),
         ),
+      ),
+      GoRoute(
+        path: '/recent',
+        builder: (context, state) => const RecentPropertiesScreen(),
       ),
       GoRoute(
         path: '/favorites',

@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/branding/aqer_brand.dart';
 import '../data/auth_controller.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -26,100 +27,260 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   void dispose() { _phone.dispose(); _name.dispose(); _email.dispose(); super.dispose(); }
 
+  static const _mint = Color(0xFF9FE4D9);
+
+  void _leave() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
+  }
+
+  InputDecoration _decoration(String label, IconData icon, {String? hint}) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide.none,
+    );
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      labelStyle: const TextStyle(color: AppTheme.textMuted),
+      hintStyle: const TextStyle(color: AppTheme.textMuted),
+      prefixIcon: Icon(icon, color: AppTheme.brand),
+      filled: true,
+      fillColor: AppTheme.brandSoft,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+      border: border,
+      enabledBorder: border,
+      disabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: const BorderSide(color: AppTheme.brand, width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
-      backgroundColor: const Color(0xFF101F30),
-      body: DecoratedBox(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topRight,
-        end: Alignment.bottomLeft, colors: [Color(0xFF132D40), Color(0xFF101F30), Color(0xFF0B1725)])),
-        child: SafeArea(child: ListView(padding: const EdgeInsets.fromLTRB(24, 12, 24, 28), children: [
-          Row(children: [Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .08),
-            borderRadius: BorderRadius.circular(14)), child: const EbrokerImage('home_active', size: 24, color: Color(0xFF9CE6D8))),
-            const SizedBox(width: 10), Expanded(child: Text('عقارات حولك', style: theme.textTheme.titleSmall?.copyWith(color: Colors.white))),
-            IconButton(tooltip: 'رجوع', onPressed: () {
-              if (context.canPop()) { context.pop(); } else { context.go('/'); }
-            }, icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70))]),
-          const SizedBox(height: 44),
-          Align(alignment: AlignmentDirectional.centerStart, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(color: const Color(0xFF9CE6D8).withValues(alpha: .1), borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: const Color(0xFF9CE6D8).withValues(alpha: .22))),
-            child: const Text('خطوة أقرب إلى مكانك', style: TextStyle(color: Color(0xFFAFEBDD), fontSize: 12)))),
-          const SizedBox(height: 18), Text('مكانك القادم\nيبدأ من هنا.', style: theme.textTheme.headlineLarge?.copyWith(
-            fontSize: 34, height: 1.5, color: Colors.white, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 10), Text('احفظ ما يعجبك، تواصل مع المعلنين،\nوتابع فرصك في مكان واحد.',
-            style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFFB7C9D7), height: 1.7)),
-          const SizedBox(height: 32),
-          Container(key: const ValueKey('auth-form-card'), padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(color: const Color(0xFF192F43), borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Colors.white.withValues(alpha: .08))),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text('مرحبًا بك', style: theme.textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 16),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                ChoiceChip(key: const ValueKey('auth-mode-login'), label: const Text('تسجيل الدخول'), selected: !_register,
-                  onSelected: _busy ? null : (_) => setState(() { _register = false; _error = null; })),
-                ChoiceChip(key: const ValueKey('auth-mode-register'), label: const Text('إنشاء حساب جديد'), selected: _register,
-                  onSelected: _busy ? null : (_) => setState(() { _register = true; _error = null; })),
-              ]),
-              const SizedBox(height: 12),
-              Text(_register ? 'أدخل اسمك واختر طريقة التحقق.' : 'اختر البريد أو واتساب للدخول برمز تحقق فقط.',
-                style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFB7C9D7))),
-              const SizedBox(height: 16),
-              if (_register) ...[
-                TextField(key: const ValueKey('auth-name'), controller: _name, enabled: !_busy,
-                autofillHints: const [AutofillHints.name], textInputAction: TextInputAction.next,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'الاسم الرباعي',
-                  labelStyle: TextStyle(color: Color(0xFFB7C9D7)), fillColor: Color(0xFF102336))),
-                const SizedBox(height: 12),
-              ],
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                ChoiceChip(key: const ValueKey('auth-channel-whatsapp'), label: const Text('واتساب'), selected: !_useEmail,
-                  onSelected: _busy ? null : (_) => setState(() { _useEmail = false; _error = null; })),
-                ChoiceChip(key: const ValueKey('auth-channel-email'), label: const Text('البريد الإلكتروني'), selected: _useEmail,
-                  onSelected: _busy ? null : (_) => setState(() { _useEmail = true; _error = null; })),
-              ]),
-              const SizedBox(height: 12),
-              if (_useEmail) TextField(key: const ValueKey('auth-email'), controller: _email,
-                keyboardType: TextInputType.emailAddress, autofillHints: const [AutofillHints.email],
-                enabled: !_busy, textDirection: TextDirection.ltr, textInputAction: TextInputAction.done,
-                onSubmitted: _busy ? null : (_) => _submit(), style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'البريد الإلكتروني', hintText: 'name@example.com',
-                  floatingLabelBehavior: FloatingLabelBehavior.always, labelStyle: TextStyle(color: Color(0xFFB7C9D7)),
-                  hintStyle: TextStyle(color: Color(0xFF9AABB9)), fillColor: Color(0xFF102336)))
-              else TextField(key: const ValueKey('auth-phone'), controller: _phone, keyboardType: TextInputType.phone,
-                enabled: !_busy, autofillHints: const [AutofillHints.telephoneNumber],
-                textInputAction: TextInputAction.done, onSubmitted: _busy ? null : (_) => _submit(), textDirection: TextDirection.ltr,
-                style: const TextStyle(color: Colors.white, fontSize: 18),
-                decoration: InputDecoration(labelText: 'رقم واتساب', hintText: '+9677xxxxxxxx',
-                  floatingLabelBehavior: FloatingLabelBehavior.always, labelStyle: const TextStyle(color: Color(0xFFB7C9D7)),
-                  hintStyle: const TextStyle(color: Color(0xFF9AABB9)), fillColor: const Color(0xFF102336),
-                  prefixIcon: const Icon(Icons.phone_outlined, color: Color(0xFF9CE6D8)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF355066))),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF9CE6D8))),
-                )),
-              const SizedBox(height: 12), Text(_useEmail ? 'نرسل لك رمز تحقق من 6 أرقام إلى بريدك. للبريد المرتبط بحساب واتساب، أكّد البريد من الملف الشخصي أولًا.' : 'نرسل لك رمز تحقق من 6 أرقام عبر واتساب.',
-                style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFB7C9D7), height: 1.6)),
-              if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Semantics(liveRegion: true,
-                child: Text(_error!, style: const TextStyle(color: Color(0xFFFFC7BC), height: 1.6)))),
-              const SizedBox(height: 22),
-              FilledButton(key: const ValueKey('auth-submit'), onPressed: _busy ? null : _submit,
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF9CE6D8), foregroundColor: const Color(0xFF103A39),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)),
-                child: _busy ? const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Row(mainAxisAlignment: MainAxisAlignment.center, children: [Flexible(child: Text(_useEmail ? 'إرسال رمز البريد' : 'إرسال رمز واتساب')),
-                    const SizedBox(width: 10), const Icon(Icons.arrow_back_rounded, size: 19)])),
-              const SizedBox(height: 16), Text(_register
-                ? 'نحفظ اسم الحساب الجديد بعد نجاح التحقق.\nتوثيق الجوال مطلوب للنشر والتواصل.'
-                : 'تدخل إلى حسابك الحالي بعد تأكيد الرمز.',
-                textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFFB7C9D7), height: 1.6)),
-            ])),
-          const SizedBox(height: 18), TextButton(onPressed: () {
-            if (context.canPop()) { context.pop(); } else { context.go('/'); }
-          }, child: const Text('متابعة التصفح', style: TextStyle(color: Color(0xFF9CE6D8)))),
-        ]))),
-    ));
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: AppTheme.surface,
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+              colors: [Color(0xFFEDF9F7), AppTheme.surface],
+            ),
+          ),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(children: [
+                          IconButton(
+                            tooltip: 'رجوع',
+                            onPressed: _leave,
+                            icon: const Icon(Icons.arrow_back_rounded),
+                            color: AppTheme.textStrong,
+                          ),
+                          const Spacer(),
+                          const AqerBrandWordmark(width: 124),
+                        ]),
+                        const SizedBox(height: 28),
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            _register ? 'أنشئ حسابك' : 'مرحبًا بعودتك',
+                            key: const ValueKey('auth-heading'),
+                            style: theme.textTheme.headlineLarge?.copyWith(
+                              color: AppTheme.textStrong,
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _register
+                            ? 'احفظ عقاراتك المفضلة وتواصل مع المعلنين.'
+                            : 'سجّل دخولك لحفظ العقارات والتواصل مع المعلنين.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.textMuted, height: 1.7,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        AutofillGroup(
+                          child: Column(
+                            key: const ValueKey('auth-form-card'),
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Wrap(spacing: 8, runSpacing: 8, children: [
+                                ChoiceChip(
+                                  key: const ValueKey('auth-channel-whatsapp'),
+                                  label: const Text('واتساب'),
+                                  selected: !_useEmail,
+                                  onSelected: _busy ? null : (_) => setState(() {
+                                    _useEmail = false; _error = null;
+                                  }),
+                                ),
+                                ChoiceChip(
+                                  key: const ValueKey('auth-channel-email'),
+                                  label: const Text('البريد الإلكتروني'),
+                                  selected: _useEmail,
+                                  onSelected: _busy ? null : (_) => setState(() {
+                                    _useEmail = true; _error = null;
+                                  }),
+                                ),
+                              ]),
+                              const SizedBox(height: 20),
+                              if (_register) ...[
+                                TextField(
+                                  key: const ValueKey('auth-name'),
+                                  controller: _name,
+                                  enabled: !_busy,
+                                  autofillHints: const [AutofillHints.name],
+                                  textInputAction: TextInputAction.next,
+                                  style: const TextStyle(color: AppTheme.textStrong),
+                                  decoration: _decoration('الاسم الرباعي', Icons.person_outline_rounded),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                              if (_useEmail)
+                                TextField(
+                                  key: const ValueKey('auth-email'),
+                                  controller: _email,
+                                  keyboardType: TextInputType.emailAddress,
+                                  autofillHints: const [AutofillHints.email],
+                                  enabled: !_busy,
+                                  textDirection: TextDirection.ltr,
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: _busy ? null : (_) => _submit(),
+                                  style: const TextStyle(color: AppTheme.textStrong),
+                                  decoration: _decoration('البريد الإلكتروني', Icons.mail_outline_rounded,
+                                    hint: 'name@example.com'),
+                                )
+                              else
+                                TextField(
+                                  key: const ValueKey('auth-phone'),
+                                  controller: _phone,
+                                  keyboardType: TextInputType.phone,
+                                  enabled: !_busy,
+                                  autofillHints: const [AutofillHints.telephoneNumber],
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: _busy ? null : (_) => _submit(),
+                                  textDirection: TextDirection.ltr,
+                                  style: const TextStyle(color: AppTheme.textStrong, fontSize: 18),
+                                  decoration: _decoration('رقم واتساب', Icons.phone_outlined,
+                                    hint: '+9677xxxxxxxx'),
+                                ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _useEmail
+                                  ? 'نرسل لك رمز تحقق من 6 أرقام إلى بريدك.'
+                                  : 'نرسل لك رمز تحقق من 6 أرقام عبر واتساب.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.textMuted, height: 1.7,
+                                ),
+                              ),
+                              if (_error != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Semantics(liveRegion: true,
+                                    child: Text(_error!, style: TextStyle(
+                                      color: theme.colorScheme.error, height: 1.7,
+                                    )),
+                                  ),
+                                ),
+                              const SizedBox(height: 24),
+                              FilledButton(
+                                key: const ValueKey('auth-submit'),
+                                onPressed: _busy ? null : _submit,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _mint,
+                                  foregroundColor: AppTheme.brandStrong,
+                                  disabledBackgroundColor: _mint,
+                                  disabledForegroundColor: AppTheme.brandStrong,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                                  textStyle: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                                child: _busy
+                                  ? Semantics(
+                                      liveRegion: true,
+                                      label: 'جارٍ إرسال رمز التحقق',
+                                      child: SizedBox.square(dimension: 24,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brandStrong)),
+                                    )
+                                  : Text(_useEmail ? 'إرسال رمز البريد' : 'إرسال رمز واتساب', textAlign: TextAlign.center),
+                              ),
+                              const SizedBox(height: 16),
+                              TextButton(
+                                key: ValueKey(_register ? 'auth-mode-login' : 'auth-mode-register'),
+                                onPressed: _busy ? null : () => setState(() {
+                                  _register = !_register; _error = null;
+                                }),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppTheme.brandStrong,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                ),
+                                child: Text(_register ? 'لديك حساب؟ تسجيل الدخول' : 'إنشاء حساب جديد',
+                                  textAlign: TextAlign.center),
+                              ),
+                              if (_register) ...[
+                                const SizedBox(height: 8),
+                                Text('نحفظ اسمك بعد التحقق. توثيق الجوال مطلوب للنشر والتواصل.',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textMuted, height: 1.7)),
+                              ],
+                              if (_useEmail && !_register) ...[
+                                const SizedBox(height: 8),
+                                Text('لحساب واتساب، استخدم البريد الذي أكّدته من ملفك الشخصي.',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textMuted, height: 1.7)),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(children: [
+                          const Expanded(child: Divider()),
+                          Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text('أو', style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textMuted))),
+                          const Expanded(child: Divider()),
+                        ]),
+                        const SizedBox(height: 20),
+                        OutlinedButton(
+                          key: const ValueKey('auth-browse'),
+                          onPressed: _leave,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.brandStrong,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: const Text('متابعة التصفح', textAlign: TextAlign.center),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _submit() async {

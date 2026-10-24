@@ -11,10 +11,12 @@ import '../domain/property_sai.dart';
 import '../domain/listing_contact_policy.dart';
 
 final propertyRepositoryProvider = Provider<PropertyRepository>((ref) {
-  return PropertyRepository(
+  final repository = PropertyRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
   );
+  ref.listen(propertyDataRevisionProvider, (_, __) => repository._invalidatePublicDiscoveryCache());
+  return repository;
 });
 
 /// Incremented after a successful listing mutation so every dependent screen
@@ -28,6 +30,54 @@ class PropertyRepository {
   String? alternateContactPhone(int propertyId) => _alternateContactPhones[propertyId];
   final Dio _dio;
   final AuthRepository _auth;
+  static const Duration _publicDiscoveryCacheTtl = Duration(seconds: 20);
+  static const int _publicDiscoveryCacheLimit = 32;
+  final Map<String, ({DateTime storedAt, Object value})> _publicDiscoveryCache = {};
+  int _publicCacheEpoch = 0;
+
+  String _publicCacheKey(String path, Map<String, dynamic> params) {
+    final entries = params.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+    return Uri(path: path, queryParameters: {
+      for (final entry in entries) entry.key: entry.value.toString(),
+    }).toString();
+  }
+
+  Future<T> _cachedPublic<T>(
+    String path,
+    Map<String, dynamic> params,
+    Future<T> Function() loader,
+    {bool refresh = false, CancelToken? cancelToken}
+  ) async {
+    if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
+    final key = _publicCacheKey(path, params);
+    if (refresh) { _publicCacheEpoch++; _publicDiscoveryCache.remove(key); }
+    final now = DateTime.now();
+    final cached = _publicDiscoveryCache[key];
+    if (cached != null && now.difference(cached.storedAt) <= _publicDiscoveryCacheTtl) {
+      return cached.value as T;
+    }
+    if (cached != null) _publicDiscoveryCache.remove(key);
+
+    final epoch = _publicCacheEpoch;
+    final value = await loader();
+    // Even an already-completed HTTP response can be superseded while being
+    // decoded. Never hand it to a canceled viewport or seed a reusable cache.
+    if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
+    // A pre-mutation request may finish late but must never repopulate the cache.
+    if (epoch != _publicCacheEpoch) return value;
+    _publicDiscoveryCache[key] = (storedAt: DateTime.now(), value: value as Object);
+    if (_publicDiscoveryCache.length > _publicDiscoveryCacheLimit) {
+      final oldest = _publicDiscoveryCache.entries.reduce(
+        (a, b) => a.value.storedAt.isBefore(b.value.storedAt) ? a : b,
+      );
+      _publicDiscoveryCache.remove(oldest.key);
+    }
+    return value;
+  }
+
+  void _invalidatePublicDiscoveryCache() {
+    _publicCacheEpoch++; _publicDiscoveryCache.clear(); clearPublicDiscoveryHttpCache(_dio);
+  }
 
   Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1, String? purpose}) async {
     final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {'advertiser_id': id, 'page': page, 'per_page': 20, if (purpose != null) 'purpose': purpose});
@@ -57,42 +107,49 @@ class PropertyRepository {
     double? west,
     double? north,
     double? east,
+    CancelToken? cancelToken,
   }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/properties/nearby',
-      queryParameters: {
-        'latitude': latitude,
-        'longitude': longitude,
-        'radius_km': radiusKm,
-        if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
-        if (type != null && type.isNotEmpty) 'type': type,
-        if (minPrice != null) (purpose == 'rent' ? 'min_monthly_rent' : 'min_price'): minPrice,
-        if (maxPrice != null) (purpose == 'rent' ? 'max_monthly_rent' : 'max_price'): maxPrice,
-        if (minBedrooms != null) 'min_bedrooms': minBedrooms,
-        if (minBathrooms != null) 'min_bathrooms': minBathrooms,
-        if (minArea != null) 'min_area_m2': minArea,
-        if (maxArea != null) 'max_area_m2': maxArea,
-        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
-        if (south != null && west != null && north != null && east != null) ...{
-          'south': south,
-          'west': west,
-          'north': north,
-          'east': east,
-        },
+    final params = <String, dynamic>{
+      'latitude': latitude,
+      'longitude': longitude,
+      'radius_km': radiusKm,
+      if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
+      if (type != null && type.isNotEmpty) 'type': type,
+      if (minPrice != null) (purpose == 'rent' ? 'min_monthly_rent' : 'min_price'): minPrice,
+      if (maxPrice != null) (purpose == 'rent' ? 'max_monthly_rent' : 'max_price'): maxPrice,
+      if (minBedrooms != null) 'min_bedrooms': minBedrooms,
+      if (minBathrooms != null) 'min_bathrooms': minBathrooms,
+      if (minArea != null) 'min_area_m2': minArea,
+      if (maxArea != null) 'max_area_m2': maxArea,
+      if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      if (south != null && west != null && north != null && east != null) ...{
+        'south': south,
+        'west': west,
+        'north': north,
+        'east': east,
       },
-    );
-
-    final rows = response.data?['data'] as List<dynamic>? ?? const <dynamic>[];
-    return rows
-        .whereType<Map<String, dynamic>>()
-        .map(PropertyMarker.fromJson)
-        .toList(growable: false);
+    };
+    return _cachedPublic<List<PropertyMarker>>('/properties/nearby', params, () async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/properties/nearby',
+        queryParameters: params,
+        cancelToken: cancelToken,
+      );
+      final rows = response.data?['data'] as List<dynamic>? ?? const <dynamic>[];
+      return rows
+          .whereType<Map<String, dynamic>>()
+          .map(PropertyMarker.fromJson)
+          .toList(growable: false);
+    }, cancelToken: cancelToken);
   }
 
-  Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters) async {
-    final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: filters);
-    final rows = response.data?['data'] as List? ?? const [];
-    return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
+  Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters, {CancelToken? cancelToken}) async {
+    final params = Map<String, dynamic>.from(filters);
+    return _cachedPublic<List<PropertyMarker>>('/properties/nearby', params, () async {
+      final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: params, cancelToken: cancelToken);
+      final rows = response.data?['data'] as List? ?? const [];
+      return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
+    }, cancelToken: cancelToken);
   }
 
   Future<ListingContactPolicy> listingContactPolicy() async {
@@ -293,13 +350,16 @@ class PropertyRepository {
     return PropertySaiManagement.fromJson(data);
   }
 
-  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1}) async {
-    final response = await _dio.get<Map<String, dynamic>>('/properties',
-      queryParameters: {...filters, 'page': page, 'per_page': 20, 'sort': 'latest'});
-    final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
-      .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
-    final meta = response.data?['meta'] as Map? ?? const {};
-    return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
+  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
+    if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
+    final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest'};
+    return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
+      final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken);
+      final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
+        .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
+      final meta = response.data?['meta'] as Map? ?? const {};
+      return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
+    }, refresh: refresh, cancelToken: cancelToken);
   }
 
   Future<PropertyDetails> details(int propertyId) async {
@@ -399,6 +459,7 @@ class PropertyRepository {
       data: form,
       options: await _listingUploadOptions(),
     );
+    _invalidatePublicDiscoveryCache();
     return _detailsFromResponse(response);
   }
 
@@ -432,6 +493,7 @@ class PropertyRepository {
       data: form,
       options: await _listingUploadOptions(),
     );
+    _invalidatePublicDiscoveryCache();
     return _detailsFromResponse(response);
   }
 
@@ -440,6 +502,7 @@ class PropertyRepository {
       '/properties/$propertyId',
       options: await _auth.requiredAuthOptions(),
     );
+    _invalidatePublicDiscoveryCache();
   }
 
   Future<PropertyIdentityResult> checkPropertyIdentity(int propertyId) async {
@@ -480,6 +543,7 @@ class PropertyRepository {
       '/properties/$propertyId/submit',
       options: await _auth.requiredAuthOptions(),
     );
+    _invalidatePublicDiscoveryCache();
     return _detailsFromResponse(response);
   }
 

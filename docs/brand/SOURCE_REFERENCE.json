@@ -1,0 +1,18 @@
+{
+  "source_pdf": "AQER_Wave2_Final_With_Brand_Visuals_AR.pdf",
+  "source_pdf_sha256": "f96761f6422339fc8b7b5dc09d3d935a7dc76dc9f0840e317b37f9eca9781bc2",
+  "reference_images": [
+    {
+      "file": "mark-reference.png",
+      "bytes": 866488,
+      "sha256": "f7b5d4bf92dfe0436cf9c7b62313de0d4facf0afe4dda8330e611dfabbd962c3"
+    },
+    {
+      "file": "wordmark-reference.png",
+      "bytes": 1058386,
+      "sha256": "6b8f43adc5e23243e67e51f7ae2dd20ac350fecc481bde3d77543bcaba3d076d"
+    }
+  ],
+  "production_masters": "mobile_app/assets/brand/*.svg",
+  "note": "Reference rasters remain authoring inputs; canonical reusable SVG masters and measured contours are tracked."
+}

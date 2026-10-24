@@ -40,6 +40,322 @@ class CloudAssetStorageService
         $this->assertRemoteSuccess($response, 'Image storage failed.');
     }
 
+    /**
+     * Stream an accepted video from PHP's upload temp file to private storage.
+     * Unlike storePrivate(), this avoids loading a 50 MiB video into PHP memory.
+     */
+    public function storePrivateStreamed(UploadedFile $file, string $directory): string
+    {
+        $path = $file->hashName(trim($directory, '/'));
+        $source = $file->getRealPath();
+        if (! is_string($source) || ! is_file($source)) {
+            throw new RuntimeException('Video source is unavailable.');
+        }
+
+        $this->writePrivateFromFile($path, $source, (string) $file->getMimeType());
+        return $path;
+    }
+
+    /**
+     * Use resource-backed requests and filesystem streams. Called by the
+     * isolated video processing job for private derivative uploads too.
+     */
+    public function writePrivateFromFile(string $path, string $source, string $mime): void
+    {
+        if (! is_file($source)) throw new RuntimeException('Private media source is missing.');
+        $stream = fopen($source, 'rb');
+        if ($stream === false) throw new RuntimeException('Cannot open private media source.');
+        try {
+            if (! $this->cloudEnabled()) {
+                if (! Storage::disk('local')->put($path, $stream)) {
+                    throw new RuntimeException('Private media write failed.');
+                }
+                return;
+            }
+
+            $response = $this->request()
+                ->withHeaders(['x-upsert' => 'false'])
+                ->withBody($stream, $mime)
+                ->post($this->objectUrl($this->objectPath($path, true)));
+            $this->assertRemoteSuccess($response, 'Private media upload failed.');
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /** Download private media to a sandboxed temporary file without buffering. */
+    public function downloadPrivateToPath(string $path, string $target): void
+    {
+        if (! $this->cloudEnabled()) {
+            $input = Storage::disk('local')->readStream($path);
+            if (! is_resource($input)) throw new RuntimeException('Private media is unavailable.');
+            $output = fopen($target, 'wb');
+            if ($output === false) {
+                fclose($input);
+                throw new RuntimeException('Temporary media file is unavailable.');
+            }
+            try {
+                if (stream_copy_to_stream($input, $output) === false) {
+                    throw new RuntimeException('Private media download failed.');
+                }
+            } finally {
+                fclose($input);
+                fclose($output);
+            }
+            return;
+        }
+
+        $response = $this->request()
+            ->withOptions(['sink' => $target])
+            ->get($this->privateAuthenticatedGetUrl($path));
+        $this->assertRemoteSuccess($response, 'Private media download failed.');
+    }
+
+    /** Bounded partial read; never fetch the entire video to satisfy a seek. */
+    public function readPrivateRange(string $path, int $start, int $end): string
+    {
+        if ($start < 0 || $end < $start || $end - $start >= 2 * 1024 * 1024) {
+            throw new RuntimeException('Invalid private media range.');
+        }
+
+        if (! $this->cloudEnabled()) {
+            $stream = Storage::disk('local')->readStream($path);
+            if (! is_resource($stream)) throw new RuntimeException('Private media unavailable.');
+            try {
+                if (fseek($stream, $start) !== 0) throw new RuntimeException('Private media seek failed.');
+                $bytes = stream_get_contents($stream, $end - $start + 1);
+                if (! is_string($bytes) || strlen($bytes) !== $end - $start + 1) {
+                    throw new RuntimeException('Private media range incomplete.');
+                }
+                return $bytes;
+            } finally {
+                fclose($stream);
+            }
+        }
+
+        $response = $this->request()
+            ->withHeaders(['Range' => 'bytes='.$start.'-'.$end])
+            ->get($this->privateAuthenticatedGetUrl($path));
+        if ($response->status() !== 206) {
+            throw new RuntimeException('Private storage did not honor byte range.');
+        }
+        if (! str_starts_with((string) $response->header('Content-Range'), 'bytes '.$start.'-'.$end.'/')) {
+            throw new RuntimeException('Private storage returned unexpected range.');
+        }
+        $bytes = $response->body();
+        if (strlen($bytes) !== $end - $start + 1) {
+            throw new RuntimeException('Private media range incomplete.');
+        }
+        return $bytes;
+    }
+
+    /** Video posters are private derivatives; use Supabase's authenticated download endpoint. */
+    public function responsePrivateVideoPoster(string $path): Response
+    {
+        $headers = [
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ];
+        if (! $this->cloudEnabled()) {
+            return Storage::disk('local')->response($path, null, $headers);
+        }
+        $remote = $this->request()->get($this->privateAuthenticatedGetUrl($path));
+        if (in_array($remote->status(), [400, 404], true)) abort(404);
+        $this->assertRemoteSuccess($remote, 'Private video poster unavailable.');
+        if (strlen($remote->body()) > 8 * 1024 * 1024) {
+            throw new RuntimeException('Private video poster exceeds maximum safe response size.');
+        }
+        return response($remote->body(), 200, $headers);
+    }
+
+    /**
+     * A safe synthetic canary for the real private UAT bucket. It never reads,
+     * modifies, or logs any user media or server key. Clean up even on error.
+     */
+    public function probePrivateVideoStorage(): void
+    {
+        if (! $this->cloudEnabled()) throw new RuntimeException('Cloud storage is disabled.');
+        $path = 'uat-health/video-range-'.bin2hex(random_bytes(14)).'.bin';
+        $source = tempnam(sys_get_temp_dir(), 'aqer-private-probe-');
+        $download = tempnam(sys_get_temp_dir(), 'aqer-private-download-');
+        if (! is_string($source) || ! is_string($download)) {
+            if (is_string($source)) @unlink($source);
+            if (is_string($download)) @unlink($download);
+            throw new RuntimeException('Private video probe temporary files unavailable.');
+        }
+        $bytes = 'aqer-private-video-range-'.bin2hex(random_bytes(30));
+        $uploaded = false;
+        try {
+            if (file_put_contents($source, $bytes) !== strlen($bytes)) {
+                throw new RuntimeException('Private video probe write failed.');
+            }
+            $this->writePrivateFromFile($path, $source, 'application/octet-stream');
+            $uploaded = true;
+            if ($this->readPrivateRange($path, 5, 15) !== substr($bytes, 5, 11)) {
+                throw new RuntimeException('Private video probe range mismatch.');
+            }
+            $this->downloadPrivateToPath($path, $download);
+            if (hash_file('sha256', $download) !== hash('sha256', $bytes)) {
+                throw new RuntimeException('Private video probe download mismatch.');
+            }
+        } finally {
+            // A timed-out upload could succeed server-side after a client error,
+            // so attempt best-effort deletion even if $uploaded is false.
+            try { $this->deletePrivate($path); } catch (\Throwable) {}
+            @unlink($source);
+            @unlink($download);
+        }
+    }
+
+    /**
+     * Disposable UAT-only signed TUS protocol canary. Unlike the existing
+     * private storage probe it verifies the *unprivileged*, signed TUS flow:
+     * rejected invalid signature, POST creation, 6 MiB PATCH, HEAD resume,
+     * final PATCH, authenticated byte verification, and cleanup.
+     *
+     * Deliberately does not interact with listing data or DB migrations.
+     */
+    public function probePrivateSignedTusStorage(): void
+    {
+        if (! $this->cloudEnabled() || ! app()->environment('staging')) {
+            throw new RuntimeException('Signed TUS probe requires private Cloud UAT.');
+        }
+
+        $logicalPath = 'uat-health/tus-'.bin2hex(random_bytes(14)).'.bin';
+        $objectPath = $this->objectPath($logicalPath, true);
+        $bucket = $this->bucket();
+
+        $rawHost = (string) parse_url((string) config('services.supabase_storage.url'), PHP_URL_HOST);
+        if (! preg_match('/^([a-z0-9-]+)\\.supabase\\.co$/D', $rawHost, $matches)) {
+            throw new RuntimeException('Signed TUS UAT probe requires a verified Supabase project host.');
+        }
+        $origin = 'https://'.$matches[1].'.storage.supabase.co';
+        $endpoint = $origin.'/storage/v1/upload/resumable/sign';
+
+        $chunk = str_repeat('A', 6 * 1024 * 1024);
+        $tail = 'aqer-uat-tus-tail-'.bin2hex(random_bytes(14));
+        $total = strlen($chunk) + strlen($tail);
+        $hash = hash_init('sha256');
+        hash_update($hash, $chunk);
+        hash_update($hash, $tail);
+        $expectedHash = hash_final($hash);
+        $metadata = implode(',', [
+            'bucketName '.base64_encode($bucket),
+            'objectName '.base64_encode($objectPath),
+            'contentType '.base64_encode('application/octet-stream'),
+            'cacheControl '.base64_encode('0'),
+        ]);
+
+        $cleaned = false;
+        $originalFailure = null;
+        try {
+            $sign = $this->request()->post(
+                $this->storageBaseUrl().'/object/upload/sign/'
+                    .rawurlencode($bucket).'/'.$this->encodePath($objectPath),
+                (object) [],
+            );
+            $this->assertRemoteSuccess($sign, 'Signed TUS authorization failed.');
+
+            // Storage SDKs return both token and a path with ?token=...;
+            // neither value is ever emitted into application logs.
+            $signature = $sign->json('token');
+            if (! is_string($signature) || $signature === '') {
+                $signedUrl = $sign->json('url');
+                if (! is_string($signedUrl)) {
+                    throw new RuntimeException('Signed TUS authorization returned no token.');
+                }
+                parse_str((string) parse_url($signedUrl, PHP_URL_QUERY), $parameters);
+                $signature = $parameters['token'] ?? null;
+            }
+            if (! is_string($signature) || $signature === '') {
+                throw new RuntimeException('Signed TUS authorization returned no token.');
+            }
+
+            $createHeaders = [
+                'Tus-Resumable' => '1.0.0',
+                'Upload-Length' => (string) $total,
+                'Upload-Metadata' => $metadata,
+            ];
+            $publishableKey = trim((string) config('services.supabase_storage.publishable_key'));
+            if ($publishableKey === '' || str_starts_with($publishableKey, 'sb_secret_')) {
+                throw new RuntimeException('Signed TUS requires a separate publishable key.');
+            }
+            $connect = fn (array $headers) => Http::withHeaders(['apikey' => $publishableKey] + $headers)
+                ->connectTimeout(15)->timeout(90)
+                ->withOptions(['allow_redirects' => false]);
+
+            // A forged signature MUST be denied, even on the private bucket.
+            $denied = $connect($createHeaders + ['x-signature' => 'invalid-uat-canary'])
+                ->withBody('', 'application/offset+octet-stream')->post($endpoint);
+            if ($denied->status() < 400 || $denied->status() >= 500) {
+                throw new RuntimeException('Signed TUS rejected-token security probe failed.');
+            }
+
+            $created = $connect($createHeaders + ['x-signature' => $signature])
+                ->withBody('', 'application/offset+octet-stream')->post($endpoint);
+            if ($created->status() !== 201) {
+                throw new RuntimeException('Signed TUS creation returned HTTP '.$created->status().', expected 201.');
+            }
+            $location = $created->header('Location');
+            if (! is_string($location) || $location === '') {
+                throw new RuntimeException('Signed TUS creation supplied no session location.');
+            }
+
+            if (str_starts_with($location, '/storage/v1/upload/resumable/')) {
+                $sessionUrl = $origin.$location;
+            } else {
+                $sessionUrl = $location;
+            }
+            if (! str_starts_with($sessionUrl, $origin.'/storage/v1/upload/resumable/')
+                || parse_url($sessionUrl, PHP_URL_QUERY) !== null
+                || parse_url($sessionUrl, PHP_URL_FRAGMENT) !== null) {
+                throw new RuntimeException('Signed TUS session changed origin or path.');
+            }
+
+            $tusHeaders = ['Tus-Resumable' => '1.0.0', 'x-signature' => $signature];
+            $first = $connect($tusHeaders + ['Upload-Offset' => '0'])
+                ->withBody($chunk, 'application/offset+octet-stream')->patch($sessionUrl);
+            if ($first->status() !== 204 || $first->header('Upload-Offset') !== (string) strlen($chunk)) {
+                throw new RuntimeException('Signed TUS initial chunk was not acknowledged.');
+            }
+            // Model interruption between chunks: the second request must use
+            // the server's HEAD result, not the client's remembered count.
+            $head = $connect($tusHeaders)->head($sessionUrl);
+            if (! $head->successful() || $head->header('Upload-Offset') !== (string) strlen($chunk)) {
+                throw new RuntimeException('Signed TUS HEAD did not preserve offset.');
+            }
+            $last = $connect($tusHeaders + ['Upload-Offset' => $head->header('Upload-Offset')])
+                ->withBody($tail, 'application/offset+octet-stream')->patch($sessionUrl);
+            if ($last->status() !== 204 || $last->header('Upload-Offset') !== (string) $total) {
+                throw new RuntimeException('Signed TUS resumed chunk was not acknowledged.');
+            }
+
+            $download = $this->request()->get($this->privateAuthenticatedGetUrl($logicalPath));
+            $this->assertRemoteSuccess($download, 'Signed TUS private verification failed.');
+            $result = $download->body();
+            if (strlen($result) !== $total || hash('sha256', $result) !== $expectedHash) {
+                throw new RuntimeException('Signed TUS private bytes mismatch.');
+            }
+        } catch (\Throwable $error) {
+            $originalFailure = $error;
+            throw $error;
+        } finally {
+            // Never mask a protocol failure with a secondary cleanup error.
+            try {
+                $this->deletePrivate($logicalPath);
+                $cleaned = true;
+            } catch (\Throwable $cleanupError) {
+                if ($originalFailure === null) {
+                    throw new RuntimeException('Signed TUS canary cleanup failed; HTTP/object deletion must be investigated.');
+                }
+                report(new RuntimeException('Signed TUS secondary cleanup failure; preserve original exception.'));
+            }
+        }
+
+        if (! $cleaned) throw new RuntimeException('Signed TUS canary did not clean up.');
+    }
+
     public function readBytes(string $path, bool $private): string
     {
         if (! $this->cloudEnabled()) {
@@ -80,6 +396,12 @@ class CloudAssetStorageService
     public function responsePrivate(string $path, ?string $downloadName = null, array $headers = []): Response
     {
         return $this->response($path, true, $downloadName, $headers);
+    }
+
+    /** Reuse the successful download instead of downloading once to test existence. */
+    public function responsePrivateIfExists(string $path, ?string $downloadName = null, array $headers = []): ?Response
+    {
+        return $this->responseIfExists($path, true, $downloadName, $headers);
     }
 
     public function downloadPrivate(string $path, string $downloadName, array $headers = []): Response
@@ -185,13 +507,21 @@ class CloudAssetStorageService
 
     private function response(string $path, bool $private, ?string $downloadName, array $headers): Response
     {
+        $response = $this->responseIfExists($path, $private, $downloadName, $headers);
+        if ($response === null) abort(404);
+        return $response;
+    }
+
+    private function responseIfExists(string $path, bool $private, ?string $downloadName, array $headers): ?Response
+    {
         if (! $this->cloudEnabled()) {
+            if (! Storage::disk($private ? 'local' : 'public')->exists($path)) return null;
             return Storage::disk($private ? 'local' : 'public')->response($path, $downloadName, $headers);
         }
 
         $remote = $this->request()->get($this->objectUrl($this->objectPath($path, $private)));
         if (in_array($remote->status(), [400, 404], true)) {
-            abort(404);
+            return null;
         }
         $this->assertRemoteSuccess($remote, 'Cloud storage download failed.');
 
@@ -235,9 +565,16 @@ class CloudAssetStorageService
             $headers['Authorization'] = 'Bearer '.$key;
         }
 
-        return Http::withHeaders($headers)
+        $request = Http::withHeaders($headers)
             ->connectTimeout((int) config('services.supabase_storage.connect_timeout', 15))
             ->timeout((int) config('services.supabase_storage.timeout', 90));
+        $metrics = request()->attributes->get(RequestPerformance::ATTRIBUTE);
+        if ($metrics instanceof RequestPerformance) {
+            $request->withOptions(['on_stats' => static function (\GuzzleHttp\TransferStats $stats) use ($metrics): void {
+                $metrics->storage($stats->getTransferTime());
+            }]);
+        }
+        return $request;
     }
 
     private function objectPath(string $logicalPath, bool $private): string
@@ -247,6 +584,13 @@ class CloudAssetStorageService
             : (string) config('services.supabase_storage.public_prefix', 'public');
 
         return trim($prefix, '/').'/'.ltrim($logicalPath, '/');
+    }
+
+    /** Private GET differs from the POST /object/{bucket}/{path} upload API. */
+    private function privateAuthenticatedGetUrl(string $path): string
+    {
+        return $this->storageBaseUrl().'/object/authenticated/'
+            .rawurlencode($this->bucket()).'/'.$this->encodePath($this->objectPath($path, true));
     }
 
     private function objectUrl(string $objectPath): string

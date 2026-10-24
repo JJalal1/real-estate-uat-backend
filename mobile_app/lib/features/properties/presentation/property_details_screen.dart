@@ -1,4 +1,5 @@
-import 'listing_draft_photo.dart';
+import 'adaptive_property_photo.dart';
+import '../../../core/network/adaptive_image_policy.dart';
 import '../domain/rental_condition_summary.dart';
 import 'property_summary_card.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/contact_actions.dart';
+import '../../../core/platform/platform_share.dart';
 import '../../broker/data/broker_repository.dart';
 import '../../community/data/community_repository.dart';
 import '../../community/presentation/community_dialogs.dart';
@@ -25,6 +27,7 @@ import '../../account/data/auth_return_intent.dart';
 import '../../community/presentation/listing_community_screen.dart';
 import '../../messages/data/message_repository.dart';
 import '../data/favorites_repository.dart';
+import '../data/recent_properties_store.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
@@ -38,6 +41,7 @@ import 'property_question_section.dart';
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
   ref.watch(propertyDataRevisionProvider);
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(propertyRepositoryProvider).details(propertyId);
 });
 
@@ -56,12 +60,18 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _changingFavorite = false;
   bool _consumingPendingFavorite = false;
   bool _viewRecorded = false;
+  String? _recentRecordedScope;
   bool _calling = false, _reporting = false;
+  String? _loadedScope;
 
   @override
   void didUpdateWidget(covariant PropertyDetailsScreen old) {
     super.didUpdateWidget(old);
-    if (old.propertyId != widget.propertyId) { _viewRecorded = false; _imageIndex = 0; }
+    if (old.propertyId != widget.propertyId) {
+      _viewRecorded = false;
+      _recentRecordedScope = null;
+      _imageIndex = 0;
+    }
   }
 
   Future<void> _recordView() async {
@@ -76,6 +86,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   Widget build(BuildContext context) {
     final details = ref.watch(propertyDetailsProvider(widget.propertyId));
     final user = ref.watch(authControllerProvider).asData?.value;
+    final scope = '${user?.id}:${widget.propertyId}';
+    if (details.asData != null) _loadedScope = scope;
+    final retain = _loadedScope == scope && details.hasValue && details.hasError && isTransientApiFailure(details.error!);
     final pendingFavorite = ref.watch(pendingFavoriteAfterAuthProvider);
     final favoriteIds = user == null
         ? const <int>{}
@@ -87,6 +100,20 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     if (!_viewRecorded && loaded != null && !loaded.isOwner && loaded.status == 'published') {
       _viewRecorded = true;
       Future<void>.microtask(_recordView);
+    }
+
+    final recentStore = ref.watch(recentPropertiesStoreProvider);
+    if (recentStore.enabled && _recentRecordedScope != scope && loaded != null && loaded.status == 'published') {
+      _recentRecordedScope = scope;
+      Future<void>.microtask(() async {
+        try {
+          await recentStore.record(loaded.toSummary());
+          if (mounted) ref.invalidate(recentPropertiesProvider);
+        } catch (_) {
+          // Recent local history is best-effort: missing storage, denied IO,
+          // or a mock platform must not crash property details.
+        }
+      });
     }
 
     if (user != null &&
@@ -125,18 +152,25 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               ),
             AppIconButton(
               icon: Icons.ios_share_outlined,
-              tooltip: 'نسخ رابط العقار',
-              onPressed: _copyShareReference,
+              tooltip: 'مشاركة العقار',
+              onPressed: loaded == null ? null : () => _shareProperty(loaded),
             ),
           ],
         ),
         body: details.when(
+          skipLoadingOnReload: false,
+          skipError: retain,
           loading: () => const _PropertyDetailsSkeleton(),
           error: (error, _) => AppErrorState(
             message: friendlyApiError(error),
             onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId)),
           ),
-          data: (property) => _buildContent(property, favoriteIds),
+          data: (property) => Column(children: [
+            if (details.isLoading || retain) AppRefreshStatus(loading: details.isLoading,
+              error: retain ? friendlyApiError(details.error!) : null,
+              onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId))),
+            Expanded(child: _buildContent(property, favoriteIds)),
+          ]),
         ),
         bottomNavigationBar: showPrimaryActions
             ? _PropertyPrimaryActions(
@@ -194,7 +228,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         if (ref.read(authControllerProvider).asData?.value != null) {
           ref.invalidate(favoritePropertyIdsProvider);
         }
-        await ref.read(propertyDetailsProvider(widget.propertyId).future);
+        try { await ref.read(propertyDetailsProvider(widget.propertyId).future); } catch (_) { /* The page renders failure and retry. */ }
       },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -307,7 +341,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               scrollDirection: Axis.horizontal, itemCount: property.images.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) => Semantics(button: true, label: 'فتح صورة العقار ${index + 1}', child: InkWell(
                 onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: property.images, initialIndex: index, privateImages:property.status!='published'))),
-                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, child: AppPropertyMedia(imageUrl: property.images[index].url, height: 96))),
+                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, height: 96,
+                  child: AdaptivePropertyPhoto(url: property.images[index].cardUrl,
+                    authenticated:property.status!='published',use:PropertyImageUse.thumbnail))),
               )),
             ))),
           ],
@@ -375,12 +411,17 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 
   Future<void> _reportListing(PropertyDetails property) async {
     if (_reporting || !await _requireContactAccount() || !mounted) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final repository = ref.read(communityRepositoryProvider);
     final result = await showCommunityReportDialog(context, label: 'الإعلان');
-    if (result == null || !mounted) return;
+    if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
     setState(() => _reporting = true);
     try {
-      await ref.read(communityRepositoryProvider).report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال البلاغ إلى الدعم.')));
+      final receipt = await repository.report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message),
+          action: SnackBarAction(label: 'متابعة', onPressed: () => context.push('/support?case=${receipt.id}'))));
+      }
     } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
     finally { if (mounted) setState(() => _reporting = false); }
   }
@@ -466,13 +507,21 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     }
   }
 
-  Future<void> _copyShareReference() async {
-    final link = propertyAppDeepLink(widget.propertyId).toString();
-    await Clipboard.setData(ClipboardData(text: link));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم نسخ رابط العقار ويمكن فتحه في التطبيق.')),
-    );
+  Future<void> _shareProperty(PropertyDetails property) async {
+    final link = propertyPublicShareLink(property.id).toString();
+    final price = property.currency.trim().isEmpty
+        ? property.price.toStringAsFixed(0)
+        : '${property.price.toStringAsFixed(0)} ${property.currency}';
+    final text = 'عقار: ${property.title}\nالسعر: $price\n$link';
+    try {
+      await PlatformShare.text(text: text, subject: property.title);
+    } on PlatformException {
+      await Clipboard.setData(ClipboardData(text: link));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذرت المشاركة المباشرة، فتم نسخ رابط العقار.')),
+      );
+    }
   }
 
   Future<void> _openCommunity(PropertyDetails property) async {
@@ -581,7 +630,8 @@ class _Gallery extends StatelessWidget {
                         ),
                       ),
                     ),
-                    child: ListingDraftPhoto(url:images[imageIndex].galleryUrl,authenticated:privateImages,cacheWidth:1600),
+                    child: AdaptivePropertyPhoto(key:ValueKey(images[imageIndex].id),
+                      url:images[imageIndex].galleryUrl,authenticated:privateImages,use:PropertyImageUse.detail),
                   ),
                 ),
               ),
@@ -626,6 +676,7 @@ class _FullscreenGallery extends StatefulWidget {
 class _FullscreenGalleryState extends State<_FullscreenGallery> {
   late final PageController _controller;
   late int _index;
+  final _highResolution = <int>{};
 
   @override
   void initState() {
@@ -657,7 +708,14 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                   child: InteractiveViewer(
                     minScale: 1,
                     maxScale: 4,
-                    child: ListingDraftPhoto(url:widget.images[imageIndex].zoomUrl,authenticated:widget.privateImages,fit:BoxFit.contain,cacheWidth:3072),
+                    onInteractionUpdate: (details) {
+                      if (details.scale > 1.15 && !_highResolution.contains(imageIndex)) {
+                        setState(() => _highResolution.add(imageIndex));
+                      }
+                    },
+                    child: SizedBox.expand(child: AdaptivePropertyPhoto(key:ValueKey(widget.images[imageIndex].id),
+                      url:widget.images[imageIndex].zoomUrl,authenticated:widget.privateImages,fit:BoxFit.contain,
+                      use:_highResolution.contains(imageIndex) ? PropertyImageUse.zoom : PropertyImageUse.fullscreen)),
                   ),
                 ),
               ),
@@ -669,6 +727,13 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const EbrokerIcon(Icons.close_rounded),
                 ),
+              ),
+              PositionedDirectional(
+                top: AppSpacing.s8,
+                end: AppSpacing.s8,
+                child: TextButton(onPressed:_highResolution.contains(_index) ? null :
+                  () => setState(() => _highResolution.add(_index)),
+                  child:const Text('تحميل صورة أوضح',style:TextStyle(color:Colors.white))),
               ),
               PositionedDirectional(
                 bottom: AppSpacing.s16,

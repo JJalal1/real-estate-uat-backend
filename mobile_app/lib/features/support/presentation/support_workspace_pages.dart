@@ -118,7 +118,7 @@ class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _future = _load(); _future.ignore();
   }
 
   Future<(List<SupportTeamMember>, List<SupportTeamSummary>)> _load() async {
@@ -128,8 +128,8 @@ class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
-    await _future;
+    setState(() { _future = _load(); _future.ignore(); });
+    try { await _future; } catch (_) { /* The view renders failure and retry. */ }
   }
 
   @override
@@ -431,12 +431,12 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
   @override
   void initState() {
     super.initState();
-    _future = widget.load();
+    _future = widget.load(); _future.ignore();
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = widget.load());
-    await _future;
+    setState(() { _future = widget.load(); _future.ignore(); });
+    try { await _future; } catch (_) { /* The view renders failure and retry. */ }
   }
 
   @override

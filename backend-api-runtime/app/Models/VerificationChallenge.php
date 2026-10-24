@@ -10,6 +10,7 @@ class VerificationChallenge extends Model
     public const PURPOSE_EMAIL_LOGIN = 'email_login';
     public const PURPOSE_EMAIL = 'email_verification';
     public const PURPOSE_PASSWORD_RESET = 'password_reset';
+    public const PURPOSE_ACCOUNT_DELETION = 'account_deletion';
 
     protected $fillable = [
         'user_id','destination','purpose','code_hash','attempts','expires_at','consumed_at',

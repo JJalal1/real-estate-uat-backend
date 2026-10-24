@@ -49,6 +49,7 @@ certificate = re.search(r'certificate SHA-256 digest:\s*([a-fA-F0-9]+)', signer.
 badging = subprocess.run([str(tools[-1].parent / 'aapt'), 'dump', 'badging', str(apk)], text=True, capture_output=True, check=True).stdout
 assert "name='com.example.real_estate_mobile'" in badging
 assert f"versionCode='{version}'" in badging
+assert "application-label:'عقار'" in badging
 with zipfile.ZipFile(apk) as archive:
     assert archive.testzip() is None
     libraries = {name.split('/')[1]: name for name in archive.namelist() if name.startswith('lib/') and name.endswith('/libapp.so')}
@@ -60,9 +61,17 @@ with zipfile.ZipFile(apk) as archive:
         authoritative = api('/contents/mobile_app/' + path + '?ref=' + source)
         assert archive.read('assets/flutter_assets/' + path) == base64.b64decode(authoritative['content'])
 
+brand_assets = json.loads(Path('docs/brand/ASSET_MANIFEST.json').read_text())['assets']
+brand_paths = [item for item in brand_assets if item['path'].startswith('mobile_app/assets/brand/')]
+assert len(brand_paths) == 4
+with zipfile.ZipFile(apk) as archive:
+    for item in brand_paths:
+        embedded = archive.read('assets/flutter_assets/' + item['path'].removeprefix('mobile_app/'))
+        assert hashlib.sha256(embedded).hexdigest() == item['sha256']
+
 evidence = {'source_commit': source, 'version_code': version, 'sha256': digest, 'bytes': apk.stat().st_size,
     'package': 'com.example.real_estate_mobile', 'api': api_url, 'architectures': sorted(libraries),
-    'fonts_match': 5, 'zip_crc': 'passed', 'apksigner': 'passed', 'certificate_sha256': certificate,
+    'brand_assets_match': len(brand_paths), 'fonts_match': 5, 'zip_crc': 'passed', 'apksigner': 'passed', 'certificate_sha256': certificate,
     'handset_acceptance': 'pending'}
 Path('dist/APK_VERIFICATION.json').write_text(json.dumps(evidence, indent=2) + '\n')
 print(json.dumps(evidence))

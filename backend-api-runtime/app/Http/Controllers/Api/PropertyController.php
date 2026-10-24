@@ -19,6 +19,7 @@ use App\Services\PropertyIdentityService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -64,10 +65,11 @@ class PropertyController extends Controller
         app(\App\Services\PropertyDiscoveryFilterService::class)->applyGeometry($query, $validated);
 
         $sort = (string) $request->input('sort', 'latest');
+        app(\App\Services\PropertyDiscoveryFilterService::class)->applySearchOrdering($query, $validated, $sort);
         match ($sort) {
             'price_asc' => $query->orderBy('price')->orderByDesc('id'),
             'price_desc' => $query->orderByDesc('price')->orderByDesc('id'),
-            default => $query->latest('id'),
+            default => $query->orderByDesc('id'),
         };
 
         $page = $query->paginate($perPage);
@@ -104,37 +106,83 @@ class PropertyController extends Controller
 
         $this->validateBounds($validated);
 
-        $query = $this->publicQuery();
-        $this->applyFilters($query, $validated);
-        app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
-
         if (DB::connection()->getDriverName() === 'pgsql') {
-            $pointSql = 'ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography';
-            $distanceSql = "ST_Distance(location, {$pointSql})";
+            $cacheFacts = $validated;
+            ksort($cacheFacts);
+            $cacheKey = 'public-nearby-v1:'.hash(
+                'sha256',
+                json_encode($cacheFacts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            );
+            $cache = Cache::store('file');
+            $cached = $cache->get($cacheKey);
+            if (is_array($cached)) {
+                return response()->json(['data' => $cached], 200, [
+                    'Cache-Control' => 'public, max-age=10, stale-while-revalidate=20',
+                    'X-Aqer-Nearby-Cache' => 'HIT',
+                ]);
+            }
 
-            $properties = $query
-                ->select('properties.*')
-                ->selectRaw("{$distanceSql} AS distance_m", [$longitude, $latitude])
-                ->whereNotNull('location')
-                ->whereRaw(
-                    "ST_DWithin(location, {$pointSql}, ?)",
-                    [$longitude, $latitude, $radiusKm * 1000],
-                )
-                ->orderBy('distance_m')
-                ->orderByDesc('id')
-                ->limit(250)
-                ->get()
-                ->map(fn (Property $property) => array_merge(
-                    $this->summaryData($property, $request),
-                    ['distance_km' => round(((float) $property->distance_m) / 1000, 2)],
-                ))
-                ->values();
+            $load = function () use ($validated, $longitude, $latitude, $radiusKm, $request): array {
+                $query = app(\App\Services\PropertyDiscoveryFilterService::class)
+                    ->publicQuery()
+                    ->with('primaryImage');
+                $this->applyFilters($query, $validated);
+                app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
 
-            return response()->json(['data' => $properties]);
+                $pointSql = 'ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography';
+                $distanceSql = "ST_Distance(location, {$pointSql})";
+
+                return $query
+                    ->select('properties.*')
+                    ->selectRaw("{$distanceSql} AS distance_m", [$longitude, $latitude])
+                    ->whereNotNull('location')
+                    ->whereRaw(
+                        "ST_DWithin(location, {$pointSql}, ?)",
+                        [$longitude, $latitude, $radiusKm * 1000],
+                    )
+                    ->orderBy('distance_m')
+                    ->orderByDesc('id')
+                    ->limit(250)
+                    ->get()
+                    ->map(fn (Property $property) => array_merge(
+                        $this->nearbyData($property, $request),
+                        ['distance_km' => round(((float) $property->distance_m) / 1000, 2)],
+                    ))
+                    ->values()
+                    ->all();
+            };
+
+            try {
+                $properties = $cache->lock($cacheKey.':lock', 12)->block(
+                    12,
+                    function () use ($cache, $cacheKey, $load): array {
+                        $cached = $cache->get($cacheKey);
+                        if (is_array($cached)) return $cached;
+
+                        $properties = $load();
+                        $cache->put($cacheKey, $properties, 10);
+
+                        return $properties;
+                    },
+                );
+            } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+                $properties = $load();
+            }
+
+            return response()->json(['data' => $properties], 200, [
+                'Cache-Control' => 'public, max-age=10, stale-while-revalidate=20',
+                'X-Aqer-Nearby-Cache' => 'MISS',
+            ]);
         }
 
         // SQLite is used only by the automated test suite. Production uses the
         // PostGIS branch above so the spatial index remains effective at scale.
+        $query = app(\App\Services\PropertyDiscoveryFilterService::class)
+            ->publicQuery()
+            ->with('primaryImage');
+        $this->applyFilters($query, $validated);
+        app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
+
         $properties = $query->limit(1000)->get()
             ->map(function (Property $property) use ($latitude, $longitude, $request) {
                 $distanceKm = $this->distanceKm(
@@ -144,7 +192,7 @@ class PropertyController extends Controller
                     (float) $property->longitude,
                 );
 
-                return array_merge($this->summaryData($property, $request), [
+                return array_merge($this->nearbyData($property, $request), [
                     'distance_km' => round($distanceKm, 2),
                 ]);
             })
@@ -374,11 +422,12 @@ class PropertyController extends Controller
         $property = $image->property;
         abort_unless($property, 404);
 
-        $user = $this->tokens->authenticate($request, false);
-        $isOwner = $user !== null && (int) $property->user_id === (int) $user->id;
-        $isReviewer = $user !== null && $user->hasPermission('listings.moderate');
-
-        abort_unless($property->status === 'published' || $isOwner || $isReviewer, 404);
+        if ($property->status !== 'published') {
+            $user = $this->tokens->authenticate($request, false);
+            $isOwner = $user !== null && (int) $property->user_id === (int) $user->id;
+            $isReviewer = $user !== null && $user->hasPermission('listings.moderate');
+            abort_unless($isOwner || $isReviewer, 404);
+        }
         abort_if($image->cdn_url, 404);
         return app(\App\Services\ListingImageService::class)->response($image->path,
             (string)$request->query('variant','detail'),$property->status==='published');
@@ -842,6 +891,35 @@ class PropertyController extends Controller
         }
     }
 
+    private function nearbyData(Property $property, Request $request): array
+    {
+        $image = $property->primaryImage;
+        $imageUrl = $image ? $this->imageUrl($image, $request, 'card') : null;
+
+        $data = [
+            'id' => $property->id,
+            'title' => $property->title,
+            'purpose' => $property->purpose,
+            'type' => $property->type,
+            'price' => (float) $property->price,
+            'currency' => $property->currency,
+            'area_m2' => $property->area_m2,
+            'bedrooms' => $property->bedrooms,
+            'bathrooms' => $property->bathrooms,
+            'address' => $property->address,
+            'latitude' => (float) $property->latitude,
+            'longitude' => (float) $property->longitude,
+            'main_image' => $imageUrl,
+            'image_urls' => $imageUrl ? [$imageUrl] : [],
+            'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,
+        ];
+
+        return array_intersect_key(
+            app(\App\Services\DynamicPropertySchema::class)->facts($data, true),
+            $data,
+        );
+    }
+
     private function summaryData(Property $property, Request $request): array
     {
         $property->loadMissing('images');
@@ -1052,7 +1130,7 @@ class PropertyController extends Controller
             return rtrim($request->getSchemeAndHttpHost(), '/') . '/' . ltrim($raw, '/');
         }
 
-        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id . ($variant ? '?variant='.$variant : '');
+        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id . ($variant ? '?variant='.$variant : '').(config('listing_media.watermark.enabled') ? ($variant ? '&' : '?').'v='.app(\App\Services\ListingWatermarkService::class)->version() : '');
     }
 
     private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float

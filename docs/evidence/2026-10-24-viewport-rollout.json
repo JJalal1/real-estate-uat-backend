@@ -1,0 +1,106 @@
+{
+  "service": "srv-dahj3vlg1s2s73bdqhtg",
+  "workspace": "tea-d4v0q98gjchc73cistt0",
+  "deploy": {
+    "commit": {
+      "createdAt": "2026-10-24T08:47:08Z",
+      "id": "ca184fc0c1ae67443786a72a32911b80d1ed5197",
+      "message": "Merge pull request #120: viewport, resilient loading and private recent history\n\nGate viewport media and recover loading, caching and account-scoped recent history"
+    },
+    "createdAt": "2026-10-24T08:47:52.330094Z",
+    "finishedAt": "2026-10-24T08:48:46.336911Z",
+    "id": "dep-dbe71e3rjlhs73elu3cg",
+    "startedAt": "2026-10-24T08:47:52.302775Z",
+    "status": "live",
+    "trigger": "api",
+    "updatedAt": "2026-10-24T08:48:46.337119Z"
+  },
+  "configuration": {
+    "at": "2026-10-24T08:47:52.491Z",
+    "service": "srv-dahj3vlg1s2s73bdqhtg",
+    "workspace": "tea-d4v0q98gjchc73cistt0",
+    "changed_keys": {
+      "UAT_RUN_MIGRATIONS": "false"
+    },
+    "replace": false,
+    "watermark_flag_changed": false,
+    "expected_commit": "ca184fc0c1ae67443786a72a32911b80d1ed5197"
+  },
+  "supabase_before": {
+    "checked_at": "2026-10-24 08:47:45.757378+00",
+    "migrations": 59,
+    "upload_intents_table_exists": false,
+    "public_tables_without_rls": 0,
+    "storage_objects_rls": true,
+    "storage_policy_count": 0,
+    "public_bucket_count": 0
+  },
+  "supabase_after": {
+    "checked_at": "2026-10-24 08:56:33.719713+00",
+    "migrations": 59,
+    "upload_intents_table_exists": false,
+    "public_tables_without_rls": 0,
+    "storage_objects_rls": true,
+    "storage_policy_count": 0,
+    "public_bucket_count": 0,
+    "direct_unprivileged_table_grants": 0,
+    "health_canary_objects": 0
+  },
+  "health": [
+    {
+      "timestamp": "2026-10-24T08:48:40.593472421Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:48:45.592904746Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:48:45.596966484Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:48:45.695931176Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:48:50.68878012Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:48:55.610789556Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:49:00.690727985Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:49:05.610617511Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:49:10.68628292Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:49:15.551413451Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:49:15.610512836Z",
+      "status": "200"
+    },
+    {
+      "timestamp": "2026-10-24T08:49:20.612860589Z",
+      "status": "200"
+    }
+  ],
+  "cloud_check": "HTTPS/PostgreSQL/PostGIS/private Storage/UAT guards passed; synthetic storage canary deleted",
+  "saturation_logs_after_deploy": 0,
+  "limits": [
+    "No complete real UAT database backup or independent restore was performed.",
+    "No DDL, account/grant/RLS changes, paid resource, Production deployment or per-item acceptance installer.",
+    "Physical Android/cellular and signed-in role UAT acceptance remain consolidated gates."
+  ]
+}

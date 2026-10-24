@@ -1,16 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
-        android:label="real_estate_mobile"
+        android:label="عقار"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
-            android:name=".MainActivity"
+            android:name="com.example.real_estate_mobile.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
@@ -34,6 +36,40 @@
                     android:scheme="realestate"
                     android:host="app"
                     android:pathPrefix="/properties" />
+                <!-- External custom links must reach Flutter's authenticated router. -->
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/advertisers" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/messages" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/bookings" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/agreements" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/rental-contracts" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/broker/deals" />
+            </intent-filter>
+            <intent-filter android:autoVerify="${aqerAppLinkAutoVerify}">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="${aqerAppLinkHost}"
+                    android:pathPrefix="/l/properties" />
             </intent-filter>
         </activity>
         <provider

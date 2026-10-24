@@ -41,7 +41,7 @@ class SavedSearchesScreen extends ConsumerWidget {
             return RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(savedSearchesProvider);
-                await ref.read(savedSearchesProvider.future);
+                try { await ref.read(savedSearchesProvider.future); } catch (_) { /* The page renders failure and retry. */ }
               },
               child: ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),

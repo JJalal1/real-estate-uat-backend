@@ -1,7 +1,14 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1, work/wave2-brand-trust-account, work/wave2-review-current, work/1123-release-readiness]
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'mobile_app/**'
+      - 'scripts/**'
+      - '.github/workflows/broker-experience-ci.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -70,7 +77,9 @@ jobs:
       - name: Generate temporary test key
         run: php artisan key:generate --force
       - name: Shared property schema consistency
-        run: python3 ../scripts/generate_property_schema.py --check
+        run: |
+          python3 ../scripts/generate_property_schema.py --check
+          python3 ../scripts/verify_aqer_brand.py
       - name: Full Laravel regression
         run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
 
@@ -139,7 +148,7 @@ jobs:
           tests/Feature/Wave5ListingRefinementTest.php tests/Feature/EmailLoginAndNameTest.php
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Account drafts, real photos and broker contact on PostgreSQL
-        run: php artisan test tests/Feature/UserWorkMediaTest.php tests/Feature/NewWaveHandoffTest.php tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+        run: php artisan test tests/Feature/Wave2AccountSafetyTest.php tests/Feature/Wave2MediaTrustTest.php tests/Feature/PropertyIdentityV2Test.php tests/Feature/UserWorkMediaTest.php tests/Feature/NewWaveHandoffTest.php tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Listing scope, customer commission and private editor contracts on PostgreSQL
         run: >-
           php artisan test tests/Feature/UxRefinementApiTest.php
@@ -225,6 +234,8 @@ jobs:
         working-directory: mobile_app
         run: >-
           flutter test
+          test/aqer_brand_test.dart
+          test/wave2_trust_account_media_test.dart
           test/compact_cards_email_login_test.dart
           test/template_creation_menu_test.dart
           test/broker_experience_ui_test.dart
@@ -266,6 +277,7 @@ jobs:
           path: |
             mobile_app/build/v3-preview/
             mobile_app/build/broker-preview/
+            mobile_app/build/wave2-preview/
           if-no-files-found: error
           retention-days: 14
       - name: Transport synthetic UI previews after artifact quota failure
@@ -293,6 +305,10 @@ jobs:
         id: build_apk
         if: ${{ !cancelled() && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
         working-directory: mobile_app
+        # This job builds the disposable UAT package only. Production signing
+        # remains mandatory for any release without this explicit opt-in.
+        env:
+          AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
         run: >-
           flutter build apk --release
           --build-number=$((1000 + GITHUB_RUN_NUMBER))

@@ -29,7 +29,7 @@ class _BrokerAccountVerificationScreenState
   @override
   void initState() {
     super.initState();
-    _future = _loadStatus();
+    _future = _loadStatus(); _future.ignore();
   }
 
   @override
@@ -182,7 +182,7 @@ class _BrokerAccountVerificationScreenState
     return application;
   }
 
-  void _reload() => setState(() => _future = _loadStatus());
+  void _reload() => setState(() { _future = _loadStatus(); _future.ignore(); });
   void _message(String text) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));

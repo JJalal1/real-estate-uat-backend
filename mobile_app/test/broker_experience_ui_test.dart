@@ -130,6 +130,9 @@ void main() {
     expect(find.text('يحتاج إجراء منك'), findsNothing);
     expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
     nav.onSelected(3); await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('لوحة العمل'), 300,
+      scrollable: find.descendant(of: find.byType(AccountScreen), matching: find.byType(Scrollable)).first);
+    await tester.pumpAndSettle();
     expect(find.text('لوحة العمل'), findsOneWidget);
     expect(find.text('إدارة العملاء'), findsOneWidget);
   });

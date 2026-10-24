@@ -3,6 +3,8 @@ package com.example.real_estate_mobile
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.provider.MediaStore
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
@@ -24,6 +26,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val MEDIA_CHANNEL = "real_estate/media"
         private const val SECURE_CHANNEL = "real_estate/secure_store"
+        private const val SHARE_CHANNEL = "real_estate/share"
         private const val PICK_IMAGES_REQUEST = 7419
         private const val TAKE_PHOTO_REQUEST = 7420
         private const val MAX_IMAGES = 12
@@ -36,13 +39,38 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingCameraFile: File? = null
     private var speechInput: InAppSpeechInput? = null
+    private var pushBridge: PushBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         ContactActions(this, flutterEngine.dartExecutor.binaryMessenger)
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "real_estate/network")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "imageNetworkState") {
+                    result.notImplemented()
+                } else {
+                    val manager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val network = manager.activeNetwork
+                    val capabilities = manager.getNetworkCapabilities(network)
+                    val saver = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+                        manager.restrictBackgroundStatus != ConnectivityManager.RESTRICT_BACKGROUND_STATUS_DISABLED
+                    val transport = when {
+                        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "wifi"
+                        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "cellular"
+                        else -> "other"
+                    }
+                    result.success(mapOf("metered" to manager.isActiveNetworkMetered,
+                        "dataSaver" to saver, "networkKey" to (network?.toString() ?: "none"),
+                        "transport" to transport))
+                }
+            }
+
         speechInput?.dispose()
         speechInput = InAppSpeechInput(this, flutterEngine.dartExecutor.binaryMessenger)
+
+        pushBridge?.dispose()
+        pushBridge = PushBridge(this, flutterEngine.dartExecutor.binaryMessenger)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -50,6 +78,32 @@ class MainActivity : FlutterActivity() {
                     "pickImages" -> openImagePicker(result)
                     "takePhoto" -> openCamera(result)
                     "clearTemporaryFiles" -> clearTemporaryFiles(call.arguments, result)
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "shareText" -> {
+                        val text = call.argument<String>("text").orEmpty().trim()
+                        if (text.isEmpty()) {
+                            result.error("SHARE_EMPTY", "Nothing to share.", null)
+                            return@setMethodCallHandler
+                        }
+                        val subject = call.argument<String>("subject")?.trim().orEmpty()
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                            if (subject.isNotEmpty()) putExtra(Intent.EXTRA_SUBJECT, subject)
+                        }
+                        try {
+                            startActivity(Intent.createChooser(send, "مشاركة عبر"))
+                            result.success(null)
+                        } catch (error: Exception) {
+                            result.error("SHARE_FAILED", error.message, null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -210,7 +264,14 @@ class MainActivity : FlutterActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (pushBridge?.onPermissionResult(requestCode, grantResults) == true) return
         speechInput?.onPermissionResult(requestCode, grantResults)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pushBridge?.onNewIntent(intent)
     }
 
     override fun onResume() {
@@ -224,6 +285,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        pushBridge?.dispose()
+        pushBridge = null
         speechInput?.dispose()
         speechInput = null
         super.onDestroy()

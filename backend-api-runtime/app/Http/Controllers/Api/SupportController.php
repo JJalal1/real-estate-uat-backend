@@ -60,13 +60,18 @@ class SupportController extends Controller
         ]);
         [$targetLabel,$targetOwner]=$this->validateReportTarget($validated['target_type'],(int)$validated['target_id']);
         if($targetOwner!==null && (int)$targetOwner===(int)$user->id) throw ValidationException::withMessages(['target_id'=>['You cannot report your own content/account.']]);
-        $duplicate=SupportCase::query()->where('kind','report')->where('requester_user_id',$user->id)
-            ->where('target_type',$validated['target_type'])->where('target_id',(int)$validated['target_id'])
-            ->whereNotIn('status',SupportCaseService::CLOSED_STATUSES)->exists();
-        if($duplicate) throw new ConflictHttpException('An open report for this target already exists.');
-        $priority=in_array($validated['reason'],['fraud','abuse','privacy'],true)?'high':'normal';
-        $subject='Report: '.$targetLabel;
-        $case=$this->support->create($user,'report',$subject,trim($validated['details']),$validated['target_type'],(int)$validated['target_id'],$validated['reason'],$priority,$request);
+        $case=\Illuminate\Support\Facades\DB::transaction(function()use($user,$validated,$request,$targetLabel){
+            User::query()->lockForUpdate()->findOrFail($user->id);
+            $duplicate=SupportCase::query()->where('kind','report')->where('requester_user_id',$user->id)
+                ->where('target_type',$validated['target_type'])->where('target_id',(int)$validated['target_id'])
+                ->whereNotIn('status',SupportCaseService::CLOSED_STATUSES)->latest('id')->first();
+            if ($duplicate) throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+                'code'=>'report_already_received','message'=>'وصل بلاغك سابقًا ويمكنك متابعته من الدعم.',
+                'data'=>['id'=>$duplicate->id,'reference'=>$duplicate->reference,'status'=>$duplicate->status],
+            ],409));
+            $priority=in_array($validated['reason'],['fraud','abuse','privacy'],true)?'high':'normal';
+            return $this->support->create($user,'report','Report: '.$targetLabel,trim($validated['details']),$validated['target_type'],(int)$validated['target_id'],$validated['reason'],$priority,$request);
+        });
         return response()->json(['message'=>'Report submitted to support.','data'=>$this->detail($case,false)],201);
     }
 

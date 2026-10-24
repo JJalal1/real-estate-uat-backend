@@ -1,7 +1,7 @@
 name: User work and media acceptance
 on:
   push:
-    branches: [work/user-work-media-batch1]
+    branches: [work/user-work-media-batch1, work/1123-release-readiness]
   workflow_dispatch:
 permissions:
   contents: read

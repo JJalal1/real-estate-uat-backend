@@ -5,6 +5,8 @@ class MessageThreadSummary {
     required this.otherUserName,
     required this.unreadCount,
     this.canCallAdvertiser = false,
+    this.canSend = true,
+    this.blockedByMe = false,
     this.canManageCustomer = false,
     this.leadStage = 'new',
     this.propertyId,
@@ -19,6 +21,8 @@ class MessageThreadSummary {
   final String otherUserName;
   final int unreadCount;
   final bool canCallAdvertiser;
+  final bool canSend;
+  final bool blockedByMe;
   final bool canManageCustomer;
   final String leadStage;
   final int? propertyId;
@@ -40,6 +44,8 @@ class MessageThreadSummary {
       otherUserName: otherMap['name']?.toString() ?? 'مستخدم',
       unreadCount: _asInt(json['unread_count']) ?? 0,
       canCallAdvertiser: json['can_call_advertiser'] == true || json['can_call_advertiser'] == 1,
+      canSend: json['can_send'] != false,
+      blockedByMe: json['blocked_by_me'] == true,
       canManageCustomer: json['can_manage_customer'] == true,
       leadStage: json['lead_stage']?.toString() ?? 'new',
       propertyId: _asInt(json['property_id']),
