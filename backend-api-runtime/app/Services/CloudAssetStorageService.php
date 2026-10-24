@@ -565,9 +565,16 @@ class CloudAssetStorageService
             $headers['Authorization'] = 'Bearer '.$key;
         }
 
-        return Http::withHeaders($headers)
+        $request = Http::withHeaders($headers)
             ->connectTimeout((int) config('services.supabase_storage.connect_timeout', 15))
             ->timeout((int) config('services.supabase_storage.timeout', 90));
+        $metrics = request()->attributes->get(RequestPerformance::ATTRIBUTE);
+        if ($metrics instanceof RequestPerformance) {
+            $request->withOptions(['on_stats' => static function (\GuzzleHttp\TransferStats $stats) use ($metrics): void {
+                $metrics->storage($stats->getTransferTime());
+            }]);
+        }
+        return $request;
     }
 
     private function objectPath(string $logicalPath, bool $private): string

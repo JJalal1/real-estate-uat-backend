@@ -46,6 +46,12 @@ class ListingImageService
         return true;
     }
 
+    /** Public professional photos are separate from verification evidence. */
+    public function sanitizedProfessionalPhoto(string $bytes): string
+    {
+        return $this->encode($bytes, $this->inspect($bytes), ['card'], false)['card'];
+    }
+
     public function variantPath(string $path, string $variant): string
     {
         abort_unless(array_key_exists($variant, config('listing_media.variants')), 422, 'نسخة الصورة غير صالحة.');
@@ -70,10 +76,11 @@ class ListingImageService
         if ($cached !== null) return $cached;
         // Compatibility for historical internal images: sanitize on demand, never return the raw original.
         $bytes = $this->storage->readBytes($path, self::isPrivate($path));
-        foreach ($this->encode($bytes, $this->inspect($bytes), [$variant]) as $name=>$encoded) {
-            $this->storage->writePrivate($this->variantPath($path, $name), $encoded, 'image/jpeg');
-        }
-        return $this->storage->responsePrivate($target, null, $headers);
+        $encoded = $this->encode($bytes, $this->inspect($bytes), [$variant])[$variant];
+        $this->storage->writePrivate($target, $encoded, 'image/jpeg');
+        // The acknowledged upload already came from these exact safe bytes.
+        // A second remote download adds worker occupancy without validation.
+        return response($encoded, 200, $headers);
     }
 
     public function removeIfUnused(string $path): void
@@ -107,7 +114,7 @@ class ListingImageService
         return $info;
     }
 
-    private function encode(string $bytes, array $info, ?array $only = null): array
+    private function encode(string $bytes, array $info, ?array $only = null, bool $watermark = true): array
     {
         $image = @imagecreatefromstring($bytes);
         if (!$image) throw ValidationException::withMessages(['image'=>['تعذر قراءة الصورة. اختر صورة أخرى.']]);
@@ -126,7 +133,7 @@ class ListingImageService
                     // Opaque sRGB display JPEGs; transparent sources are composited onto white.
                     imagefill($output,0,0,imagecolorallocate($output,255,255,255));
                     imagecopyresampled($output,$image,0,0,0,0,$w,$h,$width,$height);
-                    app(ListingWatermarkService::class)->apply($output);
+                    if ($watermark) app(ListingWatermarkService::class)->apply($output);
                     ob_start();
                     try { if (!imagejpeg($output,null,$quality)) throw new RuntimeException('Image encoding failed.'); $result[$variant]=ob_get_contents(); }
                     finally { ob_end_clean(); }
