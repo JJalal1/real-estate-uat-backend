@@ -6,7 +6,7 @@ export CACHE_STORE=file
 export SESSION_DRIVER=file
 export QUEUE_CONNECTION=sync
 export MAIL_MAILER=array
-export SUPABASE_STORAGE_ENABLED=false
+export UAT_CLOUD_STORAGE_ENABLED=false
 php artisan migrate --force
 PHP_CLI_SERVER_WORKERS=3 php -S 127.0.0.1:8099 -t public public/index.php > /tmp/aqer-role-http.log 2>&1 &
 aqer_http_pid=$!

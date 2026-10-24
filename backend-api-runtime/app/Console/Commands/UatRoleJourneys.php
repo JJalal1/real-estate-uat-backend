@@ -144,7 +144,14 @@ class UatRoleJourneys extends Command
         $this->check($restored->json('data.payload.fields.title') === $payload['fields']['title'], 'draft_text_preserved');
         $this->wire('other_cannot_read_draft','other','GET',$url,[],404);
         $this->wire('unverified_actor_cannot_write_draft','other','PUT',$url,['payload'=>$payload,'expected_revision'=>1],403);
-        $this->wire('other_publisher_cannot_write_draft','other_publisher','PUT',$url,['payload'=>$payload,'expected_revision'=>1],404);
+        $this->wire('other_publisher_has_no_matching_revision','other_publisher','PUT',$url,['payload'=>$payload,'expected_revision'=>1],409);
+        $otherPayload = $payload;
+        $otherPayload['checkpoint_key'] = (string)Str::uuid();
+        $otherPayload['fields']['title'] = 'مسودة منفصلة للحساب الآخر';
+        $otherPayload['image_order'] = [];
+        $this->wire('same_uuid_is_separate_account_namespace','other_publisher','PUT',$url,['payload'=>$otherPayload,'expected_revision'=>0]);
+        $ownAgain = $this->wire('original_account_draft_unchanged','publisher','GET',$url);
+        $this->check($ownAgain->json('data.payload.fields.title') === $payload['fields']['title'] && $ownAgain->json('data.revision') === 1,'other_namespace_cannot_change_original');
         $source = $this->syntheticJpeg(6);
         $this->wire('first_real_image_upload','publisher','POST',$url.'/images/'.$first,['expected_revision'=>1],200,$source);
         $retry = $this->wire('image_upload_retry_no_duplicate','publisher','POST',$url.'/images/'.$first,['expected_revision'=>1],200,$source);
