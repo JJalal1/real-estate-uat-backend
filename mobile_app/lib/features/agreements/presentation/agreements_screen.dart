@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/widgets/app_components.dart';
+import '../../../core/widgets/app_components.dart' show AppErrorState, AppRefreshStatus;
 import '../../account/presentation/actor_scoped_page.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
