@@ -30,22 +30,20 @@ class PushRegistrationRepository {
     return value == true;
   }
 
-  Future<bool> syncIfGranted() async {
-    final registration = await _registration('currentRegistration');
-    if (!registration.configured) return false;
-    if (!registration.granted || registration.token == null) {
-      await _removeServerRegistration(registration.installationId);
-      return false;
-    }
-    await _register(registration);
-    return true;
-  }
+  Future<bool> syncIfGranted() => _syncRegistration('currentRegistration');
 
-  Future<bool> requestAndRegister() async {
-    final registration = await _registration('requestRegistration');
+  Future<bool> requestAndRegister() => _syncRegistration('requestRegistration');
+
+  Future<bool> _syncRegistration(String nativeMethod) async {
+    final registration = await _registration(nativeMethod);
     if (!registration.configured) return false;
-    if (!registration.granted || registration.token == null) {
-      await _removeServerRegistration(registration.installationId);
+    if (!registration.canRegister) {
+      // A disabled permission or malformed native token must never create a
+      // server registration. Revoke a previous registration only when we have
+      // a valid installation identifier to target.
+      if (registration.hasUsableInstallationId) {
+        await _removeServerRegistration(registration.installationId);
+      }
       return false;
     }
     await _register(registration);
@@ -56,7 +54,7 @@ class PushRegistrationRepository {
     PushNativeRegistration? registration;
     try {
       registration = await _registration('currentRegistration');
-      if (registration.configured && registration.installationId.isNotEmpty) {
+      if (registration.configured && registration.hasUsableInstallationId) {
         await _removeServerRegistration(registration.installationId);
       }
     } catch (_) {
@@ -71,7 +69,7 @@ class PushRegistrationRepository {
   }
 
   Future<void> _removeServerRegistration(String installationId) async {
-    if (installationId.trim().isEmpty) return;
+    if (installationId.length < 16 || installationId.length > 200) return;
     await _dio.delete<void>(
       '/push/devices',
       data: {'installation_id': installationId},
@@ -111,12 +109,25 @@ class PushNativeRegistration {
   final String installationId;
   final String? token;
 
+  // Match Laravel's bounded registration contract before sending sensitive
+  // Firebase token material. Native Android supplies a stable UUID.
+  bool get hasUsableInstallationId =>
+      installationId.length >= 16 && installationId.length <= 200;
+  bool get hasUsableToken =>
+      token != null && token!.length >= 20 && token!.length <= 4096;
+  bool get canRegister =>
+      configured && granted && hasUsableInstallationId && hasUsableToken;
+
   factory PushNativeRegistration.fromMap(Map<String, dynamic> json) {
-    final token = json['token']?.toString().trim();
+    // The native bridge contract is String, never coerce another type into a
+    // token or installation ID that could be sent to the backend.
+    final rawToken = json['token'];
+    final rawInstallationId = json['installation_id'];
+    final token = rawToken is String ? rawToken.trim() : null;
     return PushNativeRegistration(
       configured: json['configured'] == true,
       granted: json['granted'] == true,
-      installationId: json['installation_id']?.toString().trim() ?? '',
+      installationId: rawInstallationId is String ? rawInstallationId.trim() : '',
       token: token == null || token.isEmpty ? null : token,
     );
   }
