@@ -211,9 +211,18 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           Row(children: [Expanded(child: Text('عقارات تناسب بحثك', style: theme.textTheme.titleMedium)),
             if (state.loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))]),
           const SizedBox(height: 12),
+          // Keep successful pages visible during a temporary refresh/load-more
+          // failure, and offer retry for precisely the failed page.
+          if (state.rows.isNotEmpty &&
+              (state.loading || state.resultsError != null))
+            AppRefreshStatus(
+              loading: state.loading,
+              error: state.resultsError,
+              onRetry: controller.retryResults,
+            ),
           if (state.loading && state.rows.isEmpty) ...[
             const AppSkeleton(height: 170, radius: 12), const SizedBox(height: 12), const AppSkeleton(height: 170, radius: 12),
-          ] else if (state.resultsError != null)
+          ] else if (state.resultsError != null && state.rows.isEmpty)
             AppErrorState(message: state.resultsError!, onRetry: controller.retryResults)
           else if (state.rows.isEmpty)
             _SmartSearchEmptyState(
