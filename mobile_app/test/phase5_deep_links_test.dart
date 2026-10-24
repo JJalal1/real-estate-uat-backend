@@ -1,7 +1,22 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/router/app_deep_links.dart';
 
 void main() {
+  test('Android custom deep links have matching intent filters', () {
+    final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+    for (final route in const [
+      '/properties', '/advertisers', '/messages', '/bookings',
+      '/agreements', '/rental-contracts', '/broker/deals',
+    ]) {
+      expect(manifest.contains('android:pathPrefix="$route"'), isTrue, reason: route);
+    }
+    expect(manifest, contains('android:scheme="realestate"'));
+    expect(manifest, contains('android:scheme="https"'));
+    expect(manifest, contains('android:pathPrefix="/l/properties"'));
+  });
+
   test('Phase 5 agreement deep link opens exact private agreement route', () {
     final link = agreementAppDeepLink(12);
     expect(link.toString(), 'realestate://app/agreements/12');

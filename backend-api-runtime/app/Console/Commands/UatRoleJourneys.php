@@ -250,7 +250,13 @@ class UatRoleJourneys extends Command
         $duplicate = $this->wire('cross_advertiser_exact_duplicate','other_publisher','POST','/api/properties',$duplicateInput,[201,409],$this->syntheticJpeg(1),'images[0]');
         if ($duplicate->status() === 201) {
             $duplicateId = (int)$duplicate->json('data.id');
-            $this->check((int)$duplicate->json('data.property_asset_id') === (int)$approved->json('data.property_asset_id'),'duplicate_same_physical_asset');
+            // Review responses expose the physical identity as a nested object;
+            // advertiser responses expose its scalar FK. Require a real ID so
+            // a missing field can never make two nulls look like a match.
+            $approvedAssetId = (int) $approved->json('data.property_asset.id');
+            $this->check($approvedAssetId > 0
+                && (int) $duplicate->json('data.property_asset_id') === $approvedAssetId,
+                'duplicate_same_physical_asset');
             $this->wire('duplicate_has_valid_sai','other_publisher','PUT','/api/properties/'.$duplicateId.'/sai',
                 ['sai_amount_type'=>'percentage','broker_sai_rate_percent'=>0,'sai_payer'=>'tenant']);
             $duplicate = $this->wire('duplicate_submission_denied','other_publisher','POST','/api/properties/'.$duplicateId.'/submit',[],409);

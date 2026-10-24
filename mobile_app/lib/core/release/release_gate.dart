@@ -5,6 +5,28 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../network/api_client.dart';
 
+/// Only official, externally opened Android store destinations may be supplied
+/// by release metadata. Reject opaque URI schemes, credentials, arbitrary
+/// redirects and URLs with embedded user information.
+Uri? verifiedAndroidStoreUri(Object? raw) {
+  if (raw is! String) return null;
+  final uri = Uri.tryParse(raw.trim());
+  if (uri == null || uri.userInfo.isNotEmpty || uri.hasFragment) return null;
+  if (uri.scheme == 'https' &&
+      uri.host.toLowerCase() == 'play.google.com' &&
+      uri.path == '/store/apps/details' &&
+      uri.queryParameters['id']?.isNotEmpty == true) {
+    return uri;
+  }
+  if (uri.scheme == 'market' &&
+      uri.host == 'details' &&
+      uri.queryParameters['id']?.isNotEmpty == true &&
+      uri.path.isEmpty) {
+    return uri;
+  }
+  return null;
+}
+
 class ReleaseGate extends ConsumerStatefulWidget {
   const ReleaseGate({required this.child, super.key});
 
@@ -40,13 +62,13 @@ class _ReleaseGateState extends ConsumerState<ReleaseGate> {
       if (data is! Map) return;
       final minimum = _asInt(data['minimum_supported_build']) ?? 1;
       final latest = _asInt(data['latest_build']) ?? minimum;
-      final store = Uri.tryParse(data['store_url']?.toString() ?? '');
+      final store = verifiedAndroidStoreUri(data['store_url']);
       if (!mounted) return;
       setState(() {
         _required = _buildNumber < minimum;
         _optionalAvailable = !_required && _buildNumber < latest;
         _message = data['message']?.toString();
-        _storeUri = store?.hasScheme == true ? store : null;
+        _storeUri = store;
       });
     } on DioException {
       // A release metadata outage must never lock users out of the app.
