@@ -5,9 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../domain/property_details.dart';
+import '../../account/data/auth_controller.dart';
+
+final recentHistoryDirectoryProvider = Provider<Future<Directory> Function()>((ref) => getApplicationSupportDirectory);
 
 final recentPropertiesStoreProvider = Provider<RecentPropertiesStore>((ref) {
-  return RecentPropertiesStore();
+  final scope = ref.watch(authControllerProvider.select((state) =>
+    (state.asData?.value?.id, !state.isLoading && !state.hasError)));
+  return RecentPropertiesStore(actorId: scope.$1, enabled: scope.$2,
+    supportDirectory: ref.watch(recentHistoryDirectoryProvider));
 });
 
 final recentPropertiesProvider = FutureProvider<List<PropertySummary>>((ref) {
@@ -15,16 +21,32 @@ final recentPropertiesProvider = FutureProvider<List<PropertySummary>>((ref) {
 });
 
 class RecentPropertiesStore {
+  RecentPropertiesStore({int? actorId, this.enabled = true, Future<Directory> Function()? supportDirectory})
+    : _scope = actorId != null && actorId > 0 ? 'user_$actorId' : 'guest',
+      _supportDirectory = supportDirectory ?? getApplicationSupportDirectory;
+  final bool enabled;
+  final String _scope;
+  final Future<Directory> Function() _supportDirectory;
   static const int _limit = 30;
   Future<File>? _fileFuture;
+  Future<void> _pending = Future<void>.value();
+
+  Future<T> _serialize<T>(Future<T> Function() operation) {
+    final result = _pending.then((_) => operation());
+    _pending = result.then<void>((_) {}, onError: (Object error, StackTrace stack) {});
+    return result;
+  }
 
   Future<File> _file() {
-    return _fileFuture ??= getApplicationSupportDirectory().then(
-      (dir) => File('${dir.path}/aqer_recent_properties.json'),
+    // Legacy device-wide history has no reliable owner; never assign it to a new account.
+    return _fileFuture ??= _supportDirectory().then(
+      (dir) => File('${dir.path}/aqer_recent_properties_$_scope.json'),
     );
   }
 
-  Future<List<PropertySummary>> load() async {
+  Future<List<PropertySummary>> load() => enabled ? _serialize(_read) : Future.value(const []);
+
+  Future<List<PropertySummary>> _read() async {
     try {
       final file = await _file();
       if (!await file.exists()) return const [];
@@ -41,25 +63,33 @@ class RecentPropertiesStore {
     }
   }
 
-  Future<void> record(PropertySummary property) async {
-    if (property.id <= 0 || property.status != 'published') return;
-    final current = await load();
+  Future<void> record(PropertySummary property) {
+    if (!enabled || property.id <= 0 || property.status != 'published') return Future.value();
+    return _serialize(() async {
+    final current = await _read();
     final next = <PropertySummary>[
       property,
       ...current.where((item) => item.id != property.id),
     ].take(_limit).toList(growable: false);
     final file = await _file();
     await file.parent.create(recursive: true);
-    await file.writeAsString(
+    final temporary = File('${file.path}.tmp');
+    await temporary.writeAsString(
       jsonEncode(next.map(_toJson).toList(growable: false)),
       flush: true,
     );
+    try { await temporary.rename(file.path); }
+    catch (_) {
+      try { if (await temporary.exists()) await temporary.delete(); } catch (_) { /* Preserve the write failure. */ }
+      rethrow;
+    }
+    });
   }
 
-  Future<void> clear() async {
+  Future<void> clear() => !enabled ? Future.value() : _serialize(() async {
     final file = await _file();
     if (await file.exists()) await file.delete();
-  }
+  });
 
   Map<String, dynamic> _toJson(PropertySummary p) => {
         'id': p.id,

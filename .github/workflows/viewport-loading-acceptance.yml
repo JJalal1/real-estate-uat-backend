@@ -27,7 +27,7 @@ jobs:
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get
           python3 -B ../scripts/check_v3_analysis.py
-          flutter test test/uat_notification_actions_test.dart test/loading_recovery_test.dart test/viewport_media_test.dart test/adaptive_image_quality_test.dart test/user_work_media_test.dart test/wave2_trust_account_media_test.dart --reporter expanded
+          flutter test test/uat_notification_actions_test.dart test/loading_recovery_test.dart test/recent_properties_privacy_test.dart test/viewport_media_test.dart test/adaptive_image_quality_test.dart test/user_work_media_test.dart test/wave2_trust_account_media_test.dart --reporter expanded
       - name: Measure repaired viewport over actual HTTP and UAT Storage
         working-directory: mobile_app
         run: flutter test test/viewport_network_measurement_test.dart test/discovery_http_acceptance_test.dart --dart-define=AQER_VIEWPORT_HTTP_PROBE=true --dart-define=AQER_DISCOVERY_HTTP_PROBE=true --reporter expanded

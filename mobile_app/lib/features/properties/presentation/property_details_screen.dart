@@ -60,7 +60,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _changingFavorite = false;
   bool _consumingPendingFavorite = false;
   bool _viewRecorded = false;
-  bool _recentRecorded = false;
+  String? _recentRecordedScope;
   bool _calling = false, _reporting = false;
   String? _loadedScope;
 
@@ -69,7 +69,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     super.didUpdateWidget(old);
     if (old.propertyId != widget.propertyId) {
       _viewRecorded = false;
-      _recentRecorded = false;
+      _recentRecordedScope = null;
       _imageIndex = 0;
     }
   }
@@ -102,11 +102,12 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       Future<void>.microtask(_recordView);
     }
 
-    if (!_recentRecorded && loaded != null && loaded.status == 'published') {
-      _recentRecorded = true;
+    final recentStore = ref.watch(recentPropertiesStoreProvider);
+    if (recentStore.enabled && _recentRecordedScope != scope && loaded != null && loaded.status == 'published') {
+      _recentRecordedScope = scope;
       Future<void>.microtask(() async {
         try {
-          await ref.read(recentPropertiesStoreProvider).record(loaded.toSummary());
+          await recentStore.record(loaded.toSummary());
           if (mounted) ref.invalidate(recentPropertiesProvider);
         } catch (_) {
           // Recent local history is best-effort: missing storage, denied IO,

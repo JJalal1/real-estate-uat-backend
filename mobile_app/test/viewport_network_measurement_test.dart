@@ -124,6 +124,14 @@ void main() {
     });
     final dio = Dio(BaseOptions(baseUrl: '$origin/api'));
     final scroll = ScrollController();
+    var startedWhileFast = 0;
+    final starts = <Map<String, dynamic>>[];
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      final fast = scroll.hasClients && scroll.position.recommendDeferredLoading(tester.element(find.byType(ListView)));
+      if (fast) startedWhileFast++;
+      starts.add({'path': options.uri.path, 'fast': fast});
+      handler.next(options);
+    }));
     addTearDown(() async { dio.close(force: true); scroll.dispose(); await server.close(force: true); });
     await tester.pumpWidget(_app(dio, Scaffold(body: ListView.builder(controller: scroll,
       cacheExtent: 1000, itemCount: 100, itemExtent: 200,
@@ -134,8 +142,10 @@ void main() {
     await tester.fling(find.byType(ListView), const Offset(0, -300), 8000);
     await _networkFrames(tester, frames: 2);
     expect(scroll.position.recommendDeferredLoading(tester.element(find.byType(ListView))), isTrue);
-    final duringFast = requested.length - initial;
-    expect(duringFast, 0, reason: 'new visible rows must wait while either axis is moving quickly');
+    // A finger drag can legitimately start rows before ballistic motion. HTTP
+    // arrival time is later than start time, so count starts at Dio, not arrivals.
+    final duringFast = startedWhileFast;
+    expect(duringFast, 0, reason: 'fast-phase request starts: $starts');
     for (var i = 0; i < 250 && scroll.position.isScrollingNotifier.value; i++) {
       await _networkFrames(tester, frames: 1);
     }
