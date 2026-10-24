@@ -67,10 +67,16 @@ void main() {
 
   test('late cancelled response cannot populate cache', () async {
     final pending = Completer<void>();
+    final enteredInterceptor = Completer<void>();
     var hits = 0;
     final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (options, handler) async {
       hits++;
-      if (hits == 1) await pending.future;
+      if (hits == 1) {
+        // This must be an in-flight cancellation, not a request rejected
+        // before Dio's interceptor ever starts.
+        enteredInterceptor.complete();
+        await pending.future;
+      }
       handler.resolve(Response<Map<String, dynamic>>(
         requestOptions: options,
         statusCode: 200,
@@ -81,7 +87,8 @@ void main() {
     final repo = PropertyRepository(dio, AuthRepository(dio));
     final cancel = CancelToken();
     final old = repo.nearbyFiltered({'latitude': 15.36, 'longitude': 44.19}, cancelToken: cancel);
-    await Future<void>.delayed(Duration.zero);
+    await enteredInterceptor.future.timeout(const Duration(seconds: 5));
+    expect(hits, 1);
     cancel.cancel('Map changed');
     pending.complete();
     await expectLater(old, throwsA(isA<DioException>()));
