@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -18,8 +19,25 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
   final _positions = <ScrollPosition>{};
   bool _visible = false, _scheduled = false, _foreground = true;
   bool _mediaWasBuilt = false;
+  Timer? _dwellTimer;
+  bool _dwelled = false;
 
   bool get _deferNewMedia => _positions.any((position) => position.recommendDeferredLoading(context));
+  void _resetDwell() { _dwellTimer?.cancel(); _dwellTimer = null; _dwelled = false; }
+  bool _canStartNewMedia() {
+    if (_deferNewMedia) { _resetDwell(); return false; }
+    if (!_positions.any((position) => position.isScrollingNotifier.value)) {
+      _resetDwell(); return true;
+    }
+    if (_dwelled) return true;
+    // DragScrollActivity reports zero velocity until release. A brief dwell
+    // avoids starting a transfer in that gap immediately before a fast fling.
+    _dwellTimer ??= Timer(const Duration(milliseconds: 120), () {
+      _dwellTimer = null; _dwelled = true;
+      _schedule(); WidgetsBinding.instance.scheduleFrame();
+    });
+    return false;
+  }
 
   @override
   void initState() {
@@ -75,7 +93,9 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
       if (!mounted) return;
       // Keep an already visible image, but defer new transfers during a fast
       // gesture on either axis. Recheck when scrolling settles even at an edge.
-      final visible = _intersectsViewport() && (_mediaWasBuilt || !_deferNewMedia);
+      final intersects = _intersectsViewport();
+      if (!intersects) _resetDwell();
+      final visible = intersects && (_mediaWasBuilt || _canStartNewMedia());
       if (visible != _visible) setState(() => _visible = visible);
     });
   }
@@ -115,6 +135,7 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
 
   @override
   void dispose() {
+    _resetDwell();
     WidgetsBinding.instance.removeObserver(this);
     for (final position in _positions) {
       position.removeListener(_schedule);
@@ -127,7 +148,7 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
   Widget build(BuildContext context) {
     // A post-frame visibility decision can precede a new ballistic activity.
     // Recheck before constructing the network child, not just before setState.
-    final show = _visible && (_mediaWasBuilt || !_deferNewMedia);
+    final show = _visible && (_mediaWasBuilt || _canStartNewMedia());
     _mediaWasBuilt = show;
     return _MediaGeometryObserver(onLayout: _schedule,
     child: show ? widget.builder(context) : LayoutBuilder(builder: (_, bounds) =>
