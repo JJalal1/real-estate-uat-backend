@@ -59,4 +59,26 @@ case "${APP_ENV:-production}" in
 esac
 
 php artisan config:cache
+# Explicit one-shot acceptance on the current UAT only. The command rejects
+# Production/foreign Storage/foreign origins and persists a DB audit marker
+# before creating any fixture, so Free-service wakes never replay the run.
+# It uses ordinary HTTP routes and revokes every generated short-lived token.
+if [ "${UAT_EXECUTIVE_JOURNEY_RUN:-}" = "2026-10-24-109-v1" ]; then
+  (
+    ready=false
+    for attempt in $(seq 1 60); do
+      if curl --silent --fail --max-time 1 "http://127.0.0.1:${listen_port}/up" >/dev/null; then
+        ready=true
+        break
+      fi
+      sleep 1
+    done
+    if [ "$ready" = "true" ]; then
+      php artisan uat:role-journeys --run="$UAT_EXECUTIVE_JOURNEY_RUN" --base-url="http://127.0.0.1:${listen_port}"
+    else
+      echo 'AQER_UAT_ROLE_JOURNEYS readiness-failed; no fixtures created'
+    fi
+  ) &
+fi
+
 exec apache2-foreground

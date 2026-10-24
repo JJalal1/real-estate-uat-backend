@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         database: [sqlite, pgsql]
     services:
@@ -69,7 +70,11 @@ jobs:
           git show e7aad95bd744be0527d4594590d02e58f4e41b7a:backend-api-runtime/app/Http/Controllers/Api/FinancialPropertyController.php > "$controller"
           AQER_PERF_BASELINE=1 php artisan test tests/Feature/UatPerformanceRegressionTest.php --filter=test_marketplace_measurement --fail-on-warning --fail-on-risky
       - name: Verify repaired query count, privacy and existing financial semantics
-        run: php artisan test tests/Feature/UatPerformanceRegressionTest.php tests/Feature/AdaptiveImageQualityTest.php tests/Feature/FinancialV1ApiTest.php tests/Feature/FinancialV1CompletionTest.php tests/Feature/RenderHealthProbePerformanceTest.php --fail-on-warning --fail-on-risky
+        run: php artisan test tests/Feature/UatPerformanceRegressionTest.php tests/Feature/UatRoleJourneyGuardTest.php tests/Feature/AdaptiveImageQualityTest.php tests/Feature/FinancialV1ApiTest.php tests/Feature/FinancialV1CompletionTest.php tests/Feature/RenderHealthProbePerformanceTest.php --fail-on-warning --fail-on-risky
+      - name: Real HTTP role journeys against disposable PostgreSQL
+        if: matrix.database == 'pgsql'
+        working-directory: .
+        run: bash scripts/run_role_journeys_ci.sh
   read-only-performance:
     name: Bounded real UAT cold and warm measurements
     runs-on: ubuntu-latest

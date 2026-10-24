@@ -30,7 +30,7 @@ class UatPerformanceRegressionTest extends TestCase
                 'purpose'=>'sale','source_mode'=>'owner_fixed','sai_rate_percent'=>1,'payer'=>'buyer',
                 'calculation_basis'=>'final_sale_value','platform_share_percent'=>100,'broker_share_percent'=>0,
                 'platform_terms_status'=>'not_required','created_by_user_id'=>$owner->id]);
-            $property->forceFill(['current_sai_term_id'=>$term->id])->saveQuietly();
+            $property->forceFill(['current_sai_term_id'=>$term->id, 'spotlight_until'=>now()->addDay()])->saveQuietly();
             if ($i % 2 === 0) DB::table('property_sai_attestations')->insert(['property_id'=>$property->id,
                 'sai_term_id'=>$term->id,'user_id'=>$owner->id,'terms_version'=>1,'text_snapshot'=>'Synthetic explicit attestation',
                 'accepted_at'=>now(),'created_at'=>now(),'updated_at'=>now()]);
@@ -111,8 +111,8 @@ class UatPerformanceRegressionTest extends TestCase
             'services.supabase_storage.bucket'=>'synthetic-private','services.supabase_storage.server_key'=>'sb_secret_synthetic_only']);
         \Illuminate\Support\Facades\Http::preventStrayRequests();
         \Illuminate\Support\Facades\Http::fake(['https://synthetic-storage.example/*'=>\Illuminate\Support\Facades\Http::response('synthetic-private',200,['Content-Type'=>'image/jpeg'])]);
-        $owner = User::create(['name'=>'Synthetic private owner','email'=>'private-performance@example.test','password'=>'unusable','account_status'=>'active']);
-        $other = User::create(['name'=>'Synthetic other','email'=>'other-performance@example.test','password'=>'unusable','account_status'=>'active']);
+        $owner = User::create(['name'=>'Synthetic private owner','email'=>'private-performance@example.test','password'=>'unusable','account_status'=>'active','phone_verified_at'=>now()]);
+        $other = User::create(['name'=>'Synthetic other','email'=>'other-performance@example.test','password'=>'unusable','account_status'=>'active','phone_verified_at'=>now()]);
         $profile = \App\Models\AccountVerificationProfile::create(['user_id'=>$owner->id,'type'=>'owner','status'=>'pending','details'=>[]]);
         $profile->documents()->create(['kind'=>'identity_document','path'=>'account_verification/synthetic.jpg','original_name'=>'synthetic.jpg','mime_type'=>'image/jpeg','size_bytes'=>17]);
         $owner->brokerVerificationDocuments()->create(['kind'=>'id_front','path'=>'broker_verification/synthetic.jpg','original_name'=>'synthetic.jpg','mime_type'=>'image/jpeg','size_bytes'=>17]);
