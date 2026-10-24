@@ -58,7 +58,8 @@ def read(path, group, headers=None):
 def summarize(rows):
     times = sorted(row['time_total_ms'] for row in rows)
     return {'n': len(rows), 'p50_ms': times[math.ceil(len(times) * .5) - 1],
-            'p95_ms': times[math.ceil(len(times) * .95) - 1], 'max_ms': max(times),
+            'p95_ms': times[math.ceil(len(times) * .95) - 1],
+            'p99_ms': times[math.ceil(len(times) * .99) - 1], 'max_ms': max(times),
             'errors': sum(row['status'] != 200 or row['curl_exit'] != 0 for row in rows),
             'bytes': sum(row['bytes'] for row in rows)}
 
