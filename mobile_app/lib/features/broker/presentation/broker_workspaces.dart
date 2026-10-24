@@ -80,7 +80,7 @@ class BrokerDashboardScreen extends ConsumerWidget {
             EbrokerIcon(item.icon, size: 19, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 10),
             Expanded(child: Text(item.text)), const EbrokerIcon(Icons.chevron_left, size: 17),
           ])));
-        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerWorkspaceProvider); await ref.read(brokerWorkspaceProvider.future); },
+        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerWorkspaceProvider); try { await ref.read(brokerWorkspaceProvider.future); } catch (_) { /* The page renders failure and retry. */ } },
           child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), physics: const AlwaysScrollableScrollPhysics(), children: [
             BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [ClipOval(child: profile?.photoUrl == null ? const EbrokerImage('defaultProfileIcon', size: 44)
@@ -297,7 +297,7 @@ class _BrokerAvailabilityState extends ConsumerState<BrokerAvailabilityScreen> {
       data: (allItems) {
         final items = _onlyDue ? allItems.where((i) => i.needsConfirmation || i.status == 'confirmation_paused').toList() : allItems;
         if (!_initialized) { _selected.addAll(items.where((i) => i.needsConfirmation || i.status == 'confirmation_paused').map((i) => i.id)); _initialized = true; }
-        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerAvailabilityProvider); await ref.read(brokerAvailabilityProvider.future); },
+        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerAvailabilityProvider); try { await ref.read(brokerAvailabilityProvider.future); } catch (_) { /* The page renders failure and retry. */ } },
           child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
             const Text('أكد إعلانات البيع كل 14 يومًا والإيجار كل 7 أيام. الإعلانات المتوقفة بسبب التأكيد تعود عند تحديث التوفر ما دامت معتمدة.'),
             const SizedBox(height: 12),

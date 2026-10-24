@@ -28,7 +28,7 @@ class AuditLogScreen extends ConsumerWidget {
             data: (rows) => RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(_auditLogProvider);
-                await ref.read(_auditLogProvider.future);
+                try { await ref.read(_auditLogProvider.future); } catch (_) { /* The page renders failure and retry. */ }
               },
               child: rows.isEmpty
                   ? ListView(children: const [

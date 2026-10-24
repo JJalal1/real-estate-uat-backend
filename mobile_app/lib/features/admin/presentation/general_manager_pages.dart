@@ -456,7 +456,7 @@ class _GeneralManagerTeamScreenState
 
   Future<void> _refresh() async {
     setState(() { _future = ref.read(generalManagerRepositoryProvider).team(); _future.ignore(); });
-    await _future;
+    try { await _future; } catch (_) { /* The view renders failure and retry. */ }
   }
 
   @override
@@ -834,7 +834,7 @@ class _ExecutiveDataPageState extends ConsumerState<_ExecutiveDataPage> {
 
   Future<void> _refresh() async {
     setState(() { _future = ref.read(generalManagerRepositoryProvider).insights(); _future.ignore(); });
-    await _future;
+    try { await _future; } catch (_) { /* The view renders failure and retry. */ }
   }
 
   @override

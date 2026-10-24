@@ -227,7 +227,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         if (ref.read(authControllerProvider).asData?.value != null) {
           ref.invalidate(favoritePropertyIdsProvider);
         }
-        await ref.read(propertyDetailsProvider(widget.propertyId).future);
+        try { await ref.read(propertyDetailsProvider(widget.propertyId).future); } catch (_) { /* The page renders failure and retry. */ }
       },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),

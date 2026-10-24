@@ -43,7 +43,7 @@ class AdminDashboardScreen extends ConsumerWidget {
           data: (summary) => RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(_adminDashboardProvider);
-              await ref.read(_adminDashboardProvider.future);
+              try { await ref.read(_adminDashboardProvider.future); } catch (_) { /* The page renders failure and retry. */ }
             },
             child: ListView(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
