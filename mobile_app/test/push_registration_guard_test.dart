@@ -6,12 +6,12 @@ void main() {
     final valid = PushNativeRegistration.fromMap({
       'configured': true, 'granted': true,
       'installation_id': '11111111-2222-3333-4444-555555555555',
-      'token': '  ${'f' * 32}  ',
+      'token': '  ${List.filled(32, 'f').join()}  ',
     });
     expect(valid.hasUsableInstallationId, isTrue);
     expect(valid.hasUsableToken, isTrue);
     expect(valid.canRegister, isTrue);
-    expect(valid.token, 'f' * 32);
+    expect(valid.token, List.filled(32, 'f').join());
   });
 
   test('missing or malformed bridge data never permits registration', () {
@@ -19,18 +19,18 @@ void main() {
       {},
       {'configured': true, 'granted': false,
        'installation_id': '11111111-2222-3333-4444-555555555555',
-       'token': 'f' * 32},
-      {'configured': true, 'granted': true, 'installation_id': '', 'token': 'f' * 32},
-      {'configured': true, 'granted': true, 'installation_id': 'abc', 'token': 'f' * 32},
-      {'configured': true, 'granted': true, 'installation_id': 'x' * 201, 'token': 'f' * 32},
+       'token': List.filled(32, 'f').join()},
+      {'configured': true, 'granted': true, 'installation_id': '', 'token': List.filled(32, 'f').join()},
+      {'configured': true, 'granted': true, 'installation_id': 'abc', 'token': List.filled(32, 'f').join()},
+      {'configured': true, 'granted': true, 'installation_id': List.filled(201, 'x').join(), 'token': List.filled(32, 'f').join()},
       {'configured': true, 'granted': true,
        'installation_id': '11111111-2222-3333-4444-555555555555',
        'token': 'short'},
       {'configured': true, 'granted': true,
        'installation_id': '11111111-2222-3333-4444-555555555555',
-       'token': 'f' * 4097},
+       'token': List.filled(4097, 'f').join()},
       {'configured': true, 'granted': true,
-       'installation_id': 1234567890123456789, 'token': 'f' * 32},
+       'installation_id': 1234567890123456789, 'token': List.filled(32, 'f').join()},
       {'configured': true, 'granted': true,
        'installation_id': '11111111-2222-3333-4444-555555555555', 'token': 1234567890123456789},
     ]) {
