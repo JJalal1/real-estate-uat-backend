@@ -107,6 +107,57 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
   }, skip: !_enabled, timeout: const Timeout(Duration(minutes: 2)));
 
+  testWidgets('fast ballistic scrolling defers actual HTTP until the viewport slows', (tester) async {
+    tester.view.physicalSize = const Size(390, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final server = await tester.runAsync(() => HttpServer.bind(InternetAddress.loopbackIPv4, 0));
+    final origin = 'http://127.0.0.1:${server!.port}';
+    final requested = <String>[];
+    final png = base64Decode(_png);
+    server.listen((request) async {
+      requested.add(request.uri.path);
+      request.response.headers.contentType = ContentType('image', 'png');
+      request.response.add(png);
+      await request.response.close();
+    });
+    final dio = Dio(BaseOptions(baseUrl: '$origin/api'));
+    final scroll = ScrollController();
+    addTearDown(() async { dio.close(force: true); scroll.dispose(); await server.close(force: true); });
+    await tester.pumpWidget(_app(dio, Scaffold(body: ListView.builder(controller: scroll,
+      cacheExtent: 1000, itemCount: 100, itemExtent: 200,
+      itemBuilder: (_, i) => AdaptivePropertyPhoto(url: '$origin/api/property-media/$i?variant=card')))));
+    await _networkFrames(tester, frames: 14);
+    final initial = requested.length;
+    expect(initial, 3);
+    await tester.fling(find.byType(ListView), const Offset(0, -300), 8000);
+    await _networkFrames(tester, frames: 2);
+    expect(scroll.position.recommendDeferredLoading(tester.element(find.byType(ListView))), isTrue);
+    final duringFast = requested.length - initial;
+    expect(duringFast, 0, reason: 'new visible rows must wait while either axis is moving quickly');
+    for (var i = 0; i < 250 && scroll.position.isScrollingNotifier.value; i++) {
+      await _networkFrames(tester, frames: 1);
+    }
+    expect(scroll.position.isScrollingNotifier.value, isFalse);
+    await _networkFrames(tester, frames: 14);
+    final settled = requested.length;
+    expect(settled, greaterThan(initial));
+    expect(settled, lessThan(16), reason: 'briefly crossed rows are not downloaded');
+    scroll.jumpTo(0); await _networkFrames(tester);
+    expect(requested.length, settled, reason: 'completed initial bytes survive return');
+    final report = {'network': 'real loopback HTTP plus real Flutter ballistic scroll physics',
+      'initial_requests': initial, 'fling_speed_pixels_per_second': 8000,
+      'new_requests_during_fast_motion': duringFast, 'total_requests_after_settle': settled,
+      'return_requests': requested.length - settled};
+    stdout.writeln('AQER_VIEWPORT_FLING ${jsonEncode(report)}');
+    await tester.runAsync(() => File('viewport-fling-metrics.json').writeAsString(jsonEncode(report)));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox()); dio.close(force: true);
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester.pump(const Duration(seconds: 4));
+  }, skip: !_enabled, timeout: const Timeout(Duration(minutes: 2)));
+
   testWidgets('count real UAT image HTTP transfers for hidden images and return', (tester) async {
     tester.view.physicalSize = const Size(390, 600);
     tester.view.devicePixelRatio = 1;

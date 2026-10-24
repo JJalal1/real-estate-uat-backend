@@ -41,9 +41,11 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
     });
     for (final position in _positions.difference(next)) {
       position.removeListener(_schedule);
+      position.isScrollingNotifier.removeListener(_schedule);
     }
     for (final position in next.difference(_positions)) {
       position.addListener(_schedule);
+      position.isScrollingNotifier.addListener(_schedule);
     }
     _positions..clear()..addAll(next);
     _schedule();
@@ -68,7 +70,10 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduled = false;
       if (!mounted) return;
-      final visible = _intersectsViewport();
+      // Keep an already visible image, but defer new transfers during a fast
+      // gesture on either axis. Recheck when scrolling settles even at an edge.
+      final visible = _intersectsViewport() && (_visible ||
+        !_positions.any((position) => position.recommendDeferredLoading(context)));
       if (visible != _visible) setState(() => _visible = visible);
     });
   }
@@ -109,7 +114,10 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    for (final position in _positions) { position.removeListener(_schedule); }
+    for (final position in _positions) {
+      position.removeListener(_schedule);
+      position.isScrollingNotifier.removeListener(_schedule);
+    }
     super.dispose();
   }
 
