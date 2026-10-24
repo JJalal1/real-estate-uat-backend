@@ -4,25 +4,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart' show AppErrorState, AppRefreshStatus, AppLoadingState;
+import '../../account/presentation/actor_scoped_page.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
 import 'agreement_forms.dart';
 
-class RentalContractDetailScreen extends ConsumerStatefulWidget {
+class RentalContractDetailScreen extends ConsumerWidget {
   const RentalContractDetailScreen({required this.contractId, super.key});
+  final int contractId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(title: 'عقد الإيجار داخل التطبيق', builder: (_) =>
+    _RentalContractDetailScreenForActor(key: ValueKey(contractId), contractId: contractId));
+}
+
+class _RentalContractDetailScreenForActor extends ConsumerStatefulWidget {
+  const _RentalContractDetailScreenForActor({required this.contractId, super.key});
   final int contractId;
 
   @override
-  ConsumerState<RentalContractDetailScreen> createState() =>
-      _RentalContractDetailScreenState();
+  ConsumerState<_RentalContractDetailScreenForActor> createState() =>
+      _RentalContractPageState();
 }
 
-class _RentalContractDetailScreenState
-    extends ConsumerState<RentalContractDetailScreen> {
+class _RentalContractPageState
+    extends ConsumerState<_RentalContractDetailScreenForActor> {
   RentalContract? _contract;
   bool _loading = true;
   bool _busy = false;
   String? _error;
+  int _generation = 0;
 
   @override
   void initState() {
@@ -31,19 +42,22 @@ class _RentalContractDetailScreenState
   }
 
   Future<void> _load() async {
+    final generation = ++_generation;
+    if (mounted) setState(() { _loading = true; _error = null; });
     try {
       final value = await ref
           .read(agreementRepositoryProvider)
           .contract(widget.contractId);
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _contract = value;
         _loading = false;
         _error = null;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
+        if (!isTransientApiFailure(error)) { _contract = null; }
         _loading = false;
         _error = friendlyApiError(error);
       });
@@ -52,14 +66,14 @@ class _RentalContractDetailScreenState
 
   Future<void> _accept() async {
     final contract = _contract;
-    if (contract == null || _busy) return;
+    if (contract == null || _busy || _loading || _error != null) return;
     setState(() => _busy = true);
     try {
       final updated = await ref
           .read(agreementRepositoryProvider)
           .acceptRentalContract(contract.id, contract.currentRevision.id);
-      ref.read(agreementDataRevisionProvider.notifier).state++;
       if (!mounted) return;
+      ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _contract = updated);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -82,7 +96,7 @@ class _RentalContractDetailScreenState
 
   Future<void> _revise() async {
     final contract = _contract;
-    if (contract == null || _busy) return;
+    if (contract == null || _busy || _loading || _error != null) return;
     final terms = await showRentalContractTermsSheet(
       context,
       current: contract.currentRevision,
@@ -93,8 +107,8 @@ class _RentalContractDetailScreenState
       final updated = await ref
           .read(agreementRepositoryProvider)
           .reviseRentalContract(contract.id, terms);
-      ref.read(agreementDataRevisionProvider.notifier).state++;
       if (!mounted) return;
+      ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _contract = updated);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -116,7 +130,7 @@ class _RentalContractDetailScreenState
 
   Future<void> _cancel() async {
     final contract = _contract;
-    if (contract == null || _busy) return;
+    if (contract == null || _busy || _loading || _error != null) return;
     final reason = await _reasonDialog('إلغاء مسودة عقد الإيجار');
     if (reason == null || !mounted) return;
     setState(() => _busy = true);
@@ -124,8 +138,8 @@ class _RentalContractDetailScreenState
       final updated = await ref
           .read(agreementRepositoryProvider)
           .cancelRentalContract(contract.id, reason);
-      ref.read(agreementDataRevisionProvider.notifier).state++;
       if (!mounted) return;
+      ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _contract = updated);
     } catch (error) {
       if (mounted) {
@@ -140,7 +154,7 @@ class _RentalContractDetailScreenState
 
   Future<void> _terminate() async {
     final contract = _contract;
-    if (contract == null || _busy) return;
+    if (contract == null || _busy || _loading || _error != null) return;
     final reason = await _reasonDialog('تسجيل انتهاء عقد الإيجار داخل التطبيق');
     if (reason == null || !mounted) return;
     final confirmed = await showDialog<bool>(
@@ -168,8 +182,8 @@ class _RentalContractDetailScreenState
       final updated = await ref
           .read(agreementRepositoryProvider)
           .terminateRentalContract(contract.id, reason);
-      ref.read(agreementDataRevisionProvider.notifier).state++;
       if (!mounted) return;
+      ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _contract = updated);
     } catch (error) {
       if (mounted) {
@@ -221,21 +235,16 @@ class _RentalContractDetailScreenState
           title: const Text('عقد الإيجار داخل التطبيق'),
           actions: [
             IconButton(
-              onPressed: _busy ? null : _load,
+              onPressed: _busy || _loading ? null : _load,
               icon: const EbrokerIcon(Icons.refresh),
               tooltip: 'تحديث',
             ),
           ],
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(_error!, textAlign: TextAlign.center),
-                    ),
-                  )
+        body: _contract == null && _loading
+            ? const AppLoadingState()
+            : _contract == null
+                ? AppErrorState(message: _error ?? 'هذا السجل غير متاح.', onRetry: _load)
                 : _body(_contract!),
       ),
     );
@@ -244,8 +253,10 @@ class _RentalContractDetailScreenState
   Widget _body(RentalContract contract) {
     final revision = contract.currentRevision;
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
+        AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -341,7 +352,7 @@ class _RentalContractDetailScreenState
         if (contract.canAccept) ...[
           const SizedBox(height: 16),
           EbrokerFilledButton.icon(
-            onPressed: _busy ? null : _accept,
+            onPressed: _busy || _loading || _error != null ? null : _accept,
             icon: const EbrokerIcon(Icons.verified_outlined),
             label: Text('أوافق على النسخة ${revision.revisionNumber}'),
           ),
@@ -349,7 +360,7 @@ class _RentalContractDetailScreenState
         if (contract.canRevise) ...[
           const SizedBox(height: 8),
           EbrokerOutlinedButton.icon(
-            onPressed: _busy ? null : _revise,
+            onPressed: _busy || _loading || _error != null ? null : _revise,
             icon: const EbrokerIcon(Icons.edit_note_outlined),
             label: const Text('اقتراح بنود جديدة'),
           ),
@@ -357,7 +368,7 @@ class _RentalContractDetailScreenState
         if (contract.canCancel) ...[
           const SizedBox(height: 8),
           TextButton.icon(
-            onPressed: _busy ? null : _cancel,
+            onPressed: _busy || _loading || _error != null ? null : _cancel,
             icon: const EbrokerIcon(Icons.cancel_outlined),
             label: const Text('إلغاء مسودة العقد'),
           ),
@@ -365,7 +376,7 @@ class _RentalContractDetailScreenState
         if (contract.canTerminate) ...[
           const SizedBox(height: 16),
           EbrokerOutlinedButton.icon(
-            onPressed: _busy ? null : _terminate,
+            onPressed: _busy || _loading || _error != null ? null : _terminate,
             icon: const EbrokerIcon(Icons.event_busy_outlined),
             label: const Text('تسجيل انتهاء العقد داخل التطبيق'),
           ),
@@ -451,7 +462,7 @@ class _RentalContractDetailScreenState
             size: 20,
           ),
           const SizedBox(width: 8),
-          Text('$label: ${accepted ? 'وافق' : 'لم يوافق بعد'}'),
+          Expanded(child: Text('$label: ${accepted ? 'وافق' : 'لم يوافق بعد'}')),
         ],
       );
 
