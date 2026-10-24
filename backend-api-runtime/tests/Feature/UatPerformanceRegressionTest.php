@@ -87,6 +87,54 @@ class UatPerformanceRegressionTest extends TestCase
         $this->getJson('/api/health')->assertHeaderMissing('Server-Timing')->assertHeaderMissing('X-Aqer-DB-Queries');
     }
 
+    public function test_nearby_measurement_preserves_all_photo_summaries_with_one_eager_read(): void
+    {
+        \Illuminate\Support\Facades\Cache::store('file')->flush();
+        \Illuminate\Support\Facades\Cache::put('broker-availability-swept',true,60);
+        $owner = User::create(['name'=>'Synthetic nearby owner','email'=>'nearby-performance@example.test','password'=>'unusable']);
+        for ($i=0; $i<20; $i++) {
+            $property = Property::create(['user_id'=>$owner->id,'title'=>'Nearby '.$i,'type'=>'shop','purpose'=>'sale',
+                'price'=>10000,'currency'=>'YER','latitude'=>15.123456 + $i*.000001,'longitude'=>44.654321,
+                'status'=>'published','review_status'=>'approved','published_at'=>now()]);
+            foreach ([0,1] as $n) $property->images()->create(['path'=>'listing-originals/synthetic-'.$i.'-'.$n.'.jpg','sort_order'=>$n,'is_primary'=>$n===0]);
+        }
+        DB::connection()->enableQueryLog(); DB::connection()->flushQueryLog();
+        try {
+            $response = $this->getJson('/api/properties/nearby?latitude=15.123456&longitude=44.654321&radius_km=1')->assertOk();
+            $queries = DB::getQueryLog();
+        } finally { DB::connection()->disableQueryLog(); }
+        $this->assertCount(20,$response->json('data'));
+        foreach ($response->json('data') as $row) {
+            $this->assertSame(2,$row['image_count']);
+            $this->assertCount(2,$row['image_urls']);
+            $this->assertSame($row['main_image'],$row['image_urls'][0]);
+        }
+        $photoReads = count(array_filter($queries,fn ($q)=>str_contains($q['query'],'from "property_images"')));
+        fwrite(STDOUT,"\nAQER_NEARBY_QUERY_MEASUREMENT ".json_encode(['baseline'=>getenv('AQER_PERF_BASELINE') === '1',
+            'driver'=>DB::getDriverName(),'rows'=>20,'images'=>40,'photo_selects'=>$photoReads,'queries'=>count($queries)])."\n");
+        if (getenv('AQER_PERF_BASELINE') !== '1') $this->assertSame(1,$photoReads);
+    }
+
+    public function test_published_media_does_not_open_a_token_or_permission_lookup_but_private_media_still_authenticates(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $owner = User::create(['name'=>'Synthetic media owner','email'=>'media-perf@example.test','password'=>'unusable','account_status'=>'active']);
+        $property = Property::create(['user_id'=>$owner->id,'title'=>'Synthetic media','type'=>'shop','purpose'=>'sale',
+            'price'=>10000,'currency'=>'YER','latitude'=>15.12,'longitude'=>44.65,'status'=>'published','review_status'=>'approved']);
+        $service = app(\App\Services\ListingImageService::class);
+        $path = $service->store(\Illuminate\Http\UploadedFile::fake()->image('synthetic.jpg',80,40),'listing-originals/synthetic');
+        $image = $property->images()->create(['path'=>$path,'is_primary'=>true,'sort_order'=>0]);
+        $bearer = app(\App\Services\ApiTokenService::class)->issue($owner,request())['plain_text_token'];
+        $this->withToken($bearer)->withHeader('X-Aqer-Diagnostics','perf-109')->get('/api/property-media/'.$image->id.'?variant=thumb')
+            ->assertOk()->assertHeader('X-Aqer-DB-Queries','2');
+        $this->assertNull($owner->apiTokens()->firstOrFail()->last_used_at);
+        $property->forceFill(['status'=>'draft','review_status'=>'draft'])->save();
+        $this->withToken($bearer)->get('/api/property-media/'.$image->id.'?variant=thumb')->assertOk();
+        $this->assertNotNull($owner->apiTokens()->firstOrFail()->last_used_at);
+        $this->flushHeaders();
+        $this->get('/api/property-media/'.$image->id.'?variant=thumb')->assertNotFound();
+    }
+
     public function test_production_does_not_expose_diagnostics_even_when_requested(): void
     {
         $this->app->detectEnvironment(fn () => 'production');
@@ -110,7 +158,9 @@ class UatPerformanceRegressionTest extends TestCase
         config(['services.supabase_storage.enabled'=>true,'services.supabase_storage.url'=>'https://synthetic-storage.example',
             'services.supabase_storage.bucket'=>'synthetic-private','services.supabase_storage.server_key'=>'sb_secret_synthetic_only']);
         \Illuminate\Support\Facades\Http::preventStrayRequests();
-        \Illuminate\Support\Facades\Http::fake(['https://synthetic-storage.example/*'=>\Illuminate\Support\Facades\Http::response('synthetic-private',200,['Content-Type'=>'image/jpeg'])]);
+        \Illuminate\Support\Facades\Http::fake(['https://synthetic-storage.example/*'=>\Illuminate\Support\Facades\Http::sequence()
+            ->push('synthetic-private',200,['Content-Type'=>'image/jpeg'])
+            ->push('synthetic-private',200,['Content-Type'=>'image/jpeg'])->push('',404)]);
         $owner = User::create(['name'=>'Synthetic private owner','email'=>'private-performance@example.test','password'=>'unusable','account_status'=>'active','phone_verified_at'=>now()]);
         $other = User::create(['name'=>'Synthetic other','email'=>'other-performance@example.test','password'=>'unusable','account_status'=>'active','phone_verified_at'=>now()]);
         $profile = \App\Models\AccountVerificationProfile::create(['user_id'=>$owner->id,'type'=>'owner','status'=>'pending','details'=>[]]);
@@ -127,7 +177,6 @@ class UatPerformanceRegressionTest extends TestCase
         \Illuminate\Support\Facades\Http::assertSentCount(2);
         $this->assertDatabaseHas('audit_logs',['action'=>'account.verification_document_viewed','actor_user_id'=>$owner->id]);
         $this->assertDatabaseHas('audit_logs',['action'=>'broker.account_verification_document_viewed','actor_user_id'=>$owner->id]);
-        \Illuminate\Support\Facades\Http::fake(['https://synthetic-storage.example/*'=>\Illuminate\Support\Facades\Http::response('',404)]);
         $this->withToken($ownerBearer)->get('/api/account-verification/users/'.$owner->id.'/documents/identity_document')->assertNotFound();
         $this->assertSame(2, DB::table('audit_logs')->whereIn('action',['account.verification_document_viewed','broker.account_verification_document_viewed'])->count());
     }

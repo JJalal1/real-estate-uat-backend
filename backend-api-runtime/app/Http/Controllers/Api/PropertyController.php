@@ -125,7 +125,7 @@ class PropertyController extends Controller
             $load = function () use ($validated, $longitude, $latitude, $radiusKm, $request): array {
                 $query = app(\App\Services\PropertyDiscoveryFilterService::class)
                     ->publicQuery()
-                    ->with('primaryImage');
+                    ->with('images');
                 $this->applyFilters($query, $validated);
                 app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
 
@@ -179,7 +179,7 @@ class PropertyController extends Controller
         // PostGIS branch above so the spatial index remains effective at scale.
         $query = app(\App\Services\PropertyDiscoveryFilterService::class)
             ->publicQuery()
-            ->with('primaryImage');
+            ->with('images');
         $this->applyFilters($query, $validated);
         app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
 
@@ -422,11 +422,12 @@ class PropertyController extends Controller
         $property = $image->property;
         abort_unless($property, 404);
 
-        $user = $this->tokens->authenticate($request, false);
-        $isOwner = $user !== null && (int) $property->user_id === (int) $user->id;
-        $isReviewer = $user !== null && $user->hasPermission('listings.moderate');
-
-        abort_unless($property->status === 'published' || $isOwner || $isReviewer, 404);
+        if ($property->status !== 'published') {
+            $user = $this->tokens->authenticate($request, false);
+            $isOwner = $user !== null && (int) $property->user_id === (int) $user->id;
+            $isReviewer = $user !== null && $user->hasPermission('listings.moderate');
+            abort_unless($isOwner || $isReviewer, 404);
+        }
         abort_if($image->cdn_url, 404);
         return app(\App\Services\ListingImageService::class)->response($image->path,
             (string)$request->query('variant','detail'),$property->status==='published');

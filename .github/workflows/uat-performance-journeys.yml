@@ -65,10 +65,13 @@ jobs:
         run: |
           set -euo pipefail
           controller=app/Http/Controllers/Api/FinancialPropertyController.php
+          property_controller=app/Http/Controllers/Api/PropertyController.php
           cp "$controller" /tmp/aqer-financial-controller.php
-          trap 'cp /tmp/aqer-financial-controller.php "$controller"' EXIT
+          cp "$property_controller" /tmp/aqer-property-controller.php
+          trap 'cp /tmp/aqer-financial-controller.php "$controller"; cp /tmp/aqer-property-controller.php "$property_controller"' EXIT
           git show e7aad95bd744be0527d4594590d02e58f4e41b7a:backend-api-runtime/app/Http/Controllers/Api/FinancialPropertyController.php > "$controller"
-          AQER_PERF_BASELINE=1 php artisan test tests/Feature/UatPerformanceRegressionTest.php --filter=test_marketplace_measurement --fail-on-warning --fail-on-risky
+          git show e7aad95bd744be0527d4594590d02e58f4e41b7a:backend-api-runtime/app/Http/Controllers/Api/PropertyController.php > "$property_controller"
+          AQER_PERF_BASELINE=1 php artisan test tests/Feature/UatPerformanceRegressionTest.php --filter=measurement --fail-on-warning --fail-on-risky
       - name: Verify repaired query count, privacy and existing financial semantics
         run: php artisan test tests/Feature/UatPerformanceRegressionTest.php tests/Feature/UatRoleJourneyGuardTest.php tests/Feature/AdaptiveImageQualityTest.php tests/Feature/FinancialV1ApiTest.php tests/Feature/FinancialV1CompletionTest.php tests/Feature/RenderHealthProbePerformanceTest.php --fail-on-warning --fail-on-risky
       - name: Real HTTP role journeys against disposable PostgreSQL
