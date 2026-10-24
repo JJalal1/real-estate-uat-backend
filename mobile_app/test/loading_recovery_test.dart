@@ -22,6 +22,9 @@ import 'package:real_estate_mobile/features/properties/presentation/my_listings_
 import 'package:real_estate_mobile/features/support/data/support_repository.dart';
 import 'package:real_estate_mobile/features/support/domain/support_models.dart';
 import 'package:real_estate_mobile/features/support/presentation/support_admin_screen.dart';
+import 'package:real_estate_mobile/features/admin/data/admin_workspace_repository.dart';
+import 'package:real_estate_mobile/features/admin/domain/admin_workspace_models.dart';
+import 'package:real_estate_mobile/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
@@ -128,6 +131,13 @@ class _Support implements SupportRepository {
   Future<SupportAdminSummary> adminSummary() async => SupportAdminSummary.fromJson({'new_tickets': 7});
   @override
   Future<List<SupportCaseSummary>> adminCases({String? kind, String? status, bool? escalated, bool assignedToMe = false, int? assignedToUserId}) => onCases!();
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
+}
+class _Admin implements AdminWorkspaceRepository {
+  Future<AdminDashboardSummary> Function()? onDashboard;
+  @override
+  Future<AdminDashboardSummary> dashboard() => onDashboard!();
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
 }
@@ -494,6 +504,22 @@ void main() {
     container.read(propertyDataRevisionProvider.notifier).state++;
     await repo.searchListings({'purpose': 'sale'});
     expect(calls, 2);
+  }, timeout: const Timeout(Duration(seconds: 45)));
+
+  testWidgets('admin dashboard exposes first-load retry and clears data at logout', (tester) async {
+    final repo = _Admin()..onDashboard = () async => throw _failure();
+    final auth = _Auth();
+    await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => auth),
+      adminWorkspaceRepositoryProvider.overrideWithValue(repo)], child: const MaterialApp(home: AdminDashboardScreen())));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppErrorState), findsOneWidget);
+    repo.onDashboard = () async => AdminDashboardSummary.fromJson({});
+    await tester.tap(find.text('إعادة المحاولة')); await tester.pumpAndSettle();
+    expect(find.text('إدارة النظام'), findsOneWidget);
+    auth.change(null); await tester.pumpAndSettle();
+    expect(find.text('إدارة النظام'), findsNothing);
+    expect(find.text('سجّل الدخول للمتابعة.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   }, timeout: const Timeout(Duration(seconds: 45)));
 
 }
