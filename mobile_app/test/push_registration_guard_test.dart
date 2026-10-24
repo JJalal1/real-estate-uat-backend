@@ -1,4 +1,7 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/features/messages/data/push_registration_repository.dart';
 
 void main() {
@@ -37,4 +40,28 @@ void main() {
       expect(PushNativeRegistration.fromMap(payload).canRegister, isFalse, reason: '$payload');
     }
   });
+  test('invalid native registration performs no backend request', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const channel = MethodChannel('real_estate/push');
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (_) async => {
+      'configured': true,
+      'granted': true,
+      'installation_id': '',
+      'token': List.filled(32, 't').join(),
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    var requests = 0;
+    final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      requests++;
+      handler.reject(DioException(requestOptions: options));
+    }));
+    addTearDown(() => dio.close(force: true));
+    final repo = PushRegistrationRepository(dio, AuthRepository(dio));
+    expect(await repo.syncIfGranted(), isFalse);
+    expect(await repo.requestAndRegister(), isFalse);
+    expect(requests, 0);
+  });
+
 }
