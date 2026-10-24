@@ -134,7 +134,7 @@ class UatRoleJourneys extends Command
         $this->wire('support_manager_cannot_enter_finance','manager','GET','/api/admin/finance/summary',[],403);
         $key = (string) Str::uuid(); $first = (string) Str::uuid(); $second = (string) Str::uuid();
         $url = '/api/listing-editor-drafts/'.$key;
-        $payload = ['checkpoint_key'=>(string)Str::uuid(),'media_version'=>1,'type'=>'shop','purpose'=>'rent',
+        $payload = ['checkpoint_key'=>(string)Str::uuid(),'media_version'=>1,'type'=>'office','purpose'=>'rent',
             'latitude'=>15.123456,'longitude'=>44.654321,'image_order'=>[$first,$second],
             'fields'=>['title'=>'مسودة اصطناعية لانقطاع الشبكة','area'=>'65']];
         $saved = $this->wire('draft_save','publisher','PUT',$url,['payload'=>$payload,'expected_revision'=>0]);
@@ -170,8 +170,8 @@ class UatRoleJourneys extends Command
         $originalPath = ListingEditorDraft::where('user_id',$this->actors['publisher']->id)->where('client_key',$key)->firstOrFail()->images[$first];
         $this->check(hash_equals(hash('sha256',$source),hash('sha256',app(CloudAssetStorageService::class)->readBytes($originalPath,true))), 'private_original_sha256_preserved');
         $input = ['listing_input_version'=>9,'title'=>'اختبار UAT اصطناعي '.$this->run,'description'=>'بيانات اختبار اصطناعية لا تمثل عقارًا حقيقيًا',
-            'type'=>'shop','purpose'=>'rent','price'=>75000,'monthly_rent'=>75000,'currency'=>'YER','area_value'=>65,'area_unit'=>'sqm',
-            'shop_openings'=>1,'address'=>'صنعاء UAT '.$this->run.' مبنى اصطناعي مستقل','building_reference'=>$this->prefix.'building','unit_number'=>'109A',
+            'type'=>'office','purpose'=>'rent','price'=>75000,'monthly_rent'=>75000,'currency'=>'YER','area_value'=>65,'area_unit'=>'sqm',
+            'floor_number'=>'0','address'=>'صنعاء UAT '.$this->run.' مبنى اصطناعي مستقل','building_reference'=>$this->prefix.'building','unit_number'=>'109',
             'contact_phone'=>'700000000','contact_whatsapp'=>'700000000',
             'latitude'=>15.123456,'longitude'=>44.654321,'editor_draft_key'=>$key,'editor_draft_revision'=>3];
         $created = $this->wire('canonical_v9_listing_create','publisher','POST','/api/properties',$input,201);
