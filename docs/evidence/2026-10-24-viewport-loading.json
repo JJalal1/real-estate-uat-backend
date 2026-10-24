@@ -32,8 +32,10 @@
     ]
   },
   "after": {
-    "run": 40075277675,
-    "source_sha": "cabf6aae3931c2ab8a04fb99e08654abf5d1fa13",
+    "run": 40078431014,
+    "source_sha": "ec474e2db73248c3ac32a4e2857cee9cf1e58c65",
+    "focused_flutter_pass": 80,
+    "actual_http_pass": 5,
     "metrics": [
       {
         "kind": "AQER_VIEWPORT_HTTP",
@@ -85,19 +87,28 @@
         "unavailable_status": 404,
         "invalid_coordinates_status": 422,
         "latency_ms": [
-          365,
-          694,
-          878,
-          1010,
-          674,
-          252,
-          154,
-          154,
-          144,
-          145,
-          357,
-          440
+          356,
+          570,
+          491,
+          621,
+          1240,
+          444,
+          197,
+          182,
+          308,
+          302,
+          601,
+          258
         ]
+      },
+      {
+        "kind": "AQER_VIEWPORT_FLING",
+        "network": "real loopback HTTP plus real Flutter ballistic scroll physics",
+        "initial_requests": 3,
+        "fling_speed_pixels_per_second": 8000,
+        "new_requests_during_fast_motion": 0,
+        "total_requests_after_settle": 7,
+        "return_requests": 0
       },
       {
         "kind": "AQER_VIEWPORT_UAT",
@@ -110,8 +121,7 @@
         "total_image_bytes": 25540
       }
     ],
-    "focused_flutter_pass": 75,
-    "actual_http_pass": 4
+    "runtime_sha": "6a0475e82b3a12f59cab3eb78ba75ee4e283186b"
   },
   "limits": [
     "Payload body bytes exclude TLS and headers.",
@@ -127,5 +137,100 @@
     "storage_objects_rls": true,
     "storage_policy_count": 0,
     "public_bucket_count": 0
+  },
+  "post_rollout": {
+    "run": 40078431014,
+    "attempt": 2,
+    "job": 120829987890,
+    "source_sha": "ec474e2db73248c3ac32a4e2857cee9cf1e58c65",
+    "runtime_sha": "ca184fc0c1ae67443786a72a32911b80d1ed5197",
+    "deploy_id": "dep-dbe71e3rjlhs73elu3cg",
+    "focused_flutter_pass": 80,
+    "actual_http_pass": 5,
+    "metrics": [
+      {
+        "kind": "AQER_VIEWPORT_HTTP",
+        "network": "real loopback HTTP, synthetic PNG only",
+        "gating_required": true,
+        "feed_requests": 1,
+        "initial_image_requests": 2,
+        "initial_image_bytes": 136,
+        "after_fast_scroll_requests": 7,
+        "return_image_requests": 0,
+        "unique_image_requests": 7,
+        "total_image_bytes": 476
+      },
+      {
+        "kind": "AQER_LOADING_HTTP",
+        "network": "actual loopback HTTP with deliberate delayed response and HTTP 503",
+        "http_requests": 5,
+        "pages": [
+          1,
+          1,
+          1,
+          2,
+          1
+        ],
+        "retained_during_refresh": true,
+        "retry_failed_page": 1,
+        "unique_paginated_rows": 2,
+        "extra_requests_after_end": 0,
+        "empty_result_state": true
+      },
+      {
+        "kind": "AQER_DISCOVERY_UAT",
+        "network": "real Render UAT Laravel API, read only; no account token",
+        "http_requests": 12,
+        "pagination_rows": [
+          5,
+          5
+        ],
+        "pagination_overlap": 0,
+        "arabic_normalization_same_ids": true,
+        "arabic_result_count": 8,
+        "empty_count": 0,
+        "protected_get_statuses": [
+          401,
+          401,
+          401,
+          401
+        ],
+        "unavailable_status": 404,
+        "invalid_coordinates_status": 422,
+        "latency_ms": [
+          390,
+          1189,
+          541,
+          722,
+          679,
+          247,
+          146,
+          158,
+          148,
+          152,
+          184,
+          262
+        ]
+      },
+      {
+        "kind": "AQER_VIEWPORT_FLING",
+        "network": "real loopback HTTP plus real Flutter ballistic scroll physics",
+        "initial_requests": 3,
+        "fling_speed_pixels_per_second": 8000,
+        "new_requests_during_fast_motion": 0,
+        "total_requests_after_settle": 7,
+        "return_requests": 0
+      },
+      {
+        "kind": "AQER_VIEWPORT_UAT",
+        "network": "real UAT Laravel to private Supabase Storage",
+        "gating_required": true,
+        "initial_image_requests": 1,
+        "initial_image_bytes": 11337,
+        "after_scroll_requests": 2,
+        "return_image_requests": 0,
+        "total_image_bytes": 25540
+      }
+    ]
   }
 }
