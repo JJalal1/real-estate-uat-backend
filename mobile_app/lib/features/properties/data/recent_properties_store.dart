@@ -39,9 +39,15 @@ class RecentPropertiesStore {
 
   Future<File> _file() {
     // Legacy device-wide history has no reliable owner; never assign it to a new account.
-    return _fileFuture ??= _supportDirectory().then(
+    if (_fileFuture != null) return _fileFuture!;
+    final result = _supportDirectory().then(
       (dir) => File('${dir.path}/aqer_recent_properties_$_scope.json'),
     );
+    _fileFuture = result;
+    result.then<void>((_) {}, onError: (Object error, StackTrace stack) {
+      if (identical(_fileFuture, result)) _fileFuture = null;
+    });
+    return result;
   }
 
   Future<List<PropertySummary>> load() => enabled ? _serialize(_read) : Future.value(const []);
@@ -58,7 +64,9 @@ class RecentPropertiesStore {
           .where((item) => item.id > 0)
           .take(_limit)
           .toList(growable: false);
-    } catch (_) {
+    } on FormatException {
+      return const [];
+    } on TypeError {
       return const [];
     }
   }

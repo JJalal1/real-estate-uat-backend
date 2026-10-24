@@ -84,6 +84,20 @@ void main() {
     expect(await guest.load(), isEmpty);
   });
 
+  test('temporary directory failure is retryable and does not replace previous history', () async {
+    final directory = await Directory.systemTemp.createTemp('aqer-recent-test-');
+    addTearDown(() => directory.delete(recursive: true));
+    await RecentPropertiesStore(actorId: 1, supportDirectory: () async => directory).record(_property(52));
+    var fail = true;
+    final store = RecentPropertiesStore(actorId: 1, supportDirectory: () async {
+      if (fail) { fail = false; throw const FileSystemException('Synthetic temporary IO failure'); }
+      return directory;
+    });
+    await expectLater(store.load(), throwsA(isA<FileSystemException>()));
+    await store.record(_property(11));
+    expect((await store.load()).map((p) => p.id), [11, 52]);
+  });
+
   test('a delayed old-account write cannot enter the next account history', () async {
     final directory = await Directory.systemTemp.createTemp('aqer-recent-test-');
     addTearDown(() => directory.delete(recursive: true));
