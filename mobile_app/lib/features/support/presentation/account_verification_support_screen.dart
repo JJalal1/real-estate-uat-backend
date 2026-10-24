@@ -35,7 +35,7 @@ class _AccountVerificationSupportScreenState
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _future = _load(); _future.ignore();
   }
 
   Future<List<AccountVerificationSupportItem>> _load() async {
@@ -48,7 +48,7 @@ class _AccountVerificationSupportScreenState
   }
 
   Future<void> _refresh() async {
-    setState(() { _future = _load(); });
+    setState(() { _future = _load(); _future.ignore(); });
     try { await _future; } catch (_) { /* The view displays failure and retry. */ }
   }
 

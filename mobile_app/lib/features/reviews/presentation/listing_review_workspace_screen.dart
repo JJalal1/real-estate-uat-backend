@@ -225,7 +225,7 @@ class _ListingReviewCaseScreenState
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _future = _load(); _future.ignore();
   }
 
   Future<_ReviewBundle> _load() async {
@@ -236,7 +236,7 @@ class _ListingReviewCaseScreenState
   }
 
   void _reload() {
-    setState(() { _future = _load(); });
+    setState(() { _future = _load(); _future.ignore(); });
   }
 
   @override

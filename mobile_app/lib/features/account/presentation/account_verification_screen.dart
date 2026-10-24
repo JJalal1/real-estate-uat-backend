@@ -58,7 +58,7 @@ class _AccountVerificationScreenState
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _future = _load(); _future.ignore();
   }
 
   @override
@@ -635,7 +635,7 @@ class _AccountVerificationScreenState
       await _picker.clearTemporaryFiles(uploaded).catchError((_) {});
       if (!mounted) return;
       _application = result;
-      setState(() { _future = Future.value(result); });
+      setState(() { _future = Future.value(result); _future.ignore(); });
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
@@ -711,7 +711,13 @@ class _AccountVerificationScreenState
       .toList(growable: false);
 
   void _reload() {
-    setState(() { _future = _load(); });
+    final future = _load();
+    // Observe immediate failures before FutureBuilder attaches on the next frame.
+    // Keep the original failed future so the page still renders its retry state.
+    future.then<void>((_) {}, onError: (Object error, StackTrace stack) {
+      if (mounted && _application != null) _message(friendlyApiError(error));
+    });
+    setState(() { _future = future; });
   }
 
   void _message(String message) {

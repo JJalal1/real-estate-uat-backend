@@ -451,11 +451,11 @@ class _GeneralManagerTeamScreenState
   @override
   void initState() {
     super.initState();
-    _future = ref.read(generalManagerRepositoryProvider).team();
+    _future = ref.read(generalManagerRepositoryProvider).team(); _future.ignore();
   }
 
   Future<void> _refresh() async {
-    setState(() { _future = ref.read(generalManagerRepositoryProvider).team(); });
+    setState(() { _future = ref.read(generalManagerRepositoryProvider).team(); _future.ignore(); });
     await _future;
   }
 
@@ -829,12 +829,11 @@ class _ExecutiveDataPageState extends ConsumerState<_ExecutiveDataPage> {
   @override
   void initState() {
     super.initState();
-    _future = ref.read(generalManagerRepositoryProvider).insights();
+    _future = ref.read(generalManagerRepositoryProvider).insights(); _future.ignore();
   }
 
   Future<void> _refresh() async {
-    setState(
-        () => _future = ref.read(generalManagerRepositoryProvider).insights());
+    setState(() { _future = ref.read(generalManagerRepositoryProvider).insights(); _future.ignore(); });
     await _future;
   }
 
