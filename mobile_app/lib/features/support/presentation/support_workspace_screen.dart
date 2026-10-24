@@ -4,12 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/support_repository.dart';
 import '../domain/support_models.dart';
 
-final _supportSummaryProvider = FutureProvider.autoDispose<SupportAdminSummary>(
-  (ref) => ref.watch(supportRepositoryProvider).adminSummary(),
+final _supportSummaryProvider = FutureProvider.autoDispose.family<SupportAdminSummary, int>(
+  (ref, actor) => ref.watch(supportRepositoryProvider).adminSummary(),
 );
 
 class SupportWorkspaceScreen extends ConsumerWidget {
@@ -18,9 +19,11 @@ class SupportWorkspaceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).asData?.value;
-    final state = ref.watch(_supportSummaryProvider);
-    final isManager = user?.isPlatformOwner == true ||
-        user?.hasPermission('support.view_team_metrics') == true;
+    if (user == null) return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
+    final provider = _supportSummaryProvider(user.id);
+    final state = ref.watch(provider);
+    final isManager = user.isPlatformOwner == true ||
+        user.hasPermission('support.view_team_metrics') == true;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -28,23 +31,26 @@ class SupportWorkspaceScreen extends ConsumerWidget {
           title: Text(isManager ? 'لوحة مدير الدعم' : 'لوحة موظف الدعم'),
           actions: [
             IconButton(
-                onPressed: () => ref.invalidate(_supportSummaryProvider),
+                tooltip: 'تحديث لوحة الدعم',
+                onPressed: state.isLoading ? null : () => ref.invalidate(provider),
                 icon: const EbrokerIcon(Icons.refresh))
           ],
         ),
-        body: state.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(
-              child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(friendlyApiError(error),
-                      textAlign: TextAlign.center))),
+        body: Column(children: [
+          if (state.hasValue && (state.isRefreshing || (state.hasError && isTransientApiFailure(state.error!))))
+            AppRefreshStatus(loading: state.isLoading, error: state.hasError ? friendlyApiError(state.error!) : null,
+              onRetry: () => ref.invalidate(provider)),
+          Expanded(child: state.when(skipError: state.hasValue && state.hasError && isTransientApiFailure(state.error!),
+          skipLoadingOnReload: false,
+          loading: () => const AppLoadingState(label: 'جارٍ تحميل لوحة الدعم…'),
+          error: (error, _) => AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(provider)),
           data: (summary) => RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(_supportSummaryProvider);
-              await ref.read(_supportSummaryProvider.future);
+              ref.invalidate(provider);
+              try { await ref.read(provider.future); } catch (_) { /* The state displays the failure and retry. */ }
             },
             child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
               children: [
                 _SupportMetrics(summary: summary),
@@ -84,8 +90,8 @@ class SupportWorkspaceScreen extends ConsumerWidget {
                         'البلاغات',
                         'بلاغات الإعلانات والتعليقات والتقييمات والتحويل لمسؤول أعلى.',
                         '/admin/support?kind=report'),
-                    if (user?.hasPermission('users.view') == true ||
-                        user?.isPlatformOwner == true)
+                    if (user.hasPermission('users.view') == true ||
+                        user.isPlatformOwner == true)
                       _row(
                           context,
                           Icons.person_search_outlined,
@@ -98,16 +104,16 @@ class SupportWorkspaceScreen extends ConsumerWidget {
                         'المحادثات المبلغ عنها',
                         'لا تظهر المحادثات الخاصة إلا عند وجود بلاغ، وفتح المحتوى يحتاج صلاحية مستقلة.',
                         '/admin/message-reports'),
-                    if (user?.hasPermission('support.view_worklog') == true ||
-                        user?.isPlatformOwner == true)
+                    if (user.hasPermission('support.view_worklog') == true ||
+                        user.isPlatformOwner == true)
                       _row(
                           context,
                           Icons.history_outlined,
                           'سجل العمل والمتابعة',
                           'الإجراءات والتذاكر المحولة والمغلقة ووقت كل إجراء.',
                           '/support/worklog'),
-                    if (user?.hasPermission('accounts.verify_profiles') == true ||
-                        user?.isPlatformOwner == true)
+                    if (user.hasPermission('accounts.verify_profiles') == true ||
+                        user.isPlatformOwner == true)
                       _row(
                           context,
                           Icons.verified_user_outlined,
@@ -139,7 +145,8 @@ class SupportWorkspaceScreen extends ConsumerWidget {
               ],
             ),
           ),
-        ),
+        )),
+        ]),
       ),
     );
   }

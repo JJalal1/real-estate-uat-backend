@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: free
     region: frankfurt
-    branch: work/1123-release-readiness
+    branch: work/wave2-review-current
     rootDir: backend-api-runtime
     dockerfilePath: ./Dockerfile.uat
     dockerContext: .
@@ -87,12 +87,13 @@ services:
       - key: UAT_WAVE3_FIXTURES_ENABLED
         value: "false"
 
-      # Approved watermark geometry exists, but rollout stays explicit until UAT acceptance.
+      # Controlled on the existing service through Render. A Blueprint sync must
+      # preserve the live rollout decision instead of silently resetting it.
       - key: LISTING_WATERMARK_ENABLED
-        value: "false"
+        sync: false
       - key: LISTING_WATERMARK_APPROVED_SHA256
         value: bf7611483e0689ad9ccd73458442745ff9fc4c91a07d60cf2c3521be90698b6e
 
-      # Cloud API deployment may run Laravel migrations after cloud checks pass.
+      # A real full backup and independent restore are required before new DDL.
       - key: UAT_RUN_MIGRATIONS
-        value: "true"
+        value: "false"

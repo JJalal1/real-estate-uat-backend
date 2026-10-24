@@ -66,12 +66,12 @@ class ListingImageService
                 return response('', 304, $headers);
             }
         }
-        if (! $this->storage->existsPrivate($target)) {
-            // Compatibility for historical internal images: sanitize on demand, never return the raw original.
-            $bytes = $this->storage->readBytes($path, self::isPrivate($path));
-            foreach ($this->encode($bytes, $this->inspect($bytes), [$variant]) as $name=>$encoded) {
-                $this->storage->writePrivate($this->variantPath($path, $name), $encoded, 'image/jpeg');
-            }
+        $cached = $this->storage->responsePrivateIfExists($target, null, $headers);
+        if ($cached !== null) return $cached;
+        // Compatibility for historical internal images: sanitize on demand, never return the raw original.
+        $bytes = $this->storage->readBytes($path, self::isPrivate($path));
+        foreach ($this->encode($bytes, $this->inspect($bytes), [$variant]) as $name=>$encoded) {
+            $this->storage->writePrivate($this->variantPath($path, $name), $encoded, 'image/jpeg');
         }
         return $this->storage->responsePrivate($target, null, $headers);
     }
@@ -84,7 +84,13 @@ class ListingImageService
         }
         // Cleanup is best effort after the database operation; storage failure cannot undo a confirmed save.
         try {
-            foreach (array_keys(config('listing_media.variants')) as $variant) $this->storage->deletePrivate($this->variantPath($path, $variant));
+            // A flag change must not strand derivatives from before activation or rollback.
+            $versions = ['v1'];
+            $approved = (string) config('listing_media.watermark.approved_sha256');
+            if (preg_match('/^[a-f0-9]{64}$/D', $approved)) $versions[] = 'v2-wm-'.substr($approved, 0, 20);
+            foreach ($versions as $version) foreach (array_keys(config('listing_media.variants')) as $variant) {
+                $this->storage->deletePrivate('listing-display/'.$version.'/'.hash('sha256', $path).'/'.$variant.'.jpg');
+            }
             if (self::isPrivate($path)) $this->storage->deletePrivate($path); else $this->storage->deletePublic($path);
         } catch (\Throwable $error) { report($error); }
     }

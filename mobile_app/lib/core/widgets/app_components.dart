@@ -8,6 +8,7 @@ import 'ebroker_property_card.dart';
 import '../formatters/money.dart';
 import '../network/adaptive_image_policy.dart';
 import '../../features/properties/presentation/adaptive_property_photo.dart';
+import 'viewport_media.dart';
 export '../formatters/money.dart';
 
 export 'app_select_field.dart';
@@ -415,6 +416,25 @@ class AppSkeleton extends StatelessWidget {
   }
 }
 
+/// Refresh status stays alongside retained content; retry never hides the list.
+class AppRefreshStatus extends StatelessWidget {
+  const AppRefreshStatus({this.loading = false, this.error, this.onRetry, super.key});
+  final bool loading;
+  final String? error;
+  final VoidCallback? onRetry;
+  @override
+  Widget build(BuildContext context) => Semantics(liveRegion: true, child: Column(
+    mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (loading) const LinearProgressIndicator(semanticsLabel: 'جارٍ تحديث المحتوى'),
+      if (error != null) Padding(padding: const EdgeInsets.all(12), child: Column(
+        mainAxisSize: MainAxisSize.min, children: [
+          Text(error!, textAlign: TextAlign.center),
+          TextButton.icon(onPressed: loading ? null : onRetry,
+            icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
+        ])),
+    ]));
+}
+
 class AppEmptyState extends StatelessWidget {
   const AppEmptyState({
     required this.title,
@@ -733,7 +753,7 @@ class AppPropertyMedia extends StatelessWidget {
           else if (AdaptiveImagePolicy.supportsVariants(imageUrl!))
             AdaptivePropertyPhoto(url: imageUrl!)
           else
-            Image.network(
+            ViewportMedia(builder: (_) => Image.network(
               imageUrl!,
               cacheWidth: cacheWidth,
               fit: BoxFit.cover,
@@ -742,7 +762,7 @@ class AppPropertyMedia extends StatelessWidget {
                 if (progress == null) return child;
                 return const AppSkeleton(height: 190, radius: 0);
               },
-            ),
+            )),
           if (badge != null)
             PositionedDirectional(top: AppSpacing.s12, start: AppSpacing.s12, child: badge!),
           if (overlay != null)

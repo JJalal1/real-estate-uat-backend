@@ -4,12 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/admin_workspace_repository.dart';
 import '../domain/admin_workspace_models.dart';
 
 final _adminDashboardProvider =
-    FutureProvider.autoDispose<AdminDashboardSummary>((ref) {
+    FutureProvider.autoDispose.family<AdminDashboardSummary, int>((ref, actor) {
   return ref.watch(adminWorkspaceRepositoryProvider).dashboard();
 });
 
@@ -19,33 +20,33 @@ class AdminDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).asData?.value;
-    final state = ref.watch(_adminDashboardProvider);
+    if (user == null) return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
+    final provider = _adminDashboardProvider(user.id);
+    final state = ref.watch(provider);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(user?.isPlatformOwner == true
+          title: Text(user.isPlatformOwner == true
               ? 'لوحة المدير العام / صاحب النظام'
               : 'لوحة إدارة النظام'),
           actions: [
             IconButton(
-                onPressed: () => ref.invalidate(_adminDashboardProvider),
+                tooltip: 'تحديث لوحة الإدارة',
+                onPressed: state.isLoading ? null : () => ref.invalidate(provider),
                 icon: const EbrokerIcon(Icons.refresh))
           ],
         ),
         body: state.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(
-              child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(friendlyApiError(error),
-                      textAlign: TextAlign.center))),
+          loading: () => const AppLoadingState(label: 'جارٍ تحميل لوحة الإدارة…'),
+          error: (error, _) => AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(provider)),
           data: (summary) => RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(_adminDashboardProvider);
-              await ref.read(_adminDashboardProvider.future);
+              ref.invalidate(provider);
+              try { await ref.read(provider.future); } catch (_) { /* The page renders failure and retry. */ }
             },
             child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
               children: [
                 _SummaryGrid(summary: summary, user: user),

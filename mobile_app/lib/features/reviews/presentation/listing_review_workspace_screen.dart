@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,14 +10,17 @@ import '../../properties/domain/property_field_options.dart';
 import '../data/listing_review_repository.dart';
 import '../domain/listing_duplicate_candidate.dart';
 import '../domain/listing_review_models.dart';
+import 'review_protected_photo.dart';
 
 final reviewQueueProvider =
     FutureProvider.autoDispose<List<ReviewListingItem>>((ref) {
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(listingReviewRepositoryProvider).queue();
 });
 
 final publicationBlocksProvider =
     FutureProvider.autoDispose<List<PublicationBlockItem>>((ref) {
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(listingReviewRepositoryProvider).blocks();
 });
 
@@ -83,7 +84,7 @@ class _ReviewQueue extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(reviewQueueProvider);
-            await ref.read(reviewQueueProvider.future);
+            try { await ref.read(reviewQueueProvider.future); } catch (_) { /* The state renders failure and retry. */ }
           },
           child: ListView.separated(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -224,7 +225,7 @@ class _ListingReviewCaseScreenState
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _future = _load(); _future.ignore();
   }
 
   Future<_ReviewBundle> _load() async {
@@ -235,7 +236,7 @@ class _ListingReviewCaseScreenState
   }
 
   void _reload() {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); _future.ignore(); });
   }
 
   @override
@@ -356,7 +357,7 @@ class _ListingReviewCaseScreenState
               separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.s8),
               itemBuilder: (_, index) => SizedBox(
                 width: 220,
-                child: _ProtectedImage(url: item.images[index].url),
+                child: ReviewProtectedPhoto(url: item.images[index].url),
               ),
             ),
           ),
@@ -385,7 +386,7 @@ class _ListingReviewCaseScreenState
                   children: [
                     Text(media.name ?? 'مستند إثبات'),
                     const SizedBox(height: AppSpacing.s8),
-                    SizedBox(height: 190, child: _ProtectedImage(url: media.url)),
+                    SizedBox(height: 190, child: ReviewProtectedPhoto(url: media.url)),
                   ],
                 ),
               ),
@@ -750,7 +751,7 @@ class _MediaReviewDialogState extends State<_MediaReviewDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(scrollable: true, title: const Text('مراجعة صلة الصورة بالعقار'),
     content: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, children: [
-      SizedBox(height: 170, child: _ProtectedImage(url: widget.image.url)),
+      SizedBox(height: 170, child: ReviewProtectedPhoto(url: widget.image.url)),
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(value: _decision, isExpanded: true, items: [for (final value in ['relevant','uncertain','unrelated']) DropdownMenuItem(value: value, child: Text(_mediaDecisionLabel(value)))], onChanged: (value) => setState(() => _decision = value ?? 'uncertain')),
       const SizedBox(height: 12), TextFormField(controller: _reason, minLines: 2, maxLines: 5, maxLength: 2000, decoration: const InputDecoration(labelText: 'سبب المراجعة'), validator: (value) => (value?.trim().length ?? 0) < 5 ? 'أضف سببًا واضحًا من خمسة أحرف على الأقل.' : null),
@@ -852,37 +853,6 @@ class _PublicationBlocks extends ConsumerWidget {
       }
     }
   }
-}
-
-class _ProtectedImage extends ConsumerStatefulWidget {
-  const _ProtectedImage({required this.url});
-  final String url;
-  @override
-  ConsumerState<_ProtectedImage> createState() => _ProtectedImageState();
-}
-class _ProtectedImageState extends ConsumerState<_ProtectedImage> {
-  late Future<Uint8List> _future;
-  Future<Uint8List> _load() {
-    final future=ref.read(listingReviewRepositoryProvider).protectedImage(widget.url);future.ignore();return future;
-  }
-  @override
-  void initState() {
-    super.initState();_future=_load();
-    ref.listenManual(authControllerProvider.select((s) => (s.asData?.value?.id, s.asData?.value?.isActive, s.asData?.value?.permissions.toString())), (_, __) {
-      if (mounted) setState(() => _future=_load());
-    });
-  }
-  @override
-  void didUpdateWidget(_ProtectedImage oldWidget) {
-    super.didUpdateWidget(oldWidget);if (oldWidget.url!=widget.url) _future=_load();
-  }
-  @override
-  Widget build(BuildContext context) => FutureBuilder<Uint8List>(future: _future, builder: (_, snapshot) {
-    if (snapshot.connectionState!=ConnectionState.done) return const Center(child: CircularProgressIndicator());
-    if (snapshot.hasError || snapshot.data==null) return Center(child: TextButton(onPressed: () => setState(() => _future=_load()), child: const Text('إعادة تحميل الصورة')));
-    return ClipRRect(borderRadius: BorderRadius.circular(AppRadii.control), child: Image.memory(snapshot.data!, fit: BoxFit.contain, cacheWidth: 1200,
-      errorBuilder: (_, __, ___) => const Center(child: Text('تعذر قراءة الصورة.'))));
-  });
 }
 
 class _ReviewBundle {

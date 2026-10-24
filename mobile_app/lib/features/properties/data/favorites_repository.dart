@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../../account/data/auth_controller.dart';
 import '../domain/property_marker.dart';
 
 final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
@@ -24,12 +25,14 @@ final pendingFavoriteAfterAuthProvider = StateProvider<int?>((ref) => null);
 final favoritePropertiesProvider =
     FutureProvider.autoDispose<List<PropertyMarker>>((ref) {
   ref.watch(favoriteDataRevisionProvider);
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(favoritesRepositoryProvider).favorites();
 });
 
 final favoritePropertyIdsProvider =
     FutureProvider.autoDispose<Set<int>>((ref) {
   ref.watch(favoriteDataRevisionProvider);
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(favoritesRepositoryProvider).favoriteIds();
 });
 

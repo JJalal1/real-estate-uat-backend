@@ -25,7 +25,7 @@ class _AccountVerificationAdminScreenState
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _future = _load(); _future.ignore();
   }
 
   Future<List<AccountVerificationApplication>> _load() => ref
@@ -92,7 +92,7 @@ class _AccountVerificationAdminScreenState
                                     if (value == null) return;
                                     setState(() {
                                       _status = value;
-                                      _future = _load();
+                                      _future = _load(); _future.ignore();
                                     });
                                   },
                           ),
@@ -129,7 +129,7 @@ class _AccountVerificationAdminScreenState
                                     setState(() {
                                       if (value == null) return;
                                       _typeFilter = value;
-                                      _future = _load();
+                                      _future = _load(); _future.ignore();
                                     });
                                   },
                           ),
@@ -251,7 +251,7 @@ class _AccountVerificationAdminScreenState
   }
 
   void _reload() {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); _future.ignore(); });
   }
 }
 

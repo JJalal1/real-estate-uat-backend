@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/ebroker_design.dart';
 import 'ebroker_widgets.dart';
+import 'viewport_media.dart';
 
 const ebrokerBannerAsset = 'assets/ebroker/images/fallback_agent_banner.png';
 
@@ -110,7 +111,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           ClipRRect(borderRadius: BorderRadius.circular(12), child: photoUrl == null
             ? EbrokerImage('defaultProfileIcon', size: 50, color: primary)
-            : Image.network(photoUrl!, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 50, color: primary))),
+            : SizedBox.square(dimension: 50, child: ViewportMedia(builder: (_) => Image.network(photoUrl!, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 50, color: primary))))),
           const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [Text(name, style: Theme.of(context).textTheme.titleMedium),
               if (verified) Icon(Icons.verified, color: primary, size: 18)]),
@@ -156,7 +157,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
                       border: Border.all(color: EbrokerDesign.surface, width: 3.rw(context))),
                     child: ClipRRect(borderRadius: BorderRadius.circular(11.rw(context)),
                       child: photoUrl == null ? Center(child: EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary))
-                        : Image.network(photoUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary)))),
+                        : ViewportMedia(builder: (_) => Image.network(photoUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary))))),
                   if (verified) Positioned(bottom: -5.rh(context),
                     child: Container(width: 22.rw(context), height: 22.rh(context), alignment: Alignment.center,
                       decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../account/data/auth_controller.dart';
 import '../../financial/data/financial_repository.dart';
@@ -56,6 +57,9 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   int? _assigneeId;
   String? _assigneeName;
   late bool _overdue;
+  int _request = 0;
+  int? _actor;
+  String? _query;
 
   @override
   void initState() {
@@ -65,12 +69,18 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     _status = widget.initialStatus;
     _severity = widget.initialSeverity;
     _overdue = widget.overdueOnly;
+    _actor = ref.read(authControllerProvider).asData?.value?.id;
     Future<void>.microtask(_load);
   }
 
   Future<void> _load() async {
     if (!mounted) return;
+    final request = ++_request;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final query = '$_scope:$_type:$_status:$_priority:$_severity:$_assigneeId:$_createdFrom:$_createdTo:$_overdue:${widget.actingAsAgent}';
     setState(() {
+      if (_query != query || _actor != actor) _items = const [];
+      _query = query; _actor = actor;
       _loading = true;
       _error = null;
     });
@@ -87,14 +97,15 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             overdue: _overdue,
             actingAsAgent: widget.actingAsAgent,
           );
-      if (!mounted) return;
+      if (!mounted || request != _request || actor != ref.read(authControllerProvider).asData?.value?.id) return;
       setState(() {
         _items = rows;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || request != _request || actor != ref.read(authControllerProvider).asData?.value?.id) return;
       setState(() {
+        if (!isTransientApiFailure(error)) _items = const [];
         _loading = false;
         _error = friendlyApiError(error);
       });
@@ -102,12 +113,20 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   @override
+  void dispose() { _request++; super.dispose(); }
+
+  @override
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).asData?.value;
-    final manager = user?.isPlatformOwner == true ||
-        user?.roles.contains('super_admin') == true ||
-        user?.roles.contains('support_manager') == true ||
-        user?.hasPermission('support.manage') == true;
+    if (_actor != user?.id) {
+      _actor = user?.id; _request++; _items = const []; _error = null; _loading = true;
+      Future<void>.microtask(_load);
+    }
+    if (user == null) return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
+    final manager = user.isPlatformOwner == true ||
+        user.roles.contains('super_admin') == true ||
+        user.roles.contains('support_manager') == true ||
+        user.hasPermission('support.manage') == true;
     final managerMode = manager && !widget.actingAsAgent;
 
     return Directionality(
@@ -137,6 +156,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 ),
               ),
             _filters(managerMode),
+            if (_items.isNotEmpty && (_loading || _error != null)) AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
             Expanded(child: _body(managerMode)),
           ],
         ),
@@ -410,8 +430,8 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   Widget _body(bool manager) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
+    if (_loading && _items.isEmpty) return const AppLoadingState(label: 'جارٍ تحميل طلبات الدعم…');
+    if (_error != null && _items.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

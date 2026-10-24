@@ -123,7 +123,8 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     final lazyPages = List<Widget>.generate(
       shell.pages.length,
       (pageIndex) => _visitedIndices.contains(pageIndex)
-          ? KeyedSubtree(key: ValueKey('$accountScope:$pageIndex'), child: shell.pages[pageIndex])
+          ? TickerMode(enabled: pageIndex == _index,
+              child: KeyedSubtree(key: ValueKey('$accountScope:$pageIndex'), child: shell.pages[pageIndex]))
           : const SizedBox.shrink(),
       growable: false,
     );
@@ -270,4 +271,3 @@ class _NavItemData {
   final String label;
   final IconData icon;
 }
-
