@@ -1,4 +1,6 @@
 # عقار — تسليم دفعة #13 و#16 ومتابعة البنود الآمنة
+> **الحالة النهائية بعد المتابعة121:** دُمج PR120 للخادم/Flutter ثم PR121 لإكمال عزل صفحات المشتري. أحدث دمج كود UAT هو `179b34500751cfdcaf614c393d916767eb639761`؛Flutter534 كاملة و86 موجهة و5HTTP فعلية ناجحة. Render ما زال Live على `ca184fc0c1ae67443786a72a32911b80d1ed5197` لأن394 blob للخادم وBlueprint لم تتغير. #13/#16/#23 منجزة هندسيًا ضمن النطاق المثبت؛الهاتف ودورة الحسابات الحية المجمعان لم يُنفذا. ليست32/32 مغلقة. أوقات الأدلة الخام UTC؛توقيت عدن يضيف3 ساعات.
+
 24 أكتوبر2026. **دُمجت الدفعة ونُشرت بأمان على UAT.** [PR #120](https://github.com/JJalal1/real-estate-uat-backend/pull/120) إلى `work/wave2-review-current`، نفس التطبيق المستهدف للإطلاق. لا Production أو مورد مدفوع أو APK قبول منفصل.
 
 ## الاستلام والتغيير الفعلي
@@ -92,7 +94,7 @@ UAT حي بلا token:12 GET؛ صفحتان5+5 بلا تداخل، «إب/اب»
 
 | Workflow / Run على الرأس النهائي | النتيجة |
 |---|---|
-| [Broker Experience CI /40078431384](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40078431384) | Laravel356/4390 assertions؛8 مجموعات PostgreSQL176/2827؛Flutter357 موجهة و528 كاملة/6 skipped، واختبارHTTP قائم1؛strict0؛Docker runtime PASS؛native build/verify/encrypt/upload PASS |
+| [Broker Experience CI /40078431384](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40078431384) | Laravel356/4390 assertions؛8 مجموعات PostgreSQL176/2827؛Flutter357 موجهة و528 كاملة/6 skipped، وفحص إعداد API المضمن1؛strict0؛Docker runtime PASS؛native build/verify/encrypt/upload PASS |
 | [Launch Readiness /40078430994](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40078430994) | Laravel9/76؛Flutter15؛بناء UAT native PASS |
 | [Viewport/loading /40078431014](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40078431014) | Flutter80؛HTTP5 بما فيها اندفاع8,000px/s؛attempt2 بعد النشر PASS |
 | [Adaptive /40078431006](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40078431006) | Laravel18/316؛Flutter47؛تكامل UAT حي1 وقياسات؛attempt2 بعد النشر PASS |
@@ -111,4 +113,27 @@ UAT حي بلا token:12 GET؛ صفحتان5+5 بلا تداخل، «إب/اب»
 
 **الحكم النهائي للدفعة:** #13 و#16 وخصوصية #23 منجزة هندسيًا ضمن النطاق المثبت؛#4 كانت مفعلة وقد ثبتت حيًا ونشر إصلاح تنظيفها؛#14/#15/#18/#19/#24/#25 تحسينات مثبتة محددة. قبول الهاتف ودورة الأدوار المسجلة الحية باقٍ. ليست32/32 مغلقة، ولا Production جاهزًا. بعد هذه الدفعة تُستكمل دورة الإعلان/الحسابات التجريبية والاعتمادية109، ويعود #11 فور تحقق backup/restore؛ولا تغيير لتأجيل #3/#21 أو OFF #20 أو شروط #8/#22/#26.
 
-تضاف إيصالات هذه النتائج بcommit توثيق فقط فوق دمج PR120؛قد يختلف HEAD المستودع عن SHA Render لهذا السبب وحده. يجب أن تبقى blobs backend/mobile/CI/render.yaml مطابقة تمامًا لنشرca184fc. SHA رأس التوثيق الدقيق في رسالة التسليم وصفحة الفرع؛لا يمكن وضع SHA commit داخل محتواه نفسه.
+إيصال99f8f437 فوق PR120 كان توثيقًا فقط، وبقيت حينه1068 blobs غير توثيقية مطابقة. حدثت بعده متابعة PR121 في Flutter وCI؛لم تتغير394 blobs للخادم وrender.yaml عن نشرca184fc. يجب فصل SHA مصدر Flutter الأحدث عن SHA Backend المنشور. إيصال التسليم النهائي فوق179b345 يغيّر docs فقط؛SHA رأسه الدقيق في رسالة التسليم وصفحة الفرع،ولا يمكن وضع SHA commit داخل محتواه نفسه.
+
+
+## متابعة #16 النهائية — PR121
+أظهرت مراجعة رحلة المشتري نقصًا إضافيًا:احتفاظ صفحات الاتفاقات/العقود بحالة الحساب السابق،ونقص retry في أول قراءة. [PR121](https://github.com/JJalal1/real-estate-uat-backend/pull/121) أعاد استخدام الواجهة القائمة مع ActorScopedPage ومفتاح حساب/صلاحيات ومفتاح سجل،وgeneration للقراءات. تحتفظ بصفوف/سجل503 وتخفي401/403/404 والرد المتأخر،وتبقي رأس الصفحة والرجوع،وتمنع إجراء موافقة من قراءة غير مؤكدة. صُحح overflow سطر الموافقة عند390px. لا API write contract أو مبالغ/نسب/تاريخ مالي أو صلاحية Laravel تغيرت. لم تُجرَ موافقة مالية حية على UAT.
+
+رأس PR121 المختبر `f281027d8423172048c6928c7b5d8d60d9d51c83`؛مصدر native virtual merge `2096ff1ac510b2606ee3c471de6896b6a397a8d5`؛شجرتهما ودمج121 متطابقة `dee143e89555d1a1c4ee36446963ba304cfe4023`. دمج121 `179b34500751cfdcaf614c393d916767eb639761` إلى UAT. لم نفتح PR إضافيًا لميزة مكررة؛هذه متابعة نقص خصوصية/تعافٍ ظهر بعد نشر120.
+
+| Workflow / Run للمتابعة | النتيجة |
+|---|---|
+| [Broker /40082655578](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40082655578) | Laravel356/4390؛PG176/2827 عبر8 مجموعات؛Flutter357 موجهة و534 كاملة/6 opt-in skipped؛strict0؛Docker/native verification/encryption/upload PASS |
+| [Viewport/loading /40082655546](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40082655546) | 86 موجهة و5 HTTP PASS؛attempt2 بعد الدمج/فترة السكون PASS أيضًا،job120872020740 |
+| [Adaptive /40082655762](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40082655762) | backend18/316،Flutter47،تكاملUAT حي1 وقياسات PASS |
+| [Launch /40082655689](https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40082655689) | backend9/76،Flutter15،native build PASS |
+
+الست الجديدة تخص قائمة الاتفاقات وتفاصيل الاتفاق والعقد والحجوزات والرد المتأخر/رفض الوصول/عدم القبول من قراءة غير مؤكدة. فحص التهيئة `uat_compiled_environment_test.dart` ذو الحالة الواحدة **يتحقق من عنوان وإعداد البناء ولا يجري HTTP**؛لا يُحسب اختبار اتصال حي. الاتصال الفعلي مثبت بالـHTTP5 وAdaptive1 المنفصلين. المجموعات متداخلة ولا تجمع كاختبارات فريدة.
+
+Native CI1187 تحقق ZIP/apksigner/API والأصول،SHA256 `283bfa54d0626e8f3bda186d48467fb82e37ce9e27abd9c65a9266b55b939322` ثم شُفر؛ليس APK قبول مسلّمًا للمالك. [إيصال المتابعة](evidence/2026-10-24-buyer-loading-ci.json) و[تفاصيل المصدر](BUYER_LOADING_16_FOLLOWUP_AR_2026-10-24.md).
+
+**رصد بطء باقٍ لا نخفيه:** في اختبار فعلي بعد فترة سكون،أول health GET استغرق **34,883ms** ثم نجحت الطلبات التالية(147–1453ms) والاختبارات الخمسة. لا نحسم سبب هذا البطء بهذه العينة؛خدمة UAT علىFree،وissue109/قبول الحمل وp95 ما زالت مفتوحة. لم نشتر خطة أو نغير العمال أو نضف keepalive اصطناعيًا. هذا لا يبطل خفض بايتات الصور المثبت،ولا يُسمى جاهزية Production.
+
+أحدث فحص قاعدة12:29:49UTC(15:29:49عدن):59 هجرة،intents غائب،RLS قائم،0 منح جداول مباشرة للأدوار العامة،0 سياساتStorage وبuckets عامة وhealth canaries. سجلت health200 مجددًا بعد12:27UTC. نشر Backend الوحيد في الدفعة هو dep-dbe71e3rjlhs73elu3cg،بتاريخ24 أكتوبر11:48:46عدن. لا deploy زائد لمتابعة Flutter فقط،ولا DDL أو backup/restore أو تغيير Production/موارد مدفوعة.
+
+يبقى القبول على الهاتف والشبكة الحقيقية والأدوار المسجلة الحية مجمعًا. تبقى #11 و#3/#21 والـOFF #20 وشروط #8/#22/#26 كما قرر المالك،ويُراجع باقي32 وفق المصفوفة دون إغلاق من CI العام. الخطوة التقنية التالية المقترحة:حسم قياس الاعتمادية109 ودورة الحسابات/الإعلان التجريبية قبل نسخة UAT البشرية المجمعة،مع العودة إلى11 فور إتاحة نسخة كاملة مختبرة الاستعادة.

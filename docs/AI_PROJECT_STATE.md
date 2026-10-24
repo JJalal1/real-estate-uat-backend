@@ -1,3 +1,15 @@
+# October24 FINAL continuation — PR120 + buyer follow-up PR121
+
+Read docs/AQER_13_16_EXECUTIVE_HANDOFF_AR_2026-10-24.md, the owner decisions and32 matrix. This section supersedes earlier checkpoint status below. PR120 backend/client mergeca184fc0c1ae67443786a72a32911b80d1ed5197 is Render Live dep-dbe71e3rjlhs73elu3cg. PR121 adds Flutter-only buyer read/session recovery, merged179b34500751cfdcaf614c393d916767eb639761 after4 exact-head workflows at f281027d8423172048c6928c7b5d8d60d9d51c83. Its tree dee143e89555d1a1c4ee36446963ba304cfe4023 equals tested native virtual2096ff1ac510b2606ee3c471de6896b6a397a8d5. All394 backend/Blueprint blobs match the deployed runtime; do not claim the latest Flutter code itself runs on Render. Final receipt-only commits change docs.
+
+Latest acceptance: Flutter534 full/6 opt-in skips (separately exercised),86 focused including6 buyer read/account/403/503 cases,5 actual HTTP, strict0, original native/encryption PASS (CI1187, not owner acceptance APK). Laravel356/4390,8 PostgreSQL groups176/2827, Adaptive18/316 +47 Flutter +1 real UAT live, Launch9/76 +15 Flutter. Compiled-environment1 is configuration validation, NOT an HTTP smoke; actual HTTP comes from the dedicated live jobs. PR121 does not alter write API contracts, financial terms/history or server permissions.
+
+Fresh post-merge/idle HTTP rerun40082655546 attempt2 job120872020740 PASS; no new requests during8,000px/s fling,7 settled,0 return; real UAT initial39743->11337B remains. First health GET after idle was34883ms; reason not established. Issue109 representative load/p95/latency remains OPEN; do not imply Production ready or buy capacity. API health200 resumed, Supabase12:29:49UTC59 migrations/intents absent/RLS/direct public-client table grants0/private Storage/health canaries0.
+
+No full real database backup or independent restore achieved;#11 Draft115 remains gated/off, no DDL. #3/#21 remain budget-paused,#20 off,#8/#22/#26 final-provider/identity gated. No Production or paid resource. Consolidated handset/network/signed-in role journeys and original32-spec matching remain. Continue from current UAT HEAD, never an old APK; next reliability109 and signed-in synthetic release journeys, return to11 when backup/restore is actually met.
+
+---
+
 # October24 viewport/loading continuation — PR120
 
 This section supersedes older instructions below. Intake UAT SHA c8aac3041027fa900c19e472bdea30568da35ad1; same release app and work/wave2-review-current. The owner authorizes safe routine fixes/merge/UAT rollout, never Production or paid resources. Read docs/AQER_13_16_EXECUTIVE_HANDOFF_AR_2026-10-24.md and the decisions/matrix.
