@@ -154,6 +154,8 @@ class UatRoleJourneys extends Command
         $this->wire('staff_cannot_read_foreign_editor_draft','reviewer','GET',$url.'/images/'.$first,[],404);
         $safe = $this->wire('owner_sanitized_draft_image','publisher','GET',$url.'/images/'.$first.'?variant=thumb');
         $this->check(! str_contains($safe->body(),'Exif') && ! str_contains($safe->body(),'UAT_PRIVATE_CAMERA'), 'real_exif_camera_gps_removed');
+        $dimensions = getimagesizefromstring($safe->body());
+        $this->check($dimensions[1] > $dimensions[0] && max($dimensions[0],$dimensions[1]) <= 320,'real_exif_orientation_preserved');
         $this->check(str_contains((string)$safe->header('Cache-Control'),'no-store'), 'draft_image_private_no_store');
         $originalPath = ListingEditorDraft::where('user_id',$this->actors['publisher']->id)->where('client_key',$key)->firstOrFail()->images[$first];
         $this->check(hash_equals(hash('sha256',$source),hash('sha256',app(CloudAssetStorageService::class)->readBytes($originalPath,true))), 'private_original_sha256_preserved');
@@ -164,6 +166,7 @@ class UatRoleJourneys extends Command
         $created = $this->wire('canonical_v9_listing_create','publisher','POST','/api/properties',$input,201);
         $id = (int) $created->json('data.id'); $images = $created->json('data.images');
         $this->check(count($images) === 2 && $created->json('data.status') === 'draft', 'new_listing_private_two_images');
+        $this->check((float) $created->json('data.latitude') === 15.123456 && (float) $created->json('data.longitude') === 44.654321,'photo_gps_does_not_change_listing_pin');
         $this->wire('lost_listing_create_response_no_duplicate','publisher','POST','/api/properties',$input,409);
         $imageId = (int) $images[0]['id'];
         $this->wire('public_cannot_read_unpublished',null,'GET','/api/property-media/'.$imageId.'?variant=thumb',[],404);
@@ -291,11 +294,16 @@ class UatRoleJourneys extends Command
         imagefill($image,0,0,imagecolorallocate($image,$orientation === 6 ? 50 : 130,160,190));
         ob_start(); imagejpeg($image,null,90); $jpeg = ob_get_clean(); imagedestroy($image);
         $make = "UAT_PRIVATE_CAMERA\0"; $gpsOffset = 50 + strlen($make);
+        $gpsDataOffset = $gpsOffset + 54;
         $tiff = 'II'.pack('vV',42,8).pack('v',3)
             .pack('vvVv',0x112,3,1,$orientation)."\0\0"
             .pack('vvVV',0x10f,2,strlen($make),50)
             .pack('vvVV',0x8825,4,1,$gpsOffset).pack('V',0).$make
-            .pack('v',1).pack('vvV',1,2,2)."N\0\0\0".pack('V',0);
+            .pack('v',4).pack('vvV',1,2,2)."N\0\0\0"
+            .pack('vvVV',2,5,3,$gpsDataOffset)
+            .pack('vvV',3,2,2)."E\0\0\0"
+            .pack('vvVV',4,5,3,$gpsDataOffset+24).pack('V',0)
+            .pack('VVVVVV',15,1,12,1,30,1).pack('VVVVVV',44,1,39,1,15,1);
         $exif = "Exif\0\0".$tiff;
         return substr($jpeg,0,2)."\xff\xe1".pack('n',strlen($exif)+2).$exif.substr($jpeg,2);
     }

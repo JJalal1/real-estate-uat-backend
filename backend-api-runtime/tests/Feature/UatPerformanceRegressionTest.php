@@ -87,7 +87,7 @@ class UatPerformanceRegressionTest extends TestCase
         $this->getJson('/api/health')->assertHeaderMissing('Server-Timing')->assertHeaderMissing('X-Aqer-DB-Queries');
     }
 
-    public function test_nearby_measurement_preserves_all_photo_summaries_with_one_eager_read(): void
+    public function test_nearby_measurement_preserves_compact_primary_photo_summaries(): void
     {
         \Illuminate\Support\Facades\Cache::store('file')->flush();
         \Illuminate\Support\Facades\Cache::put('broker-availability-swept',true,60);
@@ -105,8 +105,8 @@ class UatPerformanceRegressionTest extends TestCase
         } finally { DB::connection()->disableQueryLog(); }
         $this->assertCount(20,$response->json('data'));
         foreach ($response->json('data') as $row) {
-            $this->assertSame(2,$row['image_count']);
-            $this->assertCount(2,$row['image_urls']);
+            $this->assertArrayNotHasKey('image_count',$row);
+            $this->assertCount(1,$row['image_urls']);
             $this->assertSame($row['main_image'],$row['image_urls'][0]);
         }
         $photoReads = count(array_filter($queries,fn ($q)=>str_contains($q['query'],'from "property_images"')));

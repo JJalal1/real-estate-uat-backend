@@ -125,7 +125,7 @@ class PropertyController extends Controller
             $load = function () use ($validated, $longitude, $latitude, $radiusKm, $request): array {
                 $query = app(\App\Services\PropertyDiscoveryFilterService::class)
                     ->publicQuery()
-                    ->with('images');
+                    ->with('primaryImage');
                 $this->applyFilters($query, $validated);
                 app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
 
@@ -179,7 +179,7 @@ class PropertyController extends Controller
         // PostGIS branch above so the spatial index remains effective at scale.
         $query = app(\App\Services\PropertyDiscoveryFilterService::class)
             ->publicQuery()
-            ->with('images');
+            ->with('primaryImage');
         $this->applyFilters($query, $validated);
         app(\App\Services\PropertyDiscoveryFilterService::class)->applyPolygonForNearby($query, $validated);
 
