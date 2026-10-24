@@ -46,8 +46,9 @@ class PropertyRepository {
     String path,
     Map<String, dynamic> params,
     Future<T> Function() loader,
-    {bool refresh = false}
+    {bool refresh = false, CancelToken? cancelToken}
   ) async {
+    if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
     final key = _publicCacheKey(path, params);
     if (refresh) { _publicCacheEpoch++; _publicDiscoveryCache.remove(key); }
     final now = DateTime.now();
@@ -59,6 +60,9 @@ class PropertyRepository {
 
     final epoch = _publicCacheEpoch;
     final value = await loader();
+    // Even an already-completed HTTP response can be superseded while being
+    // decoded. Never hand it to a canceled viewport or seed a reusable cache.
+    if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
     // A pre-mutation request may finish late but must never repopulate the cache.
     if (epoch != _publicCacheEpoch) return value;
     _publicDiscoveryCache[key] = (storedAt: DateTime.now(), value: value as Object);
@@ -136,7 +140,7 @@ class PropertyRepository {
           .whereType<Map<String, dynamic>>()
           .map(PropertyMarker.fromJson)
           .toList(growable: false);
-    });
+    }, cancelToken: cancelToken);
   }
 
   Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters, {CancelToken? cancelToken}) async {
@@ -145,7 +149,7 @@ class PropertyRepository {
       final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: params, cancelToken: cancelToken);
       final rows = response.data?['data'] as List? ?? const [];
       return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
-    });
+    }, cancelToken: cancelToken);
   }
 
   Future<ListingContactPolicy> listingContactPolicy() async {
@@ -355,7 +359,7 @@ class PropertyRepository {
         .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
       final meta = response.data?['meta'] as Map? ?? const {};
       return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
-    }, refresh: refresh);
+    }, refresh: refresh, cancelToken: cancelToken);
   }
 
   Future<PropertyDetails> details(int propertyId) async {
