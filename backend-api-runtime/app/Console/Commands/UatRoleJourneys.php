@@ -143,7 +143,8 @@ class UatRoleJourneys extends Command
         $restored = $this->wire('draft_restore','publisher','GET',$url);
         $this->check($restored->json('data.payload.fields.title') === $payload['fields']['title'], 'draft_text_preserved');
         $this->wire('other_cannot_read_draft','other','GET',$url,[],404);
-        $this->wire('other_cannot_write_draft','other','PUT',$url,['payload'=>$payload,'expected_revision'=>1],404);
+        $this->wire('unverified_actor_cannot_write_draft','other','PUT',$url,['payload'=>$payload,'expected_revision'=>1],403);
+        $this->wire('other_publisher_cannot_write_draft','other_publisher','PUT',$url,['payload'=>$payload,'expected_revision'=>1],404);
         $source = $this->syntheticJpeg(6);
         $this->wire('first_real_image_upload','publisher','POST',$url.'/images/'.$first,['expected_revision'=>1],200,$source);
         $retry = $this->wire('image_upload_retry_no_duplicate','publisher','POST',$url.'/images/'.$first,['expected_revision'=>1],200,$source);
