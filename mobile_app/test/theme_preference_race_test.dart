@@ -52,6 +52,6 @@ void main() {
     await Future.wait([one, two]);
 
     expect(saved, ['light', 'dark']);
-    expect(controller.debugState, ThemeMode.dark);
+    expect(selected, ThemeMode.dark);
   });
 }
