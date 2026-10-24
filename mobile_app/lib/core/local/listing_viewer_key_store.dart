@@ -7,8 +7,16 @@ import 'package:path_provider/path_provider.dart';
 final listingViewerKeyProvider = FutureProvider<String>((ref) => ListingViewerKeyStore.key());
 
 class ListingViewerKeyStore {
-  static Future<String>? _operation;
-  static Future<String> key() {
+  ListingViewerKeyStore({Future<Directory> Function()? supportDirectory})
+      : _supportDirectory = supportDirectory ?? getApplicationSupportDirectory;
+
+  static final ListingViewerKeyStore _default = ListingViewerKeyStore();
+  static Future<String> key() => _default.load();
+
+  final Future<Directory> Function() _supportDirectory;
+  Future<String>? _operation;
+
+  Future<String> load() {
     final inFlight = _operation;
     if (inFlight != null) return inFlight;
     final operation = _load();
@@ -20,8 +28,8 @@ class ListingViewerKeyStore {
     });
     return operation;
   }
-  static Future<String> _load() async {
-    final root = await getApplicationSupportDirectory();
+  Future<String> _load() async {
+    final root = await _supportDirectory();
     await root.create(recursive: true);
     final file = File('${root.path}${Platform.pathSeparator}listing_viewer_key.txt');
     if (await file.exists()) {
