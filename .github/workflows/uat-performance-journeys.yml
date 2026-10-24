@@ -1,0 +1,30 @@
+name: UAT performance and role journeys
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'scripts/probe_uat_performance.py'
+      - '.github/workflows/uat-performance-journeys.yml'
+      - 'backend-api-runtime/**'
+concurrency:
+  group: uat-safe-performance-probe
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  read-only-performance:
+    name: Bounded real UAT cold and warm measurements
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Safe controlled measurements against existing synthetic fixture
+        run: python3 -B scripts/probe_uat_performance.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uat-performance-metrics
+          path: uat-performance-metrics.json
+          retention-days: 14
