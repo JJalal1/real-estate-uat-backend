@@ -66,12 +66,12 @@ class ListingImageService
                 return response('', 304, $headers);
             }
         }
-        if (! $this->storage->existsPrivate($target)) {
-            // Compatibility for historical internal images: sanitize on demand, never return the raw original.
-            $bytes = $this->storage->readBytes($path, self::isPrivate($path));
-            foreach ($this->encode($bytes, $this->inspect($bytes), [$variant]) as $name=>$encoded) {
-                $this->storage->writePrivate($this->variantPath($path, $name), $encoded, 'image/jpeg');
-            }
+        $cached = $this->storage->responsePrivateIfExists($target, null, $headers);
+        if ($cached !== null) return $cached;
+        // Compatibility for historical internal images: sanitize on demand, never return the raw original.
+        $bytes = $this->storage->readBytes($path, self::isPrivate($path));
+        foreach ($this->encode($bytes, $this->inspect($bytes), [$variant]) as $name=>$encoded) {
+            $this->storage->writePrivate($this->variantPath($path, $name), $encoded, 'image/jpeg');
         }
         return $this->storage->responsePrivate($target, null, $headers);
     }

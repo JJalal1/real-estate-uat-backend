@@ -398,6 +398,12 @@ class CloudAssetStorageService
         return $this->response($path, true, $downloadName, $headers);
     }
 
+    /** Reuse the successful download instead of downloading once to test existence. */
+    public function responsePrivateIfExists(string $path, ?string $downloadName = null, array $headers = []): ?Response
+    {
+        return $this->responseIfExists($path, true, $downloadName, $headers);
+    }
+
     public function downloadPrivate(string $path, string $downloadName, array $headers = []): Response
     {
         if (! $this->cloudEnabled()) {
@@ -501,13 +507,21 @@ class CloudAssetStorageService
 
     private function response(string $path, bool $private, ?string $downloadName, array $headers): Response
     {
+        $response = $this->responseIfExists($path, $private, $downloadName, $headers);
+        if ($response === null) abort(404);
+        return $response;
+    }
+
+    private function responseIfExists(string $path, bool $private, ?string $downloadName, array $headers): ?Response
+    {
         if (! $this->cloudEnabled()) {
+            if (! Storage::disk($private ? 'local' : 'public')->exists($path)) return null;
             return Storage::disk($private ? 'local' : 'public')->response($path, $downloadName, $headers);
         }
 
         $remote = $this->request()->get($this->objectUrl($this->objectPath($path, $private)));
         if (in_array($remote->status(), [400, 404], true)) {
-            abort(404);
+            return null;
         }
         $this->assertRemoteSuccess($remote, 'Cloud storage download failed.');
 
