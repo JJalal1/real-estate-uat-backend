@@ -545,17 +545,48 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }, child: child,
   );
 
+  void _showLocationGuidance(
+    String message, {
+    Future<bool> Function()? openSettings,
+  }) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      content: Text(message),
+      action: openSettings == null
+          ? null
+          : SnackBarAction(
+              label: 'الإعدادات',
+              onPressed: () { unawaited(openSettings()); },
+            ),
+    ));
+  }
+
   Future<void> _loadCurrentLocation() async {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) return;
+      if (!enabled) {
+        _showLocationGuidance(
+          'خدمة الموقع مغلقة. يمكنك تشغيلها من إعدادات الهاتف.',
+          openSettings: Geolocator.openLocationSettings,
+        );
+        return;
+      }
 
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.deniedForever) {
+        _showLocationGuidance(
+          'تم منع إذن الموقع نهائيًا. يمكنك السماح به من إعدادات التطبيق.',
+          openSettings: Geolocator.openAppSettings,
+        );
+        return;
+      }
+      if (permission == LocationPermission.denied) {
+        _showLocationGuidance('لم يتم السماح بالموقع. يمكنك البحث بالخريطة دون تفعيل الموقع.');
         return;
       }
 
