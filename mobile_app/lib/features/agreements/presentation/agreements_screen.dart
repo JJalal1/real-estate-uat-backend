@@ -12,7 +12,7 @@ import '../domain/agreement_models.dart';
 class AgreementsScreen extends ConsumerWidget {
   const AgreementsScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(builder: (_) => const _AgreementsScreenForActor());
+  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(title: 'اتفاقاتي وعقودي', builder: (_) => const _AgreementsScreenForActor());
 }
 
 class _AgreementsScreenForActor extends ConsumerStatefulWidget {

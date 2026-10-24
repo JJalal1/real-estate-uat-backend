@@ -15,7 +15,7 @@ class AgreementDetailScreen extends ConsumerWidget {
   const AgreementDetailScreen({required this.agreementId, super.key});
   final int agreementId;
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(builder: (_) =>
+  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(title: 'تفاصيل الاتفاق', builder: (_) =>
     _AgreementDetailScreenForActor(key: ValueKey(agreementId), agreementId: agreementId));
 }
 

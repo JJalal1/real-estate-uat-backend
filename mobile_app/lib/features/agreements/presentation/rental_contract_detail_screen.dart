@@ -14,7 +14,7 @@ class RentalContractDetailScreen extends ConsumerWidget {
   const RentalContractDetailScreen({required this.contractId, super.key});
   final int contractId;
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(builder: (_) =>
+  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(title: 'عقد الإيجار داخل التطبيق', builder: (_) =>
     _RentalContractDetailScreenForActor(key: ValueKey(contractId), contractId: contractId));
 }
 
