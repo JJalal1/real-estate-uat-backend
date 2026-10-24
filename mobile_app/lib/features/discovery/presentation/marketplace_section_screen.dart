@@ -31,7 +31,7 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
   void didUpdateWidget(MarketplaceSectionScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.section != widget.section || oldWidget.governorate != widget.governorate || oldWidget.type != widget.type || oldWidget.latitude != widget.latitude || oldWidget.longitude != widget.longitude) {
-      _rows.clear(); _page = 0; _more = false;
+      _rows.clear(); _page = 0; _more = false; _busy = true; _error = null;
       _transfer?.cancel('Section changed'); _request++;
       Future.microtask(_load);
     }

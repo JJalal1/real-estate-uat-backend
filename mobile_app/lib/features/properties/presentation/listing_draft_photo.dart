@@ -20,8 +20,9 @@ final listingPhotoCacheProvider = Provider<ListingPhotoCache>((ref) {
 /// No disk storage; successes only, deduplicated requests and bounded account-session memory.
 class ListingPhotoCache {
   ListingPhotoCache({this.maxEntries = 18, this.maxBytes = 24 * 1024 * 1024,
+    this.maxImageBytes = 8 * 1024 * 1024,
     this.ttl = const Duration(minutes: 2), DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
-  final int maxEntries, maxBytes;
+  final int maxEntries, maxBytes, maxImageBytes;
   final Duration ttl;
   final DateTime Function() _clock;
   final _entries = <String, _PhotoEntry>{};
@@ -57,7 +58,7 @@ class ListingPhotoCache {
     if (previous != null) { if (retain) previous.references++; _entries[key] = previous; return previous.future; }
     final epoch = _epoch, entry = _PhotoEntry()..cancellation = cancellation..references = retain ? 1 : 0;
     entry.future = Future<Uint8List>.sync(loader).then((bytes) {
-      if (bytes.isEmpty || bytes.lengthInBytes > 8 * 1024 * 1024) throw StateError('Invalid display image size');
+      if (bytes.isEmpty || bytes.lengthInBytes > maxImageBytes) throw StateError('Invalid display image size');
       if (_epoch == epoch && identical(_entries[key], entry)) {
         entry.bytes = bytes.lengthInBytes; entry.data = bytes; entry.completedAt = _clock(); _trim();
       }

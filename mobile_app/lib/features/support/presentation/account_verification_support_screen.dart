@@ -48,7 +48,7 @@ class _AccountVerificationSupportScreenState
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); });
     try { await _future; } catch (_) { /* The view displays failure and retry. */ }
   }
 

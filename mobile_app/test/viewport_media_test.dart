@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -8,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/widgets/viewport_media.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
+import 'package:real_estate_mobile/features/reviews/data/listing_review_repository.dart';
+import 'package:real_estate_mobile/features/reviews/presentation/review_protected_photo.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_draft_photo.dart';
 
@@ -28,6 +31,26 @@ class _Photos implements ListingAccountDraftRepository {
     pending.add(done);
     cancelToken?.whenCancel.then((error) { if (!done.isCompleted) done.completeError(error); });
     return done.future;
+  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
+}
+
+class _Actor extends AuthController {
+  @override
+  Future<AuthUser?> build() async => AuthUser.fromJson({'id': 1, 'account_status': 'active'});
+  void leave() { state = const AsyncData(null); }
+}
+class _Evidence implements ListingReviewRepository {
+  final calls = <String>[];
+  final tokens = <CancelToken?>[];
+  @override
+  Future<Uint8List> protectedImage(String url, {CancelToken? cancelToken}) {
+    calls.add(url); tokens.add(cancelToken);
+    if (url.endsWith('/1')) return Future.value(Uint8List.fromList(base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')));
+    final pending = Completer<Uint8List>();
+    cancelToken?.whenCancel.then((error) { if (!pending.isCompleted) pending.completeError(error); });
+    return pending.future;
   }
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
@@ -114,4 +137,28 @@ void main() {
     await _frames(tester);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('staff evidence waits for visibility, reuses completed bytes and cancels a hidden transfer', (tester) async {
+    final repo = _Evidence(), actor = _Actor(), scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => actor),
+      listingReviewRepositoryProvider.overrideWithValue(repo)], child: MaterialApp(home: Scaffold(
+        body: SingleChildScrollView(controller: scroll, child: Column(children: const [
+          SizedBox(height: 120, child: ReviewProtectedPhoto(url: '/api/property-media/1')),
+          SizedBox(height: 900),
+          SizedBox(height: 120, child: ReviewProtectedPhoto(url: '/api/listing-documents/2')),
+          SizedBox(height: 900),
+        ]))))));
+    await _frames(tester);
+    expect(repo.calls, ['/api/property-media/1']);
+    scroll.jumpTo(1000); await _frames(tester);
+    expect(repo.calls, ['/api/property-media/1', '/api/listing-documents/2']);
+    scroll.jumpTo(0); await _frames(tester);
+    expect(repo.tokens[1]!.isCancelled, isTrue);
+    expect(repo.calls, hasLength(2));
+    actor.leave(); await _frames(tester);
+    expect(find.byType(Image), findsNothing);
+    await tester.pumpWidget(const SizedBox()); await _frames(tester);
+    expect(tester.takeException(), isNull);
+  });
+
 }

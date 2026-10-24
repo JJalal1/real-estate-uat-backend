@@ -74,12 +74,12 @@ class ListingReviewRepository {
     return row;
   }
 
-  Future<Uint8List> protectedImage(String url) async {
+  Future<Uint8List> protectedImage(String url, {CancelToken? cancelToken}) async {
     final base=Uri.parse(_dio.options.baseUrl), target=Uri.parse(_dio.options.baseUrl).resolve(url);
     if (target.origin != base.origin || !RegExp('^${RegExp.escape(base.path)}/(?:property-media|listing-documents)/[0-9]+\$').hasMatch(target.path)) {
       throw StateError('Invalid protected image location');
     }
-    final cancel=CancelToken();
+    final cancel=cancelToken ?? CancelToken();
     final response = await _dio.get<List<int>>(target.toString(),
       options: (await _sessionOptions()).copyWith(responseType: ResponseType.bytes), cancelToken: cancel)
       .timeout(const Duration(seconds: 25), onTimeout: () { cancel.cancel('Image deadline'); throw TimeoutException('تعذر تحميل الصورة.'); });

@@ -182,7 +182,7 @@ class _BrokerAccountVerificationScreenState
     return application;
   }
 
-  void _reload() => setState(() => _future = _loadStatus());
+  void _reload() => setState(() { _future = _loadStatus(); });
   void _message(String text) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));

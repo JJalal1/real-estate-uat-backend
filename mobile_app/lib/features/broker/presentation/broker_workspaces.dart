@@ -145,7 +145,7 @@ class BrokerCustomersScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _BrokerCustomersBody(key: ValueKey(actor), propertyId: propertyId, selectForDeal: selectForDeal,
+      : _BrokerCustomersBody(key: ValueKey('$actor:$propertyId:$initialFilter:$selectForDeal'), propertyId: propertyId, selectForDeal: selectForDeal,
         initialFilter: initialFilter, embedded: embedded);
   }
 }

@@ -455,7 +455,7 @@ class _GeneralManagerTeamScreenState
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = ref.read(generalManagerRepositoryProvider).team());
+    setState(() { _future = ref.read(generalManagerRepositoryProvider).team(); });
     await _future;
   }
 

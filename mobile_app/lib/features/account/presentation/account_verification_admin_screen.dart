@@ -251,7 +251,7 @@ class _AccountVerificationAdminScreenState
   }
 
   void _reload() {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); });
   }
 }
 

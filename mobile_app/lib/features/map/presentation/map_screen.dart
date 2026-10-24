@@ -26,6 +26,8 @@ import '../../properties/domain/property_marker.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../discovery/presentation/smart_search_filter_editor.dart';
 import '../../properties/presentation/saved_search_builder_screen.dart';
+import '../../properties/presentation/adaptive_property_photo.dart';
+import '../../../core/network/adaptive_image_policy.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../../discovery/data/smart_search_session.dart';
 import '../../discovery/data/marketplace_repository.dart';
@@ -2494,12 +2496,7 @@ class _MapSelectionCard extends StatelessWidget {
                 height: double.infinity,
                 child: property.mainImage == null
                     ? const _PropertyImageFallback()
-                    : Image.network(
-                        property.mainImage!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const _PropertyImageFallback(),
-                      ),
+                    : AdaptivePropertyPhoto(url: property.mainImage!, use: PropertyImageUse.thumbnail),
               ),
               const SizedBox(width: 12),
               Expanded(

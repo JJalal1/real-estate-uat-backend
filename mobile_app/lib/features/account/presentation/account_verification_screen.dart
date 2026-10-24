@@ -635,7 +635,7 @@ class _AccountVerificationScreenState
       await _picker.clearTemporaryFiles(uploaded).catchError((_) {});
       if (!mounted) return;
       _application = result;
-      setState(() => _future = Future.value(result));
+      setState(() { _future = Future.value(result); });
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
@@ -711,7 +711,7 @@ class _AccountVerificationScreenState
       .toList(growable: false);
 
   void _reload() {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); });
   }
 
   void _message(String message) {

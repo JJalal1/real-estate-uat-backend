@@ -453,7 +453,7 @@ void main() {
       propertyRepositoryProvider.overrideWithValue(repo)], child: const MaterialApp(home: MyListingsScreen())));
     await tester.pumpAndSettle();
     final filter = find.text('منشورة (0)');
-    await tester.ensureVisible(filter); await tester.tap(filter); await tester.pumpAndSettle();
+    await tester.ensureVisible(filter); await tester.pumpAndSettle(); await tester.tap(filter); await tester.pumpAndSettle();
     expect(find.text('لا توجد إعلانات في هذه الحالة'), findsOneWidget);
     expect(tester.takeException(), isNull);
   }, timeout: const Timeout(Duration(seconds: 45)));

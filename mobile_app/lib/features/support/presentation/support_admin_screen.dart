@@ -18,7 +18,7 @@ class SupportAdminScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _SupportAdminBody(key: ValueKey(actor), initialKind: initialKind, initialCaseId: initialCaseId);
+      : _SupportAdminBody(key: ValueKey('$actor:$initialKind:$initialCaseId'), initialKind: initialKind, initialCaseId: initialCaseId);
   }
 }
 class _SupportAdminBody extends ConsumerStatefulWidget {

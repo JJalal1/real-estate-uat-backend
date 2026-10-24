@@ -128,8 +128,8 @@ class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
-    await _future;
+    setState(() { _future = _load(); });
+    try { await _future; } catch (_) { /* The view renders failure and retry. */ }
   }
 
   @override
@@ -435,8 +435,8 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = widget.load());
-    await _future;
+    setState(() { _future = widget.load(); });
+    try { await _future; } catch (_) { /* The view renders failure and retry. */ }
   }
 
   @override
