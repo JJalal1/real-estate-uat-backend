@@ -103,6 +103,7 @@ jobs:
           test/secondary_admin_recovery_test.dart
           test/account_tools_integration_test.dart
           test/session_lifecycle_race_test.dart
+          test/private_journey_actor_scope_test.dart
           --reporter expanded
       - name: Build UAT release APK with explicit non-production signing allowance
         working-directory: mobile_app
