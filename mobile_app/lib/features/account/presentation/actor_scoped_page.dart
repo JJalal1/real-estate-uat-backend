@@ -25,3 +25,37 @@ class ActorScopedPage extends ConsumerWidget {
       child: Builder(builder: builder));
   }
 }
+
+/// Forms initialized from private data cannot be transferred to another actor.
+/// Keep the binding even if logout and login happen before the next frame.
+class ActorBoundPage extends ConsumerStatefulWidget {
+  const ActorBoundPage({required this.title, required this.builder, super.key});
+  final String title;
+  final WidgetBuilder builder;
+  @override
+  ConsumerState<ActorBoundPage> createState() => _ActorBoundPageState();
+}
+
+class _ActorBoundPageState extends ConsumerState<ActorBoundPage> {
+  int? _actor;
+  bool _changed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(authControllerProvider, (_, next) {
+      if (_actor != null && next.asData != null && next.asData?.value?.id != _actor) {
+        setState(() => _changed = true);
+      }
+    });
+    final actor = ref.watch(authControllerProvider).asData?.value;
+    if (!_changed && _actor == null && actor != null) _actor = actor.id;
+    if (_changed) {
+      return Scaffold(appBar: AppBar(title: Text(widget.title)),
+        body: AppEmptyState(title: 'تغيّر الحساب',
+          message: 'أعد فتح هذه الصفحة من حسابك الحالي لحماية بيانات الحساب السابق.',
+          icon: Icons.account_circle_outlined, actionLabel: 'العودة',
+          onAction: () => Navigator.of(context).maybePop()));
+    }
+    return ActorScopedPage(title: widget.title, builder: widget.builder);
+  }
+}

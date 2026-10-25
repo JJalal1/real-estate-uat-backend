@@ -204,7 +204,7 @@ class _ServicesHub extends StatelessWidget {
               AppListRow(
                 title: 'مقارنة العقارات',
                 subtitle:
-                    'قارن من عقارين إلى أربعة من المفضلة في السعر والمساحة والسعي والثقة ومؤشر السوق.',
+                    'قارن عقارين من المفضلة في السعر والمساحة والسعي والثقة ومؤشر السوق.',
                 leading: const EbrokerIcon(Icons.compare_arrows_rounded),
                 trailing: const AppStatusBadge(
                   label: 'متاح الآن',
@@ -226,7 +226,7 @@ class _ServicesHub extends StatelessWidget {
           padding: EdgeInsets.zero,
           child: Column(
             children: [
-              if (model.verifiedProfessional) ...[
+              if (model.verifiedProfessional && const ['broker', 'office'].contains(model.accountType)) ...[
                 AppListRow(
                   title: 'لوحة عملي',
                   subtitle:
