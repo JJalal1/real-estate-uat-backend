@@ -7,17 +7,24 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/notification_preference_repository.dart';
 import '../data/push_registration_repository.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 
-class NotificationPreferencesScreen extends ConsumerStatefulWidget {
+class NotificationPreferencesScreen extends StatelessWidget {
   const NotificationPreferencesScreen({super.key});
-
   @override
-  ConsumerState<NotificationPreferencesScreen> createState() =>
+  Widget build(BuildContext context) => ActorScopedPage(
+    title: 'تفضيلات الإشعارات', builder: (_) => const _NotificationPreferencesPage());
+}
+
+class _NotificationPreferencesPage extends ConsumerStatefulWidget {
+  const _NotificationPreferencesPage();
+  @override
+  ConsumerState<_NotificationPreferencesPage> createState() =>
       _NotificationPreferencesScreenState();
 }
 
 class _NotificationPreferencesScreenState
-    extends ConsumerState<NotificationPreferencesScreen> {
+    extends ConsumerState<_NotificationPreferencesPage> {
   NotificationPreferences? _draft;
   bool _saving = false;
   bool _enablingPush = false;
@@ -90,7 +97,7 @@ class _NotificationPreferencesScreenState
                   title: 'الرسائل',
                   subtitle: 'رسالة جديدة في محادثة عقارية.',
                   value: value.messages,
-                  onChanged: (enabled) => _change(
+                  onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(messages: enabled),
                   ),
                 ),
@@ -100,7 +107,7 @@ class _NotificationPreferencesScreenState
                   title: 'نشاط إعلاناتي',
                   subtitle: 'تحديثات ومراجعات مرتبطة بإعلاناتك العقارية.',
                   value: value.listingActivity,
-                  onChanged: (enabled) => _change(
+                  onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(listingActivity: enabled),
                   ),
                 ),
@@ -111,7 +118,7 @@ class _NotificationPreferencesScreenState
                   subtitle:
                       'عقار جديد يطابق بحثًا محفوظًا أو تغيّر سعر عقار في المفضلة.',
                   value: value.discoveryAlerts,
-                  onChanged: (enabled) => _change(
+                  onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(discoveryAlerts: enabled),
                   ),
                 ),
@@ -121,7 +128,7 @@ class _NotificationPreferencesScreenState
                   title: 'الخدمات',
                   subtitle: 'تحديثات الخدمات الاختيارية داخل التطبيق.',
                   value: value.services,
-                  onChanged: (enabled) => _change(
+                  onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(services: enabled),
                   ),
                 ),
@@ -210,7 +217,7 @@ class _PreferenceCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
