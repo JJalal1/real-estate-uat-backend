@@ -1015,11 +1015,11 @@ class _ActionPanel extends StatelessWidget {
                       Text(subtitle)
                     ])),
                 const SizedBox(width: 8),
-                Column(children: [
+                Flexible(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const EbrokerIcon(Icons.chevron_left),
-                  Text(actionLabel,
+                  Text(actionLabel, textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.labelSmall)
-                ]),
+                ])),
               ]))));
 }
 

@@ -173,7 +173,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
 
   Widget _filters(bool manager) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
         child: Column(

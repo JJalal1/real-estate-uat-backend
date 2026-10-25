@@ -118,6 +118,7 @@ void main() {
           dioProvider.overrideWithValue(dio),
         ]);
         addTearDown(() {container.dispose();dio.close(force:true);});
+        addTearDown(() async { await tester.pumpWidget(const SizedBox.shrink()); await tester.pump(); });
         await container.read(authControllerProvider.future);
         await tester.pumpWidget(UncontrolledProviderScope(container:container,child:MaterialApp(
           theme:dark?AppTheme.dark:AppTheme.light,
@@ -128,6 +129,9 @@ void main() {
         expect(calls,greaterThan(0),reason:'An active data page must make its expected read');
         expect(tester.takeException(),isNull);
         gate.complete();await _frames(tester);
+        if (find.textContaining('الخادم غير متاح مؤقتاً').evaluate().isEmpty) {
+          await tester.scrollUntilVisible(find.textContaining('الخادم غير متاح مؤقتاً').first, 300, maxScrolls: 15);
+        }
         expect(find.textContaining('الخادم غير متاح مؤقتاً'),findsWidgets);
         expect(find.textContaining('DioException'),findsNothing);
         expect(tester.takeException(),isNull);
