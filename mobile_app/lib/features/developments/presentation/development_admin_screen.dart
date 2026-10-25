@@ -108,12 +108,14 @@ class _DevelopmentAdminScreenState
     if (_error != null && !_hasLoaded) {
       return AppErrorState(message: _error!, onRetry: _load);
     }
-    if (_developers.isEmpty && _projects.isEmpty) return Column(children: [
-      AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
-      Expanded(child: AppEmptyState(title: 'لا يوجد مطورون أو مشاريع بعد',
-        message: canManage ? 'استخدم إضافة لإنشاء أول سجل.' : 'ستظهر السجلات المتاحة هنا.',
-        actionLabel: 'تحديث', onAction: _load)),
-    ]);
+    if (_developers.isEmpty && _projects.isEmpty) {
+      return Column(children: [
+        AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
+        Expanded(child: AppEmptyState(title: 'لا يوجد مطورون أو مشاريع بعد',
+          message: canManage ? 'استخدم إضافة لإنشاء أول سجل.' : 'ستظهر السجلات المتاحة هنا.',
+          actionLabel: 'تحديث', onAction: _load)),
+      ]);
+    }
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
