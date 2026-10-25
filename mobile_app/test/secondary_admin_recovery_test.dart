@@ -93,6 +93,8 @@ void main() {
       expect(find.textContaining('DioException'), findsNothing);
       settings.onRead = () async => [];
       developments.onRead = () async => [];
+      await tester.ensureVisible(find.text('إعادة المحاولة'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('إعادة المحاولة'));
       await tester.pumpAndSettle();
       expect(find.byType(AppEmptyState), findsOneWidget);

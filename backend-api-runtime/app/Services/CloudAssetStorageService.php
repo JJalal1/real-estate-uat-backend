@@ -498,7 +498,9 @@ class CloudAssetStorageService
     private function delete(string $path, bool $private): void
     {
         if (! $this->cloudEnabled()) {
-            Storage::disk($private ? 'local' : 'public')->delete($path);
+            if (! Storage::disk($private ? 'local' : 'public')->delete($path)) {
+                throw new RuntimeException('Local storage delete failed.');
+            }
             return;
         }
 
