@@ -129,6 +129,7 @@ Future<void> _page(WidgetTester tester, _Harness h, String kind) async {
       'Private account A report');
   } else {
     final action = find.text(kind == 'agreement' ? 'اقتراح شروط جديدة' : 'اقتراح بنود جديدة');
+    await tester.scrollUntilVisible(action, 300, scrollable: find.byType(Scrollable).first);
     await tester.ensureVisible(action); await tester.tap(action); await tester.pumpAndSettle();
   }
 }
