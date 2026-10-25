@@ -96,10 +96,10 @@ Future<T?> showActorDialog<T>({required BuildContext context, required WidgetRef
 }
 
 Future<T?> showActorModalBottomSheet<T>({required BuildContext context, required WidgetRef ref,
-  required WidgetBuilder builder, bool isScrollControlled = false}) {
+  required WidgetBuilder builder, bool isScrollControlled = false, bool useSafeArea = false}) {
   final actor = ref.read(authControllerProvider).asData?.value?.id;
   if (actor == null) return Future<T?>.value();
-  return showModalBottomSheet<T>(context: context, isScrollControlled: isScrollControlled,
+  return showModalBottomSheet<T>(context: context, isScrollControlled: isScrollControlled, useSafeArea: useSafeArea,
     builder: (_) => _accountOverlay(actor: actor, builder: builder,
       changed: (sheet) => SafeArea(child: Padding(padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [

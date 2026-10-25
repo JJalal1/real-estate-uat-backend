@@ -49,6 +49,9 @@ class _Harness {
   final agreement = <String, dynamic>{'id': 37, 'reference': 'Synthetic agreement A',
     'property_id': 41, 'message_thread_id': 10, 'status': 'draft', 'can_revise': true,
     'current_revision': {'id': 3, 'agreed_amount': 100, 'currency': 'YER',
+      'rent_amount': 100,
+      'start_date': DateTime.now().add(const Duration(days: 7)).toIso8601String().substring(0, 10),
+      'end_date': DateTime.now().add(const Duration(days: 372)).toIso8601String().substring(0, 10),
       'conditions': 'Private account A terms', 'additional_terms': 'Private account A terms'}};
 
   Future<void> start() async {
@@ -176,5 +179,18 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+  }
+  for (final kind in ['agreement', 'contract']) {
+    testWidgets('$kind late date selection cannot update an expired form', (tester) async {
+      final h = await _harness(); await _page(tester, h, kind);
+      final start = find.textContaining(kind == 'agreement' ? 'بداية الإيجار المقترحة' : 'بداية الإيجار:');
+      await tester.ensureVisible(start); await tester.tap(start); await tester.pumpAndSettle();
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+      h.change(2); await tester.pumpAndSettle();
+      expect(find.text('Private account A terms'), findsNothing);
+      await tester.tap(find.text('OK')); await tester.pumpAndSettle();
+      expect(find.text('تغيّر الحساب'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
   }
 }
