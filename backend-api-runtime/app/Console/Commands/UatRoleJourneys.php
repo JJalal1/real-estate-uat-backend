@@ -276,6 +276,11 @@ class UatRoleJourneys extends Command
         $case = (int) $report->json('data.id');
         $this->wire('publisher_cannot_read_other_report','publisher','GET','/api/support/cases/'.$case,[],404);
         $this->wire('regular_cannot_review_report','other','GET','/api/admin/support/cases/'.$case,[],403);
+        $this->wire('unclaimed_report_review_denied','reviewer','POST','/api/admin/support/cases/'.$case.'/start',[],409);
+        $queue = $this->wire('reviewer_reads_report_queue','reviewer','GET','/api/admin/workspace/tasks?scope=inbox&type=report&per_page=100');
+        $task = collect($queue->json('data'))->first(fn ($row) => (int)($row['source_id'] ?? 0) === $case && ($row['source_type'] ?? '') === 'report');
+        $this->check($task !== null,'report_is_in_shared_queue');
+        $this->wire('reviewer_claims_report','reviewer','POST','/api/admin/workspace/tasks/'.(int)$task['id'].'/claim');
         $this->wire('reviewer_starts_report','reviewer','POST','/api/admin/support/cases/'.$case.'/start');
         $this->wire('reviewer_resolves_report','reviewer','PATCH','/api/admin/support/cases/'.$case.'/status',['status'=>'resolved']);
         $resolved = $this->wire('reporter_reads_resolution','other','GET','/api/support/cases/'.$case);
