@@ -105,6 +105,7 @@ jobs:
           test/session_lifecycle_race_test.dart
           test/saved_search_persistence_ui_test.dart
           test/private_journey_actor_scope_test.dart
+          test/buyer_loading_recovery_test.dart
           --reporter expanded
       - name: Build UAT release APK with explicit non-production signing allowance
         working-directory: mobile_app

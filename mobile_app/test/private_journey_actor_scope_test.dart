@@ -183,7 +183,8 @@ void main() {
   for (final kind in ['agreement', 'contract']) {
     testWidgets('$kind late date selection cannot update an expired form', (tester) async {
       final h = await _harness(); await _page(tester, h, kind);
-      final start = find.textContaining(kind == 'agreement' ? 'بداية الإيجار المقترحة' : 'بداية الإيجار:');
+      final start = find.descendant(of: find.byType(BottomSheet), matching:
+        find.textContaining(kind == 'agreement' ? 'بداية الإيجار المقترحة' : 'بداية الإيجار:'));
       await tester.ensureVisible(start); await tester.tap(start); await tester.pumpAndSettle();
       expect(find.byType(DatePickerDialog), findsOneWidget);
       h.change(2); await tester.pumpAndSettle();

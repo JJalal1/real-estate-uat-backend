@@ -49,7 +49,9 @@ class _ActorBoundPageState extends ConsumerState<ActorBoundPage> {
     });
     final actor = ref.watch(authControllerProvider).asData?.value;
     if (!_changed && _actor == null && actor != null) _actor = actor.id;
-    if (_changed) {
+    // Keep the normal guest entry state after logout. A later login still
+    // cannot reuse this page's old private form, even with the same user ID.
+    if (_changed && actor != null) {
       return Scaffold(appBar: AppBar(title: Text(widget.title)),
         body: AppEmptyState(title: 'تغيّر الحساب',
           message: 'أعد فتح هذه الصفحة من حسابك الحالي لحماية بيانات الحساب السابق.',
