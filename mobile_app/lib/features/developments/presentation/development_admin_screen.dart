@@ -2,21 +2,33 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../data/development_repository.dart';
 import '../domain/development_models.dart';
 
-class DevelopmentAdminScreen extends ConsumerStatefulWidget {
+class DevelopmentAdminScreen extends ConsumerWidget {
   const DevelopmentAdminScreen({super.key});
 
   @override
-  ConsumerState<DevelopmentAdminScreen> createState() =>
+  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(
+    title: 'إدارة المطورين والمشاريع', builder: (_) => const _DevelopmentAdminForActor());
+}
+
+class _DevelopmentAdminForActor extends ConsumerStatefulWidget {
+  const _DevelopmentAdminForActor();
+  @override
+  ConsumerState<_DevelopmentAdminForActor> createState() =>
       _DevelopmentAdminScreenState();
 }
 
 class _DevelopmentAdminScreenState
-    extends ConsumerState<DevelopmentAdminScreen> {
+    extends ConsumerState<_DevelopmentAdminForActor> {
   bool _loading = true;
+  bool _hasLoaded = false;
+  int _generation = 0;
   String? _error;
   List<DeveloperSummary> _developers = const [];
   List<DevelopmentSummary> _projects = const [];
@@ -28,6 +40,8 @@ class _DevelopmentAdminScreenState
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
+    final generation = ++_generation;
     setState(() {
       _loading = true;
       _error = null;
@@ -35,22 +49,25 @@ class _DevelopmentAdminScreenState
     try {
       final repo = ref.read(developmentRepositoryProvider);
       final developers = await repo.adminDevelopers();
+      if (!mounted || generation != _generation) return;
       final projects = await repo.adminProjects();
-      if (!mounted) {
-        return;
-      }
+      if (!mounted || generation != _generation) return;
       setState(() {
         _developers = developers;
         _projects = projects;
+        _hasLoaded = true;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted || generation != _generation) return;
       setState(() {
-        _error = error.toString();
+        _error = friendlyApiError(error);
         _loading = false;
+        if (!isTransientApiFailure(error)) {
+          _hasLoaded = false;
+          _developers = const [];
+          _projects = const [];
+        }
       });
     }
   }
@@ -69,7 +86,7 @@ class _DevelopmentAdminScreenState
         appBar: AppBar(
           title: const Text('إدارة المطورين والمشاريع'),
           actions: [
-            IconButton(onPressed: _load, icon: const EbrokerIcon(Icons.refresh)),
+            IconButton(tooltip: 'تحديث المطورين والمشاريع', onPressed: _loading ? null : _load, icon: const EbrokerIcon(Icons.refresh)),
           ],
         ),
         floatingActionButton: canManage
@@ -85,15 +102,24 @@ class _DevelopmentAdminScreenState
   }
 
   Widget _body({required bool canManage, required bool canPublish}) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+    if (_loading && !_hasLoaded) {
+      return const AppLoadingState(label: 'جارٍ تحميل المطورين والمشاريع…');
     }
-    if (_error != null) {
-      return Center(child: Text(_error!));
+    if (_error != null && !_hasLoaded) {
+      return AppErrorState(message: _error!, onRetry: _load);
+    }
+    if (_developers.isEmpty && _projects.isEmpty) {
+      return Column(children: [
+        AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
+        Expanded(child: AppEmptyState(title: 'لا يوجد مطورون أو مشاريع بعد',
+          message: canManage ? 'استخدم إضافة لإنشاء أول سجل.' : 'ستظهر السجلات المتاحة هنا.',
+          actionLabel: 'تحديث', onAction: _load)),
+      ]);
     }
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
         Text(
           'المطورون (${_developers.length})',
           style: Theme.of(context)
@@ -251,7 +277,7 @@ class _DevelopmentAdminScreenState
         return;
       }
       messenger.showSnackBar(
-        SnackBar(content: Text('تعذر الحفظ: $error')),
+        SnackBar(content: Text(friendlyApiError(error))),
       );
     }
   }
@@ -341,7 +367,7 @@ class _DevelopmentAdminScreenState
         return;
       }
       messenger.showSnackBar(
-        SnackBar(content: Text('تعذر الحفظ: $error')),
+        SnackBar(content: Text(friendlyApiError(error))),
       );
     }
   }
@@ -416,7 +442,7 @@ class _DevelopmentAdminScreenState
         return;
       }
       messenger.showSnackBar(
-        SnackBar(content: Text('تعذر إضافة الوحدة: $error')),
+        SnackBar(content: Text(friendlyApiError(error))),
       );
     }
   }
@@ -442,7 +468,7 @@ class _DevelopmentAdminScreenState
         return;
       }
       messenger.showSnackBar(
-        SnackBar(content: Text('تعذر تنفيذ العملية: $error')),
+        SnackBar(content: Text(friendlyApiError(error))),
       );
     }
   }
