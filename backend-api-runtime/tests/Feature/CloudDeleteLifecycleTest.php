@@ -53,8 +53,9 @@ class CloudDeleteLifecycleTest extends TestCase
     public function test_bucket_or_authorization_errors_are_never_treated_as_successful_object_deletion(): void
     {
         $this->cloud();
+        Http::fake([$this->bucketUrl()=>Http::sequence()
+            ->push([],400)->push([],403)->push([],404)->push([],500)]);
         foreach ([400,403,404,500] as $status) {
-            Http::fake([$this->bucketUrl()=>Http::response([], $status)]);
             try {
                 app(CloudAssetStorageService::class)->deletePrivate('proofs/synthetic.jpg');
                 $this->fail('Provider error must not acknowledge deletion.');
@@ -62,6 +63,7 @@ class CloudDeleteLifecycleTest extends TestCase
                 $this->assertStringContainsString('HTTP '.$status, $error->getMessage());
             }
         }
+        Http::assertSentCount(4);
     }
 
     private function cloud(): void
