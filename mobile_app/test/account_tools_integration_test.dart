@@ -20,6 +20,12 @@ import 'package:real_estate_mobile/features/services/presentation/property_journ
 import 'package:real_estate_mobile/features/services/presentation/services_screen.dart';
 import 'package:real_estate_mobile/features/messages/data/message_repository.dart';
 import 'package:real_estate_mobile/features/agreements/data/agreement_repository.dart';
+import 'package:real_estate_mobile/features/account/presentation/actor_scoped_page.dart';
+import 'package:real_estate_mobile/features/financial/data/financial_repository.dart';
+import 'package:real_estate_mobile/features/financial/domain/financial_models.dart';
+import 'package:real_estate_mobile/features/financial/presentation/deal_financial_screen.dart';
+import 'package:real_estate_mobile/features/financial/presentation/financial_account_screen.dart';
+import 'package:real_estate_mobile/features/financial/presentation/receivable_payment_screen.dart';
 
 AuthUser _user(int id) => AuthUser.fromJson({
   'id': id, 'name': 'Synthetic account $id', 'account_status': 'active',
@@ -57,7 +63,7 @@ class _Harness {
   int favoriteCount = 1;
   String? publisherType;
 
-  Future<void> start() async {
+  Future<void> start({FinancialRepository? financial}) async {
     dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) async {
       calls.add(request);
       if (request.method == 'PATCH') {
@@ -100,6 +106,7 @@ class _Harness {
       authRepositoryProvider.overrideWithValue(credentials),
       dioProvider.overrideWithValue(dio),
       pushCapabilityProvider.overrideWith((_) async => false),
+      if (financial != null) financialRepositoryProvider.overrideWithValue(financial),
     ]);
     await container.read(authControllerProvider.future);
   }
@@ -108,11 +115,30 @@ class _Harness {
   void close() { container.dispose(); dio.close(force: true); }
 }
 
-Future<_Harness> _harness() async {
+Future<_Harness> _harness({FinancialRepository? financial}) async {
   final harness = _Harness();
-  await harness.start();
+  await harness.start(financial: financial);
   addTearDown(harness.close);
   return harness;
+}
+
+class _HeldFinancial implements FinancialRepository {
+  final dealResponse = Completer<FinancialDeal>();
+  final paymentsResponse = Completer<List<FinancialPayment>>();
+  int accountCalls = 0;
+  @override
+  Future<FinancialDeal> deal(int id) => dealResponse.future;
+  @override
+  Future<FinancialDeal> receivableDeal(int id) => dealResponse.future;
+  @override
+  Future<List<FinancialPayment>> paymentsMine() => paymentsResponse.future;
+  @override
+  Future<FinancialAdvertiserAccount> advertiserAccount() async {
+    accountCalls++;
+    return FinancialAdvertiserAccount.fromJson({});
+  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
 }
 
 Future<void> _preferences(WidgetTester tester, _Harness h) async {
@@ -226,16 +252,18 @@ void main() {
     expect(tester.widgetList<SwitchListTile>(find.byType(SwitchListTile)).every((w) => w.onChanged != null), isTrue);
   });
 
-  test('logout and login to the same ID still expires a retained repository', () async {
+  for (final pump in [false, true]) {
+  test('logout and login to the same ID still expires a retained repository (frame=$pump)', () async {
     final h = await _harness();
     h.container.listen(notificationPreferenceRepositoryProvider, (_, __) {});
     final previous = h.container.read(notificationPreferenceRepositoryProvider);
     h.change(null);
-    await h.container.pump();
+    if (pump) await h.container.pump();
     h.change(1);
     await expectLater(previous.update({'messages': false}), throwsStateError);
     expect(h.calls, isEmpty);
   });
+  }
 
   test('guest tools do not issue a private HTTP request', () async {
     final h = await _harness();
@@ -337,4 +365,66 @@ void main() {
     expect(displayed.every((w) => w.onChanged != null), isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  test('retained financial repository cannot send a payment request as the next account', () async {
+    final h = await _harness();
+    final previous = h.container.read(financialRepositoryProvider);
+    h.change(2);
+    await expectLater(previous.createPayment(agreementId: 123,
+      mode: 'platform_full', paymentMethodId: 1), throwsStateError);
+    expect(h.calls, isEmpty);
+  });
+
+  for (final page in ['account', 'deal', 'receivable']) {
+    testWidgets('private financial $page page rejects an account change and late data', (tester) async {
+      final financial = _HeldFinancial();
+      final h = await _harness(financial: financial);
+      final Widget screen = switch (page) {
+        'account' => const FinancialAccountScreen(),
+        'deal' => const DealFinancialScreen(agreementId: 123),
+        _ => const ReceivablePaymentScreen(receivableId: 456,
+          remainingAmount: 100, currency: 'YER', propertyTitle: 'Private property A'),
+      };
+      await tester.pumpWidget(UncontrolledProviderScope(container: h.container,
+        child: MaterialApp(home: screen)));
+      await tester.pump();
+      h.change(2);
+      financial.dealResponse.complete(FinancialDeal.fromJson({'property_title': 'Private property A'}));
+      financial.paymentsResponse.complete([]);
+      await tester.pumpAndSettle();
+      expect(find.text('تغيّر الحساب'), findsOneWidget);
+      expect(find.text('Private property A'), findsNothing);
+      expect(financial.accountCalls, 0, reason: 'The old account request chain must stop.');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final sheet in [false, true]) {
+    testWidgets('private ${sheet ? 'sheet' : 'dialog'} stays redacted across same-frame logout/login', (tester) async {
+      final h = await _harness();
+      await tester.pumpWidget(UncontrolledProviderScope(container: h.container,
+        child: MaterialApp(home: Consumer(builder: (context, ref, _) => Scaffold(body: TextButton(
+          onPressed: () {
+            Widget content(BuildContext _) => const Padding(padding: EdgeInsets.all(24),
+              child: Text('Private payment A'));
+            if (sheet) {
+              showActorModalBottomSheet<void>(context: context, ref: ref, builder: content);
+            } else {
+              showActorDialog<void>(context: context, ref: ref,
+                builder: (_) => AlertDialog(content: content(context)));
+            }
+          }, child: const Text('Open private overlay')))))));
+      await tester.tap(find.text('Open private overlay'));
+      await tester.pumpAndSettle();
+      expect(find.text('Private payment A'), findsOneWidget);
+      h.change(null);
+      h.change(1);
+      await tester.pumpAndSettle();
+      expect(find.text('Private payment A'), findsNothing);
+      expect(find.text('تغيّر الحساب'), findsOneWidget);
+      await tester.tap(find.text('إغلاق'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

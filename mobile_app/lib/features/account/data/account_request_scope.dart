@@ -8,6 +8,9 @@ import 'auth_repository.dart';
 final accountRequestScopeProvider = Provider<AccountRequestScope>((ref) {
   final actor = ref.watch(authControllerProvider.select((s) => s.asData?.value?.id));
   var alive = true;
+  ref.listen(authControllerProvider.select((s) => s.asData?.value?.id), (_, next) {
+    if (next != actor) alive = false;
+  });
   ref.onDispose(() => alive = false);
   return AccountRequestScope(ref.watch(authRepositoryProvider),
     isCurrent: () => alive && actor != null &&
@@ -19,9 +22,10 @@ class AccountRequestScope {
     : _isCurrent = isCurrent;
   final AuthRepository _auth;
   final bool Function() _isCurrent;
+  bool get isCurrent => _isCurrent();
 
   void verify() {
-    if (!_isCurrent()) throw StateError('ACCOUNT_CHANGED');
+    if (!isCurrent) throw StateError('ACCOUNT_CHANGED');
   }
 
   Future<Options> options() async {
