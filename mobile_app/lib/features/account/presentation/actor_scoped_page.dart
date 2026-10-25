@@ -86,10 +86,10 @@ class _ActorBoundOverlayState extends ConsumerState<_ActorBoundOverlay> {
 }
 
 Future<T?> showActorDialog<T>({required BuildContext context, required WidgetRef ref,
-  required WidgetBuilder builder}) {
+  required WidgetBuilder builder, bool barrierDismissible = true}) {
   final actor = ref.read(authControllerProvider).asData?.value?.id;
   if (actor == null) return Future<T?>.value();
-  return showDialog<T>(context: context, builder: (_) => _accountOverlay(actor: actor,
+  return showDialog<T>(context: context, barrierDismissible: barrierDismissible, builder: (_) => _accountOverlay(actor: actor,
     builder: builder, changed: (dialog) => AlertDialog(title: const Text('تغيّر الحساب'),
       content: const Text('أغلق النافذة وأعد فتح العملية من حسابك الحالي.'),
       actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('إغلاق'))])));

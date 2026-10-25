@@ -318,7 +318,7 @@ class _ReceivablePaymentScreenState
               senderPhone: phone.text,
               providerReference: reference.text,
             );
-        if (_valid) {
+        if (mounted && _valid) {
           _message(
               'جارٍ التحقق من الدفع. تم استلام الإثبات، لا تدفع مرة أخرى لهذه العملية حتى تصلك النتيجة.');
           Navigator.of(context).pop(true);
