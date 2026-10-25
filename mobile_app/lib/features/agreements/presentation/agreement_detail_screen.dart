@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart' show AppErrorState, AppRefreshStatus, AppLoadingState;
 import '../../account/presentation/actor_scoped_page.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../financial/presentation/deal_financial_screen.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
@@ -15,7 +16,7 @@ class AgreementDetailScreen extends ConsumerWidget {
   const AgreementDetailScreen({required this.agreementId, super.key});
   final int agreementId;
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(title: 'تفاصيل الاتفاق', builder: (_) =>
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(title: 'تفاصيل الاتفاق', builder: (_) =>
     _AgreementDetailScreenForActor(key: ValueKey(agreementId), agreementId: agreementId));
 }
 
@@ -33,22 +34,25 @@ class _AgreementDetailPageState extends ConsumerState<_AgreementDetailScreenForA
   bool _busy = false;
   String? _error;
   int _generation = 0;
+  late final AccountRequestScope _scope;
 
   @override
   void initState() {
     super.initState();
+    _scope = ref.read(accountRequestScopeProvider);
     Future.microtask(_load);
   }
 
   Future<void> _load() async {
+    if (!mounted || !_scope.isCurrent) return;
     final generation = ++_generation;
-    if (mounted) setState(() { _loading = true; _error = null; });
+    if (mounted && _scope.isCurrent) setState(() { _loading = true; _error = null; });
     try {
       final value = await ref.read(agreementRepositoryProvider).agreement(widget.agreementId);
-      if (!mounted || generation != _generation) return;
+      if (!mounted || !_scope.isCurrent || generation != _generation) return;
       setState(() { _agreement = value; _loading = false; _error = null; });
     } catch (error) {
-      if (!mounted || generation != _generation) return;
+      if (!mounted || !_scope.isCurrent || generation != _generation) return;
       setState(() {
         if (!isTransientApiFailure(error)) { _agreement = null; }
         _loading = false; _error = friendlyApiError(error);
@@ -57,6 +61,7 @@ class _AgreementDetailPageState extends ConsumerState<_AgreementDetailScreenForA
   }
 
   Future<void> _accept() async {
+    if (!mounted || !_scope.isCurrent) return;
     final agreement = _agreement;
     if (agreement == null || _busy || _loading || _error != null) return;
     setState(() => _busy = true);
@@ -65,7 +70,7 @@ class _AgreementDetailPageState extends ConsumerState<_AgreementDetailScreenForA
             agreement.id,
             agreement.currentRevision.id,
           );
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _agreement = updated);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -74,77 +79,81 @@ class _AgreementDetailPageState extends ConsumerState<_AgreementDetailScreenForA
             : 'تم تسجيل قبولك لهذه النسخة. بانتظار الطرف الآخر.'),
       ));
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
         await _load();
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<void> _revise() async {
+    if (!mounted || !_scope.isCurrent) return;
     final agreement = _agreement;
     if (agreement == null || _busy || _loading || _error != null) return;
-    final terms = await showAgreementTermsSheet(context, current: agreement.currentRevision);
-    if (terms == null || !mounted) return;
+    final terms = await showAgreementTermsSheet(context, ref: ref, current: agreement.currentRevision);
+    if (terms == null || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final updated = await ref.read(agreementRepositoryProvider).reviseAgreement(agreement.id, terms);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _agreement = updated);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم إنشاء نسخة جديدة. يحتاج الطرفان إلى قبولها من جديد.')),
       );
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<void> _cancel() async {
+    if (!mounted || !_scope.isCurrent) return;
     final agreement = _agreement;
     if (agreement == null || _busy || _loading || _error != null) return;
     final reason = await _reasonDialog('إلغاء مسودة الاتفاق');
-    if (reason == null || !mounted) return;
+    if (reason == null || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final updated = await ref.read(agreementRepositoryProvider).cancelAgreement(agreement.id, reason);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _agreement = updated);
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<void> _createRentalContract() async {
+    if (!mounted || !_scope.isCurrent) return;
     final agreement = _agreement;
     if (agreement == null || !agreement.isRental || !agreement.isAccepted || _busy || _loading || _error != null) return;
-    final terms = await showRentalContractTermsSheet(context, fromAgreement: agreement.currentRevision);
-    if (terms == null || !mounted) return;
+    final terms = await showRentalContractTermsSheet(context, ref: ref, fromAgreement: agreement.currentRevision);
+    if (terms == null || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final contract = await ref.read(agreementRepositoryProvider).startRentalContract(agreement.id, terms);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
       await _load();
-      if (mounted) await context.push('/rental-contracts/${contract.id}');
+      if (mounted && _scope.isCurrent) await context.push('/rental-contracts/${contract.id}');
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<String?> _reasonDialog(String title) async {
+    if (!mounted || !_scope.isCurrent) return null;
     final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
+    final result = await showActorDialog<String>(
+      context: context, ref: ref,
       builder: (dialogContext) => AlertDialog(
         title: Text(title),
         content: TextField(

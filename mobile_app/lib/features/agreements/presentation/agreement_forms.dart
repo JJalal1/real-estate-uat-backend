@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 
 import '../domain/agreement_models.dart';
 
 Future<Map<String, dynamic>?> showAgreementTermsSheet(
   BuildContext context, {
+  required WidgetRef ref,
   AgreementRevision? current,
 }) {
-  return showModalBottomSheet<Map<String, dynamic>>(
-    context: context,
+  return showActorModalBottomSheet<Map<String, dynamic>>(
+    context: context, ref: ref,
     isScrollControlled: true,
     useSafeArea: true,
     builder: (_) => _AgreementTermsForm(current: current),
@@ -17,11 +20,12 @@ Future<Map<String, dynamic>?> showAgreementTermsSheet(
 
 Future<Map<String, dynamic>?> showRentalContractTermsSheet(
   BuildContext context, {
+  required WidgetRef ref,
   AgreementRevision? fromAgreement,
   RentalContractRevision? current,
 }) {
-  return showModalBottomSheet<Map<String, dynamic>>(
-    context: context,
+  return showActorModalBottomSheet<Map<String, dynamic>>(
+    context: context, ref: ref,
     isScrollControlled: true,
     useSafeArea: true,
     builder: (_) => _RentalContractTermsForm(
@@ -84,7 +88,7 @@ class _AgreementTermsFormState extends State<_AgreementTermsForm> {
       firstDate: DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 3650)),
     );
-    if (value != null) setState(() => _start = value);
+    if (mounted && value != null) setState(() => _start = value);
   }
 
   Future<void> _pickEnd() async {
@@ -95,7 +99,7 @@ class _AgreementTermsFormState extends State<_AgreementTermsForm> {
       firstDate: base.add(const Duration(days: 1)),
       lastDate: base.add(const Duration(days: 3650)),
     );
-    if (value != null) setState(() => _end = value);
+    if (mounted && value != null) setState(() => _end = value);
   }
 
   void _submit() {
@@ -176,7 +180,7 @@ class _AgreementTermsFormState extends State<_AgreementTermsForm> {
                     DropdownMenuItem(value: 'annual', child: Text('سنوي')),
                   ],
                   onChanged: (value) {
-                    if (value != null) setState(() => _cadence = value);
+                    if (mounted && value != null) setState(() => _cadence = value);
                   },
                 ),
                 const SizedBox(height: 12),
@@ -291,7 +295,7 @@ class _RentalContractTermsFormState extends State<_RentalContractTermsForm> {
       firstDate: start ? DateTime.now().subtract(const Duration(days: 1)) : base.add(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 3650)),
     );
-    if (value != null) setState(() => start ? _start = value : _end = value);
+    if (mounted && value != null) setState(() => start ? _start = value : _end = value);
   }
 
   void _submit() {
@@ -368,7 +372,7 @@ class _RentalContractTermsFormState extends State<_RentalContractTermsForm> {
                     DropdownMenuItem(value: 'annual', child: Text('سنوي')),
                   ],
                   onChanged: (value) {
-                    if (value != null) setState(() => _cadence = value);
+                    if (mounted && value != null) setState(() => _cadence = value);
                   },
                 ),
                 const SizedBox(height: 12),

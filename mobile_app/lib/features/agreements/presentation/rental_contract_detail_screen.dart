@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart' show AppErrorState, AppRefreshStatus, AppLoadingState;
 import '../../account/presentation/actor_scoped_page.dart';
+import '../../account/data/account_request_scope.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
 import 'agreement_forms.dart';
@@ -14,7 +15,7 @@ class RentalContractDetailScreen extends ConsumerWidget {
   const RentalContractDetailScreen({required this.contractId, super.key});
   final int contractId;
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(title: 'عقد الإيجار داخل التطبيق', builder: (_) =>
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(title: 'عقد الإيجار داخل التطبيق', builder: (_) =>
     _RentalContractDetailScreenForActor(key: ValueKey(contractId), contractId: contractId));
 }
 
@@ -34,28 +35,31 @@ class _RentalContractPageState
   bool _busy = false;
   String? _error;
   int _generation = 0;
+  late final AccountRequestScope _scope;
 
   @override
   void initState() {
     super.initState();
+    _scope = ref.read(accountRequestScopeProvider);
     Future.microtask(_load);
   }
 
   Future<void> _load() async {
+    if (!mounted || !_scope.isCurrent) return;
     final generation = ++_generation;
-    if (mounted) setState(() { _loading = true; _error = null; });
+    if (mounted && _scope.isCurrent) setState(() { _loading = true; _error = null; });
     try {
       final value = await ref
           .read(agreementRepositoryProvider)
           .contract(widget.contractId);
-      if (!mounted || generation != _generation) return;
+      if (!mounted || !_scope.isCurrent || generation != _generation) return;
       setState(() {
         _contract = value;
         _loading = false;
         _error = null;
       });
     } catch (error) {
-      if (!mounted || generation != _generation) return;
+      if (!mounted || !_scope.isCurrent || generation != _generation) return;
       setState(() {
         if (!isTransientApiFailure(error)) { _contract = null; }
         _loading = false;
@@ -65,6 +69,7 @@ class _RentalContractPageState
   }
 
   Future<void> _accept() async {
+    if (!mounted || !_scope.isCurrent) return;
     final contract = _contract;
     if (contract == null || _busy || _loading || _error != null) return;
     setState(() => _busy = true);
@@ -72,7 +77,7 @@ class _RentalContractPageState
       final updated = await ref
           .read(agreementRepositoryProvider)
           .acceptRentalContract(contract.id, contract.currentRevision.id);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _contract = updated);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -83,31 +88,32 @@ class _RentalContractPageState
         ),
       );
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
         await _load();
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<void> _revise() async {
+    if (!mounted || !_scope.isCurrent) return;
     final contract = _contract;
     if (contract == null || _busy || _loading || _error != null) return;
     final terms = await showRentalContractTermsSheet(
-      context,
+      context, ref: ref,
       current: contract.currentRevision,
     );
-    if (terms == null || !mounted) return;
+    if (terms == null || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final updated = await ref
           .read(agreementRepositoryProvider)
           .reviseRentalContract(contract.id, terms);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _contract = updated);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,47 +124,49 @@ class _RentalContractPageState
         ),
       );
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<void> _cancel() async {
+    if (!mounted || !_scope.isCurrent) return;
     final contract = _contract;
     if (contract == null || _busy || _loading || _error != null) return;
     final reason = await _reasonDialog('إلغاء مسودة عقد الإيجار');
-    if (reason == null || !mounted) return;
+    if (reason == null || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final updated = await ref
           .read(agreementRepositoryProvider)
           .cancelRentalContract(contract.id, reason);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _contract = updated);
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<void> _terminate() async {
+    if (!mounted || !_scope.isCurrent) return;
     final contract = _contract;
     if (contract == null || _busy || _loading || _error != null) return;
     final reason = await _reasonDialog('تسجيل انتهاء عقد الإيجار داخل التطبيق');
-    if (reason == null || !mounted) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
+    if (reason == null || !mounted || !_scope.isCurrent) return;
+    final confirmed = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (dialogContext) => AlertDialog(
         title: const Text('تأكيد تسجيل الانتهاء'),
         content: const Text(
@@ -176,30 +184,31 @@ class _RentalContractPageState
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final updated = await ref
           .read(agreementRepositoryProvider)
           .terminateRentalContract(contract.id, reason);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
       setState(() => _contract = updated);
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<String?> _reasonDialog(String title) async {
+    if (!mounted || !_scope.isCurrent) return null;
     final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
+    final result = await showActorDialog<String>(
+      context: context, ref: ref,
       builder: (dialogContext) => AlertDialog(
         title: Text(title),
         content: TextField(

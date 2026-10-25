@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/data/account_request_scope.dart';
 import '../domain/property_marker.dart';
 
 final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
   return FavoritesRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
+    requestScope: ref.watch(accountRequestScopeProvider),
   );
 });
 
@@ -37,23 +39,28 @@ final favoritePropertyIdsProvider =
 });
 
 class FavoritesRepository {
-  FavoritesRepository(this._dio, this._auth);
+  FavoritesRepository(this._dio, this._auth, {AccountRequestScope? requestScope})
+    : _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
+  Future<Options> _options() => _requestScope?.options() ?? _auth.requiredAuthOptions();
 
   Future<List<PropertyMarker>> favorites() async {
-    final options = await _auth.requiredAuthOptions();
+    final options = await _options();
     final items = <PropertyMarker>[];
     var page = 1;
     var lastPage = 1;
 
     do {
+      _requestScope?.verify();
       final response = await _dio.get<Map<String, dynamic>>(
         '/favorites',
         queryParameters: {'page': page, 'per_page': 50},
         options: options,
       );
+      _requestScope?.verify();
       final rows = response.data?['data'];
       if (rows is List) {
         for (final row in rows.whereType<Map<String, dynamic>>()) {
@@ -77,8 +84,9 @@ class FavoritesRepository {
   Future<Set<int>> favoriteIds() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/favorites/ids',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
+    _requestScope?.verify();
     final data = response.data?['data'];
     final raw = data is Map<String, dynamic> ? data['property_ids'] : null;
     if (raw is! List) return <int>{};
@@ -93,8 +101,9 @@ class FavoritesRepository {
   Future<bool> isFavorite(int propertyId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/properties/$propertyId/favorite',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
+    _requestScope?.verify();
     final data = response.data?['data'];
     return data is Map<String, dynamic> && data['is_favorited'] == true;
   }
@@ -102,15 +111,17 @@ class FavoritesRepository {
   Future<void> add(int propertyId) async {
     await _dio.put<Map<String, dynamic>>(
       '/properties/$propertyId/favorite',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
+    _requestScope?.verify();
   }
 
   Future<void> remove(int propertyId) async {
     await _dio.delete<Map<String, dynamic>>(
       '/properties/$propertyId/favorite',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
+    _requestScope?.verify();
   }
 
   int _positiveInt(dynamic value, {required int fallback}) {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/data/account_request_scope.dart';
 import '../domain/message_models.dart';
 
 final messageDataRevisionProvider = StateProvider<int>((ref) => 0);
@@ -11,18 +12,22 @@ final messageDataRevisionProvider = StateProvider<int>((ref) => 0);
 final messageRepositoryProvider = Provider<MessageRepository>((ref) {
   final actor = ref.watch(authControllerProvider.select((s) => s.asData?.value?.id));
   return MessageRepository(
-      ref.watch(dioProvider), ref.watch(authRepositoryProvider), actorId: actor, currentActor: () => ref.read(authControllerProvider).asData?.value?.id);
+      ref.watch(dioProvider), ref.watch(authRepositoryProvider), requestScope: ref.watch(accountRequestScopeProvider), actorId: actor, currentActor: () => ref.read(authControllerProvider).asData?.value?.id);
 });
 
 class MessageRepository {
-  MessageRepository(this._dio, this._auth, {int? actorId, int? Function()? currentActor}): _actorId = actorId, _currentActor = currentActor;
+  MessageRepository(this._dio, this._auth, {int? actorId, int? Function()? currentActor, AccountRequestScope? requestScope})
+    : _actorId = actorId, _currentActor = currentActor, _requestScope = requestScope;
   final Dio _dio;
   final AuthRepository _auth;
   final int? _actorId;
+  final AccountRequestScope? _requestScope;
   final int? Function()? _currentActor;
   Future<Options> _sessionOptions() async {
+    _requestScope?.verify();
     if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
-    final options = await _auth.requiredAuthOptions();
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _requestScope?.verify();
     if (_currentActor != null && _currentActor() != _actorId) throw StateError('ACCOUNT_CHANGED');
     return options;
   }
@@ -79,6 +84,7 @@ class MessageRepository {
   Future<void> markRead(int threadId) async {
     await _dio.post<void>('/messages/threads/$threadId/read',
         options: await _sessionOptions());
+    _requestScope?.verify();
   }
 
   Future<void> report(int threadId,
@@ -87,6 +93,7 @@ class MessageRepository {
         '/messages/threads/$threadId/report',
         data: {'reason': reason, 'details': details.trim()},
         options: await _sessionOptions());
+    _requestScope?.verify();
     final data = response.data?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid conversation report response.');
@@ -113,11 +120,13 @@ class MessageRepository {
   Future<void> readNotification(int id) async {
     await _dio.post<void>('/notifications/$id/read',
         options: await _sessionOptions());
+    _requestScope?.verify();
   }
 
   Future<void> readAllNotifications() async {
     await _dio.post<void>('/notifications/read-all',
         options: await _sessionOptions());
+    _requestScope?.verify();
   }
 
   Future<List<ConversationReportSummary>> adminReports({String? status}) async {
@@ -149,11 +158,13 @@ class MessageRepository {
   }
 
   List<Map<String, dynamic>> _list(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final rows = body?['data'] as List<dynamic>? ?? const <dynamic>[];
     return rows.whereType<Map<String, dynamic>>().toList(growable: false);
   }
 
   Map<String, dynamic> _dataMap(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final data = body?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid messaging response.');

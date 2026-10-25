@@ -49,7 +49,9 @@ class _ActorBoundPageState extends ConsumerState<ActorBoundPage> {
     });
     final actor = ref.watch(authControllerProvider).asData?.value;
     if (!_changed && _actor == null && actor != null) _actor = actor.id;
-    if (_changed) {
+    // Keep the normal guest entry state after logout. A later login still
+    // cannot reuse this page's old private form, even with the same user ID.
+    if (_changed && actor != null) {
       return Scaffold(appBar: AppBar(title: Text(widget.title)),
         body: AppEmptyState(title: 'تغيّر الحساب',
           message: 'أعد فتح هذه الصفحة من حسابك الحالي لحماية بيانات الحساب السابق.',
@@ -96,10 +98,10 @@ Future<T?> showActorDialog<T>({required BuildContext context, required WidgetRef
 }
 
 Future<T?> showActorModalBottomSheet<T>({required BuildContext context, required WidgetRef ref,
-  required WidgetBuilder builder, bool isScrollControlled = false}) {
+  required WidgetBuilder builder, bool isScrollControlled = false, bool useSafeArea = false}) {
   final actor = ref.read(authControllerProvider).asData?.value?.id;
   if (actor == null) return Future<T?>.value();
-  return showModalBottomSheet<T>(context: context, isScrollControlled: isScrollControlled,
+  return showModalBottomSheet<T>(context: context, isScrollControlled: isScrollControlled, useSafeArea: useSafeArea,
     builder: (_) => _accountOverlay(actor: actor, builder: builder,
       changed: (sheet) => SafeArea(child: Padding(padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
