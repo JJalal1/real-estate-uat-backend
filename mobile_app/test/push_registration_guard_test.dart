@@ -64,4 +64,36 @@ void main() {
     expect(requests, 0);
   });
 
+  test('valid registration reports the compiled Android build to Laravel', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const channel = MethodChannel('real_estate/push');
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (_) async => {
+      'configured': true, 'granted': true,
+      'installation_id': '11111111-2222-3333-4444-555555555555',
+      'token': List.filled(32, 't').join(),
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    RequestOptions? sent;
+    final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      sent = options;
+      handler.resolve(Response<void>(requestOptions: options, statusCode: 200));
+    }));
+    addTearDown(() => dio.close(force: true));
+    final repo = PushRegistrationRepository(dio, _BuildTestAuth(dio));
+    expect(await repo.syncIfGranted(), isTrue);
+    expect(sent?.path, '/push/devices');
+    expect((sent?.data as Map)['app_build'],
+      const int.fromEnvironment('APP_BUILD_NUMBER', defaultValue: 1));
+  });
+
+}
+
+class _BuildTestAuth extends AuthRepository {
+  _BuildTestAuth(super.dio);
+
+  @override
+  Future<Options> requiredAuthOptions() async => Options(
+    headers: {'Authorization': 'Bearer synthetic-build-contract'},
+  );
 }

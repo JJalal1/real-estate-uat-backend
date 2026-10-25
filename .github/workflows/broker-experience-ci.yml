@@ -300,7 +300,9 @@ jobs:
           flutter test
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+          --dart-define=APP_BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER))
           test/uat_compiled_environment_test.dart
+          test/push_registration_guard_test.dart
       - name: Build tested broker UAT APK
         id: build_apk
         if: ${{ !cancelled() && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
@@ -312,6 +314,7 @@ jobs:
         run: >-
           flutter build apk --release
           --build-number=$((1000 + GITHUB_RUN_NUMBER))
+          --dart-define=APP_BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER))
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
       - name: Prepare APK evidence
