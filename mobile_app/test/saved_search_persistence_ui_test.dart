@@ -177,6 +177,11 @@ void main() {
     await tester.ensureVisible(find.text('حفظ البحث'));
     await tester.tap(find.text('حفظ البحث'));
     await tester.pump();
+    // Let the asynchronous secure-token/options chain reach Dio while its
+    // receipt stays held. pumpAndSettle cannot finish with a loading spinner.
+    for (var attempt = 0; attempt < 10 && server.calls.isEmpty; attempt++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
     expect(server.calls.length, 1);
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
     expect(tester.widgetList<RadioListTile<String>>(find.byType(RadioListTile<String>))
