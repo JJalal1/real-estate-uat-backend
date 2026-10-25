@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\ApiTokenService;
 use App\Services\AuditLogService;
 use App\Services\CloudAssetStorageService;
+use App\Services\ListingImageService;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
@@ -297,6 +298,14 @@ class UatRoleJourneys extends Command
         $this->wire('history_remains_accessible','other','GET','/api/messages/threads/'.$thread);
         $this->wire('personal_unblock','other','DELETE','/api/users/'.$target.'/messaging-block');
         $this->wire('message_after_unblock','other','POST','/api/messages/threads/'.$thread.'/messages',array_replace($message,['client_message_id'=>(string)Str::uuid()]),201);
+        $unusedKey = (string) Str::uuid(); $unusedImageKey = (string) Str::uuid();
+        $unusedUrl = '/api/listing-editor-drafts/'.$unusedKey;
+        $unusedPayload = ['checkpoint_key'=>(string) Str::uuid(), 'media_version'=>1, 'type'=>'office', 'purpose'=>'rent',
+            'image_order'=>[$unusedImageKey], 'fields'=>['title'=>'Synthetic unsubmitted image for erasure']];
+        $this->wire('unsubmitted_media_draft_created','publisher','PUT',$unusedUrl,['payload'=>$unusedPayload,'expected_revision'=>0]);
+        $this->wire('unsubmitted_media_uploaded','publisher','POST',$unusedUrl.'/images/'.$unusedImageKey,['expected_revision'=>1],200,$this->syntheticJpeg(1));
+        $unusedPath = ListingEditorDraft::where('user_id',$target)->where('client_key',$unusedKey)->firstOrFail()->images[$unusedImageKey];
+        $this->check(app(CloudAssetStorageService::class)->existsPrivate($unusedPath),'unsubmitted_original_exists_before_erasure');
         $this->wire('staff_cannot_use_consumer_erasure','reviewer','DELETE','/api/account',['confirm_phrase'=>'حذف حسابي نهائيًا'],409);
         $this->wire('deletion_requires_explicit_phrase','publisher','DELETE','/api/account',['confirm_phrase'=>'no'],422);
         $erased = $this->wire('synthetic_publisher_account_erasure','publisher','DELETE','/api/account',['confirm_phrase'=>'حذف حسابي نهائيًا']);
@@ -305,6 +314,11 @@ class UatRoleJourneys extends Command
         $this->wire('erased_account_image_unpublished',null,'GET','/api/property-media/'.$imageId.'?variant=thumb',[],404);
         $this->wire('erased_professional_photo_unavailable',null,'GET','/api/advertisers/'.$target.'/photo',[],404);
         $this->check(!app(CloudAssetStorageService::class)->existsPrivate($profilePath),'erased_professional_photo_deleted_from_storage');
+        $this->check(!app(CloudAssetStorageService::class)->existsPrivate($unusedPath),'erased_unsubmitted_original_deleted_from_storage');
+        foreach (array_keys(config('listing_media.variants')) as $variant) {
+            $this->check(!app(CloudAssetStorageService::class)->existsPrivate(app(ListingImageService::class)->variantPath($unusedPath,$variant)),
+                'erased_unsubmitted_derivative_'.$variant);
+        }
         $this->check(Property::withoutGlobalScopes()->findOrFail($id)->status === 'archived','erasure_archives_listing');
         $this->check(DB::table('listing_reviews')->where('listing_id',$id)->where('action','approved')->exists(),'immutable_review_history_retained');
         $this->check(DB::table('private_messages')->where('thread_id',$thread)->count() === 2,'shared_message_history_retained');

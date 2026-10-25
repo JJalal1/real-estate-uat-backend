@@ -83,13 +83,14 @@ class ListingImageService
         return response($encoded, 200, $headers);
     }
 
-    public function removeIfUnused(string $path): void
+    public function removeIfUnused(string $path, bool $throwOnFailure = false): void
     {
         if (PropertyImage::query()->where('path', $path)->exists()) return;
         foreach (ListingEditorDraft::query()->select(['id','images'])->cursor() as $draft) {
             if (in_array($path, array_values($draft->images ?? []), true)) return;
         }
-        // Cleanup is best effort after the database operation; storage failure cannot undo a confirmed save.
+        // Normal editor cleanup is best effort after a confirmed save.
+        // Account erasure opts into failure propagation before its transaction commits.
         try {
             // A flag change must not strand derivatives from before activation or rollback.
             $versions = ['v1'];
@@ -99,7 +100,10 @@ class ListingImageService
                 $this->storage->deletePrivate('listing-display/'.$version.'/'.hash('sha256', $path).'/'.$variant.'.jpg');
             }
             if (self::isPrivate($path)) $this->storage->deletePrivate($path); else $this->storage->deletePublic($path);
-        } catch (\Throwable $error) { report($error); }
+        } catch (\Throwable $error) {
+            if ($throwOnFailure) throw $error;
+            report($error);
+        }
     }
 
     private function inspect(string $bytes): array

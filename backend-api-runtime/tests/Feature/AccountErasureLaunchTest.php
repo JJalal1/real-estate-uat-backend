@@ -3,15 +3,21 @@
 namespace Tests\Feature;
 
 use App\Models\AccountVerificationProfile;
+use App\Models\ListingEditorDraft;
 use App\Models\Property;
 use App\Models\User;
 use App\Models\VerificationChallenge;
 use App\Services\AccountErasureService;
+use App\Services\ApiTokenService;
+use App\Services\ListingImageService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Tests\TestCase;
 
@@ -106,6 +112,95 @@ class AccountErasureLaunchTest extends TestCase
             ->assertSee('تم حذف الحساب ومسح بيانات الهوية الشخصية');
     }
 
+    public function test_erasure_deletes_unused_draft_media_but_preserves_listing_and_other_account_references(): void
+    {
+        Storage::fake('local');
+        $user = $this->user();
+        $other = $this->user(['email'=>'other-erasure@example.invalid', 'phone'=>'+967711223345']);
+        $token = app(ApiTokenService::class)->issue($user, request())['plain_text_token'];
+        $unused = 'editor-drafts/'.$user->id.'/checkpoint/unused.jpg';
+        $retained = 'editor-drafts/'.$user->id.'/checkpoint/retained.jpg';
+        $foreign = 'editor-drafts/'.$other->id.'/checkpoint/foreign.jpg';
+        $this->draft($user, [$unused, $retained]);
+        $otherDraft = $this->draft($other, [$foreign]);
+        $property = $this->property($user);
+        $image = $property->images()->create(['path'=>$retained, 'sort_order'=>0]);
+        $images = app(ListingImageService::class);
+        foreach ([$unused, $retained, $foreign] as $path) {
+            Storage::disk('local')->put($path, 'private original');
+            foreach (array_keys(config('listing_media.variants')) as $variant) {
+                Storage::disk('local')->put($images->variantPath($path, $variant), 'safe JPEG');
+            }
+        }
+
+        $this->withToken($token)->deleteJson('/api/account', ['confirm_phrase'=>'حذف حسابي نهائيًا'])
+            ->assertOk()->assertJsonPath('data.account_deleted', true)->assertJsonPath('data.access_revoked', true);
+        $this->assertDatabaseMissing('listing_editor_drafts', ['user_id'=>$user->id]);
+        $this->assertDatabaseHas('listing_editor_drafts', ['id'=>$otherDraft->id]);
+        $this->assertDatabaseHas('property_images', ['id'=>$image->id, 'path'=>$retained]);
+        $this->assertSame('archived', $property->fresh()->status);
+        Storage::disk('local')->assertMissing($unused);
+        Storage::disk('local')->assertExists([$retained, $foreign]);
+        foreach (array_keys(config('listing_media.variants')) as $variant) {
+            Storage::disk('local')->assertMissing($images->variantPath($unused, $variant));
+            Storage::disk('local')->assertExists([$images->variantPath($retained, $variant), $images->variantPath($foreign, $variant)]);
+        }
+        $this->withToken($token)->getJson('/api/auth/me')->assertUnauthorized();
+    }
+
+    public function test_remote_cleanup_failure_rolls_back_erasure_and_preserves_paths_for_an_idempotent_retry(): void
+    {
+        $user = $this->user();
+        $token = app(ApiTokenService::class)->issue($user, request())['plain_text_token'];
+        $draft = $this->draft($user, ['editor-drafts/'.$user->id.'/checkpoint/retry.jpg']);
+        $property = $this->property($user);
+        config(['services.supabase_storage.enabled'=>true, 'services.supabase_storage.url'=>'https://fixture.supabase.co',
+            'services.supabase_storage.bucket'=>'fixture', 'services.supabase_storage.server_key'=>'sb_secret_synthetic_only']);
+        Http::preventStrayRequests();
+        $fail = true;
+        Http::fake(['https://fixture.supabase.co/storage/v1/object/fixture'=>function () use (&$fail) {
+            return Http::response($fail ? ['message'=>'synthetic unavailable'] : [], $fail ? 503 : 200);
+        }]);
+
+        try {
+            app(AccountErasureService::class)->erase($user, Request::create('/api/account', 'DELETE'));
+            $this->fail('Storage failure must not produce an erasure receipt.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('HTTP 503', $error->getMessage());
+        }
+        $this->assertSame(User::STATUS_ACTIVE, $user->fresh()->account_status);
+        $this->assertSame('published', $property->fresh()->status);
+        $this->assertDatabaseHas('listing_editor_drafts', ['id'=>$draft->id]);
+        $this->assertSame(1, $user->apiTokens()->count());
+        $this->withToken($token)->getJson('/api/auth/me')->assertOk();
+
+        $fail = false;
+        $result = app(AccountErasureService::class)->erase($user->fresh(), Request::create('/api/account', 'DELETE'));
+        $this->assertTrue($result['account_deleted']);
+        $this->assertSame(User::STATUS_DELETED, $user->fresh()->account_status);
+        $this->assertDatabaseMissing('listing_editor_drafts', ['id'=>$draft->id]);
+        $this->assertSame(0, $user->apiTokens()->count());
+    }
+
+    public function test_inconsistent_draft_owner_never_deletes_a_foreign_object_or_confirms_erasure(): void
+    {
+        Storage::fake('local');
+        $user = $this->user();
+        $foreign = 'editor-drafts/999/checkpoint/foreign.jpg';
+        Storage::disk('local')->put($foreign, 'private other account');
+        $draft = $this->draft($user, [$foreign]);
+
+        try {
+            app(AccountErasureService::class)->erase($user, Request::create('/api/account', 'DELETE'));
+            $this->fail('An inconsistent owner must require investigation.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('ownership is inconsistent', $error->getMessage());
+        }
+        Storage::disk('local')->assertExists($foreign);
+        $this->assertSame(User::STATUS_ACTIVE, $user->fresh()->account_status);
+        $this->assertDatabaseHas('listing_editor_drafts', ['id'=>$draft->id]);
+    }
+
     public function test_external_start_does_not_reveal_whether_account_exists(): void
     {
         $this->post('/account-deletion/start',['login'=>'+967799999999'])
@@ -164,6 +259,15 @@ class AccountErasureLaunchTest extends TestCase
             'account_status'=>User::STATUS_ACTIVE,
             'profile_completed_at'=>now(),
         ],$overrides));
+    }
+
+    private function draft(User $user, array $paths): ListingEditorDraft
+    {
+        return ListingEditorDraft::create([
+            'user_id'=>$user->id, 'client_key'=>(string) Str::uuid(), 'revision'=>1,
+            'payload'=>['fields'=>['title'=>'Synthetic unsubmitted media']],
+            'images'=>array_combine(array_map(fn () => (string) Str::uuid(), $paths), $paths),
+        ]);
     }
 
     private function property(User $user): Property
