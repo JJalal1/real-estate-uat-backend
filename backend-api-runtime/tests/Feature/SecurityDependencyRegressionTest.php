@@ -23,7 +23,8 @@ class SecurityDependencyRegressionTest extends TestCase
     public function test_security_fix_also_preserves_whitespace_separators(): void
     {
         // 8.1.9 includes the follow-up to the first security patch.
-        $this->assertSame([['foo'], ['bar']], HeaderUtils::split('foo bar', ' '));
+        // One separator produces one flat level in HeaderUtils' contract.
+        $this->assertSame(['foo', 'bar'], HeaderUtils::split('foo bar', ' '));
     }
 
     public function test_malformed_utf8_cannot_bypass_storage_path_validation(): void

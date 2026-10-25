@@ -290,11 +290,33 @@ class UatRoleJourneys extends Command
         $this->wire('unrelated_staff_cannot_read_thread','second_reviewer','GET','/api/messages/threads/'.$thread,[],404);
         $message = ['body'=>'Synthetic private message for authorized UAT only','client_message_id'=>(string)Str::uuid()];
         $this->wire('message_before_block','other','POST','/api/messages/threads/'.$thread.'/messages',$message,201);
+        $conversationReport = $this->wire('conversation_report_created','other','POST','/api/messages/threads/'.$thread.'/report',
+            ['reason'=>'abuse','details'=>'Synthetic authorized private-content review; no real conversation'],201);
+        $conversationReportId = (int) $conversationReport->json('data.id');
+        $this->check($conversationReportId > 0,'conversation_report_has_receipt');
+        $contentUrl = '/api/admin/messages/reports/'.$conversationReportId.'/content';
+        $this->wire('regular_cannot_review_private_report','other','GET',$contentUrl,[],403);
+        $this->wire('agent_without_private_permission_denied','reviewer','GET',$contentUrl,[],403);
+        $privateReview = $this->wire('manager_reads_reported_private_content','manager','GET',$contentUrl);
+        $this->check(count($privateReview->json('data.messages')) === 1
+            && $privateReview->json('data.messages.0.body') === $message['body'],'private_review_only_fixture_message');
+        $this->check(DB::table('private_message_access_events')->where('conversation_report_id',$conversationReportId)
+            ->where('actor_user_id',$this->actors['manager']->id)->where('action','opened_reported_private_content')->exists(),
+            'private_report_read_audited');
+        $closedConversation = $this->wire('manager_resolves_conversation_report','manager','PATCH',
+            '/api/admin/messages/reports/'.$conversationReportId.'/resolve',
+            ['status'=>'resolved','resolution_note'=>'Synthetic authorized acceptance resolution']);
+        $this->check($closedConversation->json('data.status') === 'resolved','conversation_report_resolution_roundtrip');
+        $reportNotifications = $this->wire('reporter_reads_private_report_notification','other','GET','/api/notifications');
+        $this->check(collect($reportNotifications->json('data'))->contains(fn ($row) => ($row['type'] ?? '') === 'conversation_report_closed'),
+            'private_report_resolution_notified');
         $target = $this->actors['publisher']->id;
         $this->wire('account_personal_block','other','PUT','/api/users/'.$target.'/messaging-block');
         $this->wire('sender_block_enforced','other','POST','/api/messages/threads/'.$thread.'/messages',array_replace($message,['client_message_id'=>(string)Str::uuid()]),403);
         $this->wire('recipient_block_enforced','publisher','POST','/api/messages/threads/'.$thread.'/messages',array_replace($message,['client_message_id'=>(string)Str::uuid()]),403);
         $this->wire('new_contact_block_enforced','other','POST','/api/properties/'.$id.'/conversation',[],403);
+        $this->wire('blocked_external_call_denied','other','POST','/api/messages/threads/'.$thread.'/external-call',[],403);
+        $this->wire('blocked_property_contact_denied','other','GET','/api/properties/'.$id.'/contact',[],403);
         $this->wire('history_remains_accessible','other','GET','/api/messages/threads/'.$thread);
         $this->wire('personal_unblock','other','DELETE','/api/users/'.$target.'/messaging-block');
         $this->wire('message_after_unblock','other','POST','/api/messages/threads/'.$thread.'/messages',array_replace($message,['client_message_id'=>(string)Str::uuid()]),201);
