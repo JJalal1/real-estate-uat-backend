@@ -62,7 +62,7 @@ class PushDeliveryLifecycleTest extends TestCase
         [, $notification,$device]=$this->fixture();
         Http::fake(function () use ($device) {
             $fresh=str_repeat('refreshed-token-',5);
-            UserPushDevice::whereKey($device->id)->update(['token'=>encrypt($fresh),'token_hash'=>hash('sha256',$fresh)]);
+            UserPushDevice::findOrFail($device->id)->forceFill(['token'=>$fresh,'token_hash'=>hash('sha256',$fresh)])->save();
             return Http::response(['error'=>['details'=>[['@type'=>'type.googleapis.com/google.firebase.fcm.v1.FcmError','errorCode'=>'UNREGISTERED']]]],404);
         });
         app(FcmPushSender::class)->send($notification,$device);
