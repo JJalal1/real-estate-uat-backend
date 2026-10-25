@@ -1,6 +1,14 @@
 # AGENTS.md — REAL ESTATE UAT
 
-## October25 verified engineering execution and release gates
+## October25 current critical integration audit
+
+Read `docs/AQER_CRITICAL_INTEGRATION_AUDIT_2026-10-25_AR.md` and `docs/evidence/2026-10-25-critical-integration.json` before the earlier batch report. The owner's follow-up prioritizes actual code/journey/persistence repairs; the owner will perform physical Android acceptance. The follow-up fixes authentication/session races, private account tools, retained requests, financial/conversation/agreement overlays, misleading saved-search receipts and transactional child-state writes. Use the final source, tree, checks and APK identifiers in the new evidence file; APK1269 and the earlier23157c1 source below are historical.
+
+Live UAT run `2026-10-25-109-v4` passed171 actual HTTP/API/PostgreSQL/private-Storage cases with cleanup=true. Do not replay or rewrite earlier runs. The one-shot journey flag was reset to false; final settings deploy `dep-dbf5rdl9fdbs738udcm0` is Live on PR146 merge `ccf4be63250c5eae6e6323fdd15e1241a5db5990`.59 migrations remain; all six synthetic actors have no active token/draft/search/preference/image residue in the checked scope. Original financial fingerprints remain unchanged. The latest Flutter-only follow-up preserves that exact backend subtree; it does not justify another backend deployment.
+
+Do not activate dormant ProjectsScreen/developments or retired booking code as an integration repair. Services labeled coming soon remain planned. Keep the29-item ledger decisions and explicit provider/domain/signing/backup/video/Production gates; a repaired engineering defect is closed within its proven scope, while handset acceptance and full release GO remain separate. Existing authorization still permits safe tested fixes/merges and synthetic UAT; no Production, paid resource, destructive operation or deferred gate override is authorized.
+
+## October25 previous verified engineering batch and release gates
 
 Start from the live `work/wave2-review-current` HEAD. The reviewed application code is `23157c1cfb1f6b9378e614b17929161fd2496970`, full tree `ec091e30b1a7498df9035976665a0bd9b63ed67b`; documentation commits after it do not change the application. Read `docs/AQER_FINAL_ENGINEERING_REPORT_2026-10-25_AR.md`, the current release matrix and `docs/evidence/2026-10-25-work-execution.json` before acting. PRs122/132/133/134/136/137/138/139/140/141/142/143 were reviewed and merged during the owner's completion task. The owner's current authorization permits necessary safe engineering work, tested merges and synthetic UAT verification; historical batch-specific no-merge language below does not revoke that authorization. Production, stores, new paid resources and destructive operations retain their explicit approval gates.
 
