@@ -1,0 +1,69 @@
+name: Locked dependency security
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - '.github/workflows/dependency-security.yml'
+      - 'scripts/audit_pub_dependencies.py'
+      - 'backend-api-runtime/composer.json'
+      - 'backend-api-runtime/composer.lock'
+      - 'mobile_app/pubspec.yaml'
+      - 'mobile_app/pubspec.lock'
+      - 'docs/ui-transplant-v3/pubspec_overrides.yaml'
+permissions:
+  contents: read
+jobs:
+  composer:
+    name: Locked Composer advisory audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Audit all locked PHP dependencies including development tools
+        working-directory: backend-api-runtime
+        run: composer audit --locked --no-interaction --format=json > ../composer-security-audit.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: composer-security-audit
+          path: composer-security-audit.json
+          if-no-files-found: error
+          retention-days: 14
+  pub:
+    name: Resolved Dart advisory audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve and verify the protected dependency graph
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+          mkdir -p build
+          dart pub deps --json > build/resolved-dependencies.json
+      - name: Query known advisories without ignoring provider errors or pagination
+        run: python3 -B scripts/audit_pub_dependencies.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pub-security-audit
+          path: pub-security-audit.json
+          if-no-files-found: error
+          retention-days: 14
