@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import struct
 import subprocess
 import urllib.parse
 import urllib.request
@@ -50,12 +51,45 @@ badging = subprocess.run([str(tools[-1].parent / 'aapt'), 'dump', 'badging', str
 assert "name='com.example.real_estate_mobile'" in badging
 assert f"versionCode='{version}'" in badging
 assert "application-label:'عقار'" in badging
+target_sdk = int(re.search(r"targetSdkVersion:'(\d+)'", badging).group(1))
+min_sdk = int(re.search(r"sdkVersion:'(\d+)'", badging).group(1))
+assert target_sdk >= 36, 'Google Play submissions require target API 36 or newer.'
+assert min_sdk == 23, 'Preserve the approved older-device support floor.'
+subprocess.run([str(tools[-1].parent / 'zipalign'), '-c', '-P', '16', '4', str(apk)],
+    text=True, capture_output=True, check=True)
+
+
+def verify_64bit_elf_alignment(data, name):
+    """Check every PT_LOAD using the Android 16 KB ELF alignment contract."""
+    assert len(data) >= 64 and data[:6] == b'\x7fELF\x02\x01', f'Invalid ELF64: {name}'
+    phoff = struct.unpack_from('<Q', data, 32)[0]
+    phsize, phcount = struct.unpack_from('<HH', data, 54)
+    assert phsize >= 56 and phcount > 0 and phoff + phsize * phcount <= len(data), f'Invalid program headers: {name}'
+    loads = 0
+    for index in range(phcount):
+        header = phoff + index * phsize
+        if struct.unpack_from('<I', data, header)[0] != 1:
+            continue
+        offset, address = struct.unpack_from('<QQ', data, header + 8)
+        alignment = struct.unpack_from('<Q', data, header + 48)[0]
+        assert alignment >= 16384 and alignment & (alignment - 1) == 0, f'ELF segment is not 16 KB aligned: {name}'
+        assert offset % 16384 == address % 16384, f'ELF mapping is not 16 KB congruent: {name}'
+        loads += 1
+    assert loads > 0, f'No ELF load segments: {name}'
+
+
+native_64bit_count = 0
 with zipfile.ZipFile(apk) as archive:
     assert archive.testzip() is None
     libraries = {name.split('/')[1]: name for name in archive.namelist() if name.startswith('lib/') and name.endswith('/libapp.so')}
     assert set(libraries) == {'armeabi-v7a', 'arm64-v8a', 'x86_64'}
     for library in libraries.values():
         assert api_url.encode() in archive.read(library)
+    for name in archive.namelist():
+        if name.startswith(('lib/arm64-v8a/', 'lib/x86_64/')) and name.endswith('.so'):
+            verify_64bit_elf_alignment(archive.read(name), name)
+            native_64bit_count += 1
+    assert native_64bit_count >= 4, 'Both 64-bit Flutter and application binaries must be verified.'
     for weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']:
         path = f'assets/ebroker/fonts/Manrope-{weight}.ttf'
         authoritative = api('/contents/mobile_app/' + path + '?ref=' + source)
@@ -70,6 +104,8 @@ with zipfile.ZipFile(apk) as archive:
         assert hashlib.sha256(embedded).hexdigest() == item['sha256']
 
 evidence = {'source_commit': source, 'version_code': version, 'sha256': digest, 'bytes': apk.stat().st_size,
+    'target_sdk': target_sdk, 'min_sdk': min_sdk, 'native_16kb_elf': 'passed', 'zipalign_16kb': 'passed',
+    'native_64bit_libraries_verified': native_64bit_count,
     'package': 'com.example.real_estate_mobile', 'api': api_url, 'architectures': sorted(libraries),
     'brand_assets_match': len(brand_paths), 'fonts_match': 5, 'zip_crc': 'passed', 'apksigner': 'passed', 'certificate_sha256': certificate,
     'handset_acceptance': 'pending'}
