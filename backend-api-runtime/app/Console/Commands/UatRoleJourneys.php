@@ -23,7 +23,7 @@ use Throwable;
 /** Explicit CLI-only acceptance; no HTTP route, scheduler or reusable credential. */
 class UatRoleJourneys extends Command
 {
-    public const LIVE_RUN = '2026-10-25-109-v2';
+    public const LIVE_RUN = '2026-10-25-109-v3';
     protected $signature = 'uat:role-journeys {--run=} {--base-url=}';
     protected $description = 'One-shot synthetic UAT role/API/Storage acceptance; never Production';
     private array $actors = [];
