@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../../account/data/account_request_scope.dart';
 import '../domain/property_marker.dart';
 import '../domain/saved_property_search.dart';
 
@@ -10,6 +11,7 @@ final savedSearchRepositoryProvider = Provider<SavedSearchRepository>((ref) {
   return SavedSearchRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
+    requestScope: ref.watch(accountRequestScopeProvider),
   );
 });
 
@@ -22,16 +24,20 @@ final savedSearchesProvider =
 });
 
 class SavedSearchRepository {
-  SavedSearchRepository(this._dio, this._auth);
+  SavedSearchRepository(this._dio, this._auth, {AccountRequestScope? requestScope})
+    : _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
+  Future<Options> _options() => _requestScope?.options() ?? _auth.requiredAuthOptions();
 
   Future<List<SavedPropertySearch>> all() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/saved-searches',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
+    _requestScope?.verify();
     final rows = response.data?['data'];
     if (rows is! List) return const [];
     return rows
@@ -52,7 +58,7 @@ class SavedSearchRepository {
         'filters': filters,
         'alert_frequency': alertFrequency,
       },
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return _searchFromResponse(response);
   }
@@ -72,12 +78,13 @@ class SavedSearchRepository {
         if (alertFrequency != null) 'alert_frequency': alertFrequency,
         if (isActive != null) 'is_active': isActive,
       },
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return _searchFromResponse(response);
   }
 
   Future<List<PropertyMarker>> results(SavedPropertySearch search) async {
+    _requestScope?.verify();
     final response = await _dio.get<Map<String, dynamic>>(
       '/properties',
       queryParameters: {
@@ -86,6 +93,7 @@ class SavedSearchRepository {
         'sort': 'latest',
       },
     );
+    _requestScope?.verify();
     final rows = response.data?['data'];
     if (rows is! List) return const [];
     return rows
@@ -109,13 +117,15 @@ class SavedSearchRepository {
   Future<void> delete(int id) async {
     await _dio.delete<Map<String, dynamic>>(
       '/saved-searches/$id',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
+    _requestScope?.verify();
   }
 
   SavedPropertySearch _searchFromResponse(
     Response<Map<String, dynamic>> response,
   ) {
+    _requestScope?.verify();
     final data = response.data?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Saved search response is missing data.');

@@ -7,6 +7,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../agreements/data/agreement_repository.dart';
+import '../../account/data/auth_controller.dart';
 import '../../agreements/domain/agreement_models.dart';
 import '../../messages/data/message_repository.dart';
 import '../../messages/domain/message_models.dart';
@@ -14,10 +15,18 @@ import '../../properties/data/favorites_repository.dart';
 import '../../properties/domain/property_marker.dart';
 
 final propertyJourneyProvider = FutureProvider.autoDispose<_JourneyData>((ref) async {
+  final actor = ref.watch(authControllerProvider.select((s) => s.asData?.value?.id));
+  if (actor == null) throw StateError('AUTH_REQUIRED');
+  ref.watch(favoriteDataRevisionProvider);
+  ref.watch(messageDataRevisionProvider);
+  ref.watch(agreementDataRevisionProvider);
+  final favorites = ref.watch(favoritesRepositoryProvider);
+  final messages = ref.watch(messageRepositoryProvider);
+  final agreements = ref.watch(agreementRepositoryProvider);
   final values = await Future.wait<dynamic>([
-    ref.read(favoritesRepositoryProvider).favorites(),
-    ref.read(messageRepositoryProvider).threads(),
-    ref.read(agreementRepositoryProvider).mine(),
+    favorites.favorites(),
+    messages.threads(),
+    agreements.mine(),
   ]);
   return _JourneyData(
     favorites: values[0] as List<PropertyMarker>,
@@ -125,7 +134,7 @@ class _JourneyContent extends StatelessWidget {
               icon: Icons.favorite_outline_rounded,
               label: 'المحفوظة',
               value: data.favorites.length,
-              onTap: () => context.push('/services'),
+              onTap: () => context.push('/favorites'),
             ),
             _MetricCard(
               icon: Icons.forum_outlined,
@@ -191,8 +200,8 @@ class _JourneyContent extends StatelessWidget {
         title: 'قارن خياراتك قبل التواصل',
         subtitle: 'عندك عقارات محفوظة. قارن بينها أو افتح الأنسب وابدأ محادثة مرتبطة بالعقار.',
         icon: Icons.compare_arrows_rounded,
-        route: '/services',
-        actionLabel: 'فتح الأدوات',
+        route: '/favorites?compare=1',
+        actionLabel: 'مقارنة المحفوظات',
       );
     }
     return const _NextAction(

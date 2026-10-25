@@ -9,8 +9,9 @@ import '../data/saved_search_repository.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../domain/saved_property_search.dart';
 import '../domain/property_schema.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 
-class SavedSearchBuilderScreen extends ConsumerStatefulWidget {
+class SavedSearchBuilderScreen extends StatelessWidget {
   const SavedSearchBuilderScreen({
     this.initialFilters = const <String, dynamic>{},
     this.existingSearch,
@@ -23,12 +24,25 @@ class SavedSearchBuilderScreen extends ConsumerStatefulWidget {
   final bool fixedFilters;
 
   @override
-  ConsumerState<SavedSearchBuilderScreen> createState() =>
+  Widget build(BuildContext context) => ActorBoundPage(title: 'البحث المحفوظ',
+    builder: (_) => _SavedSearchBuilderPage(initialFilters: initialFilters,
+      existingSearch: existingSearch, fixedFilters: fixedFilters));
+}
+
+class _SavedSearchBuilderPage extends ConsumerStatefulWidget {
+  const _SavedSearchBuilderPage({required this.initialFilters,
+    required this.existingSearch, required this.fixedFilters});
+  final Map<String, dynamic> initialFilters;
+  final SavedPropertySearch? existingSearch;
+  final bool fixedFilters;
+
+  @override
+  ConsumerState<_SavedSearchBuilderPage> createState() =>
       _SavedSearchBuilderScreenState();
 }
 
 class _SavedSearchBuilderScreenState
-    extends ConsumerState<SavedSearchBuilderScreen> {
+    extends ConsumerState<_SavedSearchBuilderPage> {
   late final TextEditingController _name;
   late final TextEditingController _keywords;
   late final TextEditingController _minPrice;
@@ -515,8 +529,8 @@ class _SavedSearchBuilderScreenState
           alertFrequency: _frequency,
         );
       }
-      ref.read(savedSearchRevisionProvider.notifier).state++;
       if (!mounted) return;
+      ref.read(savedSearchRevisionProvider.notifier).state++;
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
