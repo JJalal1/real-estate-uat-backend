@@ -251,6 +251,7 @@ void main() {
     final rejected = expectLater(previous.get(), throwsStateError);
     await Future<void>.delayed(Duration.zero);
     h.change(2);
+    h.container.listen(notificationPreferencesProvider, (_, __) {});
     expect((await h.container.read(notificationPreferencesProvider.future)).messages, isFalse);
     h.firstReadGate!.complete();
     await rejected;
@@ -316,8 +317,8 @@ void main() {
     await tester.ensureVisible(find.text('المحفوظة'));
     await tester.tap(find.text('المحفوظة'));
     await tester.pumpAndSettle();
-    expect(router.routeInformationProvider.value.uri.path, '/favorites');
     expect(find.text('Saved destination'), findsOneWidget);
+    expect(GoRouterState.of(tester.element(find.text('Saved destination'))).matchedLocation, '/favorites');
   });
 
   testWidgets('failed preference save keeps the edit and re-enables retry', (tester) async {
