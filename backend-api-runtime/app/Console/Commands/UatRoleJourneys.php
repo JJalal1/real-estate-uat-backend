@@ -22,7 +22,7 @@ use Throwable;
 /** Explicit CLI-only acceptance; no HTTP route, scheduler or reusable credential. */
 class UatRoleJourneys extends Command
 {
-    public const LIVE_RUN = '2026-10-24-109-v1';
+    public const LIVE_RUN = '2026-10-25-109-v2';
     protected $signature = 'uat:role-journeys {--run=} {--base-url=}';
     protected $description = 'One-shot synthetic UAT role/API/Storage acceptance; never Production';
     private array $actors = [];
@@ -54,11 +54,15 @@ class UatRoleJourneys extends Command
             return true;
         });
         if (! $fresh) {
-            $this->line('AQER_UAT_ROLE_JOURNEYS '.json_encode(['run'=>$this->run,'status'=>'already-started-no-replay']));
-            return self::SUCCESS;
+            $finished = AuditLog::where('action','uat.role_journeys.finished')->where('metadata->release_run',$this->run)->latest('id')->first();
+            $result = $finished?->metadata['result'] ?? [];
+            $this->line('AQER_UAT_ROLE_JOURNEYS '.json_encode(['run'=>$this->run,'status'=>'already-started-no-replay',
+                'previous_result'=>$result['status'] ?? 'incomplete']));
+            return ($result['status'] ?? null) === 'passed' && ($result['cleanup'] ?? false) === true ? self::SUCCESS : self::FAILURE;
         }
         $passed = false;
         try {
+            if ($live) $this->retirePreviousSyntheticRun();
             foreach (['publisher'=>'broker','other'=>null,'other_publisher'=>'broker','reviewer'=>'support_agent','second_reviewer'=>'support_agent','manager'=>'support_manager'] as $name=>$role) {
                 $this->createActor($name, $role);
             }
@@ -271,6 +275,16 @@ class UatRoleJourneys extends Command
         $this->check($report->json('data.id') === $duplicate->json('data.id'),'same_report_receipt');
         $case = (int) $report->json('data.id');
         $this->wire('publisher_cannot_read_other_report','publisher','GET','/api/support/cases/'.$case,[],404);
+        $this->wire('regular_cannot_review_report','other','GET','/api/admin/support/cases/'.$case,[],403);
+        $this->wire('unclaimed_report_review_denied','reviewer','POST','/api/admin/support/cases/'.$case.'/start',[],409);
+        $queue = $this->wire('reviewer_reads_report_queue','reviewer','GET','/api/admin/workspace/tasks?scope=inbox&type=report&per_page=100');
+        $task = collect($queue->json('data'))->first(fn ($row) => (int)($row['source_id'] ?? 0) === $case && ($row['source_type'] ?? '') === 'report');
+        $this->check($task !== null,'report_is_in_shared_queue');
+        $this->wire('reviewer_claims_report','reviewer','POST','/api/admin/workspace/tasks/'.(int)$task['id'].'/claim');
+        $this->wire('reviewer_starts_report','reviewer','POST','/api/admin/support/cases/'.$case.'/start');
+        $this->wire('reviewer_resolves_report','reviewer','PATCH','/api/admin/support/cases/'.$case.'/status',['status'=>'resolved']);
+        $resolved = $this->wire('reporter_reads_resolution','other','GET','/api/support/cases/'.$case);
+        $this->check($resolved->json('data.status') === 'resolved','report_resolution_roundtrip');
         $thread = (int) $this->wire('property_conversation','other','POST','/api/properties/'.$id.'/conversation',[],201)->json('data.id');
         $this->wire('unrelated_staff_cannot_read_thread','second_reviewer','GET','/api/messages/threads/'.$thread,[],404);
         $message = ['body'=>'Synthetic private message for authorized UAT only','client_message_id'=>(string)Str::uuid()];
@@ -300,24 +314,67 @@ class UatRoleJourneys extends Command
     {
         try {
             foreach ($this->actors as $key=>$actor) {
-                $fresh = $actor->fresh();
-                if (! $fresh) throw new RuntimeException('fixture_disappeared');
-                if ($fresh->account_status !== 'deleted' && $fresh->email !== $this->prefix.$key.'@example.invalid') throw new RuntimeException('fixture_identity_changed');
-                $fresh->apiTokens()->delete();
-                $fresh->roles()->detach();
-                if ($fresh->account_status !== 'deleted') $fresh->forceFill(['account_status'=>'suspended','phone'=>null,'phone_verified_at'=>null])->save();
-                // Only this newly created actor's unpublished/disposable work.
-                Property::withoutGlobalScopes()->where('user_id',$actor->id)->update(['status'=>'archived','contact_phone'=>null,'contact_whatsapp'=>null]);
-                foreach (ListingEditorDraft::where('user_id',$actor->id)->get() as $draft) {
-                    $paths = array_values($draft->images ?? []); $draft->delete();
-                    foreach ($paths as $path) app(\App\Services\ListingImageService::class)->removeIfUnused($path);
-                }
+                $this->retireFixture($actor, $this->prefix.$key.'@example.invalid');
             }
             return true;
         } catch (Throwable) {
             return false;
         } finally {
             $this->bearers = [];
+        }
+    }
+
+    private function retirePreviousSyntheticRun(): void
+    {
+        // Only actors created by the failed, audited v1 acceptance run. Never
+        // accept IDs, emails or storage prefixes from an operator or API caller.
+        $prior = AuditLog::where('action','uat.role_journeys.fixture_created')
+            ->where('metadata->release_run','2026-10-24-109-v1')->where('subject_type','User')->get();
+        if ($prior->count() > 6) throw new RuntimeException('previous_fixture_bound');
+        foreach ($prior as $receipt) {
+            $key = $receipt->metadata['fixture'] ?? '';
+            if (!in_array($key,['publisher','other','other_publisher','reviewer','second_reviewer','manager'],true)) throw new RuntimeException('previous_fixture_key');
+            $actor = User::findOrFail($receipt->subject_id);
+            $email = 'uat-109-20261024109v1-'.$key.'@example.invalid';
+            if ($actor->email !== $email || $actor->account_status !== 'suspended' || $actor->apiTokens()->exists()) throw new RuntimeException('previous_fixture_not_retired');
+            $this->retireFixture($actor, $email);
+        }
+        $this->check(true,'previous_synthetic_run_files_retired');
+    }
+
+    private function retireFixture(User $actor, string $expectedEmail): void
+    {
+        $fresh = $actor->fresh();
+        if (!$fresh || ($fresh->account_status !== 'deleted' && $fresh->email !== $expectedEmail)) throw new RuntimeException('fixture_identity_changed');
+        $storage = app(CloudAssetStorageService::class);
+        $photo = $fresh->public_professional_photo_path;
+        $paths = Property::withoutGlobalScopes()->where('user_id',$actor->id)->get()
+            ->flatMap(fn ($p) => $p->images()->pluck('path'))->all();
+        // Metadata reads are restricted to this newly created synthetic actor.
+        // Delete via Storage API, never DELETE storage.objects through SQL.
+        if ($storage->cloudEnabled()) {
+            $prefix = trim((string)config('services.supabase_storage.private_prefix','private'),'/').'/';
+            $objects = DB::table('storage.objects')->where('bucket_id',config('services.supabase_storage.bucket'))
+                ->where('name','like',$prefix.'editor-drafts/'.$actor->id.'/%')->limit(101)->pluck('name');
+            if ($objects->count() > 100) throw new RuntimeException('synthetic_storage_bound');
+            foreach ($objects as $name) $paths[] = substr($name,strlen($prefix));
+        }
+        $fresh->apiTokens()->delete(); $fresh->roles()->detach();
+        $changes = ['public_professional_photo_path'=>null];
+        if ($fresh->account_status !== 'deleted') $changes += ['account_status'=>'suspended','phone'=>null,'phone_verified_at'=>null];
+        $fresh->forceFill($changes)->save();
+        Property::withoutGlobalScopes()->where('user_id',$actor->id)->update(['status'=>'archived','contact_phone'=>null,'contact_whatsapp'=>null]);
+        foreach (Property::withoutGlobalScopes()->where('user_id',$actor->id)->get() as $property) $property->images()->delete();
+        foreach (ListingEditorDraft::where('user_id',$actor->id)->get() as $draft) {
+            $paths = array_merge($paths,array_values($draft->images ?? [])); $draft->delete();
+        }
+        foreach (array_unique($paths) as $path) {
+            app(\App\Services\ListingImageService::class)->removeIfUnused($path);
+            if ($storage->existsPrivate($path)) throw new RuntimeException('synthetic_original_cleanup_incomplete');
+        }
+        if ($photo) {
+            app(\App\Services\ProfessionalPhotoService::class)->remove($photo);
+            if ($storage->existsPrivate($photo)) throw new RuntimeException('synthetic_photo_cleanup_incomplete');
         }
     }
 
