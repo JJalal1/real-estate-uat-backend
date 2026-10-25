@@ -14,7 +14,16 @@ if (($argv[1] ?? '') === 'worker') {
     while (! is_file($root.'/start')) usleep(10000);
     $start = hrtime(true);
     $service = app(\App\Services\ListingImageService::class);
-    $path = $service->store(new \Illuminate\Http\UploadedFile($source, '24mp.jpg', 'image/jpeg', null, true), 'listing-originals/benchmark', 'worker-'.$index);
+    $busy=0;
+    while (true) {
+        try {
+            $path = $service->store(new \Illuminate\Http\UploadedFile($source, '24mp.jpg', 'image/jpeg', null, true), 'listing-originals/benchmark', 'worker-'.$index);
+            break;
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $error) {
+            if ($error->getStatusCode()!==503 || ++$busy>15 || ($error->getHeaders()['Retry-After'] ?? null)!=='2') throw $error;
+            usleep(2050000+$index*10000);
+        }
+    }
     $variants = [];
     foreach (config('listing_media.variants') as $variant=>[$edge]) {
         $bytes = \Illuminate\Support\Facades\Storage::disk('local')->get($service->variantPath($path, $variant));
@@ -23,7 +32,7 @@ if (($argv[1] ?? '') === 'worker') {
         if (($orientation === 6) !== ($info[1] > $info[0])) throw new \RuntimeException('Orientation was not preserved');
         $variants[$variant] = ['bytes'=>strlen($bytes),'width'=>$info[0],'height'=>$info[1]];
     }
-    echo json_encode(['worker'=>$index, 'orientation'=>$orientation, 'elapsed_ms'=>(hrtime(true)-$start)/1e6,
+    echo json_encode(['worker'=>$index, 'orientation'=>$orientation, 'busy_retries'=>$busy, 'elapsed_ms'=>(hrtime(true)-$start)/1e6,
         'peak_rss_kib'=>getrusage()['ru_maxrss'], 'php_peak_bytes'=>memory_get_peak_usage(true), 'source_bytes'=>filesize($source), 'variants'=>$variants], JSON_THROW_ON_ERROR)."\n";
     exit;
 }
