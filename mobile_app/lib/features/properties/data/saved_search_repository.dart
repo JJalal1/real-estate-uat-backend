@@ -60,7 +60,7 @@ class SavedSearchRepository {
       },
       options: await _options(),
     );
-    return _searchFromResponse(response);
+    return _searchFromResponse(response, alreadySaved: response.statusCode == 200);
   }
 
   Future<SavedPropertySearch> update(
@@ -123,13 +123,13 @@ class SavedSearchRepository {
   }
 
   SavedPropertySearch _searchFromResponse(
-    Response<Map<String, dynamic>> response,
+    Response<Map<String, dynamic>> response, {bool alreadySaved = false}
   ) {
     _requestScope?.verify();
     final data = response.data?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Saved search response is missing data.');
     }
-    return SavedPropertySearch.fromJson(data);
+    return SavedPropertySearch.fromJson(data, alreadySaved: alreadySaved);
   }
 }

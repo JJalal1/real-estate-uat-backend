@@ -7,13 +7,16 @@ use App\Models\AuditLog;
 use App\Models\ListingEditorDraft;
 use App\Models\Property;
 use App\Models\Role;
+use App\Models\SavedPropertySearch;
 use App\Models\User;
+use App\Models\UserNotificationPreference;
 use App\Services\ApiTokenService;
 use App\Services\AuditLogService;
 use App\Services\CloudAssetStorageService;
 use App\Services\ListingImageService;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\Response;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -23,7 +26,7 @@ use Throwable;
 /** Explicit CLI-only acceptance; no HTTP route, scheduler or reusable credential. */
 class UatRoleJourneys extends Command
 {
-    public const LIVE_RUN = '2026-10-25-109-v3';
+    public const LIVE_RUN = '2026-10-25-109-v4';
     protected $signature = 'uat:role-journeys {--run=} {--base-url=}';
     protected $description = 'One-shot synthetic UAT role/API/Storage acceptance; never Production';
     private array $actors = [];
@@ -108,7 +111,7 @@ class UatRoleJourneys extends Command
 
     private function wire(string $case, ?string $actor, string $method, string $path, array $data = [], int|array $expected = 200, ?string $image = null, string $imageField = 'image'): Response
     {
-        if (! str_starts_with($path, '/api/') || str_contains($path, '..') || count($this->receipts) > 150
+        if (! str_starts_with($path, '/api/') || str_contains($path, '..') || count($this->receipts) >= 190
             || microtime(true) - $this->started > 480) throw new RuntimeException('probe_bound');
         DB::disconnect(); // CLI fixture bookkeeping must not occupy a worker's pool slot.
         $request = Http::acceptJson()->withUserAgent('Aqer-UAT-role-probe/1.0')
@@ -135,6 +138,7 @@ class UatRoleJourneys extends Command
     private function journeys(): void
     {
         foreach (array_keys($this->actors) as $actor) $this->wire('authenticated_'.$actor,$actor,'GET','/api/auth/me');
+        $this->savedSearchJourneys();
         $this->wire('broker_cannot_enter_platform_settings','publisher','GET','/api/admin/settings',[],403);
         $this->wire('support_manager_cannot_enter_finance','manager','GET','/api/admin/finance/summary',[],403);
         $this->wire('regular_cannot_upload_professional_photo','other','POST','/api/broker/profile/photo',[],403,$this->syntheticJpeg(6),'photo');
@@ -346,6 +350,73 @@ class UatRoleJourneys extends Command
         $this->check(DB::table('private_messages')->where('thread_id',$thread)->count() === 2,'shared_message_history_retained');
     }
 
+    private function savedSearchJourneys(): void
+    {
+        $body = ['name'=>'Original synthetic search',
+            'filters'=>['type'=>'land','search'=>$this->prefix.'no-matches'], 'alert_frequency'=>'off'];
+        if (count($this->receipts) > 186 || microtime(true) - $this->started > 480) throw new RuntimeException('probe_bound');
+        DB::disconnect();
+        $started = hrtime(true);
+        // Exactly two synthetic writes. This verifies two HTTP workers and
+        // PostgreSQL uniqueness/locking; it is not a load or capacity test.
+        $responses = Http::pool(fn (Pool $pool) => [
+            $pool->as('one')->acceptJson()->withUserAgent('Aqer-UAT-role-probe/1.0')
+                ->withToken($this->bearers['other'])->connectTimeout(5)->timeout(40)->withoutRedirecting()
+                ->post($this->base.'/api/saved-searches', $body),
+            $pool->as('two')->acceptJson()->withUserAgent('Aqer-UAT-role-probe/1.0')
+                ->withToken($this->bearers['other'])->connectTimeout(5)->timeout(40)->withoutRedirecting()
+                ->post($this->base.'/api/saved-searches', $body),
+        ]);
+        $statuses = [];
+        foreach ($responses as $name => $response) {
+            $okay = $response instanceof Response && in_array($response->status(), [200,201], true);
+            $this->receipts[] = ['case'=>'concurrent_saved_search_'.$name,'passed'=>$okay,
+                'status'=>$response instanceof Response ? $response->status() : null,
+                'expected'=>[200,201], 'elapsed_ms'=>round((hrtime(true)-$started)/1_000_000)];
+            if (!$okay) throw new RuntimeException('concurrent_saved_search_failed');
+            $statuses[] = $response->status();
+        }
+        sort($statuses);
+        $id = (int) $responses['one']->json('data.id');
+        $this->check($statuses === [200,201] && $id > 0 && (int)$responses['two']->json('data.id') === $id
+            && SavedPropertySearch::where('user_id',$this->actors['other']->id)->count() === 1,
+            'concurrent_saved_search_is_one_persistent_row');
+        $duplicate = $this->wire('duplicate_search_receipt_preserves_settings','other','POST','/api/saved-searches',
+            array_replace($body,['name'=>'Requested synthetic edit','alert_frequency'=>'instant']));
+        $this->check((int)$duplicate->json('data.id') === $id && $duplicate->json('data.name') === $body['name']
+            && $duplicate->json('data.alert_frequency') === 'off','duplicate_search_did_not_apply_implicit_edit');
+        $this->wire('foreign_search_edit_denied','publisher','PATCH','/api/saved-searches/'.$id,['name'=>'Foreign mutation'],404);
+        $this->wire('foreign_search_delete_denied','publisher','DELETE','/api/saved-searches/'.$id,[],404);
+        $this->wire('explicit_saved_search_edit','other','PATCH','/api/saved-searches/'.$id,
+            ['name'=>'Confirmed synthetic edit','alert_frequency'=>'instant']);
+        $rows = $this->wire('saved_search_read_after_edit','other','GET','/api/saved-searches');
+        $row = collect($rows->json('data'))->firstWhere('id',$id);
+        $this->check(($row['name'] ?? '') === 'Confirmed synthetic edit' && ($row['alert_frequency'] ?? '') === 'instant',
+            'saved_search_edit_roundtrip');
+        $second = $this->wire('second_distinct_search','other','POST','/api/saved-searches',
+            ['name'=>'Original villa search','filters'=>['type'=>'villa'],'alert_frequency'=>'off'],201)->json('data.id');
+        $before = SavedPropertySearch::where('user_id',$this->actors['other']->id)->orderBy('id')->get()->toArray();
+        $this->wire('search_filter_collision_returns_422','other','PATCH','/api/saved-searches/'.$second,
+            ['name'=>'Must not partially save','filters'=>$body['filters']],422);
+        $this->check($before === SavedPropertySearch::where('user_id',$this->actors['other']->id)->orderBy('id')->get()->toArray(),
+            'search_collision_preserves_both_rows');
+        $this->wire('empty_canonical_search_denied','other','POST','/api/saved-searches',
+            ['name'=>'Whitespace is not criteria','filters'=>['search'=>'   ']],422);
+        $this->wire('saved_search_delete','other','DELETE','/api/saved-searches/'.$id);
+        $remaining = $this->wire('saved_search_read_after_delete','other','GET','/api/saved-searches');
+        $this->check(count($remaining->json('data')) === 1 && (int)$remaining->json('data.0.id') === (int)$second,
+            'saved_search_delete_roundtrip');
+        $this->wire('preferences_default_read','other','GET','/api/notification-preferences');
+        $this->wire('preferences_explicit_save','other','PATCH','/api/notification-preferences',
+            ['messages'=>false,'discovery_alerts'=>false]);
+        $preferences = $this->wire('preferences_read_after_save','other','GET','/api/notification-preferences');
+        $this->check($preferences->json('data.messages') === false && $preferences->json('data.discovery_alerts') === false
+            && $preferences->json('data.essential_always_on') === true,'notification_preferences_roundtrip');
+        $foreign = $this->wire('other_account_preferences_are_separate','publisher','GET','/api/notification-preferences');
+        $this->check($foreign->json('data.messages') === true && $foreign->json('data.discovery_alerts') === true,
+            'notification_preferences_account_isolation');
+    }
+
     private function disableFixtures(): bool
     {
         try {
@@ -396,6 +467,8 @@ class UatRoleJourneys extends Command
             foreach ($objects as $name) $paths[] = substr($name,strlen($prefix));
         }
         $fresh->apiTokens()->delete(); $fresh->roles()->detach();
+        SavedPropertySearch::where('user_id',$actor->id)->delete();
+        UserNotificationPreference::where('user_id',$actor->id)->delete();
         $changes = ['public_professional_photo_path'=>null];
         if ($fresh->account_status !== 'deleted') $changes += ['account_status'=>'suspended','phone'=>null,'phone_verified_at'=>null];
         $fresh->forceFill($changes)->save();
