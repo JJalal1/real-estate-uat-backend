@@ -33,7 +33,7 @@ $image = imagecreatetruecolor(6000, 4000);
 for ($y=0; $y<4000; $y+=12) for ($x=0; $x<6000; $x+=12) {
     imagefilledrectangle($image,$x,$y,$x+11,$y+11,($x*7919+$y*104729)%16777216);
 }
-ob_start(); imagejpeg($image,null,90); $bytes=ob_get_clean(); imagedestroy($image);
+ob_start(); imagejpeg($image,null,90); $bytes=ob_get_clean(); imagedestroy($image); unset($image);
 file_put_contents($root.'/source-1.jpg',$bytes);
 $exif="Exif\0\0"."II\x2a\0\x08\0\0\0"."\x01\0\x12\x01\x03\0\x01\0\0\0\x06\0\0\0\0\0\0\0";
 file_put_contents($root.'/source-6.jpg',substr($bytes,0,2)."\xff\xe1".pack('n',strlen($exif)+2).$exif.substr($bytes,2));
@@ -57,7 +57,7 @@ foreach ([1,2,3] as $concurrency) {
                 $running=true;
                 $statusText=@file_get_contents('/proc/'.$status['pid'].'/status') ?: '';
                 if (preg_match('/^VmRSS:\s+(\d+)/m',$statusText,$match)) $rss+=(int)$match[1];
-            } elseif ($child['exit']===null) $child['exit']=$status['exitcode'];
+            } elseif ($child['exit']===null) $child['exit']=$status['signaled'] ? 128+$status['termsig'] : $status['exitcode'];
         }
         unset($child); $rssMax=max($rssMax,$rss);
         if (microtime(true)-$start>120) throw new \RuntimeException('Image workload timed out');
