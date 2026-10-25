@@ -63,7 +63,7 @@ php artisan config:cache
 # Production/foreign Storage/foreign origins and persists a DB audit marker
 # before creating any fixture, so Free-service wakes never replay the run.
 # It uses ordinary HTTP routes and revokes every generated short-lived token.
-if [ "${UAT_EXECUTIVE_JOURNEY_RUN:-}" = "2026-10-25-109-v2" ]; then
+if [ "${UAT_EXECUTIVE_JOURNEY_RUN:-}" = "2026-10-25-109-v3" ]; then
   (
     ready=false
     for attempt in $(seq 1 60); do
