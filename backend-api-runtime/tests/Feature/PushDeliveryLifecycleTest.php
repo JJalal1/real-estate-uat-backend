@@ -99,4 +99,43 @@ class PushDeliveryLifecycleTest extends TestCase
         $this->assertNotNull($device->fresh()->last_seen_at);
         $this->assertNull($device->fresh()->disabled_at);
     }
+
+    public function test_queue_releases_throttle_for_provider_delay_and_stops_after_last_attempt(): void
+    {
+        [, $notification,$device]=$this->fixture();
+        Http::fake(['*'=>Http::response([],429,['Retry-After'=>'180'])]);
+        $queue=\Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $queue->shouldReceive('attempts')->andReturn(1);
+        $queue->shouldReceive('release')->once()->with(180);
+        $job=(new SendUserPushNotification($notification->id,$device->id))->setJob($queue);
+        $job->handle(app(FcmPushSender::class));
+        $final=\Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $final->shouldReceive('attempts')->andReturn(3);
+        $final->shouldNotReceive('release');
+        $this->expectException(\App\Services\PushDeliveryException::class);
+        (new SendUserPushNotification($notification->id,$device->id))->setJob($final)->handle(app(FcmPushSender::class));
+    }
+
+    public function test_permanent_provider_failure_is_marked_failed_without_retry_or_disabling_registration(): void
+    {
+        [, $notification,$device]=$this->fixture();
+        Http::fake(['*'=>Http::response([],403)]);
+        $queue=\Mockery::mock(\Illuminate\Contracts\Queue\Job::class);
+        $queue->shouldReceive('fail')->once()->with(\Mockery::type(\App\Services\PushDeliveryException::class));
+        $queue->shouldNotReceive('release');
+        (new SendUserPushNotification($notification->id,$device->id))->setJob($queue)->handle(app(FcmPushSender::class));
+        $this->assertNull($device->fresh()->disabled_at);
+    }
+
+    public function test_removed_registration_and_changed_account_never_receive_a_queued_message(): void
+    {
+        [, $notification,$device]=$this->fixture();
+        $other=User::create(['name'=>'Other synthetic account','email'=>'other-push@example.test','password'=>'fixture-only','account_status'=>User::STATUS_ACTIVE]);
+        $device->update(['user_id'=>$other->id]);
+        Http::fake(['*'=>Http::response([],200)]);
+        (new SendUserPushNotification($notification->id,$device->id))->handle(app(FcmPushSender::class));
+        $device->delete();
+        (new SendUserPushNotification($notification->id,$device->id))->handle(app(FcmPushSender::class));
+        Http::assertNothingSent();
+    }
 }
