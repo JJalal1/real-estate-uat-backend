@@ -100,6 +100,7 @@ jobs:
           test/launch_readiness_wave4_test.dart
           test/search_query_wave_test.dart
           test/property_marker_cluster_test.dart
+          test/secondary_admin_recovery_test.dart
           --reporter expanded
       - name: Build UAT release APK with explicit non-production signing allowance
         working-directory: mobile_app
