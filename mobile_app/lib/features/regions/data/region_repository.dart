@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../account/data/account_request_scope.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
@@ -8,17 +9,19 @@ import '../domain/region_models.dart';
 
 final regionRepositoryProvider = Provider<RegionRepository>((ref) =>
     RegionRepository(
-        ref.watch(dioProvider), ref.watch(authRepositoryProvider)));
+        ref.watch(dioProvider), ref.watch(authRepositoryProvider), requestScope: ref.watch(accountRequestScopeProvider)));
 
 class RegionRepository {
-  RegionRepository(this._dio, this._auth);
+  RegionRepository(this._dio, this._auth, {AccountRequestScope? requestScope}) : _requestScope = requestScope;
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
+  Future<Options> _sessionOptions() => _requestScope?.options() ?? _auth.requiredAuthOptions();
 
   Future<List<GovernorateModel>> governorates() async {
     final response = await _dio.get<Map<String, dynamic>>(
         '/admin/regions/governorates',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return _mapList(response.data?['data'], GovernorateModel.fromJson);
   }
 
@@ -30,7 +33,7 @@ class RegionRepository {
               if (search != null && search.trim().isNotEmpty)
                 'search': search.trim(),
             },
-            options: await _auth.requiredAuthOptions());
+            options: await _sessionOptions());
     return _mapList(response.data?['data'], RegionCell.fromJson);
   }
 
@@ -42,7 +45,7 @@ class RegionRepository {
           if (search != null && search.trim().isNotEmpty)
             'search': search.trim(),
         },
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return _mapList(response.data?['data'], RegionProperty.fromJson);
   }
 
@@ -50,7 +53,7 @@ class RegionRepository {
       {required String code, required String nameAr, String? nameEn}) async {
     await _dio.post<void>('/admin/regions/governorates',
         data: {'code': code, 'name_ar': nameAr, 'name_en': nameEn},
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
   }
 
   Future<void> createCell(
@@ -69,7 +72,7 @@ class RegionRepository {
               .map((p) => {'latitude': p.latitude, 'longitude': p.longitude})
               .toList(),
         },
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
   }
 
   Future<void> updateCellBoundary(
@@ -80,16 +83,17 @@ class RegionRepository {
               .map((p) => {'latitude': p.latitude, 'longitude': p.longitude})
               .toList()
         },
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
   }
 
   Future<void> setCellActive(RegionCell cell, bool active) async {
     await _dio.patch<void>('/admin/regions/cells/${cell.id}',
         data: {'is_active': active},
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
   }
 
   List<T> _mapList<T>(dynamic value, T Function(Map<String, dynamic>) convert) {
+    _requestScope?.verify();
     if (value is! List) return <T>[];
     return value
         .whereType<Map<String, dynamic>>()

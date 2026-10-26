@@ -8,6 +8,9 @@ import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
+import 'package:real_estate_mobile/features/account/data/account_verification_repository.dart';
+import 'package:real_estate_mobile/features/account/data/broker_verification_repository.dart';
+import 'package:real_estate_mobile/features/regions/data/region_repository.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_screen.dart';
 import 'package:real_estate_mobile/features/account/presentation/profile_screen.dart';
@@ -30,8 +33,9 @@ class _Auth extends AuthController {
   void change(int? id) => state=AsyncData(id==null?null:_actor(id));
 }
 class _Credentials implements AuthRepository {
+  Completer<void>? pending;
   @override
-  Future<Options> requiredAuthOptions() async => Options(headers:{'Authorization':'Bearer synthetic-only'});
+  Future<Options> requiredAuthOptions() async {await pending?.future;return Options(headers:{'Authorization':'Bearer synthetic-only'});}
   @override
   Future<Options?> optionalAuthOptions() async => requiredAuthOptions();
   @override
@@ -39,6 +43,7 @@ class _Credentials implements AuthRepository {
 }
 class _Harness {
   final account=_Auth();
+  final credentials=_Credentials();
   final dio=Dio(BaseOptions(baseUrl:'https://synthetic.invalid/api'));
   late final ProviderContainer container;
   int status=200,calls=0;
@@ -49,6 +54,7 @@ class _Harness {
       if(status!=200) {handler.reject(DioException(requestOptions:request,type:DioExceptionType.badResponse,
         response:Response<Object>(requestOptions:request,statusCode:status)));return;}
       final Object data=switch(request.path) {
+        '/account-verification'=>{'user_id':1,'type':'broker','status':'rejected','documents':<Object>[]},
         '/broker/account-verification'=>{'user_id':1,'name':'Synthetic broker','status':'rejected',
           'note':'Private broker review A','documents':<Object>[]},
         '/admin/messages/reports'=><Object>[{'id':7,'thread_id':4,'reporter_name':'Synthetic reporter',
@@ -60,10 +66,10 @@ class _Harness {
       handler.resolve(Response<Map<String,dynamic>>(requestOptions:request,statusCode:200,data:{'data':data}));
     }));
     container=ProviderContainer(overrides:[authControllerProvider.overrideWith(()=>account),
-      authRepositoryProvider.overrideWithValue(_Credentials()),dioProvider.overrideWithValue(dio)]);
+      authRepositoryProvider.overrideWithValue(credentials),dioProvider.overrideWithValue(dio)]);
     await container.read(authControllerProvider.future);
   }
-  void dispose(){if(pending!=null&&!pending!.isCompleted) {pending!.complete();}container.dispose();dio.close(force:true);}
+  void dispose(){if(credentials.pending!=null&&!credentials.pending!.isCompleted) {credentials.pending!.complete();}if(pending!=null&&!pending!.isCompleted) {pending!.complete();}container.dispose();dio.close(force:true);}
 }
 Future<void> _frames(WidgetTester tester) async {for(var i=0;i<10;i++){await tester.pump(const Duration(milliseconds:30));}}
 Future<_Harness> _mount(WidgetTester tester,Widget page,{bool large=false,_Harness? harness}) async {
@@ -82,6 +88,37 @@ void main(){
   setUpAll(() async {final font=FontLoader('NotoSansArabic')
     ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))
     ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'));await font.load();});
+  for(final kind in ['account-verification','broker-verification','regions']){
+    for(final phase in ['retained','token-lookup','late-read']){
+      test('$kind repository expires across account change during $phase',() async {
+        final h=_Harness();await h.start();addTearDown(h.dispose);
+        late final Future<dynamic> Function() operation;
+        if(kind=='account-verification'){
+          h.container.listen(accountVerificationRepositoryProvider,(_,__){});
+          final repo=h.container.read(accountVerificationRepositoryProvider);
+          operation=phase=='late-read'?repo.status:()=>repo.approve(17);
+        }else if(kind=='broker-verification'){
+          h.container.listen(brokerVerificationRepositoryProvider,(_,__){});
+          final repo=h.container.read(brokerVerificationRepositoryProvider);
+          operation=phase=='late-read'?repo.status:()=>repo.approve(17);
+        }else{
+          h.container.listen(regionRepositoryProvider,(_,__){});
+          final repo=h.container.read(regionRepositoryProvider);
+          operation=phase=='late-read'?repo.governorates:()=>repo.createGovernorate(code:'TEST',nameAr:'اصطناعي');
+        }
+        if(phase=='retained'){
+          h.account.change(2);await expectLater(operation(),throwsStateError);expect(h.calls,0);
+        }else{
+          final gate=Completer<void>();
+          if(phase=='token-lookup') {h.credentials.pending=gate;}else{h.pending=gate;}
+          final assertion=expectLater(operation(),throwsStateError);
+          for(var i=0;i<10;i++){await Future<void>.delayed(Duration.zero);}
+          h.account.change(null);h.account.change(1);gate.complete();await assertion;
+          expect(h.calls,phase=='late-read'?1:0);
+        }
+      });
+    }
+  }
   for(final sameActor in [false,true]){
     for(final kind in ['profile','completion','broker','reports']){
       testWidgets('$kind private state expires across account change same actor=$sameActor',(tester) async {
