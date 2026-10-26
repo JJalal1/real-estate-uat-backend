@@ -18,6 +18,7 @@ class FcmPushSender
         if (config('push.provider','fcm') !== 'fcm') {
             throw new RuntimeException('Unsupported push provider.');
         }
+        $this->androidPackage();
         if ((int)$device->user_id !== (int)$notification->user_id || $device->disabled_at) {
             return;
         }
@@ -65,32 +66,18 @@ class FcmPushSender
 
     private function message(UserNotification $notification,string $token): array
     {
-        $data=[
-            'notification_id'=>(string)$notification->id,
-            'type'=>$notification->type,
-            'route'=>$this->routeFor($notification),
-        ];
-        if ($notification->entity_type) $data['entity_type']=$notification->entity_type;
-        if ($notification->entity_id) $data['entity_id']=(string)$notification->entity_id;
-        foreach ((array)($notification->data ?? []) as $key=>$value) {
-            if (! is_string($key) || array_key_exists($key,$data)) continue;
-            $data[$key]=$this->stringValue($value);
-        }
-
+        // A notification payload is rendered by Android before our account
+        // checks when the app is backgrounded. Send an allowlisted data-only
+        // envelope; private content is fetched through the authenticated API.
         return [
             'token'=>$token,
-            'notification'=>array_filter([
-                'title'=>$notification->title,
-                'body'=>$notification->body,
-            ],static fn($value)=>is_string($value) && $value!==''),
-            'data'=>$data,
-            'android'=>[
-                'priority'=>'high',
-                'notification'=>[
-                    'channel_id'=>'aqer_general',
-                    'sound'=>'default',
-                ],
+            'data'=>[
+                'notification_id'=>(string)$notification->id,
+                'recipient_id'=>(string)$notification->user_id,
+                'registration_hash'=>hash('sha256',$token),
+                'route'=>$this->routeFor($notification),
             ],
+            'android'=>['priority'=>'high','ttl'=>'300s','restricted_package_name'=>$this->androidPackage()],
         ];
     }
 
@@ -104,15 +91,6 @@ class FcmPushSender
             return '/messages/'.$id;
         }
         return '/notifications';
-    }
-
-    private function stringValue(mixed $value): string
-    {
-        if (is_string($value)) return $value;
-        if (is_bool($value)) return $value ? 'true' : 'false';
-        if (is_int($value) || is_float($value)) return (string)$value;
-        if ($value===null) return '';
-        return json_encode($value,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?: '';
     }
 
     private function accessToken(): string
@@ -156,8 +134,16 @@ class FcmPushSender
     private function credentials(): array
     {
         $encoded=trim((string)config('push.fcm.service_account_json_base64',''));
-        if ($encoded==='') throw new RuntimeException('FCM service account is not configured.');
-        $decoded=base64_decode($encoded,true);
+        $file=trim((string)config('push.fcm.service_account_file',''));
+        if ($file!=='' && $encoded!=='') throw new RuntimeException('Configure one FCM credential source.');
+        if ($file==='') {
+            if ($encoded==='' || strlen($encoded)>90000) throw new RuntimeException('FCM service account is not configured.');
+            $decoded=base64_decode($encoded,true);
+        } else {
+            if (! is_file($file) || ! is_readable($file) || filesize($file)>65536) throw new RuntimeException('FCM secret file is unavailable.');
+            $decoded=@file_get_contents($file,false,null,0,65537);
+        }
+        if (! is_string($decoded) || strlen($decoded)>65536) throw new RuntimeException('Invalid FCM service account JSON.');
         $json=is_string($decoded) ? json_decode($decoded,true) : null;
         if (! is_array($json)) throw new RuntimeException('Invalid FCM service account JSON.');
         foreach (['client_email','private_key','project_id'] as $key) {
@@ -174,7 +160,25 @@ class FcmPushSender
 
     private function cacheKey(): string
     {
+        $file=trim((string)config('push.fcm.service_account_file',''));
+        if ($file!=='') {
+            // Hashing credentials also validates availability and project identity;
+            // rotation cannot reuse an OAuth token from the previous secret file.
+            return 'fcm-oauth-token:'.hash('sha256',json_encode($this->credentials(),JSON_THROW_ON_ERROR));
+        }
         return 'fcm-oauth-token:'.hash('sha256',(string)config('push.fcm.service_account_json_base64'));
+    }
+
+    private function androidPackage(): string
+    {
+        $package=trim((string)config('push.fcm.android_package',''));
+        if (! preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){2,}$/D',$package) || $package==='com.example.real_estate_mobile') {
+            throw new RuntimeException('Approved FCM Android package is not configured.');
+        }
+        if (! app()->environment(['staging','testing']) && ($package==='com.aqer.yemen.uat' || $this->projectId()==='aqer-yemen')) {
+            throw new RuntimeException('UAT Firebase identity is forbidden in production.');
+        }
+        return $package;
     }
 
     private function projectId(): string

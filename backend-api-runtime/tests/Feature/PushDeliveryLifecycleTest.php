@@ -100,6 +100,28 @@ class PushDeliveryLifecycleTest extends TestCase
         $this->assertNull($device->fresh()->disabled_at);
     }
 
+    public function test_external_envelope_contains_no_private_content_and_binds_recipient_and_registration(): void
+    {
+        [, $notification,$device]=$this->fixture();
+        $notification->forceFill(['entity_type'=>'message_thread','entity_id'=>77,
+            'data'=>['body'=>'PRIVATE_SENTINEL','recipient_id'=>'forged','route'=>'https://evil.test']])->save();
+        Http::fake(['*'=>Http::response(['name'=>'accepted-not-delivered'],200)]);
+        app(FcmPushSender::class)->send($notification,$device);
+        Http::assertSent(function ($request) use ($notification,$device) {
+            $message=$request['message'];
+            $this->assertArrayNotHasKey('notification',$message);
+            $this->assertArrayNotHasKey('notification',$message['android']);
+            $this->assertSame(['notification_id'=>(string)$notification->id,
+                'recipient_id'=>(string)$notification->user_id,'registration_hash'=>$device->token_hash,
+                'route'=>'/messages/77'],$message['data']);
+            $this->assertSame('com.aqer.yemen.uat',$message['android']['restricted_package_name']);
+            $this->assertSame('300s',$message['android']['ttl']);
+            $this->assertStringNotContainsString('PRIVATE_SENTINEL',json_encode($message));
+            $this->assertStringNotContainsString($notification->title,json_encode($message));
+            return true;
+        });
+    }
+
     public function test_queue_releases_throttle_for_provider_delay_and_stops_after_last_attempt(): void
     {
         [, $notification,$device]=$this->fixture();
@@ -136,6 +158,23 @@ class PushDeliveryLifecycleTest extends TestCase
         (new SendUserPushNotification($notification->id,$device->id))->handle(app(FcmPushSender::class));
         $device->delete();
         (new SendUserPushNotification($notification->id,$device->id))->handle(app(FcmPushSender::class));
+        Http::assertNothingSent();
+    }
+
+    public function test_push_uses_separate_database_queue_even_when_web_default_is_sync(): void
+    {
+        $job=new SendUserPushNotification(1,2);
+        $this->assertSame('database',$job->connection);
+        $this->assertSame('push',$job->queue);
+    }
+
+    public function test_production_rejects_uat_identity_before_any_network_request(): void
+    {
+        [, $notification,$device]=$this->fixture();
+        $this->app->instance('env','production');
+        Http::fake();
+        try { app(FcmPushSender::class)->send($notification,$device); $this->fail('UAT push must fail closed'); }
+        catch (\RuntimeException $error) { $this->assertStringContainsString('forbidden in production',$error->getMessage()); }
         Http::assertNothingSent();
     }
 }

@@ -70,7 +70,7 @@ class MainActivity : FlutterActivity() {
         speechInput = InAppSpeechInput(this, flutterEngine.dartExecutor.binaryMessenger)
 
         pushBridge?.dispose()
-        pushBridge = PushBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        pushBridge = PushBridge(this, flutterEngine.dartExecutor.binaryMessenger, ::readSecureToken)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -154,6 +154,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun writeSecureToken(token: String) {
+        PushSessionState(this).sessionChanged(token)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
         val encrypted = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
@@ -194,6 +195,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun deleteSecureToken() {
+        PushSessionState(this).sessionChanged(null)
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().remove(TOKEN_FIELD).apply()
     }
 

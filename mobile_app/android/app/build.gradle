@@ -78,6 +78,7 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         manifestPlaceholders["aqerAppLinkHost"] = project.findProperty("AQER_APP_LINK_HOST") ?: "real-estate-uat-api-frankfurt.onrender.com"
         manifestPlaceholders["aqerAppLinkAutoVerify"] = project.findProperty("AQER_APP_LINK_AUTO_VERIFY") ?: "false"
         buildConfigField "boolean", "AQER_PUSH_ENABLED", aqerPushEnabled.toString()
@@ -143,4 +144,7 @@ flutter {
 dependencies {
     // Pinned to the last Cloud Messaging line that officially supports API 23.
     implementation "com.google.firebase:firebase-messaging:25.0.1"
+    // Test-only, pinned official AndroidX runner; no second Firebase SDK.
+    androidTestImplementation 'androidx.test:runner:1.7.0'
+    androidTestImplementation 'junit:junit:4.13.2'
 }

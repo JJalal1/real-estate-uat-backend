@@ -23,7 +23,10 @@ class SendUserPushNotification implements ShouldQueue
     public function __construct(
         public readonly int $notificationId,
         public readonly int $deviceId,
-    ) {}
+    ) {
+        $this->onConnection(config('push.queue_connection','database'));
+        $this->onQueue(config('push.queue','push'));
+    }
 
     public function backoff(): array
     {

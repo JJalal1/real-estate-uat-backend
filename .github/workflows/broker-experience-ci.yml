@@ -377,6 +377,19 @@ jobs:
           if [ -f dist/uat-upgrade-predecessor.apk ]; then
             python3 -B scripts/verify_built_uat_apk.py --upgrade-predecessor
           fi
+      - name: Build isolated native Android push tests
+        if: ${{ !cancelled() && env.OWNER_UPGRADE_PAIR == 'true' && steps.verify_apk.conclusion == 'success' }}
+        working-directory: mobile_app
+        env:
+          AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+        run: |
+          flutter build apk --flavor uat --debug --target-platform android-x64 --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+          cd android
+          ./gradlew app:assembleUatDebugAndroidTest
+          cd ../..
+          mkdir -p android-push-tests
+          cp mobile_app/build/app/outputs/flutter-apk/app-uat-debug.apk android-push-tests/target.apk
+          cp mobile_app/build/app/outputs/apk/androidTest/uat/debug/app-uat-debug-androidTest.apk android-push-tests/tests.apk
       - name: Real API36 emulator package upgrade and private fixture preservation
         id: android_upgrade
         if: ${{ !cancelled() && env.OWNER_UPGRADE_PAIR == 'true' && steps.verify_apk.conclusion == 'success' }}
@@ -416,6 +429,7 @@ jobs:
           done
           test "$ready" = true
           python3 -B scripts/probe_uat_android_upgrade.py
+          python3 -B scripts/probe_android_push_isolation.py
       - name: Upload broker UAT APK and exact commit evidence
         id: apk_artifact
         continue-on-error: true
@@ -442,6 +456,7 @@ jobs:
           if [ -f dist/uat-upgrade-predecessor.apk ]; then
             python3 -B scripts/emit_ci_encrypted_apk.py --upgrade-predecessor
             cp dist/ANDROID_UPGRADE_VERIFICATION.json encrypted-dist/
+            cp dist/ANDROID_PUSH_ISOLATION.json encrypted-dist/
           fi
       - name: Upload encrypted installer and public verification evidence
         id: encrypted_artifact

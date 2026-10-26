@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/auth_user.dart';
 import 'auth_repository.dart';
 import '../../messages/data/push_registration_repository.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 
 final authControllerProvider =
     AsyncNotifierProvider<AuthController, AuthUser?>(AuthController.new);
@@ -134,6 +135,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
 
   Future<void> _performLogout() async {
     final revision = ++_revision;
+    Stage6SecureSessionStore.instance.beginSessionChange();
     try {
       try {
         await ref.read(pushRegistrationRepositoryProvider).unregister();
