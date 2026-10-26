@@ -77,11 +77,11 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppAppBar(title: 'عقاراتي', actions: [IconButton(tooltip: 'تحديث التوفر الجماعي', onPressed: () => context.push('/broker/availability'), icon: const EbrokerIcon(Icons.update, size: 20))]),
-        floatingActionButton: EbrokerButton(
+        floatingActionButton: listings.asData?.value.isNotEmpty == true ? EbrokerButton(
           onPressed: () => _create(context, ref),
           icon: const EbrokerIcon(Icons.add_home_work_outlined),
           child: const Text('إضافة عقار'),
-        ),
+        ) : null,
         body: Column(children: [
           if (listings.hasValue && (listings.isRefreshing || retain)) AppRefreshStatus(loading: listings.isLoading,
             error: retain ? friendlyApiError(listings.error!) : null, onRetry: () => ref.invalidate(myListingsProvider)),

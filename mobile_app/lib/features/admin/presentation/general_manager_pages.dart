@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import 'general_manager_accounts_screen.dart';
 import '../../financial/data/financial_repository.dart';
 import '../../regions/data/region_repository.dart';
@@ -321,11 +322,27 @@ class GeneralManagerReportsScreen extends ConsumerStatefulWidget {
 class _GeneralManagerReportsScreenState
     extends ConsumerState<GeneralManagerReportsScreen> {
   String _period = 'day';
+  late Future<Map<String, dynamic>> _finance;
+
+  @override
+  void initState() {
+    super.initState();
+    _finance = ref.read(financialRepositoryProvider).adminSummary();
+    _finance.ignore();
+  }
+
+  void _refreshFinance() {
+    setState(() {
+      _finance = ref.read(financialRepositoryProvider).adminSummary();
+      _finance.ignore();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return _ExecutiveDataPage(
       title: 'التقارير',
+      onRefresh: _refreshFinance,
       builder: (context, data, refresh) {
         final periodData = data.period(_period);
         final journeyRows = <_DataRow>[
@@ -386,17 +403,13 @@ class _GeneralManagerReportsScreenState
             const _SectionTitle('المالية'),
             const SizedBox(height: 8),
             FutureBuilder<Map<String, dynamic>>(
-              future: ref.read(financialRepositoryProvider).adminSummary(),
+              future: _finance,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const _LoadingList(
-                      message: 'جاري تحميل الملخص المالي…');
+                  return const AppLoadingState(label: 'جارٍ تحميل الملخص المالي…');
                 }
                 if (snapshot.hasError) {
-                  return _InfoPanel(
-                      icon: Icons.info_outline,
-                      title: 'تعذر تحميل الملخص المالي',
-                      subtitle: friendlyApiError(snapshot.error!));
+                  return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _refreshFinance);
                 }
                 final finance = snapshot.data ?? const <String, dynamic>{};
                 int count(String key) => _asInt(finance[key]);
@@ -814,8 +827,9 @@ class _GeneralManagerMapScreenState
 }
 
 class _ExecutiveDataPage extends ConsumerStatefulWidget {
-  const _ExecutiveDataPage({required this.title, required this.builder});
+  const _ExecutiveDataPage({required this.title, required this.builder, this.onRefresh});
   final String title;
+  final VoidCallback? onRefresh;
   final Widget Function(
       BuildContext, GeneralManagerInsights, Future<void> Function()) builder;
 
@@ -833,6 +847,7 @@ class _ExecutiveDataPageState extends ConsumerState<_ExecutiveDataPage> {
   }
 
   Future<void> _refresh() async {
+    widget.onRefresh?.call();
     setState(() { _future = ref.read(generalManagerRepositoryProvider).insights(); _future.ignore(); });
     try { await _future; } catch (_) { /* The view renders failure and retry. */ }
   }

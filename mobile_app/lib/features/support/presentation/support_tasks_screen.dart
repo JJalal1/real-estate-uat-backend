@@ -432,25 +432,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   Widget _body(bool manager) {
     if (_loading && _items.isEmpty) return const AppLoadingState(label: 'جارٍ تحميل طلبات الدعم…');
     if (_error != null && _items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const EbrokerIcon(Icons.error_outline, size: 48),
-              const SizedBox(height: 10),
-              Text(_error!, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              EbrokerFilledButton.icon(
-                onPressed: _load,
-                icon: const EbrokerIcon(Icons.refresh),
-                label: const Text('إعادة المحاولة'),
-              ),
-            ],
-          ),
-        ),
-      );
+      return AppErrorState(message: _error!, onRetry: _load);
     }
     if (_items.isEmpty) {
       return RefreshIndicator(

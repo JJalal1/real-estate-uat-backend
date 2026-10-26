@@ -63,6 +63,7 @@ class _AccountVerificationAdminScreenState
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            isExpanded: true,
                             value: _status,
                             decoration: const InputDecoration(
                               labelText: 'الحالة',
@@ -100,6 +101,7 @@ class _AccountVerificationAdminScreenState
                         const SizedBox(width: 8),
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            isExpanded: true,
                             value: _typeFilter,
                             decoration: const InputDecoration(
                               labelText: 'نوع الحساب',

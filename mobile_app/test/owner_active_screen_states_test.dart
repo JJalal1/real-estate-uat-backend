@@ -57,7 +57,7 @@ Future<void> _frames(WidgetTester tester) async {
 }
 Object _empty(String path) {
   if (path.contains('dashboard') || path.endsWith('/insights') || path.endsWith('/catalog') ||
-      path.endsWith('/notification-preferences') || path.endsWith('/summary') || path.endsWith('/stats')) return <String,dynamic>{};
+      path.endsWith('/notification-preferences') || path.endsWith('/summary') || path.endsWith('/stats')) { return <String,dynamic>{}; }
   return <Object>[];
 }
 void main() {
@@ -130,7 +130,10 @@ void main() {
         expect(tester.takeException(),isNull);
         gate.complete();await _frames(tester);
         if (find.textContaining('الخادم غير متاح مؤقتاً').evaluate().isEmpty) {
-          await tester.scrollUntilVisible(find.textContaining('الخادم غير متاح مؤقتاً').first, 300, maxScrolls: 15);
+          final vertical = find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down);
+          if (vertical.evaluate().isNotEmpty) {
+            await tester.scrollUntilVisible(find.textContaining('الخادم غير متاح مؤقتاً'), 300, scrollable: vertical.first, maxScrolls: 15);
+          }
         }
         expect(find.textContaining('الخادم غير متاح مؤقتاً'),findsWidgets);
         expect(find.textContaining('DioException'),findsNothing);
