@@ -77,4 +77,3 @@ class ListingVideoViewFactory : PlatformViewFactory(StandardMessageCodec.INSTANC
         }
     }
 }
-

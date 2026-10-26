@@ -64,4 +64,3 @@ class ListingVideoProcessingPolicyTest extends TestCase
         ]]);
     }
 }
-

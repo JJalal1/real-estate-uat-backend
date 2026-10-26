@@ -69,4 +69,3 @@ void main() {
     expect(find.byType(AndroidView),findsNothing);
   });
 }
-

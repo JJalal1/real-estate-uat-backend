@@ -212,4 +212,3 @@ final class ListingVideoController extends Controller
         ];
     }
 }
-

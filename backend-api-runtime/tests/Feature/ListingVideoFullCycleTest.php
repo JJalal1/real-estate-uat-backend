@@ -179,7 +179,9 @@ class ListingVideoFullCycleTest extends TestCase
         config()->set('listing_video.processing_enabled', false);
         $this->postJson('/api/properties/1/video', [
             'upload_id' => (string) Str::uuid(),
-        ])->assertNotFound();
+        ])->assertUnauthorized();
+        $controller=app(\App\Http\Controllers\Api\ListingVideoController::class);
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\NotFoundHttpException::class);
+        $controller->upload(\Illuminate\Http\Request::create('/api/properties/1/video','POST'),new Property());
     }
 }
-

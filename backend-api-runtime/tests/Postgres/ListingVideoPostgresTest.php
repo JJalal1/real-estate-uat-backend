@@ -53,4 +53,3 @@ class ListingVideoPostgresTest extends TestCase
         $this->assertContains('listing_videos_one_per_property_unique', $names);
     }
 }
-

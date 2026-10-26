@@ -27,4 +27,3 @@ ENV VIDEO_WORKER_HEARTBEAT_ENABLED=true
 # Keep 540s PHP timeout below 660s database visibility lease.
 # Single worker per service limits transcoding resource contention.
 CMD ["php", "artisan", "queue:work", "database_video", "--queue=video", "--sleep=3", "--tries=3", "--timeout=540", "--memory=128", "--no-interaction"]
-

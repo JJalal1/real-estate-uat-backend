@@ -69,4 +69,3 @@ class ListingVideoUploadPolicyTest extends TestCase
         app(ListingVideoUploadPolicy::class)->assertAcceptable($file);
     }
 }
-

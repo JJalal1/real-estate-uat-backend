@@ -54,4 +54,3 @@ jobs:
           test -s build/app/outputs/flutter-apk/app-uat-debug.apk
           sha256sum build/app/outputs/flutter-apk/app-uat-debug.apk
           echo 'Compiled UAT Android video integration. No APK upload in public repo.'
-

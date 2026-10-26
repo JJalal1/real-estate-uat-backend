@@ -307,4 +307,3 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::get('/audit-logs', [AccessControlController::class, 'auditLogs'])->middleware('permission:audit.view');
     });
 });
-

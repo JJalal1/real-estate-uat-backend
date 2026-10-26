@@ -47,4 +47,3 @@ class ListingVideoTranscoderTest extends TestCase
         return [['320x240',320,240],['1920x1080',1280,720]];
     }
 }
-

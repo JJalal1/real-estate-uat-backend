@@ -35,7 +35,7 @@ class _PropertyVideoSectionState extends State<PropertyVideoSection> with Widget
   @override
   void didUpdateWidget(covariant PropertyVideoSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.video.id != widget.video.id ||
+    if (oldWidget.video.id != widget.video.id || oldWidget.video.streamUrl != widget.video.streamUrl ||
         !mapEquals(oldWidget.requestHeaders, widget.requestHeaders)) {
       _playRequested = false;
     }
@@ -45,15 +45,6 @@ class _PropertyVideoSectionState extends State<PropertyVideoSection> with Widget
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(covariant PropertyVideoSection oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.video.id != widget.video.id ||
-        oldWidget.video.streamUrl != widget.video.streamUrl) {
-      _playRequested = false;
-    }
   }
 
   @override
@@ -129,4 +120,3 @@ class _PropertyVideoSectionState extends State<PropertyVideoSection> with Widget
     );
   }
 }
-

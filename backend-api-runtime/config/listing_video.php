@@ -14,4 +14,3 @@ return [
     'max_duration_seconds' => 90,
     'range_chunk_bytes' => 1024 * 1024,
 ];
-

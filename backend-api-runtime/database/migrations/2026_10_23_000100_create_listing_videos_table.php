@@ -17,6 +17,7 @@ return new class extends Migration {
             $table->string('moderation_status', 20)->default('pending');
             $table->timestamp('moderated_at')->nullable();
             $table->foreignId('moderated_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->index('moderated_by_user_id');
             $table->string('original_path', 500);
             // Track superseded originals until provider deletion is acknowledged.
             $table->json('cleanup_paths')->nullable();
@@ -65,4 +66,3 @@ return new class extends Migration {
         Schema::dropIfExists('listing_videos');
     }
 };
-

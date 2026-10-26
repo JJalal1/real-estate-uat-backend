@@ -40,4 +40,3 @@ jobs:
       - name: No installer or private media artifacts
         run: |
           echo 'Worker image is tested in CI only; it is not deployed or published.'
-

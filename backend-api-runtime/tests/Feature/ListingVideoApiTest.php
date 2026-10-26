@@ -288,17 +288,17 @@ class ListingVideoApiTest extends TestCase
         [$owner,$headers]=$this->actor('cleanup-tombstone');
         $property=$this->property($owner);$key=(string)Str::uuid();
         $url='/api/properties/'.$property->id.'/video';
-        $this->withHeaders($headers)->post($url,['upload_id'=>$key,'video'=>$this->video()])->assertStatus(202);
-        $record=ListingVideo::query()->firstOrFail();$oldPath=$record->original_path;
-        $record->update(['status'=>'upload_failed']);
         $storage=new class extends CloudAssetStorageService {
-            public bool $fail=true;
+            public bool $fail=false;
             public function deletePrivate(string $path): void {
                 if($this->fail) throw new \RuntimeException('synthetic-cleanup-unavailable');
                 parent::deletePrivate($path);
             }
         };
         app()->instance(CloudAssetStorageService::class,$storage);
+        $this->withHeaders($headers)->post($url,['upload_id'=>$key,'video'=>$this->video()])->assertStatus(202);
+        $record=ListingVideo::query()->firstOrFail();$oldPath=$record->original_path;
+        $record->update(['status'=>'upload_failed']);$storage->fail=true;
         $this->withHeaders($headers)->post($url,['upload_id'=>$key,'video'=>$this->video()])->assertStatus(500);
         $this->assertContains($oldPath,$record->fresh()->trackedPaths());
         Storage::disk('local')->assertExists($oldPath);
@@ -306,6 +306,19 @@ class ListingVideoApiTest extends TestCase
         $this->withHeaders($headers)->post($url,['upload_id'=>$key,'video'=>$this->video()])->assertStatus(202);
         Storage::disk('local')->assertMissing($oldPath);
         $this->assertNull($record->fresh()->cleanup_paths);
+    }
+
+    public function test_authenticated_owner_is_still_denied_when_either_video_gate_is_closed(): void
+    {
+        [$owner,$headers]=$this->actor('feature-gates');
+        $property=$this->property($owner);$url='/api/properties/'.$property->id.'/video';
+        config(['listing_video.uploads_enabled'=>false]);
+        $this->withHeaders($headers)->getJson($url)->assertNotFound();
+        $this->withHeaders($headers)->postJson($url,['upload_id'=>'invalid'])->assertNotFound();
+        $this->withHeaders($headers)->deleteJson($url)->assertNotFound();
+        config(['listing_video.uploads_enabled'=>true,'listing_video.processing_enabled'=>false]);
+        $this->withHeaders($headers)->postJson($url,['upload_id'=>'invalid'])->assertNotFound();
+        $this->assertDatabaseCount('listing_videos',0);
     }
 
     public function test_stale_processing_attempt_cannot_erase_a_newer_attempts_output(): void
@@ -341,4 +354,3 @@ class ListingVideoApiTest extends TestCase
 
 
 }
-

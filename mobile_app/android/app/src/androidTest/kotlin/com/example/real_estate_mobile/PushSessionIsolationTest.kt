@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
+import android.service.notification.StatusBarNotification
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.*
@@ -32,6 +34,18 @@ class PushSessionIsolationTest {
     private fun enroll() { val f = fence(); assertTrue(state.grant(f)); assertTrue(state.confirm(f, "101", token)) }
     private fun data() = mapOf("notification_id" to "901", "recipient_id" to "101",
         "registration_hash" to PushSessionState.hash(token), "route" to "/messages/77")
+    // notify/cancel enqueue work in Android's notification service. A successful
+    // binder call does not mean its active-notification list has updated yet.
+    private fun awaitTray(present: Boolean): StatusBarNotification? {
+        val deadline=SystemClock.elapsedRealtime()+3000
+        do {
+            val active=manager.activeNotifications.singleOrNull { it.tag==PushSessionState.NOTIFICATION_TAG }
+            if((active!=null)==present) return active
+            SystemClock.sleep(20)
+        } while(SystemClock.elapsedRealtime()<deadline)
+        fail("Android tray did not reach expected presence=$present within 3 seconds; enabled=${manager.areNotificationsEnabled()}")
+        return null
+    }
 
     @Test fun noConsentOrAcknowledgementNeverDelivers() {
         assertFalse(state.allows(data()))
@@ -83,11 +97,11 @@ class PushSessionIsolationTest {
     }
     @Test fun actualAndroidNotificationIsGenericAndRevocationRemovesIt() {
         enroll(); assertTrue(PushMessageHandler.display(context, data()))
-        val active = manager.activeNotifications.single { it.tag == PushSessionState.NOTIFICATION_TAG }
+        val active = awaitTray(true)!!
         assertEquals("عقار", active.notification.extras.getString("android.title"))
         assertEquals("لديك إشعار جديد. افتح التطبيق لعرضه.", active.notification.extras.getString("android.text"))
         state.clearConsent()
-        assertTrue(manager.activeNotifications.none { it.tag == PushSessionState.NOTIFICATION_TAG })
+        awaitTray(false)
     }
     @Test fun delayedTokenReceiptCannotReplaceNewerRegistration() {
         val f = fence(); assertTrue(state.grant(f))
@@ -104,7 +118,7 @@ class PushSessionIsolationTest {
         val revoke = Thread { start.await(); state.clearConsent() }
         receive.start(); revoke.start(); start.countDown(); receive.join(); revoke.join()
         assertFalse(state.allows(data()))
-        assertTrue(manager.activeNotifications.none { it.tag == PushSessionState.NOTIFICATION_TAG })
+        awaitTray(false)
     }
     @Test fun storageContainsOnlyFingerprintsAndInstallationIdIsStable() {
         enroll(); val installation = state.installationId()

@@ -49,4 +49,3 @@ final class ListingVideo extends Model
         return $this->belongsTo(Property::class);
     }
 }
-

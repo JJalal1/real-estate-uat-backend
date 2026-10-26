@@ -232,6 +232,7 @@ class Stage9ListingReviewApiTest extends TestCase
             ->get("/api/property-videos/{$video->id}/stream")->assertNotFound();
         $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$id/start")
             ->assertOk();
+        $this->confirmListingImages($id, $modHeaders);
         $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$id/approve")
             ->assertStatus(409);
         $this->assertDatabaseHas('listing_videos', ['id' => $video->id, 'moderation_status' => 'pending']);
