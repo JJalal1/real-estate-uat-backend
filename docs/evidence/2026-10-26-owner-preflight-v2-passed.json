@@ -1,0 +1,395 @@
+{
+  "id": 914,
+  "created_at": "2026-10-26 13:05:31",
+  "result": {
+    "run": "2026-10-26-owner-v2",
+    "backend_sha": "44a5429d91827f2da73938b71c877c38572dd663",
+    "fixture_only": true,
+    "property_ids": [
+      60,
+      61,
+      62
+    ],
+    "created_at": "2026-10-26T13:02:59+00:00",
+    "owner_erasure_user_id": 66,
+    "recovery_draft_key": "29e4ec63-e136-47b4-ac22-7da1c00eb420",
+    "review_listing_id": 93,
+    "review_image_ids": [
+      158,
+      159
+    ],
+    "access_capsule_sha256": "c00246d22b1174d1fc6319b36026ba526061230803593c3507f3ff17d8914987",
+    "status": "passed",
+    "probe_sessions_revoked": true,
+    "cases": [
+      {
+        "case": "otp_start_user",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_user",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_user",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_start_advertiser",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_advertiser",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_advertiser",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_start_broker",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_broker",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_broker",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_start_reviewer_throttled_1",
+        "status": 429,
+        "expected": 429,
+        "passed": true,
+        "wait_seconds": 48
+      },
+      {
+        "case": "otp_start_reviewer",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_reviewer",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_reviewer",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_start_support",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_support",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_support",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_start_admin",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_admin",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_admin",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_start_erasure_throttled_1",
+        "status": 429,
+        "expected": 429,
+        "passed": true,
+        "wait_seconds": 49
+      },
+      {
+        "case": "otp_start_erasure",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_erasure",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_erasure",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_user_0",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_user_1",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_user_2",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_advertiser_0",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_broker_0",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_broker_1",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_reviewer_0",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_support_0",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_admin_0",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "role_read_admin_1",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "regular_admin_rejected",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_recovery_draft",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_recovery_photo",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "foreign_draft_rejected",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "recovery_draft_readback",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_review_draft",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_relevant_photo",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_unrelated_photo",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_review_listing",
+        "status": 201,
+        "expected": 201,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_review_sai",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_review_submit",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "unreviewed_owner_listing_not_public",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "reviewer_can_open_owner_evidence",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "public_fixture_60",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "external_share_fixture_60",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "public_fixture_61",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "external_share_fixture_61",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "public_fixture_62",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "external_share_fixture_62",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      }
+    ],
+    "elapsed_ms": 153119,
+    "handset_acceptance": false,
+    "fixtures_retained_for_owner": true,
+    "access_capsule_part_count": 3
+  }
+}
