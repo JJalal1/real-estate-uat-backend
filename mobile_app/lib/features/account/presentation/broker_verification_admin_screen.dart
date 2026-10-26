@@ -5,6 +5,7 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../data/auth_controller.dart';
 import '../data/broker_verification_repository.dart';
 import '../domain/broker_verification.dart';
@@ -28,8 +29,10 @@ class _BrokerVerificationAdminScreenState
     _reload();
   }
 
-  void _reload() =>
-      _future = ref.read(brokerVerificationRepositoryProvider).queue();
+  void _reload() {
+    _future = ref.read(brokerVerificationRepositoryProvider).queue();
+    _future.ignore();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,10 +53,8 @@ class _BrokerVerificationAdminScreenState
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    return Center(
-                        child: EbrokerFilledButton(
-                            onPressed: () => setState(_reload),
-                            child: const Text('إعادة المحاولة')));
+                    return AppErrorState(message: friendlyApiError(snapshot.error!),
+                      onRetry: () => setState(_reload));
                   }
                   final rows = snapshot.data ?? const [];
                   if (rows.isEmpty) {

@@ -141,6 +141,11 @@ jobs:
         run: php artisan migrate --force
       - name: PostgreSQL schema and access regression
         run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Erasure, authentication and OTP lifecycle on PostgreSQL
+        run: >-
+          php artisan test tests/Feature/AccountErasureAuthRaceTest.php
+          tests/Feature/AccountErasureLaunchTest.php
+          --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Broker ownership, followup and UTC date range on PostgreSQL
         run: >-
           php artisan test tests/Feature/BrokerExperienceApiTest.php

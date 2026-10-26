@@ -100,7 +100,7 @@ class _ReleaseGateState extends ConsumerState<ReleaseGate> {
           color: Theme.of(context).scaffoldBackgroundColor,
           child: SafeArea(
             child: Center(
-              child: ConstrainedBox(
+              child: SingleChildScrollView(child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -140,7 +140,7 @@ class _ReleaseGateState extends ConsumerState<ReleaseGate> {
                     ],
                   ),
                 ),
-              ),
+              )),
             ),
           ),
         ),
