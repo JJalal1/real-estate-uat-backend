@@ -87,7 +87,7 @@ class _Harness {
     }));
     container=ProviderContainer(overrides:[authControllerProvider.overrideWith(()=>account),
       authRepositoryProvider.overrideWithValue(credentials),dioProvider.overrideWithValue(dio),
-      if(recentStub) recentPropertiesProvider.overrideWith((ref)async{recentAttempts++;if(recentFail) throw StateError("synthetic local failure");return <PropertySummary>[];})]);
+      if(recentStub) recentPropertiesProvider.overrideWith((ref)async{recentAttempts++;if(recentFail) throw StateError('synthetic local failure');return <PropertySummary>[];})]);
     await container.read(authControllerProvider.future);
   }
   void dispose(){if(credentials.pending!=null&&!credentials.pending!.isCompleted) {credentials.pending!.complete();}if(pending!=null&&!pending!.isCompleted) {pending!.complete();}container.dispose();dio.close(force:true);}

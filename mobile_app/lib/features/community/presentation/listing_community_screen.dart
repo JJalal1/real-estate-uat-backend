@@ -119,15 +119,12 @@ class _ListingCommunityScreenState
                     ),
                   ),
                 const SizedBox(height: 18),
-                Row(
+                Wrap(
+                  spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Expanded(
-                      child: Text(
-                        'التعليقات (${_comments.length})',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
+                    Text(
+                      'التعليقات (${_comments.length})',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     if (user != null)
                       TextButton.icon(
@@ -198,12 +195,12 @@ class _ListingCommunityScreenState
                     ),
                   ),
                 ),
-                Text(
+                Flexible(child: Text(
                   rating.count == 0
                       ? 'لا تقييمات'
                       : '${rating.average.toStringAsFixed(1)} / 5 (${rating.count})',
                   style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
+                )),
               ],
             ),
             const SizedBox(height: 10),
