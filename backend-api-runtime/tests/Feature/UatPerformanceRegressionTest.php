@@ -87,6 +87,34 @@ class UatPerformanceRegressionTest extends TestCase
         $this->getJson('/api/health')->assertHeaderMissing('Server-Timing')->assertHeaderMissing('X-Aqer-DB-Queries');
     }
 
+    public function test_twenty_distinct_advertisers_do_not_add_per_owner_financial_queries(): void
+    {
+        \Illuminate\Support\Facades\Cache::put('broker-availability-swept',true,60);
+        $expected=[];
+        for($i=0;$i<20;$i++) {
+            $owner=User::create(['name'=>'Synthetic distinct owner '.$i,'email'=>'distinct-'.$i.'@example.test','password'=>'unusable']);
+            $property=Property::create(['user_id'=>$owner->id,'title'=>'Distinct owner listing '.$i,
+                'type'=>'shop','purpose'=>'sale','price'=>100000+$i,'currency'=>'YER','latitude'=>13.96,'longitude'=>44.18,
+                'address'=>'إب','status'=>'published','review_status'=>'approved','published_at'=>now()]);
+            $expected[$property->id]=(float)$property->price;
+        }
+        DB::connection()->enableQueryLog();DB::connection()->flushQueryLog();
+        try {
+            $response=$this->getJson('/api/properties?per_page=20')->assertOk();
+            $queries=DB::getQueryLog();
+        } finally { DB::connection()->disableQueryLog(); }
+        $this->assertCount(20,$response->json('data'));
+        foreach($response->json('data') as $row) {
+            $this->assertEquals($expected[$row['id']],$row['base_price']);
+            $this->assertEquals($expected[$row['id']],$row['display_price']);
+            $this->assertFalse($row['financial_hold']);
+        }
+        $reads=array_filter($queries,fn ($q)=>str_contains($q['query'],'from "property_platform_receivables"'));
+        $this->assertLessThanOrEqual(4,count($reads));
+        $this->assertLessThanOrEqual(25,count($queries));
+        fwrite(STDOUT,"\nAQER_DISTINCT_OWNER_QUERIES ".json_encode(['owners'=>20,'queries'=>count($queries),'receivable_reads'=>count($reads)])."\n");
+    }
+
     public function test_nearby_measurement_preserves_compact_primary_photo_summaries(): void
     {
         \Illuminate\Support\Facades\Cache::store('file')->flush();

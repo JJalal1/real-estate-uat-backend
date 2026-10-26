@@ -208,18 +208,16 @@ class FinancialPropertyController extends PropertyController
             ->get()->keyBy('id');
         $attested = DB::table('property_sai_attestations')->whereIn('property_id', $ids)
             ->get(['property_id', 'sai_term_id'])->mapWithKeys(fn ($row) => [$row->property_id.':'.$row->sai_term_id => true]);
-        $holds = [];
-        return array_map(function (array $row) use ($properties, $terms, $attested, &$holds): array {
+        $owners=array_map(fn (array $row)=>(int)($properties->get((int)($row['id'] ?? 0))?->user_id ?? 0),$rows);
+        $holds = $this->finance->overdueReceivablesFor($owners);
+        return array_map(function (array $row) use ($properties, $terms, $attested, $holds): array {
             $property = $properties->get((int) ($row['id'] ?? 0));
             if (! $property) return $row;
             $owner = (int) $property->user_id;
-            // Preserve the authoritative service's overdue-hold side effects,
-            // once per owner in this page rather than once per listing.
-            if (! array_key_exists($owner, $holds)) $holds[$owner] = $this->finance->hasOverdueReceivable($owner);
             $term = $terms->get($property->current_sai_term_id);
             $pending = $property->status === 'published' && $property->current_sai_term_id
                 && ! $attested->has($property->id.':'.$property->current_sai_term_id);
-            return $this->enrichLoadedRow($row, $property, $term, (bool) $pending, $holds[$owner]);
+            return $this->enrichLoadedRow($row, $property, $term, (bool) $pending, $holds[$owner] ?? false);
         }, $rows);
     }
 
