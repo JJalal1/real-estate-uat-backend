@@ -168,6 +168,35 @@ class PushDeliveryLifecycleTest extends TestCase
         $this->assertSame('push',$job->queue);
     }
 
+    public function test_readiness_fails_closed_without_sending_when_identity_or_secret_is_missing(): void
+    {
+        Http::fake();
+        config(['push.enabled'=>false,'push.fcm.service_account_file'=>'','push.fcm.service_account_json_base64'=>'']);
+        $this->artisan('push:readiness')->assertFailed();
+        Http::assertNothingSent();
+    }
+
+    public function test_secret_file_validates_identity_and_rejects_client_config_and_ambiguous_sources(): void
+    {
+        $file=tempnam(sys_get_temp_dir(),'aqer-push-secret-test-');
+        chmod($file,0600);
+        try {
+            $key=openssl_pkey_new(['private_key_bits'=>2048,'private_key_type'=>OPENSSL_KEYTYPE_RSA]);
+            openssl_pkey_export($key,$private);
+            file_put_contents($file,json_encode(['project_id'=>'aqer-yemen','client_email'=>'synthetic@aqer-yemen.iam.gserviceaccount.com','private_key'=>$private]));
+            config(['push.fcm.project_id'=>'aqer-yemen','push.fcm.service_account_file'=>$file,'push.fcm.service_account_json_base64'=>'']);
+            Http::fake();
+            app(FcmPushSender::class)->validateConfiguration();
+            Http::assertNothingSent();
+            file_put_contents($file,json_encode(['project_info'=>['project_id'=>'aqer-yemen'],'client'=>[]]));
+            try { app(FcmPushSender::class)->validateConfiguration(); $this->fail('Client JSON cannot authorize the server'); }
+            catch (\RuntimeException $error) { $this->assertStringNotContainsString('private_key',$error->getMessage()); }
+            config(['push.fcm.service_account_json_base64'=>'synthetic-ambiguous-source']);
+            $this->expectExceptionMessage('Configure one FCM credential source');
+            app(FcmPushSender::class)->validateConfiguration();
+        } finally { unlink($file); }
+    }
+
     public function test_production_rejects_uat_identity_before_any_network_request(): void
     {
         [, $notification,$device]=$this->fixture();

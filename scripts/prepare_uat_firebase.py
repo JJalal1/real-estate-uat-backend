@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate owner-supplied Android client config; never emit keys or server credentials."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -73,6 +74,8 @@ def write_properties(config, output, client_enabled):
             os.fchmod(stream.fileno(), 0o600)
             for key, value in config.items():
                 stream.write('aqer.uat.firebase.' + key + '=' + value + '\n')
+            fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            stream.write('aqer.uat.firebase.fingerprint=' + fingerprint + '\n')
             stream.write('aqer.uat.firebase.enabled=' + str(client_enabled).lower() + '\n')
         os.replace(temporary, output)
     finally:

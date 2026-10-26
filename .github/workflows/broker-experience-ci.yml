@@ -195,6 +195,11 @@ jobs:
           docker run --rm --entrypoint php real-estate-wave3-uat
           -r '$image=imagecreatetruecolor(20,20); foreach(["png"=>IMAGETYPE_PNG,"jpeg"=>IMAGETYPE_JPEG,"webp"=>IMAGETYPE_WEBP] as $format=>$type) { ob_start(); ("image".$format)($image); $bytes=ob_get_clean(); if(getimagesizefromstring($bytes)[2]!==$type) exit(1); } imagedestroy($image); if(!function_exists("exif_read_data")) exit(1); echo "Runtime PNG/JPEG/WebP codecs and EXIF support verified.\n";'
 
+      - name: Verify isolated push worker runtime without credentials or network
+        run: |
+          docker build -t aqer-push-worker:ci -f backend-api-runtime/Dockerfile.queue-worker backend-api-runtime
+          docker run --rm --network none --entrypoint php aqer-push-worker:ci -r 'if (posix_getuid() === 0 || !extension_loaded("pcntl") || !extension_loaded("pdo_pgsql")) exit(1); echo "Nonroot push runtime and signal support verified.\n";'
+
   flutter:
     name: Flutter broker experience and UAT APK
     outputs:

@@ -47,6 +47,7 @@ def main():
     assert before['certificate_sha256'] == after['certificate_sha256']
     assert before['version_code'] + 1 == after['version_code']
     assert before['package'] == after['package'] == PACKAGE
+    assert before['firebase'] == after['firebase'], 'Upgrade pair must use identical Firebase client configuration'
     adb('wait-for-device'); adb('root'); adb('wait-for-device')
     assert adb('shell', 'id', '-u') == '0', 'A disposable rooted emulator is required'
     assert int(adb('shell', 'getprop', 'ro.build.version.sdk')) >= 36

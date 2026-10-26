@@ -12,6 +12,16 @@ use RuntimeException;
 
 class FcmPushSender
 {
+    public function validateConfiguration(): void
+    {
+        $this->androidPackage();
+        $credentials=$this->credentials();
+        if (! str_ends_with($credentials['client_email'],'.iam.gserviceaccount.com') ||
+            ! @openssl_pkey_get_private($credentials['private_key'])) {
+            throw new RuntimeException('FCM service account is not a valid server signing identity.');
+        }
+    }
+
     public function send(UserNotification $notification, UserPushDevice $device): void
     {
         if (! config('push.enabled',false)) return;
@@ -96,7 +106,7 @@ class FcmPushSender
     private function accessToken(): string
     {
         $credentials=$this->credentials();
-        $cacheKey=$this->cacheKey();
+        $cacheKey=$this->cacheKey($credentials);
         $cached=Cache::store('file')->get($cacheKey);
         if (is_string($cached) && $cached!=='') return $cached;
 
@@ -158,13 +168,13 @@ class FcmPushSender
         return $json;
     }
 
-    private function cacheKey(): string
+    private function cacheKey(?array $credentials=null): string
     {
         $file=trim((string)config('push.fcm.service_account_file',''));
         if ($file!=='') {
             // Hashing credentials also validates availability and project identity;
             // rotation cannot reuse an OAuth token from the previous secret file.
-            return 'fcm-oauth-token:'.hash('sha256',json_encode($this->credentials(),JSON_THROW_ON_ERROR));
+            return 'fcm-oauth-token:'.hash('sha256',json_encode($credentials ?? $this->credentials(),JSON_THROW_ON_ERROR));
         }
         return 'fcm-oauth-token:'.hash('sha256',(string)config('push.fcm.service_account_json_base64'));
     }

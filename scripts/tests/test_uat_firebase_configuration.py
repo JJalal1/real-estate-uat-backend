@@ -69,6 +69,7 @@ class UatFirebaseConfigurationTest(unittest.TestCase):
             self.assertEqual(0o600, stat.S_IMODE(target.stat().st_mode))
             self.assertIn('aqer.uat.firebase.enabled=true', target.read_text())
             self.assertIn('aqer.uat.firebase.projectId=aqer-yemen', target.read_text())
+            self.assertRegex(target.read_text(), r'aqer\.uat\.firebase\.fingerprint=[a-f0-9]{64}')
             self.assertEqual([], list(Path(td).glob('.firebase-uat-*')))
             original = target.read_bytes(); source.write_text('{"private_key":"SENSITIVE_SENTINEL"}')
             result = subprocess.run([sys.executable, str(SCRIPT), '--config', str(source), '--out', str(target)], capture_output=True, text=True)

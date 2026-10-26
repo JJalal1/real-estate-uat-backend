@@ -152,7 +152,7 @@ void main() {
     const channel = MethodChannel('real_estate/push');
     final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(channel, (call) async => call.method == 'confirmRegistration' ? false : {
-      'configured': true, 'granted': true, 'generation': 'old-generation',
+      'configured': true, 'granted': true, 'generation': 'synthetic-old-generation',
       'installation_id': '11111111-2222-3333-4444-555555555555', 'token': List.filled(32, 't').join(),
     });
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
