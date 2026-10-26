@@ -131,16 +131,11 @@ class _SummaryGrid extends StatelessWidget {
         visible: _can('payments.manage')
       ),
     ].where((row) => row.visible).toList(growable: false);
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 1.9,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8),
-      itemCount: rows.length,
-      itemBuilder: (_, i) => Card(
+    return LayoutBuilder(builder: (context, constraints) {
+      final columns = MediaQuery.textScalerOf(context).scale(14) > 20 ? 1 : 2;
+      final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+      return Wrap(spacing: 8, runSpacing: 8, children: [
+        for (var i = 0; i < rows.length; i++) SizedBox(width: width, child: Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(children: [
@@ -154,13 +149,13 @@ class _SummaryGrid extends StatelessWidget {
                   Text('${rows[i].value}',
                       style: const TextStyle(
                           fontSize: 22, fontWeight: FontWeight.w600)),
-                  Text(rows[i].label,
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(rows[i].label),
                 ])),
           ]),
         ),
-      ),
-    );
+      )),
+      ]);
+    });
   }
 }
 

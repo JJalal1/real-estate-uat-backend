@@ -34,3 +34,6 @@ build
 .phpunit.result.cache
 fix-backup
 fix-backup-v2
+
+# Only the pinned, already approved public encryption recipient.
+!resources/uat-owner-recipient.pem

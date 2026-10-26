@@ -8,17 +8,24 @@ import '../network/api_client.dart';
 /// Only official, externally opened Android store destinations may be supplied
 /// by release metadata. Reject opaque URI schemes, credentials, arbitrary
 /// redirects and URLs with embedded user information.
-Uri? verifiedAndroidStoreUri(Object? raw) {
+Uri? verifiedAndroidStoreUri(Object? raw, {String? expectedPackage}) {
   if (raw is! String) return null;
   final uri = Uri.tryParse(raw.trim());
   if (uri == null || uri.userInfo.isNotEmpty || uri.hasFragment) return null;
+  final ids = uri.queryParametersAll['id'];
+  if (ids == null || ids.length != 1 || ids.single.trim().isEmpty ||
+      (expectedPackage != null && ids.single != expectedPackage)) {
+    return null;
+  }
   if (uri.scheme == 'https' &&
+      uri.port == 443 &&
       uri.host.toLowerCase() == 'play.google.com' &&
       uri.path == '/store/apps/details' &&
       uri.queryParameters['id']?.isNotEmpty == true) {
     return uri;
   }
   if (uri.scheme == 'market' &&
+      uri.port == 0 &&
       uri.host == 'details' &&
       uri.queryParameters['id']?.isNotEmpty == true &&
       uri.path.isEmpty) {
@@ -37,6 +44,8 @@ class ReleaseGate extends ConsumerStatefulWidget {
 }
 
 class _ReleaseGateState extends ConsumerState<ReleaseGate> {
+  static const _package = String.fromEnvironment('APP_PACKAGE_ID',
+    defaultValue: 'com.example.real_estate_mobile');
   static const int _buildNumber = int.fromEnvironment(
     'APP_BUILD_NUMBER',
     defaultValue: 1,
@@ -62,7 +71,7 @@ class _ReleaseGateState extends ConsumerState<ReleaseGate> {
       if (data is! Map) return;
       final minimum = _asInt(data['minimum_supported_build']) ?? 1;
       final latest = _asInt(data['latest_build']) ?? minimum;
-      final store = verifiedAndroidStoreUri(data['store_url']);
+      final store = verifiedAndroidStoreUri(data['store_url'], expectedPackage: _package);
       if (!mounted) return;
       setState(() {
         _required = _buildNumber < minimum;
@@ -91,7 +100,7 @@ class _ReleaseGateState extends ConsumerState<ReleaseGate> {
           color: Theme.of(context).scaffoldBackgroundColor,
           child: SafeArea(
             child: Center(
-              child: ConstrainedBox(
+              child: SingleChildScrollView(child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -131,7 +140,7 @@ class _ReleaseGateState extends ConsumerState<ReleaseGate> {
                     ],
                   ),
                 ),
-              ),
+              )),
             ),
           ),
         ),
