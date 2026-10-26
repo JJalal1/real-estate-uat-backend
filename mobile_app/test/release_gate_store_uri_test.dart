@@ -40,4 +40,17 @@ void main() {
     expect(verifiedAndroidStoreUri(''), isNull);
     expect(verifiedAndroidStoreUri(0), isNull);
   });
+
+  test('update destination must match this package without alternate ports or duplicate IDs', () {
+    for (final url in [
+      'https://play.google.com:444/store/apps/details?id=com.example.aqer',
+      'market://details:444?id=com.example.aqer',
+      'https://play.google.com/store/apps/details?id=com.example.aqer&id=other',
+      'https://play.google.com/store/apps/details?id=other',
+    ]) {
+      expect(verifiedAndroidStoreUri(url, expectedPackage: 'com.example.aqer'), isNull, reason: url);
+    }
+    expect(verifiedAndroidStoreUri('https://play.google.com/store/apps/details?id=com.example.aqer',
+      expectedPackage: 'com.example.aqer'), isNotNull);
+  });
 }
