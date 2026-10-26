@@ -6,6 +6,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../properties/domain/property_field_options.dart';
 import '../data/listing_review_repository.dart';
 import '../domain/listing_duplicate_candidate.dart';
@@ -195,30 +196,41 @@ class _ReviewQueueCardState extends ConsumerState<_ReviewQueueCard> {
   }
 
   Future<void> _openReview() async {
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => ListingReviewCaseScreen(listingId: widget.item.id),
+        builder: (_) => ListingReviewCaseScreen(listingId: widget.item.id, actorId: actor),
       ),
     );
-    if (changed == true) {
+    if (changed == true && mounted) {
       ref.invalidate(reviewQueueProvider);
       ref.invalidate(publicationBlocksProvider);
     }
   }
 }
 
-class ListingReviewCaseScreen extends ConsumerStatefulWidget {
-  const ListingReviewCaseScreen({super.key, required this.listingId});
+class ListingReviewCaseScreen extends StatelessWidget {
+  const ListingReviewCaseScreen({super.key, required this.listingId, this.actorId});
+
+  final int listingId;
+  final int? actorId;
+  @override
+  Widget build(BuildContext context) => ActorBoundPage(title: 'تحقيق الإعلان', actorId: actorId,
+    builder: (_) => _ListingReviewCasePage(listingId: listingId));
+}
+
+class _ListingReviewCasePage extends ConsumerStatefulWidget {
+  const _ListingReviewCasePage({required this.listingId});
 
   final int listingId;
 
   @override
-  ConsumerState<ListingReviewCaseScreen> createState() =>
+  ConsumerState<_ListingReviewCasePage> createState() =>
       _ListingReviewCaseScreenState();
 }
 
 class _ListingReviewCaseScreenState
-    extends ConsumerState<ListingReviewCaseScreen> {
+    extends ConsumerState<_ListingReviewCasePage> {
   late Future<_ReviewBundle> _future;
   bool _busy = false;
 
@@ -230,9 +242,8 @@ class _ListingReviewCaseScreenState
 
   Future<_ReviewBundle> _load() async {
     final repository = ref.read(listingReviewRepositoryProvider);
-    final detail = await repository.detail(widget.listingId);
-    final duplicates = await repository.duplicateCandidates(widget.listingId);
-    return _ReviewBundle(detail: detail, duplicates: duplicates);
+    final evidence = await repository.evidence(widget.listingId);
+    return _ReviewBundle(detail: evidence.$1, duplicates: evidence.$2);
   }
 
   void _reload() {
@@ -282,11 +293,11 @@ class _ListingReviewCaseScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(item.title, style: Theme.of(context).textTheme.titleLarge),
-                  ),
+                  Text(item.title, style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: AppSpacing.s8),
                   AppStatusBadge(
                     label: isClaimed ? 'تم الاستلام - قيد التحقيق' : _reviewStatus(item.reviewStatus),
                     tone: isClaimed ? AppStatusTone.info : AppStatusTone.warning,
@@ -527,7 +538,7 @@ class _ListingReviewCaseScreenState
     String? reviewReason;
     String? duplicateReason;
 
-    final accepted = await showDialog<bool>(
+    final accepted = await showActorDialog<bool>(ref: ref,
           context: context,
           builder: (dialogContext) {
             final reviewController = TextEditingController();
@@ -603,7 +614,7 @@ class _ListingReviewCaseScreenState
       hint: 'اكتب للمعلن تحديداً ما الذي يجب تعديله.',
       minLength: 5,
     );
-    if (reason == null) return;
+    if (reason == null || !mounted) return;
     await _runDecision(
       () => ref.read(listingReviewRepositoryProvider).returnForCorrection(widget.listingId, reason),
     );
@@ -615,7 +626,7 @@ class _ListingReviewCaseScreenState
       hint: 'اكتب سبباً واضحاً. هذا القرار ينشئ حظر نشر لهوية العقار لهذا الغرض.',
       minLength: 10,
     );
-    if (reason == null) return;
+    if (reason == null || !mounted) return;
     await _runDecision(
       () => ref.read(listingReviewRepositoryProvider).rejectFinal(widget.listingId, reason),
     );
@@ -627,7 +638,7 @@ class _ListingReviewCaseScreenState
       hint: 'اشرح دليل أن الإعلانين يعودان لنفس العقار الفيزيائي.',
       minLength: 5,
     );
-    if (reason == null) return;
+    if (reason == null || !mounted) return;
 
     setState(() => _busy = true);
     try {
@@ -659,7 +670,7 @@ class _ListingReviewCaseScreenState
     required int minLength,
   }) async {
     final controller = TextEditingController();
-    final value = await showDialog<String>(
+    final value = await showActorDialog<String>(ref: ref,
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(title),
@@ -699,7 +710,7 @@ class _ListingReviewCaseScreenState
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     final repository = ref.read(listingReviewRepositoryProvider);
     if (_busy || token == null) return;
-    final result = await showDialog<(String,String)>(context: context, builder: (_) => _MediaReviewDialog(image: image));
+    final result = await showActorDialog<(String,String)>(ref: ref, context: context, builder: (_) => _MediaReviewDialog(image: image));
     if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
     setState(() => _busy = true);
     try {
@@ -710,6 +721,7 @@ class _ListingReviewCaseScreenState
   }
 
   Future<void> _runDecision(Future<void> Function() action) async {
+    if (!mounted) return;
     setState(() => _busy = true);
     try {
       await action();
