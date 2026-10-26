@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import '../../../core/network/adaptive_image_policy.dart';
 import '../../../core/platform/media_network_monitor.dart';
+import '../../../core/widgets/viewport_media.dart';
 
 final listingPhotoCacheProvider = Provider<ListingPhotoCache>((ref) {
   ref.watch(authControllerProvider.select((s) => (s.asData?.value?.id, s.asData?.value?.isActive, s.asData?.value?.permissions.toString())));
@@ -19,8 +20,9 @@ final listingPhotoCacheProvider = Provider<ListingPhotoCache>((ref) {
 /// No disk storage; successes only, deduplicated requests and bounded account-session memory.
 class ListingPhotoCache {
   ListingPhotoCache({this.maxEntries = 18, this.maxBytes = 24 * 1024 * 1024,
+    this.maxImageBytes = 8 * 1024 * 1024,
     this.ttl = const Duration(minutes: 2), DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
-  final int maxEntries, maxBytes;
+  final int maxEntries, maxBytes, maxImageBytes;
   final Duration ttl;
   final DateTime Function() _clock;
   final _entries = <String, _PhotoEntry>{};
@@ -56,7 +58,7 @@ class ListingPhotoCache {
     if (previous != null) { if (retain) previous.references++; _entries[key] = previous; return previous.future; }
     final epoch = _epoch, entry = _PhotoEntry()..cancellation = cancellation..references = retain ? 1 : 0;
     entry.future = Future<Uint8List>.sync(loader).then((bytes) {
-      if (bytes.isEmpty || bytes.lengthInBytes > 8 * 1024 * 1024) throw StateError('Invalid display image size');
+      if (bytes.isEmpty || bytes.lengthInBytes > maxImageBytes) throw StateError('Invalid display image size');
       if (_epoch == epoch && identical(_entries[key], entry)) {
         entry.bytes = bytes.lengthInBytes; entry.data = bytes; entry.completedAt = _clock(); _trim();
       }
@@ -101,7 +103,7 @@ class _PhotoEntry {
   int references = 0;
 }
 
-class ListingDraftPhoto extends ConsumerStatefulWidget {
+class ListingDraftPhoto extends StatelessWidget {
   const ListingDraftPhoto({required this.url, this.authenticated = true, this.fit = BoxFit.cover, this.cacheWidth = 500, this.network, this.onRetry, super.key});
   final String url;
   final bool authenticated;
@@ -110,9 +112,24 @@ class ListingDraftPhoto extends ConsumerStatefulWidget {
   final ImageNetworkConditions? network;
   final VoidCallback? onRetry;
   @override
-  ConsumerState<ListingDraftPhoto> createState() => _ListingDraftPhotoState();
+  Widget build(BuildContext context) => ViewportMedia(builder: (_) => _VisibleListingDraftPhoto(
+    url: url, authenticated: authenticated, fit: fit, cacheWidth: cacheWidth, network: network, onRetry: onRetry));
 }
-class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
+
+class _VisibleListingDraftPhoto extends ConsumerStatefulWidget {
+  const _VisibleListingDraftPhoto({required this.url, required this.authenticated, required this.fit,
+    required this.cacheWidth, required this.network, required this.onRetry});
+  final String url;
+  final bool authenticated;
+  final BoxFit fit;
+  final int? cacheWidth;
+  final ImageNetworkConditions? network;
+  final VoidCallback? onRetry;
+  @override
+  ConsumerState<_VisibleListingDraftPhoto> createState() => _ListingDraftPhotoState();
+}
+
+class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
   late Future<Uint8List> _bytes;
   ListingPhotoLease? _lease;
   Uint8List? _displayBytes;
@@ -152,7 +169,7 @@ class _ListingDraftPhotoState extends ConsumerState<ListingDraftPhoto> {
     });
   }
   @override
-  void didUpdateWidget(ListingDraftPhoto oldWidget) {
+  void didUpdateWidget(_VisibleListingDraftPhoto oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated) {
       if (Uri.parse(oldWidget.url).replace(query: '').toString() != Uri.parse(widget.url).replace(query: '').toString() ||

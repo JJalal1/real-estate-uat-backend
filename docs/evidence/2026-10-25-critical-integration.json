@@ -1,0 +1,3207 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-25",
+  "timezone": "Asia/Aden",
+  "draft": false,
+  "repo": "JJalal1/real-estate-uat-backend",
+  "branch": "work/wave2-review-current",
+  "baseline_sha": "54e8423ad8ccacfae9cd6b38de724a830301c55a",
+  "scope": "Critical integration continuation; private account journeys, authentication races, persistence receipts and independent overlays.",
+  "static_inventory": {
+    "source_blobs": 1198,
+    "local_matching_blobs": 1197,
+    "missing_document": "docs/AQER_STORAGE_DELETE_LIVE_FIX_2026-10-25_AR.md",
+    "route_declarations": 284,
+    "literal_dio_requests": 213,
+    "pattern_matched": 211,
+    "dynamic_reviewed": [
+      "retired booking action",
+      "listing review action"
+    ],
+    "literal_navigation_calls": 130,
+    "go_routes": 47,
+    "caveat": "A text-pattern inventory does not prove all payloads, runtime routes, permissions or database semantics."
+  },
+  "pr145": {
+    "merged": true,
+    "head": "26f788403a89a748e87361b69b7cfae02e49ee98",
+    "merge": "5b14c9d77eefaa660b7727a9e1c553b7557d2f94",
+    "tree": "cc2d53295e1b56e3aca5ff31522bdb3191505b49",
+    "ci_virtual": "26fd9ee81e2c2967f6abf1b614bd36c03dc9efa2",
+    "checks": [
+      {
+        "name": "Encrypted installer segment ${{ matrix.part }}",
+        "status": "completed",
+        "conclusion": "skipped",
+        "id": 121156315063,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473815/job/121156315063"
+      },
+      {
+        "name": "Flutter broker experience and UAT APK",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154825135,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473815/job/121154825135"
+      },
+      {
+        "name": "UAT Docker PNG runtime",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154229745,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473815/job/121154229745"
+      },
+      {
+        "name": "Laravel original regression",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154229742,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473815/job/121154229742"
+      },
+      {
+        "name": "Disposable PostgreSQL 17 and PostGIS",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154229734,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473815/job/121154229734"
+      },
+      {
+        "name": "Real UAT transfer measurements and Flutter cache integration",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154196986,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473853/job/121154196986"
+      },
+      {
+        "name": "Adaptive derivatives privacy and media lifecycle",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154196890,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473853/job/121154196890"
+      },
+      {
+        "name": "Flutter launch readiness",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154196857,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473750/job/121154196857"
+      },
+      {
+        "name": "Adaptive selection cache cancellation and regressions",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154196819,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473853/job/121154196819"
+      },
+      {
+        "name": "Tracked source checkpoint",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154196777,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473815/job/121154196777"
+      },
+      {
+        "name": "Laravel launch readiness",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154196747,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473750/job/121154196747"
+      },
+      {
+        "name": "Actual HTTP viewport and UAT image measurements",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121154196651,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40188473751/job/121154196651"
+      }
+    ],
+    "flutter": {
+      "full_passed": 603,
+      "conditional_network_skipped": 6,
+      "compiled_environment_passed": 5,
+      "launch_gate_passed": 62
+    },
+    "backend": {
+      "passed": 386,
+      "assertions": 4846,
+      "sqlite_spatial_skipped": 1
+    },
+    "apk": {
+      "build": 1277,
+      "artifact": 12597617614,
+      "sha256": "59eeee40f610c0a2b91f5fe75222477f69716504a51a2d3d4e12f63c9ab6b1b1",
+      "superseded": true
+    },
+    "red_jobs": [
+      121144696022,
+      121149472286
+    ]
+  },
+  "pr146": {
+    "merged": true,
+    "head": "d9b9403dc97251441d2376d3240c5093b6b6e64f",
+    "merge": "ccf4be63250c5eae6e6323fdd15e1241a5db5990",
+    "tree": "9301c48eac2193ae720d29c4edb6f04dfe7a7642",
+    "ci_virtual": "52233a1e6e520fe42631b030016d96fd0bdf0c69",
+    "checks": [
+      {
+        "name": "Encrypted installer segment ${{ matrix.part }}",
+        "status": "completed",
+        "conclusion": "skipped",
+        "id": 121270647217,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113253/job/121270647217"
+      },
+      {
+        "name": "Flutter broker experience and UAT APK",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121268490890,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113253/job/121268490890"
+      },
+      {
+        "name": "Disposable PostgreSQL 17 and PostGIS",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267911938,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113253/job/121267911938"
+      },
+      {
+        "name": "Laravel original regression",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267911888,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113253/job/121267911888"
+      },
+      {
+        "name": "UAT Docker PNG runtime",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267911884,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113253/job/121267911884"
+      },
+      {
+        "name": "Tracked source checkpoint",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267879648,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113253/job/121267879648"
+      },
+      {
+        "name": "Measured backend contracts (pgsql)",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267721254,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113211/job/121267721254"
+      },
+      {
+        "name": "Bounded real UAT cold and warm measurements",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267721231,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113211/job/121267721231"
+      },
+      {
+        "name": "Measured backend contracts (sqlite)",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267721074,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113211/job/121267721074"
+      },
+      {
+        "name": "PostgreSQL market context integer safety",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267721073,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113231/job/121267721073"
+      },
+      {
+        "name": "Flutter launch readiness",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267721029,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113191/job/121267721029"
+      },
+      {
+        "name": "Actual HTTP viewport and UAT image measurements",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267720998,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113172/job/121267720998"
+      },
+      {
+        "name": "Private Storage protocol and existing image regressions",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267720978,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113251/job/121267720978"
+      },
+      {
+        "name": "Real UAT transfer measurements and Flutter cache integration",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267720968,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113181/job/121267720968"
+      },
+      {
+        "name": "Adaptive derivatives privacy and media lifecycle",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267720943,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113181/job/121267720943"
+      },
+      {
+        "name": "Isolated 10k PostgreSQL capacity",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267720929,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113212/job/121267720929"
+      },
+      {
+        "name": "Laravel launch readiness",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267720873,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113191/job/121267720873"
+      },
+      {
+        "name": "Adaptive selection cache cancellation and regressions",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121267720769,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40226113181/job/121267720769"
+      }
+    ],
+    "flutter": {
+      "full_passed": 607,
+      "conditional_network_skipped": 6,
+      "selected_passed": 357,
+      "compiled_environment_passed": 5,
+      "launch_gate_passed": 66
+    },
+    "backend": {
+      "passed": 393,
+      "assertions": 4881,
+      "sqlite_spatial_skipped": 1,
+      "focused_pgsql_passed": 68,
+      "focused_pgsql_assertions": 774
+    },
+    "disposable_http": {
+      "run": "disposable-ci",
+      "status": "passed",
+      "transport": "actual-loopback-http",
+      "cloud_storage": false,
+      "otp_login_tested": false,
+      "actor_count": 6,
+      "cleanup": true,
+      "elapsed_ms": 5482,
+      "cases": [
+        {
+          "case": "authenticated_publisher",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 98,
+          "bytes": 936,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_other",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 29,
+          "bytes": 876,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_other_publisher",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 27,
+          "bytes": 948,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_reviewer",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 29,
+          "bytes": 1068,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_second_reviewer",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 18,
+          "bytes": 1082,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_manager",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 18,
+          "bytes": 1295,
+          "validation_fields": []
+        },
+        {
+          "case": "concurrent_saved_search_one",
+          "passed": true,
+          "status": 201,
+          "expected": [
+            200,
+            201
+          ],
+          "elapsed_ms": 83
+        },
+        {
+          "case": "concurrent_saved_search_two",
+          "passed": true,
+          "status": 200,
+          "expected": [
+            200,
+            201
+          ],
+          "elapsed_ms": 83
+        },
+        {
+          "case": "concurrent_saved_search_is_one_persistent_row",
+          "passed": true
+        },
+        {
+          "case": "duplicate_search_receipt_preserves_settings",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 17,
+          "bytes": 440,
+          "validation_fields": []
+        },
+        {
+          "case": "duplicate_search_did_not_apply_implicit_edit",
+          "passed": true
+        },
+        {
+          "case": "foreign_search_edit_denied",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 16,
+          "bytes": 83,
+          "validation_fields": []
+        },
+        {
+          "case": "foreign_search_delete_denied",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 13,
+          "bytes": 83,
+          "validation_fields": []
+        },
+        {
+          "case": "explicit_saved_search_edit",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 17,
+          "bytes": 443,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_read_after_edit",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 14,
+          "bytes": 314,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_edit_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "second_distinct_search",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 19,
+          "bytes": 419,
+          "validation_fields": []
+        },
+        {
+          "case": "search_filter_collision_returns_422",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 20,
+          "bytes": 614,
+          "validation_fields": []
+        },
+        {
+          "case": "search_collision_preserves_both_rows",
+          "passed": true
+        },
+        {
+          "case": "empty_canonical_search_denied",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 13,
+          "bytes": 462,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_delete",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 14,
+          "bytes": 120,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_read_after_delete",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 14,
+          "bytes": 265,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_delete_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "preferences_default_read",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 14,
+          "bytes": 151,
+          "validation_fields": []
+        },
+        {
+          "case": "preferences_explicit_save",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 15,
+          "bytes": 308,
+          "validation_fields": []
+        },
+        {
+          "case": "preferences_read_after_save",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 13,
+          "bytes": 153,
+          "validation_fields": []
+        },
+        {
+          "case": "notification_preferences_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "other_account_preferences_are_separate",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 13,
+          "bytes": 151,
+          "validation_fields": []
+        },
+        {
+          "case": "notification_preferences_account_isolation",
+          "passed": true
+        },
+        {
+          "case": "broker_cannot_enter_platform_settings",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 17,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "support_manager_cannot_enter_finance",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 15,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "regular_cannot_upload_professional_photo",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 45,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "professional_photo_upload",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 38,
+          "bytes": 26,
+          "validation_fields": []
+        },
+        {
+          "case": "public_professional_photo_is_sanitized",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 13,
+          "bytes": 1490,
+          "validation_fields": []
+        },
+        {
+          "case": "professional_photo_metadata_removed",
+          "passed": true
+        },
+        {
+          "case": "draft_save",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 32,
+          "bytes": 807,
+          "validation_fields": []
+        },
+        {
+          "case": "draft_revision_one",
+          "passed": true
+        },
+        {
+          "case": "lost_response_exact_retry",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 17,
+          "bytes": 807,
+          "validation_fields": []
+        },
+        {
+          "case": "stale_changed_checkpoint_conflict",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 16,
+          "bytes": 188,
+          "validation_fields": []
+        },
+        {
+          "case": "draft_restore",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 15,
+          "bytes": 807,
+          "validation_fields": []
+        },
+        {
+          "case": "draft_text_preserved",
+          "passed": true
+        },
+        {
+          "case": "other_cannot_read_draft",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 18,
+          "bytes": 82,
+          "validation_fields": []
+        },
+        {
+          "case": "unverified_actor_cannot_write_draft",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 16,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "other_publisher_has_no_matching_revision",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 17,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "same_uuid_is_separate_account_namespace",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 20,
+          "bytes": 682,
+          "validation_fields": []
+        },
+        {
+          "case": "original_account_draft_unchanged",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 13,
+          "bytes": 807,
+          "validation_fields": []
+        },
+        {
+          "case": "other_namespace_cannot_change_original",
+          "passed": true
+        },
+        {
+          "case": "first_real_image_upload",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 28,
+          "bytes": 1996,
+          "validation_fields": []
+        },
+        {
+          "case": "image_upload_retry_no_duplicate",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 18,
+          "bytes": 1996,
+          "validation_fields": []
+        },
+        {
+          "case": "one_image_after_retry",
+          "passed": true
+        },
+        {
+          "case": "second_real_image_upload",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 29,
+          "bytes": 3186,
+          "validation_fields": []
+        },
+        {
+          "case": "two_images_after_upload",
+          "passed": true
+        },
+        {
+          "case": "other_cannot_read_draft_image",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 15,
+          "bytes": 82,
+          "validation_fields": []
+        },
+        {
+          "case": "staff_cannot_read_foreign_editor_draft",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 14,
+          "bytes": 82,
+          "validation_fields": []
+        },
+        {
+          "case": "owner_sanitized_draft_image",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 12,
+          "bytes": 1489,
+          "validation_fields": []
+        },
+        {
+          "case": "real_exif_camera_gps_removed",
+          "passed": true
+        },
+        {
+          "case": "real_exif_orientation_preserved",
+          "passed": true
+        },
+        {
+          "case": "draft_image_private_no_store",
+          "passed": true
+        },
+        {
+          "case": "private_original_sha256_preserved",
+          "passed": true
+        },
+        {
+          "case": "canonical_v9_listing_create",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 99,
+          "bytes": 4354,
+          "validation_fields": []
+        },
+        {
+          "case": "new_listing_private_two_images",
+          "passed": true
+        },
+        {
+          "case": "photo_gps_does_not_change_listing_pin",
+          "passed": true
+        },
+        {
+          "case": "lost_listing_create_response_no_duplicate",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 40,
+          "bytes": 347,
+          "validation_fields": []
+        },
+        {
+          "case": "public_cannot_read_unpublished",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 19,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "other_cannot_read_unpublished",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 24,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "original_variant_denied",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 24,
+          "bytes": 133,
+          "validation_fields": []
+        },
+        {
+          "case": "other_cannot_edit_property",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 21,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "reorder_checkpoint",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 27,
+          "bytes": 755,
+          "validation_fields": []
+        },
+        {
+          "case": "apply_image_order_primary",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 65,
+          "bytes": 4353,
+          "validation_fields": []
+        },
+        {
+          "case": "real_image_order_primary_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "remove_photo_checkpoint",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 29,
+          "bytes": 741,
+          "validation_fields": []
+        },
+        {
+          "case": "apply_photo_removal",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 51,
+          "bytes": 3731,
+          "validation_fields": []
+        },
+        {
+          "case": "removed_photo_row_absent",
+          "passed": true
+        },
+        {
+          "case": "removed_original_cleaned",
+          "passed": true
+        },
+        {
+          "case": "replacement_checkpoint",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 25,
+          "bytes": 766,
+          "validation_fields": []
+        },
+        {
+          "case": "replacement_image_upload",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 33,
+          "bytes": 1956,
+          "validation_fields": []
+        },
+        {
+          "case": "apply_image_replacement",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 51,
+          "bytes": 3731,
+          "validation_fields": []
+        },
+        {
+          "case": "new_replacement_reference",
+          "passed": true
+        },
+        {
+          "case": "replaced_image_reference_inaccessible",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 11,
+          "bytes": 79,
+          "validation_fields": []
+        },
+        {
+          "case": "configure_existing_zero_rate_policy",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 64,
+          "bytes": 1426,
+          "validation_fields": []
+        },
+        {
+          "case": "submit_for_real_review",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 166,
+          "bytes": 4205,
+          "validation_fields": []
+        },
+        {
+          "case": "regular_cannot_approve",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 24,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "first_reviewer_claim",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 63,
+          "bytes": 1383,
+          "validation_fields": []
+        },
+        {
+          "case": "second_reviewer_claim_denied",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 26,
+          "bytes": 270,
+          "validation_fields": []
+        },
+        {
+          "case": "second_reviewer_read_denied",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 24,
+          "bytes": 233,
+          "validation_fields": []
+        },
+        {
+          "case": "unreviewed_image_blocks_publish",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 26,
+          "bytes": 362,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_reads_claimed_listing",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 33,
+          "bytes": 2378,
+          "validation_fields": []
+        },
+        {
+          "case": "stale_image_fingerprint_denied",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 181,
+          "bytes": 282,
+          "validation_fields": []
+        },
+        {
+          "case": "negative_image_decision",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 184,
+          "bytes": 130,
+          "validation_fields": []
+        },
+        {
+          "case": "unrelated_image_blocks_publish",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 27,
+          "bytes": 424,
+          "validation_fields": []
+        },
+        {
+          "case": "return_for_correction",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 100,
+          "bytes": 1443,
+          "validation_fields": []
+        },
+        {
+          "case": "owner_corrects_returned",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 63,
+          "bytes": 4194,
+          "validation_fields": []
+        },
+        {
+          "case": "owner_resubmits_same_listing",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 132,
+          "bytes": 4125,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_reclaims",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 105,
+          "bytes": 1383,
+          "validation_fields": []
+        },
+        {
+          "case": "explicit_positive_image_decision",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 93,
+          "bytes": 159,
+          "validation_fields": []
+        },
+        {
+          "case": "publish_after_authorized_review",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 80,
+          "bytes": 1456,
+          "validation_fields": []
+        },
+        {
+          "case": "published_only_after_review",
+          "passed": true
+        },
+        {
+          "case": "search_canonical_arabic",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 36,
+          "bytes": 1499,
+          "validation_fields": []
+        },
+        {
+          "case": "search_canonical_arabic_exact_fixture_only",
+          "passed": true
+        },
+        {
+          "case": "search_common_spelling",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 33,
+          "bytes": 1499,
+          "validation_fields": []
+        },
+        {
+          "case": "search_common_spelling_exact_fixture_only",
+          "passed": true
+        },
+        {
+          "case": "search_diacritics",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 109,
+          "bytes": 1499,
+          "validation_fields": []
+        },
+        {
+          "case": "search_diacritics_exact_fixture_only",
+          "passed": true
+        },
+        {
+          "case": "search_true_empty",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 18,
+          "bytes": 75,
+          "validation_fields": []
+        },
+        {
+          "case": "zero_results_are_not_an_error",
+          "passed": true
+        },
+        {
+          "case": "cross_advertiser_exact_duplicate",
+          "status": 201,
+          "expected": [
+            201,
+            409
+          ],
+          "passed": true,
+          "elapsed_ms": 75,
+          "bytes": 3800,
+          "validation_fields": []
+        },
+        {
+          "case": "duplicate_same_physical_asset",
+          "passed": true
+        },
+        {
+          "case": "duplicate_has_valid_sai",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 32,
+          "bytes": 1426,
+          "validation_fields": []
+        },
+        {
+          "case": "duplicate_submission_denied",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 26,
+          "bytes": 103,
+          "validation_fields": []
+        },
+        {
+          "case": "duplicate_denial_is_physical_identity",
+          "passed": true
+        },
+        {
+          "case": "public_sanitized_image",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 18,
+          "bytes": 1489,
+          "validation_fields": []
+        },
+        {
+          "case": "published_image_jpeg_no_exif",
+          "passed": true
+        },
+        {
+          "case": "original_still_denied_after_publish",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 18,
+          "bytes": 133,
+          "validation_fields": []
+        },
+        {
+          "case": "listing_report",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 47,
+          "bytes": 894,
+          "validation_fields": []
+        },
+        {
+          "case": "report_retry_returns_existing_receipt",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 23,
+          "bytes": 323,
+          "validation_fields": []
+        },
+        {
+          "case": "same_report_receipt",
+          "passed": true
+        },
+        {
+          "case": "publisher_cannot_read_other_report",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 13,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "regular_cannot_review_report",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 17,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "unclaimed_report_review_denied",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 20,
+          "bytes": 214,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_reads_report_queue",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 35,
+          "bytes": 997,
+          "validation_fields": []
+        },
+        {
+          "case": "report_is_in_shared_queue",
+          "passed": true
+        },
+        {
+          "case": "reviewer_claims_report",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 37,
+          "bytes": 1089,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_starts_report",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 46,
+          "bytes": 1760,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_resolves_report",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 48,
+          "bytes": 1962,
+          "validation_fields": []
+        },
+        {
+          "case": "reporter_reads_resolution",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 15,
+          "bytes": 898,
+          "validation_fields": []
+        },
+        {
+          "case": "report_resolution_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "property_conversation",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 36,
+          "bytes": 564,
+          "validation_fields": []
+        },
+        {
+          "case": "unrelated_staff_cannot_read_thread",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 14,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "message_before_block",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 21,
+          "bytes": 295,
+          "validation_fields": []
+        },
+        {
+          "case": "conversation_report_created",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 35,
+          "bytes": 438,
+          "validation_fields": []
+        },
+        {
+          "case": "conversation_report_has_receipt",
+          "passed": true
+        },
+        {
+          "case": "regular_cannot_review_private_report",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 17,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "agent_without_private_permission_denied",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 16,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "manager_reads_reported_private_content",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 26,
+          "bytes": 901,
+          "validation_fields": []
+        },
+        {
+          "case": "private_review_only_fixture_message",
+          "passed": true
+        },
+        {
+          "case": "private_report_read_audited",
+          "passed": true
+        },
+        {
+          "case": "manager_resolves_conversation_report",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 40,
+          "bytes": 481,
+          "validation_fields": []
+        },
+        {
+          "case": "conversation_report_resolution_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "reporter_reads_private_report_notification",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 18,
+          "bytes": 1491,
+          "validation_fields": []
+        },
+        {
+          "case": "private_report_resolution_notified",
+          "passed": true
+        },
+        {
+          "case": "account_personal_block",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 17,
+          "bytes": 262,
+          "validation_fields": []
+        },
+        {
+          "case": "sender_block_enforced",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 21,
+          "bytes": 270,
+          "validation_fields": []
+        },
+        {
+          "case": "recipient_block_enforced",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 20,
+          "bytes": 270,
+          "validation_fields": []
+        },
+        {
+          "case": "new_contact_block_enforced",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 23,
+          "bytes": 270,
+          "validation_fields": []
+        },
+        {
+          "case": "blocked_external_call_denied",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 27,
+          "bytes": 182,
+          "validation_fields": []
+        },
+        {
+          "case": "blocked_property_contact_denied",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 22,
+          "bytes": 182,
+          "validation_fields": []
+        },
+        {
+          "case": "history_remains_accessible",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 21,
+          "bytes": 919,
+          "validation_fields": []
+        },
+        {
+          "case": "personal_unblock",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 15,
+          "bytes": 176,
+          "validation_fields": []
+        },
+        {
+          "case": "message_after_unblock",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 21,
+          "bytes": 295,
+          "validation_fields": []
+        },
+        {
+          "case": "unsubmitted_media_draft_created",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 19,
+          "bytes": 473,
+          "validation_fields": []
+        },
+        {
+          "case": "unsubmitted_media_uploaded",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 29,
+          "bytes": 1662,
+          "validation_fields": []
+        },
+        {
+          "case": "unsubmitted_original_exists_before_erasure",
+          "passed": true
+        },
+        {
+          "case": "staff_cannot_use_consumer_erasure",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 18,
+          "bytes": 239,
+          "validation_fields": []
+        },
+        {
+          "case": "deletion_requires_explicit_phrase",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 14,
+          "bytes": 125,
+          "validation_fields": []
+        },
+        {
+          "case": "synthetic_publisher_account_erasure",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 223,
+          "bytes": 510,
+          "validation_fields": []
+        },
+        {
+          "case": "account_erasure_receipt",
+          "passed": true
+        },
+        {
+          "case": "erased_session_revoked",
+          "status": 401,
+          "expected": 401,
+          "passed": true,
+          "elapsed_ms": 12,
+          "bytes": 50,
+          "validation_fields": []
+        },
+        {
+          "case": "erased_account_image_unpublished",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 19,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "erased_professional_photo_unavailable",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 12,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "erased_professional_photo_deleted_from_storage",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_original_deleted_from_storage",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_thumb",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_card",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_preview",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_detail",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_gallery",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_zoom",
+          "passed": true
+        },
+        {
+          "case": "erasure_archives_listing",
+          "passed": true
+        },
+        {
+          "case": "immutable_review_history_retained",
+          "passed": true
+        },
+        {
+          "case": "shared_message_history_retained",
+          "passed": true
+        }
+      ]
+    },
+    "apk": {
+      "build": 1280,
+      "artifact": 12611194515,
+      "sha256": "e04848f96ef8b03cccf199a2dd0ba7b430fe3a21a1cc38667f1bdd36bc4a6062",
+      "superseded": true
+    },
+    "red_job": 121153778647
+  },
+  "pr147": {
+    "merged": true,
+    "head": "40d1c98a8ba1a93e2b0651d28002080fe3e0f84b",
+    "tree": "6a258e733512f4f75cf614e3706fbed5a8c562e0",
+    "checks": [
+      {
+        "name": "Encrypted installer segment ${{ matrix.part }}",
+        "status": "completed",
+        "conclusion": "skipped",
+        "id": 121275347230,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636625/job/121275347230"
+      },
+      {
+        "name": "Flutter broker experience and UAT APK",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272947942,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636625/job/121272947942"
+      },
+      {
+        "name": "Laravel original regression",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272422476,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636625/job/121272422476"
+      },
+      {
+        "name": "UAT Docker PNG runtime",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272422409,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636625/job/121272422409"
+      },
+      {
+        "name": "Disposable PostgreSQL 17 and PostGIS",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272422375,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636625/job/121272422375"
+      },
+      {
+        "name": "Tracked source checkpoint",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272374148,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636625/job/121272374148"
+      },
+      {
+        "name": "Laravel launch readiness",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272305931,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636665/job/121272305931"
+      },
+      {
+        "name": "Flutter launch readiness",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272305761,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636665/job/121272305761"
+      },
+      {
+        "name": "Actual HTTP viewport and UAT image measurements",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272305472,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636604/job/121272305472"
+      },
+      {
+        "name": "Real UAT transfer measurements and Flutter cache integration",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272305452,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636638/job/121272305452"
+      },
+      {
+        "name": "Adaptive derivatives privacy and media lifecycle",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272305444,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636638/job/121272305444"
+      },
+      {
+        "name": "Adaptive selection cache cancellation and regressions",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 121272305176,
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40227636638/job/121272305176"
+      }
+    ],
+    "red_job": 121269081719,
+    "red_product_cases": 20,
+    "red_fixture_errors": 2,
+    "new_cases": 24,
+    "merge": "282b635c58071731614ab67f7773a14c382948e3",
+    "ci_virtual": "c3b4a148ac1270e3c2daf84f5e4ca5da025f3be2",
+    "flutter": {
+      "full_passed": 631,
+      "conditional_network_skipped": 6,
+      "selected_passed": 357,
+      "compiled_environment_passed": 5,
+      "launch_gate_passed": 96
+    },
+    "backend": {
+      "passed": 393,
+      "assertions": 4881,
+      "sqlite_spatial_skipped": 1,
+      "postgres_selected_passed": 176,
+      "postgres_selected_assertions": 2827
+    },
+    "apk": {
+      "source_commit": "c3b4a148ac1270e3c2daf84f5e4ca5da025f3be2",
+      "version_code": 1285,
+      "sha256": "0e63e06004b28ab9da7477f31b80460a931394f40d611f3757df13a7776f1cce",
+      "bytes": 118190064,
+      "target_sdk": 36,
+      "min_sdk": 23,
+      "native_16kb_elf": "passed",
+      "zipalign_16kb": "passed",
+      "native_64bit_libraries_verified": 10,
+      "package": "com.example.real_estate_mobile",
+      "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+      "architectures": [
+        "arm64-v8a",
+        "armeabi-v7a",
+        "x86_64"
+      ],
+      "brand_assets_match": 4,
+      "fonts_match": 5,
+      "zip_crc": "passed",
+      "apksigner": "passed",
+      "certificate_sha256": "ee536d8f80862e88778deb4fc1d65b93299194e4c95853a2c9d0b06d801dc60c",
+      "handset_acceptance": "pending"
+    }
+  },
+  "live_uat": {
+    "code": "ccf4be63250c5eae6e6323fdd15e1241a5db5990",
+    "deploy": "dep-dbf5pdivcj2c73eu7hu0",
+    "run": "2026-10-25-109-v4",
+    "pending": false,
+    "result": {
+      "run": "2026-10-25-109-v4",
+      "status": "passed",
+      "transport": "actual-loopback-http",
+      "cloud_storage": true,
+      "otp_login_tested": false,
+      "actor_count": 6,
+      "cleanup": true,
+      "elapsed_ms": 96485,
+      "cases": [
+        {
+          "case": "previous_synthetic_run_files_retired",
+          "passed": true
+        },
+        {
+          "case": "authenticated_publisher",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 605,
+          "bytes": 937,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_other",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 456,
+          "bytes": 877,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_other_publisher",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 419,
+          "bytes": 949,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_reviewer",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 407,
+          "bytes": 1069,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_second_reviewer",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 330,
+          "bytes": 1083,
+          "validation_fields": []
+        },
+        {
+          "case": "authenticated_manager",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 667,
+          "bytes": 1296,
+          "validation_fields": []
+        },
+        {
+          "case": "concurrent_saved_search_one",
+          "passed": true,
+          "status": 201,
+          "expected": [
+            200,
+            201
+          ],
+          "elapsed_ms": 590
+        },
+        {
+          "case": "concurrent_saved_search_two",
+          "passed": true,
+          "status": 200,
+          "expected": [
+            200,
+            201
+          ],
+          "elapsed_ms": 590
+        },
+        {
+          "case": "concurrent_saved_search_is_one_persistent_row",
+          "passed": true
+        },
+        {
+          "case": "duplicate_search_receipt_preserves_settings",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 338,
+          "bytes": 441,
+          "validation_fields": []
+        },
+        {
+          "case": "duplicate_search_did_not_apply_implicit_edit",
+          "passed": true
+        },
+        {
+          "case": "foreign_search_edit_denied",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 500,
+          "bytes": 83,
+          "validation_fields": []
+        },
+        {
+          "case": "foreign_search_delete_denied",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 515,
+          "bytes": 83,
+          "validation_fields": []
+        },
+        {
+          "case": "explicit_saved_search_edit",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 314,
+          "bytes": 444,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_read_after_edit",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 233,
+          "bytes": 315,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_edit_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "second_distinct_search",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 230,
+          "bytes": 419,
+          "validation_fields": []
+        },
+        {
+          "case": "search_filter_collision_returns_422",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 192,
+          "bytes": 614,
+          "validation_fields": []
+        },
+        {
+          "case": "search_collision_preserves_both_rows",
+          "passed": true
+        },
+        {
+          "case": "empty_canonical_search_denied",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 121,
+          "bytes": 462,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_delete",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 201,
+          "bytes": 120,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_read_after_delete",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 171,
+          "bytes": 265,
+          "validation_fields": []
+        },
+        {
+          "case": "saved_search_delete_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "preferences_default_read",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 206,
+          "bytes": 151,
+          "validation_fields": []
+        },
+        {
+          "case": "preferences_explicit_save",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 204,
+          "bytes": 308,
+          "validation_fields": []
+        },
+        {
+          "case": "preferences_read_after_save",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 130,
+          "bytes": 153,
+          "validation_fields": []
+        },
+        {
+          "case": "notification_preferences_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "other_account_preferences_are_separate",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 296,
+          "bytes": 151,
+          "validation_fields": []
+        },
+        {
+          "case": "notification_preferences_account_isolation",
+          "passed": true
+        },
+        {
+          "case": "broker_cannot_enter_platform_settings",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 479,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "support_manager_cannot_enter_finance",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 221,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "regular_cannot_upload_professional_photo",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 262,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "professional_photo_upload",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 907,
+          "bytes": 26,
+          "validation_fields": []
+        },
+        {
+          "case": "public_professional_photo_is_sanitized",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 525,
+          "bytes": 1490,
+          "validation_fields": []
+        },
+        {
+          "case": "professional_photo_metadata_removed",
+          "passed": true
+        },
+        {
+          "case": "draft_save",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 385,
+          "bytes": 807,
+          "validation_fields": []
+        },
+        {
+          "case": "draft_revision_one",
+          "passed": true
+        },
+        {
+          "case": "lost_response_exact_retry",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 261,
+          "bytes": 807,
+          "validation_fields": []
+        },
+        {
+          "case": "stale_changed_checkpoint_conflict",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 277,
+          "bytes": 188,
+          "validation_fields": []
+        },
+        {
+          "case": "draft_restore",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 134,
+          "bytes": 807,
+          "validation_fields": []
+        },
+        {
+          "case": "draft_text_preserved",
+          "passed": true
+        },
+        {
+          "case": "other_cannot_read_draft",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 192,
+          "bytes": 82,
+          "validation_fields": []
+        },
+        {
+          "case": "unverified_actor_cannot_write_draft",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 280,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "other_publisher_has_no_matching_revision",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 326,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "same_uuid_is_separate_account_namespace",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 258,
+          "bytes": 682,
+          "validation_fields": []
+        },
+        {
+          "case": "original_account_draft_unchanged",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 131,
+          "bytes": 807,
+          "validation_fields": []
+        },
+        {
+          "case": "other_namespace_cannot_change_original",
+          "passed": true
+        },
+        {
+          "case": "first_real_image_upload",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 3000,
+          "bytes": 2003,
+          "validation_fields": []
+        },
+        {
+          "case": "image_upload_retry_no_duplicate",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 264,
+          "bytes": 2003,
+          "validation_fields": []
+        },
+        {
+          "case": "one_image_after_retry",
+          "passed": true
+        },
+        {
+          "case": "second_real_image_upload",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 2638,
+          "bytes": 3200,
+          "validation_fields": []
+        },
+        {
+          "case": "two_images_after_upload",
+          "passed": true
+        },
+        {
+          "case": "other_cannot_read_draft_image",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 188,
+          "bytes": 82,
+          "validation_fields": []
+        },
+        {
+          "case": "staff_cannot_read_foreign_editor_draft",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 122,
+          "bytes": 82,
+          "validation_fields": []
+        },
+        {
+          "case": "owner_sanitized_draft_image",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 520,
+          "bytes": 1947,
+          "validation_fields": []
+        },
+        {
+          "case": "real_exif_camera_gps_removed",
+          "passed": true
+        },
+        {
+          "case": "real_exif_orientation_preserved",
+          "passed": true
+        },
+        {
+          "case": "draft_image_private_no_store",
+          "passed": true
+        },
+        {
+          "case": "private_original_sha256_preserved",
+          "passed": true
+        },
+        {
+          "case": "canonical_v9_listing_create",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 644,
+          "bytes": 4893,
+          "validation_fields": []
+        },
+        {
+          "case": "new_listing_private_two_images",
+          "passed": true
+        },
+        {
+          "case": "photo_gps_does_not_change_listing_pin",
+          "passed": true
+        },
+        {
+          "case": "lost_listing_create_response_no_duplicate",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 279,
+          "bytes": 347,
+          "validation_fields": []
+        },
+        {
+          "case": "public_cannot_read_unpublished",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 175,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "other_cannot_read_unpublished",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 273,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "original_variant_denied",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 227,
+          "bytes": 133,
+          "validation_fields": []
+        },
+        {
+          "case": "other_cannot_edit_property",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 130,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "reorder_checkpoint",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 308,
+          "bytes": 757,
+          "validation_fields": []
+        },
+        {
+          "case": "apply_image_order_primary",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 450,
+          "bytes": 4892,
+          "validation_fields": []
+        },
+        {
+          "case": "real_image_order_primary_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "remove_photo_checkpoint",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 288,
+          "bytes": 742,
+          "validation_fields": []
+        },
+        {
+          "case": "apply_photo_removal",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 4124,
+          "bytes": 4021,
+          "validation_fields": []
+        },
+        {
+          "case": "removed_photo_row_absent",
+          "passed": true
+        },
+        {
+          "case": "removed_original_cleaned",
+          "passed": true
+        },
+        {
+          "case": "replacement_checkpoint",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 191,
+          "bytes": 766,
+          "validation_fields": []
+        },
+        {
+          "case": "replacement_image_upload",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 2865,
+          "bytes": 1963,
+          "validation_fields": []
+        },
+        {
+          "case": "apply_image_replacement",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 4473,
+          "bytes": 4021,
+          "validation_fields": []
+        },
+        {
+          "case": "new_replacement_reference",
+          "passed": true
+        },
+        {
+          "case": "replaced_image_reference_inaccessible",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 129,
+          "bytes": 80,
+          "validation_fields": []
+        },
+        {
+          "case": "configure_existing_zero_rate_policy",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 321,
+          "bytes": 1426,
+          "validation_fields": []
+        },
+        {
+          "case": "submit_for_real_review",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 719,
+          "bytes": 4495,
+          "validation_fields": []
+        },
+        {
+          "case": "regular_cannot_approve",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 190,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "first_reviewer_claim",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 548,
+          "bytes": 1391,
+          "validation_fields": []
+        },
+        {
+          "case": "second_reviewer_claim_denied",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 222,
+          "bytes": 270,
+          "validation_fields": []
+        },
+        {
+          "case": "second_reviewer_read_denied",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 283,
+          "bytes": 233,
+          "validation_fields": []
+        },
+        {
+          "case": "unreviewed_image_blocks_publish",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 284,
+          "bytes": 362,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_reads_claimed_listing",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 347,
+          "bytes": 3525,
+          "validation_fields": []
+        },
+        {
+          "case": "stale_image_fingerprint_denied",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 322,
+          "bytes": 282,
+          "validation_fields": []
+        },
+        {
+          "case": "negative_image_decision",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 483,
+          "bytes": 132,
+          "validation_fields": []
+        },
+        {
+          "case": "unrelated_image_blocks_publish",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 276,
+          "bytes": 424,
+          "validation_fields": []
+        },
+        {
+          "case": "return_for_correction",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 590,
+          "bytes": 1451,
+          "validation_fields": []
+        },
+        {
+          "case": "owner_corrects_returned",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 512,
+          "bytes": 4484,
+          "validation_fields": []
+        },
+        {
+          "case": "owner_resubmits_same_listing",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 1400,
+          "bytes": 4415,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_reclaims",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 814,
+          "bytes": 1391,
+          "validation_fields": []
+        },
+        {
+          "case": "explicit_positive_image_decision",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 635,
+          "bytes": 161,
+          "validation_fields": []
+        },
+        {
+          "case": "publish_after_authorized_review",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 956,
+          "bytes": 1464,
+          "validation_fields": []
+        },
+        {
+          "case": "published_only_after_review",
+          "passed": true
+        },
+        {
+          "case": "search_canonical_arabic",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 273,
+          "bytes": 1569,
+          "validation_fields": []
+        },
+        {
+          "case": "search_canonical_arabic_exact_fixture_only",
+          "passed": true
+        },
+        {
+          "case": "search_common_spelling",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 347,
+          "bytes": 1569,
+          "validation_fields": []
+        },
+        {
+          "case": "search_common_spelling_exact_fixture_only",
+          "passed": true
+        },
+        {
+          "case": "search_diacritics",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 290,
+          "bytes": 1569,
+          "validation_fields": []
+        },
+        {
+          "case": "search_diacritics_exact_fixture_only",
+          "passed": true
+        },
+        {
+          "case": "search_true_empty",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 153,
+          "bytes": 75,
+          "validation_fields": []
+        },
+        {
+          "case": "zero_results_are_not_an_error",
+          "passed": true
+        },
+        {
+          "case": "cross_advertiser_exact_duplicate",
+          "status": 201,
+          "expected": [
+            201,
+            409
+          ],
+          "passed": true,
+          "elapsed_ms": 3419,
+          "bytes": 4086,
+          "validation_fields": []
+        },
+        {
+          "case": "duplicate_same_physical_asset",
+          "passed": true
+        },
+        {
+          "case": "duplicate_has_valid_sai",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 351,
+          "bytes": 1426,
+          "validation_fields": []
+        },
+        {
+          "case": "duplicate_submission_denied",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 191,
+          "bytes": 103,
+          "validation_fields": []
+        },
+        {
+          "case": "duplicate_denial_is_physical_identity",
+          "passed": true
+        },
+        {
+          "case": "public_sanitized_image",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 493,
+          "bytes": 1852,
+          "validation_fields": []
+        },
+        {
+          "case": "published_image_jpeg_no_exif",
+          "passed": true
+        },
+        {
+          "case": "original_still_denied_after_publish",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 190,
+          "bytes": 133,
+          "validation_fields": []
+        },
+        {
+          "case": "listing_report",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 697,
+          "bytes": 895,
+          "validation_fields": []
+        },
+        {
+          "case": "report_retry_returns_existing_receipt",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 263,
+          "bytes": 323,
+          "validation_fields": []
+        },
+        {
+          "case": "same_report_receipt",
+          "passed": true
+        },
+        {
+          "case": "publisher_cannot_read_other_report",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 186,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "regular_cannot_review_report",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 202,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "unclaimed_report_review_denied",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 270,
+          "bytes": 214,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_reads_report_queue",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 621,
+          "bytes": 997,
+          "validation_fields": []
+        },
+        {
+          "case": "report_is_in_shared_queue",
+          "passed": true
+        },
+        {
+          "case": "reviewer_claims_report",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 538,
+          "bytes": 1095,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_starts_report",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 565,
+          "bytes": 1769,
+          "validation_fields": []
+        },
+        {
+          "case": "reviewer_resolves_report",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 581,
+          "bytes": 1972,
+          "validation_fields": []
+        },
+        {
+          "case": "reporter_reads_resolution",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 121,
+          "bytes": 899,
+          "validation_fields": []
+        },
+        {
+          "case": "report_resolution_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "property_conversation",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 422,
+          "bytes": 569,
+          "validation_fields": []
+        },
+        {
+          "case": "unrelated_staff_cannot_read_thread",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 204,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "message_before_block",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 448,
+          "bytes": 296,
+          "validation_fields": []
+        },
+        {
+          "case": "conversation_report_created",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 582,
+          "bytes": 443,
+          "validation_fields": []
+        },
+        {
+          "case": "conversation_report_has_receipt",
+          "passed": true
+        },
+        {
+          "case": "regular_cannot_review_private_report",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 160,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "agent_without_private_permission_denied",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 191,
+          "bytes": 91,
+          "validation_fields": []
+        },
+        {
+          "case": "manager_reads_reported_private_content",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 339,
+          "bytes": 912,
+          "validation_fields": []
+        },
+        {
+          "case": "private_review_only_fixture_message",
+          "passed": true
+        },
+        {
+          "case": "private_report_read_audited",
+          "passed": true
+        },
+        {
+          "case": "manager_resolves_conversation_report",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 495,
+          "bytes": 486,
+          "validation_fields": []
+        },
+        {
+          "case": "conversation_report_resolution_roundtrip",
+          "passed": true
+        },
+        {
+          "case": "reporter_reads_private_report_notification",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 147,
+          "bytes": 1494,
+          "validation_fields": []
+        },
+        {
+          "case": "private_report_resolution_notified",
+          "passed": true
+        },
+        {
+          "case": "account_personal_block",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 339,
+          "bytes": 262,
+          "validation_fields": []
+        },
+        {
+          "case": "sender_block_enforced",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 298,
+          "bytes": 270,
+          "validation_fields": []
+        },
+        {
+          "case": "recipient_block_enforced",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 328,
+          "bytes": 270,
+          "validation_fields": []
+        },
+        {
+          "case": "new_contact_block_enforced",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 181,
+          "bytes": 270,
+          "validation_fields": []
+        },
+        {
+          "case": "blocked_external_call_denied",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 270,
+          "bytes": 182,
+          "validation_fields": []
+        },
+        {
+          "case": "blocked_property_contact_denied",
+          "status": 403,
+          "expected": 403,
+          "passed": true,
+          "elapsed_ms": 242,
+          "bytes": 182,
+          "validation_fields": []
+        },
+        {
+          "case": "history_remains_accessible",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 266,
+          "bytes": 925,
+          "validation_fields": []
+        },
+        {
+          "case": "personal_unblock",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 219,
+          "bytes": 176,
+          "validation_fields": []
+        },
+        {
+          "case": "message_after_unblock",
+          "status": 201,
+          "expected": 201,
+          "passed": true,
+          "elapsed_ms": 352,
+          "bytes": 296,
+          "validation_fields": []
+        },
+        {
+          "case": "unsubmitted_media_draft_created",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 261,
+          "bytes": 473,
+          "validation_fields": []
+        },
+        {
+          "case": "unsubmitted_media_uploaded",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 3359,
+          "bytes": 1669,
+          "validation_fields": []
+        },
+        {
+          "case": "unsubmitted_original_exists_before_erasure",
+          "passed": true
+        },
+        {
+          "case": "staff_cannot_use_consumer_erasure",
+          "status": 409,
+          "expected": 409,
+          "passed": true,
+          "elapsed_ms": 210,
+          "bytes": 239,
+          "validation_fields": []
+        },
+        {
+          "case": "deletion_requires_explicit_phrase",
+          "status": 422,
+          "expected": 422,
+          "passed": true,
+          "elapsed_ms": 212,
+          "bytes": 125,
+          "validation_fields": []
+        },
+        {
+          "case": "synthetic_publisher_account_erasure",
+          "status": 200,
+          "expected": 200,
+          "passed": true,
+          "elapsed_ms": 6410,
+          "bytes": 510,
+          "validation_fields": []
+        },
+        {
+          "case": "account_erasure_receipt",
+          "passed": true
+        },
+        {
+          "case": "erased_session_revoked",
+          "status": 401,
+          "expected": 401,
+          "passed": true,
+          "elapsed_ms": 176,
+          "bytes": 50,
+          "validation_fields": []
+        },
+        {
+          "case": "erased_account_image_unpublished",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 180,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "erased_professional_photo_unavailable",
+          "status": 404,
+          "expected": 404,
+          "passed": true,
+          "elapsed_ms": 245,
+          "bytes": 21,
+          "validation_fields": []
+        },
+        {
+          "case": "erased_professional_photo_deleted_from_storage",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_original_deleted_from_storage",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_thumb",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_card",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_preview",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_detail",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_gallery",
+          "passed": true
+        },
+        {
+          "case": "erased_unsubmitted_derivative_zoom",
+          "passed": true
+        },
+        {
+          "case": "erasure_archives_listing",
+          "passed": true
+        },
+        {
+          "case": "immutable_review_history_retained",
+          "passed": true
+        },
+        {
+          "case": "shared_message_history_retained",
+          "passed": true
+        }
+      ]
+    },
+    "flag_disabled": true,
+    "flag_reset_deploy": "dep-dbf5rdl9fdbs738udcm0",
+    "flag_reset_live": true,
+    "flag_reset_finished_at": "2026-10-25T19:52:03.641185Z",
+    "backend_matches_reviewed_code": true
+  },
+  "original_financial_fingerprints": {
+    "cutoff": "2026-10-24T23:48:00Z",
+    "algorithm": "md5(string_agg(to_jsonb(row)::text,'|' ORDER BY id))",
+    "property_payments": "51860ba57ad71dc7a6629ccfba084d8a",
+    "property_sai_terms": "77453f6664656c4b1c6ef27a4d6f3268",
+    "property_sai_attestations": "0ee0c66db7ea92fda848213bd4e776ae",
+    "property_platform_receivables": "45aea29a39a30e3f2477e166bb2cf0f2",
+    "before_match": true,
+    "after_match": true
+  },
+  "database_preflight": {
+    "migrations": 59,
+    "orphan_saved_searches": 0,
+    "orphan_notification_preferences": 0,
+    "saved_search_unique": [
+      "user_id",
+      "fingerprint"
+    ],
+    "preference_primary_key": "user_id",
+    "schema_or_grant_changed": false
+  },
+  "limitations": {
+    "physical_android_tested": false,
+    "otp_provider_delivery_tested": false,
+    "production_changed": false,
+    "new_paid_resource": false,
+    "video_or_tus_enabled": false,
+    "capacity_certified": false,
+    "all_screens_all_states_certified": false
+  },
+  "release_decision": "NO-GO",
+  "database_postflight": {
+    "checked_at": "2026-10-25T19:52:16.927276+00:00",
+    "migrations": 59,
+    "upload_intents_exist": false,
+    "synthetic_cleanup": {
+      "actors": 6,
+      "active_actors": 0,
+      "tokens": 0,
+      "drafts": 0,
+      "saved_searches": 0,
+      "preferences": 0,
+      "property_images": 0,
+      "public_professional_photo_references": 0,
+      "editor_storage_objects": 0
+    },
+    "public_rls": {
+      "tables": 88,
+      "enabled": 88
+    },
+    "anon_authenticated_crud_grants": 0,
+    "public_storage_buckets": 0,
+    "original_financial_fingerprints": {
+      "property_payments": "51860ba57ad71dc7a6629ccfba084d8a",
+      "property_sai_terms": "77453f6664656c4b1c6ef27a4d6f3268",
+      "property_sai_attestations": "0ee0c66db7ea92fda848213bd4e776ae",
+      "property_platform_receivables": "45aea29a39a30e3f2477e166bb2cf0f2"
+    }
+  },
+  "verified_at_utc": "2026-10-25T20:03:41.882828+00:00",
+  "verified_at_asia_aden": "2026-10-25T23:03:41.882899+03:00",
+  "reviewed_code_sha": "282b635c58071731614ab67f7773a14c382948e3",
+  "full_tree_sha": "6a258e733512f4f75cf614e3706fbed5a8c562e0",
+  "backend_subtree_sha": "dec7772d63703b35f29cd9ccaf27ea9cc84c1eff",
+  "android": {
+    "source_commit": "c3b4a148ac1270e3c2daf84f5e4ca5da025f3be2",
+    "version_code": 1285,
+    "sha256": "0e63e06004b28ab9da7477f31b80460a931394f40d611f3757df13a7776f1cce",
+    "bytes": 118190064,
+    "target_sdk": 36,
+    "min_sdk": 23,
+    "native_16kb_elf": "passed",
+    "zipalign_16kb": "passed",
+    "native_64bit_libraries_verified": 10,
+    "package": "com.example.real_estate_mobile",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "architectures": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "brand_assets_match": 4,
+    "fonts_match": 5,
+    "zip_crc": "passed",
+    "apksigner": "passed",
+    "certificate_sha256": "ee536d8f80862e88778deb4fc1d65b93299194e4c95853a2c9d0b06d801dc60c",
+    "handset_acceptance": "owner_pending",
+    "run_id": 40227636625,
+    "job_id": 121272947942,
+    "artifact": {
+      "id": 12611912055,
+      "name": "recipient-encrypted-uat-285",
+      "size_in_bytes": 118280776,
+      "url": "https://api.github.com/repos/JJalal1/real-estate-uat-backend/actions/artifacts/12611912055",
+      "archive_download_url": "https://api.github.com/repos/JJalal1/real-estate-uat-backend/actions/artifacts/12611912055/zip",
+      "expired": false,
+      "created_at": "2026-10-25T19:59:17Z",
+      "expires_at": "2026-10-28T19:59:12Z",
+      "updated_at": "2026-10-25T19:59:17Z",
+      "digest": "sha256:790f40e967680813e7f544fbcd7b4631547c78095986d053311e2f3f96538f86",
+      "workflow_run": {
+        "id": 40227636625,
+        "repository_id": 1346677714,
+        "head_repository_id": 1346677714,
+        "head_branch": "work/private-journey-session-isolation-20261025",
+        "head_sha": "40d1c98a8ba1a93e2b0651d28002080fe3e0f84b"
+      }
+    },
+    "public_plaintext": false,
+    "recipient_encrypted": true,
+    "official_release_signing": false
+  },
+  "new_test_cases": {
+    "flutter": 67,
+    "laravel": 7,
+    "additional_http_cases": 23,
+    "caveat": "Do not sum overlapping suites as unique cases."
+  },
+  "local_validation": {
+    "git_diff_check": "passed",
+    "json_parse": "passed",
+    "immutable_baseline_guard": "Unavailable locally: source snapshot has no baseline git refs; the unchanged guard passed in CI with full git history.",
+    "flutter_php_android_runtime": "Not installed locally; exact-source GitHub Actions used."
+  },
+  "changed_paths_by_pr": {
+    "145": [
+      ".github/workflows/launch-readiness-wave4.yml",
+      "mobile_app/lib/core/local/stage6_secure_session_store.dart",
+      "mobile_app/lib/features/account/data/account_request_scope.dart",
+      "mobile_app/lib/features/account/data/auth_controller.dart",
+      "mobile_app/lib/features/account/data/auth_repository.dart",
+      "mobile_app/lib/features/account/presentation/actor_scoped_page.dart",
+      "mobile_app/lib/features/financial/data/financial_repository.dart",
+      "mobile_app/lib/features/financial/presentation/deal_financial_screen.dart",
+      "mobile_app/lib/features/financial/presentation/financial_account_screen.dart",
+      "mobile_app/lib/features/financial/presentation/receivable_payment_screen.dart",
+      "mobile_app/lib/features/messages/data/notification_preference_repository.dart",
+      "mobile_app/lib/features/messages/presentation/notification_preferences_screen.dart",
+      "mobile_app/lib/features/properties/data/saved_search_repository.dart",
+      "mobile_app/lib/features/properties/presentation/saved_search_builder_screen.dart",
+      "mobile_app/lib/features/properties/presentation/saved_searches_screen.dart",
+      "mobile_app/lib/features/services/data/service_repository.dart",
+      "mobile_app/lib/features/services/presentation/property_journey_screen.dart",
+      "mobile_app/lib/features/services/presentation/services_screen.dart",
+      "mobile_app/test/account_tools_integration_test.dart",
+      "mobile_app/test/session_lifecycle_race_test.dart"
+    ],
+    "146": [
+      "backend-api-runtime/app/Http/Controllers/Api/SavedPropertySearchController.php",
+      "backend-api-runtime/app/Http/Controllers/Api/NotificationPreferenceController.php",
+      "backend-api-runtime/tests/Feature/SavedSearchPersistenceIntegrityTest.php",
+      "backend-api-runtime/tests/Feature/NotificationPreferencePersistenceIntegrityTest.php",
+      "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php",
+      "backend-api-runtime/docker/uat-entrypoint.sh",
+      "mobile_app/lib/features/properties/domain/saved_property_search.dart",
+      "mobile_app/lib/features/properties/data/saved_search_repository.dart",
+      "mobile_app/lib/features/properties/presentation/saved_search_builder_screen.dart",
+      "mobile_app/test/saved_search_persistence_ui_test.dart",
+      ".github/workflows/launch-readiness-wave4.yml",
+      ".github/workflows/uat-performance-journeys.yml"
+    ],
+    "147": [
+      "mobile_app/lib/features/agreements/data/agreement_repository.dart",
+      "mobile_app/lib/features/messages/data/message_repository.dart",
+      "mobile_app/lib/features/properties/data/favorites_repository.dart",
+      "mobile_app/lib/features/account/data/account_safety_repository.dart",
+      "mobile_app/lib/features/account/presentation/actor_scoped_page.dart",
+      "mobile_app/lib/features/agreements/presentation/agreement_forms.dart",
+      "mobile_app/lib/features/agreements/presentation/agreement_detail_screen.dart",
+      "mobile_app/lib/features/agreements/presentation/rental_contract_detail_screen.dart",
+      "mobile_app/lib/features/agreements/presentation/conversation_agreement_card.dart",
+      "mobile_app/lib/features/messages/presentation/conversation_screen.dart",
+      "mobile_app/test/private_journey_actor_scope_test.dart",
+      ".github/workflows/launch-readiness-wave4.yml"
+    ]
+  },
+  "critical_scope_findings": {
+    "closed_groups": 14,
+    "known_unclosed_p0_in_reviewed_scope": 0,
+    "exhaustive_security_certification": false
+  },
+  "remaining": [
+    "FCM/provider identity and actual worker delivery",
+    "Official package/domain/signing/App Links/update identity",
+    "Issue109 production SLO, monitoring, capacity and independent recovery proof",
+    "Full screen-state acceptance ledger and owner Android acceptance",
+    "Deferred3/11/21 gates remain"
+  ]
+}

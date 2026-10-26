@@ -1,0 +1,22 @@
+{
+  "verify": {
+    "sessions_created_during_preflight_remaining": 0,
+    "owner_runs_started": 1,
+    "owner_runs_finished": 1,
+    "public_tables": 88,
+    "rls_tables": 88,
+    "data_api_grants": 0
+  },
+  "db": {
+    "laravel_migrations": 59,
+    "public_buckets": 0,
+    "image_upload_intents_absent": true,
+    "queued_jobs": 0,
+    "failed_jobs": 0,
+    "push_devices": 0,
+    "fixture_active_sessions": 21,
+    "owner_review_pending": 1,
+    "owner_review_images": 2,
+    "owner_recovery_drafts": 1
+  }
+}

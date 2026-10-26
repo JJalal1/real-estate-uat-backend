@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_controller.dart';
 import '../domain/community_models.dart';
 
@@ -10,20 +11,23 @@ final communityRepositoryProvider = Provider<CommunityRepository>((ref) {
   final actor = ref.watch(authControllerProvider.select((s) => s.asData?.value?.id));
   return CommunityRepository(
     ref.watch(dioProvider),
-    ref.watch(authRepositoryProvider), actorId: actor, currentActor: () => ref.read(authControllerProvider).asData?.value?.id,
+    ref.watch(authRepositoryProvider), requestScope: ref.watch(accountRequestScopeProvider), actorId: actor, currentActor: () => ref.read(authControllerProvider).asData?.value?.id,
   );
 });
 
 class CommunityRepository {
-  CommunityRepository(this._dio, this._auth, {int? actorId, int? Function()? currentActor}): _actorId = actorId, _currentActor = currentActor;
+  CommunityRepository(this._dio, this._auth, {int? actorId, int? Function()? currentActor, AccountRequestScope? requestScope}): _actorId = actorId, _currentActor = currentActor, _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
   final int? _actorId;
   final int? Function()? _currentActor;
   Future<Options> _sessionOptions() async {
+    _requestScope?.verify();
     if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
-    final options = await _auth.requiredAuthOptions();
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _requestScope?.verify();
     if (_currentActor != null && _currentActor() != _actorId) throw StateError('ACCOUNT_CHANGED');
     return options;
   }
@@ -90,6 +94,7 @@ class CommunityRepository {
       },
       options: await _sessionOptions(),
     );
+    _requestScope?.verify();
     return _ratingSummary(response.data);
   }
 
@@ -116,12 +121,14 @@ class CommunityRepository {
       body = data; alreadyReceived = true;
     }
     if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
+    _requestScope?.verify();
     final data = body?['data'];
     if (data is! Map<String, dynamic>) throw StateError('Invalid report response');
     return ReportReceipt.fromJson(data, alreadyReceived: alreadyReceived);
   }
 
   ListingCommentItem _comment(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final data = body?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid comment response.');

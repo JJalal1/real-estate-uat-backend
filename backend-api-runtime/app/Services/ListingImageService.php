@@ -76,6 +76,12 @@ class ListingImageService
         return true;
     }
 
+    /** Public professional photos are separate from verification evidence. */
+    public function sanitizedProfessionalPhoto(string $bytes): string
+    {
+        return $this->encode($bytes, $this->inspect($bytes), ['card'], false)['card'];
+    }
+
     public function variantPath(string $path, string $variant): string
     {
         abort_unless(array_key_exists($variant, config('listing_media.variants')), 422, 'نسخة الصورة غير صالحة.');
@@ -96,27 +102,38 @@ class ListingImageService
                 return response('', 304, $headers);
             }
         }
-        if (! $this->storage->existsPrivate($target)) {
-            // Compatibility for historical internal images: sanitize on demand, never return the raw original.
-            $bytes = $this->storage->readBytes($path, self::isPrivate($path));
-            foreach ($this->encode($bytes, $this->inspect($bytes), [$variant]) as $name=>$encoded) {
-                $this->storage->writePrivate($this->variantPath($path, $name), $encoded, 'image/jpeg');
-            }
-        }
-        return $this->storage->responsePrivate($target, null, $headers);
+        $cached = $this->storage->responsePrivateIfExists($target, null, $headers);
+        if ($cached !== null) return $cached;
+        // Compatibility for historical internal images: sanitize on demand, never return the raw original.
+        $bytes = $this->storage->readBytes($path, self::isPrivate($path));
+        $encoded = $this->encode($bytes, $this->inspect($bytes), [$variant])[$variant];
+        $this->storage->writePrivate($target, $encoded, 'image/jpeg');
+        // The acknowledged upload already came from these exact safe bytes.
+        // A second remote download adds worker occupancy without validation.
+        return response($encoded, 200, $headers);
     }
 
-    public function removeIfUnused(string $path): void
+    public function removeIfUnused(string $path, bool $throwOnFailure = false): void
     {
         if (PropertyImage::query()->where('path', $path)->exists()) return;
         foreach (ListingEditorDraft::query()->select(['id','images'])->cursor() as $draft) {
             if (in_array($path, array_values($draft->images ?? []), true)) return;
         }
-        // Cleanup is best effort after the database operation; storage failure cannot undo a confirmed save.
+        // Normal editor cleanup is best effort after a confirmed save.
+        // Account erasure opts into failure propagation before its transaction commits.
         try {
-            foreach (array_keys(config('listing_media.variants')) as $variant) $this->storage->deletePrivate($this->variantPath($path, $variant));
+            // A flag change must not strand derivatives from before activation or rollback.
+            $versions = ['v1'];
+            $approved = (string) config('listing_media.watermark.approved_sha256');
+            if (preg_match('/^[a-f0-9]{64}$/D', $approved)) $versions[] = 'v2-wm-'.substr($approved, 0, 20);
+            foreach ($versions as $version) foreach (array_keys(config('listing_media.variants')) as $variant) {
+                $this->storage->deletePrivate('listing-display/'.$version.'/'.hash('sha256', $path).'/'.$variant.'.jpg');
+            }
             if (self::isPrivate($path)) $this->storage->deletePrivate($path); else $this->storage->deletePublic($path);
-        } catch (\Throwable $error) { report($error); }
+        } catch (\Throwable $error) {
+            if ($throwOnFailure) throw $error;
+            report($error);
+        }
     }
 
     private function inspect(string $bytes): array
@@ -131,7 +148,14 @@ class ListingImageService
         return $info;
     }
 
-    private function encode(string $bytes, array $info, ?array $only = null): array
+    private function encode(string $bytes, array $info, ?array $only = null, bool $watermark = true): array
+    {
+        // 24MP decode/rotation allocates much more than its compressed bytes.
+        // Reject contention before decoding instead of exhausting the runtime.
+        return app(ListingImageEncodingGate::class)->run(fn () => $this->encodeAccepted($bytes,$info,$only,$watermark));
+    }
+
+    private function encodeAccepted(string $bytes, array $info, ?array $only, bool $watermark): array
     {
         $image = @imagecreatefromstring($bytes);
         if (!$image) throw ValidationException::withMessages(['image'=>['تعذر قراءة الصورة. اختر صورة أخرى.']]);
@@ -150,7 +174,7 @@ class ListingImageService
                     // Opaque sRGB display JPEGs; transparent sources are composited onto white.
                     imagefill($output,0,0,imagecolorallocate($output,255,255,255));
                     imagecopyresampled($output,$image,0,0,0,0,$w,$h,$width,$height);
-                    app(ListingWatermarkService::class)->apply($output);
+                    if ($watermark) app(ListingWatermarkService::class)->apply($output);
                     ob_start();
                     try { if (!imagejpeg($output,null,$quality)) throw new RuntimeException('Image encoding failed.'); $result[$variant]=ob_get_contents(); }
                     finally { ob_end_clean(); }

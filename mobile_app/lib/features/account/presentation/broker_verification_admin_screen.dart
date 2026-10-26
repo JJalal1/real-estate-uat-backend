@@ -1,24 +1,30 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'actor_scoped_page.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../data/auth_controller.dart';
 import '../data/broker_verification_repository.dart';
 import '../domain/broker_verification.dart';
 
-class BrokerVerificationAdminScreen extends ConsumerStatefulWidget {
+class BrokerVerificationAdminScreen extends ConsumerWidget {
   const BrokerVerificationAdminScreen({super.key});
-
   @override
-  ConsumerState<BrokerVerificationAdminScreen> createState() =>
-      _BrokerVerificationAdminScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'توثيق الدلالين', builder: (_) => const _BrokerVerificationAdminScreenBody());
+}
+class _BrokerVerificationAdminScreenBody extends ConsumerStatefulWidget {
+  const _BrokerVerificationAdminScreenBody();
+  @override
+  ConsumerState<_BrokerVerificationAdminScreenBody> createState() => _BrokerVerificationAdminScreenState();
 }
 
 class _BrokerVerificationAdminScreenState
-    extends ConsumerState<BrokerVerificationAdminScreen> {
+    extends ConsumerState<_BrokerVerificationAdminScreenBody> {
   late Future<List<BrokerVerificationApplication>> _future;
   final Set<int> _busy = <int>{};
 
@@ -28,8 +34,10 @@ class _BrokerVerificationAdminScreenState
     _reload();
   }
 
-  void _reload() =>
-      _future = ref.read(brokerVerificationRepositoryProvider).queue();
+  void _reload() {
+    _future = ref.read(brokerVerificationRepositoryProvider).queue();
+    _future.ignore();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,10 +58,8 @@ class _BrokerVerificationAdminScreenState
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    return Center(
-                        child: EbrokerFilledButton(
-                            onPressed: () => setState(_reload),
-                            child: const Text('إعادة المحاولة')));
+                    return AppErrorState(message: friendlyApiError(snapshot.error!),
+                      onRetry: () => setState(_reload));
                   }
                   final rows = snapshot.data ?? const [];
                   if (rows.isEmpty) {
@@ -88,7 +94,7 @@ class _BrokerVerificationAdminScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('تم توثيق حساب الدلال.')));
-        setState(_reload);
+        _reload();
       }
     } catch (error) {
       if (mounted) {
@@ -104,8 +110,8 @@ class _BrokerVerificationAdminScreenState
 
   Future<void> _reject(BrokerVerificationApplication application) async {
     final controller = TextEditingController();
-    final reason = await showDialog<String>(
-      context: context,
+    final reason = await showActorDialog<String>(
+      context: context, ref: ref,
       builder: (dialogContext) => AlertDialog(
         title: const Text('سبب رفض التوثيق'),
         content: TextField(
@@ -125,7 +131,7 @@ class _BrokerVerificationAdminScreenState
       ),
     );
     controller.dispose();
-    if (reason == null || reason.length < 3) {
+    if (!mounted || reason == null || reason.length < 3) {
       return;
     }
     setState(() => _busy.add(application.userId));
@@ -134,7 +140,7 @@ class _BrokerVerificationAdminScreenState
           .read(brokerVerificationRepositoryProvider)
           .reject(application.userId, reason);
       if (mounted) {
-        setState(_reload);
+        _reload();
       }
     } catch (error) {
       if (mounted) {
@@ -187,21 +193,8 @@ class _ApplicationCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             for (final kind in const ['id_front', 'id_back', 'selfie'])
-              FutureBuilder<Uint8List>(
-                future: loadDocument(kind),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.memory(snapshot.data!,
-                            height: 180, fit: BoxFit.cover)),
-                  );
-                },
-              ),
+              _PrivateBrokerDocument(key: ValueKey((application.userId, kind)),
+                kind: kind, load: () => loadDocument(kind)),
             Row(
               children: [
                 Expanded(
@@ -235,5 +228,36 @@ class _DocPreview extends StatelessWidget {
       _ => 'السلفي'
     };
     return Chip(label: Text(label));
+  }
+}
+
+/// Identity images are private and potentially expensive. Fetch one only after
+/// the reviewer asks, retain its future across rebuilds and expose every failure.
+class _PrivateBrokerDocument extends StatefulWidget {
+  const _PrivateBrokerDocument({required this.kind, required this.load, super.key});
+  final String kind;
+  final Future<Uint8List> Function() load;
+  @override
+  State<_PrivateBrokerDocument> createState() => _PrivateBrokerDocumentState();
+}
+class _PrivateBrokerDocumentState extends State<_PrivateBrokerDocument> {
+  Future<Uint8List>? _future;
+  void _load() { setState(() { _future = widget.load(); _future!.ignore(); }); }
+  @override
+  Widget build(BuildContext context) {
+    final label = switch(widget.kind) { 'id_front' => 'البطاقة الأمامية', 'id_back' => 'البطاقة الخلفية', _ => 'السلفي' };
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: _future == null
+      ? TextButton.icon(onPressed: _load, icon: const Icon(Icons.visibility_outlined), label: Text('عرض $label'))
+      : FutureBuilder<Uint8List>(future: _future, builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) return AppLoadingState(label: 'جارٍ تحميل $label…');
+          if (snapshot.hasError) return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _load);
+          final bytes = snapshot.data;
+          if (bytes == null || bytes.isEmpty) return AppErrorState(message: 'تعذر تحميل المستند الخاص.', onRetry: _load);
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(label), const SizedBox(height: 8),
+            Image.memory(bytes, height: 180, fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => AppErrorState(message: 'تعذر عرض المستند الخاص.', onRetry: _load)),
+          ]);
+        }));
   }
 }

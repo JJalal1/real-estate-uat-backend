@@ -145,6 +145,32 @@ class Wave2MediaTrustTest extends TestCase
         }
     }
 
+    public function test_image_removal_cleans_both_derivative_versions_after_activation_and_rollback(): void
+    {
+        Storage::fake('local'); Storage::fake('public');
+        [$owner] = $this->user('watermark-cleanup@example.test', '+967731200006');
+        $listing = $this->publishedListing($owner, 'Synthetic cleanup');
+        foreach ([false, true] as $enabledAtDelete) {
+            $service = app(ListingImageService::class);
+            config(['listing_media.watermark.enabled'=>false]);
+            $path = $service->store(UploadedFile::fake()->image('synthetic.jpg', 640, 480), 'listing-originals/cleanup');
+            $targets = [];
+            foreach (array_keys(config('listing_media.variants')) as $variant) $targets[] = $service->variantPath($path, $variant);
+            config(['listing_media.watermark.enabled'=>true]);
+            foreach (array_keys(config('listing_media.variants')) as $variant) {
+                $service->response($path, $variant, true);
+                $targets[] = $service->variantPath($path, $variant);
+            }
+            $image = $listing->images()->create(['path'=>$path]);
+            config(['listing_media.watermark.enabled'=>$enabledAtDelete]);
+            $service->removeIfUnused($path);
+            foreach ([$path, ...$targets] as $target) Storage::disk('local')->assertExists($target);
+            $image->delete();
+            $service->removeIfUnused($path);
+            foreach ([$path, ...$targets] as $target) Storage::disk('local')->assertMissing($target);
+        }
+    }
+
     private function user(string $email,string $phone,array $roles=[]): array
     {
         $user=User::query()->create(['name'=>'Stage 11 User','email'=>$email,'phone'=>$phone,'phone_verified_at'=>now(),'account_status'=>User::STATUS_ACTIVE,'password'=>Hash::make('StrongPass123!')]);

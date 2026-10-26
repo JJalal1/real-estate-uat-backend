@@ -7,16 +7,27 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../data/financial_repository.dart';
 import '../domain/financial_models.dart';
+import '../../account/presentation/actor_scoped_page.dart';
+import '../../account/data/account_request_scope.dart';
 
-class DealFinancialScreen extends ConsumerStatefulWidget {
+class DealFinancialScreen extends StatelessWidget {
   const DealFinancialScreen({required this.agreementId, super.key});
   final int agreementId;
-
   @override
-  ConsumerState<DealFinancialScreen> createState() => _DealFinancialScreenState();
+  Widget build(BuildContext context) => ActorBoundPage(title: 'إتمام الدفع',
+    builder: (_) => _DealFinancialPage(agreementId: agreementId));
 }
 
-class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
+class _DealFinancialPage extends ConsumerStatefulWidget {
+  const _DealFinancialPage({required this.agreementId});
+  final int agreementId;
+  @override
+  ConsumerState<_DealFinancialPage> createState() => _DealFinancialScreenState();
+}
+
+class _DealFinancialScreenState extends ConsumerState<_DealFinancialPage> {
+  late final AccountRequestScope _scope;
+  bool get _valid => mounted && _scope.isCurrent;
   FinancialDeal? _deal;
   bool _loading = true;
   bool _busy = false;
@@ -25,21 +36,23 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
   @override
   void initState() {
     super.initState();
+    _scope = ref.read(accountRequestScopeProvider);
     Future.microtask(_load);
   }
 
   Future<void> _load() async {
+    if (!_valid) return;
     try {
       final deal =
           await ref.read(financialRepositoryProvider).deal(widget.agreementId);
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() {
         _deal = deal;
         _loading = false;
         _error = null;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
@@ -284,8 +297,9 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
 
   Future<void> _chooseMethod(
       FinancialDeal deal, String mode, double amount) async {
-    final method = await showModalBottomSheet<FinancialPaymentMethod>(
-      context: context,
+    if (!_valid) return;
+    final method = await showActorModalBottomSheet<FinancialPaymentMethod>(
+      context: context, ref: ref,
       isScrollControlled: true,
       builder: (context) => SafeArea(
         child: Directionality(
@@ -335,7 +349,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
         ),
       ),
     );
-    if (method == null || !mounted) return;
+    if (method == null || !_valid) return;
 
     setState(() => _busy = true);
     try {
@@ -344,11 +358,11 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
             mode: mode,
             paymentMethodId: method.id,
           );
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() => _busy = false);
       await _showTransferDetails(payment, payment.method ?? method);
     } catch (error) {
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() => _busy = false);
       _message(friendlyApiError(error));
     }
@@ -356,12 +370,13 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
 
   Future<void> _showTransferDetails(
       FinancialPayment payment, FinancialPaymentMethod? method) async {
+    if (!_valid) return;
     if (method == null) {
       _message('تعذر تحديد طريقة الدفع. حدّث الصفحة وحاول مرة أخرى.');
       return;
     }
-    final completed = await showDialog<bool>(
-      context: context,
+    final completed = await showActorDialog<bool>(
+      context: context, ref: ref,
       barrierDismissible: false,
       builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
@@ -416,19 +431,20 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
         ),
       ),
     );
-    if (completed == true && mounted) {
+    if (completed == true && _valid) {
       await _proofFlow(payment, method);
     }
   }
 
   Future<void> _proofFlow(
       FinancialPayment payment, FinancialPaymentMethod method) async {
+    if (!_valid) return;
     final sender = TextEditingController();
     final phone = TextEditingController();
     final reference = TextEditingController();
     String? pickedPath;
-    final submitted = await showDialog<bool>(
-      context: context,
+    final submitted = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (dialogContext) => StatefulBuilder(builder: (context, setDialogState) {
         return Directionality(
           textDirection: TextDirection.rtl,
@@ -467,6 +483,10 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
                     onPressed: () async {
                       final paths =
                           await const Stage5MediaPicker().pickImages();
+                      if (!context.mounted || !_valid) {
+                        try { await const Stage5MediaPicker().clearTemporaryFiles(paths); } catch (_) { /* The native cache may already be unavailable. */ }
+                        return;
+                      }
                       if (paths.isNotEmpty) {
                         setDialogState(() => pickedPath = paths.first);
                       }
@@ -500,11 +520,14 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
         );
       }),
     );
-    if (submitted != true || pickedPath == null || !mounted) {
+    if (submitted != true || pickedPath == null || !_valid) {
       sender.dispose();
       phone.dispose();
       reference.dispose();
-      await _load();
+      if (pickedPath != null) {
+        try { await const Stage5MediaPicker().clearTemporaryFiles([pickedPath!]); } catch (_) { /* Do not mask the payment result with cache cleanup. */ }
+      }
+      if (_valid) await _load();
       return;
     }
 
@@ -517,24 +540,28 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
             senderPhone: phone.text,
             providerReference: reference.text,
           );
-      if (mounted) {
+      if (_valid) {
         _message(
             'جارٍ التحقق من الدفع. تم استلام الإثبات، لا تدفع مرة أخرى لهذه العملية حتى تصلك النتيجة.');
       }
       await _load();
     } catch (error) {
-      if (mounted) _message(friendlyApiError(error));
+      if (_valid) _message(friendlyApiError(error));
     } finally {
       sender.dispose();
       phone.dispose();
       reference.dispose();
-      if (mounted) setState(() => _busy = false);
+      if (pickedPath != null) {
+        try { await const Stage5MediaPicker().clearTemporaryFiles([pickedPath!]); } catch (_) { /* Do not mask the payment result with cache cleanup. */ }
+      }
+      if (_valid) setState(() => _busy = false);
     }
   }
 
   Future<void> _confirmDirect() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
+    if (!_valid) return;
+    final confirmed = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (context) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
@@ -552,21 +579,21 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
         ),
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !_valid) return;
     setState(() => _busy = true);
     try {
       final result = await ref
           .read(financialRepositoryProvider)
           .confirmDirect(widget.agreementId);
-      if (!mounted) return;
+      if (!_valid) return;
       _message(result['completed'] == true
           ? 'تم تأكيد الطرفين. تم تسجيل مستحق المنصة وبدأت مهلة 24 ساعة.'
           : 'تم تسجيل تأكيدك. بانتظار تأكيد الطرف الآخر.');
       await _load();
     } catch (error) {
-      if (mounted) _message(friendlyApiError(error));
+      if (_valid) _message(friendlyApiError(error));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_valid) setState(() => _busy = false);
     }
   }
 
@@ -604,7 +631,7 @@ class _DealFinancialScreenState extends ConsumerState<DealFinancialScreen> {
           TextButton.icon(
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: value));
-              if (mounted) _message('تم النسخ');
+              if (_valid) _message('تم النسخ');
             },
             icon: const EbrokerIcon(Icons.copy, size: 18),
             label: Text(action),

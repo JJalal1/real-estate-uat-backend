@@ -205,14 +205,15 @@ class AccountVerificationController extends Controller
         }
         $profile = $user->accountVerificationProfile()->firstOrFail();
         $document = $profile->documents()->where('kind', $kind)->firstOrFail();
-        abort_unless($this->storage->existsPrivate($document->path), 404);
+        $response = $this->storage->responsePrivateIfExists($document->path, $document->original_name, [
+            'Cache-Control' => 'private, no-store',
+        ]);
+        abort_if($response === null, 404);
         $this->audit->record($actor, 'account.verification_document_viewed', $document, [
             'target_user_id' => $user->id,
             'kind' => $kind,
         ], $request, $user->id);
-        return $this->storage->responsePrivate($document->path, $document->original_name, [
-            'Cache-Control' => 'private, no-store',
-        ]);
+        return $response;
     }
 
     public function adminIndex(Request $request): JsonResponse

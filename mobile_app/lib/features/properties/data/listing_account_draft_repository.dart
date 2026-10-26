@@ -7,26 +7,41 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../domain/listing_account_draft.dart';
 
 final listingAccountDraftRepositoryProvider = Provider<ListingAccountDraftRepository>((ref) {
-  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
-  return ListingAccountDraftRepository(ref.watch(dioProvider), ref.watch(authRepositoryProvider));
+  final actor=ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
+  return ListingAccountDraftRepository(ref.watch(dioProvider), ref.watch(authRepositoryProvider),actorId:actor);
 });
 
 class ListingAccountDraftRepository {
-  ListingAccountDraftRepository(this._dio, AuthRepository auth) : _options = auth.requiredAuthOptions();
+  ListingAccountDraftRepository(this._dio, AuthRepository auth,{int? actorId})
+      : _capturedOptions = auth.requiredAuthOptions(), _actorId=actorId,
+        _epoch=Stage6SecureSessionStore.instance.sessionEpoch;
   final Dio _dio;
   // Capture the originating session, so queued saves cannot move to another account.
-  final Future<Options> _options;
+  final Future<Options> _capturedOptions;
+  final int? _actorId;
+  final int _epoch;
+  void _verify() {
+    if (_epoch!=Stage6SecureSessionStore.instance.sessionEpoch) throw StateError('ACCOUNT_CHANGED');
+  }
+  Future<Options> get _options async {
+    _verify(); final options=await _capturedOptions; _verify(); return options;
+  }
   static const _base = '/listing-editor-drafts';
-  ListingAccountDraft _draft(Response<dynamic> response) => ListingAccountDraft.fromJson(Map<String, dynamic>.from(response.data['data'] as Map));
+  ListingAccountDraft _draft(Response<dynamic> response) {
+    _verify();
+    return ListingAccountDraft.fromJson(Map<String, dynamic>.from(response.data['data'] as Map));
+  }
   Future<List<ListingAccountDraft>> list() async {
     final rows = <ListingAccountDraft>[]; var page = 1;
     while (true) {
       final r = await _dio.get<dynamic>(_base, queryParameters: {'page': page}, options: await _options);
+      _verify();
       rows.addAll((r.data['data'] as List).map((e) => ListingAccountDraft.fromJson(Map<String, dynamic>.from(e as Map))));
       if (page >= ((r.data['meta'] as Map?)?['last_page'] as num? ?? 1)) break;
       page++;
@@ -57,6 +72,8 @@ class ListingAccountDraftRepository {
     if (!resumableBuildEnabled) {
       return upload(key,imageKey,path,revision,cancelToken:token,onSendProgress:onSendProgress);
     }
+    _verify();
+    if ((_actorId ?? 0) <= 0) throw StateError('AUTH_REQUIRED');
     final file=File(path),length=await file.length();
     if(length<=0 || length>8*1024*1024) throw StateError('حجم الصورة غير مقبول');
     final bytes=await file.readAsBytes();
@@ -71,9 +88,11 @@ class ListingAccountDraftRepository {
     final ticket=await _dio.post<dynamic>('$_base/$key/images/$imageKey/resumable-ticket',
       data:{'expected_revision':revision,'sha256':hash,'byte_length':length,'mime':mime},options:options,cancelToken:token);
     final data=Map<String,dynamic>.from(ticket.data['data'] as Map);
+    _verify();
     final signature=data['signature'] as String;
-    final auth=(options.headers?['Authorization']??options.headers?['authorization']??'').toString();
-    final scope=sha256.convert(utf8.encode('$auth|$key|$imageKey|$hash')).toString();
+    // A new session of the same account can resume. Other accounts have a
+    // different opaque scope and must first pass Laravel draft ownership.
+    final scope=sha256.convert(utf8.encode('$_actorId|$key|$imageKey|$hash')).toString();
     final transport = Dio(BaseOptions(connectTimeout: const Duration(seconds: 20),
       sendTimeout: const Duration(seconds: 90), receiveTimeout: const Duration(seconds: 90)));
     final uploader = PrivateTusImageUploader(transport);
@@ -82,9 +101,10 @@ class ListingAccountDraftRepository {
       endpoint:data['endpoint'] as String,bucket:data['bucket'] as String,
       objectName:data['object_name'] as String,signature:signature,publishableKey:data['publishable_key'] as String,mime:mime,
       cancelToken:token,progress:onSendProgress);
+    _verify();
     final finished=await _dio.post<dynamic>('$_base/$key/images/$imageKey/resumable-finalize',
       data:{'expected_revision':revision},options:options,cancelToken:token);
-    await uploader.forget(scope);
+    _verify(); await uploader.forget(scope);
     return _draft(finished);
     } finally { transport.close(force: true); }
   }
@@ -101,6 +121,7 @@ class ListingAccountDraftRepository {
     final token=cancelToken ?? CancelToken();
     final r = await _dio.get<List<int>>(url, options: (await _options).copyWith(responseType: ResponseType.bytes),cancelToken:token)
       .timeout(const Duration(seconds:25),onTimeout:() { token.cancel('Image deadline'); throw TimeoutException('تعذر تحميل الصورة.'); });
+    _verify();
     return Uint8List.fromList(r.data ?? const []);
   }
 }

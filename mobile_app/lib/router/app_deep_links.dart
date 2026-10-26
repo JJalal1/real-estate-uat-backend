@@ -60,10 +60,17 @@ Uri rentalContractAppDeepLink(int contractId) {
 /// Unknown hosts/schemes are intentionally ignored instead of being rewritten.
 String? internalLocationForAppLink(Uri uri) {
   final shareBase = Uri.tryParse(_configuredShareBaseUrl);
-  final isCustomLink = uri.scheme == appDeepLinkScheme && uri.host == appDeepLinkHost;
+  // Only canonical, unambiguous origins and paths may become app routes.
+  // Reject credentials, fragments, query-borne tokens and alternate ports.
+  if (uri.userInfo.isNotEmpty || uri.hasFragment || uri.hasQuery) return null;
+  final isCustomLink = uri.scheme == appDeepLinkScheme &&
+      uri.host == appDeepLinkHost &&
+      uri.port == 0;
   final isPublicShareLink = shareBase != null &&
+      uri.scheme == 'https' &&
       uri.scheme == shareBase.scheme &&
       uri.host == shareBase.host &&
+      uri.port == shareBase.port &&
       uri.pathSegments.length == 3 &&
       uri.pathSegments[0] == 'l' &&
       uri.pathSegments[1] == 'properties';

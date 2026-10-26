@@ -1,5 +1,12 @@
 import 'package:dio/dio.dart';
 
+/// Only a temporary transport/server failure may retain account content.
+/// Access denials and unavailable/deleted resources must clear it immediately.
+bool isTransientApiFailure(Object error) => error is DioException && (
+  const [DioExceptionType.connectionError, DioExceptionType.connectionTimeout,
+    DioExceptionType.receiveTimeout, DioExceptionType.sendTimeout].contains(error.type) ||
+  error.response?.statusCode == 429 || (error.response?.statusCode ?? 0) >= 500);
+
 String friendlyApiError(Object error) {
   if (error is StateError && error.toString().contains('AUTH_REQUIRED')) {
     return 'يجب تسجيل الدخول أولاً.';
@@ -224,4 +231,3 @@ String? _knownServerMessage(String? message) {
 bool _isArabic(String? value) {
   return value != null && RegExp(r'[\u0600-\u06FF]').hasMatch(value);
 }
-

@@ -28,6 +28,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Register once per application, not once for each handled request.
+        \Illuminate\Support\Facades\DB::listen(function (\Illuminate\Database\Events\QueryExecuted $event): void {
+            $metrics = request()->attributes->get(\App\Services\RequestPerformance::ATTRIBUTE);
+            if ($metrics instanceof \App\Services\RequestPerformance) $metrics->query($event->time);
+        });
+
         if (! $this->app->routesAreCached()) {
             Route::middleware(['api', 'auth.api', 'account.active'])
                 ->prefix('api/admin/workspace')

@@ -8,6 +8,7 @@ use App\Services\ListingImageService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AdaptiveImageQualityTest extends TestCase
@@ -68,6 +69,68 @@ class AdaptiveImageQualityTest extends TestCase
         $this->assertFalse($private->headers->has('ETag'));
         $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
         $service->response($path,'original',false);
+    }
+
+    public function test_cached_cloud_derivative_downloads_once_and_conditional_reuse_never_reads_storage(): void
+    {
+        config(['services.supabase_storage.enabled'=>true,
+            'services.supabase_storage.url'=>'https://synthetic-storage.example',
+            'services.supabase_storage.bucket'=>'synthetic-private',
+            'services.supabase_storage.server_key'=>'sb_secret_synthetic_only']);
+        Http::preventStrayRequests();
+        $bytes = $this->fixture();
+        Http::fake(['https://synthetic-storage.example/*'=>Http::response($bytes, 200, ['Content-Type'=>'image/jpeg'])]);
+        $service = app(ListingImageService::class);
+        $response = $service->response('listing-originals/synthetic.jpg', 'thumb', true);
+        $this->assertSame($bytes, $response->getContent());
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request) => $request->method()==='GET' && str_contains($request->url(), '/private/listing-display/'));
+        $this->assertSame('thumb', $response->headers->get('X-Aqer-Image-Variant'));
+        request()->headers->set('If-None-Match', $response->headers->get('ETag'));
+        $this->assertSame(304, $service->response('listing-originals/synthetic.jpg', 'thumb', true)->getStatusCode());
+        Http::assertSentCount(1);
+        request()->headers->remove('If-None-Match');
+    }
+
+    public function test_cloud_missing_derivative_is_sanitized_once_and_served_after_acknowledged_write(): void
+    {
+        config(['services.supabase_storage.enabled'=>true,
+            'services.supabase_storage.url'=>'https://synthetic-storage.example',
+            'services.supabase_storage.bucket'=>'synthetic-private',
+            'services.supabase_storage.server_key'=>'sb_secret_synthetic_only']);
+        Http::preventStrayRequests();
+        $original = $this->fixture(); $stored = null;
+        Http::fake(function ($request) use ($original, &$stored) {
+            if (str_contains($request->url(), 'listing-originals')) return Http::response($original, 200);
+            if ($request->method()==='POST') { $stored=$request->body(); return Http::response('', 200); }
+            return Http::response($stored ?? '', $stored === null ? 404 : 200, ['Content-Type'=>'image/jpeg']);
+        });
+        $response = app(ListingImageService::class)->response('listing-originals/synthetic.jpg', 'thumb', false);
+        Http::assertSentCount(3); // missing display, original, acknowledged encoded write; no download.
+        $this->assertSame($stored, $response->getContent());
+        $info = getimagesizefromstring($response->getContent());
+        $this->assertSame('image/jpeg', $info['mime']);
+        $this->assertLessThanOrEqual(320, max($info[0], $info[1]));
+        $this->assertNotSame($original, $response->getContent());
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+    }
+
+    public function test_cloud_derivative_failure_never_silently_generates_or_returns_an_original(): void
+    {
+        config(['services.supabase_storage.enabled'=>true,
+            'services.supabase_storage.url'=>'https://synthetic-storage.example',
+            'services.supabase_storage.bucket'=>'synthetic-private',
+            'services.supabase_storage.server_key'=>'sb_secret_synthetic_only']);
+        Http::preventStrayRequests();
+        Http::fake(['https://synthetic-storage.example/*'=>Http::response('', 403)]);
+        try {
+            app(ListingImageService::class)->response('listing-originals/synthetic.jpg', 'thumb', false);
+            $this->fail('Denied storage must remain an error.');
+        } catch (\RuntimeException $error) {
+            $this->assertStringContainsString('403', $error->getMessage());
+        }
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn ($request) => $request->method()!=='GET' || str_contains($request->url(), 'listing-originals'));
     }
 
     private function fixture(): string

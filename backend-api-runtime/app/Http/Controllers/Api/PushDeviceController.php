@@ -51,6 +51,7 @@ class PushDeviceController extends Controller
         return response()->json([
             'data'=>[
                 'registered'=>true,
+                'user_id'=>(int)$user->id,
                 'device_id'=>$device->id,
                 'push_enabled'=>(bool)config('push.enabled',false),
             ],

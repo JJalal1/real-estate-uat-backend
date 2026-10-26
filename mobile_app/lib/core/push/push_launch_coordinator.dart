@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../router/app_router.dart';
 import '../../features/account/data/auth_controller.dart';
 import '../../features/messages/data/push_registration_repository.dart';
+import '../local/stage6_secure_session_store.dart';
 
 class PushLaunchCoordinator extends ConsumerStatefulWidget {
   const PushLaunchCoordinator({required this.child, super.key});
@@ -25,6 +26,10 @@ class _PushLaunchCoordinatorState extends ConsumerState<PushLaunchCoordinator>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'registrationChanged') await _syncRegistration();
+      if (call.method == 'notificationOpened') await _consumeRoute();
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _consumeRoute());
   }
 
@@ -48,15 +53,23 @@ class _PushLaunchCoordinatorState extends ConsumerState<PushLaunchCoordinator>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _channel.setMethodCallHandler(null);
     super.dispose();
   }
 
   Future<void> _consumeRoute() async {
     if (_consuming) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     _consuming = true;
     try {
       final route = (await _channel.invokeMethod<String>('consumeRoute'))?.trim();
-      if (!mounted || route == null || !_allowed(route)) return;
+      if (!mounted || epoch != Stage6SecureSessionStore.instance.sessionEpoch ||
+          ref.read(authControllerProvider).asData?.value?.id != actor ||
+          route == null || !_allowed(route)) {
+        return;
+      }
       ref.read(appRouterProvider).go(route);
     } on MissingPluginException {
       // Push is Android-only today; other platforms continue normally.
@@ -74,5 +87,10 @@ class _PushLaunchCoordinatorState extends ConsumerState<PushLaunchCoordinator>
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    ref.listen(authControllerProvider, (_, next) {
+      if (next.asData?.value != null) _consumeRoute();
+    });
+    return widget.child;
+  }
 }

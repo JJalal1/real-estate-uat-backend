@@ -47,3 +47,4 @@ class ListingImageUploadIntentPostgresTest extends TestCase
 
     }
 }
+

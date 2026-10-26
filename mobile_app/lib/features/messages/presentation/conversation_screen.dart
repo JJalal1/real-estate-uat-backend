@@ -6,10 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../broker/presentation/broker_activity.dart';
 import '../data/message_repository.dart';
 import '../../account/data/account_safety_repository.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/data/account_request_scope.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../domain/message_models.dart';
 
 class ConversationScreen extends ConsumerWidget {
@@ -18,8 +21,8 @@ class ConversationScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
-    return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _ConversationBody(key: ValueKey('$actor:$threadId'), threadId: threadId);
+    return ActorBoundPage(title: 'المحادثة', builder: (_) =>
+      _ConversationBody(key: ValueKey('$actor:$threadId'), threadId: threadId));
   }
 }
 class _ConversationBody extends ConsumerStatefulWidget {
@@ -41,6 +44,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   String? _error;
   String? _pendingMessageKey;
   String? _pendingMessageText;
+  late final AccountRequestScope _scope;
 
   void _chooseQuickReply(String text) {
     if (_sending) return;
@@ -55,6 +59,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   @override
   void initState() {
     super.initState();
+    _scope = ref.read(accountRequestScopeProvider);
     Future.microtask(_load);
   }
 
@@ -65,19 +70,22 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   }
 
   Future<void> _load() async {
+    if (!mounted || !_scope.isCurrent) return;
     final generation = ++_loadGeneration;
+    setState(() { _loading = true; _error = null; });
     try {
       final details =
           await ref.read(messageRepositoryProvider).details(widget.threadId);
-      if (!mounted || generation != _loadGeneration) return;
+      if (!mounted || !_scope.isCurrent || generation != _loadGeneration) return;
       setState(() {
         _details = details;
         _loading = false;
         _error = null;
       });
     } catch (error) {
-      if (!mounted || generation != _loadGeneration) return;
+      if (!mounted || !_scope.isCurrent || generation != _loadGeneration) return;
       setState(() {
+        if (!isTransientApiFailure(error)) _details = null;
         _loading = false;
         _error = friendlyApiError(error);
       });
@@ -85,6 +93,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   }
 
   Future<void> _loadOlder() async {
+    if (!mounted || !_scope.isCurrent) return;
     final current = _details;
     final beforeId = current?.nextBeforeId;
     if (current == null || !current.hasMore || beforeId == null || _loadingOlder) {
@@ -96,7 +105,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
       final older = await ref
           .read(messageRepositoryProvider)
           .details(widget.threadId, beforeId: beforeId);
-      if (!mounted || generation != _loadGeneration) return;
+      if (!mounted || !_scope.isCurrent || generation != _loadGeneration) return;
       final byId = <int, PrivateMessageItem>{
         for (final item in older.messages) item.id: item,
         for (final item in current.messages) item.id: item,
@@ -112,18 +121,19 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
         );
       });
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
       }
     } finally {
-      if (mounted) setState(() => _loadingOlder = false);
+      if (mounted && _scope.isCurrent) setState(() => _loadingOlder = false);
     }
   }
 
   Future<void> _send() async {
+    if (!mounted || !_scope.isCurrent) return;
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending || _details?.thread.canSend != true) return;
+    if (text.isEmpty || _sending || _loading || _blocking || _error != null || _details?.thread.canSend != true) return;
     if (_pendingMessageText != null && _pendingMessageText != text) {
       _pendingMessageKey = null;
     }
@@ -135,71 +145,74 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     try {
       await ref.read(messageRepositoryProvider).send(widget.threadId, text,
           clientMessageId: key);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(messageDataRevisionProvider.notifier).state++;
       _controller.clear();
       _pendingMessageKey = null;
       _pendingMessageText = null;
       await _load();
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
                 '${friendlyApiError(error)} يمكنك إعادة الإرسال بأمان ما دام النص لم يتغير.')));
         if (error is DioException && error.response?.statusCode == 403) await _load();
       }
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted && _scope.isCurrent) setState(() => _sending = false);
     }
   }
 
 
   Future<void> _callAdvertiser() async {
+    if (!mounted || !_scope.isCurrent) return;
     if (_calling) return;
     setState(() => _calling = true);
     try {
       final call =
           await ref.read(messageRepositoryProvider).startExternalCall(widget.threadId);
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(messageDataRevisionProvider.notifier).state++;
       final uri = Uri(scheme: 'tel', path: call.phone);
       final launched =
           await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!launched && mounted) {
+      if (!launched && mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تعذر فتح تطبيق الهاتف على هذا الجهاز.')),
         );
       }
-      if (mounted) await _load();
+      if (mounted && _scope.isCurrent) await _load();
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
       }
     } finally {
-      if (mounted) setState(() => _calling = false);
+      if (mounted && _scope.isCurrent) setState(() => _calling = false);
     }
   }
 
   Future<void> _changeBlock() async {
+    if (!mounted || !_scope.isCurrent) return;
     final thread = _details?.thread;
     if (thread == null || thread.otherUserId <= 0 || _blocking) return;
     final repo = ref.read(accountSafetyRepositoryProvider);
     final block = !thread.blockedByMe;
-    final confirmed = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
+    final confirmed = await showActorDialog<bool>(context: context, ref: ref, builder: (dialog) => AlertDialog(
       scrollable: true, title: Text(block ? 'حظر هذا الحساب؟' : 'إلغاء الحظر؟'),
       content: Text(block ? 'ستتوقف الرسائل الجديدة بينكما. تبقى المحادثة السابقة وإمكانية البلاغ محفوظة.' : 'يمكن استئناف الرسائل الجديدة إذا كانت متاحة لدى الطرف الآخر.'),
       actions: [TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إلغاء')),
         FilledButton(onPressed: () => Navigator.pop(dialog, true), child: Text(block ? 'حظر' : 'إلغاء الحظر'))]));
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted || !_scope.isCurrent) return;
     setState(() => _blocking = true);
     try {
       await repo.setBlocked(thread.otherUserId, block);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(messageDataRevisionProvider.notifier).state++;
       await _load();
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
-    } finally { if (mounted) setState(() => _blocking = false); }
+      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    } finally { if (mounted && _scope.isCurrent) setState(() => _blocking = false); }
   }
 
   Widget _propertyAvailabilityBanner(MessageThreadSummary thread) {
@@ -224,6 +237,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   }
 
   Future<void> _report() async {
+    if (!mounted || !_scope.isCurrent) return;
     const reasons = <String, String>{
       'abuse': 'إساءة',
       'fraud': 'احتيال',
@@ -234,8 +248,8 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     };
     var reason = 'abuse';
     final details = TextEditingController();
-    final accepted = await showDialog<bool>(
-      context: context,
+    final accepted = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('بلاغ عن المحادثة'),
@@ -273,9 +287,9 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     );
     final text = details.text.trim();
     details.dispose();
-    if (accepted != true) return;
+    if (accepted != true || !mounted || !_scope.isCurrent) return;
     if (text.length < 5) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('اكتب تفاصيل واضحة للبلاغ لا تقل عن 5 أحرف.')));
       }
@@ -285,11 +299,11 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
       await ref
           .read(messageRepositoryProvider)
           .report(widget.threadId, reason: reason, details: text);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم إرسال البلاغ إلى الدعم.')));
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
       }
@@ -328,6 +342,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
                 onSelected: (_) => _changeBlock(), itemBuilder: (_) => [PopupMenuItem(value: 'block', child: Text(thread.blockedByMe ? 'إلغاء الحظر' : 'حظر الحساب'))]),
             ]),
         body: Column(children: [
+          if (_details != null && (_loading || _error != null)) AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
           if (!_loading && thread?.canSend == false) Padding(padding: const EdgeInsets.all(12), child: Text(thread!.blockedByMe
             ? 'هذا الحساب محظور لديك. تبقى المحادثة السابقة محفوظة.' : 'الرسائل الجديدة غير متاحة حاليًا. يبقى تاريخ المحادثة والبلاغ متاحين.')),
           if (_blocking) const LinearProgressIndicator(),
@@ -338,10 +353,10 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
                 decoration: const BoxDecoration(image: DecorationImage(
                   image: AssetImage('assets/ebroker/chat_background/doodle.png'),
                   repeat: ImageRepeat.repeat, opacity: 0.08)),
-                child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(child: Text(_error!))
+                child: _loading && _details == null
+                  ? const AppLoadingState(label: 'جارٍ تحميل المحادثة…')
+                  : _error != null && _details == null
+                      ? AppErrorState(message: _error!, onRetry: _load)
                       : _messageList())),
           SafeArea(
               top: false,

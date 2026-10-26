@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -13,16 +14,21 @@ import '../domain/region_models.dart';
 ///
 /// This intentionally does not expose the historical regional broker assignment
 /// model. Regions are managed only as geographic/operational entities.
-class PlatformRegionsScreen extends ConsumerStatefulWidget {
+class PlatformRegionsScreen extends ConsumerWidget {
   const PlatformRegionsScreen({super.key});
-
   @override
-  ConsumerState<PlatformRegionsScreen> createState() =>
-      _PlatformRegionsScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'المناطق والخريطة', builder: (_) => const _PlatformRegionsScreenBody());
+}
+
+class _PlatformRegionsScreenBody extends ConsumerStatefulWidget {
+  const _PlatformRegionsScreenBody();
+  @override
+  ConsumerState<_PlatformRegionsScreenBody> createState() => _PlatformRegionsScreenState();
 }
 
 class _PlatformRegionsScreenState
-    extends ConsumerState<PlatformRegionsScreen> {
+    extends ConsumerState<_PlatformRegionsScreenBody> {
   static const _style = 'https://tiles.openfreemap.org/styles/liberty';
   static const _fallback = LatLng(15.3694, 44.1910);
 
@@ -65,6 +71,7 @@ class _PlatformRegionsScreenState
       }
       final repo = ref.read(regionRepositoryProvider);
       final governorates = await repo.governorates();
+      if (!mounted) return;
       final selected = governorateId ??
           _governorateId ??
           (governorates.isEmpty ? null : governorates.first.id);
@@ -190,6 +197,7 @@ class _PlatformRegionsScreenState
                         _introCard(),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<int>(
+                            isExpanded: true,
                           value: _governorateId,
                           decoration: const InputDecoration(
                             labelText: 'المحافظة',

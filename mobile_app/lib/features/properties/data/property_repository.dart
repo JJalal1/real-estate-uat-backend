@@ -11,10 +11,12 @@ import '../domain/property_sai.dart';
 import '../domain/listing_contact_policy.dart';
 
 final propertyRepositoryProvider = Provider<PropertyRepository>((ref) {
-  return PropertyRepository(
+  final repository = PropertyRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
   );
+  ref.listen(propertyDataRevisionProvider, (_, __) => repository._invalidatePublicDiscoveryCache());
+  return repository;
 });
 
 /// Incremented after a successful listing mutation so every dependent screen
@@ -31,19 +33,24 @@ class PropertyRepository {
   static const Duration _publicDiscoveryCacheTtl = Duration(seconds: 20);
   static const int _publicDiscoveryCacheLimit = 32;
   final Map<String, ({DateTime storedAt, Object value})> _publicDiscoveryCache = {};
+  int _publicCacheEpoch = 0;
 
   String _publicCacheKey(String path, Map<String, dynamic> params) {
     final entries = params.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
-    final query = entries.map((entry) => '${entry.key}=${entry.value}').join('&');
-    return '$path?$query';
+    return Uri(path: path, queryParameters: {
+      for (final entry in entries) entry.key: entry.value.toString(),
+    }).toString();
   }
 
   Future<T> _cachedPublic<T>(
     String path,
     Map<String, dynamic> params,
     Future<T> Function() loader,
+    {bool refresh = false, CancelToken? cancelToken}
   ) async {
+    if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
     final key = _publicCacheKey(path, params);
+    if (refresh) { _publicCacheEpoch++; _publicDiscoveryCache.remove(key); }
     final now = DateTime.now();
     final cached = _publicDiscoveryCache[key];
     if (cached != null && now.difference(cached.storedAt) <= _publicDiscoveryCacheTtl) {
@@ -51,8 +58,14 @@ class PropertyRepository {
     }
     if (cached != null) _publicDiscoveryCache.remove(key);
 
+    final epoch = _publicCacheEpoch;
     final value = await loader();
-    _publicDiscoveryCache[key] = (storedAt: now, value: value as Object);
+    // Even an already-completed HTTP response can be superseded while being
+    // decoded. Never hand it to a canceled viewport or seed a reusable cache.
+    if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
+    // A pre-mutation request may finish late but must never repopulate the cache.
+    if (epoch != _publicCacheEpoch) return value;
+    _publicDiscoveryCache[key] = (storedAt: DateTime.now(), value: value as Object);
     if (_publicDiscoveryCache.length > _publicDiscoveryCacheLimit) {
       final oldest = _publicDiscoveryCache.entries.reduce(
         (a, b) => a.value.storedAt.isBefore(b.value.storedAt) ? a : b,
@@ -62,7 +75,9 @@ class PropertyRepository {
     return value;
   }
 
-  void _invalidatePublicDiscoveryCache() => _publicDiscoveryCache.clear();
+  void _invalidatePublicDiscoveryCache() {
+    _publicCacheEpoch++; _publicDiscoveryCache.clear(); clearPublicDiscoveryHttpCache(_dio);
+  }
 
   Future<(List<PropertySummary>, bool)> advertiserListings(int id, {int page = 1, String? purpose}) async {
     final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {'advertiser_id': id, 'page': page, 'per_page': 20, if (purpose != null) 'purpose': purpose});
@@ -92,6 +107,7 @@ class PropertyRepository {
     double? west,
     double? north,
     double? east,
+    CancelToken? cancelToken,
   }) async {
     final params = <String, dynamic>{
       'latitude': latitude,
@@ -117,22 +133,23 @@ class PropertyRepository {
       final response = await _dio.get<Map<String, dynamic>>(
         '/properties/nearby',
         queryParameters: params,
+        cancelToken: cancelToken,
       );
       final rows = response.data?['data'] as List<dynamic>? ?? const <dynamic>[];
       return rows
           .whereType<Map<String, dynamic>>()
           .map(PropertyMarker.fromJson)
           .toList(growable: false);
-    });
+    }, cancelToken: cancelToken);
   }
 
-  Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters) async {
+  Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters, {CancelToken? cancelToken}) async {
     final params = Map<String, dynamic>.from(filters);
     return _cachedPublic<List<PropertyMarker>>('/properties/nearby', params, () async {
-      final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: params);
+      final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: params, cancelToken: cancelToken);
       final rows = response.data?['data'] as List? ?? const [];
       return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
-    });
+    }, cancelToken: cancelToken);
   }
 
   Future<ListingContactPolicy> listingContactPolicy() async {
@@ -333,15 +350,16 @@ class PropertyRepository {
     return PropertySaiManagement.fromJson(data);
   }
 
-  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1}) async {
+  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
+    if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
     final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest'};
     return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
-      final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params);
+      final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken);
       final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
         .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
       final meta = response.data?['meta'] as Map? ?? const {};
       return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
-    });
+    }, refresh: refresh, cancelToken: cancelToken);
   }
 
   Future<PropertyDetails> details(int propertyId) async {

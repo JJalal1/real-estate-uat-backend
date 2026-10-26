@@ -1,10 +1,13 @@
 """Read-only UAT measurements. Only the existing synthetic public fixtures.
 
-Response bodies stay in memory and are never printed or saved. A controlled
-reader rate is reported separately from unthrottled end-to-end measurements.
+Response bodies are never printed. Only the known synthetic fixture60 gallery
+is saved for watermark inspection. A controlled reader rate is reported
+separately from unthrottled end-to-end measurements.
 """
 import argparse
+import hashlib
 import json
+from pathlib import Path
 import time
 import urllib.error
 import urllib.parse
@@ -66,9 +69,19 @@ def main():
         assert data['status'] == 'published' and data['images']
         url = data['images'][0]['url']
         assert urllib.parse.urlsplit(url).path.startswith('/api/property-media/')
-        row = {'fixture_property_id': property_id}
+        version = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query)).get('v', 'v1')
+        assert version in ['v1', 'v2-wm-bf7611483e0689ad9ccd']
+        row = {'fixture_property_id': property_id, 'display_version': version}
         for name in ['gallery', 'card', 'thumb']:
-            _, row[name] = read(variant(url, name))
+            encoded, row[name] = read(variant(url, name))
+            if row[name]['status'] == 200:
+                assert encoded.startswith(b'\xff\xd8') and encoded.endswith(b'\xff\xd9')
+                assert b'Exif\x00\x00' not in encoded
+                row[name]['sha256'] = hashlib.sha256(encoded).hexdigest()
+                row[name]['exif_present'] = False
+                if property_id == 60 and name == 'gallery':
+                    # This existing fixture is synthetic; never save arbitrary user media.
+                    Path(f'synthetic-watermark-{version}.jpg').write_bytes(encoded)
         assert row['gallery']['status'] == row['card']['status'] == 200
         assert row['thumb']['status'] in [200, 422]
         if row['thumb']['status'] == 200:
@@ -78,6 +91,8 @@ def main():
             assert etag
             _, row['conditional'] = read(variant(url, 'thumb'), headers={'If-None-Match': etag})
             assert row['conditional']['status'] == 304 and row['conditional']['bytes'] == 0
+        _, row['original_variant'] = read(variant(url, 'original'))
+        assert row['original_variant']['status'] == 422
         if property_id == 60:
             _, row['slow_gallery'] = read(variant(url, 'gallery'), rate=args.slow_rate)
             after = 'thumb' if row['thumb']['status'] == 200 else 'card'
@@ -87,6 +102,7 @@ def main():
         report['samples'].append(row)
     rows = report['samples']
     report['adaptive_available'] = all(row['thumb']['status'] == 200 for row in rows)
+    report['watermark_active'] = all(row['display_version'].startswith('v2-wm-') for row in rows)
     report['detail_before_bytes'] = sum(row['gallery']['bytes'] for row in rows)
     report['detail_metered_after_bytes'] = sum(row['card']['bytes'] for row in rows)
     report['detail_saving_percent'] = round(100 * (1 - report['detail_metered_after_bytes'] / report['detail_before_bytes']), 2)

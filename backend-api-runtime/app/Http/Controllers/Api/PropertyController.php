@@ -422,11 +422,12 @@ class PropertyController extends Controller
         $property = $image->property;
         abort_unless($property, 404);
 
-        $user = $this->tokens->authenticate($request, false);
-        $isOwner = $user !== null && (int) $property->user_id === (int) $user->id;
-        $isReviewer = $user !== null && $user->hasPermission('listings.moderate');
-
-        abort_unless($property->status === 'published' || $isOwner || $isReviewer, 404);
+        if ($property->status !== 'published') {
+            $user = $this->tokens->authenticate($request, false);
+            $isOwner = $user !== null && (int) $property->user_id === (int) $user->id;
+            $isReviewer = $user !== null && $user->hasPermission('listings.moderate');
+            abort_unless($isOwner || $isReviewer, 404);
+        }
         abort_if($image->cdn_url, 404);
         return app(\App\Services\ListingImageService::class)->response($image->path,
             (string)$request->query('variant','detail'),$property->status==='published');

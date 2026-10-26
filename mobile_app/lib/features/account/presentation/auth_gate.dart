@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../data/auth_controller.dart';
 import '../../../core/branding/aqer_brand.dart';
 
-class Stage6AuthGate extends ConsumerWidget {
+class Stage6AuthGate extends ConsumerStatefulWidget {
   const Stage6AuthGate({
     super.key,
     required this.child,
@@ -21,7 +21,19 @@ class Stage6AuthGate extends ConsumerWidget {
   final bool requireProfessional;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<Stage6AuthGate> createState() => _Stage6AuthGateState();
+}
+
+class _Stage6AuthGateState extends ConsumerState<Stage6AuthGate> {
+  int? _boundActor;
+  bool _changed = false;
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(authControllerProvider, (_, next) {
+      if (_boundActor != null && next.asData != null && next.asData?.value?.id != _boundActor) {
+        setState(() => _changed = true);
+      }
+    });
     return ref.watch(authControllerProvider).when(
           loading: () =>
               const Scaffold(body: AqerAccountLoading()),
@@ -46,7 +58,13 @@ class Stage6AuthGate extends ConsumerWidget {
                 onPressed: () => context.push('/auth'),
               );
             }
-            if (requireActive && !user.isActive) {
+            _boundActor ??= user.id;
+            if (_changed) {
+              return _GateMessage(icon: Icons.account_circle_outlined, title: 'تغيّر الحساب',
+                message: 'أعد فتح الصفحة من حسابك الحالي لحماية بيانات الحساب السابق.',
+                button: 'العودة للرئيسية', onPressed: () => context.go('/'));
+            }
+            if (widget.requireActive && !user.isActive) {
               return _GateMessage(
                 icon: Icons.verified_user_outlined,
                 title: 'تحقق من رقم واتساب',
@@ -55,7 +73,7 @@ class Stage6AuthGate extends ConsumerWidget {
                 onPressed: () => context.push('/verify-phone'),
               );
             }
-            if (requireListingEligible && user.needsProfileCompletion) {
+            if (widget.requireListingEligible && user.needsProfileCompletion) {
               return _GateMessage(
                 icon: Icons.edit_outlined,
                 title: 'أكمل الاسم الرباعي أولاً',
@@ -65,7 +83,7 @@ class Stage6AuthGate extends ConsumerWidget {
                 onPressed: () => context.push('/complete-profile'),
               );
             }
-            if (requireListingEligible && !user.hasVerifiedPublishingProfile) {
+            if (widget.requireListingEligible && !user.hasVerifiedPublishingProfile) {
               return _GateMessage(
                 icon: Icons.badge_outlined,
                 title: 'توثيق نوع الحساب مطلوب',
@@ -75,12 +93,12 @@ class Stage6AuthGate extends ConsumerWidget {
                 onPressed: () => context.push('/account-verification'),
               );
             }
-            if (requireProfessional && !user.hasVerifiedProfessionalProfile) {
+            if (widget.requireProfessional && !user.hasVerifiedProfessionalProfile) {
               return _GateMessage(icon: Icons.work_outline, title: 'أدوات الدلال بعد اعتماد التوثيق',
                 message: 'فعّل حساب دلال أو مكتب عقارات ليظهر لك العمل والعملاء والإحصائيات.',
                 button: 'فعّل حساب دلال', onPressed: () => context.push('/account-verification?upgrade=broker'));
             }
-            return KeyedSubtree(key: ValueKey('account:${user.id}'), child: child);
+            return KeyedSubtree(key: ValueKey((user.id,user.isActive,user.roles.toString(),user.permissions.toString())), child: widget.child);
           },
         );
   }
@@ -106,7 +124,7 @@ class _GateMessage extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(),
         body: Center(
-          child: Padding(
+          child: SingleChildScrollView(child: Padding(
             padding: const EdgeInsets.all(28),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -124,7 +142,7 @@ class _GateMessage extends StatelessWidget {
                 EbrokerFilledButton(onPressed: onPressed, child: Text(button)),
               ],
             ),
-          ),
+          )),
         ),
       ),
     );

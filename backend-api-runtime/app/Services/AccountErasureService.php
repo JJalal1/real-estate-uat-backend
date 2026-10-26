@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\ListingEditorDraft;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class AccountErasureService
@@ -28,33 +30,48 @@ class AccountErasureService
             'regions_manager',
             'content_moderator',
         ];
-        if ($user->is_platform_owner || $user->roles()->whereIn('key', $staffRoles)->exists()) {
-            throw new ConflictHttpException('يجب نقل مهام وصلاحيات حساب الموظف قبل حذفه.');
-        }
-
-        $verificationPaths = $this->verificationPaths($user);
-        $professionalPhoto = trim((string) ($user->public_professional_photo_path ?? ''));
-
-        foreach ($verificationPaths as $path) {
-            $this->storage->deletePrivate($path);
-        }
-        if ($professionalPhoto !== '') {
-            $this->storage->deletePublic($professionalPhoto);
-            $this->storage->deletePrivate($professionalPhoto);
-        }
-
         $anonymizedEmail = sprintf(
             'deleted-%d-%s@deleted.invalid',
             $user->id,
             Str::lower(Str::random(16)),
         );
 
-        DB::transaction(function () use ($user, $request, $anonymizedEmail): void {
+        DB::transaction(function () use ($user, $request, $anonymizedEmail, $staffRoles): void {
             $locked = User::query()->lockForUpdate()->findOrFail($user->id);
             if ($locked->account_status === User::STATUS_DELETED) return;
+            if ($locked->is_platform_owner || $locked->roles()->whereIn('key', $staffRoles)->exists()) {
+                throw new ConflictHttpException('يجب نقل مهام وصلاحيات حساب الموظف قبل حذفه.');
+            }
+
+            // The editor also locks the account before writing a draft. Collect
+            // its owned paths while holding that same lock, then remove the rows
+            // before checking whether another draft or listing still uses a file.
+            $draftPaths = [];
+            foreach (ListingEditorDraft::query()->where('user_id', $locked->id)->lockForUpdate()->get(['id', 'images']) as $draft) {
+                foreach ($draft->images ?? [] as $path) {
+                    if (! is_string($path) || ! str_starts_with($path, 'editor-drafts/'.$locked->id.'/')) {
+                        throw new RuntimeException('Draft image ownership is inconsistent; erasure was not confirmed.');
+                    }
+                    $draftPaths[] = $path;
+                }
+            }
 
             $this->archiveListings($locked);
             $this->deleteTransientData($locked);
+
+            foreach (array_unique($draftPaths) as $path) {
+                // Do not issue a successful erasure receipt after a provider
+                // failure. A retry retains the draft paths through DB rollback;
+                // already removed objects are safe to delete again idempotently.
+                app(ListingImageService::class)->removeIfUnused($path, true);
+            }
+            foreach ($this->verificationPaths($locked) as $path) {
+                $this->storage->deletePrivate($path);
+            }
+            $professionalPhoto = trim((string) ($locked->public_professional_photo_path ?? ''));
+            if ($professionalPhoto !== '') {
+                app(ProfessionalPhotoService::class)->remove($professionalPhoto);
+            }
 
             if (Schema::hasTable('account_verification_profiles')) {
                 DB::table('account_verification_profiles')->where('user_id', $locked->id)->delete();

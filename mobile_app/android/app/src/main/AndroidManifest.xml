@@ -8,9 +8,15 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
-        android:label="عقار"
-        android:name="${applicationName}"
+        android:label="@string/aqer_app_name"
+        android:name="com.example.real_estate_mobile.AqerApplication"
         android:icon="@mipmap/ic_launcher">
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
+        <service android:name="com.example.real_estate_mobile.AqerMessagingService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <activity
             android:name="com.example.real_estate_mobile.MainActivity"
             android:exported="true"
@@ -36,6 +42,31 @@
                     android:scheme="realestate"
                     android:host="app"
                     android:pathPrefix="/properties" />
+                <!-- External custom links must reach Flutter's authenticated router. -->
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/advertisers" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/messages" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/bookings" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/agreements" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/rental-contracts" />
+                <data
+                    android:scheme="realestate"
+                    android:host="app"
+                    android:pathPrefix="/broker/deals" />
             </intent-filter>
             <intent-filter android:autoVerify="${aqerAppLinkAutoVerify}">
                 <action android:name="android.intent.action.VIEW" />

@@ -1,4 +1,51 @@
-# October21 actual Aqer brand assets integrated
+# October24 FINAL continuation — PR120 + buyer follow-up PR121
+
+Read docs/AQER_13_16_EXECUTIVE_HANDOFF_AR_2026-10-24.md, the owner decisions and32 matrix. This section supersedes earlier checkpoint status below. PR120 backend/client mergeca184fc0c1ae67443786a72a32911b80d1ed5197 is Render Live dep-dbe71e3rjlhs73elu3cg. PR121 adds Flutter-only buyer read/session recovery, merged179b34500751cfdcaf614c393d916767eb639761 after4 exact-head workflows at f281027d8423172048c6928c7b5d8d60d9d51c83. Its tree dee143e89555d1a1c4ee36446963ba304cfe4023 equals tested native virtual2096ff1ac510b2606ee3c471de6896b6a397a8d5. All394 backend/Blueprint blobs match the deployed runtime; do not claim the latest Flutter code itself runs on Render. Final receipt-only commits change docs.
+
+Latest acceptance: Flutter534 full/6 opt-in skips (separately exercised),86 focused including6 buyer read/account/403/503 cases,5 actual HTTP, strict0, original native/encryption PASS (CI1187, not owner acceptance APK). Laravel356/4390,8 PostgreSQL groups176/2827, Adaptive18/316 +47 Flutter +1 real UAT live, Launch9/76 +15 Flutter. Compiled-environment1 is configuration validation, NOT an HTTP smoke; actual HTTP comes from the dedicated live jobs. PR121 does not alter write API contracts, financial terms/history or server permissions.
+
+Fresh post-merge/idle HTTP rerun40082655546 attempt2 job120872020740 PASS; no new requests during8,000px/s fling,7 settled,0 return; real UAT initial39743->11337B remains. First health GET after idle was34883ms; reason not established. Issue109 representative load/p95/latency remains OPEN; do not imply Production ready or buy capacity. API health200 resumed, Supabase12:29:49UTC59 migrations/intents absent/RLS/direct public-client table grants0/private Storage/health canaries0.
+
+No full real database backup or independent restore achieved;#11 Draft115 remains gated/off, no DDL. #3/#21 remain budget-paused,#20 off,#8/#22/#26 final-provider/identity gated. No Production or paid resource. Consolidated handset/network/signed-in role journeys and original32-spec matching remain. Continue from current UAT HEAD, never an old APK; next reliability109 and signed-in synthetic release journeys, return to11 when backup/restore is actually met.
+
+---
+
+# October24 viewport/loading continuation — PR120
+
+This section supersedes older instructions below. Intake UAT SHA c8aac3041027fa900c19e472bdea30568da35ad1; same release app and work/wave2-review-current. The owner authorizes safe routine fixes/merge/UAT rollout, never Production or paid resources. Read docs/AQER_13_16_EXECUTIVE_HANDOFF_AR_2026-10-24.md and the decisions/matrix.
+
+PR120 adds geometry-based viewport gates (nested axes, tabs/routes/lifecycle), real HTTP before/after counting, cancellation and bounded completed-byte reuse. v1 synthetic HTTP first-screen21->2 requests; real UAT39743->11337 payload bytes, return0 extra. Public feed remains bounded summary metadata, not a claim of zero offscreen rows. Focused75 + actual HTTP4 passed at cabf6aae; exact-head full CI/native gates subsequently passed; final receipt below supersedes this initial checkpoint.
+
+An additional real-physics HTTP fling probe measures8,000px/s motion; defer new media on either axis using ScrollPosition.recommendDeferredLoading, preserving already displayed content and checking again at idle. Starts must be separated from delayed HTTP arrivals.
+
+#23 had a device-global recent-history file. It now scopes to account/guest, disables IO during unresolved auth, captures the original actor store before delayed recording, serializes atomic writes/clear with30-item dedup, and exposes/retries temporary IO errors without replacing valid history. Five filesystem acceptance cases are added. Unknown-owner legacy history stays on disk and is never silently imported. Exact-head CI and consolidated handset acceptance remain required.
+
+Core loading/error/empty/retry paths retain same-actor content only on transient failures; retry correct page, deduplicate, invalidate L1/L2 on revision/mutation, cancel outdated transport, preserve typed/edited work, and hide revoked/cross-account data. Fixes include real Sliver intrinsic-layout and Future-returning setState crashes. #14/15/18/19/24/25 received targeted acceptance; consolidated signed-in UAT and handset journeys remain.
+
+#4 uses the already approved pinned geometry. Derivative cleanup now removes v1/v2 after the final reference disappears, including rollback. Live probe and visual inspection show watermark v2-wm was ALREADY active before our Render changes. Do not claim newly activating it; publish the cleanup fix and preserve the existing flag. Probe artifact12553246062 verifies safe JPEG/EXIF/304/original rejection. Blueprint branch was stale and is corrected; migrations OFF, manually managed watermark flag preserved. The cached image path also downloaded the entire Storage object twice (existence plus response); responsePrivateIfExists now reuses one authorized download, with targeted cloud regression tests. issue109 remains open pending representative load acceptance. No new migration, role/history/finance/dependency/provider. #11 remains Draft115, table absent,59 live migrations; no actual full dump/restore achieved. #3/#21 budget-paused, #20 off, #8/#22/#26 final identities/providers gated. No per-item acceptance installer.
+
+FINAL EXECUTION: PR120 merged ca184fc0c1ae67443786a72a32911b80d1ed5197; tree373fcbbc76a8d14bd9a6523ab03859bd933f2834 equals tested ec474e2db73248c3ac32a4e2857cee9cf1e58c65 and native virtual b32f02c1f768183c5147a363dba5d2c1255463c3. Eight workflows PASS: Laravel356/4390 (one PostGIS-only SQLite skip), eight PG groups176/2827, strict0, Flutter528/6 opt-in skips (all6 separately executed), focused80, actualHTTP5 including true8,000px/s fling0 new requests/7 settled/0 return. Five history filesystem cases PASS. Native1181 verified and encrypted in CI; not an owner acceptance APK.
+Render dep-dbe71e3rjlhs73elu3cg Live08:48:46UTC on merge SHA. Only UAT_RUN_MIGRATIONS=false changed through safe merge; watermark already active and untouched; no Blueprint sync/new resource/plan change. Post-rollout adaptive and viewport attempts2 PASS. Nine derivative hashes identical, no EXIF, original422,304 empty. Supabase08:56:33:59 migrations, intents absent, all public table RLS, private Storage/no policies/public buckets,0 direct PUBLIC/anon/authenticated table grants,0 health canaries. No complete dump/restore or DDL.
+Issue109 remains open: duplicate Storage reads coalesced2->1 (contract count), real nine-read latency median912->862ms is descriptive, not representative-load/p95 proof. Handset/signed-in role acceptance, original32-spec matching, deferred video/backup and final production-provider gates remain. Final evidence commits after merge change docs only; verify backend/mobile/workflows/render.yaml blobs match the deployed tree. Read the report and JSON receipts; do not claim the final evidence SHA itself was deployed.
+
+
+---
+
+# October24 current handoff — #11 blocked, #12 deployed and measured
+
+This section supersedes historical instructions and status below. The owner authorized routine fixes, merges and UAT deployment on `work/wave2-review-current`, with no Production, paid resources or separate acceptance APK. Read `docs/AQER_11_12_EXECUTIVE_HANDOFF_AR_2026-10-24.md` and the updated 32-item matrix first.
+
+PR118 merged as `23ddba16d33e50b45a954d9d5e0d2dfe67737d8a`. The signed Supabase TUS canary passed twice: 6,291,456 bytes, HEAD exact offset, then 46 bytes, verified SHA256/length and deleted object. A forged signature was rejected. Probe is OFF again; this is protocol evidence, not full Flutter/API intent acceptance.
+
+PR119 merged as `6a0475e82b3a12f59cab3eb78ba75ee4e283186b`, exactly matching tested tree `ce128dc6ae3ae08548e68db4f9b03eaf0116668b`. Render `dep-dbdttugae00c73b0087g` is Live. After-deploy run40032116209 attempt2 proves adaptive_available=true: constrained details save74.59%, cards79.56%, 304 empty bodies, Flutter one shared request and zero return bytes. Full CI:352 Laravel/4323 assertions,175 PG/2775 assertions,498 Flutter plus separate live test and native build. Initial missing derivatives may take longer to generate; this does not prove lower p95 latency.
+
+PR115 stays Draft and isolated. Session-finalize retries, scoped signature renewal,27-hour cleanup window/locking and PG deny-all checks were repaired and its source was synchronized with #12. The full original PG audit then found an unindexed user_id FK, repaired in the undeployed migration without weakening the test. Current exact-source CI is recorded in the handoff; do not infer final CI from an earlier SHA.
+
+NO real full UAT database dump/independent restore has been achieved. Do not apply the upload-intents migration or enable it:59 live migrations, intents table absent, private bucket, RLS retained. Financial aggregates across15 tables remained unchanged. These are safety checks, not a backup. UAT end-to-end ownership/expiry/delete/reopen/cleanup and consolidated handset acceptance remain open. Video #3/#21 remain temporarily paused, not removed from the32 items. Next suggested work:#13 viewport/lazy verification; return to #11 as soon as the backup/restore gate can actually be met.
+
+---
+
+# October21 actual Aqer brand assets integrated (historical)
 
 The owner reattached the exact reference PDF and requested the missing identity assets plus a complete role-by-role handset guide. The1121 compact-login baseline is a3ac4b562dbcffdf974884149d15a5f09fbad7e7 (CI121 and focused10 green). The previously approved brand is now rebuilt from the same pinned PDF contours and integrated into Android launcher/adaptive/monochrome icons, native launch, Flutter Home/login/account loading and iOS icon/launch source slots. The outlined Arabic/Aqer wordmark uses the reference glyph geometry. SVG masters, reference-image fingerprints, deterministic authoring scripts, measurements and a46-asset pin inventory prevent loss of the canonical identity again. See docs/brand/README_AR.md. Native iOS compilation is outside this Android delivery.
 
@@ -394,4 +441,3 @@ Real-device subjective visual acceptance remains a manual/Beta gate when an actu
 ## Update rule
 
 Whenever accepted behavior, roadmap, architecture, or product direction changes, update this file and the relevant workflow/decision/changelog docs. Current Git/code and explicit newer product-owner decisions outrank stale historical documentation.
-

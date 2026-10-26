@@ -78,7 +78,8 @@ jobs:
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
       - name: Analyze staged TUS files
         working-directory: mobile_app
-        run: flutter analyze lib/features/properties/data/private_tus_image_uploader.dart lib/features/properties/data/listing_account_draft_repository.dart test/private_tus_image_uploader_test.dart
+        run: flutter analyze lib/features/properties/data/private_tus_image_uploader.dart lib/features/properties/data/listing_account_draft_repository.dart test/private_tus_image_uploader_test.dart test/listing_resume_session_test.dart
       - name: Resume-from-offset and origin tests
         working-directory: mobile_app
-        run: flutter test test/private_tus_image_uploader_test.dart --reporter expanded
+        run: flutter test test/private_tus_image_uploader_test.dart test/listing_resume_session_test.dart test/user_work_media_test.dart --reporter expanded
+

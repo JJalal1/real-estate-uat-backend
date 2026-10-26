@@ -73,12 +73,22 @@ final dioProvider = Provider<Dio>((ref) {
   );
   dio.interceptors.add(_NearbyRequestCacheInterceptor());
   dio.interceptors.add(_RequestTimingInterceptor());
+  ref.onDispose(() => dio.close(force: true));
   return dio;
 });
+
+/// A listing mutation invalidates both repository and HTTP nearby caches.
+void clearPublicDiscoveryHttpCache(Dio dio) {
+  for (final interceptor in dio.interceptors.whereType<_NearbyRequestCacheInterceptor>()) {
+    interceptor.clear();
+  }
+}
 
 class _NearbyRequestCacheInterceptor extends Interceptor {
   static const _ttl = Duration(seconds: 8);
   final Map<String, _CachedNearbyResponse> _cache = {};
+  int _epoch = 0;
+  void clear() { _epoch++; _cache.clear(); }
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -112,6 +122,7 @@ class _NearbyRequestCacheInterceptor extends Interceptor {
     }
     if (cached != null) _cache.remove(key);
     options.extra['_nearby_cache_key'] = key;
+    options.extra['_nearby_cache_epoch'] = _epoch;
     handler.next(options);
   }
 
@@ -119,7 +130,9 @@ class _NearbyRequestCacheInterceptor extends Interceptor {
   void onResponse(Response response, ResponseInterceptorHandler handler) {
     final key = response.requestOptions.extra['_nearby_cache_key'];
     final status = response.statusCode ?? 0;
-    if (key is String && status >= 200 && status < 300) {
+    if (key is String && status >= 200 && status < 300 &&
+        response.requestOptions.extra['_nearby_cache_epoch'] == _epoch &&
+        response.requestOptions.cancelToken?.isCancelled != true) {
       _cache[key] = _CachedNearbyResponse(
         data: response.data,
         statusCode: status,

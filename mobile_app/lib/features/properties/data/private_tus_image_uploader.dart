@@ -4,14 +4,17 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 
 /// Private Supabase TUS transport. No service key or signed token is stored.
 /// The source file is retained by the editor's local recovery mechanism.
 class PrivateTusImageUploader {
   PrivateTusImageUploader(this.dio, {Future<Directory> Function()? directory})
-      : _directory = directory;
+      : _directory = directory, _epoch=Stage6SecureSessionStore.instance.sessionEpoch;
   final Dio dio;
   final Future<Directory> Function()? _directory;
+  final int _epoch;
+  static final Set<String> _activeScopes={};
   static const chunkSize = 6 * 1024 * 1024;
 
   Future<Directory> _folder() async {
@@ -52,6 +55,19 @@ class PrivateTusImageUploader {
     required CancelToken cancelToken,
     ProgressCallback? progress,
   }) async {
+    void verify() {
+      if (_epoch!=Stage6SecureSessionStore.instance.sessionEpoch) {
+        cancelToken.cancel('Account changed');
+        throw StateError('ACCOUNT_CHANGED');
+      }
+      if (cancelToken.isCancelled) throw StateError('Upload canceled');
+    }
+    verify();
+    if (!_activeScopes.add(scope)) throw StateError('UPLOAD_BUSY');
+    try {
+    if (dio.options.headers.keys.any((key)=>['authorization','cookie','proxy-authorization'].contains(key.toLowerCase()))) {
+      throw StateError('Authenticated API headers cannot be used for storage');
+    }
     final target = Uri.parse(endpoint);
     if (target.scheme != 'https' || target.path != '/storage/v1/upload/resumable/sign' ||
         target.userInfo.isNotEmpty || target.hasQuery || target.hasFragment) {
@@ -72,9 +88,17 @@ class PrivateTusImageUploader {
         }
       } catch (_) { /* Old or tampered session: start clean. */ }
     }
-    if (!publishableKey.startsWith('sb_publishable_') && !publishableKey.startsWith('eyJ')) {
+    var publicKey=RegExp(r'^sb_publishable_[A-Za-z0-9_-]{1,200}$').hasMatch(publishableKey);
+    if (!publicKey && publishableKey.length<=4096 && publishableKey.split('.').length==3) {
+      try {
+        final claims=jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(publishableKey.split('.')[1]))));
+        publicKey=claims is Map && claims['role']=='anon';
+      } catch (_) { publicKey=false; }
+    }
+    if (!publicKey) {
       throw StateError('Unsupported public storage key');
     }
+    verify();
     final headers = <String, dynamic>{'Tus-Resumable':'1.0.0', 'x-signature':signature, 'apikey':publishableKey};
     int offset = 0;
     if (session != null) {
@@ -82,6 +106,7 @@ class PrivateTusImageUploader {
         final head = await dio.head<dynamic>(session.toString(),
           options: Options(headers:headers, followRedirects:false),
           cancelToken:cancelToken);
+        verify();
         offset = int.parse(head.headers.value('upload-offset') ?? '-1');
         if (offset < 0 || offset > length) throw StateError('Invalid server offset');
       } on DioException catch (e) {
@@ -90,6 +115,7 @@ class PrivateTusImageUploader {
       }
     }
     if (session == null) {
+      verify();
       final metadata = <String, String>{
         'bucketName':bucket,'objectName':objectName,'contentType':mime,'cacheControl':'3600'
       };
@@ -100,23 +126,30 @@ class PrivateTusImageUploader {
           'Upload-Metadata':encoded,'Content-Type':'application/offset+octet-stream'},
           followRedirects:false), cancelToken:cancelToken);
       final location = response.headers.value('location');
+      verify();
       if (location == null) throw StateError('Storage did not return upload location');
       session = _trusted(target, location);
-      await sessionFile.writeAsString(jsonEncode({'url':session.toString(),
-        'endpoint':endpoint,'bucket':bucket,'objectName':objectName,'length':length}),flush:true);
+      final temporary=File('${sessionFile.path}.$pid.${DateTime.now().microsecondsSinceEpoch}.tmp');
+      try {
+        await temporary.writeAsString(jsonEncode({'url':session.toString(),
+          'endpoint':endpoint,'bucket':bucket,'objectName':objectName,'length':length}),flush:true);
+        verify(); await temporary.rename(sessionFile.path);
+      } finally { if(await temporary.exists()) await temporary.delete(); }
     }
     final handle = await file.open();
     try {
       while (offset < length) {
-        if (cancelToken.isCancelled) throw StateError('Upload canceled');
+        verify();
         await handle.setPosition(offset);
         final data = await handle.read(length - offset > chunkSize ? chunkSize : length - offset);
+        verify();
         if (data.isEmpty) throw StateError('Source truncated during upload');
         final response = await dio.patch<dynamic>(session.toString(),
           data:data,
           options:Options(headers:{...headers,'Upload-Offset':offset,
             'Content-Type':'application/offset+octet-stream'},followRedirects:false),
           cancelToken:cancelToken);
+        verify();
         final acknowledged = int.parse(response.headers.value('upload-offset') ?? '-1');
         if (acknowledged != offset + data.length) throw StateError('Incorrect storage offset');
         offset = acknowledged;
@@ -125,6 +158,7 @@ class PrivateTusImageUploader {
     } finally { await handle.close(); }
     // Retain even a complete session until Laravel confirms finalization.
     // A lost finalize response must not force a conflicting second POST.
+    } finally { _activeScopes.remove(scope); }
   }
 
   Future<void> forget(String scope) async {
@@ -132,3 +166,4 @@ class PrivateTusImageUploader {
     if (await file.exists()) await file.delete();
   }
 }
+

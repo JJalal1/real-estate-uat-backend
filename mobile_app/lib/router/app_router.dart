@@ -8,6 +8,7 @@ import '../features/account/presentation/account_safety_screen.dart';
 import '../features/account/presentation/account_verification_admin_screen.dart';
 import '../features/account/presentation/account_verification_screen.dart';
 import '../features/account/presentation/auth_gate.dart';
+import '../features/account/presentation/actor_scoped_page.dart';
 import '../features/account/presentation/auth_screen.dart';
 import '../features/account/presentation/broker_account_verification_screen.dart';
 import '../features/account/presentation/broker_verification_admin_screen.dart';
@@ -49,6 +50,7 @@ import 'app_deep_links.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
+    observers: [ref.watch(accountPopupObserverProvider)],
     initialLocation: '/',
     redirect: (context, state) => internalLocationForAppLink(state.uri),
     errorBuilder: (context, state) => const _RouteErrorScreen(),

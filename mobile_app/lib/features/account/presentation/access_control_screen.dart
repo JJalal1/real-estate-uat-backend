@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'actor_scoped_page.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,15 +9,19 @@ import '../data/auth_controller.dart';
 import '../domain/access_models.dart';
 import '../domain/auth_user.dart';
 
-class AccessControlScreen extends ConsumerStatefulWidget {
+class AccessControlScreen extends ConsumerWidget {
   const AccessControlScreen({super.key});
-
   @override
-  ConsumerState<AccessControlScreen> createState() =>
-      _AccessControlScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'إدارة الوصول', builder: (_) => const _AccessControlScreenBody());
+}
+class _AccessControlScreenBody extends ConsumerStatefulWidget {
+  const _AccessControlScreenBody();
+  @override
+  ConsumerState<_AccessControlScreenBody> createState() => _AccessControlScreenState();
 }
 
-class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
+class _AccessControlScreenState extends ConsumerState<_AccessControlScreenBody> {
   final _searchController = TextEditingController();
   AccessCatalog? _catalog;
   List<AccessUserSummary> _users = const [];
@@ -278,8 +283,8 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
     }
     final current = ref.read(authControllerProvider).asData?.value;
     final selected = user.roles.toSet();
-    final accepted = await showDialog<bool>(
-      context: context,
+    final accepted = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
           title: Text('أدوار ${user.name}'),
@@ -335,8 +340,8 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
     for (final override in user.permissionOverrides) {
       effects[override.permissionKey] = override.effect;
     }
-    final accepted = await showDialog<bool>(
-      context: context,
+    final accepted = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
           title: Text('صلاحيات ${user.name}'),
@@ -388,8 +393,8 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
 
   Future<void> _editStatus(AccessUserSummary user) async {
     var status = user.accountStatus;
-    final accepted = await showDialog<bool>(
-      context: context,
+    final accepted = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
           title: Text('حالة ${user.name}'),
@@ -427,6 +432,7 @@ class _AccessControlScreenState extends ConsumerState<AccessControlScreen> {
   }
 
   Future<void> _runMutation(Future<void> Function() action) async {
+    if (!mounted) return;
     try {
       await action();
       await ref.read(authControllerProvider.notifier).refresh();

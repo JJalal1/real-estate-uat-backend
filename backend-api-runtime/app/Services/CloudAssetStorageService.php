@@ -454,6 +454,12 @@ class CloudAssetStorageService
         return $this->response($path, true, $downloadName, $headers);
     }
 
+    /** Reuse the successful download instead of downloading once to test existence. */
+    public function responsePrivateIfExists(string $path, ?string $downloadName = null, array $headers = []): ?Response
+    {
+        return $this->responseIfExists($path, true, $downloadName, $headers);
+    }
+
     public function downloadPrivate(string $path, string $downloadName, array $headers = []): Response
     {
         if (! $this->cloudEnabled()) {
@@ -548,7 +554,9 @@ class CloudAssetStorageService
     private function delete(string $path, bool $private): void
     {
         if (! $this->cloudEnabled()) {
-            Storage::disk($private ? 'local' : 'public')->delete($path);
+            if (! Storage::disk($private ? 'local' : 'public')->delete($path)) {
+                throw new RuntimeException('Local storage delete failed.');
+            }
             return;
         }
 
@@ -557,13 +565,21 @@ class CloudAssetStorageService
 
     private function response(string $path, bool $private, ?string $downloadName, array $headers): Response
     {
+        $response = $this->responseIfExists($path, $private, $downloadName, $headers);
+        if ($response === null) abort(404);
+        return $response;
+    }
+
+    private function responseIfExists(string $path, bool $private, ?string $downloadName, array $headers): ?Response
+    {
         if (! $this->cloudEnabled()) {
+            if (! Storage::disk($private ? 'local' : 'public')->exists($path)) return null;
             return Storage::disk($private ? 'local' : 'public')->response($path, $downloadName, $headers);
         }
 
         $remote = $this->request()->get($this->objectUrl($this->objectPath($path, $private)));
         if (in_array($remote->status(), [400, 404], true)) {
-            abort(404);
+            return null;
         }
         $this->assertRemoteSuccess($remote, 'Cloud storage download failed.');
 
@@ -580,8 +596,14 @@ class CloudAssetStorageService
 
     private function deleteRemoteObject(string $objectPath): void
     {
-        $response = $this->request()->delete($this->objectUrl($objectPath));
-        if ($response->successful() || $response->status() === 404) {
+        // Storage's bulk contract returns [] for an absent key. A missing
+        // historical derivative must not abort cleanup of the live variants
+        // and original; never interpret a generic 400/404 as authorization.
+        $response = $this->request()->delete(
+            $this->storageBaseUrl().'/object/'.rawurlencode($this->bucket()),
+            ['prefixes' => [$objectPath]],
+        );
+        if ($response->successful()) {
             return;
         }
 
@@ -607,9 +629,16 @@ class CloudAssetStorageService
             $headers['Authorization'] = 'Bearer '.$key;
         }
 
-        return Http::withHeaders($headers)
+        $request = Http::withHeaders($headers)
             ->connectTimeout((int) config('services.supabase_storage.connect_timeout', 15))
             ->timeout((int) config('services.supabase_storage.timeout', 90));
+        $metrics = request()->attributes->get(RequestPerformance::ATTRIBUTE);
+        if ($metrics instanceof RequestPerformance) {
+            $request->withOptions(['on_stats' => static function (\GuzzleHttp\TransferStats $stats) use ($metrics): void {
+                $metrics->storage($stats->getTransferTime());
+            }]);
+        }
+        return $request;
     }
 
     private function objectPath(string $logicalPath, bool $private): string
