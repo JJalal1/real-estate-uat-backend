@@ -120,6 +120,13 @@ class ListingImageService
 
     private function encode(string $bytes, array $info, ?array $only = null, bool $watermark = true): array
     {
+        // 24MP decode/rotation allocates much more than its compressed bytes.
+        // Reject contention before decoding instead of exhausting the runtime.
+        return app(ListingImageEncodingGate::class)->run(fn () => $this->encodeAccepted($bytes,$info,$only,$watermark));
+    }
+
+    private function encodeAccepted(string $bytes, array $info, ?array $only, bool $watermark): array
+    {
         $image = @imagecreatefromstring($bytes);
         if (!$image) throw ValidationException::withMessages(['image'=>['تعذر قراءة الصورة. اختر صورة أخرى.']]);
         try {
