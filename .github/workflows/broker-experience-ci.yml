@@ -385,7 +385,13 @@ jobs:
           rm -rf mobile_app/build "$HOME/.gradle/caches" "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
           df -h .
           sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
-          echo no | avdmanager create avd --force --name aqer-owner-upgrade --package 'system-images;android-36;google_apis;x86_64'
+          export ANDROID_USER_HOME="$RUNNER_TEMP/aqer-android-user"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd --force --name aqer-owner-upgrade --device pixel --path "$ANDROID_AVD_HOME/aqer-owner-upgrade.avd" --package 'system-images;android-36;google_apis;x86_64'
+          test -f "$ANDROID_AVD_HOME/aqer-owner-upgrade.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -x aqer-owner-upgrade
           sudo chmod 666 /dev/kvm
           QT_QPA_PLATFORM=offscreen "$ANDROID_HOME/emulator/emulator" -avd aqer-owner-upgrade -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -memory 2048 -cores 2 > "$RUNNER_TEMP/aqer-emulator.log" 2>&1 &
           emulator_pid=$!
