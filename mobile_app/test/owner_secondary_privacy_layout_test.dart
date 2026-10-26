@@ -10,6 +10,8 @@ import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/features/community/data/community_repository.dart';
+import 'package:real_estate_mobile/features/reviews/data/listing_review_repository.dart';
+import 'package:real_estate_mobile/features/reviews/presentation/listing_review_workspace_screen.dart';
 import 'package:real_estate_mobile/features/community/presentation/listing_community_screen.dart';
 import 'package:real_estate_mobile/features/admin/presentation/general_manager_pages.dart';
 import 'package:real_estate_mobile/features/properties/data/recent_properties_store.dart';
@@ -78,6 +80,9 @@ class _Harness {
         '/advertisers/9/ratings/summary'=>{'advertiser_id':9,'average':4,'count':1,
           if(container.read(authControllerProvider).asData?.value?.id==1) 'my_rating':{'id':1,'rating':4,'status':'visible','comment':'Synthetic private rating A'}},
         '/advertisers/9/rating'=>{'advertiser_id':9,'average':4,'count':1},
+        '/admin/listing-review/listings/60'=>{'id':60,'title':'Private review evidence A','purpose':'rent','type':'office','price':75000,'review_status':'under_review',
+          'owner':{'name':'Synthetic private advertiser'},'images':<Object>[],'proof_documents':<Object>[],
+          'likely_duplicate_candidates':<Object>[]},
         '/admin/access/catalog'=>{'roles':<Object>[],'permissions':<Object>[]},
         '/admin/access/users'=><Object>[{'id':17,'name':'Private administrative user A','email':'synthetic-private@example.invalid','account_status':'active'}],
         '/admin/account-verifications'=><Object>[{'user_id':17,'name':'Private administrative user A','type':'broker','status':'pending','details':<String,dynamic>{},'documents':<Object>[]}],
@@ -117,7 +122,7 @@ void main(){
   setUpAll(() async {final font=FontLoader('NotoSansArabic')
     ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))
     ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'));await font.load();});
-  for(final kind in ['account-verification','broker-verification','regions','admin-access','community']){
+  for(final kind in ['account-verification','broker-verification','regions','admin-access','community','listing-review']){
     for(final phase in ['retained','token-lookup','late-read']){
       test('$kind repository expires across account change during $phase',() async {
         final h=_Harness();await h.start();addTearDown(h.dispose);
@@ -130,6 +135,10 @@ void main(){
           h.container.listen(brokerVerificationRepositoryProvider,(_,__){});
           final repo=h.container.read(brokerVerificationRepositoryProvider);
           operation=phase=='late-read'?repo.status:()=>repo.approve(17);
+        }else if(kind=='listing-review'){
+          h.container.listen(listingReviewRepositoryProvider,(_,__){});
+          final repo=h.container.read(listingReviewRepositoryProvider);
+          operation=phase=='late-read'?()=>repo.evidence(60):()=>repo.approve(60);
         }else if(kind=='community'){
           h.container.listen(communityRepositoryProvider,(_,__){});
           final repo=h.container.read(communityRepositoryProvider);
@@ -181,6 +190,34 @@ void main(){
     expect(built,isFalse);expect(find.text('تغيّر الحساب'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());h.dispose();
   });
+  for(final sameActor in [false,true]){
+    testWidgets('review evidence nested route expires on account change same actor=$sameActor',(tester)async{
+      final h=await _mount(tester,const ListingReviewCaseScreen(listingId:60));
+      expect(find.text('Private review evidence A'),findsOneWidget);
+      expect(h.calls,1,reason:'Detail and duplicate evidence must share one response');
+      h.account.change(null);h.account.change(sameActor?1:2);await _frames(tester);
+      expect(find.text('Private review evidence A'),findsNothing);
+      expect(find.text('تغيّر الحساب'),findsOneWidget);expect(tester.takeException(),isNull);
+    });
+  }
+  testWidgets('review route refuses a different actor before first frame',(tester)async{
+    final h=await _mount(tester,const ListingReviewCaseScreen(listingId:60,actorId:2));
+    expect(h.calls,0);expect(find.text('تغيّر الحساب'),findsOneWidget);
+  });
+  testWidgets('late evidence cannot restore a withdrawn review route',(tester)async{
+    final gate=Completer<void>();final harness=_Harness()..pending=gate;
+    final h=await _mount(tester,const ListingReviewCaseScreen(listingId:60),harness:harness);
+    h.account.change(null);h.account.change(1);gate.complete();await _frames(tester);
+    expect(find.text('Private review evidence A'),findsNothing);expect(tester.takeException(),isNull);
+  });
+  for(final large in [false,true]){
+    testWidgets('review evidence direct retry and Arabic layout large=$large',(tester)async{
+      final h=await _mount(tester,const ListingReviewCaseScreen(listingId:60),large:large,harness:_Harness()..status=503);
+      expect(find.text('إعادة المحاولة'),findsWidgets);h.status=200;
+      await tester.tap(find.text('إعادة المحاولة').first);await _frames(tester);
+      expect(find.text('Private review evidence A'),findsOneWidget);expect(tester.takeException(),isNull);
+    });
+  }
   final forms=<String,Widget Function()>{'auth':()=>const AuthScreen(),'profile':()=>const ProfileScreen(),
     'administration':()=>const GeneralManagerAdministrationScreen(),
     'community':()=>const ListingCommunityScreen(propertyId:60,advertiserId:9,advertiserName:'معلن اصطناعي'),

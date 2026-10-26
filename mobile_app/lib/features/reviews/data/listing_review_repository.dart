@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/data/account_request_scope.dart';
 import '../domain/listing_duplicate_candidate.dart';
 import '../domain/listing_review_models.dart';
 
@@ -16,17 +17,20 @@ final listingReviewRepositoryProvider =
   return ListingReviewRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider), actorId: actor, currentActor: () => ref.read(authControllerProvider).asData?.value?.id,
+    requestScope: ref.watch(accountRequestScopeProvider),
   );
 });
 
 class ListingReviewRepository {
-  ListingReviewRepository(this._dio, this._auth, {int? actorId, int? Function()? currentActor}): _actorId = actorId, _currentActor = currentActor;
+  ListingReviewRepository(this._dio, this._auth, {int? actorId, int? Function()? currentActor, AccountRequestScope? requestScope}): _actorId = actorId, _currentActor = currentActor, _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
   final int? _actorId;
   final int? Function()? _currentActor;
+  final AccountRequestScope? _requestScope;
   Future<Options> _sessionOptions() async {
+    if (_requestScope != null) return _requestScope.options();
     if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
     final options = await _auth.requiredAuthOptions();
     if (_currentActor != null && _currentActor() != _actorId) throw StateError('ACCOUNT_CHANGED');
@@ -39,6 +43,7 @@ class ListingReviewRepository {
       '/admin/listing-review/queue',
       options: await _sessionOptions(),
     );
+    _requestScope?.verify();
     final rows = response.data?['data'];
     if (rows is! List) return const <ReviewListingItem>[];
     return rows
@@ -62,11 +67,20 @@ class ListingReviewRepository {
         .toList(growable: false);
   }
 
+  Future<(ReviewListingDetail, List<ListingDuplicateCandidate>)> evidence(int id) async {
+    final row = await _detailJson(id);
+    final raw = row['likely_duplicate_candidates'];
+    return (ReviewListingDetail.fromJson(row), raw is List
+      ? raw.whereType<Map<String, dynamic>>().map(ListingDuplicateCandidate.fromJson).toList(growable: false)
+      : const <ListingDuplicateCandidate>[]);
+  }
+
   Future<Map<String, dynamic>> _detailJson(int id) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/listing-review/listings/$id',
       options: await _sessionOptions(),
     );
+    _requestScope?.verify();
     final row = response.data?['data'];
     if (row is! Map<String, dynamic>) {
       throw StateError('Invalid review detail response.');
@@ -83,6 +97,7 @@ class ListingReviewRepository {
     final response = await _dio.get<List<int>>(target.toString(),
       options: (await _sessionOptions()).copyWith(responseType: ResponseType.bytes), cancelToken: cancel)
       .timeout(const Duration(seconds: 25), onTimeout: () { cancel.cancel('Image deadline'); throw TimeoutException('تعذر تحميل الصورة.'); });
+    _requestScope?.verify();
     final bytes=response.data;
     if (bytes==null || bytes.isEmpty || bytes.length>12*1024*1024) throw StateError('Invalid protected image response');
     return Uint8List.fromList(bytes);
@@ -92,6 +107,7 @@ class ListingReviewRepository {
     final response = await _dio.post<Map<String, dynamic>>('/admin/listing-review/listings/$listingId/media-review',
       data: {'image_id': imageId, 'image_token': imageToken, 'decision': decision, 'reason': reason.trim()},
       options: await _sessionOptions());
+    _requestScope?.verify();
     final data = response.data?['data'];
     if (data is! Map || data['checker'] != 'human_review' || data['decision'] != decision || data['review_id'] == null) throw StateError('Invalid media review receipt');
   }
@@ -113,6 +129,7 @@ class ListingReviewRepository {
       },
       options: await _sessionOptions(),
     );
+    _requestScope?.verify();
   }
 
   Future<void> returnForCorrection(int id, String reason) =>
@@ -134,6 +151,7 @@ class ListingReviewRepository {
       },
       options: await _sessionOptions(),
     );
+    _requestScope?.verify();
   }
 
   Future<void> _action(int id, String action, {String? reason}) async {
@@ -142,6 +160,7 @@ class ListingReviewRepository {
       data: reason == null ? null : <String, dynamic>{'reason': reason.trim()},
       options: await _sessionOptions(),
     );
+    _requestScope?.verify();
   }
 
   /// Compatibility shim for the retired broker-region verification screen.
@@ -167,6 +186,7 @@ class ListingReviewRepository {
       queryParameters: const <String, dynamic>{'active': 1},
       options: await _sessionOptions(),
     );
+    _requestScope?.verify();
     final rows = response.data?['data'];
     if (rows is! List) return const <PublicationBlockItem>[];
     return rows
@@ -181,5 +201,6 @@ class ListingReviewRepository {
       data: <String, dynamic>{'reason': reason.trim()},
       options: await _sessionOptions(),
     );
+    _requestScope?.verify();
   }
 }
