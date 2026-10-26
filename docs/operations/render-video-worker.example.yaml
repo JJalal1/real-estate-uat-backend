@@ -1,0 +1,66 @@
+# REVIEW TEMPLATE ONLY. Paid worker plus PR111/migration/backup gates required.
+# Not included by root render.yaml and never applied in this task.
+services:
+  - type: worker
+    name: aqer-uat-video-worker
+    runtime: docker
+    plan: 1c-2g
+    region: frankfurt
+    branch: work/wave2-review-current
+    rootDir: backend-api-runtime
+    dockerfilePath: ./Dockerfile.video-worker
+    dockerContext: .
+    autoDeployTrigger: off
+    numInstances: 1
+    maxShutdownDelaySeconds: 300
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: APP_DEBUG
+        value: 'false'
+      - key: APP_KEY
+        sync: false
+      - key: APP_URL
+        value: https://real-estate-uat-api-frankfurt.onrender.com
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_URL
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: DB_PERSISTENT
+        value: 'false'
+      - key: DB_SEARCH_PATH
+        value: public,gis,extensions
+      - key: CACHE_STORE
+        value: database
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: info
+      - key: LISTING_VIDEO_PROCESSING_ENABLED
+        value: 'true'
+      - key: VIDEO_WORKER_HEARTBEAT_ENABLED
+        value: 'true'
+      - key: UAT_CLOUD_STORAGE_ENABLED
+        value: 'true'
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_STORAGE_SERVER_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: real-estate-uat
+      - key: UAT_PRIVATE_STORAGE_PREFIX
+        value: private
+      - key: UAT_STORAGE_CONNECT_TIMEOUT
+        value: '15'
+      - key: UAT_STORAGE_TIMEOUT
+        value: '90'
+      - key: PUSH_NOTIFICATIONS_ENABLED
+        value: 'false'
+      - key: UAT_RUN_MIGRATIONS
+        value: 'false'
+      - key: UAT_DEMO_SEED_ENABLED
+        value: 'false'
+# Shutdown grace (300s) is below a 540s job deadline. Drain uploads/queue before
+# planned redeploys; SIGKILL recovery and attempt fencing are mandatory canaries.
