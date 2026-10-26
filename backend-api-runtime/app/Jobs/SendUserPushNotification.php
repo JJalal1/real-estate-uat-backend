@@ -5,6 +5,8 @@ namespace App\Jobs;
 use App\Models\UserNotification;
 use App\Models\UserPushDevice;
 use App\Services\FcmPushSender;
+use App\Services\PushDeliveryException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -39,6 +41,24 @@ class SendUserPushNotification implements ShouldQueue
             ->whereNull('disabled_at')
             ->first();
         if (! $device) return;
-        $sender->send($notification,$device);
+        try {
+            $sender->send($notification,$device);
+        } catch (PushDeliveryException $error) {
+            if (! $error->retryable) { $this->fail($error); return; }
+            if ($this->job !== null && $this->attempts() < $this->tries) {
+                $delay=max($error->retryAfterSeconds,$this->backoff()[min($this->attempts()-1,2)]);
+                Log::warning('push.retry_scheduled',['notification_id'=>$this->notificationId,'device_id'=>$this->deviceId,
+                    'attempt'=>$this->attempts(),'delay_seconds'=>$delay]);
+                $this->release($delay);
+                return;
+            }
+            throw $error;
+        }
+    }
+
+    public function failed(?\Throwable $error): void
+    {
+        Log::error('push.exhausted',['notification_id'=>$this->notificationId,'device_id'=>$this->deviceId,
+            'http_status'=>$error instanceof PushDeliveryException ? $error->httpStatus : null]);
     }
 }

@@ -7,6 +7,7 @@ use App\Models\UserPushDevice;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class FcmPushSender
@@ -20,28 +21,46 @@ class FcmPushSender
         if ((int)$device->user_id !== (int)$notification->user_id || $device->disabled_at) {
             return;
         }
+        if (! app(UserNotificationService::class)->mayDeliver($notification)) return;
+
+        $accessToken=$this->accessToken();
+        // OAuth may take time. Do not send through a registration revoked or
+        // transferred while it was obtained, nor through revoked preferences.
+        $registration=fn () => UserPushDevice::query()->whereKey($device->id)
+            ->where('user_id',$notification->user_id)->where('token_hash',$device->token_hash)->whereNull('disabled_at');
+        if (! $registration()->exists() || ! app(UserNotificationService::class)->mayDeliver($notification)) return;
 
         $response=$this->client()
-            ->withToken($this->accessToken())
+            ->withToken($accessToken)
             ->post(
                 'https://fcm.googleapis.com/v1/projects/'.rawurlencode($this->projectId()).'/messages:send',
                 ['message'=>$this->message($notification,(string)$device->token)],
             );
 
         if ($response->successful()) {
-            $device->forceFill(['last_seen_at'=>now()])->save();
+            $registration()->update(['last_seen_at'=>now()]);
+            Log::info('push.provider_accepted',['notification_id'=>$notification->id,'device_id'=>$device->id]);
             return;
         }
 
-        $body=$response->body();
-        if ($response->status()===404 || str_contains($body,'UNREGISTERED')) {
-            $device->forceFill(['disabled_at'=>now()])->save();
+        $details=$response->json('error.details',[]);
+        $unregistered=is_array($details) && collect($details)->contains(fn ($detail) => is_array($detail) &&
+            ($detail['@type'] ?? null)==='type.googleapis.com/google.firebase.fcm.v1.FcmError' && ($detail['errorCode'] ?? null)==='UNREGISTERED');
+        if ($response->status()===404 && $unregistered) {
+            $registration()->update(['disabled_at'=>now()]);
+            Log::info('push.registration_expired',['notification_id'=>$notification->id,'device_id'=>$device->id]);
             return;
         }
 
-        throw new RuntimeException(
-            'FCM delivery failed with HTTP '.$response->status().'.',
-        );
+        if ($response->status()===401) Cache::store('file')->forget($this->cacheKey());
+        $retryable=$response->status()===429 || $response->serverError();
+        $delay=60;
+        $raw=trim((string)$response->header('Retry-After'));
+        if (ctype_digit($raw)) $delay=(int)$raw;
+        elseif ($raw!=='') { $timestamp=strtotime($raw); if ($timestamp!==false) $delay=$timestamp-time(); }
+        Log::warning('push.provider_rejected',['notification_id'=>$notification->id,'device_id'=>$device->id,
+            'http_status'=>$response->status(),'retryable'=>$retryable]);
+        throw new PushDeliveryException($response->status(),$retryable,max(60,min(3600,$delay)));
     }
 
     private function message(UserNotification $notification,string $token): array
@@ -99,7 +118,7 @@ class FcmPushSender
     private function accessToken(): string
     {
         $credentials=$this->credentials();
-        $cacheKey='fcm-oauth-token:'.hash('sha256',(string)config('push.fcm.service_account_json_base64'));
+        $cacheKey=$this->cacheKey();
         $cached=Cache::store('file')->get($cacheKey);
         if (is_string($cached) && $cached!=='') return $cached;
 
@@ -151,6 +170,11 @@ class FcmPushSender
             throw new RuntimeException('FCM project mismatch.');
         }
         return $json;
+    }
+
+    private function cacheKey(): string
+    {
+        return 'fcm-oauth-token:'.hash('sha256',(string)config('push.fcm.service_account_json_base64'));
     }
 
     private function projectId(): string

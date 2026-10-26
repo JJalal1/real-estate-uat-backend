@@ -56,6 +56,14 @@ class UserNotificationService
         return (bool) $row->{$category};
     }
 
+    public function mayDeliver(UserNotification $notification): bool
+    {
+        if (in_array($notification->type, UserNotification::RETIRED_VIEWING_TYPES, true) || $notification->entity_type === 'viewing_booking') return false;
+        if (! \App\Models\User::query()->whereKey($notification->user_id)->where('account_status', \App\Models\User::STATUS_ACTIVE)->exists()) return false;
+        $category=$this->preferenceCategory($notification->type);
+        return $category === null || $this->enabled((int)$notification->user_id,$category);
+    }
+
     private function preferenceCategory(string $type): ?string
     {
         if ($type === 'message_received') return 'messages';
