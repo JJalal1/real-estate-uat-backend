@@ -36,13 +36,23 @@ class LaunchReadinessWave4Test extends TestCase
             ->assertOk()
             ->assertExactJson([]);
 
-        Config::set('app_links.android.sha256_cert_fingerprints', ['AA:BB:CC']);
+        $fingerprint=implode(':',array_fill(0,32,'AA'));
+        Config::set('app_links.android.sha256_cert_fingerprints', [$fingerprint]);
         $this->getJson('/.well-known/assetlinks.json')
             ->assertOk()
             ->assertJsonPath('0.relation.0', 'delegate_permission/common.handle_all_urls')
             ->assertJsonPath('0.target.namespace', 'android_app')
             ->assertJsonPath('0.target.package_name', 'com.aqer.yemen')
-            ->assertJsonPath('0.target.sha256_cert_fingerprints.0', 'AA:BB:CC');
+            ->assertJsonPath('0.target.sha256_cert_fingerprints.0', $fingerprint);
+    }
+
+    public function test_malformed_or_ambiguous_association_identity_is_never_published(): void
+    {
+        foreach ([['com.example.uat',['AA:BB:CC']],['invalid/package',[implode(':',array_fill(0,32,'AA'))]],
+            ['com.example.uat',[implode(':',array_fill(0,32,'AA')),'bad']],['com.example.uat','invalid']] as [$package,$fingerprints]) {
+            config(['app_links.android.package_name'=>$package,'app_links.android.sha256_cert_fingerprints'=>$fingerprints]);
+            $this->getJson('/.well-known/assetlinks.json')->assertOk()->assertExactJson([]);
+        }
     }
 
     public function test_public_property_share_page_only_serves_published_available_listing(): void

@@ -153,7 +153,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             AppIconButton(
               icon: Icons.ios_share_outlined,
               tooltip: 'مشاركة العقار',
-              onPressed: loaded == null ? null : () => _shareProperty(loaded),
+              onPressed: loaded?.status == 'published' && loaded?.availabilityStatus == 'available'
+                  ? () => _shareProperty(loaded!) : null,
             ),
           ],
         ),
