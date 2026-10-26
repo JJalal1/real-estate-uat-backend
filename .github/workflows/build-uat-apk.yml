@@ -272,7 +272,7 @@ jobs:
       - name: Build release UAT APK
         working-directory: mobile_app
         run: >-
-          flutter build apk --release
+          flutter build apk --flavor uat --release
           --build-number=${{ github.run_number }}
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
@@ -282,7 +282,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          apk="mobile_app/build/app/outputs/flutter-apk/app-release.apk"
+          apk="mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk"
           test -f "$apk"
           out="dist/real-estate-uat-${GITHUB_RUN_NUMBER}.apk"
           cp "$apk" "$out"
@@ -292,7 +292,7 @@ jobs:
           api_base_url=${UAT_API_BASE_URL}
           github_run_number=${GITHUB_RUN_NUMBER}
           github_sha=${GITHUB_SHA}
-          android_application_id=com.example.real_estate_mobile
+          android_application_id=com.aqer.yemen.uat
           flutter_version=3.27.3
           EOF
 

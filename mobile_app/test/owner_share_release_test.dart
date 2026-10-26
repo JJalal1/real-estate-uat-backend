@@ -29,7 +29,7 @@ void main() {
       dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) => handler.resolve(
         Response<Map<String, dynamic>>(requestOptions: request, statusCode: 200, data: {'data': {
           'minimum_supported_build': minimum, 'latest_build': 2,
-          if (!forced) 'store_url': 'https://play.google.com/store/apps/details?id=com.example.real_estate_mobile',
+          if (!forced) 'store_url': 'https://play.google.com/store/apps/details?id=com.aqer.yemen.uat',
         }}))));
       addTearDown(() => dio.close(force: true));
       await tester.pumpWidget(ProviderScope(overrides: [dioProvider.overrideWithValue(dio)],

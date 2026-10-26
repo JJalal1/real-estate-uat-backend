@@ -45,7 +45,7 @@ class ReleaseGate extends ConsumerStatefulWidget {
 
 class _ReleaseGateState extends ConsumerState<ReleaseGate> {
   static const _package = String.fromEnvironment('APP_PACKAGE_ID',
-    defaultValue: 'com.example.real_estate_mobile');
+    defaultValue: 'com.aqer.yemen.uat');
   static const int _buildNumber = int.fromEnvironment(
     'APP_BUILD_NUMBER',
     defaultValue: 1,

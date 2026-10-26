@@ -52,9 +52,9 @@ assert tools
 signer = subprocess.run([str(tools[-1]), 'verify', '--verbose', '--print-certs', str(apk)], text=True, capture_output=True, check=True)
 certificate = re.search(r'certificate SHA-256 digest:\s*([a-fA-F0-9]+)', signer.stdout).group(1).lower()
 badging = subprocess.run([str(tools[-1].parent / 'aapt'), 'dump', 'badging', str(apk)], text=True, capture_output=True, check=True).stdout
-assert "name='com.example.real_estate_mobile'" in badging
+assert "name='com.aqer.yemen.uat'" in badging
 assert f"versionCode='{version}'" in badging
-assert "application-label:'عقار'" in badging
+assert "application-label:'عقار UAT'" in badging
 target_sdk = int(re.search(r"targetSdkVersion:'(\d+)'", badging).group(1))
 min_sdk = int(re.search(r"sdkVersion:'(\d+)'", badging).group(1))
 assert target_sdk >= 36, 'Google Play submissions require target API 36 or newer.'
@@ -110,7 +110,7 @@ with zipfile.ZipFile(apk) as archive:
 evidence = {'source_commit': source, 'version_code': version, 'sha256': digest, 'bytes': apk.stat().st_size,
     'target_sdk': target_sdk, 'min_sdk': min_sdk, 'native_16kb_elf': 'passed', 'zipalign_16kb': 'passed',
     'native_64bit_libraries_verified': native_64bit_count,
-    'package': 'com.example.real_estate_mobile', 'api': api_url, 'architectures': sorted(libraries),
+    'package': 'com.aqer.yemen.uat', 'api': api_url, 'architectures': sorted(libraries),
     'brand_assets_match': len(brand_paths), 'fonts_match': 5, 'zip_crc': 'passed', 'apksigner': 'passed', 'certificate_sha256': certificate,
     'handset_acceptance': 'pending'}
 evidence['package_role'] = 'upgrade-predecessor-same-source' if args.upgrade_predecessor else 'current-uat'

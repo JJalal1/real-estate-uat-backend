@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import time
 
-PACKAGE = 'com.example.real_estate_mobile'
+PACKAGE = 'com.aqer.yemen.uat'
 ROOT = Path('dist')
 
 
@@ -29,7 +29,7 @@ def version():
 
 
 def launch():
-    adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity', timeout=60)
+    adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/com.example.real_estate_mobile.MainActivity', timeout=60)
     for _ in range(30):
         try:
             if adb('shell', 'pidof', PACKAGE):

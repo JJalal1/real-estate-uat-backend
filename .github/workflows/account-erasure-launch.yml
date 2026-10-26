@@ -93,7 +93,7 @@ jobs:
       - name: Build combined UAT release APK
         working-directory: mobile_app
         run: >-
-          flutter build apk --release
+          flutter build apk --flavor uat --release
           --build-number=1126
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${UAT_API_BASE_URL}
