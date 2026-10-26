@@ -141,7 +141,12 @@ class UatOwnerAcceptancePreflight extends Command
                 ['sai_amount_type'=>'percentage','broker_sai_rate_percent'=>0,'sai_payer'=>'tenant']);
             $this->wire('owner_review_submit','broker','POST','/api/properties/'.$listing.'/submit');
             $this->wire('unreviewed_owner_listing_not_public',null,'GET','/api/properties/'.$listing,[],404);
+            $evidence=$this->wire('reviewer_can_open_owner_evidence','reviewer','GET','/api/admin/listing-review/listings/'.$listing);
+            $images=$evidence->json('data.images');
+            if ((int)$evidence->json('data.id')!==$listing || $evidence->json('data.review_status')!=='submitted'
+                || !is_array($images) || count($images)!==2) throw new RuntimeException('fixture_review_not_ready');
             $manifest['review_listing_id']=$listing;
+            $manifest['review_image_ids']=array_map(fn ($image)=>(int)$image['id'],$images);
             foreach ([60,61,62] as $id) {
                 $this->wire('public_fixture_'.$id,null,'GET','/api/properties/'.$id);
                 $this->wire('external_share_fixture_'.$id,null,'GET','/l/properties/'.$id);
