@@ -77,7 +77,7 @@ if [ "${UAT_EXECUTIVE_JOURNEY_RUN:-}" = "2026-10-26-109-v5" ]; then
       # Finish the bounded regression before owner fixtures, avoiding concurrent
       # image encoders/OTP throttles on the shared Free UAT service.
       if php artisan uat:role-journeys --run="$UAT_EXECUTIVE_JOURNEY_RUN" --base-url="http://127.0.0.1:${listen_port}"; then
-        if [ "${UAT_OWNER_ACCEPTANCE_RUN:-}" = "2026-10-26-owner-v1" ]; then
+        if [ "${UAT_OWNER_ACCEPTANCE_RUN:-}" = "2026-10-26-owner-v2" ]; then
           php artisan uat:owner-acceptance-preflight --run="$UAT_OWNER_ACCEPTANCE_RUN" --base-url="http://127.0.0.1:${listen_port}"
         fi
       else

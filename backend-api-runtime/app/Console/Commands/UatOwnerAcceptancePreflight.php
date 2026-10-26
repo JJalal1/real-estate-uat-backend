@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\AuditLog;
+use App\Console\Support\UatOwnerFixtureRecovery;
+use App\Console\Support\UatOwnerRequestRetry;
 use App\Models\User;
 use App\Models\Role;
 use App\Services\AuditLogService;
@@ -18,9 +20,9 @@ use Symfony\Component\Process\Process;
 /** Audited, localhost-only preparation. Never publishes plaintext credentials. */
 class UatOwnerAcceptancePreflight extends Command
 {
-    public const RUN='2026-10-26-owner-v1';
+    public const RUN='2026-10-26-owner-v2';
     public const ERASURE_PHONE='+12025550149';
-    private const ERASURE_EMAIL='uat-owner-erasure-20261026@example.invalid';
+    private const ERASURE_EMAIL=UatOwnerFixtureRecovery::EMAIL;
     public const ACTORS=[
         'user'=>['wave3-regular@example.invalid','+12025550102','registered_user'],
         'advertiser'=>['wave3-owner@example.invalid','+12025550101','registered_user'],
@@ -48,7 +50,7 @@ class UatOwnerAcceptancePreflight extends Command
             $this->line('AQER_OWNER_PREFLIGHT {"status":"guard-refused","writes":false}');return self::FAILURE;
         }
         $this->started=microtime(true);
-        $accounts=[];$actors=self::ACTORS;
+        $accounts=[];$actors=self::ACTORS;$erasure=null;
         try {
             foreach (self::ACTORS as $key=>[$email,$phone,$role]) {
                 $user=User::where('email',$email)->where('phone',$phone)->first();
@@ -61,7 +63,7 @@ class UatOwnerAcceptancePreflight extends Command
                 $accounts[$key]=['phone'=>$phone,'test_otp'=>$code,'user_id'=>$user->id];
             }
             if (app(UatTestOtpService::class)->codeFor(self::ERASURE_PHONE)===null) throw new RuntimeException('fixture_otp_not_allowlisted');
-            if (User::where('email',self::ERASURE_EMAIL)->orWhere('phone',self::ERASURE_PHONE)->exists()) throw new RuntimeException('fixture_collision');
+            $erasure=app(UatOwnerFixtureRecovery::class)->find();
             if (!Role::where('key','registered_user')->exists()) throw new RuntimeException('fixture_role_missing');
             $recipient=resource_path('uat-owner-recipient.pem');
             if (!is_file($recipient) || !hash_equals('12f6a686d39cef1b63f90011b979ebaef0a25f431d9f4eb1aa4d114a19c0f5e2',hash_file('sha256',$recipient))) throw new RuntimeException('approved_recipient_missing');
@@ -75,19 +77,20 @@ class UatOwnerAcceptancePreflight extends Command
             app(AuditLogService::class)->record(null,'uat.owner_acceptance.started',null,['release_run'=>self::RUN]);return true;
         });
         if (!$fresh) { $this->line('AQER_OWNER_PREFLIGHT {"status":"already-started-no-replay"}');return self::FAILURE; }
-        $manifest=['run'=>self::RUN,'fixture_only'=>true,'property_ids'=>[60,61,62],'created_at'=>now()->toIso8601String()];
+        $manifest=['run'=>self::RUN,'backend_sha'=>env('RENDER_GIT_COMMIT'),'fixture_only'=>true,'property_ids'=>[60,61,62],'created_at'=>now()->toIso8601String()];
         $passed=false;
         try {
             // This fresh account has no historical financial/shared records. Keep
             // it intact for the owner's explicit account-erasure acceptance.
-            $consumer=User::create(['name'=>'حساب اصطناعي لاختبار الحذف','email'=>self::ERASURE_EMAIL,
+            $consumer=$erasure ?? User::create(['name'=>UatOwnerFixtureRecovery::NAME,'email'=>self::ERASURE_EMAIL,
                 'phone'=>self::ERASURE_PHONE,'password'=>Str::random(96),'phone_verified_at'=>now(),
                 'profile_completed_at'=>now(),'identity_policy_version'=>2,'account_status'=>'active','account_type'=>'regular']);
-            $consumer->roles()->sync([Role::where('key','registered_user')->value('id')=>['created_at'=>now()]]);
+            if ($erasure===null) $consumer->roles()->sync([Role::where('key','registered_user')->value('id')=>['created_at'=>now()]]);
             $this->users['erasure']=$consumer;
             $actors['erasure']=[self::ERASURE_EMAIL,self::ERASURE_PHONE,'registered_user'];
             $accounts['erasure']=['phone'=>self::ERASURE_PHONE,'test_otp'=>app(UatTestOtpService::class)->codeFor(self::ERASURE_PHONE),'user_id'=>$consumer->id];
-            app(AuditLogService::class)->record(null,'uat.owner_acceptance.fixture_created',$consumer,['release_run'=>self::RUN,'fixture'=>'erasure']);
+            app(AuditLogService::class)->record(null,$erasure===null?'uat.owner_acceptance.fixture_created':'uat.owner_acceptance.fixture_recovered',$consumer,
+                ['release_run'=>self::RUN,'fixture'=>'erasure','previous_run'=>$erasure===null?null:UatOwnerFixtureRecovery::PREVIOUS]);
             $manifest['owner_erasure_user_id']=$consumer->id;
             foreach ($actors as $key=>[, $phone]) {
                 $this->wire('otp_start_'.$key,null,'POST','/api/auth/whatsapp/start',['phone'=>$phone,'intent'=>'login']);
@@ -148,7 +151,7 @@ class UatOwnerAcceptancePreflight extends Command
             $process->setInput(json_encode(['manifest'=>$manifest,'accounts'=>$accounts],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
             $process->setTimeout(15);$process->mustRun();$cipher=$process->getOutput();
             if (strlen($cipher)<128 || strlen($cipher)>65536 || $cipher[0]!=="\x30") throw new RuntimeException('capsule_unavailable');
-            $manifest['access_capsule_cms_base64']=base64_encode($cipher);
+            $manifest['access_capsule_cms_base64_parts']=str_split(base64_encode($cipher),768);
             $manifest['access_capsule_sha256']=hash('sha256',$cipher);
             $passed=true;
         } catch (\Throwable $error) {
@@ -177,7 +180,13 @@ class UatOwnerAcceptancePreflight extends Command
         $request=Http::acceptJson()->withUserAgent('Aqer-Owner-Acceptance/1.0')->connectTimeout(5)->timeout(40)->withoutRedirecting();
         if ($actor!==null) $request->withToken($this->tokens[$actor]);
         if ($image!==null) $request->attach('image',$image,'synthetic.jpg',['Content-Type'=>'image/jpeg']);
-        $response=$image!==null?$request->post($this->base.$path,$data):$request->send($method,$this->base.$path,$method==='GET'?[]:['json'=>$data]);
+        $send=function () use ($image,$request,$path,$data,$method) {
+            if (count($this->receipts)>=65 || microtime(true)-$this->started>480) throw new RuntimeException('probe_bound');
+            return $image!==null?$request->post($this->base.$path,$data):$request->send($method,$this->base.$path,$method==='GET'?[]:['json'=>$data]);
+        };
+        $response=app(UatOwnerRequestRetry::class)->send($path,$send,function (int $seconds,int $attempt) use ($name): void {
+            $this->receipts[]=['case'=>$name.'_throttled_'.$attempt,'status'=>429,'expected'=>429,'passed'=>true,'wait_seconds'=>$seconds];
+        },$this->started);
         $okay=$response->status()===$expected;
         $this->receipts[]=['case'=>$name,'status'=>$response->status(),'expected'=>$expected,'passed'=>$okay,
             'validation_fields'=>$okay?[]:array_keys((array)$response->json('errors',[]))];
