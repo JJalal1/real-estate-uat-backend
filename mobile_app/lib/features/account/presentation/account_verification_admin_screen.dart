@@ -3,6 +3,7 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../data/account_verification_repository.dart';
 import '../data/auth_controller.dart';
 import '../domain/account_verification.dart';
@@ -150,15 +151,7 @@ class _AccountVerificationAdminScreenState
                           );
                         }
                         if (snapshot.hasError) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Text(
-                                friendlyApiError(snapshot.error!),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          );
+                          return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _reload);
                         }
                         final rows = snapshot.data ?? const [];
                         if (rows.isEmpty) {

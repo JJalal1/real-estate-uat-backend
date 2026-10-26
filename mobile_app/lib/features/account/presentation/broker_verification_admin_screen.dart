@@ -29,8 +29,10 @@ class _BrokerVerificationAdminScreenState
     _reload();
   }
 
-  void _reload() =>
-      _future = ref.read(brokerVerificationRepositoryProvider).queue();
+  void _reload() {
+    _future = ref.read(brokerVerificationRepositoryProvider).queue();
+    _future.ignore();
+  }
 
   @override
   Widget build(BuildContext context) {
