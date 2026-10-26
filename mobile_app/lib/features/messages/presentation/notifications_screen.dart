@@ -138,8 +138,12 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
                 ),
               ),
             ),
-            AppIconButton(icon: Icons.mark_email_read_outlined, tooltip: 'قراءة الكل',
-              onPressed: !_actionPending && unread > 0 ? _readAll : null),
+            if (MediaQuery.textScalerOf(context).scale(14) > 20)
+              AppIconButton(icon: Icons.mark_email_read_outlined, tooltip: 'قراءة الكل',
+                onPressed: !_actionPending && unread > 0 ? _readAll : null)
+            else
+              TextButton(onPressed: !_actionPending && unread > 0 ? _readAll : null,
+                child: const Text('قراءة الكل')),
           ],
         ),
         body: RefreshIndicator(
