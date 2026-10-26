@@ -67,7 +67,9 @@ class _PushLaunchCoordinatorState extends ConsumerState<PushLaunchCoordinator>
       final route = (await _channel.invokeMethod<String>('consumeRoute'))?.trim();
       if (!mounted || epoch != Stage6SecureSessionStore.instance.sessionEpoch ||
           ref.read(authControllerProvider).asData?.value?.id != actor ||
-          route == null || !_allowed(route)) return;
+          route == null || !_allowed(route)) {
+        return;
+      }
       ref.read(appRouterProvider).go(route);
     } on MissingPluginException {
       // Push is Android-only today; other platforms continue normally.
