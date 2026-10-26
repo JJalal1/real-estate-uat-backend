@@ -193,21 +193,8 @@ class _ApplicationCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             for (final kind in const ['id_front', 'id_back', 'selfie'])
-              FutureBuilder<Uint8List>(
-                future: loadDocument(kind),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.memory(snapshot.data!,
-                            height: 180, fit: BoxFit.cover)),
-                  );
-                },
-              ),
+              _PrivateBrokerDocument(key: ValueKey((application.userId, kind)),
+                kind: kind, load: () => loadDocument(kind)),
             Row(
               children: [
                 Expanded(
@@ -241,5 +228,36 @@ class _DocPreview extends StatelessWidget {
       _ => 'السلفي'
     };
     return Chip(label: Text(label));
+  }
+}
+
+/// Identity images are private and potentially expensive. Fetch one only after
+/// the reviewer asks, retain its future across rebuilds and expose every failure.
+class _PrivateBrokerDocument extends StatefulWidget {
+  const _PrivateBrokerDocument({required this.kind, required this.load, super.key});
+  final String kind;
+  final Future<Uint8List> Function() load;
+  @override
+  State<_PrivateBrokerDocument> createState() => _PrivateBrokerDocumentState();
+}
+class _PrivateBrokerDocumentState extends State<_PrivateBrokerDocument> {
+  Future<Uint8List>? _future;
+  void _load() { setState(() { _future = widget.load(); _future!.ignore(); }); }
+  @override
+  Widget build(BuildContext context) {
+    final label = switch(widget.kind) { 'id_front' => 'البطاقة الأمامية', 'id_back' => 'البطاقة الخلفية', _ => 'السلفي' };
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: _future == null
+      ? TextButton.icon(onPressed: _load, icon: const Icon(Icons.visibility_outlined), label: Text('عرض $label'))
+      : FutureBuilder<Uint8List>(future: _future, builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) return AppLoadingState(label: 'جارٍ تحميل $label…');
+          if (snapshot.hasError) return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _load);
+          final bytes = snapshot.data;
+          if (bytes == null || bytes.isEmpty) return AppErrorState(message: 'تعذر تحميل المستند الخاص.', onRetry: _load);
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(label), const SizedBox(height: 8),
+            Image.memory(bytes, height: 180, fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => AppErrorState(message: 'تعذر عرض المستند الخاص.', onRetry: _load)),
+          ]);
+        }));
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -60,10 +61,17 @@ class _Harness {
   late final ProviderContainer container;
   int status=200,calls=0,recentAttempts=0;
   bool recentStub=false,recentFail=false;
+  int documentCalls=0,documentStatus=503;
   Completer<void>? pending;
   Future<void> start() async {
     dio.interceptors.add(InterceptorsWrapper(onRequest:(request,handler) async {
       calls++;await pending?.future;
+      if(request.path.contains('/documents/')){
+        documentCalls++;
+        if(documentStatus!=200){handler.reject(DioException(requestOptions:request,type:DioExceptionType.badResponse,
+          response:Response<Object>(requestOptions:request,statusCode:documentStatus)));return;}
+        handler.resolve(Response<List<int>>(requestOptions:request,statusCode:200,data:base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGPcIifHwMDAxMDAwMDAAAAMAAD0dM8VpwAAAABJRU5ErkJggg==')));return;
+      }
       if(status!=200) {handler.reject(DioException(requestOptions:request,type:DioExceptionType.badResponse,
         response:Response<Object>(requestOptions:request,statusCode:status)));return;}
       final Object data=switch(request.path) {
@@ -196,6 +204,18 @@ void main(){
       expect(find.text('تقييمك الحالي: 4/5'),findsNothing);expect(find.text('قيّم المعلن'),findsOneWidget);
       h.account.change(null);await _frames(tester);expect(find.text('التعليقات وتقييم المعلن'),findsOneWidget);
       expect(tester.takeException(),isNull);
+    });
+    testWidgets('broker private documents load only on request and retry without surviving account change large=$large',(tester)async{
+      final h=await _mount(tester,const BrokerVerificationAdminScreen(),large:large);
+      expect(h.documentCalls,0);final open=find.text('عرض البطاقة الأمامية');
+      await tester.ensureVisible(open);await tester.pump();await tester.tap(open);await _frames(tester);
+      expect(h.documentCalls,1);expect(find.textContaining('الخادم غير متاح مؤقتاً'),findsWidgets);
+      h.documentStatus=200;final retry=find.text('إعادة المحاولة');
+      await tester.ensureVisible(retry);await tester.pump();await tester.tap(retry);await _frames(tester);
+      expect(h.documentCalls,2);expect(find.byType(Image),findsWidgets);
+      await _frames(tester);expect(h.documentCalls,2);
+      h.account.change(null);h.account.change(1);await _frames(tester);
+      expect(find.byType(Image),findsNothing);expect(find.text('تغيّر الحساب'),findsOneWidget);expect(tester.takeException(),isNull);
     });
     testWidgets('recent screen retries local read and reaches empty state large=$large',(tester)async{
       final h=_Harness()..recentStub=true..recentFail=true;
