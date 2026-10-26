@@ -8,6 +8,7 @@ on:
       - 'backend-api-runtime/app/Jobs/ProcessListingVideo.php'
       - 'backend-api-runtime/app/Services/ListingVideoTranscoder.php'
       - '.github/workflows/video-worker-container-ci.yml'
+      - 'scripts/probe_video_worker_container.py'
 
 permissions:
   contents: read
@@ -40,3 +41,11 @@ jobs:
       - name: No installer or private media artifacts
         run: |
           echo 'Worker image is tested in CI only; it is not deployed or published.'
+      - name: Bounded real transcoding, resource receipts and FFmpeg container SIGKILL
+        run: python3 -B scripts/probe_video_worker_container.py --output dist/VIDEO_WORKER_PROBE.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: isolated-video-worker-probe-${{ github.run_number }}
+          path: dist/VIDEO_WORKER_PROBE.json
+          if-no-files-found: error
+          retention-days: 14
