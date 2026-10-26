@@ -214,26 +214,29 @@ class AuthController extends Controller
 
         if (!empty($v['name'])) $this->validateUnifiedFullName(trim($v['name']));
         $this->verification->verify($user,VerificationChallenge::PURPOSE_PHONE,$phone,(string)$v['code']);
-        $this->completeLoginName($user, $v['name'] ?? null);
-        $user->forceFill([
-            'phone_verified_at'=>now(),
-            'account_status'=>User::STATUS_ACTIVE,
-            'last_login_at'=>now(),
-        ])->save();
-        $this->access->ensureRegisteredUser($user);
-        $claimed=$this->legacyOwnership->claim($user,$v['legacy_owner_key']??null);
-        $token=$this->tokens->issue($user,$request);
-        $this->audit->record($user,'auth.whatsapp_verified',$user,[
-            'unified_login'=>!array_key_exists('account_type',$v),
-            'legacy_listings_claimed'=>$claimed,
-        ],$request,$user->id);
+        return DB::transaction(function () use ($user,$phone,$v,$request): JsonResponse {
+            $user=$this->lockAvailableUser($user,phone:$phone);
+            $this->completeLoginName($user, $v['name'] ?? null);
+            $user->forceFill([
+                'phone_verified_at'=>now(),
+                'account_status'=>User::STATUS_ACTIVE,
+                'last_login_at'=>now(),
+            ])->save();
+            $this->access->ensureRegisteredUser($user);
+            $claimed=$this->legacyOwnership->claim($user,$v['legacy_owner_key']??null);
+            $token=$this->tokens->issue($user,$request);
+            $this->audit->record($user,'auth.whatsapp_verified',$user,[
+                'unified_login'=>!array_key_exists('account_type',$v),
+                'legacy_listings_claimed'=>$claimed,
+            ],$request,$user->id);
 
-        return response()->json(['message'=>'WhatsApp verification completed.','data'=>[
-            'user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission','accountVerificationProfile.documents'])),
-            'token'=>$token['plain_text_token'],
-            'token_expires_at'=>$token['expires_at'],
-            'legacy_listings_claimed'=>$claimed,
-        ]]);
+            return response()->json(['message'=>'WhatsApp verification completed.','data'=>[
+                'user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission','accountVerificationProfile.documents'])),
+                'token'=>$token['plain_text_token'],
+                'token_expires_at'=>$token['expires_at'],
+                'legacy_listings_claimed'=>$claimed,
+            ]]);
+        });
     }
 
     public function login(Request $request): JsonResponse
@@ -258,18 +261,22 @@ class AuthController extends Controller
             return response()->json(['message'=>'This account is banned.','code'=>'ACCOUNT_BANNED'],403);
         }
 
-        $claimed = $this->legacyOwnership->claim($user,$v['legacy_owner_key'] ?? null);
-        $user->forceFill(['last_login_at'=>now()])->save();
-        $this->access->ensureRegisteredUser($user);
-        $token = $this->tokens->issue($user,$request);
-        $this->audit->record($user,'auth.login_succeeded',$user,['legacy_listings_claimed'=>$claimed],$request,$user->id);
+        return DB::transaction(function () use ($user,$v,$request): JsonResponse {
+            $user=$this->lockAvailableUser($user);
+            if (!Hash::check((string)$v['password'],$user->password)) throw ValidationException::withMessages(['login'=>['The login details are incorrect.']]);
+            $claimed = $this->legacyOwnership->claim($user,$v['legacy_owner_key'] ?? null);
+            $user->forceFill(['last_login_at'=>now()])->save();
+            $this->access->ensureRegisteredUser($user);
+            $token = $this->tokens->issue($user,$request);
+            $this->audit->record($user,'auth.login_succeeded',$user,['legacy_listings_claimed'=>$claimed],$request,$user->id);
 
-        return response()->json(['message'=>'Logged in.','data'=>[
-            'user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission'])),
-            'token'=>$token['plain_text_token'],
-            'token_expires_at'=>$token['expires_at'],
-            'legacy_listings_claimed'=>$claimed,
-        ]]);
+            return response()->json(['message'=>'Logged in.','data'=>[
+                'user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission'])),
+                'token'=>$token['plain_text_token'],
+                'token_expires_at'=>$token['expires_at'],
+                'legacy_listings_claimed'=>$claimed,
+            ]]);
+        });
     }
 
     public function logout(Request $request): JsonResponse
@@ -296,52 +303,55 @@ class AuthController extends Controller
             'email'=>['sometimes','email','max:190',Rule::unique('users','email')->ignore($user->id)],
             'phone'=>['sometimes','string','max:32','regex:/^\+?[0-9]{7,20}$/',Rule::unique('users','phone')->ignore($user->id)],
         ]);
-        $changed=[];
-        if (array_key_exists('name',$v)) {
-            $name=trim((string)$v['name']);
-            $profile=$user->verificationProfile();
-            $nameChanged=preg_replace('/\s+/u',' ',$name)!==preg_replace('/\s+/u',' ',trim((string)$user->name));
-            if ($nameChanged && $profile && in_array($profile->status,[
-                AccountVerificationProfile::STATUS_PENDING,
-                AccountVerificationProfile::STATUS_APPROVED,
-            ],true)) {
-                throw ValidationException::withMessages([
-                    'name'=>['لا يمكن تغيير الاسم أثناء مراجعة الهوية أو بعد اعتمادها. اطلب من فريق الدعم إعادة فتح التحقق إذا احتجت تصحيح الاسم.'],
-                ]);
+        return DB::transaction(function () use ($user,$v,$request): JsonResponse {
+            $user=$this->lockAvailableUser($user);
+            $changed=[];
+            if (array_key_exists('name',$v)) {
+                $name=trim((string)$v['name']);
+                $profile=$user->verificationProfile();
+                $nameChanged=preg_replace('/\s+/u',' ',$name)!==preg_replace('/\s+/u',' ',trim((string)$user->name));
+                if ($nameChanged && $profile && in_array($profile->status,[
+                    AccountVerificationProfile::STATUS_PENDING,
+                    AccountVerificationProfile::STATUS_APPROVED,
+                ],true)) {
+                    throw ValidationException::withMessages([
+                        'name'=>['لا يمكن تغيير الاسم أثناء مراجعة الهوية أو بعد اعتمادها. اطلب من فريق الدعم إعادة فتح التحقق إذا احتجت تصحيح الاسم.'],
+                    ]);
+                }
+                if ((int) $user->identity_policy_version >= 2 || $user->profile_completed_at === null) {
+                    $this->validateUnifiedFullName($name);
+                    $user->profile_completed_at = now();
+                } else {
+                    $this->validateFullName($name,$user->account_type ?? User::ACCOUNT_TYPE_REGULAR);
+                }
+                $user->name=$name;
+                $changed[]='name';
             }
-            if ((int) $user->identity_policy_version >= 2 || $user->profile_completed_at === null) {
-                $this->validateUnifiedFullName($name);
-                $user->profile_completed_at = now();
-            } else {
-                $this->validateFullName($name,$user->account_type ?? User::ACCOUNT_TYPE_REGULAR);
-            }
-            $user->name=$name;
-            $changed[]='name';
-        }
-        if (array_key_exists('email',$v)) {
-            $email = Str::lower(trim((string)$v['email']));
-            if ($email !== $user->email) {
-                $user->email = $email;
-                $user->email_verified_at = null;
-                $user->verificationChallenges()->whereIn('purpose', [VerificationChallenge::PURPOSE_EMAIL, VerificationChallenge::PURPOSE_EMAIL_LOGIN])
-                    ->whereNull('consumed_at')->update(['consumed_at'=>now()]);
-                $changed[]='email';
-            }
-        }
-        if (array_key_exists('phone',$v)) {
-            $phone = $this->normalizePhone((string)$v['phone']);
-            if ($phone !== $user->phone) {
-                $user->phone = $phone;
-                $user->phone_verified_at = null;
-                $changed[]='phone';
-                if (! in_array($user->account_status,[User::STATUS_BANNED,User::STATUS_SUSPENDED],true)) {
-                    $user->account_status = User::STATUS_PENDING_VERIFICATION;
+            if (array_key_exists('email',$v)) {
+                $email = Str::lower(trim((string)$v['email']));
+                if ($email !== $user->email) {
+                    $user->email = $email;
+                    $user->email_verified_at = null;
+                    $user->verificationChallenges()->whereIn('purpose', [VerificationChallenge::PURPOSE_EMAIL, VerificationChallenge::PURPOSE_EMAIL_LOGIN])
+                        ->whereNull('consumed_at')->update(['consumed_at'=>now()]);
+                    $changed[]='email';
                 }
             }
-        }
-        $user->save();
-        $this->audit->record($user,'account.profile_updated',$user,['changed_fields'=>$changed],$request,$user->id);
-        return response()->json(['message'=>'Profile updated.','data'=>['user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission']))]]);
+            if (array_key_exists('phone',$v)) {
+                $phone = $this->normalizePhone((string)$v['phone']);
+                if ($phone !== $user->phone) {
+                    $user->phone = $phone;
+                    $user->phone_verified_at = null;
+                    $changed[]='phone';
+                    if (! in_array($user->account_status,[User::STATUS_BANNED,User::STATUS_SUSPENDED],true)) {
+                        $user->account_status = User::STATUS_PENDING_VERIFICATION;
+                    }
+                }
+            }
+            $user->save();
+            $this->audit->record($user,'account.profile_updated',$user,['changed_fields'=>$changed],$request,$user->id);
+            return response()->json(['message'=>'Profile updated.','data'=>['user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission']))]]);
+        });
     }
 
     public function requestPhoneVerification(Request $request): JsonResponse
@@ -366,9 +376,12 @@ class AuthController extends Controller
         $v = $request->validate(['code'=>['required','digits:6']]);
         if ($user->phone === null) throw ValidationException::withMessages(['phone'=>['No phone number is configured.']]);
         $this->verification->verify($user,VerificationChallenge::PURPOSE_PHONE,$user->phone,(string)$v['code']);
-        $user->forceFill(['phone_verified_at'=>now(),'account_status'=>User::STATUS_ACTIVE])->save();
-        $this->audit->record($user,'auth.phone_verified',$user,[],$request,$user->id);
-        return response()->json(['message'=>'Phone verified.','data'=>['user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission']))]]);
+        return DB::transaction(function () use ($user,$request): JsonResponse {
+            $user=$this->lockAvailableUser($user,phone:$user->phone);
+            $user->forceFill(['phone_verified_at'=>now(),'account_status'=>User::STATUS_ACTIVE])->save();
+            $this->audit->record($user,'auth.phone_verified',$user,[],$request,$user->id);
+            return response()->json(['message'=>'Phone verified.','data'=>['user'=>$this->userData($user->fresh(['roles','permissionOverrides.permission']))]]);
+        });
     }
 
     public function forgotPassword(Request $request): JsonResponse
@@ -396,10 +409,13 @@ class AuthController extends Controller
         $user = $this->findByLogin((string)$v['login']);
         if (! $user || $user->phone === null) throw ValidationException::withMessages(['code'=>['The recovery code is invalid or expired.']]);
         $this->verification->verify($user,VerificationChallenge::PURPOSE_PASSWORD_RESET,$user->phone,(string)$v['code']);
-        $user->forceFill(['password'=>Hash::make((string)$v['password'])])->save();
-        $this->tokens->revokeAll($user);
-        $this->audit->record($user,'auth.password_reset_completed',$user,[],$request,$user->id);
-        return response()->json(['message'=>'Password reset completed. Sign in again.']);
+        return DB::transaction(function () use ($user,$v,$request): JsonResponse {
+            $user=$this->lockAvailableUser($user,phone:$user->phone);
+            $user->forceFill(['password'=>Hash::make((string)$v['password'])])->save();
+            $this->tokens->revokeAll($user);
+            $this->audit->record($user,'auth.password_reset_completed',$user,[],$request,$user->id);
+            return response()->json(['message'=>'Password reset completed. Sign in again.']);
+        });
     }
 
     public function claimLegacyOwnership(Request $request): JsonResponse
@@ -456,14 +472,17 @@ class AuthController extends Controller
         }
         $this->rejectBlockedAccount($user);
         $this->verification->verify($user, VerificationChallenge::PURPOSE_EMAIL_LOGIN, $user->email, (string)$v['code']);
-        $this->completeLoginName($user, $v['name'] ?? null);
-        // Email proof does not verify a phone, activate publishing or grant a role.
-        $user->forceFill(['email_verified_at'=>now(), 'last_login_at'=>now()])->save();
-        $token = $this->tokens->issue($user, $request);
-        $this->audit->record($user, 'auth.email_verified_login', $user, [], $request, $user->id);
-        return response()->json(['message'=>'تم التحقق من البريد.', 'data'=>[
-            'user'=>$this->userData($user->fresh()), 'token'=>$token['plain_text_token'],
-            'token_expires_at'=>$token['expires_at'], 'legacy_listings_claimed'=>0]]);
+        return DB::transaction(function () use ($user,$v,$request): JsonResponse {
+            $user=$this->lockAvailableUser($user,email:$user->email);
+            $this->completeLoginName($user, $v['name'] ?? null);
+            // Email proof does not verify a phone, activate publishing or grant a role.
+            $user->forceFill(['email_verified_at'=>now(), 'last_login_at'=>now()])->save();
+            $token = $this->tokens->issue($user, $request);
+            $this->audit->record($user, 'auth.email_verified_login', $user, [], $request, $user->id);
+            return response()->json(['message'=>'تم التحقق من البريد.', 'data'=>[
+                'user'=>$this->userData($user->fresh()), 'token'=>$token['plain_text_token'],
+                'token_expires_at'=>$token['expires_at'], 'legacy_listings_claimed'=>0]]);
+        });
     }
 
     public function requestEmailVerification(Request $request): JsonResponse
@@ -487,9 +506,12 @@ class AuthController extends Controller
         $this->rejectBlockedAccount($user);
         $v = $request->validate(['code'=>['required','digits:6']]);
         $this->verification->verify($user, VerificationChallenge::PURPOSE_EMAIL, $user->email, (string)$v['code']);
-        $user->forceFill(['email_verified_at'=>now()])->save();
-        $this->audit->record($user, 'account.email_verified', $user, [], $request, $user->id);
-        return response()->json(['message'=>'تم تأكيد البريد.', 'data'=>['user'=>$this->userData($user->fresh())]]);
+        return DB::transaction(function () use ($user,$request): JsonResponse {
+            $user=$this->lockAvailableUser($user,email:$user->email);
+            $user->forceFill(['email_verified_at'=>now()])->save();
+            $this->audit->record($user, 'account.email_verified', $user, [], $request, $user->id);
+            return response()->json(['message'=>'تم تأكيد البريد.', 'data'=>['user'=>$this->userData($user->fresh())]]);
+        });
     }
 
     private function sendEmailChallenge(User $user, string $purpose): array
@@ -508,6 +530,16 @@ class AuthController extends Controller
         $key = 'email-otp:'.hash('sha256', $email);
         abort_if(RateLimiter::tooManyAttempts($key, 5), 429, 'طلبات كثيرة لهذا البريد. حاول لاحقًا.');
         RateLimiter::hit($key, 3600);
+    }
+
+    /** Call inside the completion transaction, after committed OTP attempts. */
+    private function lockAvailableUser(User $observed, ?string $phone = null, ?string $email = null): User
+    {
+        $current=User::query()->whereKey($observed->id)->lockForUpdate()->first();
+        abort_unless($current,403,'هذا الحساب غير متاح.');
+        $this->rejectBlockedAccount($current);
+        abort_if(($phone!==null && $current->phone!==$phone) || ($email!==null && $current->email!==$email),403,'تغيرت وسيلة التحقق. أعد بدء العملية.');
+        return $current;
     }
 
     private function rejectBlockedAccount(User $user): void

@@ -17,7 +17,7 @@ class VerificationCodeService
     public function create(User $user, string $purpose, string $destination, bool $allowUatCode = true): array
     {
         return DB::transaction(function () use ($user, $purpose, $destination, $allowUatCode) {
-        User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+        $this->lockAvailableIdentity($user,$destination);
         VerificationChallenge::query()
             ->where('user_id',$user->id)->where('purpose',$purpose)
             ->whereNull('consumed_at')->update(['consumed_at'=>now()]);
@@ -46,6 +46,8 @@ class VerificationCodeService
         // Commit failed-attempt counters as well as successful consumption, and
         // serialize replay attempts before the caller issues an API token.
         $error = DB::transaction(function () use ($user, $purpose, $destination, $code) {
+        // Same lock order as erasure and challenge creation: user, then child.
+        $this->lockAvailableIdentity($user,$destination);
         $challenge = VerificationChallenge::query()
             ->where('user_id',$user->id)->where('purpose',$purpose)
             ->where('destination',$destination)->whereNull('consumed_at')
@@ -65,6 +67,13 @@ class VerificationCodeService
         return null;
         });
         if ($error !== null) throw ValidationException::withMessages(['code'=>[$error]]);
+    }
+
+    private function lockAvailableIdentity(User $observed, string $destination): void
+    {
+        $current=User::query()->whereKey($observed->id)->lockForUpdate()->first();
+        abort_if(!$current || in_array($current->account_status,[User::STATUS_SUSPENDED,User::STATUS_BANNED,User::STATUS_DELETED],true),403,'هذا الحساب غير متاح.');
+        abort_unless($destination === $current->phone || $destination === $current->email,403,'تغيرت وسيلة التحقق. أعد بدء العملية.');
     }
 }
 
