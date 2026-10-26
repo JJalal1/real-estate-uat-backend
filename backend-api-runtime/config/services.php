@@ -67,7 +67,9 @@ return [
                 static fn ($value) => trim((string) $value),
                 array_merge(explode(',', (string) env('UAT_TEST_PHONE_NUMBERS', '')),
                     in_array(env('APP_ENV'), ['uat', 'staging'], true) && filter_var(env('UAT_WAVE3_FIXTURES_ENABLED', false), FILTER_VALIDATE_BOOLEAN)
-                        ? array_map(static fn ($suffix) => '+120255501'.str_pad((string) $suffix, 2, '0', STR_PAD_LEFT), [1,2,3,4,5,10,11,12,13,14,15]) : []),
+                        ? array_map(static fn ($suffix) => '+120255501'.str_pad((string) $suffix, 2, '0', STR_PAD_LEFT), [1,2,3,4,5,10,11,12,13,14,15]) : [],
+                    env('APP_ENV') === 'staging' && filter_var(env('UAT_OWNER_ACCEPTANCE_FIXTURES_ENABLED', false), FILTER_VALIDATE_BOOLEAN)
+                        ? ['+12025550149'] : []),
             ))),
         ],
     ],

@@ -63,7 +63,7 @@ php artisan config:cache
 # Production/foreign Storage/foreign origins and persists a DB audit marker
 # before creating any fixture, so Free-service wakes never replay the run.
 # It uses ordinary HTTP routes and revokes every generated short-lived token.
-if [ "${UAT_EXECUTIVE_JOURNEY_RUN:-}" = "2026-10-25-109-v4" ]; then
+if [ "${UAT_EXECUTIVE_JOURNEY_RUN:-}" = "2026-10-26-109-v5" ]; then
   (
     ready=false
     for attempt in $(seq 1 60); do
@@ -74,7 +74,15 @@ if [ "${UAT_EXECUTIVE_JOURNEY_RUN:-}" = "2026-10-25-109-v4" ]; then
       sleep 1
     done
     if [ "$ready" = "true" ]; then
-      php artisan uat:role-journeys --run="$UAT_EXECUTIVE_JOURNEY_RUN" --base-url="http://127.0.0.1:${listen_port}"
+      # Finish the bounded regression before owner fixtures, avoiding concurrent
+      # image encoders/OTP throttles on the shared Free UAT service.
+      if php artisan uat:role-journeys --run="$UAT_EXECUTIVE_JOURNEY_RUN" --base-url="http://127.0.0.1:${listen_port}"; then
+        if [ "${UAT_OWNER_ACCEPTANCE_RUN:-}" = "2026-10-26-owner-v1" ]; then
+          php artisan uat:owner-acceptance-preflight --run="$UAT_OWNER_ACCEPTANCE_RUN" --base-url="http://127.0.0.1:${listen_port}"
+        fi
+      else
+        echo 'AQER_UAT_ROLE_JOURNEYS execution-failed; owner preparation not started'
+      fi
     else
       echo 'AQER_UAT_ROLE_JOURNEYS readiness-failed; no fixtures created'
     fi
