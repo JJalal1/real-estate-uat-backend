@@ -11,7 +11,12 @@ class ListingImageEncodingGate
     {
         // Keep the inode: unlinking a released lock permits two independent
         // locks on different inodes. Kernel locks are released on process exit.
-        $file=@fopen(storage_path('framework/cache/listing-image-encoding.lock'),'c');
+        $path=storage_path('framework/cache/listing-image-encoding.lock');
+        $file=@fopen($path,'c');
+        // CLI preparation may create a root-owned readable inode. flock on
+        // Linux local storage does not need to write the file's contents.
+        // Reuse that same inode; never unlink it or bypass the lock.
+        if ($file===false) $file=@fopen($path,'r');
         if ($file===false) throw $this->busy();
         try {
             if (! flock($file,LOCK_EX|LOCK_NB)) throw $this->busy();
