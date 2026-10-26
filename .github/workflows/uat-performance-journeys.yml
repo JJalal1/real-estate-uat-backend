@@ -7,8 +7,8 @@ on:
       - '.github/workflows/uat-performance-journeys.yml'
       - 'backend-api-runtime/**'
 concurrency:
-  group: uat-safe-performance-probe
-  cancel-in-progress: false
+  group: uat-performance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -79,6 +79,11 @@ jobs:
         working-directory: .
         run: bash scripts/run_role_journeys_ci.sh
   read-only-performance:
+    # All read-only probes share the same limited Free UAT runtime.
+    concurrency:
+      group: aqer-free-uat-http-measurements
+      queue: max
+      cancel-in-progress: false
     name: Bounded real UAT cold and warm measurements
     runs-on: ubuntu-latest
     timeout-minutes: 8
