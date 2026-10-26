@@ -14,7 +14,9 @@ Uri? verifiedAndroidStoreUri(Object? raw, {String? expectedPackage}) {
   if (uri == null || uri.userInfo.isNotEmpty || uri.hasFragment) return null;
   final ids = uri.queryParametersAll['id'];
   if (ids == null || ids.length != 1 || ids.single.trim().isEmpty ||
-      (expectedPackage != null && ids.single != expectedPackage)) return null;
+      (expectedPackage != null && ids.single != expectedPackage)) {
+    return null;
+  }
   if (uri.scheme == 'https' &&
       uri.port == 443 &&
       uri.host.toLowerCase() == 'play.google.com' &&
