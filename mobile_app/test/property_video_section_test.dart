@@ -49,12 +49,10 @@ void main() {
   });
 
   testWidgets('backgrounding disposes playback and resuming requires another explicit play', (tester) async {
-    debugDefaultTargetPlatformOverride=TargetPlatform.android;
     final messenger=TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(SystemChannels.platform_views,(call) async => call.method=='create' ? 42 : null);
     addTearDown(() {
       messenger.setMockMethodCallHandler(SystemChannels.platform_views,null);
-      debugDefaultTargetPlatformOverride=null;
     });
     const video=PropertyVideoItem(id:71,posterUrl:'https://example.test/poster',streamUrl:'https://example.test/stream');
     await tester.pumpWidget(const MaterialApp(home:Scaffold(body:PropertyVideoSection(video:video))));
@@ -67,5 +65,5 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     expect(find.byType(AndroidView),findsNothing);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 }
