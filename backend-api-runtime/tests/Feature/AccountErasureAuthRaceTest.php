@@ -56,7 +56,7 @@ class AccountErasureAuthRaceTest extends TestCase
 
     public function test_erasure_between_email_otp_and_login_completion_cannot_issue_a_session(): void
     {
-        $user=$this->user();$email=$user->email;
+        $user=$this->user();$user->forceFill(['email_verified_at'=>now()])->save();$email=$user->email;
         $this->mock(VerificationCodeService::class)->shouldReceive('verify')->once()->andReturnUsing(fn ()=>$this->erase($user));
         $this->postJson('/api/auth/email/login',['email'=>$email,'code'=>'123456'])->assertForbidden();
         $this->assertSame(User::STATUS_DELETED,$user->fresh()->account_status);
