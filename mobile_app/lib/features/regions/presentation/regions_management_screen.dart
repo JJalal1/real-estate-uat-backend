@@ -423,7 +423,8 @@ class _RegionsManagementScreenState
             ? const Center(child: CircularProgressIndicator())
             : _error != null
                 ? AppErrorState(message: _error!, onRetry: _load)
-                : Column(children: [
+                : CustomScrollView(slivers: [
+                    SliverToBoxAdapter(child: Column(children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                       child: Row(children: [
@@ -452,11 +453,11 @@ class _RegionsManagementScreenState
                         ],
                       ]),
                     ),
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                       child: Text(
                         'هذه المناطق لإدارة البيانات الجغرافية والعناوين فقط، ولا يتم تعيين دلال لمنطقة أو مربع.',
-                        style: TextStyle(color: Colors.black54),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ),
                     Padding(
@@ -516,12 +517,13 @@ class _RegionsManagementScreenState
                                 label:
                                     const Text('رسم خلية جديدة على الخريطة')),
                       ),
-                    Expanded(
-                      child: _cells.isEmpty
-                          ? const Center(
-                              child: Text('لا توجد خلايا في هذه المحافظة بعد.'))
-                          : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(10, 0, 10, 24),
+                    ])),
+                    if (_cells.isEmpty)
+                      const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(24),
+                        child: Text('لا توجد خلايا في هذه المحافظة بعد.')))
+                    else
+                      SliverPadding(padding: const EdgeInsets.fromLTRB(10, 0, 10, 24),
+                        sliver: SliverList.builder(
                               itemCount: _cells.length,
                               itemBuilder: (context, index) {
                                 final cell = _cells[index];
@@ -566,8 +568,7 @@ class _RegionsManagementScreenState
                                   ),
                                 );
                               },
-                            ),
-                    ),
+                            )),
                   ]),
       ),
     );
