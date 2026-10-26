@@ -21,7 +21,9 @@ def run(args, *, data=None, output=None, check=True):
                             stderr=subprocess.PIPE, timeout=180)
     if check and result.returncode:
         # All inputs are synthetic, but still keep stderr out of public logs.
-        raise RuntimeError(f"drill command failed: {args[0]} ({result.returncode})")
+        # This executable accepts only fixed synthetic fixtures and no secrets.
+        detail=result.stderr.decode(errors='replace')[-1200:]
+        raise RuntimeError(f"synthetic drill command failed: {args[0]} ({result.returncode}): {detail}")
     return result
 
 
@@ -90,7 +92,9 @@ def main():
                  '-e', 'POSTGRES_HOST_AUTH_METHOD=trust',
                  '-e', 'POSTGRES_DB=recovery_drill', args.image])
             deadline = time.monotonic() + 45
-            while run(['docker', 'exec', name, 'pg_isready', '-U', 'postgres',
+            # The image's initialization server opens a Unix socket before
+            # extensions and fixtures are ready. Only its final server opens TCP.
+            while run(['docker', 'exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres',
                        '-d', 'recovery_drill'], check=False).returncode:
                 if time.monotonic() > deadline:
                     raise RuntimeError('disposable database readiness deadline')
