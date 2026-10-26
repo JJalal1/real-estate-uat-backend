@@ -98,10 +98,15 @@ class UatPerformanceRegressionTest extends TestCase
                 'address'=>'إب','status'=>'published','review_status'=>'approved','published_at'=>now()]);
             $expected[$property->id]=(float)$property->price;
         }
-        DB::connection()->enableQueryLog();DB::connection()->flushQueryLog();
+        $receivableReads=[];
+        DB::connection()->enableQueryLog();
         try {
-            $response=$this->getJson('/api/properties?per_page=20')->assertOk();
-            $queries=DB::getQueryLog();
+            foreach([1,20] as $pageSize) {
+                DB::connection()->flushQueryLog();
+                $response=$this->getJson('/api/properties?per_page='.$pageSize)->assertOk();
+                $queries=DB::getQueryLog();
+                $receivableReads[$pageSize]=count(array_filter($queries,fn ($q)=>str_contains($q['query'],'from "property_platform_receivables"')));
+            }
         } finally { DB::connection()->disableQueryLog(); }
         $this->assertCount(20,$response->json('data'));
         foreach($response->json('data') as $row) {
@@ -109,10 +114,11 @@ class UatPerformanceRegressionTest extends TestCase
             $this->assertEquals($expected[$row['id']],$row['display_price']);
             $this->assertFalse($row['financial_hold']);
         }
-        $reads=array_filter($queries,fn ($q)=>str_contains($q['query'],'from "property_platform_receivables"'));
-        $this->assertLessThanOrEqual(4,count($reads));
+        // Includes the public eligibility predicates in SELECT and COUNT as
+        // well as enrichment. Increasing owners must add no receivable reads.
+        $this->assertLessThanOrEqual($receivableReads[1],$receivableReads[20]);
         $this->assertLessThanOrEqual(25,count($queries));
-        fwrite(STDOUT,"\nAQER_DISTINCT_OWNER_QUERIES ".json_encode(['owners'=>20,'queries'=>count($queries),'receivable_reads'=>count($reads)])."\n");
+        fwrite(STDOUT,"\nAQER_DISTINCT_OWNER_QUERIES ".json_encode(['owners'=>20,'queries'=>count($queries),'receivable_reads_by_page_size'=>$receivableReads])."\n");
     }
 
     public function test_nearby_measurement_preserves_compact_primary_photo_summaries(): void
