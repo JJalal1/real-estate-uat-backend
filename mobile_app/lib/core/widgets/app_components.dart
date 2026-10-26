@@ -376,8 +376,7 @@ class AppLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
+    final content = Padding(
         padding: const EdgeInsetsDirectional.all(AppSpacing.s24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -387,8 +386,9 @@ class AppLoadingState extends StatelessWidget {
             Text(label, textAlign: TextAlign.center),
           ],
         ),
-      ),
-    );
+      );
+    return LayoutBuilder(builder: (context, constraints) => Center(
+      child: constraints.hasBoundedHeight ? SingleChildScrollView(child: content) : content));
   }
 }
 

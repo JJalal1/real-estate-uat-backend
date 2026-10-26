@@ -211,6 +211,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
             Row(children: [
               Expanded(
                   child: DropdownButtonFormField<String?>(
+                isExpanded: true,
                 value: _kind,
                 decoration: const InputDecoration(labelText: 'النوع'),
                 items: const [
@@ -227,6 +228,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
               const SizedBox(width: 8),
               Expanded(
                   child: DropdownButtonFormField<String?>(
+                isExpanded: true,
                 value: _status,
                 decoration: const InputDecoration(labelText: 'الحالة'),
                 items: const [

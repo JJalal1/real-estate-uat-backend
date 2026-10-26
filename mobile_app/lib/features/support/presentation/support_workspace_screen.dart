@@ -180,16 +180,11 @@ class _SupportMetrics extends StatelessWidget {
       ('بلاغات جديدة', summary.newReports, Icons.report_problem_outlined),
       ('قيد المعالجة', summary.inProgress, Icons.autorenew),
     ];
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 1.9,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8),
-      itemCount: rows.length,
-      itemBuilder: (_, i) => Card(
+    return LayoutBuilder(builder: (context, constraints) {
+      final columns = MediaQuery.textScalerOf(context).scale(14) > 20 ? 1 : 2;
+      final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+      return Wrap(spacing: 8, runSpacing: 8, children: [
+        for (var i = 0; i < rows.length; i++) SizedBox(width: width, child: Card(
           child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(children: [
@@ -205,7 +200,8 @@ class _SupportMetrics extends StatelessWidget {
                               fontSize: 22, fontWeight: FontWeight.w600)),
                       Text(rows[i].$1)
                     ])),
-              ]))),
-    );
+              ])))),
+      ]);
+    });
   }
 }
