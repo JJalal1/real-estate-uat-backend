@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only verification of the APK produced by the required UAT gates."""
 import base64
+import argparse
 import hashlib
 import json
 import os
@@ -15,7 +16,10 @@ import zipfile
 repo = os.environ['GITHUB_REPOSITORY']
 source = os.environ['SOURCE_COMMIT']
 run = int(os.environ['GITHUB_RUN_NUMBER'])
-version = 1000 + run
+parser = argparse.ArgumentParser()
+parser.add_argument('--upgrade-predecessor', action='store_true')
+args = parser.parse_args()
+version = 1000 + run - int(args.upgrade_predecessor)
 token = os.environ['APK_VERIFY_TOKEN']
 root = f'https://api.github.com/repos/{repo}'
 headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
@@ -34,9 +38,9 @@ if not repository['private']:
     assert policy['visibility'] == 'public' and policy['apk_delivery'] == 'recipient-encrypted-cms-only'
     assert policy['plaintext_public_artifacts'] is False
     assert hashlib.sha256(Path(policy['recipient_certificate']).read_bytes()).hexdigest() == policy['recipient_sha256']
-apk = Path(f'dist/real-estate-broker-uat-{run}.apk')
+apk = Path('dist/uat-upgrade-predecessor.apk') if args.upgrade_predecessor else Path(f'dist/real-estate-broker-uat-{run}.apk')
 digest = hashlib.sha256(apk.read_bytes()).hexdigest()
-expected = Path('dist/SHA256.txt').read_text().split()[0]
+expected = Path('dist/UPGRADE_PREDECESSOR_SHA256.txt' if args.upgrade_predecessor else 'dist/SHA256.txt').read_text().split()[0]
 assert digest == expected
 info = dict(line.split('=', 1) for line in Path('dist/BUILD_INFO.txt').read_text().splitlines() if '=' in line)
 assert info['source_commit'] == info['backend_expected_commit'] == source
@@ -109,6 +113,7 @@ evidence = {'source_commit': source, 'version_code': version, 'sha256': digest, 
     'package': 'com.example.real_estate_mobile', 'api': api_url, 'architectures': sorted(libraries),
     'brand_assets_match': len(brand_paths), 'fonts_match': 5, 'zip_crc': 'passed', 'apksigner': 'passed', 'certificate_sha256': certificate,
     'handset_acceptance': 'pending'}
-Path('dist/APK_VERIFICATION.json').write_text(json.dumps(evidence, indent=2) + '\n')
+evidence['package_role'] = 'upgrade-predecessor-same-source' if args.upgrade_predecessor else 'current-uat'
+Path('dist/UPGRADE_PREDECESSOR_VERIFICATION.json' if args.upgrade_predecessor else 'dist/APK_VERIFICATION.json').write_text(json.dumps(evidence, indent=2) + '\n')
 print(json.dumps(evidence))
 
