@@ -20,6 +20,11 @@ jobs:
           persist-credentials: false
       - name: Build exact GD runtime
         run: docker build -t aqer-24mp -f backend-api-runtime/Dockerfile.uat backend-api-runtime
+      - name: CLI and web workers retain the same exclusive lock inode
+        run: >-
+          docker run --rm -v "$PWD/backend-api-runtime/tests:/var/www/html/tests:ro" --entrypoint php
+          -e APP_ENV=testing -e APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          aqer-24mp tests/Support/probe_encoder_users.php
       - name: Measure accepted 24MP originals with bounded CPU and memory
         run: |
           docker run --name aqer-24mp-probe --memory=512m --memory-swap=512m --cpus=1 -v "$PWD/backend-api-runtime/tests:/var/www/html/tests:ro" --entrypoint php -e APP_ENV=testing -e APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= aqer-24mp tests/Support/probe_large_images.php
