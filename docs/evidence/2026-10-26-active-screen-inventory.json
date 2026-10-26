@@ -1,0 +1,983 @@
+{
+  "method": "Public screen declarations in router/shell import closure, constructor used elsewhere in app; references do not imply behavioral coverage. Native gesture/permission/IME acceptance remains manual.",
+  "screens": [
+    {
+      "screen": "AccessControlScreen",
+      "path": "mobile_app/lib/features/account/presentation/access_control_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart",
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AccountSafetyScreen",
+      "path": "mobile_app/lib/features/account/presentation/account_safety_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "wave2_trust_account_media_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AccountScreen",
+      "path": "mobile_app/lib/features/account/presentation/account_screen.dart",
+      "calls_in_source": 5,
+      "tests_referencing_class": [
+        "ui_transplant_v3_template_test.dart",
+        "in_app_voice_search_test.dart",
+        "broker_experience_ui_test.dart",
+        "account_tools_integration_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AccountVerificationAdminScreen",
+      "path": "mobile_app/lib/features/account/presentation/account_verification_admin_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart",
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AccountVerificationScreen",
+      "path": "mobile_app/lib/features/account/presentation/account_verification_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "wave3_personal_listing_test.dart",
+        "loading_recovery_test.dart",
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AuthScreen",
+      "path": "mobile_app/lib/features/account/presentation/auth_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "listing_design_wave_test.dart",
+        "ui_transplant_v3_template_test.dart",
+        "compact_cards_email_login_test.dart",
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerAccountVerificationScreen",
+      "path": "mobile_app/lib/features/account/presentation/broker_account_verification_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerVerificationAdminScreen",
+      "path": "mobile_app/lib/features/account/presentation/broker_verification_admin_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart",
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "CompleteProfileScreen",
+      "path": "mobile_app/lib/features/account/presentation/complete_profile_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "ForgotPasswordScreen",
+      "path": "mobile_app/lib/features/account/presentation/forgot_password_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "PhoneVerificationScreen",
+      "path": "mobile_app/lib/features/account/presentation/phone_verification_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "ui_transplant_v3_template_test.dart",
+        "compact_cards_email_login_test.dart",
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "ProfileScreen",
+      "path": "mobile_app/lib/features/account/presentation/profile_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "broker_experience_ui_test.dart",
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AdminDashboardScreen",
+      "path": "mobile_app/lib/features/admin/presentation/admin_dashboard_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "loading_recovery_test.dart",
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AuditLogScreen",
+      "path": "mobile_app/lib/features/admin/presentation/audit_log_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerAccountsScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_accounts_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart",
+        "uat_three_role_workspaces_test.dart",
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerAdministrationFinancialHubScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_finance_hubs.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "financial_v1_contract_test.dart",
+        "uat_three_role_workspaces_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerReportsFinancialHubScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_finance_hubs.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "financial_v1_contract_test.dart",
+        "uat_three_role_workspaces_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerPaymentMethodsScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_finance_screens.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerFinanceWorkspaceScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_finance_screens.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerHomeScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_pages.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerMarketScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_pages.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart",
+        "uat_three_role_workspaces_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerAdministrationScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_pages.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerReportsScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_pages.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerTeamScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_pages.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart",
+        "uat_three_role_workspaces_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "GeneralManagerMapScreen",
+      "path": "mobile_app/lib/features/admin/presentation/general_manager_pages.dart",
+      "calls_in_source": 3,
+      "tests_referencing_class": [],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": true,
+      "classification": "native-owner-acceptance"
+    },
+    {
+      "screen": "PlatformSettingsScreen",
+      "path": "mobile_app/lib/features/admin/presentation/platform_settings_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "secondary_admin_recovery_test.dart",
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AgreementDetailScreen",
+      "path": "mobile_app/lib/features/agreements/presentation/agreement_detail_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "private_journey_actor_scope_test.dart",
+        "buyer_loading_recovery_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AgreementsScreen",
+      "path": "mobile_app/lib/features/agreements/presentation/agreements_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "buyer_loading_recovery_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "RentalContractDetailScreen",
+      "path": "mobile_app/lib/features/agreements/presentation/rental_contract_detail_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "private_journey_actor_scope_test.dart",
+        "buyer_loading_recovery_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AppShellScreen",
+      "path": "mobile_app/lib/features/app_shell/presentation/app_shell_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "wave6_product_ui_test.dart",
+        "ui_transplant_v3_template_test.dart",
+        "broker_experience_ui_test.dart",
+        "new_wave_handoff_test.dart",
+        "template_creation_menu_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerActivityScreen",
+      "path": "mobile_app/lib/features/broker/presentation/broker_activity.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerDealScreen",
+      "path": "mobile_app/lib/features/broker/presentation/broker_activity.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "broker_experience_ui_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerFinanceScreen",
+      "path": "mobile_app/lib/features/broker/presentation/broker_activity.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "broker_experience_ui_test.dart",
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerDirectoryScreen",
+      "path": "mobile_app/lib/features/broker/presentation/broker_directory.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "broker_experience_ui_test.dart",
+        "owner_active_screen_states_test.dart",
+        "active_wave_discovery_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerPublicProfileScreen",
+      "path": "mobile_app/lib/features/broker/presentation/broker_directory.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "broker_experience_ui_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerDashboardScreen",
+      "path": "mobile_app/lib/features/broker/presentation/broker_workspaces.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "listing_design_wave_test.dart",
+        "broker_experience_ui_test.dart",
+        "owner_active_screen_states_test.dart",
+        "broker_convenience_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerCustomersScreen",
+      "path": "mobile_app/lib/features/broker/presentation/broker_workspaces.dart",
+      "calls_in_source": 3,
+      "tests_referencing_class": [
+        "loading_recovery_test.dart",
+        "broker_experience_ui_test.dart",
+        "new_wave_handoff_test.dart",
+        "owner_active_screen_states_test.dart",
+        "broker_convenience_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "BrokerAvailabilityScreen",
+      "path": "mobile_app/lib/features/broker/presentation/broker_workspaces.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "broker_experience_ui_test.dart",
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "ListingCommunityScreen",
+      "path": "mobile_app/lib/features/community/presentation/listing_community_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AssistedSearchScreen",
+      "path": "mobile_app/lib/features/discovery/presentation/assisted_search_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "wave6_product_ui_test.dart",
+        "ux_refinement_test.dart",
+        "search_query_wave_test.dart",
+        "in_app_voice_search_test.dart",
+        "live_dictation_test.dart",
+        "smart_search_pagination_recovery_test.dart",
+        "wave3_ai_design_ui_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "MarketplaceHomeScreen",
+      "path": "mobile_app/lib/features/discovery/presentation/marketplace_home_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "ui_transplant_v3_template_test.dart",
+        "in_app_voice_search_test.dart",
+        "current_wave_ui_test.dart",
+        "viewport_network_measurement_test.dart",
+        "wave3_ai_design_ui_test.dart",
+        "ui_transplant_v3_home_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "MarketplaceSectionScreen",
+      "path": "mobile_app/lib/features/discovery/presentation/marketplace_section_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "discovery_http_acceptance_test.dart",
+        "loading_recovery_test.dart",
+        "wave2_trust_account_media_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "DealFinancialScreen",
+      "path": "mobile_app/lib/features/financial/presentation/deal_financial_screen.dart",
+      "calls_in_source": 3,
+      "tests_referencing_class": [
+        "account_tools_integration_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "FinancialAccountScreen",
+      "path": "mobile_app/lib/features/financial/presentation/financial_account_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "account_tools_integration_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "ReceivablePaymentScreen",
+      "path": "mobile_app/lib/features/financial/presentation/receivable_payment_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "account_tools_integration_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "MapScreen",
+      "path": "mobile_app/lib/features/map/presentation/map_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "wave6_product_ui_test.dart",
+        "uat_map_location_picker_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": true,
+      "classification": "native-owner-acceptance"
+    },
+    {
+      "screen": "ConversationReportsScreen",
+      "path": "mobile_app/lib/features/messages/presentation/conversation_reports_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "ConversationScreen",
+      "path": "mobile_app/lib/features/messages/presentation/conversation_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "private_journey_actor_scope_test.dart",
+        "loading_recovery_test.dart",
+        "ui_transplant_v3_template_test.dart",
+        "uat_navigation_integrity_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "MessagesScreen",
+      "path": "mobile_app/lib/features/messages/presentation/messages_screen.dart",
+      "calls_in_source": 7,
+      "tests_referencing_class": [
+        "loading_recovery_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "NotificationPreferencesScreen",
+      "path": "mobile_app/lib/features/messages/presentation/notification_preferences_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "account_tools_integration_test.dart",
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "NotificationsScreen",
+      "path": "mobile_app/lib/features/messages/presentation/notifications_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "ux_refinement_test.dart",
+        "owner_active_screen_states_test.dart",
+        "uat_notification_actions_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AddPropertyWizardScreen",
+      "path": "mobile_app/lib/features/properties/presentation/add_property_wizard_screen.dart",
+      "calls_in_source": 4,
+      "tests_referencing_class": [],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "compatibility-delegate",
+      "delegates_to": "ListingDraftEntryScreen"
+    },
+    {
+      "screen": "FavoritesScreen",
+      "path": "mobile_app/lib/features/properties/presentation/favorites_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "listing_design_wave_test.dart",
+        "ui_transplant_v3_template_test.dart",
+        "phase3_favorites_screen_test.dart",
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "ListingDraftEntryScreen",
+      "path": "mobile_app/lib/features/properties/presentation/listing_draft_entry_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "wave6_product_ui_test.dart",
+        "loading_recovery_test.dart",
+        "uat_listing_publish_viewing_flow_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "ListingEditorScreen",
+      "path": "mobile_app/lib/features/properties/presentation/listing_editor_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "wave6_product_ui_test.dart",
+        "ux_refinement_test.dart",
+        "ui_transplant_v3_template_test.dart",
+        "current_wave_ui_test.dart",
+        "new_wave_handoff_test.dart",
+        "broker_listing_assistant_test.dart",
+        "broker_convenience_test.dart",
+        "user_work_media_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "MyListingsScreen",
+      "path": "mobile_app/lib/features/properties/presentation/my_listings_screen.dart",
+      "calls_in_source": 3,
+      "tests_referencing_class": [
+        "loading_recovery_test.dart",
+        "ui_transplant_v3_template_test.dart",
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "PropertyCompareScreen",
+      "path": "mobile_app/lib/features/properties/presentation/property_compare_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "wave6_product_ui_test.dart",
+        "active_wave_discovery_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "PropertyDetailsScreen",
+      "path": "mobile_app/lib/features/properties/presentation/property_details_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "loading_recovery_test.dart",
+        "ui_transplant_v3_template_test.dart",
+        "owner_share_release_test.dart",
+        "uat_comments_fix_test.dart",
+        "active_wave_discovery_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "PropertyLandBoundaryPickerScreen",
+      "path": "mobile_app/lib/features/properties/presentation/property_land_boundary_picker_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": true,
+      "classification": "native-owner-acceptance"
+    },
+    {
+      "screen": "PropertyLocationPickerScreen",
+      "path": "mobile_app/lib/features/properties/presentation/property_location_picker_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": true,
+      "classification": "native-owner-acceptance"
+    },
+    {
+      "screen": "RecentPropertiesScreen",
+      "path": "mobile_app/lib/features/properties/presentation/recent_properties_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SavedSearchBuilderScreen",
+      "path": "mobile_app/lib/features/properties/presentation/saved_search_builder_screen.dart",
+      "calls_in_source": 3,
+      "tests_referencing_class": [
+        "product_ux_current_search_save_test.dart",
+        "account_tools_integration_test.dart",
+        "product_ux_saved_search_edit_test.dart",
+        "saved_search_persistence_ui_test.dart",
+        "active_wave_discovery_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SavedSearchesScreen",
+      "path": "mobile_app/lib/features/properties/presentation/saved_searches_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SavedSearchResultsScreen",
+      "path": "mobile_app/lib/features/properties/presentation/saved_searches_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "actor-bound-results-page",
+      "source_review": "Loading/empty/error/direct revision retry and account binding inspected; owner exercises saved search navigation."
+    },
+    {
+      "screen": "PlatformRegionsScreen",
+      "path": "mobile_app/lib/features/regions/presentation/platform_regions_screen.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": true,
+      "classification": "native-owner-acceptance"
+    },
+    {
+      "screen": "RegionsManagementScreen",
+      "path": "mobile_app/lib/features/regions/presentation/regions_management_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": true,
+      "classification": "native-owner-acceptance"
+    },
+    {
+      "screen": "ListingReviewScreen",
+      "path": "mobile_app/lib/features/reviews/presentation/listing_review_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "compatibility-delegate",
+      "delegates_to": "ListingReviewWorkspaceScreen"
+    },
+    {
+      "screen": "ListingReviewWorkspaceScreen",
+      "path": "mobile_app/lib/features/reviews/presentation/listing_review_workspace_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "uat_listing_support_claim_ux_test.dart",
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "ListingReviewCaseScreen",
+      "path": "mobile_app/lib/features/reviews/presentation/listing_review_workspace_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_secondary_privacy_layout_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "nested-private-review-regression-added-PR158"
+    },
+    {
+      "screen": "ProfessionalWorkspaceScreen",
+      "path": "mobile_app/lib/features/services/presentation/professional_workspace_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "compatibility-delegate",
+      "delegates_to": "BrokerDashboardScreen"
+    },
+    {
+      "screen": "PropertyJourneyScreen",
+      "path": "mobile_app/lib/features/services/presentation/property_journey_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "account_tools_integration_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "ServicesScreen",
+      "path": "mobile_app/lib/features/services/presentation/services_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "account_tools_integration_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "AccountVerificationSupportScreen",
+      "path": "mobile_app/lib/features/support/presentation/account_verification_support_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SupportAdminScreen",
+      "path": "mobile_app/lib/features/support/presentation/support_admin_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "loading_recovery_test.dart",
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SupportCenterScreen",
+      "path": "mobile_app/lib/features/support/presentation/support_center_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SupportTasksScreen",
+      "path": "mobile_app/lib/features/support/presentation/support_tasks_screen.dart",
+      "calls_in_source": 25,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart",
+        "uat_three_role_workspaces_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SupportUsersScreen",
+      "path": "mobile_app/lib/features/support/presentation/support_users_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SupportWorkLogScreen",
+      "path": "mobile_app/lib/features/support/presentation/support_work_log_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SupportAgentHomeScreen",
+      "path": "mobile_app/lib/features/support/presentation/support_workspace_pages.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SupportManagerHomeScreen",
+      "path": "mobile_app/lib/features/support/presentation/support_workspace_pages.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SupportTeamScreen",
+      "path": "mobile_app/lib/features/support/presentation/support_workspace_pages.dart",
+      "calls_in_source": 2,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart",
+        "uat_three_role_workspaces_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    },
+    {
+      "screen": "SupportWorkspaceScreen",
+      "path": "mobile_app/lib/features/support/presentation/support_workspace_screen.dart",
+      "calls_in_source": 1,
+      "tests_referencing_class": [
+        "owner_active_screen_states_test.dart"
+      ],
+      "reference_is_not_coverage_proof": true,
+      "native_acceptance_required": false,
+      "classification": "direct-class-reference-only"
+    }
+  ]
+}

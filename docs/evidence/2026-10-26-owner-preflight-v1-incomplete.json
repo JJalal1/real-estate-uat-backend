@@ -1,0 +1,94 @@
+{
+  "id": 894,
+  "created_at": "2026-10-26 12:08:06",
+  "result": {
+    "run": "2026-10-26-owner-v1",
+    "fixture_only": true,
+    "property_ids": [
+      60,
+      61,
+      62
+    ],
+    "created_at": "2026-10-26T12:07:51+00:00",
+    "owner_erasure_user_id": 66,
+    "failure_class": "RuntimeException",
+    "status": "incomplete",
+    "probe_sessions_revoked": true,
+    "cases": [
+      {
+        "case": "otp_start_user",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_user",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_user",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_start_advertiser",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_advertiser",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_advertiser",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_start_broker",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_login_broker",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "current_actor_broker",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "validation_fields": []
+      },
+      {
+        "case": "otp_start_reviewer",
+        "status": 429,
+        "expected": 200,
+        "passed": false,
+        "validation_fields": []
+      }
+    ],
+    "elapsed_ms": 15527,
+    "handset_acceptance": false,
+    "fixtures_retained_for_owner": true
+  }
+}
+
