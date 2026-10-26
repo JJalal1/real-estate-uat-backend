@@ -50,6 +50,8 @@ services:
         sync: false
       - key: SUPABASE_STORAGE_BUCKET
         value: real-estate-uat
+      - key: SUPABASE_VIDEO_STORAGE_BUCKET
+        sync: false
       - key: UAT_PRIVATE_STORAGE_PREFIX
         value: private
       - key: UAT_STORAGE_CONNECT_TIMEOUT

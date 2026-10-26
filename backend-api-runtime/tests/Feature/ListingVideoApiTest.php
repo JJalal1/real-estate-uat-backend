@@ -352,5 +352,36 @@ class ListingVideoApiTest extends TestCase
         $this->assertSame('newer-accepted-poster',Storage::disk('local')->get($ready->poster_path));
     }
 
+    public function test_listing_deletion_preserves_video_paths_on_failure_and_rejects_an_active_writer(): void
+    {
+        config(['listing_video.uploads_enabled'=>true,'services.supabase_storage.enabled'=>false]);
+        Storage::fake('local');
+        $storage=new class extends CloudAssetStorageService {
+            public bool $fail=false;
+            public function deletePrivate(string $path): void {
+                if($this->fail) throw new \RuntimeException('synthetic-video-delete-failure');
+                parent::deletePrivate($path);
+            }
+        };
+        app()->instance(CloudAssetStorageService::class,$storage);
+        [$owner,$headers]=$this->actor('listing-delete');$property=$this->property($owner);
+        $url='/api/properties/'.$property->id;
+        $this->withHeaders($headers)->post($url.'/video',['upload_id'=>(string)Str::uuid(),'video'=>$this->video()])->assertStatus(202);
+        $video=ListingVideo::query()->firstOrFail();$video->update(['status'=>'processing']);
+        $this->withHeaders($headers)->deleteJson($url)->assertStatus(409);
+        $video->update(['status'=>'failed','attempts'=>1]);
+        [$partial]=$video->derivativePathsForAttempt(1);Storage::disk('local')->put($partial,'partial');
+        $storage->fail=true;
+        $this->withHeaders($headers)->deleteJson($url)->assertStatus(500);
+        $this->assertDatabaseHas('properties',['id'=>$property->id]);
+        $this->assertDatabaseHas('listing_videos',['id'=>$video->id]);
+        $storage->fail=false;
+        $this->withHeaders($headers)->deleteJson($url)->assertOk();
+        $this->assertDatabaseMissing('properties',['id'=>$property->id]);
+        $this->assertDatabaseCount('listing_videos',0);
+        Storage::disk('local')->assertMissing($video->original_path);
+        Storage::disk('local')->assertMissing($partial);
+    }
+
 
 }

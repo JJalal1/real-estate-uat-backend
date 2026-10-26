@@ -45,6 +45,8 @@ return [
         // Must never expose the separate server_key in TUS client requests.
         'publishable_key' => env('SUPABASE_STORAGE_PUBLISHABLE_KEY'),
         'bucket' => env('SUPABASE_STORAGE_BUCKET', 'real-estate-uat'),
+        // Video admission must not widen the image/TUS bucket's 8MiB limit.
+        'video_bucket' => env('SUPABASE_VIDEO_STORAGE_BUCKET'),
         'public_prefix' => env('UAT_PUBLIC_STORAGE_PREFIX', 'public'),
         'private_prefix' => env('UAT_PRIVATE_STORAGE_PREFIX', 'private'),
         'connect_timeout' => (int) env('UAT_STORAGE_CONNECT_TIMEOUT', 15),

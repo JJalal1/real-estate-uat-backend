@@ -393,17 +393,25 @@ class PropertyController extends Controller
     {
         /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);
         if(in_array($property->review_status,['submitted','under_review','rejected_blocked'],true)) abort(409,'This listing cannot be deleted in its current review state.');
-        $images=$property->images()->get();$docs=$property->documents()->get();
-        $videos = \Illuminate\Support\Facades\Schema::hasTable('listing_videos') ? $property->videos()->get() : collect();
-        DB::transaction(function()use($property,$user,$request):void{$this->identity->releaseRepresentationForListing($property);$property->delete();$this->audit->record($user,'listing.deleted',$property,['property_asset_id'=>$property->property_asset_id],$request,$user->id);});
-        $this->deleteImageFiles($images);$this->deleteProofFiles($docs);
-        foreach ($videos as $video) {
-            foreach ([$video->original_path, $video->playback_path, $video->poster_path] as $path) {
-                if (is_string($path) && $path !== '') {
-                    try { $this->storage->deletePrivate($path); } catch (\Throwable) {}
-                }
+        [$images,$docs]=DB::transaction(function()use($property,$user,$request):array {
+            $lockedUser=User::query()->lockForUpdate()->findOrFail($user->id);
+            abort_unless($lockedUser->account_status===User::STATUS_ACTIVE,404);
+            $locked=Property::query()->lockForUpdate()->findOrFail($property->id);
+            $this->assertOwner($locked,$lockedUser);
+            if(in_array($locked->review_status,['submitted','under_review','rejected_blocked'],true)) abort(409,'This listing cannot be deleted in its current review state.');
+            $images=$locked->images()->get();$docs=$locked->documents()->get();
+            $videos=\Illuminate\Support\Facades\Schema::hasTable('listing_videos') ? $locked->videos()->lockForUpdate()->get() : collect();
+            foreach($videos as $video) {
+                abort_if(in_array($video->status,['uploading','processing'],true),409,'انتظر انتهاء رفع أو معالجة الفيديو قبل حذف الإعلان.');
+                // Keep every path and row on provider failure. Account/property
+                // locks prevent a new writer while deletion is in progress.
+                foreach($video->trackedPaths() as $path) $this->storage->deletePrivate($path);
             }
-        }
+            $this->identity->releaseRepresentationForListing($locked);$locked->delete();
+            $this->audit->record($lockedUser,'listing.deleted',$locked,['property_asset_id'=>$locked->property_asset_id],$request,$lockedUser->id);
+            return [$images,$docs];
+        });
+        $this->deleteImageFiles($images);$this->deleteProofFiles($docs);
         return response()->json(['message'=>'Listing deleted.']);
     }
 
