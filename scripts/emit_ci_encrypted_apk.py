@@ -13,6 +13,7 @@ import subprocess
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--log-fallback', action='store_true')
+    parser.add_argument('--upgrade-predecessor', action='store_true')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     policy = json.loads((root / 'docs/PUBLIC_UAT_DELIVERY.json').read_text())
@@ -22,15 +23,18 @@ def main():
     assert policy['apk_delivery'] == 'recipient-encrypted-cms-only' and policy['plaintext_public_artifacts'] is False
     recipient = root / policy['recipient_certificate']
     assert hashlib.sha256(recipient.read_bytes()).hexdigest() == policy['recipient_sha256']
-    proof = json.loads((root / 'dist/APK_VERIFICATION.json').read_text())
+    proof = json.loads((root / ('dist/UPGRADE_PREDECESSOR_VERIFICATION.json' if args.upgrade_predecessor else 'dist/APK_VERIFICATION.json')).read_text())
     assert proof['source_commit'] == os.environ['GITHUB_SHA'] == os.environ['SOURCE_COMMIT']
-    assert proof['version_code'] == 1000 + int(os.environ['GITHUB_RUN_NUMBER'])
+    assert proof['version_code'] == 1000 + int(os.environ['GITHUB_RUN_NUMBER']) - int(args.upgrade_predecessor)
     assert proof['zip_crc'] == proof['apksigner'] == 'passed' and proof['fonts_match'] == 5
-    payload = (root / f"dist/real-estate-broker-uat-{os.environ['GITHUB_RUN_NUMBER']}.apk").read_bytes()
+    payload_path = 'dist/uat-upgrade-predecessor.apk' if args.upgrade_predecessor else f"dist/real-estate-broker-uat-{os.environ['GITHUB_RUN_NUMBER']}.apk"
+    payload = (root / payload_path).read_bytes()
     assert len(payload) == proof['bytes'] and hashlib.sha256(payload).hexdigest() == proof['sha256']
     native = {'source_commit': proof['source_commit'], 'sha256': proof['sha256'], 'bytes': proof['bytes'],
               'chunks': math.ceil(len(payload) / 6144), 'parts': 32}
     output = root / 'encrypted-dist'
+    if args.upgrade_predecessor:
+        output = output / 'upgrade-predecessor'
     output.mkdir(exist_ok=True)
     (output / 'APK_VERIFICATION.json').write_text(json.dumps(proof, indent=2) + '\n')
     for part in range(32):
