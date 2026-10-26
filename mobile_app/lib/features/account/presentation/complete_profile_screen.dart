@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'actor_scoped_page.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,15 +8,20 @@ import '../../../core/network/api_error_message.dart';
 import '../data/auth_controller.dart';
 import '../data/auth_return_intent.dart';
 
-class CompleteProfileScreen extends ConsumerStatefulWidget {
+class CompleteProfileScreen extends ConsumerWidget {
   const CompleteProfileScreen({super.key});
-
   @override
-  ConsumerState<CompleteProfileScreen> createState() =>
-      _CompleteProfileScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'إكمال الحساب', builder: (_) => const _CompleteProfileScreenBody());
 }
 
-class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
+class _CompleteProfileScreenBody extends ConsumerStatefulWidget {
+  const _CompleteProfileScreenBody();
+  @override
+  ConsumerState<_CompleteProfileScreenBody> createState() => _CompleteProfileScreenState();
+}
+
+class _CompleteProfileScreenState extends ConsumerState<_CompleteProfileScreenBody> {
   final _name = TextEditingController();
   bool _busy = false;
 

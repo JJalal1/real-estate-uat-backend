@@ -26,7 +26,7 @@ use Throwable;
 /** Explicit CLI-only acceptance; no HTTP route, scheduler or reusable credential. */
 class UatRoleJourneys extends Command
 {
-    public const LIVE_RUN = '2026-10-25-109-v4';
+    public const LIVE_RUN = '2026-10-26-109-v5';
     protected $signature = 'uat:role-journeys {--run=} {--base-url=}';
     protected $description = 'One-shot synthetic UAT role/API/Storage acceptance; never Production';
     private array $actors = [];
@@ -66,7 +66,6 @@ class UatRoleJourneys extends Command
         }
         $passed = false;
         try {
-            if ($live) $this->retirePreviousSyntheticRun();
             foreach (['publisher'=>'broker','other'=>null,'other_publisher'=>'broker','reviewer'=>'support_agent','second_reviewer'=>'support_agent','manager'=>'support_manager'] as $name=>$role) {
                 $this->createActor($name, $role);
             }
@@ -429,24 +428,6 @@ class UatRoleJourneys extends Command
         } finally {
             $this->bearers = [];
         }
-    }
-
-    private function retirePreviousSyntheticRun(): void
-    {
-        // Only actors created by the failed, audited v1 acceptance run. Never
-        // accept IDs, emails or storage prefixes from an operator or API caller.
-        $prior = AuditLog::where('action','uat.role_journeys.fixture_created')
-            ->where('metadata->release_run','2026-10-24-109-v1')->where('subject_type','User')->get();
-        if ($prior->count() > 6) throw new RuntimeException('previous_fixture_bound');
-        foreach ($prior as $receipt) {
-            $key = $receipt->metadata['fixture'] ?? '';
-            if (!in_array($key,['publisher','other','other_publisher','reviewer','second_reviewer','manager'],true)) throw new RuntimeException('previous_fixture_key');
-            $actor = User::findOrFail($receipt->subject_id);
-            $email = 'uat-109-20261024109v1-'.$key.'@example.invalid';
-            if ($actor->email !== $email || $actor->account_status !== 'suspended' || $actor->apiTokens()->exists()) throw new RuntimeException('previous_fixture_not_retired');
-            $this->retireFixture($actor, $email);
-        }
-        $this->check(true,'previous_synthetic_run_files_retired');
     }
 
     private function retireFixture(User $actor, string $expectedEmail): void

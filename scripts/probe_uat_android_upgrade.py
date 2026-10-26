@@ -31,8 +31,11 @@ def version():
 def launch():
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity', timeout=60)
     for _ in range(30):
-        if adb('shell', 'pidof', PACKAGE):
-            return
+        try:
+            if adb('shell', 'pidof', PACKAGE):
+                return
+        except subprocess.CalledProcessError:
+            pass
         time.sleep(1)
     raise RuntimeError('UAT package did not remain running')
 
@@ -73,6 +76,9 @@ def main():
                 adb('push', str(local), destination)
                 adb('shell', 'chown', uid + ':' + uid, destination)
                 adb('shell', 'chmod', '600', destination)
+                if relative.startswith('no_backup/'):
+                    adb('shell', 'chown', '-R', uid + ':' + uid, private + '/no_backup/listing_recovery')
+                adb('shell', 'restorecon', '-R', destination.rsplit('/', 1)[0])
                 hashes[relative] = hashlib.sha256(data).hexdigest()
         adb('install', '-r', str(ROOT / f"real-estate-broker-uat-{os.environ['GITHUB_RUN_NUMBER']}.apk"), timeout=180)
         assert version() == after['version_code']
@@ -80,6 +86,7 @@ def main():
         assert actual == hashes, 'Upgrade changed app-private theme or recovery fixture'
         adb('logcat', '-c'); launch(); time.sleep(3)
         assert adb('shell', 'pidof', PACKAGE)
+        assert {relative: adb('shell', 'sha256sum', private + '/' + relative).split()[0] for relative in fixtures} == hashes
         crash = adb('logcat', '-d', '-b', 'crash')
         assert PACKAGE not in crash, 'UAT process crashed during offline startup'
         (ROOT / 'ANDROID_UPGRADE_VERIFICATION.json').write_text(json.dumps({

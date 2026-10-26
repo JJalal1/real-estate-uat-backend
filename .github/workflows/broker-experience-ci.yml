@@ -372,21 +372,34 @@ jobs:
             python3 -B scripts/verify_built_uat_apk.py --upgrade-predecessor
           fi
       - name: Real API36 emulator package upgrade and private fixture preservation
+        id: android_upgrade
         if: ${{ !cancelled() && env.OWNER_UPGRADE_PAIR == 'true' && steps.verify_apk.conclusion == 'success' }}
         timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
+          # The verified APKs are already copied into dist/. Release disposable
+          # build caches before allocating a real API36 system image and userdata.
+          test "${GITHUB_ACTIONS}" = true
+          test -f dist/APK_VERIFICATION.json
+          rm -rf mobile_app/build "$HOME/.gradle/caches" "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
+          df -h .
           sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
           echo no | avdmanager create avd --force --name aqer-owner-upgrade --package 'system-images;android-36;google_apis;x86_64'
           sudo chmod 666 /dev/kvm
-          "$ANDROID_HOME/emulator/emulator" -avd aqer-owner-upgrade -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect > "$RUNNER_TEMP/aqer-emulator.log" 2>&1 &
+          QT_QPA_PLATFORM=offscreen "$ANDROID_HOME/emulator/emulator" -avd aqer-owner-upgrade -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -memory 2048 -cores 2 > "$RUNNER_TEMP/aqer-emulator.log" 2>&1 &
           emulator_pid=$!
-          trap 'kill "$emulator_pid" || true' EXIT
-          adb wait-for-device
+          cleanup() {
+            result=$?
+            if [ "$result" -ne 0 ]; then tail -80 "$RUNNER_TEMP/aqer-emulator.log"; fi
+            kill "$emulator_pid" 2>/dev/null || true
+            return "$result"
+          }
+          trap cleanup EXIT
           ready=false
-          for attempt in $(seq 1 90); do
-            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = '1' ]; then ready=true; break; fi
+          for attempt in $(seq 1 120); do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then echo 'Emulator exited before boot'; exit 1; fi
+            if [ "$(timeout 3s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = '1' ]; then ready=true; break; fi
             sleep 2
           done
           test "$ready" = true
@@ -394,7 +407,7 @@ jobs:
       - name: Upload broker UAT APK and exact commit evidence
         id: apk_artifact
         continue-on-error: true
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && github.event.repository.private }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && (env.OWNER_UPGRADE_PAIR != 'true' || steps.android_upgrade.conclusion == 'success') && github.event.repository.private }}
         uses: actions/upload-artifact@v4
         with:
           name: real-estate-broker-uat-${{ github.run_number }}
@@ -402,16 +415,16 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Private APK transport part 1 after artifact quota failure
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && github.event.repository.private && steps.apk_artifact.outcome == 'failure' }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && (env.OWNER_UPGRADE_PAIR != 'true' || steps.android_upgrade.conclusion == 'success') && github.event.repository.private && steps.apk_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_apk_transport.py --part 0 --parts 3
       - name: Private APK transport part 2 after artifact quota failure
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && github.event.repository.private && steps.apk_artifact.outcome == 'failure' }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && (env.OWNER_UPGRADE_PAIR != 'true' || steps.android_upgrade.conclusion == 'success') && github.event.repository.private && steps.apk_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_apk_transport.py --part 1 --parts 3
       - name: Private APK transport part 3 after artifact quota failure
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && github.event.repository.private && steps.apk_artifact.outcome == 'failure' }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && (env.OWNER_UPGRADE_PAIR != 'true' || steps.android_upgrade.conclusion == 'success') && github.event.repository.private && steps.apk_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_apk_transport.py --part 2 --parts 3
       - name: Encrypt the verified APK for the approved public repository
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && !github.event.repository.private }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && (env.OWNER_UPGRADE_PAIR != 'true' || steps.android_upgrade.conclusion == 'success') && !github.event.repository.private }}
         run: |
           python3 -B scripts/emit_ci_encrypted_apk.py
           if [ -f dist/uat-upgrade-predecessor.apk ]; then
@@ -421,7 +434,7 @@ jobs:
       - name: Upload encrypted installer and public verification evidence
         id: encrypted_artifact
         continue-on-error: true
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && !github.event.repository.private }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && (env.OWNER_UPGRADE_PAIR != 'true' || steps.android_upgrade.conclusion == 'success') && !github.event.repository.private }}
         uses: actions/upload-artifact@v4
         with:
           name: recipient-encrypted-uat-${{ github.run_number }}
@@ -430,7 +443,7 @@ jobs:
           retention-days: 3
       - name: Ciphertext log fallback after artifact failure
         id: encrypted_fallback
-        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && !github.event.repository.private && steps.encrypted_artifact.outcome == 'failure' }}
+        if: ${{ !cancelled() && steps.verify_apk.conclusion == 'success' && (env.OWNER_UPGRADE_PAIR != 'true' || steps.android_upgrade.conclusion == 'success') && !github.event.repository.private && steps.encrypted_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_encrypted_apk.py --log-fallback
 
   encrypted_segment:
