@@ -9,6 +9,7 @@ import '../../../core/widgets/app_components.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../properties/presentation/property_location_picker_screen.dart';
 import '../data/account_verification_repository.dart';
+import 'actor_scoped_page.dart';
 import '../data/auth_controller.dart';
 import '../domain/account_verification.dart';
 import '../domain/yemen_admin_divisions.dart';
@@ -21,11 +22,11 @@ class AccountVerificationScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول أولاً.')))
-      : _AccountVerificationBody(key: ValueKey(actor), initialType: initialType);
+      : ActorBoundPage(title: 'نوع الحساب والتحقق', builder: (_) => _AccountVerificationBody(initialType: initialType));
   }
 }
 class _AccountVerificationBody extends ConsumerStatefulWidget {
-  const _AccountVerificationBody({this.initialType, super.key});
+  const _AccountVerificationBody({this.initialType});
   final String? initialType;
   @override
   ConsumerState<_AccountVerificationBody> createState() => _AccountVerificationScreenState();

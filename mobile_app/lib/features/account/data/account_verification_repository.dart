@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'account_request_scope.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
@@ -12,20 +13,22 @@ final accountVerificationRepositoryProvider =
     Provider<AccountVerificationRepository>((ref) {
   return AccountVerificationRepository(
     ref.watch(dioProvider),
-    ref.watch(authRepositoryProvider),
+    ref.watch(authRepositoryProvider), requestScope: ref.watch(accountRequestScopeProvider),
   );
 });
 
 class AccountVerificationRepository {
-  AccountVerificationRepository(this._dio, this._auth);
+  AccountVerificationRepository(this._dio, this._auth, {AccountRequestScope? requestScope}) : _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
+  Future<Options> _sessionOptions() => _requestScope?.options() ?? _auth.requiredAuthOptions();
 
   Future<AccountVerificationApplication> status() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/account-verification',
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     return _application(response.data?['data']);
   }
@@ -69,7 +72,7 @@ class AccountVerificationRepository {
         await MultipartFile.fromFile(entry.value),
       ));
     }
-    final options = (await _auth.requiredAuthOptions()).copyWith(
+    final options = (await _sessionOptions()).copyWith(
       sendTimeout: const Duration(minutes: 3),
       receiveTimeout: const Duration(minutes: 3),
     );
@@ -91,8 +94,9 @@ class AccountVerificationRepository {
         'status': status,
         if (type != null) 'type': type,
       },
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
+    _requestScope?.verify();
     final rows = response.data?['data'];
     if (rows is! List) return const <AccountVerificationApplication>[];
     return rows
@@ -102,7 +106,7 @@ class AccountVerificationRepository {
   }
 
   Future<Uint8List> documentBytes(int userId, String kind) async {
-    final options = (await _auth.requiredAuthOptions()).copyWith(
+    final options = (await _sessionOptions()).copyWith(
       responseType: ResponseType.bytes,
       receiveTimeout: const Duration(minutes: 2),
     );
@@ -110,6 +114,7 @@ class AccountVerificationRepository {
       '/account-verification/users/$userId/documents/$kind',
       options: options,
     );
+    _requestScope?.verify();
     return Uint8List.fromList(response.data ?? const <int>[]);
   }
 
@@ -119,7 +124,7 @@ class AccountVerificationRepository {
       data: <String, dynamic>{
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
       },
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
   }
 
@@ -127,7 +132,7 @@ class AccountVerificationRepository {
     await _dio.post<void>(
       '/admin/account-verifications/$userId/more-info',
       data: <String, dynamic>{'reason': reason.trim()},
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
   }
 
@@ -135,11 +140,12 @@ class AccountVerificationRepository {
     await _dio.post<void>(
       '/admin/account-verifications/$userId/reject',
       data: <String, dynamic>{'reason': reason.trim()},
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
   }
 
   AccountVerificationApplication _application(dynamic value) {
+    _requestScope?.verify();
     if (value is Map<String, dynamic>) {
       return AccountVerificationApplication.fromJson(value);
     }

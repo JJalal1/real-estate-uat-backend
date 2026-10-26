@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/auth_controller.dart';
+import '../domain/auth_user.dart';
 
 /// Private page state belongs to one resolved account and permission scope.
 /// Replacing the subtree also rejects late receipts through its mounted guards.
@@ -29,9 +30,11 @@ class ActorScopedPage extends ConsumerWidget {
 /// Forms initialized from private data cannot be transferred to another actor.
 /// Keep the binding even if logout and login happen before the next frame.
 class ActorBoundPage extends ConsumerStatefulWidget {
-  const ActorBoundPage({required this.title, required this.builder, super.key});
+  const ActorBoundPage({required this.title, required this.builder, this.actorId, super.key});
   final String title;
   final WidgetBuilder builder;
+  // Snapshot the initiating account when a route carries preloaded private data.
+  final int? actorId;
   @override
   ConsumerState<ActorBoundPage> createState() => _ActorBoundPageState();
 }
@@ -41,13 +44,18 @@ class _ActorBoundPageState extends ConsumerState<ActorBoundPage> {
   bool _changed = false;
 
   @override
+  void initState() { super.initState(); _actor = widget.actorId; }
+
+  @override
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider, (_, next) {
       if (_actor != null && next.asData != null && next.asData?.value?.id != _actor) {
         setState(() => _changed = true);
       }
     });
-    final actor = ref.watch(authControllerProvider).asData?.value;
+    final auth = ref.watch(authControllerProvider);
+    final actor = auth.asData?.value;
+    if (_actor != null && auth.asData != null && actor?.id != _actor) _changed = true;
     if (!_changed && _actor == null && actor != null) _actor = actor.id;
     // Keep the normal guest entry state after logout. A later login still
     // cannot reuse this page's old private form, even with the same user ID.
@@ -108,4 +116,36 @@ Future<T?> showActorModalBottomSheet<T>({required BuildContext context, required
           const Text('تغيّر الحساب'), const SizedBox(height: 12),
           TextButton(onPressed: () => Navigator.pop(sheet), child: const Text('إغلاق')),
         ])))));
+}
+
+/// Root Navigator popups outlive their launching page. Withdraw them after an
+/// account/authorization change, including logout and same-ID login in one frame.
+final accountPopupObserverProvider = Provider<NavigatorObserver>((ref) {
+  final observer = _AccountPopupObserver();
+  Object? signature(AuthUser? actor) => actor == null ? null
+    : (actor.id,actor.isActive,actor.roles.toString(),actor.permissions.toString());
+  var previous = signature(ref.read(authControllerProvider).asData?.value);
+  ref.listen(authControllerProvider, (_, next) {
+    if (next.asData == null) return;
+    final current = signature(next.asData?.value);
+    if (current != previous) observer.accountChanged();
+    previous = current;
+  });
+  ref.onDispose(observer.deactivate);
+  return observer;
+});
+class _AccountPopupObserver extends NavigatorObserver {
+  bool _alive = true;
+  bool _scheduled = false;
+  void deactivate() { _alive = false; }
+  void accountChanged() {
+    if (!_alive || _scheduled) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      final owner = navigator;
+      if (_alive && owner != null && owner.mounted) owner.popUntil((route) => route is! PopupRoute);
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../account/presentation/actor_scoped_page.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,15 +9,21 @@ import '../../account/data/auth_controller.dart';
 import '../data/message_repository.dart';
 import '../domain/message_models.dart';
 
-class ConversationReportsScreen extends ConsumerStatefulWidget {
+class ConversationReportsScreen extends ConsumerWidget {
   const ConversationReportsScreen({super.key});
   @override
-  ConsumerState<ConversationReportsScreen> createState() =>
-      _ConversationReportsScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'بلاغات المحادثات الخاصة', builder: (_) => const _ConversationReportsScreenBody());
+}
+
+class _ConversationReportsScreenBody extends ConsumerStatefulWidget {
+  const _ConversationReportsScreenBody();
+  @override
+  ConsumerState<_ConversationReportsScreenBody> createState() => _ConversationReportsScreenState();
 }
 
 class _ConversationReportsScreenState
-    extends ConsumerState<ConversationReportsScreen> {
+    extends ConsumerState<_ConversationReportsScreenBody> {
   bool _loading = true;
   String? _error;
   List<ConversationReportSummary> _items = const [];
@@ -26,6 +34,8 @@ class _ConversationReportsScreenState
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { _loading = true; _error = null; });
     try {
       final items = await ref.read(messageRepositoryProvider).adminReports();
       if (!mounted) {
@@ -55,8 +65,8 @@ class _ConversationReportsScreenState
               'يمكنك مشاهدة بيانات البلاغ فقط. فتح الرسائل الخاصة يحتاج صلاحية مستقلة.')));
       return;
     }
-    final accepted = await showDialog<bool>(
-        context: context,
+    final accepted = await showActorDialog<bool>(
+        context: context, ref: ref,
         builder: (dialogContext) => AlertDialog(
               title: const Text('فتح محتوى خاص؟'),
               content: const Text(
@@ -80,8 +90,8 @@ class _ConversationReportsScreenState
       if (!mounted) {
         return;
       }
-      await showDialog<void>(
-          context: context,
+      await showActorDialog<void>(
+          context: context, ref: ref,
           builder: (dialogContext) => AlertDialog(
                 title: Text('بلاغ #${report.id}'),
                 content: SizedBox(
@@ -136,10 +146,7 @@ class _ConversationReportsScreenState
                           padding: EdgeInsets.all(36),
                           child: Center(child: CircularProgressIndicator()))
                     else if (_error != null)
-                      Card(
-                          child: Padding(
-                              padding: const EdgeInsets.all(18),
-                              child: Text(_error!)))
+                      AppErrorState(message: _error!, onRetry: _load)
                     else if (_items.isEmpty)
                       const Card(
                           child: Padding(

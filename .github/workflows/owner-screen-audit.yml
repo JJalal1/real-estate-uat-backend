@@ -27,7 +27,7 @@ jobs:
           flutter pub get
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
           status=0
-          flutter test test/owner_active_screen_states_test.dart --reporter json > owner-screen-results.jsonl 2>&1 || status=$?
+          flutter test test/owner_active_screen_states_test.dart test/owner_secondary_privacy_layout_test.dart test/owner_auth_boundary_test.dart --reporter json > owner-screen-results.jsonl 2>&1 || status=$?
           python3 - <<'PY'
           import json
           from pathlib import Path
