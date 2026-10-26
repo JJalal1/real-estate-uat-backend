@@ -293,11 +293,11 @@ class _ListingReviewCaseScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(item.title, style: Theme.of(context).textTheme.titleLarge),
-                  ),
+                  Text(item.title, style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: AppSpacing.s8),
                   AppStatusBadge(
                     label: isClaimed ? 'تم الاستلام - قيد التحقيق' : _reviewStatus(item.reviewStatus),
                     tone: isClaimed ? AppStatusTone.info : AppStatusTone.warning,

@@ -214,6 +214,7 @@ void main(){
     testWidgets('review evidence direct retry and Arabic layout large=$large',(tester)async{
       final h=await _mount(tester,const ListingReviewCaseScreen(listingId:60),large:large,harness:_Harness()..status=503);
       expect(find.text('إعادة المحاولة'),findsWidgets);h.status=200;
+      await tester.ensureVisible(find.text('إعادة المحاولة').first);await _frames(tester);
       await tester.tap(find.text('إعادة المحاولة').first);await _frames(tester);
       expect(find.text('Private review evidence A'),findsOneWidget);expect(tester.takeException(),isNull);
     });
