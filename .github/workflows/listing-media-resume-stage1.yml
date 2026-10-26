@@ -82,4 +82,3 @@ jobs:
       - name: Resume-from-offset and origin tests
         working-directory: mobile_app
         run: flutter test test/private_tus_image_uploader_test.dart test/listing_resume_session_test.dart test/user_work_media_test.dart --reporter expanded
-

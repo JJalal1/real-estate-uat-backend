@@ -63,4 +63,3 @@ class ResumableImageFinalizationTest extends TestCase
         }
     }
 }
-

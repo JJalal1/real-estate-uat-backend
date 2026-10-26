@@ -19,4 +19,3 @@ class ListingImageUploadIntent extends Model
         ];
     }
 }
-

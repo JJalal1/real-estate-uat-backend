@@ -166,4 +166,3 @@ class PrivateTusImageUploader {
     if (await file.exists()) await file.delete();
   }
 }
-

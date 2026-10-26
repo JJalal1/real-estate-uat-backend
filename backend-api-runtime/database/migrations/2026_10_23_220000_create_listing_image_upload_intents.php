@@ -45,4 +45,3 @@ return new class extends Migration {
     }
     public function down(): void { Schema::dropIfExists('listing_image_upload_intents'); }
 };
-
