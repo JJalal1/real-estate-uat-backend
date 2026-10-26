@@ -17,7 +17,6 @@ use App\Services\BrokerCustomerFollowupService;
 use Carbon\Carbon;
 use App\Services\BrokerDealService;
 use App\Services\BrokerRankingService;
-use App\Services\CloudAssetStorageService;
 use App\Services\PropertyFinancialService;
 use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -83,12 +82,12 @@ class BrokerExperienceController extends Controller
         return response()->json(['data'=>['bio'=>$actor->public_professional_bio]]);
     }
 
-    public function uploadPhoto(Request $request, CloudAssetStorageService $storage): JsonResponse
+    public function uploadPhoto(Request $request, \App\Services\ProfessionalPhotoService $photos): JsonResponse
     {
         $actor=$this->advertiser($request);
         $request->validate(['photo'=>['required','file','image','mimes:jpg,jpeg,png,webp','max:5120']]);
         // A separate, explicitly uploaded public photo; verification evidence is never reused.
-        $path=$storage->storePublic($request->file('photo'),'professional-photos/'.$actor->id);
+        $path=$photos->store($request->file('photo'), (int)$actor->id);
         try {
             $old=DB::transaction(function () use ($actor,$path) {
                 $locked=User::query()->lockForUpdate()->findOrFail($actor->id);
@@ -96,16 +95,19 @@ class BrokerExperienceController extends Controller
                 $locked->forceFill(['public_professional_photo_path'=>$path])->save();
                 return $old;
             });
-        } catch (\Throwable $e) { $storage->deletePublic($path); throw $e; }
-        if ($old) $storage->deletePublic($old);
+        } catch (\Throwable $e) {
+            try { $photos->remove($path); } catch (\Throwable $cleanup) { report($cleanup); }
+            throw $e;
+        }
+        if ($old) $photos->remove($old);
         $this->audit->record($actor,'broker.public_photo_updated',$actor,[],$request,$actor->id);
         return response()->json(['data'=>['uploaded'=>true]]);
     }
 
-    public function photo(User $advertiser, CloudAssetStorageService $storage)
+    public function photo(User $advertiser, \App\Services\ProfessionalPhotoService $photos)
     {
         abort_unless($advertiser->isActive() && $advertiser->hasApprovedVerificationProfile() && $advertiser->public_professional_photo_path,404);
-        return $storage->responsePublic($advertiser->public_professional_photo_path,null,['Cache-Control'=>'public, max-age=3600','X-Content-Type-Options'=>'nosniff']);
+        return $photos->response($advertiser->public_professional_photo_path);
     }
 
     public function workspace(Request $request): JsonResponse

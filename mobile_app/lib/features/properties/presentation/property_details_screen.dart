@@ -1,4 +1,5 @@
-import 'listing_draft_photo.dart';
+import 'adaptive_property_photo.dart';
+import '../../../core/network/adaptive_image_policy.dart';
 import '../domain/rental_condition_summary.dart';
 import 'property_summary_card.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +42,7 @@ import 'property_video_section.dart';
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
   ref.watch(propertyDataRevisionProvider);
+  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(propertyRepositoryProvider).details(propertyId);
 });
 
@@ -59,15 +61,16 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _changingFavorite = false;
   bool _consumingPendingFavorite = false;
   bool _viewRecorded = false;
-  bool _recentRecorded = false;
+  String? _recentRecordedScope;
   bool _calling = false, _reporting = false;
+  String? _loadedScope;
 
   @override
   void didUpdateWidget(covariant PropertyDetailsScreen old) {
     super.didUpdateWidget(old);
     if (old.propertyId != widget.propertyId) {
       _viewRecorded = false;
-      _recentRecorded = false;
+      _recentRecordedScope = null;
       _imageIndex = 0;
     }
   }
@@ -84,6 +87,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   Widget build(BuildContext context) {
     final details = ref.watch(propertyDetailsProvider(widget.propertyId));
     final user = ref.watch(authControllerProvider).asData?.value;
+    final scope = '${user?.id}:${widget.propertyId}';
+    if (details.asData != null) _loadedScope = scope;
+    final retain = _loadedScope == scope && details.hasValue && details.hasError && isTransientApiFailure(details.error!);
     final pendingFavorite = ref.watch(pendingFavoriteAfterAuthProvider);
     final favoriteIds = user == null
         ? const <int>{}
@@ -97,11 +103,12 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       Future<void>.microtask(_recordView);
     }
 
-    if (!_recentRecorded && loaded != null && loaded.status == 'published') {
-      _recentRecorded = true;
+    final recentStore = ref.watch(recentPropertiesStoreProvider);
+    if (recentStore.enabled && _recentRecordedScope != scope && loaded != null && loaded.status == 'published') {
+      _recentRecordedScope = scope;
       Future<void>.microtask(() async {
         try {
-          await ref.read(recentPropertiesStoreProvider).record(loaded.toSummary());
+          await recentStore.record(loaded.toSummary());
           if (mounted) ref.invalidate(recentPropertiesProvider);
         } catch (_) {
           // Recent local history is best-effort: missing storage, denied IO,
@@ -147,17 +154,25 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             AppIconButton(
               icon: Icons.ios_share_outlined,
               tooltip: 'مشاركة العقار',
-              onPressed: loaded == null ? null : () => _shareProperty(loaded),
+              onPressed: loaded?.status == 'published' && loaded?.availabilityStatus == 'available'
+                  ? () => _shareProperty(loaded!) : null,
             ),
           ],
         ),
         body: details.when(
+          skipLoadingOnReload: false,
+          skipError: retain,
           loading: () => const _PropertyDetailsSkeleton(),
           error: (error, _) => AppErrorState(
             message: friendlyApiError(error),
             onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId)),
           ),
-          data: (property) => _buildContent(property, favoriteIds),
+          data: (property) => Column(children: [
+            if (details.isLoading || retain) AppRefreshStatus(loading: details.isLoading,
+              error: retain ? friendlyApiError(details.error!) : null,
+              onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId))),
+            Expanded(child: _buildContent(property, favoriteIds)),
+          ]),
         ),
         bottomNavigationBar: showPrimaryActions
             ? _PropertyPrimaryActions(
@@ -215,7 +230,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         if (ref.read(authControllerProvider).asData?.value != null) {
           ref.invalidate(favoritePropertyIdsProvider);
         }
-        await ref.read(propertyDetailsProvider(widget.propertyId).future);
+        try { await ref.read(propertyDetailsProvider(widget.propertyId).future); } catch (_) { /* The page renders failure and retry. */ }
       },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -332,7 +347,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               scrollDirection: Axis.horizontal, itemCount: property.images.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) => Semantics(button: true, label: 'فتح صورة العقار ${index + 1}', child: InkWell(
                 onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: property.images, initialIndex: index, privateImages:property.status!='published'))),
-                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, child: AppPropertyMedia(imageUrl: property.images[index].cardUrl, height: 96))),
+                child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, height: 96,
+                  child: AdaptivePropertyPhoto(url: property.images[index].cardUrl,
+                    authenticated:property.status!='published',use:PropertyImageUse.thumbnail))),
               )),
             ))),
           ],
@@ -619,7 +636,8 @@ class _Gallery extends StatelessWidget {
                         ),
                       ),
                     ),
-                    child: ListingDraftPhoto(url:images[imageIndex].galleryUrl,authenticated:privateImages,cacheWidth:1600),
+                    child: AdaptivePropertyPhoto(key:ValueKey(images[imageIndex].id),
+                      url:images[imageIndex].galleryUrl,authenticated:privateImages,use:PropertyImageUse.detail),
                   ),
                 ),
               ),
@@ -664,6 +682,7 @@ class _FullscreenGallery extends StatefulWidget {
 class _FullscreenGalleryState extends State<_FullscreenGallery> {
   late final PageController _controller;
   late int _index;
+  final _highResolution = <int>{};
 
   @override
   void initState() {
@@ -695,7 +714,14 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                   child: InteractiveViewer(
                     minScale: 1,
                     maxScale: 4,
-                    child: ListingDraftPhoto(url:widget.images[imageIndex].zoomUrl,authenticated:widget.privateImages,fit:BoxFit.contain,cacheWidth:3072),
+                    onInteractionUpdate: (details) {
+                      if (details.scale > 1.15 && !_highResolution.contains(imageIndex)) {
+                        setState(() => _highResolution.add(imageIndex));
+                      }
+                    },
+                    child: SizedBox.expand(child: AdaptivePropertyPhoto(key:ValueKey(widget.images[imageIndex].id),
+                      url:widget.images[imageIndex].zoomUrl,authenticated:widget.privateImages,fit:BoxFit.contain,
+                      use:_highResolution.contains(imageIndex) ? PropertyImageUse.zoom : PropertyImageUse.fullscreen)),
                   ),
                 ),
               ),
@@ -707,6 +733,13 @@ class _FullscreenGalleryState extends State<_FullscreenGallery> {
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const EbrokerIcon(Icons.close_rounded),
                 ),
+              ),
+              PositionedDirectional(
+                top: AppSpacing.s8,
+                end: AppSpacing.s8,
+                child: TextButton(onPressed:_highResolution.contains(_index) ? null :
+                  () => setState(() => _highResolution.add(_index)),
+                  child:const Text('تحميل صورة أوضح',style:TextStyle(color:Colors.white))),
               ),
               PositionedDirectional(
                 bottom: AppSpacing.s16,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_video_section.dart';
@@ -45,4 +47,26 @@ void main() {
     expect(find.text('فيديو العقار'), findsNothing);
     expect(find.byType(AndroidView), findsNothing);
   });
+
+  testWidgets('backgrounding disposes playback and resuming requires another explicit play', (tester) async {
+    debugDefaultTargetPlatformOverride=TargetPlatform.android;
+    final messenger=TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform_views,(call) async => call.method=='create' ? 42 : null);
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(SystemChannels.platform_views,null);
+      debugDefaultTargetPlatformOverride=null;
+    });
+    const video=PropertyVideoItem(id:71,posterUrl:'https://example.test/poster',streamUrl:'https://example.test/stream');
+    await tester.pumpWidget(const MaterialApp(home:Scaffold(body:PropertyVideoSection(video:video))));
+    await tester.tap(find.text('تشغيل الفيديو'));
+    await tester.pump();
+    expect(find.byType(AndroidView),findsOneWidget);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(find.byType(AndroidView),findsNothing);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(find.byType(AndroidView),findsNothing);
+  });
 }
+

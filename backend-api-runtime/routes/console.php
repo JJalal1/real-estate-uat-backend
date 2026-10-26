@@ -151,3 +151,19 @@ Schedule::command('support:process-contact-followups')->hourly();
     $this->info("Private customer reminders: {$sent}.");
 });
 \Illuminate\Support\Facades\Schedule::command('broker:process-followups')->everyMinute()->withoutOverlapping();
+
+Artisan::command('uat:signed-tus-storage-probe', function (CloudAssetStorageService $storage): int {
+    if (! app()->environment('staging') || ! $storage->cloudEnabled()) {
+        $this->error('This test requires private UAT storage.');
+        return 1;
+    }
+    try {
+        $storage->probePrivateSignedTusStorage();
+        $this->info('Private UAT signed TUS canary passed: rejected forged token, resumed verified bytes and cleanup.');
+        return 0;
+    } catch (\Throwable $error) {
+        report($error);
+        $this->error('Private UAT signed TUS canary did not pass; inspect protected application logs.');
+        return 1;
+    }
+})->purpose('Opt-in signed TUS test; synthetic private bytes only.');

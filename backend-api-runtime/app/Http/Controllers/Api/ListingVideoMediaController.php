@@ -77,3 +77,4 @@ final class ListingVideoMediaController extends Controller
         abort_unless(($property->isPubliclyAvailable() && $video->moderation_status === 'approved') || $owner || $moderator, 404);
     }
 }
+

@@ -67,3 +67,4 @@ final class ListingVideoUploadPolicy
         throw ValidationException::withMessages(['video' => [$message]]);
     }
 }
+

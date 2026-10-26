@@ -3,11 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import 'auth_controller.dart';
 import 'auth_repository.dart';
+import 'account_request_scope.dart';
 
 final accountSafetyRepositoryProvider = Provider.autoDispose<AccountSafetyRepository>((ref) {
   final actor = ref.watch(authControllerProvider.select((s) => s.asData?.value?.id));
   return AccountSafetyRepository(ref.watch(dioProvider), ref.watch(authRepositoryProvider),
-    actorId: actor, currentActor: () => ref.read(authControllerProvider).asData?.value?.id);
+    requestScope: ref.watch(accountRequestScopeProvider), actorId: actor, currentActor: () => ref.read(authControllerProvider).asData?.value?.id);
 });
 
 class BlockedAccount {
@@ -36,20 +37,25 @@ class DeletionRequestStatus {
   };
 }
 class AccountSafetyRepository {
-  AccountSafetyRepository(this._dio, this._auth, {required this.actorId, required this.currentActor});
+  AccountSafetyRepository(this._dio, this._auth, {required this.actorId, required this.currentActor, AccountRequestScope? requestScope})
+    : _requestScope = requestScope;
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
   final int? actorId;
   final int? Function() currentActor;
   Future<Options> _options() async {
+    _requestScope?.verify();
     if (actorId == null || currentActor() != actorId) throw StateError('ACCOUNT_CHANGED');
-    final options = await _auth.requiredAuthOptions();
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _requestScope?.verify();
     if (currentActor() != actorId) throw StateError('ACCOUNT_CHANGED');
     return options;
   }
   Future<BlockedAccountPage> blocked({int page = 1}) async {
     final response = await _dio.get<Map<String, dynamic>>('/account/blocked-users',
       queryParameters: {'page': page}, options: await _options());
+    _requestScope?.verify();
     final rows = response.data?['data'];
     final meta = response.data?['meta'];
     if (rows is! List || meta is! Map) throw StateError('Invalid blocked users response');
@@ -62,6 +68,7 @@ class AccountSafetyRepository {
     final response = blocked
       ? await _dio.put<Map<String, dynamic>>('/users/$userId/messaging-block', options: options)
       : await _dio.delete<Map<String, dynamic>>('/users/$userId/messaging-block', options: options);
+    _requestScope?.verify();
     final data = response.data?['data'];
     if (data is! Map || data['user_id'] != userId || data['blocked_by_me'] != blocked) {
       throw StateError('Invalid block confirmation');
@@ -84,6 +91,7 @@ class AccountSafetyRepository {
       data: {'confirm_phrase': 'حذف حسابي نهائيًا'},
       options: await _options(),
     );
+    _requestScope?.verify();
     final data = response.data?['data'];
     if (data is! Map ||
         data['account_deleted'] != true ||
@@ -93,6 +101,7 @@ class AccountSafetyRepository {
     }
   }
   DeletionRequestStatus _deletion(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final data = body?['data'];
     if (data is! Map || data['status'] is! String) throw StateError('Invalid deletion request response');
     return DeletionRequestStatus(status: data['status'] as String,

@@ -8,7 +8,8 @@ use Tests\TestCase;
 
 class ListingVideoTranscoderTest extends TestCase
 {
-    public function test_actual_media_processing_produces_bounded_playback_and_poster(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('sizes')]
+    public function test_actual_media_processing_produces_bounded_playback_and_poster(string $size,int $width,int $height): void
     {
         $directory = sys_get_temp_dir().'/aqer-transcoder-test-'.bin2hex(random_bytes(8));
         $this->assertTrue(mkdir($directory, 0700));
@@ -16,16 +17,16 @@ class ListingVideoTranscoderTest extends TestCase
         try {
             $make = new Process([
                 'ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
-                '-f', 'lavfi', '-i', 'testsrc2=size=320x240:rate=10',
-                '-t', '2', '-c:v', 'libx264', '-preset', 'ultrafast',
+                '-f', 'lavfi', '-i', 'testsrc2=size='.$size.':rate=10',
+                '-t', '2', '-c:v', 'libx264', '-threads','1','-preset', 'ultrafast',
                 '-pix_fmt', 'yuv420p', '-y', $original,
             ]);
             $make->setTimeout(30);
             $make->mustRun();
 
             $out = app(ListingVideoTranscoder::class)->transcode($original, $directory);
-            $this->assertSame(320, $out['width']);
-            $this->assertSame(240, $out['height']);
+            $this->assertSame($width, $out['width']);
+            $this->assertSame($height, $out['height']);
             $this->assertSame(2000, $out['duration_ms']);
             $this->assertGreaterThan(0, filesize($out['playback_file']));
             $this->assertGreaterThan(0, filesize($out['poster_file']));
@@ -40,4 +41,10 @@ class ListingVideoTranscoderTest extends TestCase
             @rmdir($directory);
         }
     }
+
+    public static function sizes(): array
+    {
+        return [['320x240',320,240],['1920x1080',1280,720]];
+    }
 }
+

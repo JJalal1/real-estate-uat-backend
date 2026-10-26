@@ -150,11 +150,11 @@ jobs:
         run: flutter test --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }} test/uat_compiled_environment_test.dart
       - name: Build UAT APK
         working-directory: mobile_app
-        run: flutter build apk --release --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+        run: flutter build apk --flavor uat --release --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
       - name: Upload UAT APK
         uses: actions/upload-artifact@v4
         with:
           name: real-estate-phase2-uat-apk-${{ github.run_number }}
-          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+          path: mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk
           if-no-files-found: error
           retention-days: 14

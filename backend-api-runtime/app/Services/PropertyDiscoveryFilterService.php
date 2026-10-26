@@ -169,7 +169,7 @@ class PropertyDiscoveryFilterService
 
         $value = strtr($value, [
             'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا',
-            'ى' => 'ي',
+            'ى' => 'ي', 'ة' => 'ه',
         ]);
         $value = preg_replace('/[ًٌٍَُِّْٰـ]/u', '', $value) ?? $value;
         $value = preg_replace('/\\s+/u', ' ', $value) ?? $value;
@@ -181,7 +181,7 @@ class PropertyDiscoveryFilterService
     {
         $expression = "LOWER(COALESCE({$column}, ''))";
         foreach ([
-            'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي',
+            'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي', 'ة' => 'ه',
             'ً' => '', 'ٌ' => '', 'ٍ' => '', 'َ' => '', 'ُ' => '', 'ِ' => '',
             'ّ' => '', 'ْ' => '', 'ٰ' => '', 'ـ' => '',
         ] as $from => $to) {

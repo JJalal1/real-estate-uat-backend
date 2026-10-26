@@ -31,6 +31,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Register once per application, not once for each handled request.
+        \Illuminate\Support\Facades\DB::listen(function (\Illuminate\Database\Events\QueryExecuted $event): void {
+            $metrics = request()->attributes->get(\App\Services\RequestPerformance::ATTRIBUTE);
+            if ($metrics instanceof \App\Services\RequestPerformance) $metrics->query($event->time);
+        });
+
         // The isolated video queue:work process marks itself alive. The web
         // service never writes this signal and cannot pretend the worker exists.
         if ($this->app->runningInConsole()

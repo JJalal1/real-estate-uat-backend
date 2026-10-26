@@ -77,7 +77,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         body: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(favoritePropertiesProvider);
-            await ref.read(favoritePropertiesProvider.future);
+            try { await ref.read(favoritePropertiesProvider.future); } catch (_) { /* The state renders failure and retry. */ }
           },
           child: favorites.when(
             loading: () => ListView.separated(
@@ -247,4 +247,3 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     return buffer.toString();
   }
 }
-

@@ -1,0 +1,800 @@
+{
+  "schema_version": 1,
+  "repository": "JJalal1/real-estate-uat-backend",
+  "branch": "work/wave2-review-current",
+  "original_spec_files_found": false,
+  "specification_basis": "docs/APPROVED_32_RELEASE_MATRIX_AR.md; no claim of literal PDF/DOCX parity",
+  "draft_until_final_evidence_attached": false,
+  "items": [
+    {
+      "id": 1,
+      "name": "ملاءمة صور العقار ومراجعتها",
+      "status": "engineering_complete",
+      "requirement": "لا يُنشر الإعلان قبل مراجعة بشرية لكل صوره الحالية، مع ربط القرار ببصمة تمنع استخدام موافقة لصورة استُبدلت.",
+      "previous": "إصلاح PR114 منشور؛ قبول المراجع والهاتف معلق.",
+      "reviewed": "Laravel وواجهة المراجعة وعقد البصمة، ورفض صور pending/unrelated ومنع مراجع ثان من الاستحواذ على المهمة.",
+      "gap": "غياب رحلة أدوار حية موحدة؛ ويبقى الحكم البصري البشري على صور مناسبة/غير مناسبة غير مختبر.",
+      "change": "أُثبت مسار claim→review→رفض→إعادة مراجعة→نشر بحسابات وصور اصطناعية؛ لم يُستبدل المراجع بخدمة AI.",
+      "code": [
+        "backend-api-runtime/app/Http/Controllers/Api/ListingReviewController.php",
+        "mobile_app/lib/features/reviews/presentation/listing_review_screen.dart"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Feature/Stage9ListingReviewApiTest.php",
+        "backend-api-runtime/tests/Feature/Wave2MediaTrustTest.php",
+        "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+      ],
+      "prs": [
+        114,
+        122,
+        138,
+        143
+      ],
+      "integration": "HTTP→Laravel→PostgreSQL→Storage؛ يمنع النشر قبل مراجعة الصورة الحالية.",
+      "android": "بناء موحد وفحوص Widget؛ لا مراجع بشري على هاتف في هذه المهمة.",
+      "blocker": "قبول موظف بشري لصورة ذات دلالة، ثم Android موحد؛ الأصلان غير متاحين فلا ادعاء مطابقة حرفية."
+    },
+    {
+      "id": 2,
+      "name": "تحسين الصور والضغط والمشتقات",
+      "status": "engineering_complete",
+      "requirement": "أصل خاص ومشتقات عرض JPEG مضبوطة الحجم والجودة، مع رفض الملفات غير الصالحة وعدم تكرار النقل بلا حاجة.",
+      "previous": "مشتقات قائمة وقياسات UAT تاريخية؛ لا حاجة لإعادة بنائها.",
+      "reviewed": "حدود 8MiB/24MP، الترميز وقراءة Storage وحالات رفع/استبدال/حذف و304.",
+      "gap": "قراءة Storage مكررة بعد كتابة مشتق، واختلاف بروتوكول حذف الكائن الغائب.",
+      "change": "إرجاع البايتات المشفرة بعد إقرار الكتابة، وتوحيد DELETE الدقيق دون ابتلاع أخطاء المزود.",
+      "code": [
+        "backend-api-runtime/app/Services/ListingImageService.php",
+        "backend-api-runtime/app/Services/CloudAssetStorageService.php"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Feature/AdaptiveImageQualityTest.php",
+        "backend-api-runtime/tests/Feature/CloudDeleteLifecycleTest.php"
+      ],
+      "prs": [
+        119,
+        120,
+        122,
+        138
+      ],
+      "integration": "رفع/قراءة/حذف فعلي لصور اصطناعية في bucket خاص؛ قياس مشتقات عبر HTTP.",
+      "android": "اختبارات اختيار الجودة والبناء؛ لا اختبار شبكة هاتف فعلية.",
+      "blocker": "قبول صور Android؛ حمل ترميز 24MP المتزامن ليس مثبتًا باختبار القوائم دون صور."
+    },
+    {
+      "id": 4,
+      "name": "العلامة المائية",
+      "status": "engineering_complete",
+      "requirement": "استخدام الأصل المعتمد وبصمته على مشتقات العرض وتنظيف مشتقات ما قبل التفعيل/التراجع دون حذف ملف مستخدم.",
+      "previous": "مشتق v2-wm موجود؛ إصلاح تنظيف سابق لم يثبت الحذف السحابي الكامل.",
+      "reviewed": "بصمة الأصل ونسختا v1/v2 ومراجع الصور المشتركة.",
+      "gap": "HTTP400 لكائن v1 غائب كان يوقف حذف v2 والأصل.",
+      "change": "DELETE bulk دقيق بمسار واحد يجعل غياب المشتق idempotent؛ أخطاء الصلاحية/المزود تفشل.",
+      "code": [
+        "backend-api-runtime/app/Services/ListingWatermarkService.php",
+        "backend-api-runtime/app/Services/ListingImageService.php"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Feature/AdaptiveImageQualityTest.php",
+        "backend-api-runtime/tests/Feature/CloudDeleteLifecycleTest.php"
+      ],
+      "prs": [
+        120,
+        138
+      ],
+      "integration": "تنظيف الأصل ومشتقات الصورة المزالة مثبت حيًا؛ لم يُفعّل علم علامة جديد.",
+      "android": "قبول العرض البصري النهائي على الهاتف غير منفذ.",
+      "blocker": "قبول Android للعلامة؛ لا تغيير على قرار تفعيلها الحالي."
+    },
+    {
+      "id": 5,
+      "name": "مشاركة العقارات",
+      "status": "engineering_complete",
+      "requirement": "مشاركة أصلية تؤدي إلى العقار الصحيح، مع رابط آمن واحترام حالة الإعلان.",
+      "previous": "المشاركة الأصلية ومسارات Android موجودة في PR123.",
+      "reviewed": "منصة المشاركة ومسارات URI وAndroid manifest وعودة التطبيق.",
+      "gap": "قبول intent من تطبيق خارجي غير مثبت.",
+      "change": "أُعيد فحص التنفيذ والاختبارات؛ لا إعادة تنفيذ للمشاركة القائمة.",
+      "code": [
+        "mobile_app/lib/core/platform/platform_share.dart",
+        "mobile_app/lib/router/app_deep_links.dart",
+        "mobile_app/android/app/src/main/AndroidManifest.xml"
+      ],
+      "tests": [
+        "mobile_app/test/phase3_deep_links_test.dart",
+        "mobile_app/test/deep_link_origin_guard_test.dart"
+      ],
+      "prs": [
+        123,
+        133
+      ],
+      "integration": "عقد المسار وحالة العقار محفوظان؛ فحوص Flutter وAPK.",
+      "android": "لم يفتح رابط مشاركة من تطبيق آخر على جهاز فعلي.",
+      "blocker": "Native Intent وقبول المشاركة؛ الدومين الرسمي جزء من بوابة الروابط."
+    },
+    {
+      "id": 6,
+      "name": "منع الإعلانات المكررة",
+      "status": "approved",
+      "requirement": "الهوية الفيزيائية للعقار واحدة؛ إعادة الطلب أو اختلاف المعلن لا يسمحان بنشر تمثيل مكرر.",
+      "previous": "منطق قائم؛ PR122 يفشل في duplicate_same_physical_asset.",
+      "reviewed": "عقود استجابة المراجع والمعلن، إنشاء/submit المكرر، والهوية والمفاتيح والمعاملات.",
+      "gap": "الاختبار قرأ FK مسطحًا من استجابة المراجع التي تحتوي property_asset.id؛ لم يكن مبررًا لتخفيف منع التكرار.",
+      "change": "صُحح مسار القراءة وأُلزم ID موجب وتطابق الهوية و409 already published؛ بقي منطق المنتج كما هو.",
+      "code": [
+        "backend-api-runtime/app/Services/PropertyIdentityService.php",
+        "backend-api-runtime/app/Http/Controllers/Api/PropertyController.php"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Feature/PropertyIdentityV2Test.php",
+        "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+      ],
+      "prs": [
+        122
+      ],
+      "integration": "HTTP حي: إعادة إنشاء بعد استجابة مفقودة 409؛ معلنان للعقار الفيزيائي نفسه؛ رفض النشر المكرر مع سبب محدد.",
+      "android": "باقي قبول الرحلة على الهاتف كبوابة عامة؛ قاعدة المنع خادمية مثبتة ولا تتطلب إذن نظام Native.",
+      "blocker": "لا مانع متبقٍ لقاعدة منع التكرار في نطاق المصفوفة؛ قبول Android العام لا يعيد فتحها شكليًا."
+    },
+    {
+      "id": 7,
+      "name": "البلاغات والإشراف",
+      "status": "approved",
+      "requirement": "بلاغ عقار/محادثة بإيصال مستقر، queue/claim وصلاحيات للمراجعة والإغلاق؛ فتح محتوى خاص بإذن وسجل تدقيق.",
+      "previous": "تنفيذ واختبارات؛ رحلة UAT عبر الأدوار مطلوبة.",
+      "reviewed": "SupportCase وMessaging والمهام المشتركة وخصوصية المبلّغ والمحتوى.",
+      "gap": "غياب دليل حي متكامل للمطالبة والإغلاق ولمراجعة بلاغ محادثة.",
+      "change": "أضيفت رحلات فعلية لبلاغ الإعلان و409 عند تكراره، ورفض المراجعة قبل claim، وبلاغ المحادثة ورفض وكيل بلا إذن وفتح المدير المسجل وإشعار الإغلاق.",
+      "code": [
+        "backend-api-runtime/app/Http/Controllers/Api/SupportController.php",
+        "backend-api-runtime/app/Http/Controllers/Api/MessagingController.php"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Feature/Wave2AccountSafetyTest.php",
+        "backend-api-runtime/tests/Feature/Stage11MessagingNotificationsApiTest.php",
+        "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+      ],
+      "prs": [
+        138,
+        143
+      ],
+      "integration": "HTTP حي مع PostgreSQL: إيصال/claim/resolve ورفض 403/404/409 وتدقيق الوصول الخاص؛ لا صلاحيات موسعة.",
+      "android": "تبقى جودة عرض الرحلة على الهاتف ضمن القبول العام؛ معايير الإشراف الخادمية مثبتة.",
+      "blocker": "لا مانع خاص بالخادم بعد نجاح إيصال v3؛ لا يُستنتج من ذلك اعتماد الهاتف أو FCM."
+    },
+    {
+      "id": 8,
+      "name": "الإشعارات",
+      "status": "partial",
+      "requirement": "تسجيل جهاز بموافقة سليمة وتفضيلات/إلغاء، وdelivery/retry عبر مزود وqueue معتمدين، مع عزل الحساب.",
+      "previous": "موجود وOFF افتراضيًا؛ PR132 Draft.",
+      "reviewed": "تسجيل bridge والتشفير والتفضيلات ورقم البناء وعقود API.",
+      "gap": "قيم bridge غير صالحة ورقم app_build كان 1 رغم APK ذي رقم أعلى؛ إرسال FCM الحقيقي غير مثبت.",
+      "change": "دمج PR132، وإيصال APP_BUILD_NUMBER من رقم بناء Android نفسه واختبار تسجيل صالح؛ لم يُفعّل FCM.",
+      "code": [
+        "mobile_app/lib/features/messages/data/push_registration_repository.dart",
+        "backend-api-runtime/app/Http/Controllers/Api/PushDeviceController.php"
+      ],
+      "tests": [
+        "mobile_app/test/push_registration_guard_test.dart",
+        "backend-api-runtime/tests/Feature/PushLaunchPrepTest.php",
+        "backend-api-runtime/tests/Postgres/NotificationPreferencePostgresTest.php"
+      ],
+      "prs": [
+        132,
+        139
+      ],
+      "integration": "عقد التسجيل والتفضيلات ورفض المدخلات مثبت CI؛ إشعارات داخل التطبيق مثبتة في الرحلات.",
+      "android": "لا إرسال/استلام FCM على جهاز حقيقي.",
+      "blocker": "هوية Firebase/FCM معتمدة، worker، اختبار سحب الموافقة وحسابين ودخول/خروج وخلفية التطبيق."
+    },
+    {
+      "id": 9,
+      "name": "البحث العربي",
+      "status": "engineering_complete",
+      "requirement": "تطبيع وصلة فلاتر وترتيب وصفحات موثوق، وتمييز الصفر عن فشل الشبكة.",
+      "previous": "تنفيذ قائم وعينة إب/اب؛ لا إعادة بناء مطلوبة.",
+      "reviewed": "DiscoverySearchQuality، q والتطبيع، pagination والبحث الاصطناعي المعزول.",
+      "gap": "إثبات النمو والرحلة الحية دون لمس إعلان حقيقي.",
+      "change": "وسعت رحلة HTTP حالات البحث العربي/الصفر، وأضيف benchmark معزول 10 آلاف إعلان وفهرس مكاني؛ لم تُغيّر دلالات البحث.",
+      "code": [
+        "backend-api-runtime/app/Http/Controllers/Api/PropertyController.php",
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Feature/DiscoverySearchQualityTest.php",
+        "mobile_app/test/search_query_wave_test.dart",
+        "scripts/probe_disposable_capacity.py"
+      ],
+      "prs": [
+        122,
+        137
+      ],
+      "integration": "بحث HTTP/PG وfixture اصطناعي دقيق؛ عينة أداء محددة لا شهادة شاملة لكل لهجة أو مزود AI.",
+      "android": "قبول لوحة المفاتيح/النطق والترتيب على الهاتف معلق.",
+      "blocker": "قبول Android ومزود الصوت/AI عند الحاجة؛ SLO الإنتاج في Issue109 مستقل."
+    },
+    {
+      "id": 10,
+      "name": "الحظر",
+      "status": "approved",
+      "requirement": "الحظر الشخصي يمنع الرسائل والاتصال الجديد من الاتجاهين دون إتلاف التاريخ؛ فك الحظر لا يغير قرار الطرف الآخر.",
+      "previous": "خدمة وقيد PostgreSQL واختبارات موجودة؛ رحلة أدوار حية مطلوبة.",
+      "reviewed": "قواعد الرسائل/contact/external-call وidempotency والحظر المتبادل.",
+      "gap": "لم يكن هناك إيصال HTTP حي لهذه المحاولات.",
+      "change": "أثبتت الرحلة الرفض في الاتجاهين وإنشاء محادثة واتصال خارجي وcontact، واستمرار التاريخ والعودة بعد unblock؛ لا إعادة تنفيذ.",
+      "code": [
+        "backend-api-runtime/app/Services/UserMessagingBlockService.php",
+        "backend-api-runtime/app/Http/Controllers/Api/AccountSafetyController.php"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Postgres/MessagingBlockPostgresTest.php",
+        "backend-api-runtime/tests/Feature/Wave2AccountSafetyTest.php",
+        "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+      ],
+      "prs": [
+        122,
+        143
+      ],
+      "integration": "HTTP/PG وحالات رفض واضحة؛ لا تحويل الحظر الشخصي إلى ban إداري.",
+      "android": "قبول الواجهة العام باقٍ؛ إنفاذ الحظر خادمي مثبت.",
+      "blocker": "لا مانع خاص بقاعدة الحظر ضمن النطاق المعتمد."
+    },
+    {
+      "id": 12,
+      "name": "الصور المتكيفة",
+      "status": "engineering_complete",
+      "requirement": "اختيار مشتق وفق مساحة العرض وDPR وmetered/Data Saver، وتكبير صريح دون تحميل أصل حساس.",
+      "previous": "PR119/120 منشوران بقياسات؛ هاتف معلق.",
+      "reviewed": "عقد variants واختيار Flutter وكاش الجلسة والإلغاء و304.",
+      "gap": "قبول إشارة الشبكة الفعلية على Android.",
+      "change": "أعيدت الفحوص والقياسات على الصور الاصطناعية؛ حُسّنت قراءة المشتق دون إعادة تنزيل بعد الكتابة.",
+      "code": [
+        "mobile_app/lib/core/network/adaptive_image_policy.dart",
+        "mobile_app/lib/features/properties/presentation/adaptive_property_photo.dart",
+        "backend-api-runtime/app/Services/ListingImageService.php"
+      ],
+      "tests": [
+        "mobile_app/test/adaptive_image_quality_test.dart",
+        "mobile_app/test/adaptive_image_uat_test.dart",
+        "backend-api-runtime/tests/Feature/AdaptiveImageQualityTest.php"
+      ],
+      "prs": [
+        119,
+        120,
+        122
+      ],
+      "integration": "Flutter/Laravel/Storage وقياس 304/بايتات؛ لا يساوي slow reader شبكة هاتف حقيقية.",
+      "android": "metered/Data Saver وشبكة يمنية فعلية غير مختبرة.",
+      "blocker": "قبول Android محدد للبند."
+    },
+    {
+      "id": 13,
+      "name": "التحميل الكسول",
+      "status": "engineering_complete",
+      "requirement": "طلب وسائط العناصر المرئية فقط وإيقاف الطلبات عند المغادرة/التمرير السريع.",
+      "previous": "PR120 منفذ ومقاس؛ لا حاجة إلى مسار بديل.",
+      "reviewed": "viewport/Sliver وleases والتبويب والمسار وكاش العودة.",
+      "gap": "قبول سرعة التمرير على الهاتف.",
+      "change": "أعيد فحص viewport HTTP واختبارات Flutter ونقل UAT؛ لم يُفعّل prefetch.",
+      "code": [
+        "mobile_app/lib/core/widgets/viewport_media.dart",
+        "mobile_app/lib/features/properties/presentation/adaptive_property_photo.dart"
+      ],
+      "tests": [
+        "mobile_app/test/viewport_media_test.dart",
+        "mobile_app/test/viewport_network_measurement_test.dart"
+      ],
+      "prs": [
+        120
+      ],
+      "integration": "قياس الفتح 21→2 طلب سابق مثبت وإعادة فحوص HTTP الحالية؛ العودة دون طلبات إضافية في السيناريو المقاس.",
+      "android": "لا قياس CPU/RAM/بايتات على هاتف فعلي.",
+      "blocker": "قبول Android والحركة السريعة؛ لا تعميم على أحمال غير مقاسة."
+    },
+    {
+      "id": 14,
+      "name": "التخزين المؤقت",
+      "status": "engineering_complete",
+      "requirement": "TTL ومفاتيح فلاتر وحدود حجم وإبطال صحيح، وعزل حساب ومنع تخزين رد ملغى/سابق للطفرة.",
+      "previous": "PR128 مدموج؛ كاش محدود قائم.",
+      "reviewed": "L1/L2/revision وحراس الإلغاء والرد المتأخر وتبديل الحساب.",
+      "gap": "حالة بعض صفحات الإدارة لم تكن مرتبطة بالحساب.",
+      "change": "حُفظ إصلاح PR128؛ أعيد استخدام ActorScopedPage في الإعدادات والمشاريع لمنع تسرب الحالة والردود القديمة.",
+      "code": [
+        "mobile_app/lib/core/network/api_client.dart",
+        "mobile_app/lib/features/properties/data/property_repository.dart",
+        "mobile_app/lib/features/account/presentation/actor_scoped_page.dart"
+      ],
+      "tests": [
+        "mobile_app/test/public_discovery_cancellation_test.dart",
+        "mobile_app/test/recent_properties_privacy_test.dart",
+        "mobile_app/test/secondary_admin_recovery_test.dart"
+      ],
+      "prs": [
+        128,
+        142
+      ],
+      "integration": "اختبارات Dio/HTTP/ملفات محلية فعلية وعزل الحساب؛ كاش الوسائط لا يوسع صلاحيات الخادم.",
+      "android": "قبول تبديل الحساب والعودة على الجهاز معلق.",
+      "blocker": "قبول Android؛ p95 الشامل لا يُستنتج من cache hit منفرد."
+    },
+    {
+      "id": 15,
+      "name": "التعافي من أخطاء الشبكة",
+      "status": "engineering_complete",
+      "requirement": "حفظ العمل المؤكد والمدخلات عند timeout/503/429، retry الصحيح، ورفض النتائج القديمة ومسح البيانات عند فقد الصلاحية.",
+      "previous": "PR129 مدموج وPR134 Draft.",
+      "reviewed": "viewer-key IO وpagination والرسائل والمسودات والتأخير وعزل الحساب.",
+      "gap": "فشل تخزين viewer key وتعافي صفحتين إداريتين، إضافة إلى quota مشتركة بالـproxy.",
+      "change": "دمج PR134، إصلاح ترتيب auth/throttle دون رفع الحد، وتعافي 503 مع إبقاء المدخلات وإزالة المحتوى عند 403.",
+      "code": [
+        "mobile_app/lib/features/properties/data/property_repository.dart",
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart",
+        "backend-api-runtime/app/Http/Middleware/AuthenticateApiToken.php"
+      ],
+      "tests": [
+        "mobile_app/test/listing_viewer_key_io_test.dart",
+        "mobile_app/test/loading_recovery_test.dart",
+        "backend-api-runtime/tests/Feature/AuthenticatedThrottleIsolationTest.php"
+      ],
+      "prs": [
+        129,
+        134,
+        122,
+        142
+      ],
+      "integration": "HTTP 401/403/404/409/422/429 و503/timeout محاكاة حقيقية/مضبوطة؛ quota لكل حساب مع إبقاء حد login العام.",
+      "android": "قطع شبكة الهاتف وإغلاق العملية/إعادة فتحها غير منفذين.",
+      "blocker": "Android الفعلي؛ لا يُخلط هذا البند باستئناف نقل #11 المؤجل."
+    },
+    {
+      "id": 16,
+      "name": "حالات التحميل والفراغ والخطأ وإعادة المحاولة",
+      "status": "partial",
+      "requirement": "حالات واضحة ومتناسقة عبر الرحلات الأساسية والشاشات المرتبطة، وفصل الصفر عن الخطأ وعدم ظهور بيانات حساب سابق.",
+      "previous": "مكتمل هندسيًا للرحلات الأساسية المختبرة؛ لم تثبت كل شاشة ثانوية.",
+      "reviewed": "الاستكشاف والإعلان والرسائل والتحقق والدعم والإدارة وعينة شاشات ثانوية.",
+      "gap": "إعدادات المنصة والمشاريع: raw error/فراغ/retained state ورد بعد dispose؛ لم يثبت قبول شامل لكل شاشة.",
+      "change": "أصلحت الشاشتان وأضيفت ستة Widget tests، مع تكبير 2.4/داكن وحفظ العمل عند503 ومسحه عند403 ومنع الرد القديم.",
+      "code": [
+        "mobile_app/lib/core/widgets/app_components.dart",
+        "mobile_app/lib/features/admin/presentation/platform_settings_screen.dart",
+        "mobile_app/lib/features/developments/presentation/development_admin_screen.dart"
+      ],
+      "tests": [
+        "mobile_app/test/loading_recovery_test.dart",
+        "mobile_app/test/buyer_loading_recovery_test.dart",
+        "mobile_app/test/secondary_admin_recovery_test.dart"
+      ],
+      "prs": [
+        120,
+        121,
+        142
+      ],
+      "integration": "الرحلات الأساسية CI/HTTP خضراء؛ إصلاح شاشتين لا يثبت تلقائيًا كل واجهة ثانوية.",
+      "android": "لا جولة أدوار بصرية موحدة على هاتف.",
+      "blocker": "إكمال سجل قبول جميع شاشات الرحلات والأدوار وAndroid؛ لذلك بقي الحكم جزئيًا صراحة."
+    },
+    {
+      "id": 17,
+      "name": "تجميع علامات الخريطة",
+      "status": "engineering_complete",
+      "requirement": "تجميع ثابت دون فقد/تكرار علامة، واحترام التكبير والعلامة المحددة والحدود.",
+      "previous": "PR126 مدموج.",
+      "reviewed": "خوارزمية cluster وzoom8..19 والفراغ/عنصر واحد والعزل المحدد.",
+      "gap": "قبول الخريطة الأصلية Native على جهاز.",
+      "change": "أعيد تشغيل الاختبارات دون إعادة بناء الخوارزمية؛ benchmark PG قرب مكاني مع 10 آلاف صف.",
+      "code": [
+        "mobile_app/lib/features/map/domain/property_marker_cluster.dart",
+        "mobile_app/lib/features/map/presentation/map_screen.dart"
+      ],
+      "tests": [
+        "mobile_app/test/property_marker_cluster_test.dart",
+        "backend-api-runtime/tests/Postgres/PropertyMarketContextPostgresTest.php"
+      ],
+      "prs": [
+        126,
+        137
+      ],
+      "integration": "سلامة Dart وEXPLAIN لفهرس location؛ rendering/gestures Native ليست نتيجة SQL.",
+      "android": "تحريك/تكبير/نقر لم تختبر على جهاز.",
+      "blocker": "قبول MapLibre Native والذاكرة/الإطارات على الهاتف."
+    },
+    {
+      "id": 18,
+      "name": "الصفحات والتحميل التدريجي",
+      "status": "engineering_complete",
+      "requirement": "صفحات مستقرة بلا تداخل، retry الصفحة الفاشلة، dedup وتوقف عند نهاية النتائج.",
+      "previous": "PR129 مدموج.",
+      "reviewed": "SmartSearchSession وfeed/repositories وعقود meta وتنازع refresh/pagination.",
+      "gap": "إثبات صفحات كبيرة دون ضغط UAT.",
+      "change": "bench معزول للصفحة500 و10 آلاف إعلان؛ بقيت دلالات retry والفلاتر محفوظة.",
+      "code": [
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart",
+        "mobile_app/lib/features/properties/data/property_repository.dart"
+      ],
+      "tests": [
+        "mobile_app/test/smart_search_pagination_recovery_test.dart",
+        "mobile_app/test/discovery_http_acceptance_test.dart",
+        "scripts/probe_disposable_capacity.py"
+      ],
+      "prs": [
+        129,
+        137
+      ],
+      "integration": "HTTP حقيقي وPG؛ العينة العامة لا تثبت كل قائمة خاصة على هاتف.",
+      "android": "تصفح القوائم الخاصة بالأدوار على جهاز معلق.",
+      "blocker": "قبول Android عبر الأدوار، دون إعادة تنفيذ pagination المثبت."
+    },
+    {
+      "id": 19,
+      "name": "Debounce وإلغاء الطلبات",
+      "status": "engineering_complete",
+      "requirement": "تأخير الطلب المناسب وإلغاء النقل ورفض الردود المعكوسة وعدم إعادة ملء الكاش بنتيجة ملغاة.",
+      "previous": "PR128 مدموج.",
+      "reviewed": "CancelToken/generation/dispose والبحث والخريطة؛ سلسلة طلب ثانوية بعد تبديل الحساب.",
+      "gap": "استمرار developers→projects بعد مغادرة الحساب.",
+      "change": "حُفظت حماية البحث؛ أوقف PR142 سلسلة الحساب القديم قبل طلب projects.",
+      "code": [
+        "mobile_app/lib/core/network/api_client.dart",
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart",
+        "mobile_app/lib/features/developments/presentation/development_admin_screen.dart"
+      ],
+      "tests": [
+        "mobile_app/test/public_discovery_cancellation_test.dart",
+        "mobile_app/test/secondary_admin_recovery_test.dart"
+      ],
+      "prs": [
+        128,
+        142
+      ],
+      "integration": "اختبارات تأخير/ردود معكوسة وإلغاء عبر Dio/HTTP؛ لا نتيجة قديمة تحل محل الجديدة.",
+      "android": "حركة سريعة وإغلاق/عودة على الجهاز غير مختبرة.",
+      "blocker": "قبول Android المحدد."
+    },
+    {
+      "id": 20,
+      "name": "Prefetch المشروط",
+      "status": "off_conditionally_approved",
+      "requirement": "يبقى OFF ما لم يثبت قياس فائدة صافية مع تكلفة بيانات وإشارة metered موثوقة.",
+      "previous": "OFF عمدًا.",
+      "reviewed": "مسارات viewport وcache والنقل عند العودة؛ لا مسار تحميل استباقي عام مفعل.",
+      "gap": "لا تجربة ON/OFF تثبت نفع تشغيله.",
+      "change": "حُفظ OFF؛ لم يضف تنزيلًا استباقيًا لإغلاق بند شكلي.",
+      "code": [
+        "mobile_app/lib/core/widgets/viewport_media.dart",
+        "mobile_app/lib/core/network/api_client.dart"
+      ],
+      "tests": [
+        "mobile_app/test/viewport_network_measurement_test.dart",
+        "mobile_app/test/adaptive_image_quality_test.dart"
+      ],
+      "prs": [
+        120
+      ],
+      "integration": "القياسات الحالية تثبت viewport/cache وإعادة استخدام البايتات، ولا تثبت فائدة ON.",
+      "android": "لا قبول لتشغيل Prefetch ولا حاجة لتفعيله قبل دليل.",
+      "blocker": "إعادة القرار فقط بتجربة مقيسة على شبكة فعلية؛ OFF هو القرار المعتمد المشروط حاليًا."
+    },
+    {
+      "id": 22,
+      "name": "Deep Links وApp Links",
+      "status": "partial",
+      "requirement": "قبول المسارات والأصول المسموح بها فقط، وHTTPS موثق بدومين وتوقيع رسميين وفتح Native صحيح.",
+      "previous": "PR123 مدموج وPR133 Draft.",
+      "reviewed": "URI origins/encoded IDs/actions وmanifest وقيد روابط HTTPS.",
+      "gap": "مدخلات URI غير موثوقة، وعدم إثبات assetlinks والتوقيع والدومين الرسمي.",
+      "change": "دمج PR133 وتحقيق رفض الأصول والمسارات والحمولات غير المسموحة؛ لا تفعيل autoVerify وهمي.",
+      "code": [
+        "mobile_app/lib/router/app_deep_links.dart",
+        "mobile_app/android/app/src/main/AndroidManifest.xml"
+      ],
+      "tests": [
+        "mobile_app/test/deep_link_origin_guard_test.dart",
+        "mobile_app/test/phase3_deep_links_test.dart",
+        "mobile_app/test/phase4_deep_links_test.dart",
+        "mobile_app/test/phase5_deep_links_test.dart"
+      ],
+      "prs": [
+        123,
+        133
+      ],
+      "integration": "عقود المسار والتحصين CI؛ ذلك لا يثبت ارتباط Android بالدومين.",
+      "android": "فتح intent من خارج التطبيق والتحقق النظامي الفعلي غير منفذين.",
+      "blocker": "دومين رسمي وassetlinks ببصمة Play Signing واختبار Android cold/warm/login-return."
+    },
+    {
+      "id": 23,
+      "name": "العقارات المشاهدة مؤخرًا",
+      "status": "engineering_complete",
+      "requirement": "سجل محدود مرتب بلا تكرار ومعزول لكل حساب/زائر، مع كتابة ذرية وتعافي فشل الملفات.",
+      "previous": "إصلاح خصوصية PR120 مدموج.",
+      "reviewed": "namespace وIO المتسلسل والحد30 والتأخير والمحو وعدم استيراد سجل مجهول المالك.",
+      "gap": "قبول تبديل الحساب وإعادة فتح التطبيق على جهاز.",
+      "change": "أعيدت اختبارات filesystem الفعلية؛ لم يُعد تنفيذ مخزن السجل.",
+      "code": [
+        "mobile_app/lib/features/properties/data/recent_properties_store.dart",
+        "mobile_app/lib/features/properties/presentation/recent_properties_screen.dart"
+      ],
+      "tests": [
+        "mobile_app/test/recent_properties_privacy_test.dart"
+      ],
+      "prs": [
+        120
+      ],
+      "integration": "تخزين محلي فقط؛ لا DB أو migration مطلوب؛ الملفات والردود المتأخرة واختبارات العزل مثبتة.",
+      "android": "قتل العملية/إعادة الفتح وتبديل الحساب على جهاز غير منفذين.",
+      "blocker": "قبول Android للسجل المحلي."
+    },
+    {
+      "id": 24,
+      "name": "حفظ حالة الاستكشاف والعودة إليها",
+      "status": "engineering_complete",
+      "requirement": "الحفاظ على الفلاتر والخريطة والقائمة وسجل البحث بصورة ذرية مع عودة متسقة وعدم سباق كتابة.",
+      "previous": "PR127 مدموج.",
+      "reviewed": "PageStorage والمخزن والملف المؤقت والتزامن والتعافي بعد IO.",
+      "gap": "قبول تنقل/رجوع Native موحد.",
+      "change": "أعيدت الاختبارات مع كاش وإلغاء current source؛ لا إعادة هندسة.",
+      "code": [
+        "mobile_app/lib/features/map/data/property_discovery_history_store.dart",
+        "mobile_app/lib/features/map/presentation/map_screen.dart"
+      ],
+      "tests": [
+        "mobile_app/test/property_discovery_history_atomic_test.dart",
+        "mobile_app/test/viewport_network_measurement_test.dart"
+      ],
+      "prs": [
+        127,
+        128
+      ],
+      "integration": "filesystem حقيقي وHTTP عودة دون نقل إضافي في السيناريو المثبت.",
+      "android": "العودة بين القائمة والخريطة وإغلاق التطبيق على جهاز معلق.",
+      "blocker": "قبول Android للحالة المستعادة."
+    },
+    {
+      "id": 25,
+      "name": "تجربة عدم وجود نتائج",
+      "status": "engineering_complete",
+      "requirement": "عرض الصفر كحالة صحيحة مع تعديل معايير واضح، وتمييزه عن HTTP فاشل أو قائمة قديمة.",
+      "previous": "موجود ومثبت بعينة UAT.",
+      "reviewed": "meta.total/data وواجهة البحث وretry والإلغاء وتغيير الفلاتر.",
+      "gap": "قبول بصري/تنقل على الهاتف.",
+      "change": "رحلة HTTP حي لاستعلام اصطناعي لا يطابق أي عقار؛ بيانات فارغة صحيحة وليست exception.",
+      "code": [
+        "mobile_app/lib/features/discovery/presentation/smart_search_assistant.dart",
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart"
+      ],
+      "tests": [
+        "mobile_app/test/buyer_loading_recovery_test.dart",
+        "mobile_app/test/discovery_http_acceptance_test.dart"
+      ],
+      "prs": [
+        120,
+        122
+      ],
+      "integration": "HTTP 200 مع data=[] وmeta.total=0، وFlutter يفرق بينها وبين 503.",
+      "android": "قبول الهاتف معلق.",
+      "blocker": "قبول Android للحالة ومسار تعديل المعايير."
+    },
+    {
+      "id": 26,
+      "name": "التحقق من تحديث التطبيق",
+      "status": "partial",
+      "requirement": "قرار إجباري/اختياري صحيح حسب رقم البناء الفعلي، وفتح متجر مسموح وآمن وإتاحة تحديث رسمي متوافق.",
+      "previous": "PR131 مدموج وروابط متجر الإنتاج معلقة.",
+      "reviewed": "ReleaseController/ReleaseGate وعقد Store URI والبناء وAPP_BUILD_NUMBER.",
+      "gap": "APK كان يملك versionCode مرتفعًا بينما Flutter يستخدم default1؛ التوقيع والرابط الرسميان غير متاحين.",
+      "change": "توحيد رقم البناء بين Android/Dart واختبار compiled environment والتسجيل؛ الحفاظ على allowlist روابط التحديث.",
+      "code": [
+        "mobile_app/lib/core/release/release_gate.dart",
+        "backend-api-runtime/app/Http/Controllers/Api/ReleaseController.php",
+        ".github/workflows/broker-experience-ci.yml"
+      ],
+      "tests": [
+        "mobile_app/test/release_gate_store_uri_test.dart",
+        "mobile_app/test/uat_compiled_environment_test.dart",
+        "mobile_app/test/push_registration_guard_test.dart"
+      ],
+      "prs": [
+        131,
+        139,
+        141
+      ],
+      "integration": "API/Flutter وبناء فعلي؛ API36 وELF/ZIP لا يغنيان عن اختبار upgrade موقع.",
+      "android": "لم يختبر تحديث نسخة مثبتة إلى أخرى بالمفتاح الرسمي.",
+      "blocker": "هوية package وتوقيع رسمي وPlay URL واختبار اختياري/إجباري وتحديث دون فقد بيانات."
+    },
+    {
+      "id": 27,
+      "name": "الصلاحيات عند الحاجة",
+      "status": "engineering_complete",
+      "requirement": "طلب الموقع/الكاميرا/الميكروفون عند الاستخدام، مع رفض ودائم وخدمة متوقفة وعودة من الإعدادات دون إجبار.",
+      "previous": "PR125 مدموج.",
+      "reviewed": "الإرشادات ومسار settings الاختياري وmedia picker/voice وسلامة تدفق المستخدم.",
+      "gap": "لم تختبر حوارات Android الحقيقية.",
+      "change": "أعيد فحص العقود والبناء؛ الحفاظ على طلب الإذن لحظة الاستخدام.",
+      "code": [
+        "mobile_app/lib/core/platform/app_permission_settings.dart",
+        "mobile_app/lib/core/platform/stage5_media_picker.dart",
+        "mobile_app/lib/core/platform/voice_capture_controller.dart"
+      ],
+      "tests": [
+        "mobile_app/test/uat_map_location_picker_test.dart",
+        "mobile_app/test/user_work_media_test.dart",
+        "mobile_app/test/live_dictation_test.dart"
+      ],
+      "prs": [
+        125,
+        141
+      ],
+      "integration": "واجهات bridge ومواقف الرفض مختبرة بصورة آلية؛ نظام الإذن Native يحتاج جهازًا.",
+      "android": "الرفض/الدائم/السماح/العودة على API23 وAPI36 غير مختبرة فعليًا.",
+      "blocker": "قبول Native بعد تغيير target36، خاصة edge-to-edge والأذونات."
+    },
+    {
+      "id": 28,
+      "name": "خصوصية EXIF",
+      "status": "approved",
+      "requirement": "لا تُعرض metadata الكاميرا/GPS الحساسة؛ أصل خاص، ترميز عرض نظيف واتجاه صحيح وعدم إتاحة variant=original.",
+      "previous": "مشتقات الإعلانات معاد ترميزها؛ صور مهنية قديمة تستحق مراجعة مستقلة.",
+      "reviewed": "أصل/مشتق الإعلان والمسودة والصورة المهنية والروابط السحابية والتصاريح.",
+      "gap": "الصورة المهنية العامة تحتاج تعقيمًا ومسارًا منفصلًا عن إثباتات التحقق.",
+      "change": "تعقيم الصورة المهنية الجديدة ومعالجة القديمة عند العرض وحذفها عند المحو؛ حُفظ الأصل الخاص ولم يُستخدم مستند تحقق كصورة عامة.",
+      "code": [
+        "backend-api-runtime/app/Services/ListingImageService.php",
+        "backend-api-runtime/app/Services/ProfessionalPhotoService.php",
+        "backend-api-runtime/app/Services/CloudAssetStorageService.php"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Feature/ProfessionalPhotoPrivacyTest.php",
+        "backend-api-runtime/tests/Feature/AdaptiveImageQualityTest.php",
+        "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+      ],
+      "prs": [
+        120,
+        122,
+        138
+      ],
+      "integration": "صور JPEG اصطناعية بوسم EXIF/GPS، غياب الوسم من العرض واتجاه محفوظ، رفض original422 وملكية404، bucket خاص.",
+      "android": "المعيار هو بايتات الخادم وحقوق الوصول المثبتة؛ القبول البصري العام يبقى منفصلًا.",
+      "blocker": "لا مانع متبقٍ لخصوصية metadata في المسارات المثبتة؛ لا تعميم على كل ملف تاريخي غير مفحوص."
+    },
+    {
+      "id": 29,
+      "name": "إدارة صور الإعلانات",
+      "status": "engineering_complete",
+      "requirement": "ترتيب/رئيسية/حذف/استبدال وإعادة رفع آمنة، مع حماية المراجع ودون ملفات يتيمة من المسار المختبر.",
+      "previous": "تنفيذ قائم وإصلاح PR120؛ قبول الأدوار/الهاتف مطلوب.",
+      "reviewed": "draft revision/promotion وimage order والملكية والتعافي من استجابة مفقودة والتنظيف.",
+      "gap": "تنظيف Storage فشل حيًا رغم نجاح محاكاة delete؛ ظهرت أصلية متروكة.",
+      "change": "إصلاح بروتوكول DELETE وإضافة إعادة إنتاج للمشتق الغائب؛ رحلة أصل/ترتيب/رئيسية/حذف/استبدال وحذف كل fixture بعد الاختبار.",
+      "code": [
+        "backend-api-runtime/app/Services/ListingEditorDraftService.php",
+        "backend-api-runtime/app/Services/ListingImageService.php",
+        "mobile_app/lib/features/properties/presentation/listing_editor_screen.dart"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Feature/CloudDeleteLifecycleTest.php",
+        "backend-api-runtime/tests/Feature/UserWorkMediaTest.php",
+        "mobile_app/test/user_work_media_test.dart"
+      ],
+      "prs": [
+        138,
+        140
+      ],
+      "integration": "Flutter contracts وHTTP/PG/Storage حقيقي وصفر مراجع/أصول fixture بعد التنظيف؛ لا حذف لصور غير مستخدمي الاختبار.",
+      "android": "رحلة الصور والرفع والإلغاء على جهاز معلق.",
+      "blocker": "قبول Android وتزامن أدوار التحرير الواقعي؛ التنظيف العادي best effort موثق عند فشل مزود لاحق."
+    },
+    {
+      "id": 30,
+      "name": "المسودات واستعادتها",
+      "status": "engineering_complete",
+      "requirement": "checkpoint/revision مستقر واستعادة دون تكرار، وحماية التأخير وتبديل الحساب وحفظ العمل عند الشبكة الضعيفة.",
+      "previous": "PR120 تحسينات مدموجة؛ رحلة UAT مطلوبة.",
+      "reviewed": "المسودة الحسابية والمحلية وعمليات الحفظ/الصورة والترقية وعزل UUID بين الحسابات.",
+      "gap": "صور غير منشورة فقدت مرجع التنظيف عند محو الحساب.",
+      "change": "أثبتت رحلة lost response/retry و409 عند تعديل stale، وعزل الحسابين؛ نُظفت الصور غير المستخدمة عند المحو بصورة صارمة.",
+      "code": [
+        "backend-api-runtime/app/Services/ListingEditorDraftService.php",
+        "mobile_app/lib/features/properties/data/listing_account_draft_repository.dart",
+        "mobile_app/lib/features/properties/presentation/listing_editor_screen.dart"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Postgres/ListingEditorDraftPostgresTest.php",
+        "mobile_app/test/loading_recovery_test.dart",
+        "backend-api-runtime/tests/Feature/AccountErasureLaunchTest.php"
+      ],
+      "prs": [
+        120,
+        140
+      ],
+      "integration": "HTTP/PG وملفات وrevision، مع رفض قراءة حساب آخر وعدم تكرار ملف عند retry.",
+      "android": "إغلاق العملية واستعادتها والتبديل على الجهاز لم ينفذا.",
+      "blocker": "قبول Android؛ استئناف البايتات #11 منفصل ومؤجل."
+    },
+    {
+      "id": 31,
+      "name": "حذف الحساب",
+      "status": "engineering_complete",
+      "requirement": "حذف هوية وتوكنات/عمل عابر وإثباتات خاصة وأرشفة الإعلان، مع الاحتفاظ المحدد بالسجلات القانونية ورفض حذف الموظف بلا نقل صلاحيات.",
+      "previous": "AccountErasureService موجود؛ لم تثبت دورة Storage الحية كاملة.",
+      "reviewed": "خدمة المحو وroute/web flow والسياسات والعزل والتزامن وملفات المسودات/الصورة المهنية.",
+      "gap": "quota حسب proxy تمنع حسابًا آخر؛ صور مسودات يتيمة؛ نجاح وهمي محتمل عند تنظيف best effort.",
+      "change": "auth قبل throttle بحدودها الأصلية؛ جمع المسارات تحت قفل الحساب وملكية دقيقة وتنظيف صارم وrollback عند503، وإيصال حذف وتوكن401 وأرشفة وحفظ تاريخ مشترك مثبتة حيًا.",
+      "code": [
+        "backend-api-runtime/app/Services/AccountErasureService.php",
+        "backend-api-runtime/app/Http/Middleware/AuthenticateApiToken.php",
+        "mobile_app/lib/features/account/presentation/account_safety_screen.dart"
+      ],
+      "tests": [
+        "backend-api-runtime/tests/Feature/AccountErasureLaunchTest.php",
+        "backend-api-runtime/tests/Feature/AuthenticatedThrottleIsolationTest.php",
+        "mobile_app/test/launch_readiness_wave4_test.dart"
+      ],
+      "prs": [
+        122,
+        140
+      ],
+      "integration": "HTTP/DB/Storage حقيقي لحساب اصطناعي؛ 401 بعد الحذف، أصل المسودة والصورة المهنية غائبان، المحاضر والرسائل المشتركة محفوظة وفق القواعد.",
+      "android": "حذف الحساب من APK موحد وOTP خارجي للويب لم يختبرا.",
+      "blocker": "قبول Android ومزود OTP وصفحة حذف الإنتاج وسياسة الاحتفاظ؛ لا توجد معاملة موزعة تعيد بايتات حُذفت قبل فشل لاحق."
+    },
+    {
+      "id": 32,
+      "name": "الثيم والتناسق والاتجاه",
+      "status": "engineering_complete",
+      "requirement": "ثيم فاتح/داكن/النظام محفوظ دون سباق وRTL وتكبير نص وتناسق مكونات وأصول معتمدة.",
+      "previous": "PR124 مدموج وحماية سباق ثيم قائمة.",
+      "reviewed": "theme persistence وdesign tokens و46 export وأصول APK وخمس خطوط ومعاينات RTL2.4 وعينة صفحات ثانوية.",
+      "gap": "رسائل/حالات شاشتين ثانويتين غير متناسقة؛ لا قبول بصري لكل جهاز.",
+      "change": "إعادة استخدام المكونات المشتركة وإصلاح الشاشتين؛ الحفاظ على الأصل المعتمد والبصمات والثيم دون redesign.",
+      "code": [
+        "mobile_app/lib/core/theme/theme_controller.dart",
+        "mobile_app/lib/core/theme/app_theme.dart",
+        "mobile_app/lib/core/widgets/app_components.dart"
+      ],
+      "tests": [
+        "mobile_app/test/theme_preference_race_test.dart",
+        "mobile_app/test/aqer_brand_test.dart",
+        "mobile_app/test/secondary_admin_recovery_test.dart"
+      ],
+      "prs": [
+        124,
+        142
+      ],
+      "integration": "تحليل Flutter وWidget وpreviews اصطناعية وفحص الأصول والخطوط داخل APK؛ أربع معاينات RTL كبيرة فُحصت بصريًا.",
+      "android": "لا جولة بصرية Native كاملة فاتح/داكن/شاشات صغيرة وكبيرة.",
+      "blocker": "قبول Android وتغيير target36/insets، ومراجعة الشاشات الثانوية الباقية."
+    }
+  ],
+  "deferred": [
+    {
+      "id": 3,
+      "name": "معالجة الفيديو",
+      "status": "deferred",
+      "pr": 111,
+      "head": "3986217652f00383bba946e971f0afc068d2c085",
+      "gate": "موافقة تكلفة worker ومعالجة/تخزين/مراجعة وأمان ودورة فعلية ثم Android؛ لا نشر أو تفعيل في هذه المهمة."
+    },
+    {
+      "id": 11,
+      "name": "استئناف رفع الوسائط",
+      "status": "deferred",
+      "pr": 115,
+      "head": "3f89182521910bfd910a960bb5a4f2a55a919be3",
+      "gate": "نسخة PostgreSQL كاملة مشفرة واستعادة مستقلة مثبتة قبل الهجرة؛ intents غائب والعلم OFF؛ نجاح بروتوكول TUS وحده ليس تكامل Flutter/API/Storage."
+    },
+    {
+      "id": 21,
+      "name": "تشغيل الفيديو",
+      "status": "deferred",
+      "pr": 111,
+      "head": "3986217652f00383bba946e971f0afc068d2c085",
+      "gate": "يتبع معالجة #3 وموافقة التكلفة ومراجعة الوسيط/الأمن وRange/التحكم بالوصول وAndroid؛ لا تفعيل من نجاح CI قديم."
+    }
+  ],
+  "reviewed_code_sha": "23157c1cfb1f6b9378e614b17929161fd2496970",
+  "live_receipt": "2026-10-25-109-v3:148/148 passed; cleanup=true"
+}

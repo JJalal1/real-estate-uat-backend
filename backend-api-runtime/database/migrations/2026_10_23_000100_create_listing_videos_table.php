@@ -18,6 +18,8 @@ return new class extends Migration {
             $table->timestamp('moderated_at')->nullable();
             $table->foreignId('moderated_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('original_path', 500);
+            // Track superseded originals until provider deletion is acknowledged.
+            $table->json('cleanup_paths')->nullable();
             $table->string('playback_path', 500)->nullable();
             $table->unsignedBigInteger('playback_size_bytes')->nullable();
             $table->string('poster_path', 500)->nullable();
@@ -63,3 +65,4 @@ return new class extends Migration {
         Schema::dropIfExists('listing_videos');
     }
 };
+

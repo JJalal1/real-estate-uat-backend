@@ -45,12 +45,13 @@ jobs:
         run: flutter test test/property_video_section_test.dart test/stage9_review_models_test.dart --reporter expanded
       - name: Compile native Kotlin player and picker
         run: >-
-          flutter build apk --debug
+          flutter build apk --flavor uat --debug
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
           --dart-define=AQER_VIDEO_UPLOADS_ENABLED=false
       - name: Keep installers private to workflow
         run: |
-          test -s build/app/outputs/flutter-apk/app-debug.apk
-          sha256sum build/app/outputs/flutter-apk/app-debug.apk
+          test -s build/app/outputs/flutter-apk/app-uat-debug.apk
+          sha256sum build/app/outputs/flutter-apk/app-uat-debug.apk
           echo 'Compiled UAT Android video integration. No APK upload in public repo.'
+

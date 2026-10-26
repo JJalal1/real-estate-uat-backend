@@ -8,6 +8,7 @@ import '../data/listing_account_draft_repository.dart';
 import '../domain/listing_account_draft.dart';
 import '../domain/property_schema.dart';
 import 'listing_draft_photo.dart';
+import 'adaptive_property_photo.dart';
 import 'listing_video_upload_panel.dart';
 
 import 'package:flutter/material.dart';
@@ -2131,16 +2132,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                 else if (_existing?.mainImage != null)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadii.card),
-                    child: Image.network(
-                      _existing!.mainImage!,
-                      height: 210,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox(
-                        height: 160,
-                        child: Center(child: EbrokerIcon(Icons.home_work_outlined)),
-                      ),
-                    ),
+                    child: SizedBox(height: 210, width: double.infinity,
+                      child: AdaptivePropertyPhoto(url: _existing!.mainImage!, authenticated: _existing!.status != 'published')),
                   ),
                 const SizedBox(height: AppSpacing.s16),
                 Text(_title.text.trim(),
@@ -2619,4 +2612,3 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
-

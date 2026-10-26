@@ -16,8 +16,36 @@ class PropertyVideoSection extends StatefulWidget {
   State<PropertyVideoSection> createState() => _PropertyVideoSectionState();
 }
 
-class _PropertyVideoSectionState extends State<PropertyVideoSection> {
+class _PropertyVideoSectionState extends State<PropertyVideoSection> with WidgetsBindingObserver {
   bool _playRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed && _playRequested) {
+      setState(() => _playRequested = false);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PropertyVideoSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.video.id != widget.video.id ||
+        !mapEquals(oldWidget.requestHeaders, widget.requestHeaders)) {
+      _playRequested = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(covariant PropertyVideoSection oldWidget) {
@@ -101,3 +129,4 @@ class _PropertyVideoSectionState extends State<PropertyVideoSection> {
     );
   }
 }
+

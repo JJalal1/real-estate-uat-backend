@@ -241,7 +241,7 @@ class _Sections extends PropertyRepository {
   int calls=0;
   final next=Completer<(List<PropertySummary>,bool)>();
   @override
-  Future<(List<PropertySummary>,bool)> searchListings(Map<String,dynamic> filters,{int page=1}) async {
+  Future<(List<PropertySummary>,bool)> searchListings(Map<String,dynamic> filters,{int page=1, CancelToken? cancelToken, bool refresh = false}) async {
     calls++;if(page>1)return next.future;
     return (List.generate(20,(index)=>PropertySummary.fromJson({'id':index+1,'title':'عقار اختباري ${index+1}',
       'type':'house','purpose':'sale','price':1000000,'currency':'YER','latitude':15.3,'longitude':44.2,'status':'published'})),true);

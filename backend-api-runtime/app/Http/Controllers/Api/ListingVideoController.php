@@ -88,6 +88,7 @@ final class ListingVideoController extends Controller
                     $existing->fill([
                         'status' => 'uploading',
                         'original_path' => $newPath,
+                        'cleanup_paths'=>array_values(array_unique(array_merge($existing->cleanup_paths ?? [],[$previousPath]))),
                         'failure_code' => null,
                     ])->save();
                     return [$existing, true, $previousPath];
@@ -114,13 +115,14 @@ final class ListingVideoController extends Controller
             return response()->json(['data' => $this->present($reserved)], 202);
         }
 
-        // Best-effort cleanup of a previously failed or stale reservation.
-        // The new reservation has its own unguessable path.
-        if (is_string($previousPath) && $previousPath !== '') {
-            try { $this->storage->deletePrivate($previousPath); } catch (Throwable) {}
-        }
-
         try {
+            // No path is forgotten if provider deletion fails. Retry keeps
+            // these tombstones; no further original bytes are admitted first.
+            foreach($reserved->cleanup_paths ?? [] as $path) {
+                $this->storage->deletePrivate($path);
+            }
+            ListingVideo::query()->whereKey($reserved->id)->where('status','uploading')
+                ->where('original_path',$reserved->original_path)->update(['cleanup_paths'=>null]);
             // Cloud storage can take ~90s; no DB transaction/row lock here.
             $this->storage->writePrivateFromFile($reserved->original_path, $source, $mime);
 
@@ -179,23 +181,22 @@ final class ListingVideoController extends Controller
         $actor = $request->user();
         abort_unless($actor && (int) $property->user_id === (int) $actor->id, 404);
 
-        $paths = DB::transaction(function () use ($property): array {
+        DB::transaction(function () use ($property,$actor): void {
+            $lockedActor=User::query()->lockForUpdate()->findOrFail($actor->id);
+            abort_unless($lockedActor->account_status===User::STATUS_ACTIVE,404);
             $locked = Property::query()->lockForUpdate()->findOrFail($property->id);
+            abort_unless((int)$locked->user_id===(int)$actor->id,404);
             abort_if($locked->status !== 'draft' || ! in_array($locked->review_status, ['draft', 'returned_for_correction'], true),
                 409, 'لا يمكن حذف الفيديو أثناء المراجعة أو بعد النشر.');
             $video = ListingVideo::query()->where('property_id', $locked->id)->lockForUpdate()->first();
-            if (! $video) return [];
+            if (! $video) return;
             abort_if(in_array($video->status, ['uploading', 'processing'], true), 409, 'انتظر انتهاء رفع أو معالجة الفيديو قبل الحذف.');
-            $paths = array_values(array_filter([
-                $video->original_path, $video->playback_path, $video->poster_path,
-            ]));
+            $paths = $video->trackedPaths();
+            // Preserve tracked paths on provider failure so retry can finish.
+            // Never acknowledge deletion after swallowing a storage error.
+            foreach ($paths as $path) $this->storage->deletePrivate($path);
             $video->delete();
-            return $paths;
         });
-
-        foreach ($paths as $path) {
-            try { $this->storage->deletePrivate($path); } catch (Throwable) {}
-        }
         return response()->json(['message' => 'حُذف فيديو الإعلان.']);
     }
 
@@ -211,3 +212,4 @@ final class ListingVideoController extends Controller
         ];
     }
 }
+

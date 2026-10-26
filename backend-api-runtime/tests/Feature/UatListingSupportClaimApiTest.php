@@ -8,10 +8,12 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
+use Tests\Concerns\ConfirmsListingImages;
 
 class UatListingSupportClaimApiTest extends TestCase
 {
     use RefreshDatabase;
+    use ConfirmsListingImages;
 
     protected function setUp(): void
     {
@@ -79,6 +81,7 @@ class UatListingSupportClaimApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('meta.total', 1);
 
+        $this->confirmListingImages($id, $agentAHeaders);
         $this->withHeaders($agentAHeaders)
             ->postJson("/api/admin/listing-review/listings/$id/approve", [
                 'reason' => 'Support agent completed the claimed investigation.',

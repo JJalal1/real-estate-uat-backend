@@ -1,0 +1,2331 @@
+{
+  "schema_version": 1,
+  "draft": false,
+  "date": "2026-10-25",
+  "timezone": "Asia/Aden",
+  "repo": "JJalal1/real-estate-uat-backend",
+  "branch": "work/wave2-review-current",
+  "intake_sha": "fc062313847c78181a2068f214b921546c05492a",
+  "reviewed_code_sha": "23157c1cfb1f6b9378e614b17929161fd2496970",
+  "reviewed_head_sha": "7d49c5a273900f243815bea6f789f134e162f56d",
+  "full_tree_sha": "ec091e30b1a7498df9035976665a0bd9b63ed67b",
+  "ci_virtual_sha": "5be928220e98b820168d1e6ae5aa15289d81f67b",
+  "ci_checks": [
+    {
+      "name": "Encrypted installer segment ${{ matrix.part }}",
+      "conclusion": "skipped",
+      "status": "completed",
+      "id": 121123795456,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490592/job/121123795456"
+    },
+    {
+      "name": "Flutter broker experience and UAT APK",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121864007,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490592/job/121121864007"
+    },
+    {
+      "name": "Laravel original regression",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121275232,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490592/job/121121275232"
+    },
+    {
+      "name": "Disposable PostgreSQL 17 and PostGIS",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121275188,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490592/job/121121275188"
+    },
+    {
+      "name": "UAT Docker PNG runtime",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121275162,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490592/job/121121275162"
+    },
+    {
+      "name": "Isolated 10k PostgreSQL capacity",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121243073,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490707/job/121121243073"
+    },
+    {
+      "name": "Private Storage protocol and existing image regressions",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242939,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490686/job/121121242939"
+    },
+    {
+      "name": "Locked Composer advisory audit",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242920,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490649/job/121121242920"
+    },
+    {
+      "name": "Adaptive selection cache cancellation and regressions",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242916,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490624/job/121121242916"
+    },
+    {
+      "name": "Adaptive derivatives privacy and media lifecycle",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242904,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490624/job/121121242904"
+    },
+    {
+      "name": "Resolved Dart advisory audit",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242880,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490649/job/121121242880"
+    },
+    {
+      "name": "Tracked source checkpoint",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242823,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490592/job/121121242823"
+    },
+    {
+      "name": "Actual HTTP viewport and UAT image measurements",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242784,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490679/job/121121242784"
+    },
+    {
+      "name": "Bounded real UAT cold and warm measurements",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242763,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490589/job/121121242763"
+    },
+    {
+      "name": "PostgreSQL market context integer safety",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242719,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490631/job/121121242719"
+    },
+    {
+      "name": "Real UAT transfer measurements and Flutter cache integration",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242700,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490624/job/121121242700"
+    },
+    {
+      "name": "Measured backend contracts (pgsql)",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242681,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490589/job/121121242681"
+    },
+    {
+      "name": "Flutter launch readiness",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242637,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490591/job/121121242637"
+    },
+    {
+      "name": "Measured backend contracts (sqlite)",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242581,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490589/job/121121242581"
+    },
+    {
+      "name": "Laravel launch readiness",
+      "conclusion": "success",
+      "status": "completed",
+      "id": 121121242493,
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490591/job/121121242493"
+    }
+  ],
+  "apk": {
+    "source_commit": "5be928220e98b820168d1e6ae5aa15289d81f67b",
+    "version_code": 1269,
+    "sha256": "07d908214fa2f8d90badf537082a248a5e79daaec5fe58c0c1d48e7b8a6415fc",
+    "bytes": 118075384,
+    "target_sdk": 36,
+    "min_sdk": 23,
+    "native_16kb_elf": "passed",
+    "zipalign_16kb": "passed",
+    "native_64bit_libraries_verified": 10,
+    "package": "com.example.real_estate_mobile",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "architectures": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "brand_assets_match": 4,
+    "fonts_match": 5,
+    "zip_crc": "passed",
+    "apksigner": "passed",
+    "certificate_sha256": "cea43cebb9f7ae79d67eb33a1ce54c95e23298f6014a69090ff16d87509b9872",
+    "handset_acceptance": "pending",
+    "run_id": 40177490592,
+    "encrypted_artifact_id": 12592263999,
+    "artifact_expires_at": "2026-10-28T08:52:10Z",
+    "encrypted_artifact_url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40177490592/artifacts/12592263999"
+  },
+  "local_role": {
+    "run": "disposable-ci",
+    "status": "passed",
+    "transport": "actual-loopback-http",
+    "cloud_storage": false,
+    "otp_login_tested": false,
+    "actor_count": 6,
+    "cleanup": true,
+    "elapsed_ms": 6436,
+    "cases": [
+      {
+        "case": "authenticated_publisher",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 144,
+        "bytes": 936,
+        "validation_fields": []
+      },
+      {
+        "case": "authenticated_other",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 45,
+        "bytes": 876,
+        "validation_fields": []
+      },
+      {
+        "case": "authenticated_other_publisher",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 43,
+        "bytes": 948,
+        "validation_fields": []
+      },
+      {
+        "case": "authenticated_reviewer",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 33,
+        "bytes": 1068,
+        "validation_fields": []
+      },
+      {
+        "case": "authenticated_second_reviewer",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 27,
+        "bytes": 1082,
+        "validation_fields": []
+      },
+      {
+        "case": "authenticated_manager",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 27,
+        "bytes": 1295,
+        "validation_fields": []
+      },
+      {
+        "case": "broker_cannot_enter_platform_settings",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 28,
+        "bytes": 91,
+        "validation_fields": []
+      },
+      {
+        "case": "support_manager_cannot_enter_finance",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 24,
+        "bytes": 91,
+        "validation_fields": []
+      },
+      {
+        "case": "regular_cannot_upload_professional_photo",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 71,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "professional_photo_upload",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 72,
+        "bytes": 26,
+        "validation_fields": []
+      },
+      {
+        "case": "public_professional_photo_is_sanitized",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 23,
+        "bytes": 1490,
+        "validation_fields": []
+      },
+      {
+        "case": "professional_photo_metadata_removed",
+        "passed": true
+      },
+      {
+        "case": "draft_save",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 60,
+        "bytes": 807,
+        "validation_fields": []
+      },
+      {
+        "case": "draft_revision_one",
+        "passed": true
+      },
+      {
+        "case": "lost_response_exact_retry",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 28,
+        "bytes": 807,
+        "validation_fields": []
+      },
+      {
+        "case": "stale_changed_checkpoint_conflict",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 24,
+        "bytes": 188,
+        "validation_fields": []
+      },
+      {
+        "case": "draft_restore",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 18,
+        "bytes": 807,
+        "validation_fields": []
+      },
+      {
+        "case": "draft_text_preserved",
+        "passed": true
+      },
+      {
+        "case": "other_cannot_read_draft",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 18,
+        "bytes": 82,
+        "validation_fields": []
+      },
+      {
+        "case": "unverified_actor_cannot_write_draft",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 21,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "other_publisher_has_no_matching_revision",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 23,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "same_uuid_is_separate_account_namespace",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 27,
+        "bytes": 682,
+        "validation_fields": []
+      },
+      {
+        "case": "original_account_draft_unchanged",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 18,
+        "bytes": 807,
+        "validation_fields": []
+      },
+      {
+        "case": "other_namespace_cannot_change_original",
+        "passed": true
+      },
+      {
+        "case": "first_real_image_upload",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 47,
+        "bytes": 1996,
+        "validation_fields": []
+      },
+      {
+        "case": "image_upload_retry_no_duplicate",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 25,
+        "bytes": 1996,
+        "validation_fields": []
+      },
+      {
+        "case": "one_image_after_retry",
+        "passed": true
+      },
+      {
+        "case": "second_real_image_upload",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 44,
+        "bytes": 3186,
+        "validation_fields": []
+      },
+      {
+        "case": "two_images_after_upload",
+        "passed": true
+      },
+      {
+        "case": "other_cannot_read_draft_image",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 18,
+        "bytes": 82,
+        "validation_fields": []
+      },
+      {
+        "case": "staff_cannot_read_foreign_editor_draft",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 18,
+        "bytes": 82,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_sanitized_draft_image",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 17,
+        "bytes": 1489,
+        "validation_fields": []
+      },
+      {
+        "case": "real_exif_camera_gps_removed",
+        "passed": true
+      },
+      {
+        "case": "real_exif_orientation_preserved",
+        "passed": true
+      },
+      {
+        "case": "draft_image_private_no_store",
+        "passed": true
+      },
+      {
+        "case": "private_original_sha256_preserved",
+        "passed": true
+      },
+      {
+        "case": "canonical_v9_listing_create",
+        "status": 201,
+        "expected": 201,
+        "passed": true,
+        "elapsed_ms": 159,
+        "bytes": 4354,
+        "validation_fields": []
+      },
+      {
+        "case": "new_listing_private_two_images",
+        "passed": true
+      },
+      {
+        "case": "photo_gps_does_not_change_listing_pin",
+        "passed": true
+      },
+      {
+        "case": "lost_listing_create_response_no_duplicate",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 54,
+        "bytes": 347,
+        "validation_fields": []
+      },
+      {
+        "case": "public_cannot_read_unpublished",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 26,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "other_cannot_read_unpublished",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 33,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "original_variant_denied",
+        "status": 422,
+        "expected": 422,
+        "passed": true,
+        "elapsed_ms": 33,
+        "bytes": 133,
+        "validation_fields": []
+      },
+      {
+        "case": "other_cannot_edit_property",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 28,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "reorder_checkpoint",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 40,
+        "bytes": 755,
+        "validation_fields": []
+      },
+      {
+        "case": "apply_image_order_primary",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 95,
+        "bytes": 4353,
+        "validation_fields": []
+      },
+      {
+        "case": "real_image_order_primary_roundtrip",
+        "passed": true
+      },
+      {
+        "case": "remove_photo_checkpoint",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 50,
+        "bytes": 741,
+        "validation_fields": []
+      },
+      {
+        "case": "apply_photo_removal",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 97,
+        "bytes": 3731,
+        "validation_fields": []
+      },
+      {
+        "case": "removed_photo_row_absent",
+        "passed": true
+      },
+      {
+        "case": "removed_original_cleaned",
+        "passed": true
+      },
+      {
+        "case": "replacement_checkpoint",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 42,
+        "bytes": 766,
+        "validation_fields": []
+      },
+      {
+        "case": "replacement_image_upload",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 56,
+        "bytes": 1956,
+        "validation_fields": []
+      },
+      {
+        "case": "apply_image_replacement",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 92,
+        "bytes": 3731,
+        "validation_fields": []
+      },
+      {
+        "case": "new_replacement_reference",
+        "passed": true
+      },
+      {
+        "case": "replaced_image_reference_inaccessible",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 24,
+        "bytes": 79,
+        "validation_fields": []
+      },
+      {
+        "case": "configure_existing_zero_rate_policy",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 48,
+        "bytes": 1426,
+        "validation_fields": []
+      },
+      {
+        "case": "submit_for_real_review",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 112,
+        "bytes": 4205,
+        "validation_fields": []
+      },
+      {
+        "case": "regular_cannot_approve",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 35,
+        "bytes": 91,
+        "validation_fields": []
+      },
+      {
+        "case": "first_reviewer_claim",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 81,
+        "bytes": 1383,
+        "validation_fields": []
+      },
+      {
+        "case": "second_reviewer_claim_denied",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 36,
+        "bytes": 270,
+        "validation_fields": []
+      },
+      {
+        "case": "second_reviewer_read_denied",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 38,
+        "bytes": 233,
+        "validation_fields": []
+      },
+      {
+        "case": "unreviewed_image_blocks_publish",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 42,
+        "bytes": 362,
+        "validation_fields": []
+      },
+      {
+        "case": "reviewer_reads_claimed_listing",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 52,
+        "bytes": 2378,
+        "validation_fields": []
+      },
+      {
+        "case": "stale_image_fingerprint_denied",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 42,
+        "bytes": 282,
+        "validation_fields": []
+      },
+      {
+        "case": "negative_image_decision",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 67,
+        "bytes": 130,
+        "validation_fields": []
+      },
+      {
+        "case": "unrelated_image_blocks_publish",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 43,
+        "bytes": 424,
+        "validation_fields": []
+      },
+      {
+        "case": "return_for_correction",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 84,
+        "bytes": 1443,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_corrects_returned",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 68,
+        "bytes": 4194,
+        "validation_fields": []
+      },
+      {
+        "case": "owner_resubmits_same_listing",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 108,
+        "bytes": 4125,
+        "validation_fields": []
+      },
+      {
+        "case": "reviewer_reclaims",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 84,
+        "bytes": 1383,
+        "validation_fields": []
+      },
+      {
+        "case": "explicit_positive_image_decision",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 66,
+        "bytes": 159,
+        "validation_fields": []
+      },
+      {
+        "case": "publish_after_authorized_review",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 116,
+        "bytes": 1456,
+        "validation_fields": []
+      },
+      {
+        "case": "published_only_after_review",
+        "passed": true
+      },
+      {
+        "case": "search_canonical_arabic",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 52,
+        "bytes": 1499,
+        "validation_fields": []
+      },
+      {
+        "case": "search_canonical_arabic_exact_fixture_only",
+        "passed": true
+      },
+      {
+        "case": "search_common_spelling",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 42,
+        "bytes": 1499,
+        "validation_fields": []
+      },
+      {
+        "case": "search_common_spelling_exact_fixture_only",
+        "passed": true
+      },
+      {
+        "case": "search_diacritics",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 41,
+        "bytes": 1499,
+        "validation_fields": []
+      },
+      {
+        "case": "search_diacritics_exact_fixture_only",
+        "passed": true
+      },
+      {
+        "case": "search_true_empty",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 21,
+        "bytes": 75,
+        "validation_fields": []
+      },
+      {
+        "case": "zero_results_are_not_an_error",
+        "passed": true
+      },
+      {
+        "case": "cross_advertiser_exact_duplicate",
+        "status": 201,
+        "expected": [
+          201,
+          409
+        ],
+        "passed": true,
+        "elapsed_ms": 90,
+        "bytes": 3800,
+        "validation_fields": []
+      },
+      {
+        "case": "duplicate_same_physical_asset",
+        "passed": true
+      },
+      {
+        "case": "duplicate_has_valid_sai",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 46,
+        "bytes": 1426,
+        "validation_fields": []
+      },
+      {
+        "case": "duplicate_submission_denied",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 42,
+        "bytes": 103,
+        "validation_fields": []
+      },
+      {
+        "case": "duplicate_denial_is_physical_identity",
+        "passed": true
+      },
+      {
+        "case": "public_sanitized_image",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 27,
+        "bytes": 1489,
+        "validation_fields": []
+      },
+      {
+        "case": "published_image_jpeg_no_exif",
+        "passed": true
+      },
+      {
+        "case": "original_still_denied_after_publish",
+        "status": 422,
+        "expected": 422,
+        "passed": true,
+        "elapsed_ms": 27,
+        "bytes": 133,
+        "validation_fields": []
+      },
+      {
+        "case": "listing_report",
+        "status": 201,
+        "expected": 201,
+        "passed": true,
+        "elapsed_ms": 76,
+        "bytes": 894,
+        "validation_fields": []
+      },
+      {
+        "case": "report_retry_returns_existing_receipt",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 34,
+        "bytes": 323,
+        "validation_fields": []
+      },
+      {
+        "case": "same_report_receipt",
+        "passed": true
+      },
+      {
+        "case": "publisher_cannot_read_other_report",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 20,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "regular_cannot_review_report",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 24,
+        "bytes": 91,
+        "validation_fields": []
+      },
+      {
+        "case": "unclaimed_report_review_denied",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 28,
+        "bytes": 214,
+        "validation_fields": []
+      },
+      {
+        "case": "reviewer_reads_report_queue",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 54,
+        "bytes": 997,
+        "validation_fields": []
+      },
+      {
+        "case": "report_is_in_shared_queue",
+        "passed": true
+      },
+      {
+        "case": "reviewer_claims_report",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 61,
+        "bytes": 1093,
+        "validation_fields": []
+      },
+      {
+        "case": "reviewer_starts_report",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 71,
+        "bytes": 1760,
+        "validation_fields": []
+      },
+      {
+        "case": "reviewer_resolves_report",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 73,
+        "bytes": 1962,
+        "validation_fields": []
+      },
+      {
+        "case": "reporter_reads_resolution",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 22,
+        "bytes": 898,
+        "validation_fields": []
+      },
+      {
+        "case": "report_resolution_roundtrip",
+        "passed": true
+      },
+      {
+        "case": "property_conversation",
+        "status": 201,
+        "expected": 201,
+        "passed": true,
+        "elapsed_ms": 58,
+        "bytes": 564,
+        "validation_fields": []
+      },
+      {
+        "case": "unrelated_staff_cannot_read_thread",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 22,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "message_before_block",
+        "status": 201,
+        "expected": 201,
+        "passed": true,
+        "elapsed_ms": 35,
+        "bytes": 295,
+        "validation_fields": []
+      },
+      {
+        "case": "conversation_report_created",
+        "status": 201,
+        "expected": 201,
+        "passed": true,
+        "elapsed_ms": 60,
+        "bytes": 438,
+        "validation_fields": []
+      },
+      {
+        "case": "conversation_report_has_receipt",
+        "passed": true
+      },
+      {
+        "case": "regular_cannot_review_private_report",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 25,
+        "bytes": 91,
+        "validation_fields": []
+      },
+      {
+        "case": "agent_without_private_permission_denied",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 25,
+        "bytes": 91,
+        "validation_fields": []
+      },
+      {
+        "case": "manager_reads_reported_private_content",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 39,
+        "bytes": 901,
+        "validation_fields": []
+      },
+      {
+        "case": "private_review_only_fixture_message",
+        "passed": true
+      },
+      {
+        "case": "private_report_read_audited",
+        "passed": true
+      },
+      {
+        "case": "manager_resolves_conversation_report",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 65,
+        "bytes": 481,
+        "validation_fields": []
+      },
+      {
+        "case": "conversation_report_resolution_roundtrip",
+        "passed": true
+      },
+      {
+        "case": "reporter_reads_private_report_notification",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 22,
+        "bytes": 1491,
+        "validation_fields": []
+      },
+      {
+        "case": "private_report_resolution_notified",
+        "passed": true
+      },
+      {
+        "case": "account_personal_block",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 26,
+        "bytes": 262,
+        "validation_fields": []
+      },
+      {
+        "case": "sender_block_enforced",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 29,
+        "bytes": 270,
+        "validation_fields": []
+      },
+      {
+        "case": "recipient_block_enforced",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 29,
+        "bytes": 270,
+        "validation_fields": []
+      },
+      {
+        "case": "new_contact_block_enforced",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 32,
+        "bytes": 270,
+        "validation_fields": []
+      },
+      {
+        "case": "blocked_external_call_denied",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 35,
+        "bytes": 182,
+        "validation_fields": []
+      },
+      {
+        "case": "blocked_property_contact_denied",
+        "status": 403,
+        "expected": 403,
+        "passed": true,
+        "elapsed_ms": 33,
+        "bytes": 182,
+        "validation_fields": []
+      },
+      {
+        "case": "history_remains_accessible",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 36,
+        "bytes": 919,
+        "validation_fields": []
+      },
+      {
+        "case": "personal_unblock",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 24,
+        "bytes": 176,
+        "validation_fields": []
+      },
+      {
+        "case": "message_after_unblock",
+        "status": 201,
+        "expected": 201,
+        "passed": true,
+        "elapsed_ms": 34,
+        "bytes": 295,
+        "validation_fields": []
+      },
+      {
+        "case": "unsubmitted_media_draft_created",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 30,
+        "bytes": 473,
+        "validation_fields": []
+      },
+      {
+        "case": "unsubmitted_media_uploaded",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 42,
+        "bytes": 1662,
+        "validation_fields": []
+      },
+      {
+        "case": "unsubmitted_original_exists_before_erasure",
+        "passed": true
+      },
+      {
+        "case": "staff_cannot_use_consumer_erasure",
+        "status": 409,
+        "expected": 409,
+        "passed": true,
+        "elapsed_ms": 25,
+        "bytes": 239,
+        "validation_fields": []
+      },
+      {
+        "case": "deletion_requires_explicit_phrase",
+        "status": 422,
+        "expected": 422,
+        "passed": true,
+        "elapsed_ms": 21,
+        "bytes": 125,
+        "validation_fields": []
+      },
+      {
+        "case": "synthetic_publisher_account_erasure",
+        "status": 200,
+        "expected": 200,
+        "passed": true,
+        "elapsed_ms": 303,
+        "bytes": 510,
+        "validation_fields": []
+      },
+      {
+        "case": "account_erasure_receipt",
+        "passed": true
+      },
+      {
+        "case": "erased_session_revoked",
+        "status": 401,
+        "expected": 401,
+        "passed": true,
+        "elapsed_ms": 17,
+        "bytes": 50,
+        "validation_fields": []
+      },
+      {
+        "case": "erased_account_image_unpublished",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 27,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "erased_professional_photo_unavailable",
+        "status": 404,
+        "expected": 404,
+        "passed": true,
+        "elapsed_ms": 17,
+        "bytes": 21,
+        "validation_fields": []
+      },
+      {
+        "case": "erased_professional_photo_deleted_from_storage",
+        "passed": true
+      },
+      {
+        "case": "erased_unsubmitted_original_deleted_from_storage",
+        "passed": true
+      },
+      {
+        "case": "erased_unsubmitted_derivative_thumb",
+        "passed": true
+      },
+      {
+        "case": "erased_unsubmitted_derivative_card",
+        "passed": true
+      },
+      {
+        "case": "erased_unsubmitted_derivative_preview",
+        "passed": true
+      },
+      {
+        "case": "erased_unsubmitted_derivative_detail",
+        "passed": true
+      },
+      {
+        "case": "erased_unsubmitted_derivative_gallery",
+        "passed": true
+      },
+      {
+        "case": "erased_unsubmitted_derivative_zoom",
+        "passed": true
+      },
+      {
+        "case": "erasure_archives_listing",
+        "passed": true
+      },
+      {
+        "case": "immutable_review_history_retained",
+        "passed": true
+      },
+      {
+        "case": "shared_message_history_retained",
+        "passed": true
+      }
+    ]
+  },
+  "capacity": {
+    "source_sha": "5be928220e98b820168d1e6ae5aa15289d81f67b",
+    "origin": "http://127.0.0.1:8098",
+    "fixture": {
+      "scope": "Disposable PostgreSQL only; no UAT capacity claim",
+      "properties": 10000,
+      "owners": 50,
+      "photo_metadata": 20000,
+      "cloud_storage_tested": false,
+      "real_image_bytes_tested": false,
+      "spatial_explain": [
+        {
+          "Plan": {
+            "Node Type": "Limit",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 85.26,
+            "Total Cost": 85.26,
+            "Plan Rows": 1,
+            "Plan Width": 8,
+            "Actual Startup Time": 5.731,
+            "Actual Total Time": 5.734,
+            "Actual Rows": 20,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 68,
+            "Shared Read Blocks": 11,
+            "Shared Dirtied Blocks": 4,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Sort",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 85.26,
+                "Total Cost": 85.26,
+                "Plan Rows": 1,
+                "Plan Width": 8,
+                "Actual Startup Time": 5.73,
+                "Actual Total Time": 5.732,
+                "Actual Rows": 20,
+                "Actual Loops": 1,
+                "Sort Key": [
+                  "id DESC"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 25,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 68,
+                "Shared Read Blocks": 11,
+                "Shared Dirtied Blocks": 4,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "properties",
+                    "Alias": "properties",
+                    "Startup Cost": 4.33,
+                    "Total Cost": 85.25,
+                    "Plan Rows": 1,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 5.677,
+                    "Actual Total Time": 5.725,
+                    "Actual Rows": 22,
+                    "Actual Loops": 1,
+                    "Recheck Cond": "(location IS NOT NULL)",
+                    "Rows Removed by Index Recheck": 0,
+                    "Filter": "(((status)::text = 'published'::text) AND st_dwithin(location, '0101000020E6100000030B60CAC05346406DFDF49F353F2E40'::geography, '100'::double precision, true))",
+                    "Rows Removed by Filter": 11,
+                    "Exact Heap Blocks": 5,
+                    "Lossy Heap Blocks": 0,
+                    "Shared Hit Blocks": 68,
+                    "Shared Read Blocks": 11,
+                    "Shared Dirtied Blocks": 4,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Index Name": "properties_location_gix",
+                        "Startup Cost": 0,
+                        "Total Cost": 4.33,
+                        "Plan Rows": 5,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 0.021,
+                        "Actual Total Time": 0.021,
+                        "Actual Rows": 33,
+                        "Actual Loops": 1,
+                        "Index Cond": "((location IS NOT NULL) AND (location && _st_expand('0101000020E6100000030B60CAC05346406DFDF49F353F2E40'::geography, '100'::double precision)))",
+                        "Shared Hit Blocks": 3,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 225,
+            "Shared Read Blocks": 8,
+            "Shared Dirtied Blocks": 4,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 1.103,
+          "Triggers": [],
+          "Execution Time": 5.794
+        }
+      ]
+    },
+    "requests_per_endpoint_per_level": 18,
+    "results": [
+      {
+        "endpoint": "first_page",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 75.75,
+        "p95_ms": 182.76,
+        "p99_ms": 182.76,
+        "requests_per_second": 10.96,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 47,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "deep_page",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 86.37,
+        "p95_ms": 99.99,
+        "p99_ms": 99.99,
+        "requests_per_second": 10.5,
+        "bytes": 476982,
+        "max_bytes": 26499,
+        "max_db_queries": 47,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "arabic_search",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 254.11,
+        "p95_ms": 268.69,
+        "p99_ms": 268.69,
+        "requests_per_second": 3.8,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 47,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "marketplace",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 222.19,
+        "p95_ms": 229.3,
+        "p99_ms": 229.3,
+        "requests_per_second": 4.33,
+        "bytes": 421488,
+        "max_bytes": 23416,
+        "max_db_queries": 37,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "nearby",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 80.45,
+        "p95_ms": 229.83,
+        "p99_ms": 229.83,
+        "requests_per_second": 10.4,
+        "bytes": 3856248,
+        "max_bytes": 214236,
+        "max_db_queries": 42,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "first_page",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 96.69,
+        "p95_ms": 176.51,
+        "p99_ms": 176.51,
+        "requests_per_second": 17.88,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 47,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "deep_page",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 114.87,
+        "p95_ms": 192.99,
+        "p99_ms": 192.99,
+        "requests_per_second": 19.57,
+        "bytes": 476982,
+        "max_bytes": 26499,
+        "max_db_queries": 47,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "arabic_search",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 355.2,
+        "p95_ms": 532.79,
+        "p99_ms": 532.79,
+        "requests_per_second": 7.5,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 47,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "marketplace",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 264.02,
+        "p95_ms": 491.36,
+        "p99_ms": 491.36,
+        "requests_per_second": 7.41,
+        "bytes": 421488,
+        "max_bytes": 23416,
+        "max_db_queries": 37,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "nearby",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 110.8,
+        "p95_ms": 175.93,
+        "p99_ms": 175.93,
+        "requests_per_second": 20.86,
+        "bytes": 3856248,
+        "max_bytes": 214236,
+        "max_db_queries": 40,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "first_page",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 136.56,
+        "p95_ms": 240.12,
+        "p99_ms": 240.12,
+        "requests_per_second": 25.18,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 47,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "deep_page",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 172.73,
+        "p95_ms": 264.54,
+        "p99_ms": 264.54,
+        "requests_per_second": 23.57,
+        "bytes": 476982,
+        "max_bytes": 26499,
+        "max_db_queries": 47,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "arabic_search",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 523.19,
+        "p95_ms": 753.94,
+        "p99_ms": 753.94,
+        "requests_per_second": 8.49,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 47,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "marketplace",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 441.86,
+        "p95_ms": 726.18,
+        "p99_ms": 726.18,
+        "requests_per_second": 8.82,
+        "bytes": 421488,
+        "max_bytes": 23416,
+        "max_db_queries": 37,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "nearby",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 177.52,
+        "p95_ms": 927.11,
+        "p99_ms": 927.11,
+        "requests_per_second": 12.03,
+        "bytes": 3856248,
+        "max_bytes": 214236,
+        "max_db_queries": 42,
+        "storage_requests": 0,
+        "errors": 0
+      }
+    ],
+    "completed": true,
+    "limits": {
+      "p95_ms": 2000,
+      "response_bytes": 1048576
+    },
+    "interpretation": "CI runner + PHP development server + local PostgreSQL; excludes Render/network/Storage/device.",
+    "sampled_php_max_sum_rss_bytes": 497373184,
+    "php_cpu_seconds_delta": 12.42
+  },
+  "pre_patch_uat_performance": {
+    "source_sha": "5be928220e98b820168d1e6ae5aa15289d81f67b",
+    "origin": "https://real-estate-uat-api-frankfurt.onrender.com",
+    "started_at": "2026-10-25T08:39:38Z",
+    "scope": "Controlled UAT n=20 per warm endpoint; concurrency<=3; no production capacity claim.",
+    "summaries": {
+      "warm_health": {
+        "n": 20,
+        "p50_ms": 848.8,
+        "p95_ms": 1012.1,
+        "p99_ms": 1014,
+        "max_ms": 1014,
+        "errors": 0,
+        "bytes": 920,
+        "concurrency": 3
+      },
+      "warm_thumb": {
+        "n": 20,
+        "p50_ms": 2240.2,
+        "p95_ms": 2447.7,
+        "p99_ms": 2737,
+        "max_ms": 2737,
+        "errors": 0,
+        "bytes": 226740,
+        "concurrency": 3
+      },
+      "warm_marketplace": {
+        "n": 20,
+        "p50_ms": 1003.6,
+        "p95_ms": 2237.1,
+        "p99_ms": 2399.2,
+        "max_ms": 2399.2,
+        "errors": 0,
+        "bytes": 514440,
+        "concurrency": 2
+      }
+    },
+    "completed": true
+  },
+  "render_metrics": [
+    {
+      "resourceId": "srv-dahj3vlg1s2s73bdqhtg",
+      "timeRange": {
+        "start": "2026-10-25T08:30:00Z",
+        "end": "2026-10-25T08:48:00Z"
+      },
+      "metrics": [
+        {
+          "type": "cpu_usage",
+          "data": [
+            {
+              "labels": [
+                {
+                  "field": "service",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg"
+                },
+                {
+                  "field": "resource",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg"
+                },
+                {
+                  "field": "instance",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg-czmn5"
+                }
+              ],
+              "unit": "cpu",
+              "values": [
+                {
+                  "timestamp": "2026-10-25T08:41:00Z",
+                  "value": 0.122596085
+                },
+                {
+                  "timestamp": "2026-10-25T08:42:00Z",
+                  "value": 0.0233829
+                },
+                {
+                  "timestamp": "2026-10-25T08:43:00Z",
+                  "value": 0.00401995
+                },
+                {
+                  "timestamp": "2026-10-25T08:44:00Z",
+                  "value": 0.0037898
+                },
+                {
+                  "timestamp": "2026-10-25T08:45:00Z",
+                  "value": 0.0024882
+                },
+                {
+                  "timestamp": "2026-10-25T08:46:00Z",
+                  "value": 0.0046543665
+                },
+                {
+                  "timestamp": "2026-10-25T08:47:00Z",
+                  "value": 0.00349285
+                },
+                {
+                  "timestamp": "2026-10-25T08:48:00Z",
+                  "value": 0.0033356666
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "memory_usage",
+          "data": [
+            {
+              "labels": [
+                {
+                  "field": "service",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg"
+                },
+                {
+                  "field": "resource",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg"
+                },
+                {
+                  "field": "instance",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg-czmn5"
+                }
+              ],
+              "unit": "bytes",
+              "values": [
+                {
+                  "timestamp": "2026-10-25T08:40:00Z",
+                  "value": 3432448
+                },
+                {
+                  "timestamp": "2026-10-25T08:41:00Z",
+                  "value": 77271040
+                },
+                {
+                  "timestamp": "2026-10-25T08:42:00Z",
+                  "value": 71020540
+                },
+                {
+                  "timestamp": "2026-10-25T08:43:00Z",
+                  "value": 70807550
+                },
+                {
+                  "timestamp": "2026-10-25T08:44:00Z",
+                  "value": 70545410
+                },
+                {
+                  "timestamp": "2026-10-25T08:45:00Z",
+                  "value": 70545410
+                },
+                {
+                  "timestamp": "2026-10-25T08:46:00Z",
+                  "value": 70545410
+                },
+                {
+                  "timestamp": "2026-10-25T08:47:00Z",
+                  "value": 70545410
+                },
+                {
+                  "timestamp": "2026-10-25T08:48:00Z",
+                  "value": 70545410
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "cpu_limit",
+          "data": [
+            {
+              "labels": [
+                {
+                  "field": "instance",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg-czmn5"
+                },
+                {
+                  "field": "service",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg"
+                },
+                {
+                  "field": "resource",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg"
+                }
+              ],
+              "unit": "cpu",
+              "values": [
+                {
+                  "timestamp": "2026-10-25T08:41:00Z",
+                  "value": 0.15
+                },
+                {
+                  "timestamp": "2026-10-25T08:42:00Z",
+                  "value": 0.15
+                },
+                {
+                  "timestamp": "2026-10-25T08:43:00Z",
+                  "value": 0.15
+                },
+                {
+                  "timestamp": "2026-10-25T08:44:00Z",
+                  "value": 0.15
+                },
+                {
+                  "timestamp": "2026-10-25T08:45:00Z",
+                  "value": 0.15
+                },
+                {
+                  "timestamp": "2026-10-25T08:46:00Z",
+                  "value": 0.15
+                },
+                {
+                  "timestamp": "2026-10-25T08:47:00Z",
+                  "value": 0.15
+                },
+                {
+                  "timestamp": "2026-10-25T08:48:00Z",
+                  "value": 0.15
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "memory_limit",
+          "data": [
+            {
+              "labels": [
+                {
+                  "field": "instance",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg-czmn5"
+                },
+                {
+                  "field": "service",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg"
+                },
+                {
+                  "field": "resource",
+                  "value": "srv-dahj3vlg1s2s73bdqhtg"
+                }
+              ],
+              "unit": "bytes",
+              "values": [
+                {
+                  "timestamp": "2026-10-25T08:41:00Z",
+                  "value": 536870900
+                },
+                {
+                  "timestamp": "2026-10-25T08:42:00Z",
+                  "value": 536870900
+                },
+                {
+                  "timestamp": "2026-10-25T08:43:00Z",
+                  "value": 536870900
+                },
+                {
+                  "timestamp": "2026-10-25T08:44:00Z",
+                  "value": 536870900
+                },
+                {
+                  "timestamp": "2026-10-25T08:45:00Z",
+                  "value": 536870900
+                },
+                {
+                  "timestamp": "2026-10-25T08:46:00Z",
+                  "value": 536870900
+                },
+                {
+                  "timestamp": "2026-10-25T08:47:00Z",
+                  "value": 536870900
+                },
+                {
+                  "timestamp": "2026-10-25T08:48:00Z",
+                  "value": 536870900
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "http_latency",
+          "data": []
+        },
+        {
+          "type": "http_request_count",
+          "data": []
+        }
+      ]
+    }
+  ],
+  "pr_ledger": [
+    {
+      "pr": 114,
+      "title": "WIP #1: block listing publication until every photo is reviewed",
+      "head": "3076100c2de681ab4e14d659114bce246bb11a7b",
+      "merge": "d8db69e5a1c204ec5dcdfe6938fa8553101e9236",
+      "merged": true,
+      "merged_at": "2026-10-23T20:03:43Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/114"
+    },
+    {
+      "pr": 119,
+      "title": "#12: adaptive image files with measured data savings and session-safe reuse",
+      "head": "ef4d16e7fca6b5e42fd72b9fa9bd475b540adca7",
+      "merge": "6a0475e82b3a12f59cab3eb78ba75ee4e283186b",
+      "merged": true,
+      "merged_at": "2026-10-23T22:25:52Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/119"
+    },
+    {
+      "pr": 120,
+      "title": "Gate viewport media and recover loading, caching and account-scoped recent history",
+      "head": "ec474e2db73248c3ac32a4e2857cee9cf1e58c65",
+      "merge": "ca184fc0c1ae67443786a72a32911b80d1ed5197",
+      "merged": true,
+      "merged_at": "2026-10-24T08:47:09Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/120"
+    },
+    {
+      "pr": 121,
+      "title": "#16 follow-up: isolate buyer records and recover agreement and booking reads",
+      "head": "f281027d8423172048c6928c7b5d8d60d9d51c83",
+      "merge": "179b34500751cfdcaf614c393d916767eb639761",
+      "merged": true,
+      "merged_at": "2026-10-24T12:21:34Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/121"
+    },
+    {
+      "pr": 122,
+      "title": "Fix account throttle isolation, sanitize professional photos, and measure UAT query bottlenecks",
+      "head": "3d5d308208abfe87604af5e346940c3b9a0b4ad4",
+      "merge": "6af2630a3482c3434d66c6b36764e14554088374",
+      "merged": true,
+      "merged_at": "2026-10-24T23:47:56Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/122"
+    },
+    {
+      "pr": 123,
+      "title": "Audit 29 active items; align Android custom deep-link routes with Flutter",
+      "head": "6ea75f2efacf67ed6b3b5c0c51b7a2e3d623f074",
+      "merge": "3023e36863e99e837b386abe7d1fd6bbba078329",
+      "merged": true,
+      "merged_at": "2026-10-24T21:18:04Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/123"
+    },
+    {
+      "pr": 124,
+      "title": "#32: prevent theme preference read/write races without touching Work changes",
+      "head": "83676edbe78f4fcc61c6692001a67551c285584f",
+      "merge": "f68efcf8116f8d273f86759513b4c90be5732aab",
+      "merged": true,
+      "merged_at": "2026-10-24T21:18:47Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/124"
+    },
+    {
+      "pr": 125,
+      "title": "#27: explain denied location permission and offer user-triggered settings",
+      "head": "459cb245aab4621801bb8b14fca48fd60ec512c8",
+      "merge": "0ca29eb42d0854a0d5e76adf02268be22f4fc9b6",
+      "merged": true,
+      "merged_at": "2026-10-24T21:52:09Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/125"
+    },
+    {
+      "pr": 126,
+      "title": "#17: lock map marker identity during zoom/selection changes",
+      "head": "9f1b76f8d3bb03732c35e4bfe12695ebb00b3162",
+      "merge": "a83c41c931da5e395588c1377cc2775210d61bc7",
+      "merged": true,
+      "merged_at": "2026-10-24T21:51:33Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/126"
+    },
+    {
+      "pr": 127,
+      "title": "#24: serialize and atomically persist discovery search history",
+      "head": "8a963b9ec180c6ddf44d4a6f824af61c9dac509e",
+      "merge": "df59263fa8c5e6605a77d8f424864e008a647c9b",
+      "merged": true,
+      "merged_at": "2026-10-24T21:52:16Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/127"
+    },
+    {
+      "pr": 128,
+      "title": "#14/#19: reject cancelled cached discovery queries and stale responses",
+      "head": "11f3a501949f24186a885f080df37db9fc8f3bc7",
+      "merge": "ee6d9b44e3d14c1f07393e6b5a7a3436811f2c22",
+      "merged": true,
+      "merged_at": "2026-10-24T22:34:27Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/128"
+    },
+    {
+      "pr": 129,
+      "title": "#15/#18: preserve smart-search results and retry failed pagination inline",
+      "head": "4f7891d70171899b4145024e9d486dfa9224c15f",
+      "merge": "9189e78b93e733873c32c655721765521e0b7232",
+      "merged": true,
+      "merged_at": "2026-10-24T22:38:15Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/129"
+    },
+    {
+      "pr": 130,
+      "title": "Document evidence-based completion criteria for all 29 Aqer items",
+      "head": "d879b78d1f9d4c99a822feb0b26a0efc82ae08eb",
+      "merge": "064e098953e6318aaf4cec7b715ca9fc9c9df8dd",
+      "merged": true,
+      "merged_at": "2026-10-24T22:42:40Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/130"
+    },
+    {
+      "pr": 131,
+      "title": "#26: validate release update store destinations before opening",
+      "head": "abe46585ae78c75d949b051a856414228bb343e0",
+      "merge": "fc062313847c78181a2068f214b921546c05492a",
+      "merged": true,
+      "merged_at": "2026-10-24T22:55:09Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/131"
+    },
+    {
+      "pr": 132,
+      "title": "#8: validate native push registration before sending tokens",
+      "head": "4c70c6c70ee6a06496f90e7d14dcf4947ca7e44a",
+      "merge": "9eec0d85af68c97ab42db39fc2f75c483d4881cd",
+      "merged": true,
+      "merged_at": "2026-10-24T23:24:34Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/132"
+    },
+    {
+      "pr": 133,
+      "title": "#22: reject ambiguous deep-link credentials, fragments and query payloads",
+      "head": "c96ff268be3bcb13582fbc08b7dc713b60527ea9",
+      "merge": "3e6cc1e98b0f488fe25995a85c5670b19f5c7106",
+      "merged": true,
+      "merged_at": "2026-10-24T23:25:17Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/133"
+    },
+    {
+      "pr": 134,
+      "title": "#15: recover viewer key after temporary local IO failure",
+      "head": "121f4cdd25a62260d3dd4f294e13ef645b791e56",
+      "merge": "a07f2d786bc5e4a0e3d15191ba66a489451a30a5",
+      "merged": true,
+      "merged_at": "2026-10-24T23:26:12Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/134"
+    },
+    {
+      "pr": 135,
+      "title": "Audit all 29 active Aqer items: engineering evidence versus release gates",
+      "head": "7ea1c0349e2067d56394a8ef4c0b6a40b6212abb",
+      "merge": "64dbe7c0648019bf62df0b3b28dec65e0c2dacbf",
+      "merged": true,
+      "merged_at": "2026-10-24T22:53:35Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/135"
+    },
+    {
+      "pr": 136,
+      "title": "Production-grade Aqer store-launch handoff: complete all 29 items, integration and platform readiness",
+      "head": "85d61592a5a2f14607d3149fbab6aca47c7383db",
+      "merge": "766d3b14b9bd2578f53bd20cfd79c4660899d419",
+      "merged": true,
+      "merged_at": "2026-10-24T23:26:33Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/136"
+    },
+    {
+      "pr": 137,
+      "title": "Measure isolated PostgreSQL capacity with 10,000 synthetic listings",
+      "head": "74145333774539272f116e5ad9fc3d10a3b6e49e",
+      "merge": "ac6798fdb978c2696dbd82a2e5fae9de06ed0515",
+      "merged": true,
+      "merged_at": "2026-10-25T00:07:25Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/137"
+    },
+    {
+      "pr": 138,
+      "title": "Fix live Supabase image deletion when legacy derivatives are absent",
+      "head": "59268d4612bd48f12654c427e3a5e7b1b9ec6698",
+      "merge": "3ee9842254f4ce1ee7fa67a1b670c0b5ec9ccf42",
+      "merged": true,
+      "merged_at": "2026-10-25T00:19:21Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/138"
+    },
+    {
+      "pr": 139,
+      "title": "Keep Flutter release and push build identity aligned with Android versionCode",
+      "head": "b28e0ed3fe3963ccf5d43389b4caa0ce24f47b37",
+      "merge": "905d1f42090d726d3a0426259d07366652073c2e",
+      "merged": true,
+      "merged_at": "2026-10-25T00:19:36Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/139"
+    },
+    {
+      "pr": 140,
+      "title": "fix: clean unused draft media when erasing an account",
+      "head": "3ad515f008eac40755194efd1e761ccd53cfc2d3",
+      "merge": "61e696e51d61f5c04be970371efd5ffb3c0bb0cc",
+      "merged": true,
+      "merged_at": "2026-10-25T00:33:47Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/140"
+    },
+    {
+      "pr": 141,
+      "title": "build: target API 36 and verify 16 KB native APK alignment",
+      "head": "a1861d28bc19a1f550195a7945eb5b56f65363f5",
+      "merge": "83c4359d78f00c10758ce6dbe9caae30e816ef0d",
+      "merged": true,
+      "merged_at": "2026-10-25T00:38:40Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/141"
+    },
+    {
+      "pr": 142,
+      "title": "fix: isolate secondary admin pages and recover from transient failures",
+      "head": "d767c4ae7f7ca43dae8ec59a1c31a1d1d587191b",
+      "merge": "9ae3152f93948ef5405fd98c54b896f649e9e78c",
+      "merged": true,
+      "merged_at": "2026-10-25T08:38:43Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/142"
+    },
+    {
+      "pr": 143,
+      "title": "fix: patch four vulnerable PHP dependencies and enforce advisory audits",
+      "head": "7d49c5a273900f243815bea6f789f134e162f56d",
+      "merge": "23157c1cfb1f6b9378e614b17929161fd2496970",
+      "merged": true,
+      "merged_at": "2026-10-25T08:53:36Z",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/143"
+    }
+  ],
+  "static_facts": {
+    "laravel_tests_passed": 386,
+    "laravel_assertions": 4846,
+    "laravel_sqlite_skipped": 1,
+    "postgres_tests": 176,
+    "postgres_assertions": 2827,
+    "pub_packages_audited": 125,
+    "composer_packages_locked": 109,
+    "php_advisories_before": 17,
+    "php_advisories_after": 0,
+    "original_blob_catalog_checked": 1167,
+    "original_blob_mismatches": 0,
+    "migrations": 59,
+    "video_and_tus_not_activated": true,
+    "physical_android_tested": false
+  },
+  "v2_live": {
+    "run": "2026-10-25-109-v2",
+    "status": "passed",
+    "cases": 135,
+    "cleanup": true,
+    "actor_count": 6,
+    "otp_login_tested": false,
+    "elapsed_ms": 96316,
+    "deploy": "dep-dbekt0favr4c73b8p10g",
+    "code_sha": "61e696e51d61f5c04be970371efd5ffb3c0bb0cc"
+  },
+  "financial_original_fingerprints": {
+    "cutoff": "2026-10-24T23:48:00Z",
+    "algorithm": "md5(string_agg(to_jsonb(row)::text,'|' ORDER BY id))",
+    "property_payments": "51860ba57ad71dc7a6629ccfba084d8a",
+    "property_sai_terms": "77453f6664656c4b1c6ef27a4d6f3268",
+    "property_sai_attestations": "0ee0c66db7ea92fda848213bd4e776ae",
+    "property_platform_receivables": "45aea29a39a30e3f2477e166bb2cf0f2"
+  },
+  "live_v3": {
+    "run": "2026-10-25-109-v3",
+    "status": "passed",
+    "cases": 148,
+    "cleanup": true,
+    "actor_count": 6,
+    "elapsed_ms": 88299,
+    "otp_login_tested": false,
+    "timestamp": "2026-10-25T08:56:20.698483224Z",
+    "deploy": "dep-dbes798ae00c73e6b7pg",
+    "code_sha": "23157c1cfb1f6b9378e614b17929161fd2496970"
+  },
+  "post_v3_database": {
+    "migrations": 59,
+    "fixture_actors": 18,
+    "active_fixtures": 0,
+    "tokens": 0,
+    "drafts": 0,
+    "image_refs": 0,
+    "editor_storage_objects": 0,
+    "intents_absent": true,
+    "original_financial_fingerprints_unchanged": true
+  },
+  "final_flag_reset": {
+    "key": "UAT_EXECUTIVE_JOURNEY_RUN",
+    "value": "false",
+    "deploy": "dep-dbes9n5g1s2s73dl742g",
+    "status": "live",
+    "finished_at": "2026-10-25T09:14:28.541469Z"
+  },
+  "database_security": {
+    "public_tables": 88,
+    "rls_tables": 88,
+    "anon_accessible_relations": 0,
+    "authenticated_accessible_relations": 0,
+    "public_security_definers": 0,
+    "public_schema_create_anon_authenticated": false,
+    "unvalidated_constraints": 0,
+    "foreign_keys": 136,
+    "storage_policies": 0,
+    "bucket_private": true,
+    "sequences_with_anon_privileges": 73,
+    "sequences_with_authenticated_privileges": 73
+  },
+  "post_patch_uat_performance": {
+    "source_sha": "5be928220e98b820168d1e6ae5aa15289d81f67b",
+    "origin": "https://real-estate-uat-api-frankfurt.onrender.com",
+    "started_at": "2026-10-25T09:13:50Z",
+    "scope": "Controlled UAT n=20 per warm endpoint; concurrency<=3; no production capacity claim.",
+    "summaries": {
+      "warm_health": {
+        "n": 20,
+        "p50_ms": 533.5,
+        "p95_ms": 646,
+        "p99_ms": 708.1,
+        "max_ms": 708.1,
+        "errors": 0,
+        "bytes": 920,
+        "concurrency": 3
+      },
+      "warm_thumb": {
+        "n": 20,
+        "p50_ms": 1662.6,
+        "p95_ms": 2433.1,
+        "p99_ms": 2444.7,
+        "max_ms": 2444.7,
+        "errors": 0,
+        "bytes": 226740,
+        "concurrency": 3
+      },
+      "warm_marketplace": {
+        "n": 20,
+        "p50_ms": 758.6,
+        "p95_ms": 1091.3,
+        "p99_ms": 1396.7,
+        "max_ms": 1396.7,
+        "errors": 0,
+        "bytes": 514440,
+        "concurrency": 2
+      }
+    },
+    "completed": true
+  },
+  "post_patch_probe_job": {
+    "id": 121128138684,
+    "run_id": 40177490589,
+    "code_sha": "23157c1cfb1f6b9378e614b17929161fd2496970",
+    "deployed_before_run": "dep-dbes798ae00c73e6b7pg",
+    "final_flag_reset": "dep-dbes9n5g1s2s73dl742g"
+  },
+  "verified_at_asia_aden": "2026-10-25 12:22:19 +03",
+  "report": "docs/AQER_FINAL_ENGINEERING_REPORT_2026-10-25_AR.md",
+  "release_decision": "NO-GO",
+  "engineering_score": {
+    "points": 27,
+    "of_32_percent": 84.4,
+    "active_29_percent": 93.1,
+    "approved": 4,
+    "engineering_complete": 20,
+    "partial": 4,
+    "off_conditional": 1,
+    "deferred": 3
+  },
+  "launch_readiness_score": {
+    "points": 4,
+    "gates": 10,
+    "percent": 40,
+    "hard_gates_override_score": true
+  }
+}

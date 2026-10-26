@@ -82,8 +82,9 @@ class ListingVideoFullCycleTest extends TestCase
             // A real Supabase x-upsert=false request would reject overwrites.
             $stalePlayback = 'listing-video-display/'.$record->id.'/playback.mp4';
             $stalePoster = 'listing-video-display/'.$record->id.'/poster.jpg';
-            Storage::disk('local')->put($stalePlayback, 'orphaned-crash-output');
-            Storage::disk('local')->put($stalePoster, 'orphaned-crash-poster');
+            [$failedPlayback,$failedPoster]=$record->derivativePathsForAttempt(1);
+            Storage::disk('local')->put($failedPlayback, 'orphaned-crash-output');
+            Storage::disk('local')->put($failedPoster, 'orphaned-crash-poster');
             // First delivery fails after the processing reservation. Confirm
             // it cannot publish a partial result and cleans orphan derivatives.
             $interrupted = new class extends CloudAssetStorageService {
@@ -130,12 +131,15 @@ class ListingVideoFullCycleTest extends TestCase
             $ready = $record->fresh();
             $this->assertSame('ready', $ready->status);
             $this->assertGreaterThan(0, $ready->playback_size_bytes);
-            $this->assertSame($stalePlayback, $ready->playback_path);
-            $this->assertSame($stalePoster, $ready->poster_path);
+            [$expectedPlayback,$expectedPoster]=$record->derivativePathsForAttempt(2);
+            $this->assertSame($expectedPlayback, $ready->playback_path);
+            $this->assertSame($expectedPoster, $ready->poster_path);
             Storage::disk('local')->assertExists($ready->playback_path);
             Storage::disk('local')->assertExists($ready->poster_path);
-            $this->assertNotSame('orphaned-crash-output', Storage::disk('local')->get($stalePlayback));
-            $this->assertNotSame('orphaned-crash-poster', Storage::disk('local')->get($stalePoster));
+            Storage::disk('local')->assertMissing($stalePlayback);
+            Storage::disk('local')->assertMissing($stalePoster);
+            Storage::disk('local')->assertMissing($failedPlayback);
+            Storage::disk('local')->assertMissing($failedPoster);
 
             // Re-delivering a queue job must not reprocess ready media.
             (new ProcessListingVideo($record->id))->handle(
@@ -178,3 +182,4 @@ class ListingVideoFullCycleTest extends TestCase
         ])->assertNotFound();
     }
 }
+

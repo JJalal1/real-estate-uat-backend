@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Owner-supplied Firebase client config is imported locally, never source archived.
+**/google-services.json
+/android/firebase-uat.properties

@@ -105,7 +105,7 @@ jobs:
       - name: Build UAT release with push deliberately disabled
         working-directory: mobile_app
         run: >-
-          flutter build apk --release
+          flutter build apk --flavor uat --release
           --build-number=${BUILD_NUMBER}
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${UAT_API_BASE_URL}
@@ -117,7 +117,7 @@ jobs:
         run: |
           set -euo pipefail
           out=build/app/outputs/flutter-apk
-          sha256sum "$out/app-release.apk" > "$out/app-release.apk.sha256"
+          sha256sum "$out/app-uat-release.apk" > "$out/app-uat-release.apk.sha256"
           printf 'source_sha=%s\nworkflow_run=%s\nbuild_number=%s\nenvironment=UAT\npush_enabled=false\nsigning=UAT-debug-allowed\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$BUILD_NUMBER" > "$out/build-info.txt"
       # Do not upload a plaintext installer from a public repository.
       # The approved Broker Experience CI delivers recipient-encrypted APKs
@@ -127,8 +127,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s build/app/outputs/flutter-apk/app-release.apk
-          sha256sum -c build/app/outputs/flutter-apk/app-release.apk.sha256
+          test -s build/app/outputs/flutter-apk/app-uat-release.apk
+          sha256sum -c build/app/outputs/flutter-apk/app-uat-release.apk.sha256
           grep -Fx "source_sha=$GITHUB_SHA" build/app/outputs/flutter-apk/build-info.txt
           grep -Fx 'push_enabled=false' build/app/outputs/flutter-apk/build-info.txt
           echo 'UAT APK built and verified locally; plaintext artifact publication forbidden.'

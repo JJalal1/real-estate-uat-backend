@@ -34,9 +34,18 @@ class Wave2MediaTrustTest extends TestCase
         $this->withHeaders($ah)->postJson($url,$payload)->assertConflict();
         $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/start")->assertOk();
         $this->withHeaders($bh)->postJson($url,$payload)->assertConflict();
+        // A reviewer may not publish a photo that was never confirmed.
+        $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/approve", [])
+            ->assertConflict()
+            ->assertJsonPath('message','راجع صلة جميع صور الإعلان بالعقار واعتمد الصور المناسبة قبل النشر.');
         $one=$this->withHeaders($ah)->postJson($url,$payload)->assertOk()->assertJsonPath('data.checker','human_review');
         $this->withHeaders($ah)->postJson($url,$payload)->assertOk()->assertJsonPath('data.review_id',$one->json('data.review_id'));
         $this->assertSame(1,ListingReview::where('action','media_relevance_review')->count());
+        // Ambiguous/uncertain decisions are not equivalent to approval.
+        $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/approve", [])
+            ->assertConflict()
+            ->assertJsonPath('message','راجع صلة جميع صور الإعلان بالعقار واعتمد الصور المناسبة قبل النشر.');
+
         $this->assertSame('under_review',$ad->fresh()->review_status);
         $this->assertDatabaseHas('property_images',['id'=>$image->id,'path'=>$image->path]);
         $this->withHeaders($ah)->getJson("/api/admin/listing-review/listings/$ad->id")->assertOk()->assertJsonPath('data.images.0.relevance_review.decision','uncertain');
@@ -133,6 +142,32 @@ class Wave2MediaTrustTest extends TestCase
             $this->assertNotSame(hash('sha256',$before),hash('sha256',$after));
             $this->assertSame([640,480],array_slice(getimagesizefromstring($after),0,2));
             imagedestroy($image);
+        }
+    }
+
+    public function test_image_removal_cleans_both_derivative_versions_after_activation_and_rollback(): void
+    {
+        Storage::fake('local'); Storage::fake('public');
+        [$owner] = $this->user('watermark-cleanup@example.test', '+967731200006');
+        $listing = $this->publishedListing($owner, 'Synthetic cleanup');
+        foreach ([false, true] as $enabledAtDelete) {
+            $service = app(ListingImageService::class);
+            config(['listing_media.watermark.enabled'=>false]);
+            $path = $service->store(UploadedFile::fake()->image('synthetic.jpg', 640, 480), 'listing-originals/cleanup');
+            $targets = [];
+            foreach (array_keys(config('listing_media.variants')) as $variant) $targets[] = $service->variantPath($path, $variant);
+            config(['listing_media.watermark.enabled'=>true]);
+            foreach (array_keys(config('listing_media.variants')) as $variant) {
+                $service->response($path, $variant, true);
+                $targets[] = $service->variantPath($path, $variant);
+            }
+            $image = $listing->images()->create(['path'=>$path]);
+            config(['listing_media.watermark.enabled'=>$enabledAtDelete]);
+            $service->removeIfUnused($path);
+            foreach ([$path, ...$targets] as $target) Storage::disk('local')->assertExists($target);
+            $image->delete();
+            $service->removeIfUnused($path);
+            foreach ([$path, ...$targets] as $target) Storage::disk('local')->assertMissing($target);
         }
     }
 

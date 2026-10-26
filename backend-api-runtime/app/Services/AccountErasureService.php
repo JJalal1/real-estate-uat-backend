@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\ListingEditorDraft;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class AccountErasureService
@@ -28,41 +30,59 @@ class AccountErasureService
             'regions_manager',
             'content_moderator',
         ];
-        if ($user->is_platform_owner || $user->roles()->whereIn('key', $staffRoles)->exists()) {
-            throw new ConflictHttpException('يجب نقل مهام وصلاحيات حساب الموظف قبل حذفه.');
-        }
-
-        $verificationPaths = $this->verificationPaths($user);
-        $professionalPhoto = trim((string) ($user->public_professional_photo_path ?? ''));
-        $videoPaths = $this->listingVideoPaths($user);
-
-        foreach ($videoPaths as $path) {
-            $this->storage->deletePrivate($path);
-        }
-
-        foreach ($verificationPaths as $path) {
-            $this->storage->deletePrivate($path);
-        }
-        if ($professionalPhoto !== '') {
-            $this->storage->deletePublic($professionalPhoto);
-            $this->storage->deletePrivate($professionalPhoto);
-        }
-
         $anonymizedEmail = sprintf(
             'deleted-%d-%s@deleted.invalid',
             $user->id,
             Str::lower(Str::random(16)),
         );
 
-        DB::transaction(function () use ($user, $request, $anonymizedEmail): void {
+        DB::transaction(function () use ($user, $request, $anonymizedEmail, $staffRoles): void {
             $locked = User::query()->lockForUpdate()->findOrFail($user->id);
             if ($locked->account_status === User::STATUS_DELETED) return;
+            if ($locked->is_platform_owner || $locked->roles()->whereIn('key', $staffRoles)->exists()) {
+                throw new ConflictHttpException('يجب نقل مهام وصلاحيات حساب الموظف قبل حذفه.');
+            }
+
+            if (Schema::hasTable('listing_videos') && DB::table('listing_videos')
+                ->whereIn('property_id', DB::table('properties')->where('user_id',$locked->id)->select('id'))
+                ->whereIn('status',['uploading','processing'])->where('updated_at','>',now()->subSeconds(660))->exists()) {
+                throw new ConflictHttpException('يجري تجهيز فيديو في حسابك. أعد طلب الحذف بعد انتهاء التجهيز.');
+            }
+            $videoPaths=$this->listingVideoPaths($locked);
+
+            // The editor also locks the account before writing a draft. Collect
+            // its owned paths while holding that same lock, then remove the rows
+            // before checking whether another draft or listing still uses a file.
+            $draftPaths = [];
+            foreach (ListingEditorDraft::query()->where('user_id', $locked->id)->lockForUpdate()->get(['id', 'images']) as $draft) {
+                foreach ($draft->images ?? [] as $path) {
+                    if (! is_string($path) || ! str_starts_with($path, 'editor-drafts/'.$locked->id.'/')) {
+                        throw new RuntimeException('Draft image ownership is inconsistent; erasure was not confirmed.');
+                    }
+                    $draftPaths[] = $path;
+                }
+            }
 
             $this->archiveListings($locked);
             $this->deleteTransientData($locked);
             if (Schema::hasTable('listing_videos')) {
                 DB::table('listing_videos')->whereIn('property_id',
                     DB::table('properties')->where('user_id', $locked->id)->select('id'))->delete();
+            }
+
+            foreach (array_unique($draftPaths) as $path) {
+                // Do not issue a successful erasure receipt after a provider
+                // failure. A retry retains the draft paths through DB rollback;
+                // already removed objects are safe to delete again idempotently.
+                app(ListingImageService::class)->removeIfUnused($path, true);
+            }
+            foreach ($videoPaths as $path) $this->storage->deletePrivate($path);
+            foreach ($this->verificationPaths($locked) as $path) {
+                $this->storage->deletePrivate($path);
+            }
+            $professionalPhoto = trim((string) ($locked->public_professional_photo_path ?? ''));
+            if ($professionalPhoto !== '') {
+                app(ProfessionalPhotoService::class)->remove($professionalPhoto);
             }
 
             if (Schema::hasTable('account_verification_profiles')) {
@@ -137,13 +157,11 @@ class AccountErasureService
     private function listingVideoPaths(User $user): array
     {
         if (! Schema::hasTable('listing_videos')) return [];
-        $records = DB::table('listing_videos')
-            ->join('properties', 'properties.id', '=', 'listing_videos.property_id')
-            ->where('properties.user_id', $user->id)
-            ->get(['listing_videos.original_path', 'listing_videos.playback_path', 'listing_videos.poster_path']);
+        $records = \App\Models\ListingVideo::query()
+            ->whereHas('property',fn ($query)=>$query->where('user_id',$user->id))->get();
         $paths = [];
         foreach ($records as $video) {
-            foreach ([$video->original_path, $video->playback_path, $video->poster_path] as $path) {
+            foreach ($video->trackedPaths() as $path) {
                 if (is_string($path) && $path !== '') $paths[] = $path;
             }
         }

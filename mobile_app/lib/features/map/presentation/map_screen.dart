@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -25,6 +26,8 @@ import '../../properties/domain/property_marker.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../discovery/presentation/smart_search_filter_editor.dart';
 import '../../properties/presentation/saved_search_builder_screen.dart';
+import '../../properties/presentation/adaptive_property_photo.dart';
+import '../../../core/network/adaptive_image_policy.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../../discovery/data/smart_search_session.dart';
 import '../../discovery/data/marketplace_repository.dart';
@@ -292,6 +295,8 @@ final nearbyPropertiesProvider =
     FutureProvider.autoDispose.family<List<PropertyMarker>, NearbyQuery>(
   (ref, query) {
     ref.watch(propertyDataRevisionProvider);
+    final transfer = CancelToken();
+    ref.onDispose(() => transfer.cancel('Map viewport superseded'));
     if (query.extraFilters.isNotEmpty) {
       return ref.watch(propertyRepositoryProvider).nearbyFiltered({
       ...query.extraFilters, 'latitude': query.center.latitude, 'longitude': query.center.longitude, 'radius_km': query.radiusKm,
@@ -303,7 +308,7 @@ final nearbyPropertiesProvider =
       if (query.search?.isNotEmpty == true) 'search': query.search,
       if (query.south != null) 'south': query.south, if (query.west != null) 'west': query.west,
       if (query.north != null) 'north': query.north, if (query.east != null) 'east': query.east,
-    });
+    }, cancelToken: transfer);
     }
     return ref.watch(propertyRepositoryProvider).nearby(
           latitude: query.center.latitude,
@@ -322,6 +327,7 @@ final nearbyPropertiesProvider =
           west: query.west,
           north: query.north,
           east: query.east,
+          cancelToken: transfer,
         );
   },
 );
@@ -539,17 +545,48 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }, child: child,
   );
 
+  void _showLocationGuidance(
+    String message, {
+    Future<bool> Function()? openSettings,
+  }) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      content: Text(message),
+      action: openSettings == null
+          ? null
+          : SnackBarAction(
+              label: 'الإعدادات',
+              onPressed: () { unawaited(openSettings()); },
+            ),
+    ));
+  }
+
   Future<void> _loadCurrentLocation() async {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) return;
+      if (!enabled) {
+        _showLocationGuidance(
+          'خدمة الموقع مغلقة. يمكنك تشغيلها من إعدادات الهاتف.',
+          openSettings: Geolocator.openLocationSettings,
+        );
+        return;
+      }
 
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.deniedForever) {
+        _showLocationGuidance(
+          'تم منع إذن الموقع نهائيًا. يمكنك السماح به من إعدادات التطبيق.',
+          openSettings: Geolocator.openAppSettings,
+        );
+        return;
+      }
+      if (permission == LocationPermission.denied) {
+        _showLocationGuidance('لم يتم السماح بالموقع. يمكنك البحث بالخريطة دون تفعيل الموقع.');
         return;
       }
 
@@ -1394,7 +1431,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ])),IconButton(tooltip:'إغلاق',onPressed:()=>setState(()=>_selected=null),icon:const Icon(Icons.close,size:18)),
         ]))),
       if(state.resultsError!=null || _mapMessage!=null) PositionedDirectional(start:12,end:12,bottom:80,child:AppSurface(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        Text(state.resultsError??_mapMessage!),if(state.resultsError!=null)TextButton(onPressed:()=>ref.read(smartSearchSessionProvider.notifier).search(),child:const Text('إعادة المحاولة'))]))),
+        Text(state.resultsError??_mapMessage!),if(state.resultsError!=null)TextButton(onPressed:state.loading?null:()=>ref.read(smartSearchSessionProvider.notifier).retryResults(),child:const Text('إعادة المحاولة'))]))),
     ]);
   }
 
@@ -2490,12 +2527,7 @@ class _MapSelectionCard extends StatelessWidget {
                 height: double.infinity,
                 child: property.mainImage == null
                     ? const _PropertyImageFallback()
-                    : Image.network(
-                        property.mainImage!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const _PropertyImageFallback(),
-                      ),
+                    : AdaptivePropertyPhoto(url: property.mainImage!, use: PropertyImageUse.thumbnail),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2809,4 +2841,3 @@ String _formatPrice(double value) {
   }
   return value.toStringAsFixed(0);
 }
-

@@ -3,6 +3,8 @@ package com.example.real_estate_mobile
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.provider.MediaStore
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
@@ -46,11 +48,32 @@ class MainActivity : FlutterActivity() {
         flutterEngine.platformViewsController.registry.registerViewFactory("aqer/listing-video", ListingVideoViewFactory())
         ContactActions(this, flutterEngine.dartExecutor.binaryMessenger)
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "real_estate/network")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "imageNetworkState") {
+                    result.notImplemented()
+                } else {
+                    val manager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val network = manager.activeNetwork
+                    val capabilities = manager.getNetworkCapabilities(network)
+                    val saver = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+                        manager.restrictBackgroundStatus != ConnectivityManager.RESTRICT_BACKGROUND_STATUS_DISABLED
+                    val transport = when {
+                        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "wifi"
+                        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "cellular"
+                        else -> "other"
+                    }
+                    result.success(mapOf("metered" to manager.isActiveNetworkMetered,
+                        "dataSaver" to saver, "networkKey" to (network?.toString() ?: "none"),
+                        "transport" to transport))
+                }
+            }
+
         speechInput?.dispose()
         speechInput = InAppSpeechInput(this, flutterEngine.dartExecutor.binaryMessenger)
 
         pushBridge?.dispose()
-        pushBridge = PushBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        pushBridge = PushBridge(this, flutterEngine.dartExecutor.binaryMessenger, ::readSecureToken)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -135,6 +158,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun writeSecureToken(token: String) {
+        PushSessionState(this).sessionChanged(token)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
         val encrypted = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
@@ -175,6 +199,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun deleteSecureToken() {
+        PushSessionState(this).sessionChanged(null)
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().remove(TOKEN_FIELD).apply()
     }
 

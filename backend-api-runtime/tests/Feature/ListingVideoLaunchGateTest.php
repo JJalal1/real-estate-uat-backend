@@ -23,3 +23,4 @@ class ListingVideoLaunchGateTest extends TestCase
         $this->assertTrue((bool) config('listing_video.worker_heartbeat_required', false));
     }
 }
+

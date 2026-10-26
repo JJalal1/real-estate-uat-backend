@@ -1,0 +1,248 @@
+{
+  "date": "2026-10-24",
+  "pr": 121,
+  "base": "99f8f437b5172de3605bcefa0204bc1b449b9730",
+  "tested_head": "f281027d8423172048c6928c7b5d8d60d9d51c83",
+  "native_source_commit": "2096ff1ac510b2606ee3c471de6896b6a397a8d5",
+  "tested_tree": "dee143e89555d1a1c4ee36446963ba304cfe4023",
+  "merge": "179b34500751cfdcaf614c393d916767eb639761",
+  "backend_proof": {
+    "deployed_commit": "ca184fc0c1ae67443786a72a32911b80d1ed5197",
+    "client_merge": "179b34500751cfdcaf614c393d916767eb639761",
+    "backend_and_blueprint_blobs": 394,
+    "all_unchanged": true,
+    "deploy_id": "dep-dbe71e3rjlhs73elu3cg"
+  },
+  "workflows": [
+    {
+      "id": 40082655578,
+      "name": "Broker Experience CI",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40082655762,
+      "name": "Adaptive Image Quality",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40082655546,
+      "name": "Viewport and loading acceptance",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40082655689,
+      "name": "Launch Readiness Wave 4",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "jobs": [
+    {
+      "run": 40082655578,
+      "id": 120839247164,
+      "name": "Laravel original regression",
+      "workflow": "Broker Experience CI",
+      "summary": [
+        "2026-10-24T09:37:39.5367649Z   Tests:    1 skipped, 356 passed (4390 assertions)"
+      ]
+    },
+    {
+      "run": 40082655578,
+      "id": 120839247199,
+      "name": "Disposable PostgreSQL 17 and PostGIS",
+      "workflow": "Broker Experience CI",
+      "summary": [
+        "2026-10-24T09:37:47.1379061Z   Tests:    15 passed (375 assertions)",
+        "2026-10-24T09:37:54.1275045Z   Tests:    44 passed (513 assertions)",
+        "2026-10-24T09:38:06.8432268Z   Tests:    47 passed (1089 assertions)",
+        "2026-10-24T09:38:09.8301766Z   Tests:    7 passed (75 assertions)",
+        "2026-10-24T09:38:15.2587932Z   Tests:    9 passed (116 assertions)",
+        "2026-10-24T09:38:17.0960722Z   Tests:    1 passed (6 assertions)",
+        "2026-10-24T09:38:22.4340909Z   Tests:    37 passed (503 assertions)",
+        "2026-10-24T09:38:25.1323184Z   Tests:    16 passed (150 assertions)"
+      ]
+    },
+    {
+      "run": 40082655762,
+      "id": 120839210680,
+      "name": "Adaptive selection cache cancellation and regressions",
+      "workflow": "Adaptive Image Quality",
+      "summary": [
+        "2026-10-24T09:37:44.0612213Z V3 analysis gate OK; 0 pre-existing INFOs retained on unchanged Golden file.",
+        "2026-10-24T09:38:00.0766737Z 00:07 +47: All tests passed!"
+      ]
+    },
+    {
+      "run": 40082655762,
+      "id": 120839210822,
+      "name": "Adaptive derivatives privacy and media lifecycle",
+      "workflow": "Adaptive Image Quality",
+      "summary": [
+        "2026-10-24T09:37:16.5268090Z   Tests:    18 passed (316 assertions)"
+      ]
+    },
+    {
+      "run": 40082655762,
+      "id": 120839210872,
+      "name": "Real UAT transfer measurements and Flutter cache integration",
+      "workflow": "Adaptive Image Quality",
+      "summary": [
+        "2026-10-24T09:37:44.7011144Z 00:01 +1: All tests passed!"
+      ]
+    },
+    {
+      "run": 40082655689,
+      "id": 120839438479,
+      "name": "Flutter launch readiness",
+      "workflow": "Launch Readiness Wave 4",
+      "summary": [
+        "2026-10-24T09:38:49.0898588Z V3 analysis gate OK; 0 pre-existing INFOs retained on unchanged Golden file.",
+        "2026-10-24T09:39:03.8241462Z 00:05 +15: All tests passed!",
+        "2026-10-24T09:43:57.4540402Z ✓ Built build/app/outputs/flutter-apk/app-release.apk (118.1MB)"
+      ]
+    },
+    {
+      "run": 40082655689,
+      "id": 120839438684,
+      "name": "Laravel launch readiness",
+      "workflow": "Launch Readiness Wave 4",
+      "summary": [
+        "2026-10-24T09:38:24.7969110Z   Tests:    9 passed (76 assertions)"
+      ]
+    }
+  ],
+  "native": {
+    "source_commit": "2096ff1ac510b2606ee3c471de6896b6a397a8d5",
+    "version_code": 1187,
+    "sha256": "283bfa54d0626e8f3bda186d48467fb82e37ce9e27abd9c65a9266b55b939322",
+    "bytes": 118091609,
+    "package": "com.example.real_estate_mobile",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "architectures": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "brand_assets_match": 4,
+    "fonts_match": 5,
+    "zip_crc": "passed",
+    "apksigner": "passed",
+    "certificate_sha256": "bc36e87584ad832bb7f88a2b0f81f64ec601883e8618d81ac543ad1afdac83fa",
+    "handset_acceptance": "pending"
+  },
+  "focused_flutter_pass": 86,
+  "full_flutter_pass": 534,
+  "full_flutter_opt_in_skips": 6,
+  "actual_http_pass": 5,
+  "fresh_live_after_idle": {
+    "run": 40082655546,
+    "attempt": 2,
+    "job": 120872020740,
+    "result": "success",
+    "metrics": [
+      {
+        "kind": "AQER_VIEWPORT_HTTP",
+        "network": "real loopback HTTP, synthetic PNG only",
+        "gating_required": true,
+        "feed_requests": 1,
+        "initial_image_requests": 2,
+        "initial_image_bytes": 136,
+        "after_fast_scroll_requests": 7,
+        "return_image_requests": 0,
+        "unique_image_requests": 7,
+        "total_image_bytes": 476
+      },
+      {
+        "kind": "AQER_LOADING_HTTP",
+        "network": "actual loopback HTTP with deliberate delayed response and HTTP 503",
+        "http_requests": 5,
+        "pages": [
+          1,
+          1,
+          1,
+          2,
+          1
+        ],
+        "retained_during_refresh": true,
+        "retry_failed_page": 1,
+        "unique_paginated_rows": 2,
+        "extra_requests_after_end": 0,
+        "empty_result_state": true
+      },
+      {
+        "kind": "AQER_VIEWPORT_FLING",
+        "network": "real loopback HTTP plus real Flutter ballistic scroll physics",
+        "initial_requests": 3,
+        "fling_speed_pixels_per_second": 8000,
+        "new_requests_during_fast_motion": 0,
+        "total_requests_after_settle": 7,
+        "return_requests": 0
+      },
+      {
+        "kind": "AQER_DISCOVERY_UAT",
+        "network": "real Render UAT Laravel API, read only; no account token",
+        "http_requests": 12,
+        "pagination_rows": [
+          5,
+          5
+        ],
+        "pagination_overlap": 0,
+        "arabic_normalization_same_ids": true,
+        "arabic_result_count": 8,
+        "empty_count": 0,
+        "protected_get_statuses": [
+          401,
+          401,
+          401,
+          401
+        ],
+        "unavailable_status": 404,
+        "invalid_coordinates_status": 422,
+        "latency_ms": [
+          34883,
+          1325,
+          943,
+          1453,
+          695,
+          230,
+          148,
+          147,
+          147,
+          161,
+          270,
+          374
+        ]
+      },
+      {
+        "kind": "AQER_VIEWPORT_UAT",
+        "network": "real UAT Laravel to private Supabase Storage",
+        "gating_required": true,
+        "initial_image_requests": 1,
+        "initial_image_bytes": 11337,
+        "after_scroll_requests": 2,
+        "return_image_requests": 0,
+        "total_image_bytes": 25540
+      }
+    ]
+  },
+  "supabase_after": {
+    "checked_at": "2026-10-24 12:29:49.646679+00",
+    "migrations": 59,
+    "upload_intents_table_exists": false,
+    "public_tables_without_rls": 0,
+    "storage_objects_rls": true,
+    "storage_policy_count": 0,
+    "public_bucket_count": 0,
+    "direct_unprivileged_table_grants": 0,
+    "health_canary_objects": 0
+  },
+  "limits": [
+    "The compiled environment test validates configuration only; it does not make HTTP requests.",
+    "Actual network evidence is the five viewport/discovery HTTP tests and the separate Adaptive live test.",
+    "After an idle interval the first health GET took34883ms; no p95 or Production readiness is claimed.",
+    "Backend unchanged; no additional Render deployment, DDL, paid resource or separate owner acceptance APK."
+  ]
+}

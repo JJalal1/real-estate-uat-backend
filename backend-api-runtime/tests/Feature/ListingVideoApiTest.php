@@ -130,6 +130,53 @@ class ListingVideoApiTest extends TestCase
         $this->assertDatabaseCount('listing_videos', 1);
     }
 
+    public function test_delete_failure_retains_tracked_video_for_a_successful_retry(): void
+    {
+        config(['listing_video.uploads_enabled'=>true]);
+        Storage::fake('local');
+        [$owner,$headers]=$this->actor('delete-failure');
+        $property=$this->property($owner);
+        $url='/api/properties/'.$property->id.'/video';
+        $this->withHeaders($headers)->post($url,['upload_id'=>(string)Str::uuid(),'video'=>$this->video()])->assertStatus(202);
+        $video=ListingVideo::query()->firstOrFail();
+        $storage=new class extends CloudAssetStorageService {
+            public function deletePrivate(string $path): void { throw new \RuntimeException('synthetic-delete-failure'); }
+        };
+        $request=\Illuminate\Http\Request::create($url,'DELETE');
+        $request->setUserResolver(fn ()=>$owner);
+        $controller=new \App\Http\Controllers\Api\ListingVideoController($storage,app(\App\Services\ListingVideoUploadPolicy::class),app(\App\Services\ListingVideoWorkerHealth::class));
+        try { $controller->remove($request,$property); $this->fail('Storage failure must not acknowledge deletion'); }
+        catch (\RuntimeException $error) { $this->assertSame('synthetic-delete-failure',$error->getMessage()); }
+        $this->assertDatabaseHas('listing_videos',['id'=>$video->id]);
+        Storage::disk('local')->assertExists($video->original_path);
+        $this->withHeaders($headers)->deleteJson($url)->assertOk();
+        $this->assertDatabaseCount('listing_videos',0);
+        Storage::disk('local')->assertMissing($video->original_path);
+    }
+
+    public function test_account_erasure_does_not_race_an_active_video_writer(): void
+    {
+        config(['listing_video.uploads_enabled'=>true]);
+        Storage::fake('local');
+        [$owner,$headers]=$this->actor('erasure-writer');
+        $property=$this->property($owner);
+        $url='/api/properties/'.$property->id.'/video';
+        $this->withHeaders($headers)->post($url,['upload_id'=>(string)Str::uuid(),'video'=>$this->video()])->assertStatus(202);
+        $video=ListingVideo::query()->firstOrFail();
+        $video->update(['status'=>'processing']);
+        $request=\Illuminate\Http\Request::create('/api/account','DELETE');
+        $request->setUserResolver(fn ()=>$owner);
+        try { app(\App\Services\AccountErasureService::class)->erase($owner,$request); $this->fail('An active writer must quiesce before erasure'); }
+        catch (\Symfony\Component\HttpKernel\Exception\ConflictHttpException $error) { $this->assertSame(409,$error->getStatusCode()); }
+        $this->assertSame(User::STATUS_ACTIVE,$owner->fresh()->account_status);
+        Storage::disk('local')->assertExists($video->original_path);
+        $video->update(['status'=>'failed']);
+        app(\App\Services\AccountErasureService::class)->erase($owner->fresh(),$request);
+        $this->assertSame(User::STATUS_DELETED,$owner->fresh()->account_status);
+        Storage::disk('local')->assertMissing($video->original_path);
+        $this->assertDatabaseCount('listing_videos',0);
+    }
+
     public function test_published_listing_does_not_accept_new_video_even_from_owner(): void
     {
         config()->set('listing_video.uploads_enabled', true);
@@ -234,5 +281,64 @@ class ListingVideoApiTest extends TestCase
         $this->assertDatabaseCount('listing_videos', 0);
     }
 
+    public function test_failed_cleanup_keeps_superseded_originals_tracked_until_retry(): void
+    {
+        config(['listing_video.uploads_enabled'=>true,'services.supabase_storage.enabled'=>false]);
+        Storage::fake('local');
+        [$owner,$headers]=$this->actor('cleanup-tombstone');
+        $property=$this->property($owner);$key=(string)Str::uuid();
+        $url='/api/properties/'.$property->id.'/video';
+        $this->withHeaders($headers)->post($url,['upload_id'=>$key,'video'=>$this->video()])->assertStatus(202);
+        $record=ListingVideo::query()->firstOrFail();$oldPath=$record->original_path;
+        $record->update(['status'=>'upload_failed']);
+        $storage=new class extends CloudAssetStorageService {
+            public bool $fail=true;
+            public function deletePrivate(string $path): void {
+                if($this->fail) throw new \RuntimeException('synthetic-cleanup-unavailable');
+                parent::deletePrivate($path);
+            }
+        };
+        app()->instance(CloudAssetStorageService::class,$storage);
+        $this->withHeaders($headers)->post($url,['upload_id'=>$key,'video'=>$this->video()])->assertStatus(500);
+        $this->assertContains($oldPath,$record->fresh()->trackedPaths());
+        Storage::disk('local')->assertExists($oldPath);
+        $storage->fail=false;
+        $this->withHeaders($headers)->post($url,['upload_id'=>$key,'video'=>$this->video()])->assertStatus(202);
+        Storage::disk('local')->assertMissing($oldPath);
+        $this->assertNull($record->fresh()->cleanup_paths);
+    }
+
+    public function test_stale_processing_attempt_cannot_erase_a_newer_attempts_output(): void
+    {
+        config(['listing_video.uploads_enabled'=>true,'listing_video.processing_enabled'=>true,
+            'services.supabase_storage.enabled'=>false]);
+        Storage::fake('local');
+        [$owner,$headers]=$this->actor('stale-attempt');
+        $property=$this->property($owner);
+        $this->withHeaders($headers)->post('/api/properties/'.$property->id.'/video',
+            ['upload_id'=>(string)Str::uuid(),'video'=>$this->video()])->assertStatus(202);
+        $video=ListingVideo::query()->firstOrFail();
+        $storage=new class($video->id) extends CloudAssetStorageService {
+            public function __construct(private int $videoId) {}
+            public function downloadPrivateToPath(string $path,string $target): void {
+                $record=ListingVideo::query()->findOrFail($this->videoId);
+                [$playback,$poster]=$record->derivativePathsForAttempt(2);
+                Storage::disk('local')->put($playback,'newer-accepted-bytes');
+                Storage::disk('local')->put($poster,'newer-accepted-poster');
+                $record->update(['status'=>'ready','attempts'=>2,'playback_path'=>$playback,'poster_path'=>$poster]);
+                throw new \RuntimeException('stale-worker-resumed');
+            }
+        };
+        try {
+            (new \App\Jobs\ProcessListingVideo($video->id))->handle($storage,app(\App\Services\ListingVideoTranscoder::class));
+            $this->fail('Expected interruption');
+        } catch (\RuntimeException $error) { $this->assertSame('stale-worker-resumed',$error->getMessage()); }
+        $ready=$video->fresh();
+        $this->assertSame('ready',$ready->status);$this->assertSame(2,$ready->attempts);
+        $this->assertSame('newer-accepted-bytes',Storage::disk('local')->get($ready->playback_path));
+        $this->assertSame('newer-accepted-poster',Storage::disk('local')->get($ready->poster_path));
+    }
+
 
 }
+

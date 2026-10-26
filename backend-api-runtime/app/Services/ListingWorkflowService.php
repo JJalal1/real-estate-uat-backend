@@ -273,12 +273,25 @@ class ListingWorkflowService
                 }
             }
 
-            $unrelatedImageIds = collect($this->mediaReviewStates($locked))
-                ->filter(static fn (array $state): bool => ($state['decision'] ?? null) === 'unrelated')
-                ->keys()
-                ->values();
+            // A listing may be published only after every current image has
+            // explicit, fingerprint-bound human confirmation. Missing/uncertain
+            // reviews fail closed; replacing a file invalidates old evidence.
+            $mediaStates = $this->mediaReviewStates($locked);
+            $images = $locked->images()->get();
+            if ($images->isEmpty()) {
+                throw new ConflictHttpException('لا يمكن اعتماد إعلان بلا صور.');
+            }
+            $unrelatedImageIds = $images->filter(static fn ($image): bool =>
+                ($mediaStates[$image->id]['decision'] ?? 'pending') === 'unrelated'
+            );
             if ($unrelatedImageIds->isNotEmpty()) {
                 throw new ConflictHttpException('لا يمكن اعتماد الإعلان قبل استبدال أو معالجة الصور المصنفة غير مرتبطة بالعقار.');
+            }
+            $unreviewedImageIds = $images->filter(static fn ($image): bool =>
+                ($mediaStates[$image->id]['decision'] ?? 'pending') !== 'relevant'
+            );
+            if ($unreviewedImageIds->isNotEmpty()) {
+                throw new ConflictHttpException('راجع صلة جميع صور الإعلان بالعقار واعتمد الصور المناسبة قبل النشر.');
             }
 
             $owner = $locked->user()->firstOrFail();
