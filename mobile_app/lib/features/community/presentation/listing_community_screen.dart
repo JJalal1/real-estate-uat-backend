@@ -9,25 +9,29 @@ import '../data/community_repository.dart';
 import '../domain/community_models.dart';
 import 'community_dialogs.dart';
 
-class ListingCommunityScreen extends ConsumerStatefulWidget {
-  const ListingCommunityScreen({
-    required this.propertyId,
-    required this.advertiserId,
-    required this.advertiserName,
-    super.key,
-  });
-
+class ListingCommunityScreen extends ConsumerWidget {
+  const ListingCommunityScreen({required this.propertyId, required this.advertiserId, required this.advertiserName, super.key});
   final int propertyId;
   final int advertiserId;
   final String advertiserName;
-
   @override
-  ConsumerState<ListingCommunityScreen> createState() =>
-      _ListingCommunityScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor=ref.watch(authControllerProvider).asData?.value?.id;
+    return _ListingCommunityBody(key:ValueKey((propertyId,advertiserId,actor)),
+      propertyId:propertyId,advertiserId:advertiserId,advertiserName:advertiserName);
+  }
+}
+class _ListingCommunityBody extends ConsumerStatefulWidget {
+  const _ListingCommunityBody({required this.propertyId,required this.advertiserId,required this.advertiserName,super.key});
+  final int propertyId;
+  final int advertiserId;
+  final String advertiserName;
+  @override
+  ConsumerState<_ListingCommunityBody> createState()=>_ListingCommunityScreenState();
 }
 
 class _ListingCommunityScreenState
-    extends ConsumerState<ListingCommunityScreen> {
+    extends ConsumerState<_ListingCommunityBody> {
   bool _loading = true;
   String? _error;
   List<ListingCommentItem> _comments = const [];
@@ -49,6 +53,7 @@ class _ListingCommunityScreenState
     try {
       final repository = ref.read(communityRepositoryProvider);
       final comments = await repository.comments(widget.propertyId);
+      if (!mounted) return;
       final rating = await repository.ratingSummary(widget.advertiserId);
       if (!mounted) {
         return;
