@@ -8,6 +8,12 @@ import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
+import 'package:real_estate_mobile/features/account/data/access_control_repository.dart';
+import 'package:real_estate_mobile/features/account/presentation/actor_scoped_page.dart';
+import 'package:real_estate_mobile/features/account/presentation/access_control_screen.dart';
+import 'package:real_estate_mobile/features/account/presentation/account_verification_admin_screen.dart';
+import 'package:real_estate_mobile/features/account/presentation/broker_verification_admin_screen.dart';
+import 'package:real_estate_mobile/features/admin/presentation/general_manager_accounts_screen.dart';
 import 'package:real_estate_mobile/features/account/data/account_verification_repository.dart';
 import 'package:real_estate_mobile/features/account/data/broker_verification_repository.dart';
 import 'package:real_estate_mobile/features/regions/data/region_repository.dart';
@@ -54,6 +60,10 @@ class _Harness {
       if(status!=200) {handler.reject(DioException(requestOptions:request,type:DioExceptionType.badResponse,
         response:Response<Object>(requestOptions:request,statusCode:status)));return;}
       final Object data=switch(request.path) {
+        '/admin/access/catalog'=>{'roles':<Object>[],'permissions':<Object>[]},
+        '/admin/access/users'=><Object>[{'id':17,'name':'Private administrative user A','email':'synthetic-private@example.invalid','account_status':'active'}],
+        '/admin/account-verifications'=><Object>[{'user_id':17,'name':'Private administrative user A','type':'broker','status':'pending','details':<String,dynamic>{},'documents':<Object>[]}],
+        '/admin/broker-account-verifications'=><Object>[{'user_id':17,'name':'Private administrative user A','status':'pending','documents':<Object>[]}],
         '/account-verification'=>{'user_id':1,'type':'broker','status':'rejected','documents':<Object>[]},
         '/broker/account-verification'=>{'user_id':1,'name':'Synthetic broker','status':'rejected',
           'note':'Private broker review A','documents':<Object>[]},
@@ -88,7 +98,7 @@ void main(){
   setUpAll(() async {final font=FontLoader('NotoSansArabic')
     ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))
     ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'));await font.load();});
-  for(final kind in ['account-verification','broker-verification','regions']){
+  for(final kind in ['account-verification','broker-verification','regions','admin-access']){
     for(final phase in ['retained','token-lookup','late-read']){
       test('$kind repository expires across account change during $phase',() async {
         final h=_Harness();await h.start();addTearDown(h.dispose);
@@ -101,6 +111,10 @@ void main(){
           h.container.listen(brokerVerificationRepositoryProvider,(_,__){});
           final repo=h.container.read(brokerVerificationRepositoryProvider);
           operation=phase=='late-read'?repo.status:()=>repo.approve(17);
+        }else if(kind=='admin-access'){
+          h.container.listen(accessControlRepositoryProvider,(_,__){});
+          final repo=h.container.read(accessControlRepositoryProvider);
+          operation=phase=='late-read'?repo.users:()=>repo.updateStatus(17,'suspended');
         }else{
           h.container.listen(regionRepositoryProvider,(_,__){});
           final repo=h.container.read(regionRepositoryProvider);
@@ -120,13 +134,15 @@ void main(){
     }
   }
   for(final sameActor in [false,true]){
-    for(final kind in ['profile','completion','broker','reports']){
+    for(final kind in ['profile','completion','broker','reports','admin-access','admin-accounts','admin-verification','admin-broker']){
       testWidgets('$kind private state expires across account change same actor=$sameActor',(tester) async {
         final page=switch(kind){'profile'=>const ProfileScreen(),'completion'=>const CompleteProfileScreen(),
-          'broker'=>const BrokerAccountVerificationScreen(),_=>const ConversationReportsScreen()};
+          'broker'=>const BrokerAccountVerificationScreen(),'admin-access'=>const AccessControlScreen(),
+          'admin-accounts'=>const GeneralManagerAccountsScreen(),'admin-verification'=>const AccountVerificationAdminScreen(),
+          'admin-broker'=>const BrokerVerificationAdminScreen(),_=>const ConversationReportsScreen()};
         final h=await _mount(tester,page);
         final privateText=switch(kind){'profile'=>'أحمد علي محمد صالح','completion'=>'Private completion A',
-          'broker'=>'Private broker review A',_=>'Private report A'};
+          'broker'=>'Private broker review A','reports'=>'Private report A',_=>'Private administrative user A'};
         if(kind=='completion') {await tester.enterText(find.byType(TextField).first,privateText);}
         expect(find.text(privateText),findsWidgets);
         h.account.change(null);h.account.change(sameActor?1:2);await _frames(tester);
@@ -135,6 +151,13 @@ void main(){
       });
     }
   }
+  testWidgets('a route carrying preloaded private data rejects an account change before its first frame',(tester) async {
+    final h=_Harness();await h.start();h.account.change(2);var built=false;
+    await tester.pumpWidget(UncontrolledProviderScope(container:h.container,child:MaterialApp(home:
+      ActorBoundPage(title:'Private route',actorId:1,builder:(_){built=true;return const Text('Private old route data');}))));
+    expect(built,isFalse);expect(find.text('تغيّر الحساب'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());h.dispose();
+  });
   final forms=<String,Widget Function()>{'auth':()=>const AuthScreen(),'profile':()=>const ProfileScreen(),
     'completion':()=>const CompleteProfileScreen(),'password':()=>const ForgotPasswordScreen(),
     'phone':()=>const PhoneVerificationScreen(),'broker':()=>const BrokerAccountVerificationScreen()};

@@ -29,9 +29,11 @@ class ActorScopedPage extends ConsumerWidget {
 /// Forms initialized from private data cannot be transferred to another actor.
 /// Keep the binding even if logout and login happen before the next frame.
 class ActorBoundPage extends ConsumerStatefulWidget {
-  const ActorBoundPage({required this.title, required this.builder, super.key});
+  const ActorBoundPage({required this.title, required this.builder, this.actorId, super.key});
   final String title;
   final WidgetBuilder builder;
+  // Snapshot the initiating account when a route carries preloaded private data.
+  final int? actorId;
   @override
   ConsumerState<ActorBoundPage> createState() => _ActorBoundPageState();
 }
@@ -41,13 +43,18 @@ class _ActorBoundPageState extends ConsumerState<ActorBoundPage> {
   bool _changed = false;
 
   @override
+  void initState() { super.initState(); _actor = widget.actorId; }
+
+  @override
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider, (_, next) {
       if (_actor != null && next.asData != null && next.asData?.value?.id != _actor) {
         setState(() => _changed = true);
       }
     });
-    final actor = ref.watch(authControllerProvider).asData?.value;
+    final auth = ref.watch(authControllerProvider);
+    final actor = auth.asData?.value;
+    if (_actor != null && auth.asData != null && actor?.id != _actor) _changed = true;
     if (!_changed && _actor == null && actor != null) _actor = actor.id;
     // Keep the normal guest entry state after logout. A later login still
     // cannot reuse this page's old private form, even with the same user ID.

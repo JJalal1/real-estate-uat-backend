@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'actor_scoped_page.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,16 +11,20 @@ import '../data/auth_controller.dart';
 import '../data/broker_verification_repository.dart';
 import '../domain/broker_verification.dart';
 
-class BrokerVerificationAdminScreen extends ConsumerStatefulWidget {
+class BrokerVerificationAdminScreen extends ConsumerWidget {
   const BrokerVerificationAdminScreen({super.key});
-
   @override
-  ConsumerState<BrokerVerificationAdminScreen> createState() =>
-      _BrokerVerificationAdminScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'توثيق الدلالين', builder: (_) => const _BrokerVerificationAdminScreenBody());
+}
+class _BrokerVerificationAdminScreenBody extends ConsumerStatefulWidget {
+  const _BrokerVerificationAdminScreenBody();
+  @override
+  ConsumerState<_BrokerVerificationAdminScreenBody> createState() => _BrokerVerificationAdminScreenState();
 }
 
 class _BrokerVerificationAdminScreenState
-    extends ConsumerState<BrokerVerificationAdminScreen> {
+    extends ConsumerState<_BrokerVerificationAdminScreenBody> {
   late Future<List<BrokerVerificationApplication>> _future;
   final Set<int> _busy = <int>{};
 
@@ -89,7 +94,7 @@ class _BrokerVerificationAdminScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('تم توثيق حساب الدلال.')));
-        setState(_reload);
+        _reload();
       }
     } catch (error) {
       if (mounted) {
@@ -105,8 +110,8 @@ class _BrokerVerificationAdminScreenState
 
   Future<void> _reject(BrokerVerificationApplication application) async {
     final controller = TextEditingController();
-    final reason = await showDialog<String>(
-      context: context,
+    final reason = await showActorDialog<String>(
+      context: context, ref: ref,
       builder: (dialogContext) => AlertDialog(
         title: const Text('سبب رفض التوثيق'),
         content: TextField(
@@ -126,7 +131,7 @@ class _BrokerVerificationAdminScreenState
       ),
     );
     controller.dispose();
-    if (reason == null || reason.length < 3) {
+    if (!mounted || reason == null || reason.length < 3) {
       return;
     }
     setState(() => _busy.add(application.userId));
@@ -135,7 +140,7 @@ class _BrokerVerificationAdminScreenState
           .read(brokerVerificationRepositoryProvider)
           .reject(application.userId, reason);
       if (mounted) {
-        setState(_reload);
+        _reload();
       }
     } catch (error) {
       if (mounted) {
