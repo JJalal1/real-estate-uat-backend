@@ -155,7 +155,12 @@ void main(){
       final h=_Harness()..status=503..pending=Completer<void>();await _mount(tester,entry.value(),large:large,harness:h);
       expect(h.calls,greaterThan(0));expect(tester.takeException(),isNull);
       h.pending!.complete();await _frames(tester);
-      expect(find.textContaining('الخادم غير متاح مؤقتاً'),findsWidgets);
+      final error=find.textContaining('الخادم غير متاح مؤقتاً');
+      if(error.evaluate().isEmpty){
+        final scroll=find.byWidgetPredicate((w)=>w is Scrollable&&w.axisDirection==AxisDirection.down);
+        if(scroll.evaluate().isNotEmpty){await tester.scrollUntilVisible(error,250,scrollable:scroll.first,maxScrolls:15);}
+      }
+      expect(error,findsWidgets);
       final retry=find.text('إعادة المحاولة');expect(retry,findsWidgets);
       await tester.ensureVisible(retry.first);await tester.pump();final before=h.calls;await tester.tap(retry.first);await _frames(tester);
       expect(h.calls,greaterThan(before));expect(tester.takeException(),isNull);
