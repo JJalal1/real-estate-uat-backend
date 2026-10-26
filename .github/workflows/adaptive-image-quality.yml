@@ -10,6 +10,32 @@ on:
 permissions:
   contents: read
 jobs:
+  large-images:
+    name: Isolated concurrent 24MP GD memory and bytes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build exact GD runtime
+        run: docker build -t aqer-24mp -f backend-api-runtime/Dockerfile.uat backend-api-runtime
+      - name: Measure accepted 24MP originals with bounded CPU and memory
+        run: |
+          docker run --name aqer-24mp-probe --memory=512m --memory-swap=512m --cpus=1 -v "$PWD/backend-api-runtime/tests:/var/www/html/tests:ro" --entrypoint php -e APP_ENV=testing -e APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= aqer-24mp tests/Support/probe_large_images.php
+      - name: Preserve measurements even on failure
+        if: always()
+        run: |
+          mkdir -p large-image-evidence
+          docker cp aqer-24mp-probe:/tmp/large-images-result.json large-image-evidence/result.json || true
+          docker inspect aqer-24mp-probe --format '{{json .State}}' > large-image-evidence/container-state.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-24mp-measurements
+          path: large-image-evidence/
+          if-no-files-found: error
+          retention-days: 14
   backend:
     name: Adaptive derivatives privacy and media lifecycle
     runs-on: ubuntu-latest
@@ -31,7 +57,7 @@ jobs:
           install -m 600 /dev/null .env
           printf 'APP_KEY=\n' > .env
           php artisan key:generate --force
-          php artisan test tests/Feature/AdaptiveImageQualityTest.php tests/Feature/UserWorkMediaTest.php tests/Feature/Wave2MediaTrustTest.php --fail-on-warning --fail-on-risky
+          php artisan test tests/Feature/LargeImageAdmissionTest.php tests/Feature/AdaptiveImageQualityTest.php tests/Feature/UserWorkMediaTest.php tests/Feature/Wave2MediaTrustTest.php --fail-on-warning --fail-on-risky
   flutter:
     name: Adaptive selection cache cancellation and regressions
     runs-on: ubuntu-latest
