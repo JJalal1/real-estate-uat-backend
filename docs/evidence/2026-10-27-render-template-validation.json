@@ -1,0 +1,14 @@
+{
+  "applied": false,
+  "jsonschema_version": "4.26.0",
+  "resources_created": 0,
+  "schema_sha256": "8a3fb8da6b4f55fe686fbefa790e011d3dd7895f013f355953c572a21ab6494a",
+  "schema_url": "https://render.com/schema/render.yaml.json",
+  "source_sha": "0da4f18501e1b6dd611fd92577282cb965139d5e",
+  "template_sha256": {
+    "docs/operations/render-push-worker.example.yaml": "b9319608cc537ef621a5377e28cec75a4609b9e2ade3fee10afaa3f8b28f38b1",
+    "docs/operations/render-video-worker.example.yaml": "947d6a2a1f0ccbefb403e0498e18d5c4993f5007d71b914b7837466d85abe85f",
+    "render.yaml": "1faf12bb13ee05b73ddd3898a52cd48d367349a204bf5c16029fa175b3fac726"
+  },
+  "yaml_version": "6.0.3"
+}

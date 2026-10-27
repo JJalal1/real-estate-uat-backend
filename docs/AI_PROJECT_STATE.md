@@ -1,3 +1,11 @@
+# October27 current phase32 handoff
+
+The current entry point is [the phase32 delivery report](AQER_PHASE32_DELIVERY_2026-10-27_AR.md) and its [32 independent item records](AQER_FINAL_32_MATRIX_2026-10-27_AR.md). These supersede the old status below. Unified application merge is `04b28182645af61c3c7aa11dfbfdaed4c9e86454`, Live on official Frankfurt Free deployment `dep-dbg0uad9fdbs73cehcp0`. Exact-source APK1358/1359 uses the new UAT identity and the same full application tree; CI and encrypted delivery proofs are in [the receipt](evidence/2026-10-27-engineering-ci-receipt.json).
+
+Five items are approved (including #20 OFF), 20 await owner Android acceptance, and seven await named external resources or decisions. Firebase inside the delivered pair is OFF pending Actions client secret and server/worker setup; no physical phone or actual FCM delivery is claimed. The pair shares a temporary CI key, so later UAT signing must be stabilized. PR111 and PR115 remain tested, isolated Drafts; no video/TUS activation or live DDL occurred. The encrypted restore drill was synthetic, not a full UAT backup. Issue109 stays open; Production/store release is NO-GO. No paid resources, real-user test mutations, RLS widening, or PostgreSQL upgrades were performed. Read the dated reports for current source and gate details before continuing; do not replay historic one-shot fixture runs or old sessions.
+
+---
+
 # October24 FINAL continuation — PR120 + buyer follow-up PR121
 
 Read docs/AQER_13_16_EXECUTIVE_HANDOFF_AR_2026-10-24.md, the owner decisions and32 matrix. This section supersedes earlier checkpoint status below. PR120 backend/client mergeca184fc0c1ae67443786a72a32911b80d1ed5197 is Render Live dep-dbe71e3rjlhs73elu3cg. PR121 adds Flutter-only buyer read/session recovery, merged179b34500751cfdcaf614c393d916767eb639761 after4 exact-head workflows at f281027d8423172048c6928c7b5d8d60d9d51c83. Its tree dee143e89555d1a1c4ee36446963ba304cfe4023 equals tested native virtual2096ff1ac510b2606ee3c471de6896b6a397a8d5. All394 backend/Blueprint blobs match the deployed runtime; do not claim the latest Flutter code itself runs on Render. Final receipt-only commits change docs.

@@ -1,0 +1,2199 @@
+{
+  "date_local": "2026-10-27",
+  "timezone": "Asia/Aden",
+  "source_basis": "approved32matrix + current owner task; original PDF/DOCX literal parity not claimed",
+  "intake_unified_sha": "81e65343a5e51ccedd96bd017731d395ebebfd0c",
+  "merged_uat_sha": "04b28182645af61c3c7aa11dfbfdaed4c9e86454",
+  "apk_source_sha": "3ca26f6ab39b26c0e589299f97285ae0d9b2d1e7",
+  "states": {
+    "1": "مكتمل ومعتمد",
+    "2": "جاهز وينتظر اختبار المالك على Android",
+    "3": "جاهز هندسيًا وموقوف انتظارًا لمورد أو اعتماد خارجي"
+  },
+  "counts": {
+    "1": 5,
+    "2": 20,
+    "3": 7
+  },
+  "unfulfilled_known_engineering_items": [],
+  "percentages": {
+    "engineering_implementation_unified": {
+      "numerator": 29,
+      "denominator": 32,
+      "percent": 90.625,
+      "meaning": "29 بندًا لها التنفيذ الآمن في الفرع الموحد؛ #3 و#11 و#21 مجهزة ومختبرة في فروع معزولة، ولا تحسب تنفيذًا مدموجًا أو تشغيليًا."
+    },
+    "owner_test_readiness": {
+      "numerator": 25,
+      "denominator": 32,
+      "percent": 78.125,
+      "meaning": "5 بنود معتمدة و20 قابلة لاختبار المالك؛ البنود العشرون المنتظرة وحدها تساوي 62.5%."
+    },
+    "activation_preparedness": {
+      "numerator": 32,
+      "denominator": 32,
+      "percent": 100.0,
+      "meaning": "مقبول، أو جاهز للهاتف، أو له كود معزول مختبر وخطة تفعيل وتراجع ومانع خارجي محدد؛ لا يعني توفر الموارد أو اكتمال التشغيل."
+    },
+    "operational_item_acceptance": {
+      "numerator": 5,
+      "denominator": 32,
+      "percent": 15.625,
+      "meaning": "نسبة اعتماد البنود وفق نطاقها، بما في ذلك قرار #20 OFF؛ لا تمثل تصريح متجر أو احتمال نجاح إطلاق."
+    }
+  },
+  "production_store_decision": "NO-GO",
+  "handset_tested": false,
+  "real_fcm_delivered": false,
+  "items": [
+    {
+      "id": 1,
+      "name": "ملاءمة صور العقار ومراجعتها",
+      "requirements": "لا يُنشر الإعلان قبل مراجعة بشرية لكل صوره الحالية، مع ربط القرار ببصمة تمنع استخدام موافقة لصورة استُبدلت.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Http/Controllers/Api/ListingReviewController.php",
+        "mobile_app/lib/features/reviews/presentation/listing_review_screen.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        114,
+        122,
+        138,
+        143,
+        158
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/Stage9ListingReviewApiTest.php",
+          "backend-api-runtime/tests/Feature/Wave2MediaTrustTest.php",
+          "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "رحلات UAT للمراجعة وبصمة الصورة ورفض الوصول؛ preflight الجديد يثبت أن المراجع يستطيع فتح إعلان القبول الحالي وصورتيه. اختبار الشاشة الداخلية وإبطال الأدلة المتأخرة ضمن PR158.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "HTTP→Laravel→PostgreSQL→Storage؛ يمنع النشر قبل مراجعة الصورة الحالية.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "رحلات UAT للمراجعة وبصمة الصورة ورفض الوصول؛ preflight الجديد يثبت أن المراجع يستطيع فتح إعلان القبول الحالي وصورتيه. اختبار الشاشة الداخلية وإبطال الأدلة المتأخرة ضمن PR158.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "الوسيط ثم المراجع",
+      "owner_steps": "افتح إعلان «اختبار المالك — مراجعة الصور»؛ أرسل للمراجع/افتح الوارد واستلم المهمة؛ صنّف صورة المكتب مناسبة والنمط الملون غير مناسب، وأعد الإعلان بسبب واضح. بدّل الصورة من حساب الوسيط وأعد الإرسال، ثم راجع النسخة الحالية.",
+      "owner_expected": "الصور غير المراجعة أو غير المناسبة تمنع النشر؛ الاستبدال يلغي القرار القديم ويحتاج مراجعة جديدة.",
+      "owner_negative_cases": "جرّب اعتماد الإعلان قبل مراجعة كل الصور، وفتح المهمة من حساب دعم آخر.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 2,
+      "name": "تحسين الصور والضغط والمشتقات",
+      "requirements": "أصل خاص ومشتقات عرض JPEG مضبوطة الحجم والجودة، مع رفض الملفات غير الصالحة وعدم تكرار النقل بلا حاجة.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Services/ListingImageService.php",
+        "backend-api-runtime/app/Services/CloudAssetStorageService.php",
+        "backend-api-runtime/app/Services/ListingImageEncodingGate.php",
+        "backend-api-runtime/tests/Support/probe_large_images.php"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        119,
+        120,
+        122,
+        138,
+        150,
+        155
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/AdaptiveImageQualityTest.php",
+          "backend-api-runtime/tests/Feature/CloudDeleteLifecycleTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "قياس Docker حقيقي: 24MP و512MiB و1CPU؛ فشل OOM baseline عند التزامن3، ثم 6/6 عمليات ناجحة بالتزامن1/2/3 دون OOM مع backpressure503. أقصى cgroup نحو357MiB؛ لا يعادل ذاكرة الهاتف.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "رفع/قراءة/حذف فعلي لصور اصطناعية في bucket خاص؛ قياس مشتقات عبر HTTP.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "قياس Docker حقيقي: 24MP و512MiB و1CPU؛ فشل OOM baseline عند التزامن3، ثم 6/6 عمليات ناجحة بالتزامن1/2/3 دون OOM مع backpressure503. أقصى cgroup نحو357MiB؛ لا يعادل ذاكرة الهاتف.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "الوسيط",
+      "owner_steps": "أضف صور الاختبار 24MP إلى مسودة فقط؛ جرّب صورة عادية ثم مدوّرة، ثم عدة صور. انتقل بين المعرض والبطاقة والتفاصيل، وأعد المحاولة إن ظهرت رسالة انشغال.",
+      "owner_expected": "عرض بالاتجاه الصحيح، ونسخ عرض أصغر؛ نجاح واضح دون توقف التطبيق؛ 503 المحتمل مؤقت ولا يُحسب حفظًا ناجحًا.",
+      "owner_negative_cases": "صورة تالفة، ملف أكبر من 8MiB، انقطاع أثناء الرفع؛ يجب ألا يتكرر الحفظ أو تضيع المسودة. قياس ذاكرة الهاتف نفسه لا يستنتج من قياس الخادم.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 3,
+      "name": "رفع ومعالجة الفيديو",
+      "requirements": "رفع خاص محدود الحجم والنوع والملكية،FFmpeg بعامل مستقل ومشتقات وposter ومراجعة بشرية وإعادة محاولة وتنظيف بلا تسريب.",
+      "previous_state": "مؤجل وموقوف بقرار البوابة؛PR111 Draft غير مدموج.",
+      "work_now": "مقارنة الفرع القديم معUAT الحالي وحل التعارضات مع حفظ حمايات الصور والجلسات؛ attempt fencing ومفاتيح مشتقات مستقلة وtombstones وحذف آمن مع كاتب نشط وفشل مزود،bucket فيديو مستقل لا يوسعTUS،metadata من الناتج،وقف playback بالخلفية،Docker وFFmpeg وkill137 ثم تعافٍ.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Jobs/ProcessListingVideo.php",
+        "backend-api-runtime/app/Models/ListingVideo.php",
+        "backend-api-runtime/app/Http/Controllers/Api/ListingVideoController.php",
+        "backend-api-runtime/app/Http/Controllers/Api/PropertyController.php",
+        "backend-api-runtime/app/Services/CloudAssetStorageService.php",
+        "backend-api-runtime/app/Services/ListingVideoTranscoder.php",
+        "backend-api-runtime/app/Services/AccountErasureService.php",
+        "backend-api-runtime/database/migrations/2026_10_23_000100_create_listing_videos_table.php",
+        "backend-api-runtime/Dockerfile.video-worker",
+        "mobile_app/lib/features/properties/presentation/property_video_section.dart",
+        "scripts/probe_video_worker_container.py"
+      ],
+      "files_changed_now": [
+        "backend-api-runtime/app/Jobs/ProcessListingVideo.php",
+        "backend-api-runtime/app/Models/ListingVideo.php",
+        "backend-api-runtime/app/Http/Controllers/Api/ListingVideoController.php",
+        "backend-api-runtime/app/Http/Controllers/Api/PropertyController.php",
+        "backend-api-runtime/app/Services/CloudAssetStorageService.php",
+        "backend-api-runtime/app/Services/ListingVideoTranscoder.php",
+        "backend-api-runtime/app/Services/AccountErasureService.php",
+        "backend-api-runtime/database/migrations/2026_10_23_000100_create_listing_videos_table.php",
+        "backend-api-runtime/Dockerfile.video-worker",
+        "mobile_app/lib/features/properties/presentation/property_video_section.dart",
+        "scripts/probe_video_worker_container.py"
+      ],
+      "pull_requests": [
+        111
+      ],
+      "source_shas": {
+        "tested_feature_head": "d29d4c09e8a4e5efc18f3facdd6ce9397b3cd32e",
+        "current_integrated_engineering_base": "ca3ced8f60eed067ce1406b6661bcc583274199f"
+      },
+      "flutter_tests": {
+        "result": "PASS on feature head; Android handset not tested",
+        "files": [
+          "mobile_app/test/property_video_section_test.dart",
+          "mobile_app/test/stage9_review_models_test.dart"
+        ]
+      },
+      "laravel_tests": {
+        "result": "PASS on feature head",
+        "files": [
+          "backend-api-runtime/tests/Feature/ListingVideoApiTest.php",
+          "backend-api-runtime/tests/Feature/ListingVideoFullCycleTest.php",
+          "backend-api-runtime/tests/Feature/ListingVideoTranscoderTest.php",
+          "backend-api-runtime/tests/Feature/ListingVideoStreamTest.php",
+          "backend-api-runtime/tests/Feature/VideoCloudStorageProtocolTest.php"
+        ]
+      },
+      "postgresql_storage_tests": {
+        "result": "Disposable PostgreSQL PASS; source/permission/storage protocol regressions PASS; no live DDL or feature activation",
+        "files": [
+          "backend-api-runtime/tests/Postgres/ListingVideoPostgresTest.php"
+        ]
+      },
+      "ci_results": "PR111:26success/0failure/1fallbackskip؛50اختبار قبول/Storage و299assertions،7Flutter موجهة وبناءAndroid،تحويل2s→720p≈702–707ms وRSSchild≈181MiB،وSIGKILL137 لحاويةFFmpeg ثمتحويلناجح؛ليس قتلqueuelease حقيقيًا.",
+      "uat_results": "لم ينشر أو يفعل هذا الفرع علىUAT؛الجدول غائب والأعلام مغلقة. أدلة بروتوكول التخزين التاريخية لا تحل محل البوابات.",
+      "android": "الاختبارات والبناء الآلي ناجحان للفرع؛الميزة OFF فيحزمة1359 الموحدة؛لا اختبار هاتف لهذه الميزة.",
+      "new_state": "جاهز هندسيًا وموقوف انتظارًا لمورد أو اعتماد خارجي",
+      "state_id": 3,
+      "completion_evidence": [
+        "PR111:26success/0failure/1fallbackskip؛50اختبار قبول/Storage و299assertions،7Flutter موجهة وبناءAndroid،تحويل2s→720p≈702–707ms وRSSchild≈181MiB،وSIGKILL137 لحاويةFFmpeg ثمتحويلناجح؛ليس قتلqueuelease حقيقيًا.",
+        "docs/VIDEO_CURRENT_BASE_REVIEW_2026-10-26_AR.md",
+        "docs/AQER_BACKUP_RESTORE_ACTIVATION_2026-10-27_AR.md"
+      ],
+      "final_blocker": "نسخة DB وStorage حقيقية مشفرة واستعادة مستقلة وموافقة الأمان والتكلفة والهجرة، وعامل فيديو وbucket خاص مستقل.",
+      "activation_resource": "عامل مستقل؛ مبدئيًا 1CPU/2GB بقيمة25دولارًا/شهر للقياس، وStorage بحسب الاستخدام. لا شراء الآن.",
+      "post_resource_test": "بعد البوابات: تفعيل canary ورفع50MiB والتحقق من النوع والملكية وFFmpeg ومراجعة بشرية، و90s/4K وقتل worker أثناء مراحل الشبكة/DB والتطهير وRange وAndroid.",
+      "transition": "اجتياز التشغيل المقاس وقبول بوابات الدمج/البيانات ينقل إلى2؛ قبول المالك والرحلة الكاملة ينقل إلى1.",
+      "owner_role": "مالك مسودة ثم مراجع ثم باحث",
+      "owner_steps": "تؤجل الرحلة حتى اجتياز البوابة،ثم اتبع خطة الاختبار بعد توفير المورد أعلاه. لا تفعّل علمًا لتجاوز هذه الخطوة.",
+      "owner_expected": "نقل/عرض/تعافٍ آمن مع ثبات الملكية والمراجعة والتطهير وإيصال فشل حقيقي،دون تسريب أو نجاح وهمي.",
+      "owner_negative_cases": "حساب آخر،ملف تالف/كبير،انقطاع،إعادةتسليم/ضغطمتكرر،قتل العملية،فشل التخزين والتنظيف،وتغير الحالة أثناء التنفيذ.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": false,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 4,
+      "name": "العلامة المائية",
+      "requirements": "استخدام الأصل المعتمد وبصمته على مشتقات العرض وتنظيف مشتقات ما قبل التفعيل/التراجع دون حذف ملف مستخدم.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Services/ListingWatermarkService.php",
+        "backend-api-runtime/app/Services/ListingImageService.php"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        120,
+        138
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/AdaptiveImageQualityTest.php",
+          "backend-api-runtime/tests/Feature/CloudDeleteLifecycleTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "مشتقات UAT v2-wm وعينة اصطناعية مفحوصة بصريًا؛ watermark_active=true ورفض الأصل422 و304. العلامة كانت ON ولم نفعلها من جديد.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "تنظيف الأصل ومشتقات الصورة المزالة مثبت حيًا؛ لم يُفعّل علم علامة جديد.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "مشتقات UAT v2-wm وعينة اصطناعية مفحوصة بصريًا؛ watermark_active=true ورفض الأصل422 و304. العلامة كانت ON ولم نفعلها من جديد.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "زائر",
+      "owner_steps": "افتح العقارات 60 و61 و62 ثم الصورة المكبرة، وقارن عينة العلامة المرفقة.",
+      "owner_expected": "تظهر علامة عقار المعتمدة دون حجب التفاصيل الأساسية؛ الأصل الخاص غير قابل للوصول العام.",
+      "owner_negative_cases": "راجع العلامة في الوضعين الفاتح والداكن وعلى شبكة ضعيفة؛ لا تغير إعداد التشغيل.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 5,
+      "name": "مشاركة العقارات",
+      "requirements": "مشاركة أصلية تؤدي إلى العقار الصحيح، مع رابط آمن واحترام حالة الإعلان.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "mobile_app/lib/core/platform/platform_share.dart",
+        "mobile_app/lib/router/app_deep_links.dart",
+        "mobile_app/android/app/src/main/AndroidManifest.xml",
+        "mobile_app/test/owner_share_release_test.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        123,
+        133,
+        154
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/phase3_deep_links_test.dart",
+          "mobile_app/test/deep_link_origin_guard_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "MethodChannel42→84 عند إعادة استخدام الواجهة، ومنع مشاركة المسودة؛ صفحة مشاركة UAT حقيقية للعقارات60–62. فتح التطبيقات الخارجية على الهاتف باقٍ.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "عقد المسار وحالة العقار محفوظان؛ فحوص Flutter وAPK.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "MethodChannel42→84 عند إعادة استخدام الواجهة، ومنع مشاركة المسودة؛ صفحة مشاركة UAT حقيقية للعقارات60–62. فتح التطبيقات الخارجية على الهاتف باقٍ.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "زائر",
+      "owner_steps": "افتح العقار60 ثم اضغط مشاركة وأرسله إلى تطبيق تختاره؛ كرر للعقار61؛ افتح الرابط من التطبيق الخارجي.",
+      "owner_expected": "المحتوى والعنوان والرابط يخصان العقار الحالي؛ صفحة UAT الخارجية قابلة للفتح.",
+      "owner_negative_cases": "لا مشاركة لمسودة؛ جرّب عقارًا لم يعد متاحًا. وصول رابط HTTPS مباشرة إلى التطبيق يحتاج App Links الرسمية في22.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 6,
+      "name": "منع الإعلانات المكررة",
+      "requirements": "الهوية الفيزيائية للعقار واحدة؛ إعادة الطلب أو اختلاف المعلن لا يسمحان بنشر تمثيل مكرر.",
+      "previous_state": "مكتمل ومعتمد",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Services/PropertyIdentityService.php",
+        "backend-api-runtime/app/Http/Controllers/Api/PropertyController.php"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        122
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/PropertyIdentityV2Test.php",
+          "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "اختبارات HTTP حقيقية للحالة duplicate_same_physical_asset ورفض التكرار الفيزيائي؛ قيود PostgreSQL والتراجع نجحت. لم تخفف القاعدة أو assertions.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "HTTP حي: إعادة إنشاء بعد استجابة مفقودة 409؛ معلنان للعقار الفيزيائي نفسه؛ رفض النشر المكرر مع سبب محدد.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "مكتمل ومعتمد",
+      "state_id": 1,
+      "completion_evidence": [
+        "اختبارات HTTP حقيقية للحالة duplicate_same_physical_asset ورفض التكرار الفيزيائي؛ قيود PostgreSQL والتراجع نجحت. لم تخفف القاعدة أو assertions.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "لا مانع خاص بالبند ضمن نطاقه المعتمد.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "اجتاز شروط الاعتماد ضمن النطاق.",
+      "owner_role": "الوسيط",
+      "owner_steps": "فحص تراجع اختياري: حاول إنشاء إعلان جديد للهوية الفيزيائية نفسها دون تغيير الدور أو الوحدة.",
+      "owner_expected": "يمنع النظام تكرار العقار أو تمثيله من معلن آخر؛ تغيير الغرض لا يجيز إعلانًا مكررًا.",
+      "owner_negative_cases": "لا تغيّر الاختبارات أو أرقام الهوية للتحايل على الرفض.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": true,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 7,
+      "name": "البلاغات والإشراف",
+      "requirements": "بلاغ عقار/محادثة بإيصال مستقر، queue/claim وصلاحيات للمراجعة والإغلاق؛ فتح محتوى خاص بإذن وسجل تدقيق.",
+      "previous_state": "مكتمل ومعتمد",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Http/Controllers/Api/SupportController.php",
+        "backend-api-runtime/app/Http/Controllers/Api/MessagingController.php"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        138,
+        143
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/Wave2AccountSafetyTest.php",
+          "backend-api-runtime/tests/Feature/Stage11MessagingNotificationsApiTest.php",
+          "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "رحلات إنشاء/تكرار/استلام/حل البلاغ ورفض القراءة الخاصة دون صلاحية وسياق بلاغ؛ اختبارات الملكية وعزل الحسابات قائمة وناجحة.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "HTTP حي مع PostgreSQL: إيصال/claim/resolve ورفض 403/404/409 وتدقيق الوصول الخاص؛ لا صلاحيات موسعة.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "مكتمل ومعتمد",
+      "state_id": 1,
+      "completion_evidence": [
+        "رحلات إنشاء/تكرار/استلام/حل البلاغ ورفض القراءة الخاصة دون صلاحية وسياق بلاغ؛ اختبارات الملكية وعزل الحسابات قائمة وناجحة.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "لا مانع خاص بالبند ضمن نطاقه المعتمد.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "اجتاز شروط الاعتماد ضمن النطاق.",
+      "owner_role": "المستخدم ثم الدعم",
+      "owner_steps": "بلّغ عن إعلان أو محادثة اصطناعية، ثم افتح الوارد بالدعم واستلم البلاغ وسجل القرار.",
+      "owner_expected": "بلاغ واحد قابل للتتبع وملكية مهمة واضحة؛ فتح الرسائل الخاصة يحتاج صلاحية مستقلة ويسجل.",
+      "owner_negative_cases": "حاول فتح محتوى خاص من حساب لا يملك الصلاحية؛ يجب أن يرفض. لا تفحص محادثات بشرية.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": true,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 8,
+      "name": "الإشعارات",
+      "requirements": "تسجيل جهاز بموافقة سليمة وتفضيلات/إلغاء، وdelivery/retry عبر مزود وqueue معتمدين، مع عزل الحساب.",
+      "previous_state": "مانع خارجي محدد — غير جاهز للاعتماد النهائي",
+      "work_now": "إكمال الاستقبال الأصلي وعزل الحساب/الجلسة/رمز التسجيل والنقر، data-only بلا محتوى خاص، إلغاء قبل الشبكة، عامل مستقل وأسرار/جاهزية ومراقبة وتراجع، و13 اختبار Android اصطناعيًا.",
+      "files_reviewed": [
+        "mobile_app/lib/features/messages/data/push_registration_repository.dart",
+        "backend-api-runtime/app/Http/Controllers/Api/PushDeviceController.php",
+        "backend-api-runtime/tests/Feature/PushDeliveryLifecycleTest.php"
+      ],
+      "files_changed_now": [
+        "backend-api-runtime/app/Services/FcmPushSender.php",
+        "backend-api-runtime/app/Jobs/SendUserPushNotification.php",
+        "backend-api-runtime/app/Console/Commands/PushReadiness.php",
+        "backend-api-runtime/config/push.php",
+        "backend-api-runtime/Dockerfile.queue-worker",
+        "mobile_app/lib/features/messages/data/push_registration_repository.dart",
+        "mobile_app/lib/features/account/data/auth_controller.dart",
+        "mobile_app/lib/core/push/push_launch_coordinator.dart",
+        "mobile_app/android/app/src/main/kotlin/com/example/real_estate_mobile/PushSessionState.kt",
+        "mobile_app/android/app/src/main/kotlin/com/example/real_estate_mobile/PushBridge.kt",
+        "mobile_app/android/app/src/main/kotlin/com/example/real_estate_mobile/AqerMessagingService.kt",
+        "mobile_app/android/app/src/main/kotlin/com/example/real_estate_mobile/AqerApplication.kt",
+        "scripts/probe_android_push_isolation.py"
+      ],
+      "pull_requests": [
+        132,
+        139,
+        151,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/push_registration_guard_test.dart",
+          "mobile_app/test/push_registration_guard_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/PushLaunchPrepTest.php",
+          "backend-api-runtime/tests/Postgres/NotificationPreferencePostgresTest.php",
+          "backend-api-runtime/tests/Feature/PushDeliveryLifecycleTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "10 اختبارات دورة إرسال: إعادة فحص المستخدم/الموافقة/الجهاز، UNREGISTERED دقيق، 429/5xx وRetry-After واستنفاد المحاولات. لا FCM هاتف فعليًا؛ devices=0 عند الفحص.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "عقد التسجيل والتفضيلات ورفض المدخلات مثبت CI؛ إشعارات داخل التطبيق مثبتة في الرحلات.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز هندسيًا وموقوف انتظارًا لمورد أو اعتماد خارجي",
+      "state_id": 3,
+      "completion_evidence": [
+        "10 اختبارات دورة إرسال: إعادة فحص المستخدم/الموافقة/الجهاز، UNREGISTERED دقيق، 429/5xx وRetry-After واستنفاد المحاولات. لا FCM هاتف فعليًا؛ devices=0 عند الفحص.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "إضافة سر ملف العميل الحقيقي في Actions، واعتماد إرسال Laravel الخادمي ونافذة عامل، ثم إثبات وصول هاتفين.",
+      "activation_resource": "FCM علىSpark بلا رسم مباشر؛ عامل دائم علىRender يبدأ7دولارات/شهر، أو نافذة اختبار مجانية محدودة بعد توفير الاعتماد والإذن.",
+      "post_resource_test": "إعادة بناء زوج بالملف الحقيقي؛ readiness؛ foreground/background/cold؛ موافقة/إلغاء وتجديدرمز وتبديل حساب ونقر وروابط و429/5xx وإيقاف الإرسال.",
+      "transition": "لا يسجل جاهزًا لهاتف المالك للإرسال حتى يعمل الربط الحقيقي؛ بعد إثبات التشغيل يصبح2، ثم قبول المالك1.",
+      "owner_role": "حسابان وهاتفان عند تفعيل الخدمة الرسمية",
+      "owner_steps": "يمكن الآن اختبار قائمة الإشعارات والتفضيلات. بعد ربط Firebase والعامل، امنح الإذن، أنشئ حدثًا للحساب الثاني، واختبر المقدمة والخلفية ثم تسجيل الخروج.",
+      "owner_expected": "القائمة الداخلية تحفظ الحدث؛ التسليم للهاتف يُثبت منفصلًا، مع منع الإرسال بعد سحب الموافقة أو تعطيل الحساب.",
+      "owner_negative_cases": "429 و5xx وإعادة المحاولة مثبتة بمحاكاة المزود؛ FCM معطل حاليًا ولا يُتوقع Push حقيقي في هذه النسخة.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 9,
+      "name": "البحث العربي",
+      "requirements": "تطبيع وصلة فلاتر وترتيب وصفحات موثوق، وتمييز الصفر عن فشل الشبكة.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "تجميع قراءات overdue لملاك الصفحة مع حفظ السياسة والمبالغ والإشعار؛ قياس20مالكًا=9استعلامات و5قراءات مستحقات عند1وعند20، دون نموN+1.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Http/Controllers/Api/PropertyController.php",
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart"
+      ],
+      "files_changed_now": [
+        "backend-api-runtime/app/Http/Controllers/Api/FinancialPropertyController.php",
+        "backend-api-runtime/app/Services/PropertyFinancialService.php",
+        "backend-api-runtime/app/Services/CompletePropertyFinancialService.php"
+      ],
+      "pull_requests": [
+        122,
+        137,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/search_query_wave_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/DiscoverySearchQualityTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "بحث UAT عربي وإب/اب والفلاتر والفراغ؛ PostgreSQL17 وPostGIS؛ حمل10k اصطناعي للبحث. لا ادعاء قياس شامل لكل لهجة أو خدمة صوت خارجية.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "بحث HTTP/PG وfixture اصطناعي دقيق؛ عينة أداء محددة لا شهادة شاملة لكل لهجة أو مزود AI.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "بحث UAT عربي وإب/اب والفلاتر والفراغ؛ PostgreSQL17 وPostGIS؛ حمل10k اصطناعي للبحث. لا ادعاء قياس شامل لكل لهجة أو خدمة صوت خارجية.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "زائر",
+      "owner_steps": "ابحث عن «إب» ثم «اب»، وبدّل المحافظة والنوع والغرض والترتيب، ثم عد إلى النتائج.",
+      "owner_expected": "نتائج متسقة مع التطبيع والفلاتر، مع إظهار المعايير الحالية.",
+      "owner_negative_cases": "بحث لا يطابق شيئًا ثم انقطاع الشبكة: الفراغ يختلف عن الخطأ؛ الصوت تابع لإذن/خدمة مستقلة.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 10,
+      "name": "الحظر",
+      "requirements": "الحظر الشخصي يمنع الرسائل والاتصال الجديد من الاتجاهين دون إتلاف التاريخ؛ فك الحظر لا يغير قرار الطرف الآخر.",
+      "previous_state": "مكتمل ومعتمد",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Services/UserMessagingBlockService.php",
+        "backend-api-runtime/app/Http/Controllers/Api/AccountSafetyController.php"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        122,
+        143
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Postgres/MessagingBlockPostgresTest.php",
+          "backend-api-runtime/tests/Feature/Wave2AccountSafetyTest.php",
+          "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "اختبارات حظر متبادل وطرق بدء المحادثة والاتصال ورفض التجاوز؛ قفل PostgreSQL وتزامن قائم. يحتفظ الحظر بتاريخ المحادثات.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "HTTP/PG وحالات رفض واضحة؛ لا تحويل الحظر الشخصي إلى ban إداري.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "مكتمل ومعتمد",
+      "state_id": 1,
+      "completion_evidence": [
+        "اختبارات حظر متبادل وطرق بدء المحادثة والاتصال ورفض التجاوز؛ قفل PostgreSQL وتزامن قائم. يحتفظ الحظر بتاريخ المحادثات.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "لا مانع خاص بالبند ضمن نطاقه المعتمد.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "اجتاز شروط الاعتماد ضمن النطاق.",
+      "owner_role": "المستخدم وحساب آخر",
+      "owner_steps": "فحص تراجع اختياري: افتح محادثة اصطناعية واحظر الطرف الآخر، وحاول بدء محادثة/رسالة من الطرفين ثم ألغِ الحظر.",
+      "owner_expected": "يُطبق الحظر في الخادم؛ تبقى المحادثات السابقة ولا تسمح معرّفات بديلة بتجاوزه.",
+      "owner_negative_cases": "اختبر حظر الطرفين وإلغاء حظر طرف واحد؛ لا يكفي ذلك إذا بقي حظر من الطرف الآخر.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": true,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 11,
+      "name": "استئناف رفع الوسائط",
+      "requirements": "استئناف نقل حقيقي من offset بعد انقطاع/قتل،بلا إعادة الأجزاء المؤكدة أو تخطي الملكية والـrevision؛هجرة بعد بوابة نسخ واستعادة فعلية.",
+      "previous_state": "مؤجل وموقوف بقرار البوابة؛PR115 Draft غير مدموج.",
+      "work_now": "مقارنة الفرع القديم معUAT الحالي وحل التعارضات مع حفظ حمايات الصور والجلسات؛ سياج حساب/جلسة حولPOST/HEAD/PATCH وfinalize،نطاق استئناف بحسب المالك،كتابةذرية ورفض bearer/service_role ومنع السباق واختبارات التراجع.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Services/ListingImageUploadIntentService.php",
+        "backend-api-runtime/app/Models/ListingImageUploadIntent.php",
+        "backend-api-runtime/database/migrations/2026_10_23_220000_create_listing_image_upload_intents.php",
+        "mobile_app/lib/features/properties/data/private_tus_image_uploader.dart",
+        "mobile_app/lib/features/properties/data/listing_account_draft_repository.dart",
+        "mobile_app/test/private_tus_image_uploader_test.dart",
+        "mobile_app/test/listing_resume_session_test.dart"
+      ],
+      "files_changed_now": [
+        "backend-api-runtime/app/Services/ListingImageUploadIntentService.php",
+        "backend-api-runtime/app/Models/ListingImageUploadIntent.php",
+        "backend-api-runtime/database/migrations/2026_10_23_220000_create_listing_image_upload_intents.php",
+        "mobile_app/lib/features/properties/data/private_tus_image_uploader.dart",
+        "mobile_app/lib/features/properties/data/listing_account_draft_repository.dart",
+        "mobile_app/test/private_tus_image_uploader_test.dart",
+        "mobile_app/test/listing_resume_session_test.dart"
+      ],
+      "pull_requests": [
+        115
+      ],
+      "source_shas": {
+        "tested_feature_head": "9f5e16b14f565e708afa3597d06e2c03aa1d5561",
+        "current_integrated_engineering_base": "ca3ced8f60eed067ce1406b6661bcc583274199f"
+      },
+      "flutter_tests": {
+        "result": "PASS on feature head; Android handset not tested",
+        "files": [
+          "mobile_app/test/private_tus_image_uploader_test.dart",
+          "mobile_app/test/listing_resume_session_test.dart",
+          "mobile_app/test/user_work_media_test.dart"
+        ]
+      },
+      "laravel_tests": {
+        "result": "PASS on feature head",
+        "files": [
+          "backend-api-runtime/tests/Unit/PrivateResumableImageTicketTest.php",
+          "backend-api-runtime/tests/Unit/ResumableImageFinalizationTest.php",
+          "backend-api-runtime/tests/Feature/UserWorkMediaTest.php"
+        ]
+      },
+      "postgresql_storage_tests": {
+        "result": "Disposable PostgreSQL PASS; source/permission/storage protocol regressions PASS; no live DDL or feature activation",
+        "files": [
+          "backend-api-runtime/tests/Postgres/ListingImageUploadIntentPostgresTest.php"
+        ]
+      },
+      "ci_results": "PR115:25success/0failure/1fallbackskip؛ اختبارات تذاكر/TUS/PG وFlutter الأصلية على الرأس المحدد؛ النسخ الاصطناعي المشفر نجح ولا يحقق بوابةUAT.",
+      "uat_results": "لم ينشر أو يفعل هذا الفرع علىUAT؛الجدول غائب والأعلام مغلقة. أدلة بروتوكول التخزين التاريخية لا تحل محل البوابات.",
+      "android": "الاختبارات والبناء الآلي ناجحان للفرع؛الميزة OFF فيحزمة1359 الموحدة؛لا اختبار هاتف لهذه الميزة.",
+      "new_state": "جاهز هندسيًا وموقوف انتظارًا لمورد أو اعتماد خارجي",
+      "state_id": 3,
+      "completion_evidence": [
+        "PR115:25success/0failure/1fallbackskip؛ اختبارات تذاكر/TUS/PG وFlutter الأصلية على الرأس المحدد؛ النسخ الاصطناعي المشفر نجح ولا يحقق بوابةUAT.",
+        "docs/IMAGE_TUS_UAT_BACKUP_RESTORE_AND_CANARY_GATE_AR.md",
+        "docs/AQER_BACKUP_RESTORE_ACTIVATION_2026-10-27_AR.md"
+      ],
+      "final_blocker": "اعتماد اتصال ووجهة حفظ آمنة واتساق DB/Storage، ونسخة كاملة مشفرة واستعادة مستقلة وفحص صلاحيات وخطة rollback وموافقة الهجرة.",
+      "activation_resource": "يمكن dump وage واستعادة محلية مجانية دونPro إذا توفرت الصلاحية والسعة؛ ضبط bucket الصور8MiB وMIME لازم قبلTUS.",
+      "post_resource_test": "بعد البوابة فقط: الهجرة المحددة؛ RLS/GRANT/FK؛ canary6MiB ثم انقطاع/HEAD/PATCH وتجديد وoffset وfinalize ملتبس وتبديل حساب وcleanup وAndroid بعد قتل التطبيق.",
+      "transition": "اختبارات التشغيل والهجرة المعتمدة مع مواردها تنقل إلى2؛ قبول المالك لاستئناف حقيقي علىAndroid ينقل إلى1.",
+      "owner_role": "الوسيط صاحب المسودة",
+      "owner_steps": "تؤجل الرحلة حتى اجتياز البوابة،ثم اتبع خطة الاختبار بعد توفير المورد أعلاه. لا تفعّل علمًا لتجاوز هذه الخطوة.",
+      "owner_expected": "نقل/عرض/تعافٍ آمن مع ثبات الملكية والمراجعة والتطهير وإيصال فشل حقيقي،دون تسريب أو نجاح وهمي.",
+      "owner_negative_cases": "حساب آخر،ملف تالف/كبير،انقطاع،إعادةتسليم/ضغطمتكرر،قتل العملية،فشل التخزين والتنظيف،وتغير الحالة أثناء التنفيذ.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": false,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 12,
+      "name": "الصور المتكيفة",
+      "requirements": "اختيار مشتق وفق مساحة العرض وDPR وmetered/Data Saver، وتكبير صريح دون تحميل أصل حساس.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "mobile_app/lib/core/network/adaptive_image_policy.dart",
+        "mobile_app/lib/features/properties/presentation/adaptive_property_photo.dart",
+        "backend-api-runtime/app/Services/ListingImageService.php"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        119,
+        120,
+        122
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/adaptive_image_quality_test.dart",
+          "mobile_app/test/adaptive_image_uat_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/AdaptiveImageQualityTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "اختيار النسخة بالشاشة/DPR وتوفير البيانات، بروتوكول صور HTTP و304 وEXIF؛ تفاصيل العينة765344→194483B وبطاقة194483→39743B في القياس السابق المرتبط بالشفرة القائمة.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "Flutter/Laravel/Storage وقياس 304/بايتات؛ لا يساوي slow reader شبكة هاتف حقيقية.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "اختيار النسخة بالشاشة/DPR وتوفير البيانات، بروتوكول صور HTTP و304 وEXIF؛ تفاصيل العينة765344→194483B وبطاقة194483→39743B في القياس السابق المرتبط بالشفرة القائمة.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "زائر",
+      "owner_steps": "افتح قائمة ثم تفاصيل وصورة مكبرة على اتصال جيد وضعيف، مع Data Saver وتشغيل توفير البيانات.",
+      "owner_expected": "البطاقة تستخدم صورة مناسبة لحجمها؛ التحميل الأعلى جودة عند الحاجة/الطلب، وتظل الملامح واضحة.",
+      "owner_negative_cases": "انتقل سريعًا قبل انتهاء الصور؛ لا تظهر صورة عقار سابق أو يحمل حجمًا كاملًا بلا حاجة.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 13,
+      "name": "التحميل الكسول",
+      "requirements": "طلب وسائط العناصر المرئية فقط وإيقاف الطلبات عند المغادرة/التمرير السريع.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "mobile_app/lib/core/widgets/viewport_media.dart",
+        "mobile_app/lib/features/properties/presentation/adaptive_property_photo.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        120
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/viewport_media_test.dart",
+          "mobile_app/test/viewport_network_measurement_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "بوابة viewport ومسار/تبويب، إلغاء وقوائم تدريجية؛ عينة21→2 طلب عند الفتح وعودة0 تنزيل إضافي. ليس قياس scroll FPS على مودم Android.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "قياس الفتح 21→2 طلب سابق مثبت وإعادة فحوص HTTP الحالية؛ العودة دون طلبات إضافية في السيناريو المقاس.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "بوابة viewport ومسار/تبويب، إلغاء وقوائم تدريجية؛ عينة21→2 طلب عند الفتح وعودة0 تنزيل إضافي. ليس قياس scroll FPS على مودم Android.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "زائر",
+      "owner_steps": "افتح قائمة طويلة ومرر ببطء ثم بسرعة وارجع للأعلى.",
+      "owner_expected": "صور ما يظهر تُحمّل تدريجيًا؛ الرجوع يستفيد من الكاش.",
+      "owner_negative_cases": "انقطاع وسط التمرير ثم عودة الشبكة وإعادة المحاولة دون بطاقات مكسورة دائمة.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 14,
+      "name": "التخزين المؤقت",
+      "requirements": "TTL ومفاتيح فلاتر وحدود حجم وإبطال صحيح، وعزل حساب ومنع تخزين رد ملغى/سابق للطفرة.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة. حماية بدءالخروج وepoch الحالية تمنع بقاء ردود حساب قديم؛ مسارTUS الجديد محفوظ فيPR115 فقط.",
+      "files_reviewed": [
+        "mobile_app/lib/core/network/api_client.dart",
+        "mobile_app/lib/features/properties/data/property_repository.dart",
+        "mobile_app/lib/features/account/presentation/actor_scoped_page.dart"
+      ],
+      "files_changed_now": [
+        "mobile_app/lib/features/account/data/auth_controller.dart"
+      ],
+      "pull_requests": [
+        128,
+        142,
+        158,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/public_discovery_cancellation_test.dart",
+          "mobile_app/test/recent_properties_privacy_test.dart",
+          "mobile_app/test/secondary_admin_recovery_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "اختبارات الرد المتأخر والطلبات الملغاة وإبطال الكاش بعد التعديل؛ فصل الهوية في مخازن خاصة وردود HTTP حقيقية؛ إصلاح متانة عزل صفحة التحقيق ضمن PR158.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "اختبارات Dio/HTTP/ملفات محلية فعلية وعزل الحساب؛ كاش الوسائط لا يوسع صلاحيات الخادم.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "اختبارات الرد المتأخر والطلبات الملغاة وإبطال الكاش بعد التعديل؛ فصل الهوية في مخازن خاصة وردود HTTP حقيقية؛ إصلاح متانة عزل صفحة التحقيق ضمن PR158.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "المستخدم ثم الوسيط",
+      "owner_steps": "افتح بيانات عقار ثم حدّثها من حساب الوسيط وعد إلى القائمة والتفاصيل؛ بدّل الحساب.",
+      "owner_expected": "البيانات المتجددة لا يستبدلها رد قديم؛ لا تبقى بيانات خاصة بالحساب السابق.",
+      "owner_negative_cases": "ابدأ طلبًا بطيئًا، غيّر الفلتر أو سجل الخروج قبل انتهائه؛ النتائج القديمة لا تعود.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 15,
+      "name": "التعافي من أخطاء الشبكة",
+      "requirements": "حفظ العمل المؤكد والمدخلات عند timeout/503/429، retry الصحيح، ورفض النتائج القديمة ومسح البيانات عند فقد الصلاحية.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "mobile_app/lib/features/properties/data/property_repository.dart",
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart",
+        "backend-api-runtime/app/Http/Middleware/AuthenticateApiToken.php"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        122,
+        129,
+        134,
+        142
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/listing_viewer_key_io_test.dart",
+          "mobile_app/test/loading_recovery_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/AuthenticatedThrottleIsolationTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "503/timeout/429 في الاختبارات وHTTP، إبقاء النص والصفوف عند الفشل العابر، ورفض نجاح كتابة وهمي؛ لا يفعّل استئناف البايتات11.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "HTTP 401/403/404/409/422/429 و503/timeout محاكاة حقيقية/مضبوطة؛ quota لكل حساب مع إبقاء حد login العام.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "503/timeout/429 في الاختبارات وHTTP، إبقاء النص والصفوف عند الفشل العابر، ورفض نجاح كتابة وهمي؛ لا يفعّل استئناف البايتات11.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "المستخدم والوسيط",
+      "owner_steps": "افتح شاشة ثم افصل الاتصال، أعد المحاولة، وأعد الشبكة. جرّب حفظ مسودة عند انقطاع الاتصال.",
+      "owner_expected": "رسالة واضحة وفعل إعادة محاولة يعمل؛ الحفظ الفاشل لا يعرض نجاحًا كاذبًا.",
+      "owner_negative_cases": "503 و429 والمهلة آليًا؛ على الهاتف جرّب وضع الطيران ثم الرجوع دون فقد النص.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 16,
+      "name": "حالات التحميل والفراغ والخطأ وإعادة المحاولة",
+      "requirements": "حالات واضحة ومتناسقة عبر الرحلات الأساسية والشاشات المرتبطة، وفصل الصفر عن الخطأ وعدم ظهور بيانات حساب سابق.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "mobile_app/lib/core/widgets/app_components.dart",
+        "mobile_app/lib/features/admin/presentation/platform_settings_screen.dart",
+        "mobile_app/lib/features/developments/presentation/development_admin_screen.dart",
+        "mobile_app/test/owner_active_screen_states_test.dart",
+        "mobile_app/test/owner_secondary_privacy_layout_test.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        120,
+        121,
+        142,
+        152,
+        157,
+        158
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/loading_recovery_test.dart",
+          "mobile_app/test/buyer_loading_recovery_test.dart",
+          "mobile_app/test/secondary_admin_recovery_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "35 شاشة بيانات×وضعين=70 حالة، مع حالات إضافية للنماذج والصفحات الخاصة والبوابات؛ إجمالي156 حالة مركزة بعد PR158. inventory82 تعريف شاشة، لا نسبة تغطية82/82.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "الرحلات الأساسية CI/HTTP خضراء؛ إصلاح شاشتين لا يثبت تلقائيًا كل واجهة ثانوية.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "35 شاشة بيانات×وضعين=70 حالة، مع حالات إضافية للنماذج والصفحات الخاصة والبوابات؛ إجمالي156 حالة مركزة بعد PR158. inventory82 تعريف شاشة، لا نسبة تغطية82/82.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "كل الأدوار",
+      "owner_steps": "اتبع سجل الشاشات المرفق: صفحة بيانات، حالة فارغة، انقطاع، إعادة المحاولة، ثم الخروج وتبديل الحساب.",
+      "owner_expected": "لا شاشة تحميل دائمة أو نص استثناء تقني أو زر معطل بلا تفسير؛ أخطاء الشبكة قابلة للتعافي.",
+      "owner_negative_cases": "شاشات التفاصيل والنماذج ومناطق الإدارة والنوافذ؛ الصلاحية المرفوضة لا تعرض بيانات قديمة. الخريطة الأصلية تحتاج القبول المباشر.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 17,
+      "name": "تجميع علامات الخريطة",
+      "requirements": "تجميع ثابت دون فقد/تكرار علامة، واحترام التكبير والعلامة المحددة والحدود.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "تجميع قراءات overdue لملاك الصفحة مع حفظ السياسة والمبالغ والإشعار؛ قياس20مالكًا=9استعلامات و5قراءات مستحقات عند1وعند20، دون نموN+1.",
+      "files_reviewed": [
+        "mobile_app/lib/features/map/domain/property_marker_cluster.dart",
+        "mobile_app/lib/features/map/presentation/map_screen.dart"
+      ],
+      "files_changed_now": [
+        "backend-api-runtime/app/Http/Controllers/Api/FinancialPropertyController.php",
+        "backend-api-runtime/app/Services/PropertyFinancialService.php",
+        "backend-api-runtime/app/Services/CompletePropertyFinancialService.php"
+      ],
+      "pull_requests": [
+        126,
+        137,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/property_marker_cluster_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Postgres/PropertyMarketContextPostgresTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "اختبار مستويات zoom8..19 وعدم فقد أو تكرار العلامات والعزل والفراغ؛ Native gestures والإطارات والضغط تحتاج هاتف المالك.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "سلامة Dart وEXPLAIN لفهرس location؛ rendering/gestures Native ليست نتيجة SQL.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "اختبار مستويات zoom8..19 وعدم فقد أو تكرار العلامات والعزل والفراغ؛ Native gestures والإطارات والضغط تحتاج هاتف المالك.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "زائر",
+      "owner_steps": "افتح الخريطة، كبّر وصغّر واضغط تجمعًا ثم علامة منفردة؛ ارجع للقائمة.",
+      "owner_expected": "التجمعات تتغير مع مستوى التكبير وتفتح العقار الصحيح دون تجمد ملحوظ.",
+      "owner_negative_cases": "كرر على هاتف محدود الذاكرة واتصال ضعيف؛ قياس سلاسة Native لم يُستبدل باختبار Widget.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 18,
+      "name": "الصفحات والتحميل التدريجي",
+      "requirements": "صفحات مستقرة بلا تداخل، retry الصفحة الفاشلة، dedup وتوقف عند نهاية النتائج.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "تجميع قراءات overdue لملاك الصفحة مع حفظ السياسة والمبالغ والإشعار؛ قياس20مالكًا=9استعلامات و5قراءات مستحقات عند1وعند20، دون نموN+1.",
+      "files_reviewed": [
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart",
+        "mobile_app/lib/features/properties/data/property_repository.dart"
+      ],
+      "files_changed_now": [
+        "backend-api-runtime/app/Http/Controllers/Api/FinancialPropertyController.php",
+        "backend-api-runtime/app/Services/PropertyFinancialService.php",
+        "backend-api-runtime/app/Services/CompletePropertyFinancialService.php"
+      ],
+      "pull_requests": [
+        129,
+        137,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/smart_search_pagination_recovery_test.dart",
+          "mobile_app/test/discovery_http_acceptance_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "HTTP صفحات وتراجع الصفحة الفاشلة وعدم التداخل؛ اختبارات البحث والدعم والرسائل؛ بقاء الصفحة الأولى وإعادة المحاولة المباشرة. الهاتف باقٍ.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "HTTP حقيقي وPG؛ العينة العامة لا تثبت كل قائمة خاصة على هاتف.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "HTTP صفحات وتراجع الصفحة الفاشلة وعدم التداخل؛ اختبارات البحث والدعم والرسائل؛ بقاء الصفحة الأولى وإعادة المحاولة المباشرة. الهاتف باقٍ.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "المستخدم والوسيط والدعم",
+      "owner_steps": "مرر نتائج البحث والإعلانات والوارد حتى الصفحة التالية؛ افصل الشبكة عند تحميل صفحة لاحقة ثم أعدها واضغط إعادة المحاولة.",
+      "owner_expected": "الصفحة الأولى تبقى؛ تعاد الصفحة الفاشلة ويكمل التصفح دون تكرار أو فقد الصفوف.",
+      "owner_negative_cases": "غير الفلتر أثناء تحميل صفحة لاحقة؛ لا تختلط صفحات البحثين.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 19,
+      "name": "Debounce وإلغاء الطلبات",
+      "requirements": "تأخير الطلب المناسب وإلغاء النقل ورفض الردود المعكوسة وعدم إعادة ملء الكاش بنتيجة ملغاة.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة. حماية بدءالخروج وepoch الحالية تمنع بقاء ردود حساب قديم؛ مسارTUS الجديد محفوظ فيPR115 فقط.",
+      "files_reviewed": [
+        "mobile_app/lib/core/network/api_client.dart",
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart",
+        "mobile_app/lib/features/developments/presentation/development_admin_screen.dart"
+      ],
+      "files_changed_now": [
+        "mobile_app/lib/features/account/data/auth_controller.dart"
+      ],
+      "pull_requests": [
+        128,
+        142,
+        158,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/public_discovery_cancellation_test.dart",
+          "mobile_app/test/secondary_admin_recovery_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "Debounce وإلغاء/generation وردود معكوسة وتغيير فلتر/dispose؛ اختبارات منع استجابة بحث قديم وإبطال أدلة خاصة قديمة ضمن PR158.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "اختبارات تأخير/ردود معكوسة وإلغاء عبر Dio/HTTP؛ لا نتيجة قديمة تحل محل الجديدة.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "Debounce وإلغاء/generation وردود معكوسة وتغيير فلتر/dispose؛ اختبارات منع استجابة بحث قديم وإبطال أدلة خاصة قديمة ضمن PR158.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "زائر",
+      "owner_steps": "اكتب البحث بسرعة، وغيّر النوع والمحافظة عدة مرات مع اتصال بطيء.",
+      "owner_expected": "النتيجة النهائية تطابق آخر طلب فقط؛ لا تومض نتائج طلب ملغى.",
+      "owner_negative_cases": "ارجع قبل انتهاء الطلب وأعد فتح البحث؛ لا استثناء بعد إغلاق الشاشة.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 20,
+      "name": "Prefetch المشروط",
+      "requirements": "يبقى OFF ما لم يثبت قياس فائدة صافية مع تكلفة بيانات وإشارة metered موثوقة.",
+      "previous_state": "OFF معتمد مشروط",
+      "work_now": "اعتماد قرارOFF وفق توجيه المالك الحالي؛ لا تفعيل ولا حاجة لاختراع تجربة تشغيل ناجحة.",
+      "files_reviewed": [
+        "mobile_app/lib/core/widgets/viewport_media.dart",
+        "mobile_app/lib/core/network/api_client.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        120
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/viewport_network_measurement_test.dart",
+          "mobile_app/test/adaptive_image_quality_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "محفوظ OFF وفق قرار المالك. لم نجمع تجربة مقارنة تشغيل جديدة تكفي لإثبات صافي فائدة الوقت/البايتات/الذاكرة؛ لا تفعيل تلقائي.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "القياسات الحالية تثبت viewport/cache وإعادة استخدام البايتات، ولا تثبت فائدة ON.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "مكتمل ومعتمد",
+      "state_id": 1,
+      "completion_evidence": [
+        "محفوظ OFF وفق قرار المالك. لم نجمع تجربة مقارنة تشغيل جديدة تكفي لإثبات صافي فائدة الوقت/البايتات/الذاكرة؛ لا تفعيل تلقائي.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "لا مانع خاص بالبند ضمن نطاقه المعتمد.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "اجتاز شروط الاعتماد ضمن النطاق.",
+      "owner_role": "قرار التشغيل",
+      "owner_steps": "لا تفعّل Prefetch في هذه الجولة. راقب سلوك التصفح العادي فقط.",
+      "owner_expected": "يبقى OFF بالقرار المعتمد حتى تجربة تُثبت صافي فائدة الوقت مقابل البايتات والذاكرة.",
+      "owner_negative_cases": "لا نختبر تفعيله على اتصال المالك المدفوع لمجرد إغلاق بند.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": true,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 21,
+      "name": "تشغيل الفيديو علىAndroid",
+      "requirements": "تشغيل مشتق آمن عند الطلب وRange/seek وأذونات وتعافٍ وlifecycle،مع رفض محتوى غير مراجع أو غير مصرح به.",
+      "previous_state": "مؤجل وموقوف بقرار البوابة؛PR111 Draft غير مدموج.",
+      "work_now": "مقارنة الفرع القديم معUAT الحالي وحل التعارضات مع حفظ حمايات الصور والجلسات؛ attempt fencing ومفاتيح مشتقات مستقلة وtombstones وحذف آمن مع كاتب نشط وفشل مزود،bucket فيديو مستقل لا يوسعTUS،metadata من الناتج،وقف playback بالخلفية،Docker وFFmpeg وkill137 ثم تعافٍ.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Jobs/ProcessListingVideo.php",
+        "backend-api-runtime/app/Models/ListingVideo.php",
+        "backend-api-runtime/app/Http/Controllers/Api/ListingVideoController.php",
+        "backend-api-runtime/app/Http/Controllers/Api/PropertyController.php",
+        "backend-api-runtime/app/Services/CloudAssetStorageService.php",
+        "backend-api-runtime/app/Services/ListingVideoTranscoder.php",
+        "backend-api-runtime/app/Services/AccountErasureService.php",
+        "backend-api-runtime/database/migrations/2026_10_23_000100_create_listing_videos_table.php",
+        "backend-api-runtime/Dockerfile.video-worker",
+        "mobile_app/lib/features/properties/presentation/property_video_section.dart",
+        "scripts/probe_video_worker_container.py"
+      ],
+      "files_changed_now": [
+        "backend-api-runtime/app/Jobs/ProcessListingVideo.php",
+        "backend-api-runtime/app/Models/ListingVideo.php",
+        "backend-api-runtime/app/Http/Controllers/Api/ListingVideoController.php",
+        "backend-api-runtime/app/Http/Controllers/Api/PropertyController.php",
+        "backend-api-runtime/app/Services/CloudAssetStorageService.php",
+        "backend-api-runtime/app/Services/ListingVideoTranscoder.php",
+        "backend-api-runtime/app/Services/AccountErasureService.php",
+        "backend-api-runtime/database/migrations/2026_10_23_000100_create_listing_videos_table.php",
+        "backend-api-runtime/Dockerfile.video-worker",
+        "mobile_app/lib/features/properties/presentation/property_video_section.dart",
+        "scripts/probe_video_worker_container.py"
+      ],
+      "pull_requests": [
+        111
+      ],
+      "source_shas": {
+        "tested_feature_head": "d29d4c09e8a4e5efc18f3facdd6ce9397b3cd32e",
+        "current_integrated_engineering_base": "ca3ced8f60eed067ce1406b6661bcc583274199f"
+      },
+      "flutter_tests": {
+        "result": "PASS on feature head; Android handset not tested",
+        "files": [
+          "mobile_app/test/property_video_section_test.dart",
+          "mobile_app/test/stage9_review_models_test.dart"
+        ]
+      },
+      "laravel_tests": {
+        "result": "PASS on feature head",
+        "files": [
+          "backend-api-runtime/tests/Feature/ListingVideoApiTest.php",
+          "backend-api-runtime/tests/Feature/ListingVideoFullCycleTest.php",
+          "backend-api-runtime/tests/Feature/ListingVideoTranscoderTest.php",
+          "backend-api-runtime/tests/Feature/ListingVideoStreamTest.php",
+          "backend-api-runtime/tests/Feature/VideoCloudStorageProtocolTest.php"
+        ]
+      },
+      "postgresql_storage_tests": {
+        "result": "Disposable PostgreSQL PASS; source/permission/storage protocol regressions PASS; no live DDL or feature activation",
+        "files": [
+          "backend-api-runtime/tests/Postgres/ListingVideoPostgresTest.php"
+        ]
+      },
+      "ci_results": "PR111:26success/0failure/1fallbackskip؛50اختبار قبول/Storage و299assertions،7Flutter موجهة وبناءAndroid،تحويل2s→720p≈702–707ms وRSSchild≈181MiB،وSIGKILL137 لحاويةFFmpeg ثمتحويلناجح؛ليس قتلqueuelease حقيقيًا.",
+      "uat_results": "لم ينشر أو يفعل هذا الفرع علىUAT؛الجدول غائب والأعلام مغلقة. أدلة بروتوكول التخزين التاريخية لا تحل محل البوابات.",
+      "android": "الاختبارات والبناء الآلي ناجحان للفرع؛الميزة OFF فيحزمة1359 الموحدة؛لا اختبار هاتف لهذه الميزة.",
+      "new_state": "جاهز هندسيًا وموقوف انتظارًا لمورد أو اعتماد خارجي",
+      "state_id": 3,
+      "completion_evidence": [
+        "PR111:26success/0failure/1fallbackskip؛50اختبار قبول/Storage و299assertions،7Flutter موجهة وبناءAndroid،تحويل2s→720p≈702–707ms وRSSchild≈181MiB،وSIGKILL137 لحاويةFFmpeg ثمتحويلناجح؛ليس قتلqueuelease حقيقيًا.",
+        "docs/VIDEO_CURRENT_BASE_REVIEW_2026-10-26_AR.md",
+        "docs/AQER_BACKUP_RESTORE_ACTIVATION_2026-10-27_AR.md"
+      ],
+      "final_blocker": "تفعيل3 الآمن وعامل وStorage ومراجعة بشرية، ثم تشغيل Android فعلي وRange على المورد المعتمد.",
+      "activation_resource": "العامل نفسه المطلوب للبند3؛ لا مورد معالجة إضافي تلقائيًا. رسوم الفيديو تأتي منworker/storage/egress.",
+      "post_resource_test": "جاهزية مشتق H264/AAC وposter،206/416 وseek وplay/pause/lifecycle/rotation/انقطاع،حساب آخر ورفض غيرمراجع،ومراقبة bytes/RSS.",
+      "transition": "بعد التشغيل الحقيقي المقاس يصبح2؛ بعد قبول مشاهدة المالك والأذونات والتعافي يصبح1.",
+      "owner_role": "مالك مسودة ثم مراجع ثم باحث",
+      "owner_steps": "تؤجل الرحلة حتى اجتياز البوابة،ثم اتبع خطة الاختبار بعد توفير المورد أعلاه. لا تفعّل علمًا لتجاوز هذه الخطوة.",
+      "owner_expected": "نقل/عرض/تعافٍ آمن مع ثبات الملكية والمراجعة والتطهير وإيصال فشل حقيقي،دون تسريب أو نجاح وهمي.",
+      "owner_negative_cases": "حساب آخر،ملف تالف/كبير،انقطاع،إعادةتسليم/ضغطمتكرر،قتل العملية،فشل التخزين والتنظيف،وتغير الحالة أثناء التنفيذ.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": false,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 22,
+      "name": "Deep Links وApp Links",
+      "requirements": "قبول المسارات والأصول المسموح بها فقط، وHTTPS موثق بدومين وتوقيع رسميين وفتح Native صحيح.",
+      "previous_state": "مانع خارجي محدد — غير جاهز للاعتماد النهائي",
+      "work_now": "تثبيت flavor وهويةUAT الجديدة وحمايةProduction؛ زوج1358/1359 بنفس الشهادة، ومحاكيAPI36 وحفظ ملفي fixture؛ مراجعة الروابط/الأذونات والتحديث دون ادعاءPlay أو هاتف.",
+      "files_reviewed": [
+        "mobile_app/lib/router/app_deep_links.dart",
+        "mobile_app/android/app/src/main/AndroidManifest.xml",
+        "backend-api-runtime/app/Services/AndroidAppLinkAssociation.php"
+      ],
+      "files_changed_now": [
+        "mobile_app/android/app/build.gradle",
+        "mobile_app/android/app/src/main/AndroidManifest.xml",
+        "scripts/verify_built_uat_apk.py",
+        "scripts/probe_uat_android_upgrade.py"
+      ],
+      "pull_requests": [
+        123,
+        133,
+        154,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/deep_link_origin_guard_test.dart",
+          "mobile_app/test/phase3_deep_links_test.dart",
+          "mobile_app/test/phase4_deep_links_test.dart",
+          "mobile_app/test/phase5_deep_links_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "مسارات allowlist ورفض URI مشوه ومضيف/منفذ/اعتماد غير مسموح؛ assetlinks يقبل بصمات32-byte سليمة وحزمة reverse-DNS فقط. [] آمنة عند غياب الهوية الرسمية.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "عقود المسار والتحصين CI؛ ذلك لا يثبت ارتباط Android بالدومين.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز هندسيًا وموقوف انتظارًا لمورد أو اعتماد خارجي",
+      "state_id": 3,
+      "completion_evidence": [
+        "مسارات allowlist ورفض URI مشوه ومضيف/منفذ/اعتماد غير مسموح؛ assetlinks يقبل بصمات32-byte سليمة وحزمة reverse-DNS فقط. [] آمنة عند غياب الهوية الرسمية.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "اسم HTTPS رسمي وهوية وتوقيع معتمدان،ونشر assetlinks والتحقق الحقيقي منAndroid.",
+      "activation_resource": "قرار الدومين وDNS/TLS؛ السعر حسب الاسم/TLD والتجديد،لم يُحجز شيء. بصمةPlay لا تُستبدل ببصمةUAT المؤقتة.",
+      "post_resource_test": "assetlinks صالح للمضيف/الحزمة/الشهادة؛ adb verify-app-links وفتح منخارج التطبيق مغلقًا/مفتوحًا،والعودة بعدlogin ورفض الروابط الخبيثة/المضيف/المنفذ.",
+      "transition": "عند إثبات التحقق الرسمي يصبح2؛ قبول المالك علىنسخة موقعة معتمدة يجعله1.",
+      "owner_role": "زائر ومستخدم مسجل",
+      "owner_steps": "جرّب realestate://app/properties/60 وروابط UAT من خارج التطبيق، في حال الإغلاق والفتح وتسجيل الدخول.",
+      "owner_expected": "الرابط المسموح يفتح الوجهة الصحيحة؛ الروابط المزيفة أو المشوهة تُرفض.",
+      "owner_negative_cases": "HTTPS App Links التلقائية تنتظر دومين وشهادة Play حقيقيين؛ لا يُعلن اعتمادها بمجرد custom scheme.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 23,
+      "name": "العقارات المشاهدة مؤخرًا",
+      "requirements": "سجل محدود مرتب بلا تكرار ومعزول لكل حساب/زائر، مع كتابة ذرية وتعافي فشل الملفات.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "mobile_app/lib/features/properties/data/recent_properties_store.dart",
+        "mobile_app/lib/features/properties/presentation/recent_properties_screen.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        120
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/recent_properties_privacy_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "ملف منفصل لكل حساب/زائر، IO متسلسل وكتابة ذرية وحد30 ومنع التكرار ومحو؛ اختبارات فشل التخزين وإعادة المحاولة وعزل الحساب.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "تخزين محلي فقط؛ لا DB أو migration مطلوب؛ الملفات والردود المتأخرة واختبارات العزل مثبتة.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "ملف منفصل لكل حساب/زائر، IO متسلسل وكتابة ذرية وحد30 ومنع التكرار ومحو؛ اختبارات فشل التخزين وإعادة المحاولة وعزل الحساب.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "المستخدم ثم حساب آخر",
+      "owner_steps": "افتح عدة عقارات؛ افتح «شوهد مؤخرًا» وأغلق التطبيق وافتحه، ثم بدّل الحساب وامسح السجل.",
+      "owner_expected": "ترتيب وحد30 دون تكرار، محفوظ على الجهاز ومعزول حسب الحساب/الزائر.",
+      "owner_negative_cases": "لا يظهر سجل الحساب الأول للثاني، وفشل التخزين لا يوقف فتح العقار.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 24,
+      "name": "حفظ حالة الاستكشاف والعودة إليها",
+      "requirements": "الحفاظ على الفلاتر والخريطة والقائمة وسجل البحث بصورة ذرية مع عودة متسقة وعدم سباق كتابة.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "mobile_app/lib/features/map/data/property_discovery_history_store.dart",
+        "mobile_app/lib/features/map/presentation/map_screen.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        127,
+        128
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/property_discovery_history_atomic_test.dart",
+          "mobile_app/test/viewport_network_measurement_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "حفظ فلاتر/خريطة/سجل البحث متسلسل وذري، PageStorage وكاش؛ اختبارات حفظ متزامن وIO retry وعودة بلا تنزيل مكرر في العينة.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "filesystem حقيقي وHTTP عودة دون نقل إضافي في السيناريو المثبت.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "حفظ فلاتر/خريطة/سجل البحث متسلسل وذري، PageStorage وكاش؛ اختبارات حفظ متزامن وIO retry وعودة بلا تنزيل مكرر في العينة.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "زائر",
+      "owner_steps": "حدد فلاتر وموضع خريطة وابحث؛ افتح عقارًا ثم ارجع؛ أغلق التطبيق وافتحه.",
+      "owner_expected": "تعود حالة الاستكشاف والفلاتر المتوقعة دون إعادة ضبط أو تنزيل زائد غير مبرر.",
+      "owner_negative_cases": "عد أثناء طلب متأخر وكرر الحفظ السريع؛ الحالة الأحدث تبقى.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 25,
+      "name": "تجربة عدم وجود نتائج",
+      "requirements": "عرض الصفر كحالة صحيحة مع تعديل معايير واضح، وتمييزه عن HTTP فاشل أو قائمة قديمة.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "mobile_app/lib/features/discovery/presentation/smart_search_assistant.dart",
+        "mobile_app/lib/features/discovery/data/smart_search_session.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        120,
+        122
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/buyer_loading_recovery_test.dart",
+          "mobile_app/test/discovery_http_acceptance_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "حالات no-results منفصلة عن خطأ الشبكة، تعديل/مسح الفلاتر؛ اختبارات Empty→503→Retry وUAT بعبارة اصطناعية لا تطابق شيئًا.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "HTTP 200 مع data=[] وmeta.total=0، وFlutter يفرق بينها وبين 503.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "حالات no-results منفصلة عن خطأ الشبكة، تعديل/مسح الفلاتر؛ اختبارات Empty→503→Retry وUAT بعبارة اصطناعية لا تطابق شيئًا.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "زائر",
+      "owner_steps": "ابحث بعبارة «zzzz-owner-no-match-20261026»، ثم عدّل المعايير أو امسحها.",
+      "owner_expected": "رسالة عدم وجود نتائج مع طريق واضح لتعديل البحث، وليست رسالة عطل.",
+      "owner_negative_cases": "افصل الإنترنت: يظهر خطأ وإعادة محاولة بدل الادعاء أن النتائج صفر.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 26,
+      "name": "التحقق من تحديث التطبيق",
+      "requirements": "قرار إجباري/اختياري صحيح حسب رقم البناء الفعلي، وفتح متجر مسموح وآمن وإتاحة تحديث رسمي متوافق.",
+      "previous_state": "مانع خارجي محدد — غير جاهز للاعتماد النهائي",
+      "work_now": "تثبيت flavor وهويةUAT الجديدة وحمايةProduction؛ زوج1358/1359 بنفس الشهادة، ومحاكيAPI36 وحفظ ملفي fixture؛ مراجعة الروابط/الأذونات والتحديث دون ادعاءPlay أو هاتف.",
+      "files_reviewed": [
+        "mobile_app/lib/core/release/release_gate.dart",
+        "backend-api-runtime/app/Http/Controllers/Api/ReleaseController.php",
+        ".github/workflows/broker-experience-ci.yml",
+        "scripts/probe_uat_android_upgrade.py"
+      ],
+      "files_changed_now": [
+        "mobile_app/android/app/build.gradle",
+        "mobile_app/android/app/src/main/AndroidManifest.xml",
+        "scripts/verify_built_uat_apk.py",
+        "scripts/probe_uat_android_upgrade.py"
+      ],
+      "pull_requests": [
+        131,
+        139,
+        141,
+        154,
+        156,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/release_gate_store_uri_test.dart",
+          "mobile_app/test/uat_compiled_environment_test.dart",
+          "mobile_app/test/push_registration_guard_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "اختبارات optional/mandatory وإلزام رابط المتجر بمعرف الحزمة ورفض URI ضار؛ API36 A→B بنفس الشهادة مع مقارنة بصمات ملفَي مظهر واستعادة قبل/بعد الإطلاق دون شبكة.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "API/Flutter وبناء فعلي؛ API36 وELF/ZIP لا يغنيان عن اختبار upgrade موقع.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز هندسيًا وموقوف انتظارًا لمورد أو اعتماد خارجي",
+      "state_id": 3,
+      "completion_evidence": [
+        "اختبارات optional/mandatory وإلزام رابط المتجر بمعرف الحزمة ورفض URI ضار؛ API36 A→B بنفس الشهادة مع مقارنة بصمات ملفَي مظهر واستعادة قبل/بعد الإطلاق دون شبكة.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "مفتاح UAT ثابت لسلاسل البناء المستقبلية،وProduction package وPlayAppSigning ورابط المتجر الرسمي واختبار تحديثPlay.",
+      "activation_resource": "إنشاء/حفظ مفتاحAndroid لايتطلب اشتراكشهادة؛ PlayConsole25دولارًا مرةواحدة،ولا تسجيل/نشر الآن.",
+      "post_resource_test": "تحقق build/version وعدم downgrade ومساري optional/mandatory وروابط allowlist؛ ثمA→B عبرPlayInternal مع حفظ الجلسة/البيانات والهجرات المطلوبة.",
+      "transition": "زوج1358→1359 يثبت replacement محددًا فقط؛ بعد إعدادPlay واختباره يصبح2،وقبول المالك مع شروط الإصدار1.",
+      "owner_role": "المالك — زوج UAT",
+      "owner_steps": "ثبّت النسخةA ثم احفظ مسودة ومظهرًا؛ حدّث إلىB المتوافقة في الشهادة دون إزالةA؛ تحقق من البيانات. بوابتا الاختياري والإجباري لهما اختبارات آلية مستقلة.",
+      "owner_expected": "زيادة رقم البناء وبقاء الملفات الخاصة؛ الاختياري يمكن تأجيله، والإجباري يمنع الاستمرار عندما يكون هناك رابط متجر صحيح.",
+      "owner_negative_cases": "الزوج من المصدر نفسه دليل ميكانيكية تحديث UAT؛ تحديث Play وقبول السياسة النهائية يحتاجان هوية المتجر والتوقيع الرسميين.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 27,
+      "name": "الصلاحيات عند الحاجة",
+      "requirements": "طلب الموقع/الكاميرا/الميكروفون عند الاستخدام، مع رفض ودائم وخدمة متوقفة وعودة من الإعدادات دون إجبار.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "تثبيت flavor وهويةUAT الجديدة وحمايةProduction؛ زوج1358/1359 بنفس الشهادة، ومحاكيAPI36 وحفظ ملفي fixture؛ مراجعة الروابط/الأذونات والتحديث دون ادعاءPlay أو هاتف.",
+      "files_reviewed": [
+        "mobile_app/lib/core/platform/app_permission_settings.dart",
+        "mobile_app/lib/core/platform/stage5_media_picker.dart",
+        "mobile_app/lib/core/platform/voice_capture_controller.dart"
+      ],
+      "files_changed_now": [
+        "mobile_app/android/app/build.gradle",
+        "mobile_app/android/app/src/main/AndroidManifest.xml",
+        "scripts/verify_built_uat_apk.py",
+        "scripts/probe_uat_android_upgrade.py"
+      ],
+      "pull_requests": [
+        125,
+        141,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/uat_map_location_picker_test.dart",
+          "mobile_app/test/user_work_media_test.dart",
+          "mobile_app/test/live_dictation_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "طلبات الأذونات عند الفعل ومسارات الرفض/الإعدادات؛ Manifest/built APK مستهدف36/min23. سلوك منتقي الصور والموقع ورفض الإذن في النظام يحتاج الهاتف.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "واجهات bridge ومواقف الرفض مختبرة بصورة آلية؛ نظام الإذن Native يحتاج جهازًا.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "طلبات الأذونات عند الفعل ومسارات الرفض/الإعدادات؛ Manifest/built APK مستهدف36/min23. سلوك منتقي الصور والموقع ورفض الإذن في النظام يحتاج الهاتف.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "المستخدم",
+      "owner_steps": "اضغط «موقعي» أو إضافة صورة حين تحتاجها فقط؛ ارفض الإذن، ثم ارفض دائمًا وعد من إعدادات النظام.",
+      "owner_expected": "لا أذونات مفاجئة عند البداية؛ رفض مفهوم وخيار إعدادات اختياري؛ تعمل المحاولة بعد منح الإذن.",
+      "owner_negative_cases": "اختبر تعطيل خدمة الموقع وAndroid13+ للإشعارات عند تفعيلFCM لاحقًا.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 28,
+      "name": "خصوصية EXIF",
+      "requirements": "لا تُعرض metadata الكاميرا/GPS الحساسة؛ أصل خاص، ترميز عرض نظيف واتجاه صحيح وعدم إتاحة variant=original.",
+      "previous_state": "مكتمل ومعتمد",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Services/ListingImageService.php",
+        "backend-api-runtime/app/Services/ProfessionalPhotoService.php",
+        "backend-api-runtime/app/Services/CloudAssetStorageService.php"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        120,
+        122,
+        138
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/ProfessionalPhotoPrivacyTest.php",
+          "backend-api-runtime/tests/Feature/AdaptiveImageQualityTest.php",
+          "backend-api-runtime/app/Console/Commands/UatRoleJourneys.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "ترميز المشتقات يحذف EXIF/GPS ويتعامل مع الاتجاه؛ JPEGs حية ومقارنة EXIF ورفض الأصل والوصول غير المصرح. صور الاختبار لا تتضمن بيانات بشرية.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "صور JPEG اصطناعية بوسم EXIF/GPS، غياب الوسم من العرض واتجاه محفوظ، رفض original422 وملكية404، bucket خاص.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "مكتمل ومعتمد",
+      "state_id": 1,
+      "completion_evidence": [
+        "ترميز المشتقات يحذف EXIF/GPS ويتعامل مع الاتجاه؛ JPEGs حية ومقارنة EXIF ورفض الأصل والوصول غير المصرح. صور الاختبار لا تتضمن بيانات بشرية.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "لا مانع خاص بالبند ضمن نطاقه المعتمد.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "اجتاز شروط الاعتماد ضمن النطاق.",
+      "owner_role": "الوسيط",
+      "owner_steps": "فحص تراجع اختياري: ارفع صورة EXIF اصطناعية ثم افتح مشتقات العرض العامة.",
+      "owner_expected": "بيانات الكاميرا/GPS محذوفة من العرض؛ الاتجاه صحيح؛ موضع العقار يأتي من اختيار المستخدم.",
+      "owner_negative_cases": "الأصل الخاص/إثبات الملكية غير عام؛ لا تستخدم صورة وثيقة بشرية للفحص.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": true,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 29,
+      "name": "إدارة صور الإعلانات",
+      "requirements": "ترتيب/رئيسية/حذف/استبدال وإعادة رفع آمنة، مع حماية المراجع ودون ملفات يتيمة من المسار المختبر.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Services/ListingEditorDraftService.php",
+        "backend-api-runtime/app/Services/ListingImageService.php",
+        "mobile_app/lib/features/properties/presentation/listing_editor_screen.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        138,
+        140,
+        158
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/user_work_media_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/CloudDeleteLifecycleTest.php",
+          "backend-api-runtime/tests/Feature/UserWorkMediaTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "ترتيب/رئيسية/استبدال/حذف وملكية المسودة ومراجعة البصمة؛ HTTP وStorage حقيقيان واختبارات مراجعة الصور؛ لا موافقة موروثة لصورة جديدة.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "Flutter contracts وHTTP/PG/Storage حقيقي وصفر مراجع/أصول fixture بعد التنظيف؛ لا حذف لصور غير مستخدمي الاختبار.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "ترتيب/رئيسية/استبدال/حذف وملكية المسودة ومراجعة البصمة؛ HTTP وStorage حقيقيان واختبارات مراجعة الصور؛ لا موافقة موروثة لصورة جديدة.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "الوسيط ثم المراجع",
+      "owner_steps": "على الإعلان الاصطناعي غيّر ترتيب الصور والرئيسية، احذف واحدة واستبدل أخرى، ثم احفظ وأعد فتحه.",
+      "owner_expected": "الترتيب والرئيسية محفوظان، والصورة المستبدلة تحتاج مراجعة جديدة.",
+      "owner_negative_cases": "افصل الاتصال أثناء الحفظ، وأعد المحاولة، وافتح مسودة من الحساب الآخر للتأكد من الرفض.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 30,
+      "name": "المسودات واستعادتها",
+      "requirements": "checkpoint/revision مستقر واستعادة دون تكرار، وحماية التأخير وتبديل الحساب وحفظ العمل عند الشبكة الضعيفة.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة. حماية بدءالخروج وepoch الحالية تمنع بقاء ردود حساب قديم؛ مسارTUS الجديد محفوظ فيPR115 فقط.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Services/ListingEditorDraftService.php",
+        "mobile_app/lib/features/properties/data/listing_account_draft_repository.dart",
+        "mobile_app/lib/features/properties/presentation/listing_editor_screen.dart"
+      ],
+      "files_changed_now": [
+        "mobile_app/lib/features/account/data/auth_controller.dart"
+      ],
+      "pull_requests": [
+        120,
+        140,
+        160
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/loading_recovery_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Postgres/ListingEditorDraftPostgresTest.php",
+          "backend-api-runtime/tests/Feature/AccountErasureLaunchTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "محفوظات الجهاز وخادم المسودات وrevision/checkpoint، استعادة بعد فشل التخزين ورفض مسودة حساب آخر؛ مسودة وصورة خاصة معدتان في preflight. ليس TUS11.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "HTTP/PG وملفات وrevision، مع رفض قراءة حساب آخر وعدم تكرار ملف عند retry.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "محفوظات الجهاز وخادم المسودات وrevision/checkpoint، استعادة بعد فشل التخزين ورفض مسودة حساب آخر؛ مسودة وصورة خاصة معدتان في preflight. ليس TUS11.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "الوسيط",
+      "owner_steps": "افتح مسودة الاستعادة المعدّة؛ اكتب نصًا وأضف صورة؛ احفظ أو اترك استعادة الجهاز، أغلق التطبيق قسرًا ثم افتحه وأكمل.",
+      "owner_expected": "النص والترتيب والصور المحفوظة تعود للحساب نفسه، وتظهر نتيجة الحفظ بوضوح.",
+      "owner_negative_cases": "انقطاع الرفع/الخروج/نقر استعادة مرتين/تبديل الحساب؛ لا يفتح محرران ولا تضيع النسخة الأحدث. هذا ليس استئناف البايتات11.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 31,
+      "name": "حذف الحساب",
+      "requirements": "حذف هوية وتوكنات/عمل عابر وإثباتات خاصة وأرشفة الإعلان، مع الاحتفاظ المحدد بالسجلات القانونية ورفض حذف الموظف بلا نقل صلاحيات.",
+      "previous_state": "مانع خارجي محدد — غير جاهز للاعتماد النهائي",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "backend-api-runtime/app/Services/AccountErasureService.php",
+        "backend-api-runtime/app/Http/Middleware/AuthenticateApiToken.php",
+        "mobile_app/lib/features/account/presentation/account_safety_screen.dart",
+        "backend-api-runtime/tests/Feature/AccountErasureAuthRaceTest.php"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        122,
+        140,
+        153,
+        155,
+        158
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/launch_readiness_wave4_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [
+          "backend-api-runtime/tests/Feature/AccountErasureLaunchTest.php",
+          "backend-api-runtime/tests/Feature/AuthenticatedThrottleIsolationTest.php"
+        ],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "AccountErasureLaunchTest: فشلStorage يرجع بيانات المعاملة ثم نجاح retry، إلغاء الجلسات وحفظ المرجع المشترك. AuthRaceTest:5 سباقات؛ اختبارات PostgreSQL؛ لا حذف حساب بشري.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "HTTP/DB/Storage حقيقي لحساب اصطناعي؛ 401 بعد الحذف، أصل المسودة والصورة المهنية غائبان، المحاضر والرسائل المشتركة محفوظة وفق القواعد.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز هندسيًا وموقوف انتظارًا لمورد أو اعتماد خارجي",
+      "state_id": 3,
+      "completion_evidence": [
+        "AccountErasureLaunchTest: فشلStorage يرجع بيانات المعاملة ثم نجاح retry، إلغاء الجلسات وحفظ المرجع المشترك. AuthRaceTest:5 سباقات؛ اختبارات PostgreSQL؛ لا حذف حساب بشري.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "اعتماد سياسة حذف/احتفاظ للبيانات والوسائط المؤرشفة وحقوق الوصول،ومزودOTP لليمن وصفحة حذفProduction وقبول الهاتف.",
+      "activation_resource": "قرار سياسة بلا مدة أو مسوغ قانوني مختلق؛ OTP حسب المزود والقناة. مرجعTwilio0.05دولار/تحقق+القناة،ليس عرض اليمن.",
+      "post_resource_test": "expired/wrong/reusedOTP وthrottle؛ جلسةقديمة؛ storagefailure/retry وسباقاتالحذف والمراجعالمشتركة؛تدقيق البيان المنشور وصفحةالويب.",
+      "transition": "اعتماد السياسة وتشغيل الويب/OTP والهوية يتيح2؛ قبول الرحلة الفعلية1. نجاح UAT لا يجيز حذف حساب بشري.",
+      "owner_role": "حساب الحذف الاصطناعي فقط",
+      "owner_steps": "استعمل حساب الحذف المنفصل في كبسولة الوصول؛ أنشئ بيانات اصطناعية، افتح الحذف واقرأ الأثر، ثم أكّد العبارة؛ حاول استعمال الجلسة القديمة.",
+      "owner_expected": "تمحى الهوية وتلغى الجلسات وتزال وثائق التحقق والمسودات غير المشتركة؛ تؤرشف الإعلانات وتُحفظ مراجعها والسجلات المشتركة وفق السياسة المطلوب اعتمادها. لا تعني العملية مسح كل ملف مرتبط بإعلان مؤرشف.",
+      "owner_negative_cases": "فشلStorage/سباقاتOTP مثبتة آليًا؛ سياسة الاحتفاظ ومزودOTP وصفحة حذف الإنتاج لا تزال موافقات خارجية. لا تحذف حساب وسيط أو دعم أو حسابًا بشريًا.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    },
+    {
+      "id": 32,
+      "name": "الثيم والتناسق والاتجاه",
+      "requirements": "ثيم فاتح/داكن/النظام محفوظ دون سباق وRTL وتكبير نص وتناسق مكونات وأصول معتمدة.",
+      "previous_state": "جاهز وينتظر اختبار المالك على التطبيق",
+      "work_now": "مراجعة الإغلاق والأدلة القائمة مع إعادة التراجع على الرأس الحالي؛ لا إعادة تنفيذ للميزة.",
+      "files_reviewed": [
+        "mobile_app/lib/core/theme/theme_controller.dart",
+        "mobile_app/lib/core/theme/app_theme.dart",
+        "mobile_app/lib/core/widgets/app_components.dart",
+        "mobile_app/lib/core/widgets/ebroker_widgets.dart",
+        "mobile_app/test/owner_secondary_privacy_layout_test.dart"
+      ],
+      "files_changed_now": [],
+      "pull_requests": [
+        124,
+        142,
+        152,
+        154,
+        157,
+        158
+      ],
+      "source_shas": {
+        "historical_uat": "44a5429d91827f2da73938b71c877c38572dd663",
+        "tested_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+        "merged_uat": "04b28182645af61c3c7aa11dfbfdaed4c9e86454"
+      },
+      "flutter_tests": {
+        "files": [
+          "mobile_app/test/theme_preference_race_test.dart",
+          "mobile_app/test/aqer_brand_test.dart",
+          "mobile_app/test/secondary_admin_recovery_test.dart"
+        ],
+        "full_regression": "PASS at current head; physical handset untested"
+      },
+      "laravel_tests": {
+        "files": [],
+        "full_regression": "430 PASS / 5091 assertions; one existing SQLite/PostGIS skip is covered in PostgreSQL job"
+      },
+      "postgresql_storage_tests": {
+        "evidence": "Light/dark وحجم2.4 وخط Noto Arabic وشاشات320×640/360×740؛ Flex/scroll/metrics/dialog/dropdown وprivate forms؛156 حالة مركزة مع header overflow72px مُصلح. API36 emulator ناجح، الهاتف باقٍ.",
+        "current_audit": "59 migrations; RLS on all88 public tables; no direct public-client grants; private buckets; deferred tables absent"
+      },
+      "ci_results": "PR160:19 success,0failure,1unused installer fallback skipped; see engineering receipt for job IDs",
+      "uat_results": {
+        "historical": "تحليل Flutter وWidget وpreviews اصطناعية وفحص الأصول والخطوط داخل APK؛ أربع معاينات RTL كبيرة فُحصت بصريًا.",
+        "historical_evidence": "2026-10-26-owner-uat-v5.json + owner-preflight-v2-passed.json, source-bound, not replayed",
+        "current_deploy": "dep-dbg0uad9fdbs73cehcp0 Live at merged UAT SHA;59migrations unchanged"
+      },
+      "android": "1358→1359, package com.aqer.yemen.uat; API36 emulator passed; no physical-handset acceptance; Firebase client OFF",
+      "new_state": "جاهز وينتظر اختبار المالك على Android",
+      "state_id": 2,
+      "completion_evidence": [
+        "Light/dark وحجم2.4 وخط Noto Arabic وشاشات320×640/360×740؛ Flex/scroll/metrics/dialog/dropdown وprivate forms؛156 حالة مركزة مع header overflow72px مُصلح. API36 emulator ناجح، الهاتف باقٍ.",
+        "docs/evidence/2026-10-27-engineering-ci-receipt.json"
+      ],
+      "final_blocker": "قبول المالك على Android فقط وفق الرحلة أدناه.",
+      "activation_resource": "لا مورد إضافي يمنع تجربة المالك لهذا البند.",
+      "post_resource_test": "لا يلزم مورد؛ اختبار المالك/التراجع بحسب خطوات البند.",
+      "transition": "بعد نجاح قبول المالك وتسجيل نتيجته ينتقل إلى1.",
+      "owner_role": "كل الأدوار",
+      "owner_steps": "غيّر الفاتح والداكن والنظام ثم أعد الفتح؛ جرّب حجم خط2.4 وشاشة صغيرة؛ راجع العناوين والأزرار والنوافذ والعودة وRTL.",
+      "owner_expected": "ثيم محفوظ، قراءة واضحة، اتجاه وتنقل متسقان، ومحتوى قابل للوصول مع تكبير الخط.",
+      "owner_negative_cases": "افتح لوحة الإدارة/التوثيق/التحديث/المناطق؛ تحقق من شريطي النظام ولوحة المفاتيح علىAPI36 ومن جهاز أقدم.",
+      "engineering_preparation_verified": true,
+      "included_in_unified_branch": true,
+      "operationally_approved": false,
+      "actual_handset_tested": false
+    }
+  ]
+}
