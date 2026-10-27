@@ -9,8 +9,8 @@ import 'package:real_estate_mobile/features/properties/presentation/property_ful
 import 'support/owner_ux_fixtures.dart';
 
 const _images = [
-  PropertyImageItem(id: 801, url: 'https://fixture.invalid/house-a.png', isPrimary: true, sortOrder: 0),
-  PropertyImageItem(id: 802, url: 'https://fixture.invalid/house-b.png', isPrimary: false, sortOrder: 1),
+  PropertyImageItem(id: 801, url: 'https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/801?v=synthetic-only', isPrimary: true, sortOrder: 0),
+  PropertyImageItem(id: 802, url: 'https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/802?v=synthetic-only', isPrimary: false, sortOrder: 1),
 ];
 const _gallery = PropertyFullscreenGallery(images: _images, initialIndex: 0);
 Finder get _viewer => find.byType(InteractiveViewer).hitTestable().first;
@@ -107,6 +107,7 @@ void main() {
         final badge = tester.getRect(find.byKey(const ValueKey('property-photo-price')));
         expect(badge.left, greaterThanOrEqualTo(0)); expect(badge.right, lessThanOrEqualTo(320));
         await uxPreview(tester, boundary, 'price-${dark ? 'dark' : 'light'}-$scale');
+        expect(find.byWidgetPredicate((widget) => widget is RawImage && widget.image != null), findsWidgets);
         expect(tester.takeException(), isNull); await closeUx(tester);
       });
     }
@@ -154,6 +155,12 @@ void main() {
     expect(tester.widget<ChoiceChip>(rent).selected, isTrue);
     await tester.tap(rent); await tester.pump();
     expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('filter-purpose-all'))).selected, isTrue);
+    final currency = find.byKey(const ValueKey('filter-currency'));
+    await tester.ensureVisible(currency); await tester.pumpAndSettle();
+    final label = find.descendant(of: currency, matching: find.text('ريال يمني للميزانية')).first;
+    final fieldBounds = tester.getRect(currency), labelBounds = tester.getRect(label);
+    expect(labelBounds.top, greaterThanOrEqualTo(fieldBounds.top));
+    expect(labelBounds.bottom, lessThanOrEqualTo(fieldBounds.bottom));
     await uxPreview(tester, boundary, 'filters-dark-2.4');
     expect(tester.takeException(), isNull); await closeUx(tester);
   });

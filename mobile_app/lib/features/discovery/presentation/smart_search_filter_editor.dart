@@ -75,7 +75,7 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
     keyboardType: _numbers.contains(key) ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
     decoration: InputDecoration(labelText: label, counterText: '')));
   Widget _boolean(String key, String label) => !_visible(key) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: DropdownButtonFormField<bool>(
-    value: _values[key] as bool?, isExpanded: true, decoration: InputDecoration(labelText: label),
+    value: _values[key] as bool?, isExpanded: true, isDense: false, itemHeight: null, decoration: InputDecoration(labelText: label),
     items: const [DropdownMenuItem(value: null, child: Text('لا يشترط')), DropdownMenuItem(value: true, child: Text('نعم')), DropdownMenuItem(value: false, child: Text('لا'))],
     onChanged: (value) => setState(() { if (value == null) { _values.remove(key); } else { _values[key] = value; } })));
 
@@ -138,7 +138,7 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
         _field('search', 'المحافظة أو المنطقة'),
         _field('min_price', rent ? 'من إيجار شهري' : 'أقل سعر'), _field('max_price', rent ? 'حتى إيجار شهري' : 'أعلى سعر'),
         const SizedBox(height: 12),
-        if (_visible('currency')) DropdownButtonFormField<String>(value: _values['currency'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'العملة'),
+        if (_visible('currency')) DropdownButtonFormField<String>(key: const ValueKey('filter-currency'), value: _values['currency'] as String?, isExpanded: true, isDense: false, itemHeight: null, decoration: const InputDecoration(labelText: 'العملة'),
           items: const [DropdownMenuItem(value: null, child: Text('ريال يمني للميزانية')), DropdownMenuItem(value: 'YER', child: Text('ريال يمني')),
             DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
           onChanged: (value) => setState(() { if (value == null) { _values.remove('currency'); } else { _values['currency'] = value; } })),
@@ -148,17 +148,17 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
           _minimumChoices('min_bathrooms', 'دورات المياه على الأقل', 5),
         ],
         if (_visible('floor_number')) Padding(padding:const EdgeInsets.only(top:12),child:DropdownButtonFormField<String>(key:const ValueKey('filter-floor_number'),
-          value:_text['floor_number']!.text.isEmpty ? null : _text['floor_number']!.text,isExpanded:true,decoration:const InputDecoration(labelText:'الدور'),
+          value:_text['floor_number']!.text.isEmpty ? null : _text['floor_number']!.text,isExpanded:true,isDense:false,itemHeight:null,decoration:const InputDecoration(labelText:'الدور'),
           items:[const DropdownMenuItem(value:null,child:Text('أي دور')),for(final e in DynamicPropertySchema.floorOptions.entries) DropdownMenuItem(value:e.key,child:Text(e.value)),
             if(_text['floor_number']!.text.isNotEmpty && !DynamicPropertySchema.floorOptions.containsKey(_text['floor_number']!.text)) DropdownMenuItem(value:_text['floor_number']!.text,child:Text(_text['floor_number']!.text))],
           onChanged:(v)=>setState(()=>_text['floor_number']!.text=v??''))),
         if (_applicable('unit_occupies_entire_floor')) _boolean('unit_occupies_entire_floor', 'الوحدة تشغل الدور كاملًا'),
         if (_applicable('has_elevator')) _boolean('has_elevator', 'مصعد'),
-        if (type == 'land' && _visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'واجهة الأرض'),
+        if (type == 'land' && _visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, isDense: false, itemHeight: null, decoration: const InputDecoration(labelText: 'واجهة الأرض'),
           items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
           onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } })),
         if (_applicable('has_parking')) ...[_boolean('has_parking', 'موقف'), const SizedBox(height: 12),
-          if (_visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, decoration: const InputDecoration(labelText: 'الواجهة'),
+          if (_visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, isDense: false, itemHeight: null, decoration: const InputDecoration(labelText: 'الواجهة'),
             items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
             onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } }))],
         if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
