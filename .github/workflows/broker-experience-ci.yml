@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1, work/wave2-brand-trust-account, work/wave2-review-current, work/1123-release-readiness]
+    branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1, work/wave2-brand-trust-account, work/wave2-review-current, work/1123-release-readiness, work/owner-direct-apk-20261027]
   pull_request:
     branches: [work/wave2-review-current]
     paths:
@@ -19,7 +19,7 @@ concurrency:
 env:
   SOURCE_COMMIT: ${{ github.sha }}
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
-  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' }}
+  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.ref_name == 'work/owner-direct-apk-20261027' }}
 jobs:
   source:
     name: Tracked source checkpoint

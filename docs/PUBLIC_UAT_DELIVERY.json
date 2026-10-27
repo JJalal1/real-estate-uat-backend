@@ -1,9 +1,10 @@
 {
   "repository": "JJalal1/real-estate-uat-backend",
-  "owner_approval_date": "2026-10-20",
+  "owner_approval_date": "2026-10-27",
   "visibility": "public",
   "apk_delivery": "recipient-encrypted-cms-only",
   "plaintext_public_artifacts": false,
-  "recipient_certificate": ".github/uat-apk-recipient.pem",
-  "recipient_sha256": "12f6a686d39cef1b63f90011b979ebaef0a25f431d9f4eb1aa4d114a19c0f5e2"
+  "recipient_certificate": ".github/uat-apk-direct-recipient.pem",
+  "recipient_sha256": "5fe525360e4e20109a15e509fb530efab9628d1ebfe302243ef484d65f50fb99",
+  "delivery_scope": "One-time owner-requested direct APK handoff in this conversation; isolated unmerged delivery branch only"
 }
