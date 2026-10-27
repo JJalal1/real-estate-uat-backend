@@ -1372,5 +1372,181 @@
     "mobile_app": "696bb70b09d2daf956504c1ed3f0f15ff90b4b48",
     "render.yaml": "312e3208cbaf5fab99c5c4744e50f4e5c1a3c0a6",
     "scripts": "af0906e9d6d8aa5846dde864f7b6bd5004ec7ce7"
+  },
+  "post_deploy_http": {
+    "runtime_sha": "04b28182645af61c3c7aa11dfbfdaed4c9e86454",
+    "verification_head": "722582afb9d40af25eff0002abd5675a68ff411f",
+    "application_tree_ids": {
+      "backend-api-runtime": "efed1a96666aeb1213efeeda87bef8d07cf16485",
+      "mobile_app": "696bb70b09d2daf956504c1ed3f0f15ff90b4b48",
+      "render.yaml": "312e3208cbaf5fab99c5c4744e50f4e5c1a3c0a6",
+      "scripts": "af0906e9d6d8aa5846dde864f7b6bd5004ec7ce7"
+    },
+    "job_id": 121991003826,
+    "job_url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40444068697/job/121991003826",
+    "result": "passed",
+    "performance": {
+      "source_sha": "0da4f18501e1b6dd611fd92577282cb965139d5e",
+      "origin": "https://real-estate-uat-api-frankfurt.onrender.com",
+      "started_at": "2026-10-27T03:25:26Z",
+      "scope": "Controlled UAT n=20 per warm endpoint; concurrency<=3; no production capacity claim.",
+      "summaries": {
+        "warm_health": {
+          "n": 20,
+          "p50_ms": 509.6,
+          "p95_ms": 661.2,
+          "p99_ms": 680.1,
+          "max_ms": 680.1,
+          "errors": 0,
+          "bytes": 920,
+          "concurrency": 3
+        },
+        "warm_thumb": {
+          "n": 20,
+          "p50_ms": 1596.8,
+          "p95_ms": 2713.9,
+          "p99_ms": 2808,
+          "max_ms": 2808,
+          "errors": 0,
+          "bytes": 226740,
+          "concurrency": 3
+        },
+        "warm_marketplace": {
+          "n": 20,
+          "p50_ms": 877.6,
+          "p95_ms": 1634.1,
+          "p99_ms": 1965.4,
+          "max_ms": 1965.4,
+          "errors": 0,
+          "bytes": 514440,
+          "concurrency": 2
+        }
+      },
+      "completed": true
+    },
+    "api_contracts": {
+      "application_get_writes_requested": false,
+      "health_database": true,
+      "page_db_queries": 15,
+      "page_rows": 20,
+      "page_storage_requests": 0,
+      "physical_handset_tested": false,
+      "real_fcm_delivery_tested": false,
+      "release_latest": 1124,
+      "release_minimum": 1,
+      "store_url_configured": false
+    },
+    "evidence_artifact": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40444068697/artifacts/12707018369",
+    "artifact_sha256": "27eaf900dee8157e2d4b698796fa402f61f200861266c92044fda05b98a16844"
+  },
+  "handoff_validation": {
+    "head": "722582afb9d40af25eff0002abd5675a68ff411f",
+    "pr": 161,
+    "checks": [
+      {
+        "name": "Actual HTTP viewport and UAT image measurements",
+        "id": 121991005227,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40444068574/job/121991005227"
+      },
+      {
+        "name": "Verify source equivalence and bounded deployed UAT without account writes",
+        "id": 121991003826,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40444068697/job/121991003826"
+      },
+      {
+        "name": "Validate resource templates against current Render schema without applying",
+        "id": 121991003160,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40444068564/job/121991003160"
+      }
+    ],
+    "viewport_focused_tests": 86,
+    "viewport_actual_http_tests": 5,
+    "viewport_measurements": {
+      "AQER_VIEWPORT_HTTP": {
+        "network": "real loopback HTTP, synthetic PNG only",
+        "gating_required": true,
+        "feed_requests": 1,
+        "initial_image_requests": 2,
+        "initial_image_bytes": 136,
+        "after_fast_scroll_requests": 7,
+        "return_image_requests": 0,
+        "unique_image_requests": 7,
+        "total_image_bytes": 476
+      },
+      "AQER_LOADING_HTTP": {
+        "network": "actual loopback HTTP with deliberate delayed response and HTTP 503",
+        "http_requests": 5,
+        "pages": [
+          1,
+          1,
+          1,
+          2,
+          1
+        ],
+        "retained_during_refresh": true,
+        "retry_failed_page": 1,
+        "unique_paginated_rows": 2,
+        "extra_requests_after_end": 0,
+        "empty_result_state": true
+      },
+      "AQER_DISCOVERY_UAT": {
+        "network": "real Render UAT Laravel API, read only; no account token",
+        "http_requests": 12,
+        "pagination_rows": [
+          5,
+          5
+        ],
+        "pagination_overlap": 0,
+        "arabic_normalization_same_ids": true,
+        "arabic_result_count": 8,
+        "empty_count": 0,
+        "protected_get_statuses": [
+          401,
+          401,
+          401,
+          401
+        ],
+        "unavailable_status": 404,
+        "invalid_coordinates_status": 422,
+        "latency_ms": [
+          898,
+          655,
+          380,
+          428,
+          727,
+          324,
+          280,
+          200,
+          237,
+          209,
+          262,
+          310
+        ]
+      },
+      "AQER_VIEWPORT_FLING": {
+        "network": "real loopback HTTP plus real Flutter ballistic scroll physics",
+        "initial_requests": 3,
+        "fling_speed_pixels_per_second": 8000,
+        "new_requests_during_fast_motion": 0,
+        "total_requests_after_settle": 7,
+        "return_requests": 0
+      },
+      "AQER_VIEWPORT_UAT": {
+        "network": "real UAT Laravel to private Supabase Storage",
+        "gating_required": true,
+        "initial_image_requests": 1,
+        "initial_image_bytes": 11337,
+        "after_scroll_requests": 2,
+        "return_image_requests": 0,
+        "total_image_bytes": 25540
+      }
+    },
+    "viewport_evidence_artifact": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40444068574/artifacts/12707626973"
   }
 }
