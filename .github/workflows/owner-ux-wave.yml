@@ -25,6 +25,8 @@ jobs:
           flutter-version: '3.27.3'
           channel: stable
           cache: true
+      - name: Live probe retains evidence on failure
+        run: python3 -B -m unittest discover -s scripts/tests -p 'test_probe_adaptive_images.py' -v
       - name: Original locked dependencies
         id: lock
         working-directory: mobile_app

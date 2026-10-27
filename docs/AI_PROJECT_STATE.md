@@ -1,6 +1,6 @@
-# Owner UX wave — 2026-10-27 (in validation)
+# Owner UX wave — 2026-10-27 (implemented; live fixture gate open)
 
-The owner supplied the 12-page current-wave DOCX and asked to apply it on the latest unified source bdab326a. Read `docs/OWNER_UX_WAVE_2026-10-27_AR.md`. Six requests cover details/location, compact prices, fullscreen gestures, broker-only navigation, system location permission and filter chips. Existing search/map/AI entry behavior is explicitly excluded. This wave is in validation, not yet accepted on a physical phone; historical release evidence below does not certify the new UI.
+The owner supplied the 12-page current-wave DOCX and asked to apply it on the latest unified source bdab326a. Read `docs/OWNER_UX_WAVE_2026-10-27_AR.md`. Six requests cover details/location, compact prices, fullscreen gestures, broker-only navigation, system location permission and filter chips. Existing search/map/AI entry behavior is explicitly excluded. PR163 implements this wave. Focused CI on 0df1791c passed strict analysis and124 behavioral/regression tests, including real Widget gestures, synthetic previews and GPS channel contracts. Full CI/native delivery is being collected. Live HTTP gates are blocked by the expired availability of synthetic fixtures60/62; auto-review rejected renewing them without explicit permission. Read `docs/OWNER_UX_UAT_FIXTURE_GATE_2026-10-27_AR.md`; no live mutation occurred and no red-CI merge is allowed. Physical phone acceptance remains open; historical evidence below does not certify the new UI.
 
 # October27 current phase32 handoff
 
