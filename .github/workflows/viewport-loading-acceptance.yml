@@ -9,6 +9,11 @@ permissions:
   contents: read
 jobs:
   measurement:
+    # All read-only probes share the same limited Free UAT runtime.
+    concurrency:
+      group: aqer-free-uat-http-measurements
+      queue: max
+      cancel-in-progress: false
     name: Actual HTTP viewport and UAT image measurements
     runs-on: ubuntu-latest
     timeout-minutes: 20

@@ -57,9 +57,9 @@ class _NotificationPreferencesScreenState
               ),
               children: [
                 const AppInlineMessage(
-                  title: 'الإشعارات المهمة تبقى شغالة',
+                  title: 'تنبيهات الأمان والدعم داخل التطبيق',
                   message:
-                      'رسائل الأمان، التحقق من الحساب، وردود الدعم الضرورية لا يمكن إيقافها حتى ما يفوتك شيء مهم.',
+                      'تبقى رسائل الأمان والتحقق وردود الدعم متاحة داخل التطبيق. يمكنك إيقاف إشعارات هذا الجهاز بشكل مستقل.',
                   tone: AppStatusTone.info,
                   icon: Icons.shield_outlined,
                 ),
@@ -81,11 +81,16 @@ class _NotificationPreferencesScreenState
                         ),
                         const SizedBox(height: AppSpacing.s12),
                         AppButton(
-                          label: _enablingPush ? 'جارٍ التفعيل...' : 'تفعيل إشعارات الجهاز',
+                          label: _enablingPush ? 'جارٍ تنفيذ الطلب...' : 'تفعيل إشعارات الجهاز',
                           icon: Icons.notifications_active_outlined,
                           loading: _enablingPush,
                           onPressed: _enablingPush ? null : _enablePush,
                           expand: true,
+                        ),
+                        TextButton.icon(
+                          onPressed: _enablingPush ? null : _disablePush,
+                          icon: const Icon(Icons.notifications_off_outlined),
+                          label: const Text('إيقاف إشعارات هذا الجهاز'),
                         ),
                       ],
                     ),
@@ -173,6 +178,25 @@ class _NotificationPreferencesScreenState
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تعذر تفعيل إشعارات الجهاز الآن.')),
+      );
+    } finally {
+      if (mounted) setState(() => _enablingPush = false);
+    }
+  }
+
+  Future<void> _disablePush() async {
+    if (_enablingPush) return;
+    setState(() => _enablingPush = true);
+    try {
+      await ref.read(pushRegistrationRepositoryProvider).disable();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إيقاف إشعارات هذا الجهاز.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر إيقاف إشعارات الجهاز. حاول مجددًا.')),
       );
     } finally {
       if (mounted) setState(() => _enablingPush = false);

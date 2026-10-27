@@ -89,6 +89,11 @@ jobs:
           python3 -B ../scripts/check_v3_analysis.py
           flutter test test/adaptive_image_quality_test.dart test/user_work_media_test.dart test/wave2_trust_account_media_test.dart --reporter expanded
   live-measurement:
+    # All read-only probes share the same limited Free UAT runtime.
+    concurrency:
+      group: aqer-free-uat-http-measurements
+      queue: max
+      cancel-in-progress: false
     name: Real UAT transfer measurements and Flutter cache integration
     runs-on: ubuntu-latest
     timeout-minutes: 15

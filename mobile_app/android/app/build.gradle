@@ -18,6 +18,37 @@ def aqerFirebaseAppId = project.findProperty("AQER_FIREBASE_APP_ID") ?: System.g
 def aqerFirebaseProjectId = project.findProperty("AQER_FIREBASE_PROJECT_ID") ?: System.getenv("AQER_FIREBASE_PROJECT_ID") ?: ""
 def aqerFirebaseSenderId = project.findProperty("AQER_FIREBASE_SENDER_ID") ?: System.getenv("AQER_FIREBASE_SENDER_ID") ?: ""
 def aqerBuildConfigString = { value -> "\"" + value.toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\"" }
+def aqerUatFirebase = new Properties()
+def aqerUatFirebaseFile = rootProject.file('firebase-uat.properties')
+if (aqerUatFirebaseFile.isFile()) {
+    aqerUatFirebaseFile.withInputStream { aqerUatFirebase.load(it) }
+}
+def aqerProductionApplicationId = project.findProperty('AQER_PRODUCTION_APPLICATION_ID') ?: System.getenv('AQER_PRODUCTION_APPLICATION_ID') ?: ''
+def aqerBuildingProduction = gradle.startParameter.taskNames.any { it.toLowerCase().contains('production') }
+if (aqerBuildingProduction && (!aqerProductionApplicationId || !aqerHasReleaseSigning)) {
+    throw new GradleException('Production requires its approved application ID and release signing. UAT credentials cannot replace them.')
+}
+if (aqerBuildingProduction) {
+    def aqerDartDefines = [:]
+    (project.findProperty('dart-defines') ?: '').split(',').findAll { it }.each { encoded ->
+        def entry = new String(encoded.decodeBase64(), 'UTF-8').split('=', 2)
+        if (entry.length == 2) aqerDartDefines[entry[0]] = entry[1]
+    }
+    def aqerApi = new URI(aqerDartDefines['API_BASE_URL'] ?: '')
+    if (aqerDartDefines['APP_ENVIRONMENT'] != 'production' ||
+        aqerDartDefines['APP_PACKAGE_ID'] != aqerProductionApplicationId ||
+        aqerProductionApplicationId in ['com.example.real_estate_mobile', 'com.aqer.yemen.uat'] ||
+        aqerApi.scheme != 'https' || !aqerApi.host || aqerApi.userInfo ||
+        aqerApi.host == 'real-estate-uat-api-frankfurt.onrender.com') {
+        throw new GradleException('Production requires matching compiled identity and a separate HTTPS API; UAT fallbacks are forbidden.')
+    }
+}
+def aqerUatClientEnabled = aqerUatFirebase.getProperty('aqer.uat.firebase.enabled', 'false').toBoolean()
+if (aqerUatClientEnabled && (aqerUatFirebase.getProperty('aqer.uat.firebase.projectId') != 'aqer-yemen' ||
+    aqerUatFirebase.getProperty('aqer.uat.firebase.senderId') != '982331876719' ||
+    !aqerUatFirebase.getProperty('aqer.uat.firebase.apiKey') || !aqerUatFirebase.getProperty('aqer.uat.firebase.appId'))) {
+    throw new GradleException('UAT Firebase client configuration is incomplete; run the validated configuration importer.')
+}
 
 android {
     namespace = "com.example.real_estate_mobile"
@@ -47,6 +78,7 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         manifestPlaceholders["aqerAppLinkHost"] = project.findProperty("AQER_APP_LINK_HOST") ?: "real-estate-uat-api-frankfurt.onrender.com"
         manifestPlaceholders["aqerAppLinkAutoVerify"] = project.findProperty("AQER_APP_LINK_AUTO_VERIFY") ?: "false"
         buildConfigField "boolean", "AQER_PUSH_ENABLED", aqerPushEnabled.toString()
@@ -64,6 +96,25 @@ android {
                 keyAlias aqerKeyAlias
                 keyPassword aqerKeyPassword
             }
+        }
+    }
+
+    flavorDimensions 'environment'
+    productFlavors {
+        uat {
+            dimension 'environment'
+            applicationId 'com.aqer.yemen.uat'
+            resValue 'string', 'aqer_app_name', 'عقار UAT'
+            buildConfigField 'boolean', 'AQER_PUSH_ENABLED', aqerUatClientEnabled.toString()
+            buildConfigField 'String', 'AQER_FIREBASE_API_KEY', aqerBuildConfigString(aqerUatFirebase.getProperty('aqer.uat.firebase.apiKey', ''))
+            buildConfigField 'String', 'AQER_FIREBASE_APP_ID', aqerBuildConfigString(aqerUatFirebase.getProperty('aqer.uat.firebase.appId', ''))
+            buildConfigField 'String', 'AQER_FIREBASE_PROJECT_ID', aqerBuildConfigString('aqer-yemen')
+            buildConfigField 'String', 'AQER_FIREBASE_SENDER_ID', aqerBuildConfigString('982331876719')
+        }
+        production {
+            dimension 'environment'
+            if (aqerProductionApplicationId) applicationId aqerProductionApplicationId
+            resValue 'string', 'aqer_app_name', 'عقار'
         }
     }
 
@@ -93,4 +144,7 @@ flutter {
 dependencies {
     // Pinned to the last Cloud Messaging line that officially supports API 23.
     implementation "com.google.firebase:firebase-messaging:25.0.1"
+    // Test-only, pinned official AndroidX runner; no second Firebase SDK.
+    androidTestImplementation 'androidx.test:runner:1.7.0'
+    androidTestImplementation 'junit:junit:4.13.2'
 }

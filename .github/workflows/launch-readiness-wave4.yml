@@ -110,7 +110,7 @@ jobs:
       - name: Build UAT release APK with explicit non-production signing allowance
         working-directory: mobile_app
         run: >-
-          flutter build apk --release
+          flutter build apk --flavor uat --release
           --build-number=1125
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${UAT_API_BASE_URL}

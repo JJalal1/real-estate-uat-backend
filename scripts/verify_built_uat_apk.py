@@ -52,9 +52,9 @@ assert tools
 signer = subprocess.run([str(tools[-1]), 'verify', '--verbose', '--print-certs', str(apk)], text=True, capture_output=True, check=True)
 certificate = re.search(r'certificate SHA-256 digest:\s*([a-fA-F0-9]+)', signer.stdout).group(1).lower()
 badging = subprocess.run([str(tools[-1].parent / 'aapt'), 'dump', 'badging', str(apk)], text=True, capture_output=True, check=True).stdout
-assert "name='com.example.real_estate_mobile'" in badging
+assert "name='com.aqer.yemen.uat'" in badging
 assert f"versionCode='{version}'" in badging
-assert "application-label:'عقار'" in badging
+assert "application-label:'عقار UAT'" in badging
 target_sdk = int(re.search(r"targetSdkVersion:'(\d+)'", badging).group(1))
 min_sdk = int(re.search(r"sdkVersion:'(\d+)'", badging).group(1))
 assert target_sdk >= 36, 'Google Play submissions require target API 36 or newer.'
@@ -99,6 +99,23 @@ with zipfile.ZipFile(apk) as archive:
         authoritative = api('/contents/mobile_app/' + path + '?ref=' + source)
         assert archive.read('assets/flutter_assets/' + path) == base64.b64decode(authoritative['content'])
 
+firebase = {'client_configured': False, 'real_fcm_delivery_tested': False}
+properties = Path('mobile_app/android/firebase-uat.properties')
+if properties.exists():
+    config = dict(line.split('=', 1) for line in properties.read_text().splitlines() if '=' in line)
+    if config.get('aqer.uat.firebase.enabled') == 'true':
+        assert config['aqer.uat.firebase.projectId'] == 'aqer-yemen'
+        assert config['aqer.uat.firebase.senderId'] == '982331876719'
+        assert re.fullmatch('[a-f0-9]{64}', config['aqer.uat.firebase.fingerprint'])
+        with zipfile.ZipFile(apk) as archive:
+            dex = b''.join(archive.read(name) for name in archive.namelist() if re.fullmatch(r'classes[0-9]*\.dex', name))
+        # Compare in memory only. Client key and app ID must never be logged.
+        for field in ['projectId', 'senderId', 'apiKey', 'appId']:
+            assert config['aqer.uat.firebase.' + field].encode() in dex, 'Compiled Firebase configuration mismatch'
+        assert b'-----BEGIN PRIVATE KEY-----' not in dex, 'A server signing key must never enter Android'
+        firebase.update(client_configured=True, project_id='aqer-yemen', sender_id='982331876719',
+                        config_fingerprint=config['aqer.uat.firebase.fingerprint'], compiled_configuration='matched-without-logging-client-values')
+
 brand_assets = json.loads(Path('docs/brand/ASSET_MANIFEST.json').read_text())['assets']
 brand_paths = [item for item in brand_assets if item['path'].startswith('mobile_app/assets/brand/')]
 assert len(brand_paths) == 4
@@ -110,9 +127,9 @@ with zipfile.ZipFile(apk) as archive:
 evidence = {'source_commit': source, 'version_code': version, 'sha256': digest, 'bytes': apk.stat().st_size,
     'target_sdk': target_sdk, 'min_sdk': min_sdk, 'native_16kb_elf': 'passed', 'zipalign_16kb': 'passed',
     'native_64bit_libraries_verified': native_64bit_count,
-    'package': 'com.example.real_estate_mobile', 'api': api_url, 'architectures': sorted(libraries),
+    'package': 'com.aqer.yemen.uat', 'api': api_url, 'architectures': sorted(libraries),
     'brand_assets_match': len(brand_paths), 'fonts_match': 5, 'zip_crc': 'passed', 'apksigner': 'passed', 'certificate_sha256': certificate,
-    'handset_acceptance': 'pending'}
+    'handset_acceptance': 'pending', 'firebase': firebase}
 evidence['package_role'] = 'upgrade-predecessor-same-source' if args.upgrade_predecessor else 'current-uat'
 Path('dist/UPGRADE_PREDECESSOR_VERIFICATION.json' if args.upgrade_predecessor else 'dist/APK_VERIFICATION.json').write_text(json.dumps(evidence, indent=2) + '\n')
 print(json.dumps(evidence))

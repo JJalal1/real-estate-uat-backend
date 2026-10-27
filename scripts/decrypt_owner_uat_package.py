@@ -14,7 +14,7 @@ import tempfile
 import zipfile
 
 RECIPIENT = '12f6a686d39cef1b63f90011b979ebaef0a25f431d9f4eb1aa4d114a19c0f5e2'
-PACKAGE = 'com.example.real_estate_mobile'
+PACKAGE = 'com.aqer.yemen.uat'
 
 
 def main():
