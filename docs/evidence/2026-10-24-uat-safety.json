@@ -1,0 +1,15 @@
+{
+  "checked_at_utc": "2026-10-23T22:43:02.613183Z",
+  "project_ref": "ipxsgxsqzthpgthwvdno",
+  "migrations": 59,
+  "intents_table": null,
+  "bucket_public": false,
+  "canary_objects": 0,
+  "public_tables_without_rls": 0,
+  "storage_policies": 0,
+  "financial_tables_checked": 15,
+  "financial_aggregates_unchanged": true,
+  "is_backup": false,
+  "full_backup_obtained": false,
+  "independent_restore_executed": false
+}

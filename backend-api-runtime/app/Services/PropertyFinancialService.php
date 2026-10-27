@@ -303,6 +303,19 @@ class PropertyFinancialService
             ->whereIn('status', ['open','under_review','overdue','disputed'])->whereColumn('amount_paid','<','amount_total')->where('due_at','<=',now())->exists();
     }
 
+    /** Request-local batch with exactly the same overdue predicate as the single-owner lookup. */
+    public function overdueReceivablesFor(array $advertiserUserIds): array
+    {
+        $ids=array_values(array_unique(array_filter(array_map('intval',$advertiserUserIds),fn ($id)=>$id>0)));
+        if($ids===[]) return [];
+        $overdue=PropertyPlatformReceivable::query()->whereIn('advertiser_user_id',$ids)
+            ->whereIn('status',['open','under_review','overdue','disputed'])
+            ->whereColumn('amount_paid','<','amount_total')->where('due_at','<=',now())
+            ->pluck('advertiser_user_id')->map(fn ($id)=>(int)$id)->flip();
+        return array_replace(array_fill_keys($ids,false),
+            $overdue->map(fn () => true)->all());
+    }
+
     public function financialSummaryFor(User $user): array
     {
         $receivables = PropertyPlatformReceivable::query()->where('advertiser_user_id', $user->id)->get();

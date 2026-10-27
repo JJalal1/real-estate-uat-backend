@@ -6,23 +6,33 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/notification_preference_repository.dart';
+import '../data/push_registration_repository.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 
-class NotificationPreferencesScreen extends ConsumerStatefulWidget {
+class NotificationPreferencesScreen extends StatelessWidget {
   const NotificationPreferencesScreen({super.key});
-
   @override
-  ConsumerState<NotificationPreferencesScreen> createState() =>
+  Widget build(BuildContext context) => ActorScopedPage(
+    title: 'تفضيلات الإشعارات', builder: (_) => const _NotificationPreferencesPage());
+}
+
+class _NotificationPreferencesPage extends ConsumerStatefulWidget {
+  const _NotificationPreferencesPage();
+  @override
+  ConsumerState<_NotificationPreferencesPage> createState() =>
       _NotificationPreferencesScreenState();
 }
 
 class _NotificationPreferencesScreenState
-    extends ConsumerState<NotificationPreferencesScreen> {
+    extends ConsumerState<_NotificationPreferencesPage> {
   NotificationPreferences? _draft;
   bool _saving = false;
+  bool _enablingPush = false;
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(notificationPreferencesProvider);
+    final pushConfigured = ref.watch(pushCapabilityProvider).asData?.value == true;
     final loaded = state.asData?.value;
     _draft ??= loaded;
 
@@ -47,19 +57,52 @@ class _NotificationPreferencesScreenState
               ),
               children: [
                 const AppInlineMessage(
-                  title: 'الإشعارات المهمة تبقى شغالة',
+                  title: 'تنبيهات الأمان والدعم داخل التطبيق',
                   message:
-                      'رسائل الأمان، التحقق من الحساب، وردود الدعم الضرورية لا يمكن إيقافها حتى ما يفوتك شيء مهم.',
+                      'تبقى رسائل الأمان والتحقق وردود الدعم متاحة داخل التطبيق. يمكنك إيقاف إشعارات هذا الجهاز بشكل مستقل.',
                   tone: AppStatusTone.info,
                   icon: Icons.shield_outlined,
                 ),
                 const SizedBox(height: AppSpacing.s16),
+                if (pushConfigured) ...[
+                  AppSurface(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'إشعارات الجهاز',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: AppSpacing.s6),
+                        const Text(
+                          'فعّل إذن الإشعارات في أندرويد حتى تصلك الرسائل المهمة خارج التطبيق.',
+                        ),
+                        const SizedBox(height: AppSpacing.s12),
+                        AppButton(
+                          label: _enablingPush ? 'جارٍ تنفيذ الطلب...' : 'تفعيل إشعارات الجهاز',
+                          icon: Icons.notifications_active_outlined,
+                          loading: _enablingPush,
+                          onPressed: _enablingPush ? null : _enablePush,
+                          expand: true,
+                        ),
+                        TextButton.icon(
+                          onPressed: _enablingPush ? null : _disablePush,
+                          icon: const Icon(Icons.notifications_off_outlined),
+                          label: const Text('إيقاف إشعارات هذا الجهاز'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.s16),
+                ],
                 _PreferenceCard(
                   icon: Icons.chat_bubble_outline,
                   title: 'الرسائل',
                   subtitle: 'رسالة جديدة في محادثة عقارية.',
                   value: value.messages,
-                  onChanged: (enabled) => _change(
+                  onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(messages: enabled),
                   ),
                 ),
@@ -69,7 +112,7 @@ class _NotificationPreferencesScreenState
                   title: 'نشاط إعلاناتي',
                   subtitle: 'تحديثات ومراجعات مرتبطة بإعلاناتك العقارية.',
                   value: value.listingActivity,
-                  onChanged: (enabled) => _change(
+                  onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(listingActivity: enabled),
                   ),
                 ),
@@ -80,7 +123,7 @@ class _NotificationPreferencesScreenState
                   subtitle:
                       'عقار جديد يطابق بحثًا محفوظًا أو تغيّر سعر عقار في المفضلة.',
                   value: value.discoveryAlerts,
-                  onChanged: (enabled) => _change(
+                  onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(discoveryAlerts: enabled),
                   ),
                 ),
@@ -90,7 +133,7 @@ class _NotificationPreferencesScreenState
                   title: 'الخدمات',
                   subtitle: 'تحديثات الخدمات الاختيارية داخل التطبيق.',
                   value: value.services,
-                  onChanged: (enabled) => _change(
+                  onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(services: enabled),
                   ),
                 ),
@@ -112,6 +155,52 @@ class _NotificationPreferencesScreenState
 
   void _change(NotificationPreferences value) {
     setState(() => _draft = value);
+  }
+
+  Future<void> _enablePush() async {
+    if (_enablingPush) return;
+    setState(() => _enablingPush = true);
+    try {
+      final enabled = await ref
+          .read(pushRegistrationRepositoryProvider)
+          .requestAndRegister();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            enabled
+                ? 'تم تفعيل إشعارات الجهاز.'
+                : 'لم يتم منح إذن الإشعارات.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر تفعيل إشعارات الجهاز الآن.')),
+      );
+    } finally {
+      if (mounted) setState(() => _enablingPush = false);
+    }
+  }
+
+  Future<void> _disablePush() async {
+    if (_enablingPush) return;
+    setState(() => _enablingPush = true);
+    try {
+      await ref.read(pushRegistrationRepositoryProvider).disable();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إيقاف إشعارات هذا الجهاز.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر إيقاف إشعارات الجهاز. حاول مجددًا.')),
+      );
+    } finally {
+      if (mounted) setState(() => _enablingPush = false);
+    }
   }
 
   Future<void> _save() async {
@@ -152,7 +241,7 @@ class _PreferenceCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {

@@ -23,6 +23,23 @@ Artisan::command('support:process-contact-followups', function (SupportTaskServi
     $this->info("Contact follow-ups: {$result['overdue_notified']} overdue notification(s), {$result['escalated']} escalation(s).");
 })->purpose('Notify overdue contact follow-ups and auto-escalate them after an additional 24 hours.');
 
+
+Artisan::command('uat:video-storage-probe', function (CloudAssetStorageService $storage): int {
+    if (! app()->environment('staging') || ! $storage->cloudEnabled()) {
+        $this->error('Private media probe requires the Cloud UAT environment.');
+        return 1;
+    }
+    try {
+        $storage->probePrivateVideoStorage();
+        $this->info('Private UAT video storage canary passed: streamed upload, exact range and full download.');
+        return 0;
+    } catch (\Throwable) {
+        // Do not echo storage URLs, response bodies or provider credentials.
+        $this->error('Private UAT video storage canary failed.');
+        return 1;
+    }
+})->purpose('Probe private Supabase Storage video protocol using disposable synthetic bytes.');
+
 Artisan::command('uat:cloud-check', function (CloudAssetStorageService $storage) {
     $errors = [];
 
@@ -134,3 +151,19 @@ Schedule::command('support:process-contact-followups')->hourly();
     $this->info("Private customer reminders: {$sent}.");
 });
 \Illuminate\Support\Facades\Schedule::command('broker:process-followups')->everyMinute()->withoutOverlapping();
+
+Artisan::command('uat:signed-tus-storage-probe', function (CloudAssetStorageService $storage): int {
+    if (! app()->environment('staging') || ! $storage->cloudEnabled()) {
+        $this->error('This test requires private UAT storage.');
+        return 1;
+    }
+    try {
+        $storage->probePrivateSignedTusStorage();
+        $this->info('Private UAT signed TUS canary passed: rejected forged token, resumed verified bytes and cleanup.');
+        return 0;
+    } catch (\Throwable $error) {
+        report($error);
+        $this->error('Private UAT signed TUS canary did not pass; inspect protected application logs.');
+        return 1;
+    }
+})->purpose('Opt-in signed TUS test; synthetic private bytes only.');

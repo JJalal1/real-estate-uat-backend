@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'support/wave6_fakes.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'dart:io';
@@ -55,7 +56,7 @@ class _Properties implements PropertyRepository {
     const PropertySaiManagement(configured: false, advertiserType: 'broker', fixedRatePercent: 20,
       brokerMaxRatePercent: 100, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 20);
   @override
-  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1}) async {
+  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
     lastQuery = filters;
     return ([PropertySummary.fromJson({'id': 11, 'title': 'شقة من نتائج الخادم', 'type': 'apartment',
       'purpose': 'rent', 'price': 300000, 'monthly_rent': 100000, 'currency': 'YER', 'latitude': 13.5, 'longitude': 44.0})], false);

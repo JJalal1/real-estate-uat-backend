@@ -59,6 +59,20 @@ class CompletePropertyFinancialService extends PropertyFinancialService
         return parent::hasOverdueReceivable($advertiserUserId);
     }
 
+    public function overdueReceivablesFor(array $advertiserUserIds): array
+    {
+        $ids=array_values(array_unique(array_filter(array_map('intval',$advertiserUserIds),fn ($id)=>$id>0)));
+        if($ids===[]) return [];
+        $overdue=PropertyPlatformReceivable::query()->whereIn('advertiser_user_id',$ids)
+            ->whereIn('status',['open','under_review','overdue','disputed'])
+            ->whereColumn('amount_paid','<','amount_total')->where('due_at','<=',now())->get();
+        foreach($overdue->groupBy('advertiser_user_id') as $owner=>$rows) {
+            $this->applyOverdueHold((int)$owner,$rows);
+        }
+        // Re-read after hold side effects, as the single-owner method does.
+        return parent::overdueReceivablesFor($ids);
+    }
+
     public function financialSummaryFor(User $user): array
     {
         $this->activateOverdueHold((int) $user->id);
@@ -73,6 +87,11 @@ class CompletePropertyFinancialService extends PropertyFinancialService
             ->whereColumn('amount_paid','<','amount_total')
             ->where('due_at','<=',now())
             ->get();
+        $this->applyOverdueHold($advertiserUserId,$overdue);
+    }
+
+    private function applyOverdueHold(int $advertiserUserId, \Illuminate\Support\Collection $overdue): void
+    {
         if ($overdue->isEmpty()) return;
 
         $transitioned = PropertyPlatformReceivable::query()

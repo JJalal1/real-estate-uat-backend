@@ -4,21 +4,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart' show AppErrorState, AppRefreshStatus;
+import '../../account/presentation/actor_scoped_page.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
 
-class AgreementsScreen extends ConsumerStatefulWidget {
+class AgreementsScreen extends ConsumerWidget {
   const AgreementsScreen({super.key});
-
   @override
-  ConsumerState<AgreementsScreen> createState() => _AgreementsScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(title: 'اتفاقاتي وعقودي', builder: (_) => const _AgreementsScreenForActor());
 }
 
-class _AgreementsScreenState extends ConsumerState<AgreementsScreen> {
+class _AgreementsScreenForActor extends ConsumerStatefulWidget {
+  const _AgreementsScreenForActor();
+
+  @override
+  ConsumerState<_AgreementsScreenForActor> createState() => _AgreementsPageState();
+}
+
+class _AgreementsPageState extends ConsumerState<_AgreementsScreenForActor> {
   List<PropertyAgreement> _agreements = const [];
   List<RentalContract> _contracts = const [];
   bool _loading = true;
+  bool _loaded = false;
   String? _error;
+  int _generation = 0;
 
   @override
   void initState() {
@@ -27,19 +37,24 @@ class _AgreementsScreenState extends ConsumerState<AgreementsScreen> {
   }
 
   Future<void> _load() async {
+    final generation = ++_generation;
     if (mounted) setState(() { _loading = true; _error = null; });
     try {
       final repo = ref.read(agreementRepositoryProvider);
       final results = await Future.wait<dynamic>([repo.mine(), repo.contractsMine()]);
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _agreements = results[0] as List<PropertyAgreement>;
         _contracts = results[1] as List<RentalContract>;
         _loading = false;
+        _loaded = true;
       });
     } catch (error) {
-      if (!mounted) return;
-      setState(() { _loading = false; _error = friendlyApiError(error); });
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _loading = false; _error = friendlyApiError(error);
+        if (!isTransientApiFailure(error)) { _agreements = const []; _contracts = const []; _loaded = false; }
+      });
     }
   }
 
@@ -54,24 +69,17 @@ class _AgreementsScreenState extends ConsumerState<AgreementsScreen> {
             IconButton(onPressed: _loading ? null : _load, icon: const EbrokerIcon(Icons.refresh), tooltip: 'تحديث'),
           ],
         ),
-        body: _loading
+        body: _loading && !_loaded
             ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Text(_error!, textAlign: TextAlign.center),
-                        const SizedBox(height: 12),
-                        EbrokerFilledButton(onPressed: _load, child: const Text('إعادة المحاولة')),
-                      ]),
-                    ),
-                  )
+            : _error != null && !_loaded
+                ? AppErrorState(message: _error!, onRetry: _load)
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(16),
                       children: [
+                        AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
                         const _InfoBanner(),
                         const SizedBox(height: 18),
                         Text('الاتفاقات', style: Theme.of(context).textTheme.titleLarge),

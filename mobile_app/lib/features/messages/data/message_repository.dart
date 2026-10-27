@@ -3,23 +3,39 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../../account/data/auth_controller.dart';
+import '../../account/data/account_request_scope.dart';
 import '../domain/message_models.dart';
 
 final messageDataRevisionProvider = StateProvider<int>((ref) => 0);
 
 final messageRepositoryProvider = Provider<MessageRepository>((ref) {
+  final actor = ref.watch(authControllerProvider.select((s) => s.asData?.value?.id));
   return MessageRepository(
-      ref.watch(dioProvider), ref.watch(authRepositoryProvider));
+      ref.watch(dioProvider), ref.watch(authRepositoryProvider), requestScope: ref.watch(accountRequestScopeProvider), actorId: actor, currentActor: () => ref.read(authControllerProvider).asData?.value?.id);
 });
 
 class MessageRepository {
-  MessageRepository(this._dio, this._auth);
+  MessageRepository(this._dio, this._auth, {int? actorId, int? Function()? currentActor, AccountRequestScope? requestScope})
+    : _actorId = actorId, _currentActor = currentActor, _requestScope = requestScope;
   final Dio _dio;
   final AuthRepository _auth;
+  final int? _actorId;
+  final AccountRequestScope? _requestScope;
+  final int? Function()? _currentActor;
+  Future<Options> _sessionOptions() async {
+    _requestScope?.verify();
+    if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _requestScope?.verify();
+    if (_currentActor != null && _currentActor() != _actorId) throw StateError('ACCOUNT_CHANGED');
+    return options;
+  }
+
 
   Future<List<MessageThreadSummary>> threads() async {
     final response = await _dio.get<Map<String, dynamic>>('/messages/threads',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return _list(response.data)
         .map(MessageThreadSummary.fromJson)
         .toList(growable: false);
@@ -28,12 +44,12 @@ class MessageRepository {
   Future<MessageThreadSummary> startForProperty(int propertyId) async {
     final response = await _dio.post<Map<String, dynamic>>(
         '/properties/$propertyId/conversation',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return MessageThreadSummary.fromJson(_dataMap(response.data));
   }
 
   Future<MessageThreadSummary> startForBroker(int brokerId) async {
-    final response=await _dio.post<Map<String,dynamic>>('/brokers/$brokerId/conversation',options:await _auth.requiredAuthOptions());
+    final response=await _dio.post<Map<String,dynamic>>('/brokers/$brokerId/conversation',options:await _sessionOptions());
     return MessageThreadSummary.fromJson(_dataMap(response.data));
   }
 
@@ -41,7 +57,7 @@ class MessageRepository {
     final response = await _dio.get<Map<String, dynamic>>(
         '/messages/threads/$threadId',
         queryParameters: {if (beforeId != null) 'before_id': beforeId},
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return MessageThreadDetails.fromJson(_dataMap(response.data));
   }
 
@@ -53,7 +69,7 @@ class MessageRepository {
           'body': body.trim(),
           if (clientMessageId != null) 'client_message_id': clientMessageId,
         },
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return PrivateMessageItem.fromJson(_dataMap(response.data));
   }
 
@@ -61,13 +77,14 @@ class MessageRepository {
   Future<ExternalCallStart> startExternalCall(int threadId) async {
     final response = await _dio.post<Map<String, dynamic>>(
         '/messages/threads/$threadId/external-call',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return ExternalCallStart.fromJson(_dataMap(response.data));
   }
 
   Future<void> markRead(int threadId) async {
     await _dio.post<void>('/messages/threads/$threadId/read',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
+    _requestScope?.verify();
   }
 
   Future<void> report(int threadId,
@@ -75,7 +92,8 @@ class MessageRepository {
     final response = await _dio.post<Map<String, dynamic>>(
         '/messages/threads/$threadId/report',
         data: {'reason': reason, 'details': details.trim()},
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
+    _requestScope?.verify();
     final data = response.data?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid conversation report response.');
@@ -84,7 +102,7 @@ class MessageRepository {
 
   Future<List<AppNotificationItem>> notifications() async {
     final response = await _dio.get<Map<String, dynamic>>('/notifications',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return _list(response.data)
         .map(AppNotificationItem.fromJson)
         .toList(growable: false);
@@ -93,7 +111,7 @@ class MessageRepository {
   Future<int> unreadNotificationCount() async {
     final response = await _dio.get<Map<String, dynamic>>(
         '/notifications/unread-count',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     final data = _dataMap(response.data);
     final raw = data['count'];
     return raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '') ?? 0;
@@ -101,12 +119,14 @@ class MessageRepository {
 
   Future<void> readNotification(int id) async {
     await _dio.post<void>('/notifications/$id/read',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
+    _requestScope?.verify();
   }
 
   Future<void> readAllNotifications() async {
     await _dio.post<void>('/notifications/read-all',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
+    _requestScope?.verify();
   }
 
   Future<List<ConversationReportSummary>> adminReports({String? status}) async {
@@ -115,7 +135,7 @@ class MessageRepository {
         queryParameters: {
           if (status != null && status.isNotEmpty) 'status': status
         },
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return _list(response.data)
         .map(ConversationReportSummary.fromJson)
         .toList(growable: false);
@@ -124,7 +144,7 @@ class MessageRepository {
   Future<ReportedConversationContent> openReportedContent(int reportId) async {
     final response = await _dio.get<Map<String, dynamic>>(
         '/admin/messages/reports/$reportId/content',
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return ReportedConversationContent.fromJson(_dataMap(response.data));
   }
 
@@ -133,16 +153,18 @@ class MessageRepository {
     final response = await _dio.patch<Map<String, dynamic>>(
         '/admin/messages/reports/$reportId/resolve',
         data: {'status': status, 'resolution_note': note.trim()},
-        options: await _auth.requiredAuthOptions());
+        options: await _sessionOptions());
     return ConversationReportSummary.fromJson(_dataMap(response.data));
   }
 
   List<Map<String, dynamic>> _list(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final rows = body?['data'] as List<dynamic>? ?? const <dynamic>[];
     return rows.whereType<Map<String, dynamic>>().toList(growable: false);
   }
 
   Map<String, dynamic> _dataMap(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final data = body?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid messaging response.');

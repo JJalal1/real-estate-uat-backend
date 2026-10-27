@@ -183,13 +183,13 @@ jobs:
       - name: Build Product UX UAT APK
         working-directory: mobile_app
         run: >-
-          flutter build apk --release
+          flutter build apk --flavor uat --release
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
       - name: Upload Product UX APK
         uses: actions/upload-artifact@v4
         with:
           name: real-estate-product-ux-uat-apk-${{ github.run_number }}
-          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+          path: mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk
           if-no-files-found: error
           retention-days: 14

@@ -9,25 +9,29 @@ import '../data/community_repository.dart';
 import '../domain/community_models.dart';
 import 'community_dialogs.dart';
 
-class ListingCommunityScreen extends ConsumerStatefulWidget {
-  const ListingCommunityScreen({
-    required this.propertyId,
-    required this.advertiserId,
-    required this.advertiserName,
-    super.key,
-  });
-
+class ListingCommunityScreen extends ConsumerWidget {
+  const ListingCommunityScreen({required this.propertyId, required this.advertiserId, required this.advertiserName, super.key});
   final int propertyId;
   final int advertiserId;
   final String advertiserName;
-
   @override
-  ConsumerState<ListingCommunityScreen> createState() =>
-      _ListingCommunityScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor=ref.watch(authControllerProvider).asData?.value?.id;
+    return _ListingCommunityBody(key:ValueKey((propertyId,advertiserId,actor)),
+      propertyId:propertyId,advertiserId:advertiserId,advertiserName:advertiserName);
+  }
+}
+class _ListingCommunityBody extends ConsumerStatefulWidget {
+  const _ListingCommunityBody({required this.propertyId,required this.advertiserId,required this.advertiserName,super.key});
+  final int propertyId;
+  final int advertiserId;
+  final String advertiserName;
+  @override
+  ConsumerState<_ListingCommunityBody> createState()=>_ListingCommunityScreenState();
 }
 
 class _ListingCommunityScreenState
-    extends ConsumerState<ListingCommunityScreen> {
+    extends ConsumerState<_ListingCommunityBody> {
   bool _loading = true;
   String? _error;
   List<ListingCommentItem> _comments = const [];
@@ -49,6 +53,7 @@ class _ListingCommunityScreenState
     try {
       final repository = ref.read(communityRepositoryProvider);
       final comments = await repository.comments(widget.propertyId);
+      if (!mounted) return;
       final rating = await repository.ratingSummary(widget.advertiserId);
       if (!mounted) {
         return;
@@ -114,15 +119,12 @@ class _ListingCommunityScreenState
                     ),
                   ),
                 const SizedBox(height: 18),
-                Row(
+                Wrap(
+                  spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Expanded(
-                      child: Text(
-                        'التعليقات (${_comments.length})',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
+                    Text(
+                      'التعليقات (${_comments.length})',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     if (user != null)
                       TextButton.icon(
@@ -193,12 +195,12 @@ class _ListingCommunityScreenState
                     ),
                   ),
                 ),
-                Text(
+                Flexible(child: Text(
                   rating.count == 0
                       ? 'لا تقييمات'
                       : '${rating.average.toStringAsFixed(1)} / 5 (${rating.count})',
                   style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
+                )),
               ],
             ),
             const SizedBox(height: 10),
@@ -343,18 +345,21 @@ class _ListingCommunityScreenState
   }
 
   Future<void> _report(String targetType, int targetId, String label) async {
+    final repository = ref.read(communityRepositoryProvider);
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
     final result = await showCommunityReportDialog(context, label: label);
-    if (result == null) {
+    if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) {
       return;
     }
     await _run(() async {
-      await ref.read(communityRepositoryProvider).report(
+      final receipt = await repository.report(
             targetType: targetType,
             targetId: targetId,
             reason: result.reason,
             details: result.details,
           );
-    }, success: 'تم إرسال البلاغ إلى الدعم.');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message)));
+    });
   }
 
   Future<String?> _textDialog({

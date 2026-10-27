@@ -1,0 +1,19 @@
+{
+  "source_commit": "3ca26f6ab39b26c0e589299f97285ae0d9b2d1e7",
+  "status": "passed",
+  "android_api": 36,
+  "groups": [
+    {
+      "class": "PushPermissionDeniedTest",
+      "passed": 1
+    },
+    {
+      "class": "PushSessionIsolationTest",
+      "passed": 12
+    }
+  ],
+  "synthetic_android_tests": 13,
+  "real_fcm_delivery_tested": false,
+  "handset_tested": false,
+  "scope": "Real Android storage, permission denial, notification display/cancellation, account/session/token fences and deduplication using synthetic envelopes."
+}
