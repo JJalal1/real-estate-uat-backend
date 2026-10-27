@@ -1,0 +1,1376 @@
+{
+  "source_head": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+  "merged_sha": "04b28182645af61c3c7aa11dfbfdaed4c9e86454",
+  "apk_source": "3ca26f6ab39b26c0e589299f97285ae0d9b2d1e7",
+  "equal_full_tree": "ab9c228a7689159e8d105272990f4cfc555e9042",
+  "actual_handset_tested": false,
+  "real_fcm_delivery_tested": false,
+  "ci": [
+    {
+      "kind": "main",
+      "head_sha": "ca3ced8f60eed067ce1406b6661bcc583274199f",
+      "checks": [
+        {
+          "name": "Encrypted installer segment ${{ matrix.part }}",
+          "id": 121866269672,
+          "status": "completed",
+          "conclusion": "skipped",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098635/job/121866269672"
+        },
+        {
+          "name": "Flutter broker experience and UAT APK",
+          "id": 121859402617,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098635/job/121859402617"
+        },
+        {
+          "name": "Disposable PostgreSQL 17 and PostGIS",
+          "id": 121857359815,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098635/job/121857359815"
+        },
+        {
+          "name": "Laravel original regression",
+          "id": 121857359613,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098635/job/121857359613"
+        },
+        {
+          "name": "UAT Docker PNG runtime",
+          "id": 121857359510,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098635/job/121857359510"
+        },
+        {
+          "name": "Actual HTTP viewport and UAT image measurements",
+          "id": 121857273627,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098727/job/121857273627"
+        },
+        {
+          "name": "Laravel launch readiness",
+          "id": 121857272563,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098583/job/121857272563"
+        },
+        {
+          "name": "Independent encrypted PostgreSQL and media recovery",
+          "id": 121857272535,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098603/job/121857272535"
+        },
+        {
+          "name": "Bounded real UAT cold and warm measurements",
+          "id": 121857272480,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098522/job/121857272480"
+        },
+        {
+          "name": "Active role screens loading error retry RTL and large text",
+          "id": 121857272476,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098631/job/121857272476"
+        },
+        {
+          "name": "Measured backend contracts (pgsql)",
+          "id": 121857272448,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098522/job/121857272448"
+        },
+        {
+          "name": "Flutter launch readiness",
+          "id": 121857272183,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098583/job/121857272183"
+        },
+        {
+          "name": "Isolated 10k PostgreSQL capacity",
+          "id": 121857272116,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098664/job/121857272116"
+        },
+        {
+          "name": "Tracked source checkpoint",
+          "id": 121857272007,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098635/job/121857272007"
+        },
+        {
+          "name": "Measured backend contracts (sqlite)",
+          "id": 121857271999,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098522/job/121857271999"
+        },
+        {
+          "name": "PostgreSQL market context integer safety",
+          "id": 121857271849,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098552/job/121857271849"
+        },
+        {
+          "name": "Real UAT transfer measurements and Flutter cache integration",
+          "id": 121857271813,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098516/job/121857271813"
+        },
+        {
+          "name": "Adaptive selection cache cancellation and regressions",
+          "id": 121857271794,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098516/job/121857271794"
+        },
+        {
+          "name": "Adaptive derivatives privacy and media lifecycle",
+          "id": 121857271710,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098516/job/121857271710"
+        },
+        {
+          "name": "Isolated concurrent 24MP GD memory and bytes",
+          "id": 121857271580,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098516/job/121857271580"
+        }
+      ]
+    },
+    {
+      "kind": "resume",
+      "head_sha": "9f5e16b14f565e708afa3597d06e2c03aa1d5561",
+      "checks": [
+        {
+          "name": "Encrypted installer segment ${{ matrix.part }}",
+          "id": 121867559456,
+          "status": "completed",
+          "conclusion": "skipped",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877147/job/121867559456"
+        },
+        {
+          "name": "Flutter broker experience and UAT APK",
+          "id": 121862712389,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877147/job/121862712389"
+        },
+        {
+          "name": "Disposable PostgreSQL 17 and PostGIS",
+          "id": 121860037609,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877147/job/121860037609"
+        },
+        {
+          "name": "UAT Docker PNG runtime",
+          "id": 121860036667,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877147/job/121860036667"
+        },
+        {
+          "name": "Laravel original regression",
+          "id": 121860036566,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877147/job/121860036566"
+        },
+        {
+          "name": "Active role screens loading error retry RTL and large text",
+          "id": 121859976936,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877109/job/121859976936"
+        },
+        {
+          "name": "Actual HTTP viewport and UAT image measurements",
+          "id": 121859941355,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877275/job/121859941355"
+        },
+        {
+          "name": "Measured backend contracts (sqlite)",
+          "id": 121859941302,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877209/job/121859941302"
+        },
+        {
+          "name": "Bounded real UAT cold and warm measurements",
+          "id": 121859941297,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877209/job/121859941297"
+        },
+        {
+          "name": "Flutter launch readiness",
+          "id": 121859940872,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877103/job/121859940872"
+        },
+        {
+          "name": "Measured backend contracts (pgsql)",
+          "id": 121859940736,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877209/job/121859940736"
+        },
+        {
+          "name": "Independent encrypted PostgreSQL and media recovery",
+          "id": 121859940690,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877325/job/121859940690"
+        },
+        {
+          "name": "Signed TUS protocol and failure-preservation tests",
+          "id": 121859940661,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877045/job/121859940661"
+        },
+        {
+          "name": "Tracked source checkpoint",
+          "id": 121859940423,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877147/job/121859940423"
+        },
+        {
+          "name": "Laravel launch readiness",
+          "id": 121859940416,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877103/job/121859940416"
+        },
+        {
+          "name": "Locked Composer advisory audit",
+          "id": 121859940264,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877194/job/121859940264"
+        },
+        {
+          "name": "PostgreSQL market context integer safety",
+          "id": 121859940138,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877055/job/121859940138"
+        },
+        {
+          "name": "Real UAT transfer measurements and Flutter cache integration",
+          "id": 121859940005,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877153/job/121859940005"
+        },
+        {
+          "name": "Isolated concurrent 24MP GD memory and bytes",
+          "id": 121859939954,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877153/job/121859939954"
+        },
+        {
+          "name": "Adaptive selection cache cancellation and regressions",
+          "id": 121859939888,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877153/job/121859939888"
+        },
+        {
+          "name": "Scoped TUS ticket tests and PHP syntax",
+          "id": 121859939787,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877069/job/121859939787"
+        },
+        {
+          "name": "Resolved Dart advisory audit",
+          "id": 121859939710,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877194/job/121859939710"
+        },
+        {
+          "name": "Private Storage protocol and existing image regressions",
+          "id": 121859939700,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877053/job/121859939700"
+        },
+        {
+          "name": "Isolated 10k PostgreSQL capacity",
+          "id": 121859939687,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877072/job/121859939687"
+        },
+        {
+          "name": "Adaptive derivatives privacy and media lifecycle",
+          "id": 121859939643,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877153/job/121859939643"
+        },
+        {
+          "name": "Flutter private TUS resume and origin security",
+          "id": 121859939363,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404877069/job/121859939363"
+        }
+      ]
+    },
+    {
+      "kind": "video",
+      "head_sha": "d29d4c09e8a4e5efc18f3facdd6ce9397b3cd32e",
+      "checks": [
+        {
+          "name": "Encrypted installer segment ${{ matrix.part }}",
+          "id": 121871719131,
+          "status": "completed",
+          "conclusion": "skipped",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140585/job/121871719131"
+        },
+        {
+          "name": "Flutter broker experience and UAT APK",
+          "id": 121867358845,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140585/job/121867358845"
+        },
+        {
+          "name": "Laravel original regression",
+          "id": 121865129272,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140585/job/121865129272"
+        },
+        {
+          "name": "Disposable PostgreSQL 17 and PostGIS",
+          "id": 121865128784,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140585/job/121865128784"
+        },
+        {
+          "name": "UAT Docker PNG runtime",
+          "id": 121865128781,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140585/job/121865128781"
+        },
+        {
+          "name": "Tracked source checkpoint",
+          "id": 121865037976,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140585/job/121865037976"
+        },
+        {
+          "name": "Laravel launch readiness",
+          "id": 121864578393,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140445/job/121864578393"
+        },
+        {
+          "name": "Flutter launch readiness",
+          "id": 121864577836,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140445/job/121864577836"
+        },
+        {
+          "name": "Actual HTTP viewport and UAT image measurements",
+          "id": 121864305224,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140468/job/121864305224"
+        },
+        {
+          "name": "Bounded real UAT cold and warm measurements",
+          "id": 121864265695,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140558/job/121864265695"
+        },
+        {
+          "name": "Measured backend contracts (sqlite)",
+          "id": 121864265540,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140558/job/121864265540"
+        },
+        {
+          "name": "Independent encrypted PostgreSQL and media recovery",
+          "id": 121864265367,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140542/job/121864265367"
+        },
+        {
+          "name": "Adaptive selection cache cancellation and regressions",
+          "id": 121864265226,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140611/job/121864265226"
+        },
+        {
+          "name": "Private Storage protocol and existing image regressions",
+          "id": 121864265208,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140545/job/121864265208"
+        },
+        {
+          "name": "Isolated concurrent 24MP GD memory and bytes",
+          "id": 121864265204,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140611/job/121864265204"
+        },
+        {
+          "name": "Real UAT transfer measurements and Flutter cache integration",
+          "id": 121864265157,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140611/job/121864265157"
+        },
+        {
+          "name": "Measured backend contracts (pgsql)",
+          "id": 121864264992,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140558/job/121864264992"
+        },
+        {
+          "name": "Adaptive derivatives privacy and media lifecycle",
+          "id": 121864264940,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140611/job/121864264940"
+        },
+        {
+          "name": "Video admission and private storage",
+          "id": 121864264898,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140521/job/121864264898"
+        },
+        {
+          "name": "Validate resource templates against current Render schema without applying",
+          "id": 121864264790,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140587/job/121864264790"
+        },
+        {
+          "name": "Build isolated FFmpeg worker and check pcntl signals",
+          "id": 121864264683,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140734/job/121864264683"
+        },
+        {
+          "name": "Isolated 10k PostgreSQL capacity",
+          "id": 121864264176,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140454/job/121864264176"
+        },
+        {
+          "name": "All image-review and listing-approval API regressions",
+          "id": 121864263859,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140459/job/121864263859"
+        },
+        {
+          "name": "Active role screens loading error retry RTL and large text",
+          "id": 121864263827,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140462/job/121864263827"
+        },
+        {
+          "name": "PostgreSQL market context integer safety",
+          "id": 121864263605,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140442/job/121864263605"
+        },
+        {
+          "name": "Video Android native compile and Flutter tests",
+          "id": 121864263070,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140443/job/121864263070"
+        },
+        {
+          "name": "Signed TUS protocol and failure-preservation tests",
+          "id": 121864262783,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40406140452/job/121864262783"
+        }
+      ]
+    }
+  ],
+  "large_images": {
+    "pixels": 24000000,
+    "php_limit": "256M",
+    "container_limit_bytes": 536870912,
+    "cpu_limit": 1,
+    "cgroup_peak_bytes": 347336704,
+    "runs": [
+      {
+        "concurrency": 1,
+        "wall_ms": 2979.7770977020264,
+        "sampled_sum_rss_kib": 186756,
+        "workers": [
+          {
+            "exit": 0,
+            "result": {
+              "worker": 0,
+              "orientation": 1,
+              "busy_retries": 0,
+              "elapsed_ms": 2864.912426,
+              "peak_rss_kib": 190868,
+              "php_peak_bytes": 185303040,
+              "source_bytes": 7037652,
+              "variants": {
+                "thumb": {
+                  "bytes": 20493,
+                  "width": 320,
+                  "height": 213
+                },
+                "card": {
+                  "bytes": 148223,
+                  "width": 640,
+                  "height": 427
+                },
+                "preview": {
+                  "bytes": 269727,
+                  "width": 960,
+                  "height": 640
+                },
+                "detail": {
+                  "bytes": 672431,
+                  "width": 1280,
+                  "height": 853
+                },
+                "gallery": {
+                  "bytes": 1492923,
+                  "width": 1920,
+                  "height": 1280
+                },
+                "zoom": {
+                  "bytes": 3842292,
+                  "width": 3072,
+                  "height": 2048
+                }
+              }
+            },
+            "stderr": ""
+          }
+        ]
+      },
+      {
+        "concurrency": 2,
+        "wall_ms": 7155.522108078003,
+        "sampled_sum_rss_kib": 303376,
+        "workers": [
+          {
+            "exit": 0,
+            "result": {
+              "worker": 0,
+              "orientation": 1,
+              "busy_retries": 2,
+              "elapsed_ms": 6990.63762,
+              "peak_rss_kib": 197784,
+              "php_peak_bytes": 192344064,
+              "source_bytes": 7037652,
+              "variants": {
+                "thumb": {
+                  "bytes": 20493,
+                  "width": 320,
+                  "height": 213
+                },
+                "card": {
+                  "bytes": 148223,
+                  "width": 640,
+                  "height": 427
+                },
+                "preview": {
+                  "bytes": 269727,
+                  "width": 960,
+                  "height": 640
+                },
+                "detail": {
+                  "bytes": 672431,
+                  "width": 1280,
+                  "height": 853
+                },
+                "gallery": {
+                  "bytes": 1492923,
+                  "width": 1920,
+                  "height": 1280
+                },
+                "zoom": {
+                  "bytes": 3842292,
+                  "width": 3072,
+                  "height": 2048
+                }
+              }
+            },
+            "stderr": ""
+          },
+          {
+            "exit": 0,
+            "result": {
+              "worker": 1,
+              "orientation": 6,
+              "busy_retries": 0,
+              "elapsed_ms": 3601.053819,
+              "peak_rss_kib": 249672,
+              "php_peak_bytes": 227241984,
+              "source_bytes": 7037688,
+              "variants": {
+                "thumb": {
+                  "bytes": 20757,
+                  "width": 213,
+                  "height": 320
+                },
+                "card": {
+                  "bytes": 149049,
+                  "width": 427,
+                  "height": 640
+                },
+                "preview": {
+                  "bytes": 276329,
+                  "width": 640,
+                  "height": 960
+                },
+                "detail": {
+                  "bytes": 678619,
+                  "width": 853,
+                  "height": 1280
+                },
+                "gallery": {
+                  "bytes": 1505420,
+                  "width": 1280,
+                  "height": 1920
+                },
+                "zoom": {
+                  "bytes": 3849070,
+                  "width": 2048,
+                  "height": 3072
+                }
+              }
+            },
+            "stderr": ""
+          }
+        ]
+      },
+      {
+        "concurrency": 3,
+        "wall_ms": 12246.82903289795,
+        "sampled_sum_rss_kib": 309840,
+        "workers": [
+          {
+            "exit": 0,
+            "result": {
+              "worker": 0,
+              "orientation": 1,
+              "busy_retries": 0,
+              "elapsed_ms": 3074.084093,
+              "peak_rss_kib": 191144,
+              "php_peak_bytes": 185303040,
+              "source_bytes": 7037652,
+              "variants": {
+                "thumb": {
+                  "bytes": 20493,
+                  "width": 320,
+                  "height": 213
+                },
+                "card": {
+                  "bytes": 148223,
+                  "width": 640,
+                  "height": 427
+                },
+                "preview": {
+                  "bytes": 269727,
+                  "width": 960,
+                  "height": 640
+                },
+                "detail": {
+                  "bytes": 672431,
+                  "width": 1280,
+                  "height": 853
+                },
+                "gallery": {
+                  "bytes": 1492923,
+                  "width": 1920,
+                  "height": 1280
+                },
+                "zoom": {
+                  "bytes": 3842292,
+                  "width": 3072,
+                  "height": 2048
+                }
+              }
+            },
+            "stderr": ""
+          },
+          {
+            "exit": 0,
+            "result": {
+              "worker": 1,
+              "orientation": 6,
+              "busy_retries": 2,
+              "elapsed_ms": 7696.433967,
+              "peak_rss_kib": 256212,
+              "php_peak_bytes": 234283008,
+              "source_bytes": 7037688,
+              "variants": {
+                "thumb": {
+                  "bytes": 20757,
+                  "width": 213,
+                  "height": 320
+                },
+                "card": {
+                  "bytes": 149049,
+                  "width": 427,
+                  "height": 640
+                },
+                "preview": {
+                  "bytes": 276329,
+                  "width": 640,
+                  "height": 960
+                },
+                "detail": {
+                  "bytes": 678619,
+                  "width": 853,
+                  "height": 1280
+                },
+                "gallery": {
+                  "bytes": 1505420,
+                  "width": 1280,
+                  "height": 1920
+                },
+                "zoom": {
+                  "bytes": 3849070,
+                  "width": 2048,
+                  "height": 3072
+                }
+              }
+            },
+            "stderr": ""
+          },
+          {
+            "exit": 0,
+            "result": {
+              "worker": 2,
+              "orientation": 6,
+              "busy_retries": 4,
+              "elapsed_ms": 11851.330085,
+              "peak_rss_kib": 255772,
+              "php_peak_bytes": 234283008,
+              "source_bytes": 7037688,
+              "variants": {
+                "thumb": {
+                  "bytes": 20757,
+                  "width": 213,
+                  "height": 320
+                },
+                "card": {
+                  "bytes": 149049,
+                  "width": 427,
+                  "height": 640
+                },
+                "preview": {
+                  "bytes": 276329,
+                  "width": 640,
+                  "height": 960
+                },
+                "detail": {
+                  "bytes": 678619,
+                  "width": 853,
+                  "height": 1280
+                },
+                "gallery": {
+                  "bytes": 1505420,
+                  "width": 1280,
+                  "height": 1920
+                },
+                "zoom": {
+                  "bytes": 3849070,
+                  "width": 2048,
+                  "height": 3072
+                }
+              }
+            },
+            "stderr": ""
+          }
+        ]
+      }
+    ],
+    "passed": true,
+    "scope": "Exact GD runtime; local private disk, no cloud/network/Android capacity claim"
+  },
+  "capacity": {
+    "source_sha": "3ca26f6ab39b26c0e589299f97285ae0d9b2d1e7",
+    "origin": "http://127.0.0.1:8098",
+    "fixture": {
+      "scope": "Disposable PostgreSQL only; no UAT capacity claim",
+      "properties": 10000,
+      "owners": 50,
+      "photo_metadata": 20000,
+      "cloud_storage_tested": false,
+      "real_image_bytes_tested": false,
+      "spatial_explain": [
+        {
+          "Plan": {
+            "Node Type": "Limit",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 85.26,
+            "Total Cost": 85.26,
+            "Plan Rows": 1,
+            "Plan Width": 8,
+            "Actual Startup Time": 4.142,
+            "Actual Total Time": 4.145,
+            "Actual Rows": 20,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 68,
+            "Shared Read Blocks": 11,
+            "Shared Dirtied Blocks": 4,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Sort",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 85.26,
+                "Total Cost": 85.26,
+                "Plan Rows": 1,
+                "Plan Width": 8,
+                "Actual Startup Time": 4.141,
+                "Actual Total Time": 4.142,
+                "Actual Rows": 20,
+                "Actual Loops": 1,
+                "Sort Key": [
+                  "id DESC"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 25,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 68,
+                "Shared Read Blocks": 11,
+                "Shared Dirtied Blocks": 4,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "properties",
+                    "Alias": "properties",
+                    "Startup Cost": 4.33,
+                    "Total Cost": 85.25,
+                    "Plan Rows": 1,
+                    "Plan Width": 8,
+                    "Actual Startup Time": 4.086,
+                    "Actual Total Time": 4.134,
+                    "Actual Rows": 22,
+                    "Actual Loops": 1,
+                    "Recheck Cond": "(location IS NOT NULL)",
+                    "Rows Removed by Index Recheck": 0,
+                    "Filter": "(((status)::text = 'published'::text) AND st_dwithin(location, '0101000020E6100000030B60CAC05346406DFDF49F353F2E40'::geography, '100'::double precision, true))",
+                    "Rows Removed by Filter": 11,
+                    "Exact Heap Blocks": 5,
+                    "Lossy Heap Blocks": 0,
+                    "Shared Hit Blocks": 68,
+                    "Shared Read Blocks": 11,
+                    "Shared Dirtied Blocks": 4,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Index Name": "properties_location_gix",
+                        "Startup Cost": 0,
+                        "Total Cost": 4.33,
+                        "Plan Rows": 5,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 0.016,
+                        "Actual Total Time": 0.016,
+                        "Actual Rows": 33,
+                        "Actual Loops": 1,
+                        "Index Cond": "((location IS NOT NULL) AND (location && _st_expand('0101000020E6100000030B60CAC05346406DFDF49F353F2E40'::geography, '100'::double precision)))",
+                        "Shared Hit Blocks": 3,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 225,
+            "Shared Read Blocks": 8,
+            "Shared Dirtied Blocks": 4,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 0.847,
+          "Triggers": [],
+          "Execution Time": 4.199
+        }
+      ]
+    },
+    "requests_per_endpoint_per_level": 18,
+    "results": [
+      {
+        "endpoint": "first_page",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 36.36,
+        "p95_ms": 44.92,
+        "p99_ms": 44.92,
+        "requests_per_second": 24.14,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 9,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "deep_page",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 39.35,
+        "p95_ms": 49.68,
+        "p99_ms": 49.68,
+        "requests_per_second": 22.41,
+        "bytes": 476982,
+        "max_bytes": 26499,
+        "max_db_queries": 9,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "arabic_search",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 145.55,
+        "p95_ms": 247.21,
+        "p99_ms": 247.21,
+        "requests_per_second": 5.99,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 9,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "marketplace",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 136.09,
+        "p95_ms": 182.91,
+        "p99_ms": 182.91,
+        "requests_per_second": 6.96,
+        "bytes": 421488,
+        "max_bytes": 23416,
+        "max_db_queries": 15,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "nearby",
+        "concurrency": 1,
+        "n": 18,
+        "p50_ms": 37.75,
+        "p95_ms": 52.91,
+        "p99_ms": 52.91,
+        "requests_per_second": 23.3,
+        "bytes": 3856248,
+        "max_bytes": 214236,
+        "max_db_queries": 6,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "first_page",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 40.55,
+        "p95_ms": 79.67,
+        "p99_ms": 79.67,
+        "requests_per_second": 40.47,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 9,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "deep_page",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 48.39,
+        "p95_ms": 92.66,
+        "p99_ms": 92.66,
+        "requests_per_second": 41.43,
+        "bytes": 476982,
+        "max_bytes": 26499,
+        "max_db_queries": 9,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "arabic_search",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 192.25,
+        "p95_ms": 288.24,
+        "p99_ms": 288.24,
+        "requests_per_second": 12.77,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 9,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "marketplace",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 180.28,
+        "p95_ms": 293.91,
+        "p99_ms": 293.91,
+        "requests_per_second": 13.42,
+        "bytes": 421488,
+        "max_bytes": 23416,
+        "max_db_queries": 15,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "nearby",
+        "concurrency": 3,
+        "n": 18,
+        "p50_ms": 45.62,
+        "p95_ms": 300.79,
+        "p99_ms": 300.79,
+        "requests_per_second": 25.79,
+        "bytes": 3856248,
+        "max_bytes": 214236,
+        "max_db_queries": 8,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "first_page",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 57.77,
+        "p95_ms": 95.93,
+        "p99_ms": 95.93,
+        "requests_per_second": 61.2,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 9,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "deep_page",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 59.9,
+        "p95_ms": 113.36,
+        "p99_ms": 113.36,
+        "requests_per_second": 54.14,
+        "bytes": 476982,
+        "max_bytes": 26499,
+        "max_db_queries": 9,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "arabic_search",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 224.51,
+        "p95_ms": 392.47,
+        "p99_ms": 392.47,
+        "requests_per_second": 15.43,
+        "bytes": 465678,
+        "max_bytes": 25871,
+        "max_db_queries": 9,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "marketplace",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 233.98,
+        "p95_ms": 456.14,
+        "p99_ms": 456.14,
+        "requests_per_second": 13.85,
+        "bytes": 421488,
+        "max_bytes": 23416,
+        "max_db_queries": 15,
+        "storage_requests": 0,
+        "errors": 0
+      },
+      {
+        "endpoint": "nearby",
+        "concurrency": 6,
+        "n": 18,
+        "p50_ms": 59.4,
+        "p95_ms": 106.12,
+        "p99_ms": 106.12,
+        "requests_per_second": 57.9,
+        "bytes": 3856248,
+        "max_bytes": 214236,
+        "max_db_queries": 6,
+        "storage_requests": 0,
+        "errors": 0
+      }
+    ],
+    "completed": true,
+    "limits": {
+      "p95_ms": 2000,
+      "response_bytes": 1048576
+    },
+    "interpretation": "CI runner + PHP development server + local PostgreSQL; excludes Render/network/Storage/device.",
+    "sampled_php_max_sum_rss_bytes": 496979968,
+    "php_cpu_seconds_delta": 5.98
+  },
+  "warm_uat_before_current_deploy": {
+    "source_sha": "3ca26f6ab39b26c0e589299f97285ae0d9b2d1e7",
+    "origin": "https://real-estate-uat-api-frankfurt.onrender.com",
+    "started_at": "2026-10-26T21:28:40Z",
+    "scope": "Controlled UAT n=20 per warm endpoint; concurrency<=3; no production capacity claim.",
+    "summaries": {
+      "warm_health": {
+        "n": 20,
+        "p50_ms": 541,
+        "p95_ms": 715.1,
+        "p99_ms": 722.3,
+        "max_ms": 722.3,
+        "errors": 0,
+        "bytes": 920,
+        "concurrency": 3
+      },
+      "warm_thumb": {
+        "n": 20,
+        "p50_ms": 1752.5,
+        "p95_ms": 1967.2,
+        "p99_ms": 2044.5,
+        "max_ms": 2044.5,
+        "errors": 0,
+        "bytes": 226740,
+        "concurrency": 3
+      },
+      "warm_marketplace": {
+        "n": 20,
+        "p50_ms": 886.8,
+        "p95_ms": 1067.4,
+        "p99_ms": 1088.6,
+        "max_ms": 1088.6,
+        "errors": 0,
+        "bytes": 514440,
+        "concurrency": 2
+      }
+    },
+    "completed": true
+  },
+  "video_worker": {
+    "actual_queue_lease_kill_tested": false,
+    "commercial_capacity_proven": false,
+    "ffmpeg_container_sigkill_exit_code": 137,
+    "limits": {
+      "cpu": 1,
+      "memory_mib": 512,
+      "pids": 128,
+      "tmpfs_mib": 320
+    },
+    "network": "none",
+    "new_container_transcode_after_kill": true,
+    "physical_android_playback_tested": false,
+    "samples": [
+      {
+        "child_cpu_seconds": 0.704214,
+        "duration_ms": 2000,
+        "height": 720,
+        "input_bytes": 1999323,
+        "max_child_rss_kib": 185208,
+        "playback_bytes": 142263,
+        "poster_bytes": 16419,
+        "transcode_ms": 706.952114,
+        "width": 1280
+      },
+      {
+        "child_cpu_seconds": 0.6972929999999999,
+        "duration_ms": 2000,
+        "height": 720,
+        "input_bytes": 1999323,
+        "max_child_rss_kib": 183604,
+        "playback_bytes": 142263,
+        "poster_bytes": 16419,
+        "transcode_ms": 701.991831,
+        "width": 1280
+      }
+    ],
+    "synthetic_only": true,
+    "uat_accessed": false
+  },
+  "render_templates": {
+    "applied": false,
+    "jsonschema_version": "4.26.0",
+    "resources_created": 0,
+    "schema_sha256": "8a3fb8da6b4f55fe686fbefa790e011d3dd7895f013f355953c572a21ab6494a",
+    "schema_url": "https://render.com/schema/render.yaml.json",
+    "source_sha": "220486e3e01b82ac7b16b1ece5354d44d7f6c26b",
+    "template_sha256": {
+      "docs/operations/render-push-worker.example.yaml": "b9319608cc537ef621a5377e28cec75a4609b9e2ade3fee10afaa3f8b28f38b1",
+      "docs/operations/render-video-worker.example.yaml": "947d6a2a1f0ccbefb403e0498e18d5c4993f5007d71b914b7837466d85abe85f",
+      "render.yaml": "1faf12bb13ee05b73ddd3898a52cd48d367349a204bf5c16029fa175b3fac726"
+    },
+    "yaml_version": "6.0.3"
+  },
+  "restore": {
+    "age_identity_persisted": false,
+    "ciphertext_tamper_rejected": true,
+    "database_snapshot_equal": true,
+    "elapsed_seconds": 16.677,
+    "encrypted_bytes": 6316451,
+    "foreign_key_verified": true,
+    "identity_sequence_verified": true,
+    "live_uat_backup_gate_satisfied": false,
+    "media_bytes": 6308462,
+    "media_objects": 2,
+    "media_sha256_equal": true,
+    "network": "none",
+    "postgres_version": "17.5 (Debian 17.5-1.pgdg110+1)",
+    "private_role_denial_verified": true,
+    "schema_version": 1,
+    "separate_database_containers": true,
+    "synthetic_only": true,
+    "uat_accessed": false
+  },
+  "distinct_owner_queries": {
+    "owners": 20,
+    "queries": 9,
+    "receivable_reads_by_page_size": {
+      "1": 5,
+      "20": 5
+    }
+  },
+  "laravel": {
+    "passed": 430,
+    "assertions": 5091,
+    "existing_sqlite_postgis_skip": 1,
+    "job_id": 121857359613
+  },
+  "flutter_full": {
+    "result": "passed",
+    "job_id": 121859402617,
+    "count_not_inferred": true
+  },
+  "runtime_deploy": {
+    "service_id": "srv-dahj3vlg1s2s73bdqhtg",
+    "workspace_id": "tea-d4v0q98gjchc73cistt0",
+    "deploy_id": "dep-dbg0uad9fdbs73cehcp0",
+    "status": "live",
+    "source": "04b28182645af61c3c7aa11dfbfdaed4c9e86454",
+    "finished_at_utc": "2026-10-27T02:41:39.567312Z",
+    "plan": "free",
+    "auto_deploy": "off"
+  },
+  "post_deploy_db": {
+    "checked_at_utc": "2026-10-27T02:44:30.311616Z",
+    "migrations": 59,
+    "intents_absent": true,
+    "video_absent": true,
+    "public_buckets": 0,
+    "jobs": 0,
+    "failed_jobs": 0,
+    "push_devices": 0,
+    "public_tables_without_rls": 0
+  },
+  "installer_artifact": {
+    "run_id": 40404098635,
+    "id": 12691172891,
+    "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098635/artifacts/12691172891",
+    "sha256": "3175ace0dd5b7d6e2a40b2c7b678ed7f6afd4e95ae20f06104ffc1a76b062b83",
+    "bytes": 236832590
+  },
+  "application_tree_ids": {
+    "backend-api-runtime": "efed1a96666aeb1213efeeda87bef8d07cf16485",
+    "mobile_app": "696bb70b09d2daf956504c1ed3f0f15ff90b4b48",
+    "render.yaml": "312e3208cbaf5fab99c5c4744e50f4e5c1a3c0a6",
+    "scripts": "af0906e9d6d8aa5846dde864f7b6bd5004ec7ce7"
+  }
+}
