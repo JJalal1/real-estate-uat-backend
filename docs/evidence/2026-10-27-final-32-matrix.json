@@ -782,11 +782,12 @@
       "completion_evidence": [
         "PR115:25success/0failure/1fallbackskip؛ اختبارات تذاكر/TUS/PG وFlutter الأصلية على الرأس المحدد؛ النسخ الاصطناعي المشفر نجح ولا يحقق بوابةUAT.",
         "docs/IMAGE_TUS_UAT_BACKUP_RESTORE_AND_CANARY_GATE_AR.md",
-        "docs/AQER_BACKUP_RESTORE_ACTIVATION_2026-10-27_AR.md"
+        "docs/AQER_BACKUP_RESTORE_ACTIVATION_2026-10-27_AR.md",
+        "docs/AQER_STORAGE_ADMISSION_GATE_2026-10-27_AR.md"
       ],
       "final_blocker": "اعتماد اتصال ووجهة حفظ آمنة واتساق DB/Storage، ونسخة كاملة مشفرة واستعادة مستقلة وفحص صلاحيات وخطة rollback وموافقة الهجرة.",
-      "activation_resource": "يمكن dump وage واستعادة محلية مجانية دونPro إذا توفرت الصلاحية والسعة؛ ضبط bucket الصور8MiB وMIME لازم قبلTUS.",
-      "post_resource_test": "بعد البوابة فقط: الهجرة المحددة؛ RLS/GRANT/FK؛ canary6MiB ثم انقطاع/HEAD/PATCH وتجديد وoffset وfinalize ملتبس وتبديل حساب وcleanup وAndroid بعد قتل التطبيق.",
+      "activation_resource": "يمكن dump وage واستعادة محلية مجانية دون Pro إذا توفرت الصلاحية والسعة؛ قبل TUS تضبط حدود المزود وفق بوابة Storage: المقترح10MiB للـbucket المشترك لحفظ KYC وإثبات الدفع، مع بقاء حد الإعلان8MiB والتحقق الفعلي في Laravel.",
+      "post_resource_test": "بعد البوابة فقط: الهجرة المحددة؛ RLS/GRANT/FK؛ canary6MiB ثم انقطاع/HEAD/PATCH وتجديد وoffset وfinalize ملتبس وتبديل حساب وcleanup وAndroid بعد قتل التطبيق.؛ canary وثائق KYC وإثبات الدفع بين8 و10MiB، ورفض المزود لما يتجاوز10MiB، ورفض finalize لأي تجاوز8MiB وتنظيفه.",
       "transition": "اختبارات التشغيل والهجرة المعتمدة مع مواردها تنقل إلى2؛ قبول المالك لاستئناف حقيقي علىAndroid ينقل إلى1.",
       "owner_role": "الوسيط صاحب المسودة",
       "owner_steps": "تؤجل الرحلة حتى اجتياز البوابة،ثم اتبع خطة الاختبار بعد توفير المورد أعلاه. لا تفعّل علمًا لتجاوز هذه الخطوة.",

@@ -40,3 +40,5 @@
 - OTP المقارن: https://www.twilio.com/en-us/verify/pricing
 - Play: https://support.google.com/googleplay/android-developer/answer/6112435
 - Domain: https://www.cloudflare.com/domains/
+
+[بوابة Storage المشتركة وحدود8/10MiB](AQER_STORAGE_ADMISSION_GATE_2026-10-27_AR.md): لا تطبق حد8MiB على الـbucket المشترك؛ وثائق التحقق وإثبات الدفع تسمح10MiB، وحد الإعلان8MiB يبقى خادميًا. لم تتغير الإعدادات الحية.
