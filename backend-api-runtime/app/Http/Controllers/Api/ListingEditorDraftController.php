@@ -93,6 +93,26 @@ class ListingEditorDraftController extends Controller
         return response()->json(['data'=>$this->drafts->present($result)]);
     }
 
+    public function resumableTicket(Request $request, string $key, string $imageKey, \App\Services\ListingImageUploadIntentService $intents)
+    {
+        abort_unless(config('listing_media.resumable_uploads_enabled', false), 404);
+        $data = $request->validate([
+            'expected_revision'=>['required','integer','min:0'],
+            'sha256'=>['required','regex:/^[a-f0-9]{64}$/D'],
+            'byte_length'=>['required','integer','min:1','max:8388608'],
+            'mime'=>['required','in:image/jpeg,image/png,image/webp'],
+        ]);
+        return response()->json(['data'=>$intents->issue($request->user(), $key, $imageKey,
+            $data['sha256'], (int)$data['byte_length'], $data['mime'], (int)$data['expected_revision'])]);
+    }
+
+    public function resumableFinalize(Request $request, string $key, string $imageKey, \App\Services\ListingImageUploadIntentService $intents)
+    {
+        abort_unless(config('listing_media.resumable_uploads_enabled', false), 404);
+        $data = $request->validate(['expected_revision'=>['required','integer','min:0']]);
+        return response()->json(['data'=>$intents->finalize($request->user(), $key, $imageKey, (int)$data['expected_revision'])]);
+    }
+
     public function image(Request $request,string $key,string $imageKey,ListingImageService $storage)
     {
         $draft=$this->drafts->owned($request->user(),$key);$path=$draft->images[$imageKey] ?? null;abort_unless($path,404);
@@ -105,8 +125,9 @@ class ListingEditorDraftController extends Controller
         $result=DB::transaction(function()use($request,$key,$imageKey,&$path){
             User::query()->lockForUpdate()->findOrFail($request->user()->id);$draft=$this->drafts->owned($request->user(),$key,true);
             $this->drafts->assertEditable($request->user(),$draft->property_id?Property::query()->findOrFail($draft->property_id):null);
-            $images=$draft->images;if(!isset($images[$imageKey])) return $draft;
+            $images=$draft->images;if(!isset($images[$imageKey])) { \App\Models\ListingImageUploadIntent::query()->where('listing_editor_draft_id',$draft->id)->where('image_key',$imageKey)->where('status','pending')->update(['status'=>'canceled']); return $draft; }
             $this->drafts->assertRevision($draft,$request->integer('expected_revision'));
+            \App\Models\ListingImageUploadIntent::query()->where('listing_editor_draft_id',$draft->id)->where('image_key',$imageKey)->where('status','pending')->update(['status'=>'canceled']);
             $path=$images[$imageKey];unset($images[$imageKey]);$draft->images=$images;$draft->revision++;$draft->save();return $draft;
         });
         if($path)$this->drafts->removeFiles([$path]);return response()->json(['data'=>$this->drafts->present($result)]);
@@ -119,6 +140,7 @@ class ListingEditorDraftController extends Controller
             if($draft->property_id){$property=Property::query()->lockForUpdate()->find($draft->property_id);
                 if($property && $property->status==='draft'){$this->drafts->assertEditable($request->user(),$property);
                     app(PropertyIdentityService::class)->releaseRepresentationForListing($property,'editor_draft_deleted');$property->status='archived';$property->save();}}
+            \App\Models\ListingImageUploadIntent::query()->where('listing_editor_draft_id',$draft->id)->where('status','pending')->update(['status'=>'canceled']);
             $paths=array_values($draft->images);$draft->delete();return $paths;
         });
         $this->drafts->removeFiles($paths);return response()->json(['message'=>'حذفت المسودة.']);

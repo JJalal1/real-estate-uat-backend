@@ -152,6 +152,18 @@ Schedule::command('support:process-contact-followups')->hourly();
 });
 \Illuminate\Support\Facades\Schedule::command('broker:process-followups')->everyMinute()->withoutOverlapping();
 
+Artisan::command('listing-media:purge-expired-upload-intents', function (\App\Services\ListingImageUploadIntentService $intents): int {
+    if (! \Illuminate\Support\Facades\Schema::hasTable('listing_image_upload_intents')) {
+        $this->info('Image upload intent table not installed; no cleanup needed.');
+        return 0;
+    }
+    // Continue cleanup even after new uploads are disabled: prior signatures
+    // and orphan objects must not be left behind when rolling back a flag.
+    $result = $intents->purgeExpired(100);
+    $this->info("Upload sweep: {$result['checked']} checked, {$result['removed']} removed, {$result['failed']} failed.");
+    return $result['failed'] === 0 ? 0 : 1;
+})->purpose('Delete expired, uncommitted image uploads.');
+Schedule::command('listing-media:purge-expired-upload-intents')->hourly()->withoutOverlapping();
 Artisan::command('uat:signed-tus-storage-probe', function (CloudAssetStorageService $storage): int {
     if (! app()->environment('staging') || ! $storage->cloudEnabled()) {
         $this->error('This test requires private UAT storage.');
