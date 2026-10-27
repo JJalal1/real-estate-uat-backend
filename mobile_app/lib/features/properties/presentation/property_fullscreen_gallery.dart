@@ -97,6 +97,8 @@ class _PropertyFullscreenGalleryState extends ConsumerState<PropertyFullscreenGa
               onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close_rounded)),
             Expanded(child: Center(child: Semantics(
               label: 'الصورة', value: '${widget.images.isEmpty ? 0 : _index + 1} من ${widget.images.length}',
+              increasedValue: _index + 1 < widget.images.length ? '${_index + 2} من ${widget.images.length}' : null,
+              decreasedValue: _index > 0 ? '$_index من ${widget.images.length}' : null,
               onIncrease: _index + 1 < widget.images.length ? () => _page(_index + 1) : null,
               onDecrease: _index > 0 ? () => _page(_index - 1) : null,
               child: Container(key: const ValueKey('gallery-counter'),

@@ -63,6 +63,7 @@ void main() {
         expect(seen, isNotEmpty); expect(seen.every((point) => point == (lat, lon)), isTrue);
         final open = find.byKey(const ValueKey('property-open-map'));
         await tester.scrollUntilVisible(open, 300, scrollable: find.byType(Scrollable).first);
+        await tester.ensureVisible(open); await tester.pumpAndSettle();
         await tester.tap(open); await uxFrames(tester);
         expect(opened!.queryParameters['lat'], '$lat'); expect(opened!.queryParameters['lon'], '$lon');
       } else {

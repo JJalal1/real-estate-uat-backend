@@ -17,7 +17,7 @@ Finder get _viewer => find.byType(InteractiveViewer).hitTestable().first;
 Matrix4 _matrix(WidgetTester tester) => tester.widget<InteractiveViewer>(_viewer).transformationController!.value;
 Future<void> _twice(WidgetTester tester, Offset point) async {
   await tester.tapAt(point); await tester.pump(const Duration(milliseconds: 80));
-  await tester.tapAt(point); await tester.pump(const Duration(milliseconds: 280));
+  await tester.tapAt(point); await tester.pump(); await tester.pump(const Duration(milliseconds: 280));
 }
 
 void main() {

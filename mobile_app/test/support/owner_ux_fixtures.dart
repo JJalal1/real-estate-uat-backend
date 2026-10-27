@@ -28,7 +28,8 @@ AuthUser uxUser({int id = 1, String? type, String status = 'approved', List<Stri
   'id': id, 'name': 'حساب اختبار الواجهة', 'account_type': type == 'broker' ? 'broker' : 'regular',
   'account_status': 'active', 'phone_verified_at': '2026-10-27T00:00:00Z',
   'profile_completed_at': '2026-10-27T00:00:00Z', 'roles': roles,
-  if (type != null) 'verification_profile': {'type': type, 'status': status},
+  if (type != null) 'verification_profile': {'type': type, 'status': status,
+    if (status == 'approved') 'reviewed_at': '2026-10-27T00:00:00Z'},
 });
 
 class UxAuth extends AuthController {
