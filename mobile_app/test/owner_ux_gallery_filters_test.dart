@@ -68,7 +68,7 @@ void main() {
     await pumpUx(tester, scope, _gallery);
     final hints = find.ancestor(of: find.byKey(const ValueKey('gallery-guidance')), matching: find.byType(AnimatedOpacity));
     expect(tester.widget<AnimatedOpacity>(hints).opacity, 1);
-    expect(find.ancestor(of: hints, matching: find.byType(IgnorePointer)), findsOneWidget);
+    expect(tester.widget<IgnorePointer>(find.ancestor(of: hints, matching: find.byType(IgnorePointer)).first).ignoring, isTrue);
     await tester.pump(const Duration(milliseconds: 4300)); await tester.pump(const Duration(milliseconds: 250));
     expect(tester.widget<AnimatedOpacity>(hints).opacity, 0);
     await closeUx(tester); await pumpUx(tester, scope, _gallery);
