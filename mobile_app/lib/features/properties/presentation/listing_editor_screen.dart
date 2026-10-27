@@ -2434,27 +2434,28 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         selection = await ref.read(propertyLocationPickerProvider)(context,
           initialLatitude: _latitude, initialLongitude: _longitude);
       }
-      if (!_locationRequestCurrent(actor, epoch) || selection == null) return;
-      if (!hasValidPropertyCoordinates(selection.latitude, selection.longitude)) {
+      final point = selection;
+      if (!_locationRequestCurrent(actor, epoch) || point == null) return;
+      if (!hasValidPropertyCoordinates(point.latitude, point.longitude)) {
         throw StateError('Invalid property point');
       }
       setState(() {
-        if (_latitude != selection.latitude || _longitude != selection.longitude) _landBoundaryGeoJson = null;
-        final city = selection.address.governorate;
+        if (_latitude != point.latitude || _longitude != point.longitude) _landBoundaryGeoJson = null;
+        final city = point.address.governorate;
         if (city != null && _normalizedName(city) != _normalizedName(_governorate.text)) {
-          _district.text = selection.address.district ?? ''; _street.text = selection.address.street ?? '';
+          _district.text = point.address.district ?? ''; _street.text = point.address.street ?? '';
         }
-        _latitude = selection.latitude; _longitude = selection.longitude; _stepError = null;
+        _latitude = point.latitude; _longitude = point.longitude; _stepError = null;
         _showLocationPreview = true;
       });
-      await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: useCurrent);
+      await _fillAddress(point.address, point.latitude, point.longitude, resolveMissing: useCurrent);
       if (_locationRequestCurrent(actor, epoch)) { unawaited(_saveRecovery()); }
     } on PlatformException catch (error) {
-      if (_locationRequestCurrent(actor, epoch)) setState(() {
+      if (_locationRequestCurrent(actor, epoch)) { setState(() {
         _locationNeedsSettings = error.code == 'LOCATION_DENIED_FOREVER';
         _locationServiceDisabled = error.code == 'LOCATION_DISABLED';
         _locationError = error.message ?? 'تعذر تحديد الموقع الحالي. اختر النقطة على الخريطة.';
-      });
+      }); }
     } catch (_) {
       if (_locationRequestCurrent(actor, epoch)) setState(() => _locationError = 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
     } finally { if (mounted) setState(() => _selectingLocation = false); }
