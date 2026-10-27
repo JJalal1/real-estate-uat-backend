@@ -226,11 +226,11 @@ class _PropertyLocationPickerScreenState
       await _controller
           ?.animateCamera(CameraUpdate.newLatLngZoom(location, 16));
     } on PlatformException catch (error) {
-      if (mounted) setState(() {
+      if (mounted) { setState(() {
         _needsSettings = error.code == 'LOCATION_DENIED_FOREVER';
         _locationDisabled = error.code == 'LOCATION_DISABLED';
         _message = error.message ?? 'تعذر تحديد الموقع. يمكنك اختيار النقطة يدويًا.';
-      });
+      }); }
     } catch (_) {
       if (mounted) {
         setState(() => _message = 'تعذر الحصول على موقع الهاتف الآن.');

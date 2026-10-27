@@ -2427,10 +2427,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     try {
       // The explicit current-location action now accepts the real GPS fix in
       // one step. Manual map selection keeps its own explicit confirmation.
-      final selection = useCurrent
-        ? await ref.read(propertyCurrentLocationProvider)()
-        : await ref.read(propertyLocationPickerProvider)(context,
-            initialLatitude: _latitude, initialLongitude: _longitude);
+      final PropertyLocationSelection? selection;
+      if (useCurrent) {
+        selection = await ref.read(propertyCurrentLocationProvider)();
+      } else {
+        selection = await ref.read(propertyLocationPickerProvider)(context,
+          initialLatitude: _latitude, initialLongitude: _longitude);
+      }
       if (!_locationRequestCurrent(actor, epoch) || selection == null) return;
       if (!hasValidPropertyCoordinates(selection.latitude, selection.longitude)) {
         throw StateError('Invalid property point');
@@ -2445,7 +2448,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         _showLocationPreview = true;
       });
       await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: useCurrent);
-      if (_locationRequestCurrent(actor, epoch)) unawaited(_saveRecovery());
+      if (_locationRequestCurrent(actor, epoch)) { unawaited(_saveRecovery()); }
     } on PlatformException catch (error) {
       if (_locationRequestCurrent(actor, epoch)) setState(() {
         _locationNeedsSettings = error.code == 'LOCATION_DENIED_FOREVER';
@@ -2471,7 +2474,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (resolveMissing && !address.isComplete) {
         final resolved = await ref
             .read(propertyRepositoryProvider)
-            .resolveLocationAddress(latitude: latitude, longitude: longitude);
+            .resolveLocationAddress(latitude: latitude, longitude: longitude)
+            .timeout(const Duration(seconds: 4));
         address = address.mergeFallback(resolved);
       }
       if (!_locationRequestCurrent(actor, epoch) || _latitude != latitude || _longitude != longitude) return;
