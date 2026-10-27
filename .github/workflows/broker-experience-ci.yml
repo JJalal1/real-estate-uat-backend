@@ -82,7 +82,12 @@ jobs:
           python3 ../scripts/generate_property_schema.py --check
           python3 ../scripts/verify_aqer_brand.py
       - name: Full Laravel regression
-        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky
+        # The isolated video branch adds real FFmpeg tests to the full suite.
+        # They run here too; no skipping media tests or weakening assertions.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          php artisan test --display-warnings --fail-on-warning --fail-on-risky
 
   postgres:
     name: Disposable PostgreSQL 17 and PostGIS

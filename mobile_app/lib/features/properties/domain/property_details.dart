@@ -31,6 +31,38 @@ class PropertyImageItem {
   }
 }
 
+/// Only processed derivatives may be displayed. The private original path
+/// is never returned to the Flutter client.
+class PropertyVideoItem {
+  const PropertyVideoItem({
+    required this.id,
+    required this.posterUrl,
+    required this.streamUrl,
+    this.durationMs,
+  });
+
+  final int id;
+  final String posterUrl;
+  final String streamUrl;
+  final int? durationMs;
+
+  static PropertyVideoItem? tryParse(Object? raw) {
+    if (raw is! Map) return null;
+    final id = _asInt(raw['id']);
+    final posterUrl = raw['poster_url']?.toString().trim() ?? '';
+    final streamUrl = raw['stream_url']?.toString().trim() ?? '';
+    if (id == null || id < 1 || posterUrl.isEmpty || streamUrl.isEmpty) {
+      return null;
+    }
+    return PropertyVideoItem(
+      id: id,
+      posterUrl: posterUrl,
+      streamUrl: streamUrl,
+      durationMs: _asInt(raw['duration_ms']),
+    );
+  }
+}
+
 class PropertySummary {
   const PropertySummary({
     required this.id,
@@ -256,6 +288,7 @@ class PropertyDetails {
     this.commentsCount = 0,
     this.similar = const <PropertySummary>[],
     this.isSpotlight = false,
+    this.video,
   });
 
   final int id;
@@ -320,6 +353,7 @@ class PropertyDetails {
   final AdvertiserCommunitySummary? advertiser;
   final int commentsCount;
   final List<PropertyImageItem> images;
+  final PropertyVideoItem? video;
   final List<PropertySummary> similar;
   final bool isSpotlight;
 
@@ -427,6 +461,7 @@ class PropertyDetails {
               0
           : 0,
       images: images,
+      video: PropertyVideoItem.tryParse(json['video']),
       isSpotlight: _asBool(json['is_spotlight']) ?? false,
       similar: similarRows
           .whereType<Map<String, dynamic>>()

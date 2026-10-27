@@ -10,6 +10,7 @@ import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
 import '../domain/listing_duplicate_candidate.dart';
 import '../domain/listing_review_models.dart';
+import '../../properties/domain/property_details.dart';
 
 final listingReviewRepositoryProvider =
     Provider<ListingReviewRepository>((ref) {
@@ -55,6 +56,27 @@ class ListingReviewRepository {
   Future<ReviewListingDetail> detail(int id) async {
     final row = await _detailJson(id);
     return ReviewListingDetail.fromJson(row);
+  }
+
+  Future<Map<String, String>> protectedVideoHeaders(PropertyVideoItem video) async {
+    final api = Uri.parse(_dio.options.baseUrl);
+    final stream = Uri.tryParse(video.streamUrl);
+    final poster = Uri.tryParse(video.posterUrl);
+    final prefix = api.path.endsWith('/') ? api.path.substring(0, api.path.length - 1) : api.path;
+    if (api.scheme != 'https' ||
+        stream?.origin != api.origin || poster?.origin != api.origin ||
+        stream?.path != '$prefix/property-videos/${video.id}/stream' ||
+        poster?.path != '$prefix/property-videos/${video.id}/poster' ||
+        stream?.userInfo.isNotEmpty == true || poster?.userInfo.isNotEmpty == true ||
+        stream?.hasQuery == true || poster?.hasQuery == true ||
+        stream?.hasFragment == true || poster?.hasFragment == true) {
+      throw StateError('INVALID_VIDEO_ORIGIN');
+    }
+    final authorization = (await _sessionOptions()).headers?['Authorization']?.toString();
+    if (authorization == null || !authorization.startsWith('Bearer ')) {
+      throw StateError('AUTH_REQUIRED');
+    }
+    return <String, String>{'Authorization': authorization};
   }
 
   Future<List<ListingDuplicateCandidate>> duplicateCandidates(int id) async {
@@ -118,6 +140,7 @@ class ListingReviewRepository {
     int id, {
     String? reason,
     String? duplicateReviewReason,
+    bool videoReviewConfirmed = false,
   }) async {
     await _dio.post<void>(
       '/admin/listing-review/listings/$id/approve',
@@ -126,6 +149,7 @@ class ListingReviewRepository {
         if (duplicateReviewReason != null &&
             duplicateReviewReason.trim().isNotEmpty)
           'duplicate_review_reason': duplicateReviewReason.trim(),
+        if (videoReviewConfirmed) 'video_review_confirmed': true,
       },
       options: await _sessionOptions(),
     );

@@ -21,6 +21,7 @@ class VideoCloudStorageProtocolTest extends TestCase
         config()->set('services.supabase_storage.enabled', true);
         config()->set('services.supabase_storage.url', 'https://video-storage.example.test');
         config()->set('services.supabase_storage.bucket', 'real-estate-uat');
+        config()->set('services.supabase_storage.video_bucket', 'real-estate-uat-video');
         config()->set('services.supabase_storage.server_key', 'sb_secret_test_not_a_real_key');
         config()->set('services.supabase_storage.private_prefix', 'private');
     }
@@ -39,7 +40,7 @@ class VideoCloudStorageProtocolTest extends TestCase
         $this->assertSame('56789', $bytes);
         Http::assertSent(fn (Request $request) =>
             $request->method() === 'GET'
-            && str_contains($request->url(), '/storage/v1/object/authenticated/real-estate-uat/private/listing-videos/9/output.mp4')
+            && str_contains($request->url(), '/storage/v1/object/authenticated/real-estate-uat-video/private/listing-videos/9/output.mp4')
             && $request->hasHeader('Range', 'bytes=5-9')
             && $request->hasHeader('apikey', 'sb_secret_test_not_a_real_key')
             && ! $request->hasHeader('Authorization')
@@ -82,7 +83,7 @@ class VideoCloudStorageProtocolTest extends TestCase
             );
             Http::assertSent(fn (Request $request) =>
                 $request->method() === 'POST'
-                && str_contains($request->url(), '/storage/v1/object/real-estate-uat/private/listing-videos/9/file.mp4')
+                && str_contains($request->url(), '/storage/v1/object/real-estate-uat-video/private/listing-videos/9/file.mp4')
                 && $request->hasHeader('x-upsert', 'false')
                 && $request->hasHeader('Content-Type', 'video/mp4')
             );
@@ -99,7 +100,7 @@ class VideoCloudStorageProtocolTest extends TestCase
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
         Http::assertSent(fn (Request $request) =>
             $request->method() === 'GET'
-            && str_contains($request->url(), '/storage/v1/object/authenticated/real-estate-uat/private/listing-video-display/9/poster.jpg')
+            && str_contains($request->url(), '/storage/v1/object/authenticated/real-estate-uat-video/private/listing-video-display/9/poster.jpg')
         );
     }
 
@@ -112,11 +113,51 @@ class VideoCloudStorageProtocolTest extends TestCase
             app(CloudAssetStorageService::class)->downloadPrivateToPath('listing-videos/9/original.mp4', $target);
             Http::assertSent(fn (Request $request) =>
                 $request->method() === 'GET'
-                && str_contains($request->url(), '/storage/v1/object/authenticated/real-estate-uat/private/listing-videos/9/original.mp4')
+                && str_contains($request->url(), '/storage/v1/object/authenticated/real-estate-uat-video/private/listing-videos/9/original.mp4')
             );
         } finally {
             @unlink($target);
         }
     }
 
+    public function test_missing_or_shared_video_bucket_fails_before_network(): void
+    {
+        foreach(['','real-estate-uat'] as $bucket) {
+            Http::fake();config()->set('services.supabase_storage.video_bucket',$bucket);
+            try {
+                app(CloudAssetStorageService::class)->readPrivateRange('listing-videos/9/original.mp4',0,1);
+                $this->fail('Video cannot widen or reuse the image/TUS bucket');
+            } catch(RuntimeException $error) { $this->assertSame('A separate private video bucket is required.',$error->getMessage()); }
+            Http::assertNothingSent();
+        }
+    }
+
+    public function test_video_delete_uses_the_video_bucket_without_changing_image_deletion(): void
+    {
+        Http::fake(['*'=>Http::response([],200)]);
+        $storage=app(CloudAssetStorageService::class);
+        $storage->deletePrivate('listing-video-display/9/attempt-1/playback.mp4');
+        $storage->deletePrivate('listing-originals/image.jpg');
+        Http::assertSent(fn (Request $request)=>$request->method()==='DELETE'
+            && str_ends_with($request->url(),'/object/real-estate-uat-video')
+            && $request['prefixes']===['private/listing-video-display/9/attempt-1/playback.mp4']);
+        Http::assertSent(fn (Request $request)=>$request->method()==='DELETE'
+            && str_ends_with($request->url(),'/object/real-estate-uat')
+            && $request['prefixes']===['private/listing-originals/image.jpg']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_video_protocol_probe_does_not_pass_when_cleanup_fails(): void
+    {
+        $storage=new class extends CloudAssetStorageService {
+            private string $bytes='';
+            public function writePrivateFromFile(string $path,string $source,string $mime): void { $this->bytes=file_get_contents($source); }
+            public function readPrivateRange(string $path,int $start,int $end): string { return substr($this->bytes,$start,$end-$start+1); }
+            public function downloadPrivateToPath(string $path,string $target): void { file_put_contents($target,$this->bytes); }
+            public function deletePrivate(string $path): void { throw new RuntimeException('synthetic-cleanup-failure'); }
+        };
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Private video probe cleanup failed.');
+        $storage->probePrivateVideoStorage();
+    }
 }

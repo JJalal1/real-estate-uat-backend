@@ -9,6 +9,7 @@ import '../domain/listing_account_draft.dart';
 import '../domain/property_schema.dart';
 import 'listing_draft_photo.dart';
 import 'adaptive_property_photo.dart';
+import 'listing_video_upload_panel.dart';
 
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -1403,6 +1404,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       const SizedBox(height:8),
       AppButton(label:'إضافة صور',icon:Icons.add_photo_alternate_outlined,expand:true,style:AppButtonStyle.tonal,onPressed:_busy?null:_pickImages),
       if (keys.isEmpty) const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Text('لم تضف صورًا بعد. أضف صورة واضحة للعقار لإرساله للمراجعة.')),
+      if (const bool.fromEnvironment('AQER_VIDEO_UPLOADS_ENABLED', defaultValue: false))
+        if (_existing != null && _existing!.status == 'draft' && _existing!.canEdit) ...[
+          const SizedBox(height: AppSpacing.s12),
+          ListingVideoUploadPanel(propertyId: _existing!.id),
+        ],
       if (keys.isNotEmpty) ...[
         const SizedBox(height:12),SizedBox(height:height,child:ReorderableListView.builder(scrollDirection:Axis.horizontal,
           itemCount:keys.length,onReorder:_busy ? (_,__) {} : (from,to) => setState(() {

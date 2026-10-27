@@ -43,6 +43,13 @@ class AccountErasureService
                 throw new ConflictHttpException('يجب نقل مهام وصلاحيات حساب الموظف قبل حذفه.');
             }
 
+            if (Schema::hasTable('listing_videos') && DB::table('listing_videos')
+                ->whereIn('property_id', DB::table('properties')->where('user_id',$locked->id)->select('id'))
+                ->whereIn('status',['uploading','processing'])->where('updated_at','>',now()->subSeconds(660))->exists()) {
+                throw new ConflictHttpException('يجري تجهيز فيديو في حسابك. أعد طلب الحذف بعد انتهاء التجهيز.');
+            }
+            $videoPaths=$this->listingVideoPaths($locked);
+
             // The editor also locks the account before writing a draft. Collect
             // its owned paths while holding that same lock, then remove the rows
             // before checking whether another draft or listing still uses a file.
@@ -58,6 +65,10 @@ class AccountErasureService
 
             $this->archiveListings($locked);
             $this->deleteTransientData($locked);
+            if (Schema::hasTable('listing_videos')) {
+                DB::table('listing_videos')->whereIn('property_id',
+                    DB::table('properties')->where('user_id', $locked->id)->select('id'))->delete();
+            }
 
             foreach (array_unique($draftPaths) as $path) {
                 // Do not issue a successful erasure receipt after a provider
@@ -65,6 +76,7 @@ class AccountErasureService
                 // already removed objects are safe to delete again idempotently.
                 app(ListingImageService::class)->removeIfUnused($path, true);
             }
+            foreach ($videoPaths as $path) $this->storage->deletePrivate($path);
             foreach ($this->verificationPaths($locked) as $path) {
                 $this->storage->deletePrivate($path);
             }
@@ -139,6 +151,21 @@ class AccountErasureService
                 ->where('user_id', $user->id)->pluck('path')->filter()->all());
         }
         return array_values(array_unique(array_filter($paths, 'is_string')));
+    }
+
+    /** Delete media originals and derivatives; retain financial/legal listing records. */
+    private function listingVideoPaths(User $user): array
+    {
+        if (! Schema::hasTable('listing_videos')) return [];
+        $records = \App\Models\ListingVideo::query()
+            ->whereHas('property',fn ($query)=>$query->where('user_id',$user->id))->get();
+        $paths = [];
+        foreach ($records as $video) {
+            foreach ($video->trackedPaths() as $path) {
+                if (is_string($path) && $path !== '') $paths[] = $path;
+            }
+        }
+        return array_values(array_unique($paths));
     }
 
     private function archiveListings(User $user): void

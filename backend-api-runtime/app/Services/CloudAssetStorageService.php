@@ -176,7 +176,7 @@ class CloudAssetStorageService
     public function probePrivateVideoStorage(): void
     {
         if (! $this->cloudEnabled()) throw new RuntimeException('Cloud storage is disabled.');
-        $path = 'uat-health/video-range-'.bin2hex(random_bytes(14)).'.bin';
+        $path = 'listing-videos/uat-health/video-range-'.bin2hex(random_bytes(14)).'.mp4';
         $source = tempnam(sys_get_temp_dir(), 'aqer-private-probe-');
         $download = tempnam(sys_get_temp_dir(), 'aqer-private-download-');
         if (! is_string($source) || ! is_string($download)) {
@@ -185,13 +185,13 @@ class CloudAssetStorageService
             throw new RuntimeException('Private video probe temporary files unavailable.');
         }
         $bytes = 'aqer-private-video-range-'.bin2hex(random_bytes(30));
-        $uploaded = false;
+        $completed = false;
         try {
             if (file_put_contents($source, $bytes) !== strlen($bytes)) {
                 throw new RuntimeException('Private video probe write failed.');
             }
-            $this->writePrivateFromFile($path, $source, 'application/octet-stream');
-            $uploaded = true;
+            // Protocol-only synthetic bytes, never published as playable media.
+            $this->writePrivateFromFile($path, $source, 'video/mp4');
             if ($this->readPrivateRange($path, 5, 15) !== substr($bytes, 5, 11)) {
                 throw new RuntimeException('Private video probe range mismatch.');
             }
@@ -199,12 +199,18 @@ class CloudAssetStorageService
             if (hash_file('sha256', $download) !== hash('sha256', $bytes)) {
                 throw new RuntimeException('Private video probe download mismatch.');
             }
+            $completed=true;
         } finally {
             // A timed-out upload could succeed server-side after a client error,
-            // so attempt best-effort deletion even if $uploaded is false.
-            try { $this->deletePrivate($path); } catch (\Throwable) {}
+            // so cleanup is attempted even after an ambiguous failed upload.
+            $cleaned=true;
+            try { $this->deletePrivate($path); } catch (\Throwable) { $cleaned=false; }
             @unlink($source);
             @unlink($download);
+            if(!$cleaned) {
+                \Illuminate\Support\Facades\Log::error('video.storage_probe_cleanup_failed');
+                if($completed) throw new RuntimeException('Private video probe cleanup failed.');
+            }
         }
     }
 
@@ -544,7 +550,7 @@ class CloudAssetStorageService
         // historical derivative must not abort cleanup of the live variants
         // and original; never interpret a generic 400/404 as authorization.
         $response = $this->request()->delete(
-            $this->storageBaseUrl().'/object/'.rawurlencode($this->bucket()),
+            $this->storageBaseUrl().'/object/'.rawurlencode($this->bucketForObject($objectPath)),
             ['prefixes' => [$objectPath]],
         );
         if ($response->successful()) {
@@ -598,12 +604,26 @@ class CloudAssetStorageService
     private function privateAuthenticatedGetUrl(string $path): string
     {
         return $this->storageBaseUrl().'/object/authenticated/'
-            .rawurlencode($this->bucket()).'/'.$this->encodePath($this->objectPath($path, true));
+            .rawurlencode($this->bucketForObject($this->objectPath($path,true))).'/'.$this->encodePath($this->objectPath($path, true));
     }
 
     private function objectUrl(string $objectPath): string
     {
-        return $this->storageBaseUrl().'/object/'.rawurlencode($this->bucket()).'/'.$this->encodePath($objectPath);
+        return $this->storageBaseUrl().'/object/'.rawurlencode($this->bucketForObject($objectPath)).'/'.$this->encodePath($objectPath);
+    }
+
+    private function bucketForObject(string $objectPath): string
+    {
+        $prefix=trim((string)config('services.supabase_storage.private_prefix','private'),'/').'/';
+        $logical=str_starts_with($objectPath,$prefix) ? substr($objectPath,strlen($prefix)) : '';
+        if(str_starts_with($logical,'listing-videos/') || str_starts_with($logical,'listing-video-display/')) {
+            $video=trim((string)config('services.supabase_storage.video_bucket',''));
+            if($video==='' || $video===$this->bucket()) {
+                throw new RuntimeException('A separate private video bucket is required.');
+            }
+            return $video;
+        }
+        return $this->bucket();
     }
 
     private function storageBaseUrl(): string

@@ -19,6 +19,24 @@ void main() {
     expect(item.reviewStatus, 'submitted');
     expect(item.proofCount, 1);
   });
+  test('reviewer receives ready video without private original paths', () {
+    final detail = ReviewListingDetail.fromJson({
+      'id': 7, 'video': {
+        'id': 13, 'status': 'ready', 'moderation_status': 'pending',
+        'poster_url': 'https://video.example.test/api/property-videos/13/poster',
+        'stream_url': 'https://video.example.test/api/property-videos/13/stream',
+        'original_path': 'private/secret.mp4',
+      },
+    });
+    expect(detail.videoStatus, 'ready');
+    expect(detail.video?.id, 13);
+    expect(detail.video?.streamUrl, endsWith('/stream'));
+    final pending = ReviewListingDetail.fromJson({
+      'id': 7, 'video': {'id': 13, 'status': 'processing'}
+    });
+    expect(pending.videoStatus, 'processing');
+    expect(pending.video, isNull);
+  });
   test('publication block parses active state', () {
     final b = PublicationBlockItem.fromJson({
       'id': 4,
