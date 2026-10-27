@@ -8,8 +8,9 @@ void main() {
       'lib/features/properties/presentation/property_details_screen.dart',
     ).readAsStringSync();
 
-    expect(source, contains('_FullscreenGallery'));
-    expect(source, contains('InteractiveViewer'));
+    expect(source, contains('PropertyFullscreenGallery'));
+    final gallery = File('lib/features/properties/presentation/property_fullscreen_gallery.dart').readAsStringSync();
+    expect(gallery, contains('InteractiveViewer'));
     expect(source, contains('هوية المعلن متحققة'));
     expect(source, contains("verificationFlag('identity_reviewed')"));
     expect(source, isNot(contains('مشاهدات العقار')));

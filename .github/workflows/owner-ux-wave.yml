@@ -48,7 +48,7 @@ jobs:
             test/wave6_product_ui_test.dart test/ui_transplant_v3_template_test.dart test/broker_listing_assistant_test.dart \
             test/startup_navigation_layout_test.dart test/uat_map_location_picker_test.dart \
             test/owner_share_release_test.dart test/uat_comments_fix_test.dart \
-            test/active_wave_discovery_test.dart test/adaptive_image_quality_test.dart
+            test/active_wave_discovery_test.dart test/adaptive_image_quality_test.dart test/final_uat_polish_contract_test.dart
       - name: Synthetic visual review artifacts
         if: always()
         uses: actions/upload-artifact@v4
