@@ -41,3 +41,5 @@ Rollback: أغلق العلمين أولًا؛ أبقِ intent rows ومهمة �
 PR #111 يبقى معزولًا. يلزم bucket فيديو خاص مستقل باسم يحدد عبر `SUPABASE_VIDEO_STORAGE_BUCKET` على Web والعامل، يختلف عن bucket الصور. يرفض الكود غيابه أو مطابقته للصور؛ لا نرفع حد bucket الصور إلى 50MiB لمعالجة الفيديو. لم ينشأ bucket حي في هذه الدفعة. بوابات إضافية: تكلفة عامل مستقل وFFmpeg+pcntl، موافقة الحجم/المدة وسياسة المراجعة البشرية، حدود heartbeat/lease/timeouts، اتساق queues، اختبار kill/retry/cleanup وRange وAndroid. لا FFmpeg على Free Web. افتح upload ثم playback فقط ضمن canary مراقب بعد نجاح processing، لا قبله. سجل نسخ الصورة والحزمة والاعتمادات دون أسرار، وأغلق upload عند فشل العامل.
 
 المراجع الرسمية التي راجعت: https://supabase.com/docs/guides/platform/backups ؛ https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore .
+
+[بوابة Storage المشتركة وحدود8/10MiB](AQER_STORAGE_ADMISSION_GATE_2026-10-27_AR.md): لا تطبق حد8MiB على الـbucket المشترك؛ وثائق التحقق وإثبات الدفع تسمح10MiB، وحد الإعلان8MiB يبقى خادميًا. لم تتغير الإعدادات الحية.

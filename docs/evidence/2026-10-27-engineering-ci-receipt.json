@@ -1559,5 +1559,51 @@
     "remediation": "Update explicit accepted source to already-tested PR160 merge04b2818, preserve mobile/backend tree assertions and all40 nearby reads at concurrency20, serialize with other Free-UAT measurements, add pull-request validation, reuse existing Firebase importer, and upload only sanitized native verification JSON. The canonical owner installer remains the encrypted1358/1359 pair.",
     "file": ".github/workflows/build-current-discovery-uat-apk.yml",
     "corrected_check_evidence": "Latest check-runs on PR161; do not infer pass from this remediation description."
+  },
+  "final_pr161_validation": {
+    "head": "bfce5e659719326f5c1709ececec7e283551a3ac",
+    "merged_sha": "aab073c9c2770712ee8e3cfa991e3a8d9bcc76a7",
+    "checks": [
+      {
+        "name": "Verify and build current UAT APK",
+        "id": 121995084363,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40445316599/job/121995084363"
+      },
+      {
+        "name": "Actual HTTP viewport and UAT image measurements",
+        "id": 121995084303,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40445316536/job/121995084303"
+      },
+      {
+        "name": "Validate resource templates against current Render schema without applying",
+        "id": 121995083707,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40445316524/job/121995083707"
+      },
+      {
+        "name": "Verify source equivalence and bounded deployed UAT without account writes",
+        "id": 121995083605,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40445316519/job/121995083605"
+      }
+    ],
+    "legacy_source_guard_repaired": true,
+    "legacy_40_reads_and_concurrency20_preserved": true,
+    "legacy_installer_transport": "verification JSON only; canonical owner APK remains the recipient-encrypted 1358/1359 pair"
+  },
+  "storage_admission_gate": {
+    "plan_file": "docs/AQER_STORAGE_ADMISSION_GATE_2026-10-27_AR.md",
+    "listing_max_bytes": 8388608,
+    "existing_kyc_and_payment_proof_max_bytes": 10485760,
+    "proposed_shared_bucket_max_bytes": 10485760,
+    "provider_per_intent8MiB_limit_claimed": false,
+    "live_settings_changed": false,
+    "activation_requires_real_backup_restore_and_owner_approval": true
   }
 }
