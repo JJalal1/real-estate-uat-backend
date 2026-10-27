@@ -125,7 +125,7 @@ void main() {
   testWidgets('verified broker lands in the marketplace and opens a separate work dashboard', (tester) async {
     await _pump(tester, const AppShellScreen(), BrokerTestRepository());
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
-    expect(nav.destinations.map((d) => d.label), ['العقارات', 'الخريطة', 'الرسائل', 'حسابي']);
+    expect(nav.destinations.map((d) => d.label), ['الرئيسية', 'عملي', 'العملاء', 'حسابي']);
     expect(nav.onCreate, isNotNull);
     expect(find.text('يحتاج إجراء منك'), findsNothing);
     expect(find.byKey(const ValueKey('home-search')), findsOneWidget);

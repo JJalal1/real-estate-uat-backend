@@ -36,6 +36,9 @@ import '../domain/property_location_address.dart';
 import '../domain/property_sai.dart';
 import 'property_land_boundary_picker_screen.dart';
 import 'property_location_picker_screen.dart';
+import 'property_location_preview.dart';
+import '../domain/property_coordinates.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import 'listing_sai_section.dart';
 import 'listing_ai_sheet.dart';
 import 'rental_conditions_editor.dart';
@@ -125,7 +128,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   String? _relationshipType;
   double? _latitude;
   double? _longitude;
-  bool get _hasLocation => _latitude != null && _longitude != null;
+  bool get _hasLocation => hasValidPropertyCoordinates(_latitude, _longitude);
   Map<String, dynamic>? _landBoundaryGeoJson;
   bool _busy = false;
   bool _resolvingLocation = false;
@@ -156,7 +159,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool _accountSaved = false, _accountSyncing = false, _accountConflict = false;
   String? _accountError, _descriptionError;
   String? _stepError, _locationError;
-  bool _selectingLocation = false;
+  bool _selectingLocation = false, _showLocationPreview = false;
   bool _locationNeedsSettings = false, _locationServiceDisabled = false;
   late final VoiceCaptureController _descriptionCapture;
   bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false;
@@ -861,8 +864,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _governorate.text = address.governorate ?? '';
     _district.text = address.district ?? '';
     _street.text = address.street ?? '';
-    _latitude = property.latitude;
-    _longitude = property.longitude;
+    _latitude = property.hasValidLocation ? property.latitude : null;
+    _longitude = property.hasValidLocation ? property.longitude : null;
     _buildingReference.text = property.buildingReference ?? '';
     _unitNumber.text = property.unitNumber ?? '';
     _floorNumber.text = property.floorNumber ?? '';
@@ -1145,7 +1148,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         icon: const Icon(Icons.my_location, size: 19), label: const Text('تحديد موقعي الحالي')),
       if (_selectingLocation) const LinearProgressIndicator(),
       if (_locationError != null) Text(_locationError!, style: Theme.of(context).textTheme.bodySmall),
-      if (_locationNeedsSettings) TextButton(key:const ValueKey('listing-location-settings'),onPressed:()=>ref.read(_locationServiceDisabled ? locationServiceSettingsProvider : appPermissionSettingsProvider)(),child:const Text('فتح إعدادات الموقع')),
+      if (_locationNeedsSettings) TextButton(key: const ValueKey('listing-location-settings'), onPressed: () => ref.read(appPermissionSettingsProvider)(), child: const Text('فتح إعدادات الإذن')),
+      if (_locationServiceDisabled) TextButton(key: const ValueKey('listing-enable-location-service'), onPressed: () => ref.read(locationServiceSettingsProvider)(), child: const Text('تفعيل خدمة الموقع')),
+      if (_hasLocation && _showLocationPreview) Padding(padding: const EdgeInsets.only(top: 12), child: PropertyLocationPreview(
+        key: const ValueKey('listing-location-preview'), latitude: _latitude!, longitude: _longitude!, onOpen: _selectOnMap)),
       if (_hasLocation && _completionOnly) TextButton(onPressed: () => _showFullStep(1), child: const Text('تصحيح العنوان النصي')),
     ]));
 
@@ -1614,7 +1620,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       }
     }
     if (step == 1) {
-      if (_latitude == null || _longitude == null) {
+      if (!_hasLocation) {
         return 'حدد نقطة العقار على الخريطة أو من موقعك الحالي، ثم أكد الموقع.';
       }
       if (_governorate.text.trim().length < 2) return 'أكمل اسم المحافظة.';
@@ -2405,21 +2411,28 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
   }
 
+  bool _locationRequestCurrent(int? actor, int epoch) => mounted && _sessionValid &&
+    Stage6SecureSessionStore.instance.sessionEpoch == epoch &&
+    actor == ref.read(authControllerProvider).asData?.value?.id;
+
   Future<void> _selectOnMap() => _selectLocation();
   Future<void> _selectLocation({bool useCurrent = false}) async {
-    if (_busy || _selectingLocation || _resolvingLocation) return;
+    if (_busy || _selectingLocation || _resolvingLocation || !_sessionValid) return;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
-    setState(() { _selectingLocation = true; _locationError = null; });
-    _locationNeedsSettings=false;_locationServiceDisabled=false;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    setState(() {
+      _selectingLocation = true; _locationError = null;
+      _locationNeedsSettings = false; _locationServiceDisabled = false;
+    });
     try {
-      final initial = useCurrent ? await ref.read(propertyCurrentLocationProvider)() : null;
-      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
-      // A GPS fix only centers the existing picker; the user still confirms the
-      // actual property point. It never changes Home's discovery preference.
-      final selection = await ref.read(propertyLocationPickerProvider)(context,
-        initialLatitude: initial?.latitude ?? _latitude, initialLongitude: initial?.longitude ?? _longitude);
-      if (!mounted || selection == null || actor != ref.read(authControllerProvider).asData?.value?.id) return;
-      if (!selection.latitude.isFinite || !selection.longitude.isFinite || selection.latitude.abs() > 90 || selection.longitude.abs() > 180) {
+      // The explicit current-location action now accepts the real GPS fix in
+      // one step. Manual map selection keeps its own explicit confirmation.
+      final selection = useCurrent
+        ? await ref.read(propertyCurrentLocationProvider)()
+        : await ref.read(propertyLocationPickerProvider)(context,
+            initialLatitude: _latitude, initialLongitude: _longitude);
+      if (!_locationRequestCurrent(actor, epoch) || selection == null) return;
+      if (!hasValidPropertyCoordinates(selection.latitude, selection.longitude)) {
         throw StateError('Invalid property point');
       }
       setState(() {
@@ -2429,18 +2442,18 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           _district.text = selection.address.district ?? ''; _street.text = selection.address.street ?? '';
         }
         _latitude = selection.latitude; _longitude = selection.longitude; _stepError = null;
+        _showLocationPreview = true;
       });
-      await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: false);
-      unawaited(_saveRecovery());
+      await _fillAddress(selection.address, selection.latitude, selection.longitude, resolveMissing: useCurrent);
+      if (_locationRequestCurrent(actor, epoch)) unawaited(_saveRecovery());
     } on PlatformException catch (error) {
-      if (mounted) { setState(() {
-        _locationNeedsSettings=const ['LOCATION_DISABLED','LOCATION_DENIED_FOREVER'].contains(error.code);
-        _locationServiceDisabled=error.code=='LOCATION_DISABLED';
-        _locationError=const ['LOCATION_DISABLED','LOCATION_DENIED','LOCATION_DENIED_FOREVER'].contains(error.code)
-          ? error.message : 'تعذر تحديد الموقع الحالي. اختر النقطة على الخريطة.';
-      }); }
+      if (_locationRequestCurrent(actor, epoch)) setState(() {
+        _locationNeedsSettings = error.code == 'LOCATION_DENIED_FOREVER';
+        _locationServiceDisabled = error.code == 'LOCATION_DISABLED';
+        _locationError = error.message ?? 'تعذر تحديد الموقع الحالي. اختر النقطة على الخريطة.';
+      });
     } catch (_) {
-      if (mounted) setState(() => _locationError = 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
+      if (_locationRequestCurrent(actor, epoch)) setState(() => _locationError = 'تعذّر تحديد الموقع الحالي. اختر النقطة على الخريطة.');
     } finally { if (mounted) setState(() => _selectingLocation = false); }
   }
 
@@ -2449,6 +2462,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     double latitude,
     double longitude, {bool resolveMissing = true}
   ) async {
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final before = [_governorate.text, _district.text, _street.text];
     setState(() => _resolvingLocation = true);
     try {
@@ -2459,7 +2474,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             .resolveLocationAddress(latitude: latitude, longitude: longitude);
         address = address.mergeFallback(resolved);
       }
-      if (!mounted || _latitude != latitude || _longitude != longitude) return;
+      if (!_locationRequestCurrent(actor, epoch) || _latitude != latitude || _longitude != longitude) return;
       setState(() {
         if (address.governorate != null && _governorate.text == before[0]) {
           _governorate.text = address.governorate!;
@@ -2468,7 +2483,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (address.street != null && _street.text == before[2]) _street.text = address.street!;
       });
     } catch (_) {
-      if (mounted) {
+      if (_locationRequestCurrent(actor, epoch)) {
         setState(() => _locationError = 'تم تثبيت الموقع. تعذّر جلب العنوان تلقائيًا؛ أكمله يدويًا.');
       }
     } finally {

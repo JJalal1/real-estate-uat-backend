@@ -7,8 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/platform/app_permission_settings.dart';
 import '../../map/domain/map_screen_coordinate_space.dart';
 import '../domain/property_location_address.dart';
+import '../domain/property_coordinates.dart';
 import '../data/property_repository.dart';
 
 typedef PropertyLocationPicker = Future<PropertyLocationSelection?> Function(
@@ -27,13 +29,18 @@ final propertyCurrentLocationProvider = Provider<PropertyCurrentLocation>((ref) 
     throw PlatformException(code: 'LOCATION_DISABLED', message: 'فعّل خدمة الموقع أو حدد النقطة على الخريطة.');
   }
   var permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
+  if (permission == LocationPermission.denied || permission == LocationPermission.unableToDetermine) {
+    permission = await Geolocator.requestPermission();
+  }
   if (permission != LocationPermission.whileInUse && permission != LocationPermission.always) {
     throw PlatformException(code: permission==LocationPermission.deniedForever ? 'LOCATION_DENIED_FOREVER':'LOCATION_DENIED',
       message: permission==LocationPermission.deniedForever ? 'إذن الموقع مرفوض نهائيًا. افتح الإعدادات أو اختر النقطة يدويًا على الخريطة.' : 'لم يُمنح إذن الموقع. يمكنك تحديد النقطة على الخريطة.');
   }
   final position = await Geolocator.getCurrentPosition(locationSettings:
     const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 12)));
+  if (!hasValidPropertyCoordinates(position.latitude, position.longitude)) {
+    throw PlatformException(code: 'LOCATION_UNAVAILABLE', message: 'تعذر تحديد نقطة صالحة. اختر موقع العقار يدويًا.');
+  }
   return PropertyLocationSelection(latitude: position.latitude, longitude: position.longitude);
 });
 
@@ -49,7 +56,7 @@ class PropertyLocationSelection {
   final PropertyLocationAddress address;
 }
 
-class PropertyLocationPickerScreen extends StatefulWidget {
+class PropertyLocationPickerScreen extends ConsumerStatefulWidget {
   const PropertyLocationPickerScreen({
     super.key,
     this.initialLatitude,
@@ -67,12 +74,12 @@ class PropertyLocationPickerScreen extends StatefulWidget {
   )? reverseLookup;
 
   @override
-  State<PropertyLocationPickerScreen> createState() =>
+  ConsumerState<PropertyLocationPickerScreen> createState() =>
       _PropertyLocationPickerScreenState();
 }
 
 class _PropertyLocationPickerScreenState
-    extends State<PropertyLocationPickerScreen> {
+    extends ConsumerState<PropertyLocationPickerScreen> {
   static const _fallback = LatLng(15.3694, 44.1910);
   static const _mapStyle = 'https://tiles.openfreemap.org/styles/liberty';
 
@@ -83,7 +90,7 @@ class _PropertyLocationPickerScreenState
   bool _styleLoaded = false;
   bool _draggingPin = false;
   bool _resolving = false;
-  bool _styleFailed = false, _needsSettings = false, _locating = false;
+  bool _styleFailed = false, _needsSettings = false, _locationDisabled = false, _locating = false;
   int _mapAttempt = 0;
   Timer? _mapTimeout;
   String? _message;
@@ -93,8 +100,8 @@ class _PropertyLocationPickerScreenState
     super.initState();
     final latitude = widget.initialLatitude;
     final longitude = widget.initialLongitude;
-    _selection = latitude != null && longitude != null
-        ? LatLng(latitude, longitude)
+    _selection = hasValidPropertyCoordinates(latitude, longitude)
+        ? LatLng(latitude!, longitude!)
         : _fallback;
     _startMapTimeout();
   }
@@ -206,34 +213,9 @@ class _PropertyLocationPickerScreenState
 
   Future<void> _moveToCurrentLocation() async {
     if (_locating) return;
-    setState(() { _locating=true;_needsSettings=false; });
+    setState(() { _locating=true;_needsSettings=false;_locationDisabled=false; });
     try {
-      final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) {
-        if (mounted) {
-          setState(() => _message = 'فعّل خدمة الموقع أو اختر المكان يدوياً.');
-        }
-        return;
-      }
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        if (mounted) {
-          _needsSettings=permission==LocationPermission.deniedForever;
-          setState(
-              () => _message = 'لم يتم منح إذن الموقع. حرّك الدبوس يدوياً.');
-        }
-        return;
-      }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 20),
-        ),
-      );
+      final position = await ref.read(propertyCurrentLocationProvider)();
       final location = LatLng(position.latitude, position.longitude);
       if (!mounted) return;
       setState(() {
@@ -243,6 +225,12 @@ class _PropertyLocationPickerScreenState
       });
       await _controller
           ?.animateCamera(CameraUpdate.newLatLngZoom(location, 16));
+    } on PlatformException catch (error) {
+      if (mounted) setState(() {
+        _needsSettings = error.code == 'LOCATION_DENIED_FOREVER';
+        _locationDisabled = error.code == 'LOCATION_DISABLED';
+        _message = error.message ?? 'تعذر تحديد الموقع. يمكنك اختيار النقطة يدويًا.';
+      });
     } catch (_) {
       if (mounted) {
         setState(() => _message = 'تعذر الحصول على موقع الهاتف الآن.');
@@ -345,7 +333,7 @@ class _PropertyLocationPickerScreenState
                 ),
                 if (_styleFailed) Positioned.fill(child:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(24),
                   child:Card(child:Padding(padding:const EdgeInsets.all(20),child:Column(mainAxisSize:MainAxisSize.min,children:[
-                    const Text('النقطة السابقة محفوظة. يمكنك الرجوع أو إعادة تحميل الخريطة.'),
+                    const Text('لن يتغير موقع العقار حتى تؤكد اختيارك. يمكنك الرجوع أو إعادة تحميل الخريطة.'),
                     TextButton.icon(onPressed:_retryMap,icon:const Icon(Icons.refresh),label:const Text('إعادة تحميل الخريطة')),
                   ])))))),
                 if (_styleLoaded) ...[
@@ -420,7 +408,8 @@ class _PropertyLocationPickerScreenState
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            if (_needsSettings) TextButton(onPressed:Geolocator.openAppSettings,child:const Text('فتح إعدادات الموقع')),
+                            if (_needsSettings) TextButton(onPressed: () => ref.read(appPermissionSettingsProvider)(), child: const Text('فتح إعدادات الإذن')),
+                            if (_locationDisabled) TextButton(onPressed: () => ref.read(locationServiceSettingsProvider)(), child: const Text('تفعيل خدمة الموقع')),
                             if (_message != null) ...[
                               Text(
                                 _message!,

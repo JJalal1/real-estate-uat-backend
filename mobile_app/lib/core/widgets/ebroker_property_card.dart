@@ -21,12 +21,12 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     final theme = Theme.of(context), scheme = theme.colorScheme;
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 21;
     final vertical = imageFirst || largeText;
-    final money = AppPropertyPrice(price: price, currency: currency, suffix: priceSuffix);
+    final money = AppPropertyPrice(price: price, currency: currency, suffix: priceSuffix, compact: true);
     Widget gallery(double height) => ClipRRect(borderRadius: BorderRadius.circular(12),
       child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight,
         height: height, overlay: vertical ? trailing : null,
         priceBadge: imageFirst ? Container(key: const ValueKey('property-photo-price'),
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           decoration: BoxDecoration(color: scheme.surface.withValues(alpha: .97), borderRadius: BorderRadius.circular(8)),
           child: money) : null,
         propertyType: propertyType ?? propertyTypeFromLabel(categoryLabel)));

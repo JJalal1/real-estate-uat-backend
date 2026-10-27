@@ -18,6 +18,7 @@ import '../../community/data/community_repository.dart';
 import '../../community/presentation/community_dialogs.dart';
 import 'property_compare_actions.dart';
 import 'property_location_preview.dart';
+import 'property_fullscreen_gallery.dart';
 import '../../../core/local/listing_viewer_key_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
@@ -36,7 +37,6 @@ import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
 import 'property_market_context_card.dart';
 import 'property_sai_public_line.dart';
-import 'property_question_section.dart';
 
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
@@ -325,9 +325,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             EbrokerSectionPanel(title: 'شروط الإيجار', child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [for (final c in property.rentalConditions) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(rentalConditionSummary(c)))])),
           ],
-          if (published && property.availabilityStatus == 'available') ...[
-            const SizedBox(height: AppSpacing.s24), PropertyQuestionSection(propertyId: property.id),
-          ],
           if (published && property.advertiser != null) ...[
             const SizedBox(height: AppSpacing.s24),
             const AppSectionHeader(title: 'المعلن'),
@@ -341,19 +338,22 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             const SizedBox(height: 24), EbrokerSectionPanel(title: 'معرض الصور', child: SizedBox(height: 96, child: ListView.separated(
               scrollDirection: Axis.horizontal, itemCount: property.images.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) => Semantics(button: true, label: 'فتح صورة العقار ${index + 1}', child: InkWell(
-                onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: property.images, initialIndex: index, privateImages:property.status!='published'))),
+                onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(builder: (_) => PropertyFullscreenGallery(images: property.images, initialIndex: index, privateImages:property.status!='published'))),
                 child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: 112, height: 96,
                   child: AdaptivePropertyPhoto(url: property.images[index].cardUrl,
                     authenticated:property.status!='published',use:PropertyImageUse.thumbnail))),
               )),
             ))),
           ],
-          if (property.latitude.isFinite && property.longitude.isFinite && property.latitude.abs() <= 90 && property.longitude.abs() <= 180 && (property.latitude != 0 || property.longitude != 0)) ...[
+          if (property.hasValidLocation) ...[
             const SizedBox(height: 24), EbrokerSectionPanel(title: 'الموقع والخريطة', child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (property.address?.isNotEmpty == true) ...[Text(property.address!), const SizedBox(height: 12)],
               PropertyLocationPreview(latitude: property.latitude, longitude: property.longitude, onOpen: () => context.push(Uri(path: '/property-market',
                 queryParameters: {'lat': '${property.latitude}', 'lon': '${property.longitude}'}).toString())),
             ])),
+          ] else ...[
+            const SizedBox(height: 24),
+            const Text('موقع العقار غير محدد على الخريطة', key: ValueKey('property-location-unspecified')),
           ],
           if (published && !property.isOwner) Padding(padding: const EdgeInsets.only(top: 18), child: Align(alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(key: const ValueKey('property-report'), onPressed: _reporting ? null : () => _reportListing(property),
@@ -624,7 +624,7 @@ class _Gallery extends StatelessWidget {
                   child: InkWell(
                     onTap: () => Navigator.of(context).push<void>(
                       MaterialPageRoute<void>(
-                        builder: (_) => _FullscreenGallery(
+                        builder: (_) => PropertyFullscreenGallery(
                           images: images,
                           initialIndex: imageIndex,
                           privateImages:privateImages,
@@ -647,7 +647,7 @@ class _Gallery extends StatelessWidget {
               PositionedDirectional(bottom: 12.rh(context), end: 16.rw(context),
                 child: Semantics(button: true, label: 'تكبير الصور',
                   child: GestureDetector(onTap: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(builder: (_) => _FullscreenGallery(images: images, initialIndex: index,privateImages:privateImages))),
+                    MaterialPageRoute<void>(builder: (_) => PropertyFullscreenGallery(images: images, initialIndex: index,privateImages:privateImages))),
                     child: Container(padding: EdgeInsets.symmetric(horizontal: 8.rw(context), vertical: 4.rh(context)),
                       decoration: BoxDecoration(color: EbrokerDesign.surface,
                         borderRadius: BorderRadius.circular(16), border: Border.all(color: EbrokerDesign.border)),
@@ -657,105 +657,6 @@ class _Gallery extends StatelessWidget {
                         EbrokerText('${images.length}', size: 12, weight: FontWeight.w600),
                       ]))))),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FullscreenGallery extends StatefulWidget {
-  const _FullscreenGallery({required this.images, required this.initialIndex,this.privateImages=false});
-
-  final List<PropertyImageItem> images;
-  final int initialIndex;
-  final bool privateImages;
-
-  @override
-  State<_FullscreenGallery> createState() => _FullscreenGalleryState();
-}
-
-class _FullscreenGalleryState extends State<_FullscreenGallery> {
-  late final PageController _controller;
-  late int _index;
-  final _highResolution = <int>{};
-
-  @override
-  void initState() {
-    super.initState();
-    _index = widget.initialIndex;
-    _controller = PageController(initialPage: _index);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: SafeArea(
-          child: Stack(
-            children: [
-              PageView.builder(
-                controller: _controller,
-                itemCount: widget.images.length,
-                onPageChanged: (value) => setState(() => _index = value),
-                itemBuilder: (context, imageIndex) => Center(
-                  child: InteractiveViewer(
-                    minScale: 1,
-                    maxScale: 4,
-                    onInteractionUpdate: (details) {
-                      if (details.scale > 1.15 && !_highResolution.contains(imageIndex)) {
-                        setState(() => _highResolution.add(imageIndex));
-                      }
-                    },
-                    child: SizedBox.expand(child: AdaptivePropertyPhoto(key:ValueKey(widget.images[imageIndex].id),
-                      url:widget.images[imageIndex].zoomUrl,authenticated:widget.privateImages,fit:BoxFit.contain,
-                      use:_highResolution.contains(imageIndex) ? PropertyImageUse.zoom : PropertyImageUse.fullscreen)),
-                  ),
-                ),
-              ),
-              PositionedDirectional(
-                top: AppSpacing.s8,
-                start: AppSpacing.s8,
-                child: IconButton.filled(
-                  tooltip: 'إغلاق الصور',
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const EbrokerIcon(Icons.close_rounded),
-                ),
-              ),
-              PositionedDirectional(
-                top: AppSpacing.s8,
-                end: AppSpacing.s8,
-                child: TextButton(onPressed:_highResolution.contains(_index) ? null :
-                  () => setState(() => _highResolution.add(_index)),
-                  child:const Text('تحميل صورة أوضح',style:TextStyle(color:Colors.white))),
-              ),
-              PositionedDirectional(
-                bottom: AppSpacing.s16,
-                start: 0,
-                end: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: .58),
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
-                    ),
-                    child: Text(
-                      '${_index + 1}/${widget.images.length} • اسحب للتنقل واضغط بإصبعين للتكبير',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

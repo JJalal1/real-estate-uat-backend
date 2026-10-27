@@ -1,0 +1,55 @@
+name: Owner requested UX acceptance
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths: ['mobile_app/**', '.github/workflows/owner-ux-wave.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: owner-ux-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  owner-ux:
+    name: Gallery gestures location broker navigation and filters
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Original locked dependencies
+        id: lock
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Strict static analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Behavioral acceptance and regression
+        if: ${{ !cancelled() && steps.lock.conclusion == 'success' }}
+        working-directory: mobile_app
+        run: |
+          flutter test --reporter expanded \
+            test/owner_ux_gallery_filters_test.dart test/owner_ux_location_navigation_test.dart \
+            test/new_wave_handoff_test.dart test/broker_experience_ui_test.dart \
+            test/startup_navigation_layout_test.dart test/uat_map_location_picker_test.dart \
+            test/owner_share_release_test.dart test/uat_comments_fix_test.dart \
+            test/active_wave_discovery_test.dart test/adaptive_image_quality_test.dart
+      - name: Synthetic visual review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owner-ux-synthetic-previews-${{ github.run_number }}
+          path: mobile_app/build/owner-ux-preview/
+          retention-days: 3
+          if-no-files-found: warn

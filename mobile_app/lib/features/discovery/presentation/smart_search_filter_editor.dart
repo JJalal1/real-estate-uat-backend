@@ -79,6 +79,53 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
     items: const [DropdownMenuItem(value: null, child: Text('لا يشترط')), DropdownMenuItem(value: true, child: Text('نعم')), DropdownMenuItem(value: false, child: Text('لا'))],
     onChanged: (value) => setState(() { if (value == null) { _values.remove(key); } else { _values[key] = value; } })));
 
+  Widget _choices(String key, String label, Map<String, String> options, String allLabel) {
+    if (!_visible(key)) return const SizedBox.shrink();
+    final selected = _values[key];
+    return Padding(key: ValueKey('filter-$key'), padding: const EdgeInsets.only(top: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          ChoiceChip(key: ValueKey('filter-$key-all'), label: Text(allLabel),
+            selected: selected == null, showCheckmark: true,
+            onSelected: (_) => _changed(() => _values.remove(key))),
+          for (final option in options.entries)
+            ChoiceChip(key: ValueKey('filter-$key-${option.key}'), label: Text(option.value),
+              selected: selected == option.key, showCheckmark: true,
+              onSelected: (_) => _changed(() {
+                if (selected == option.key) { _values.remove(key); }
+                else { _values[key] = option.key; }
+              })),
+        ]),
+      ]));
+  }
+
+  Widget _minimumChoices(String key, String label, int last) {
+    if (!_visible(key)) return const SizedBox.shrink();
+    final raw = num.tryParse(_digits(_text[key]!.text));
+    final selected = raw != null && raw == raw.roundToDouble() ? raw.toInt() : null;
+    // The API is a single minimum, not a list of exact counts. Preserve a
+    // previously saved minimum above the visible range until explicitly edited.
+    final options = [for (var value = 1; value <= last; value++) value,
+      if (selected != null && (selected < 1 || selected > last)) selected];
+    return Padding(key: ValueKey('filter-$key'), padding: const EdgeInsets.only(top: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          ChoiceChip(key: ValueKey('filter-$key-all'), label: const Text('لا يشترط'),
+            selected: _text[key]!.text.isEmpty, showCheckmark: true,
+            onSelected: (_) => setState(() => _text[key]!.clear())),
+          for (final value in options)
+            ChoiceChip(key: ValueKey('filter-$key-$value'),
+              label: Text('${arabicDigits('$value')}${value >= last ? '+' : ''}'),
+              selected: selected == value, showCheckmark: true,
+              onSelected: (_) => setState(() => _text[key]!.text = selected == value ? '' : '$value')),
+        ]),
+      ]));
+  }
+
   @override
   Widget build(BuildContext context) {
     final type = _values['type'], rent = _values['purpose'] == 'rent';
@@ -86,15 +133,8 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
       padding: EdgeInsets.fromLTRB(18, 18, 18, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('شروط البحث', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 18),
-        if (_visible('type')) DropdownButtonFormField<String>(key: const ValueKey('filter-type'), value: _values['type'] as String?, isExpanded: true,
-          decoration: const InputDecoration(labelText: 'نوع العقار'), items: [const DropdownMenuItem(value: null, child: Text('كل الأنواع')),
-            for (final entry in SmartSearchFilters.types.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
-          onChanged: (value) => _changed(() { if (value == null) { _values.remove('type'); } else { _values['type'] = value; } })),
-        const SizedBox(height: 12),
-        if (_visible('purpose')) DropdownButtonFormField<String>(key: const ValueKey('filter-purpose'), value: _values['purpose'] as String?, isExpanded: true,
-          decoration: const InputDecoration(labelText: 'الغرض'), items: const [DropdownMenuItem(value: null, child: Text('بيع وإيجار')),
-            DropdownMenuItem(value: 'sale', child: Text('بيع')), DropdownMenuItem(value: 'rent', child: Text('إيجار'))],
-          onChanged: (value) => _changed(() { if (value == null) { _values.remove('purpose'); } else { _values['purpose'] = value; } })),
+        _choices('type', 'نوع العقار', SmartSearchFilters.types, 'كل الأنواع'),
+        _choices('purpose', 'الغرض', const {'sale': 'بيع', 'rent': 'إيجار'}, 'بيع وإيجار'),
         _field('search', 'المحافظة أو المنطقة'),
         _field('min_price', rent ? 'من إيجار شهري' : 'أقل سعر'), _field('max_price', rent ? 'حتى إيجار شهري' : 'أعلى سعر'),
         const SizedBox(height: 12),
@@ -103,7 +143,10 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
             DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
           onChanged: (value) => setState(() { if (value == null) { _values.remove('currency'); } else { _values['currency'] = value; } })),
         _field('min_area_m2', 'أقل مساحة بالمتر المربع'), _field('max_area_m2', 'أقصى مساحة بالمتر المربع'),
-        if (type == null || const ['apartment', 'house', 'villa'].contains(type)) ...[_field('min_bedrooms', 'غرف النوم على الأقل'), _field('min_bathrooms', 'دورات المياه على الأقل')],
+        if (type == null || const ['apartment', 'house', 'villa'].contains(type)) ...[
+          _minimumChoices('min_bedrooms', 'غرف النوم على الأقل', 6),
+          _minimumChoices('min_bathrooms', 'دورات المياه على الأقل', 5),
+        ],
         if (_visible('floor_number')) Padding(padding:const EdgeInsets.only(top:12),child:DropdownButtonFormField<String>(key:const ValueKey('filter-floor_number'),
           value:_text['floor_number']!.text.isEmpty ? null : _text['floor_number']!.text,isExpanded:true,decoration:const InputDecoration(labelText:'الدور'),
           items:[const DropdownMenuItem(value:null,child:Text('أي دور')),for(final e in DynamicPropertySchema.floorOptions.entries) DropdownMenuItem(value:e.key,child:Text(e.value)),

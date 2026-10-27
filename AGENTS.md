@@ -1,3 +1,7 @@
+# Owner UX wave — 2026-10-27 (in validation)
+
+The owner supplied the 12-page current-wave DOCX and asked to apply it on the latest unified source bdab326a. Read `docs/OWNER_UX_WAVE_2026-10-27_AR.md`. Six requests cover details/location, compact prices, fullscreen gestures, broker-only navigation, system location permission and filter chips. Existing search/map/AI entry behavior is explicitly excluded. This wave is in validation, not yet accepted on a physical phone; historical release evidence below does not certify the new UI.
+
 # AGENTS.md — REAL ESTATE UAT
 
 ## October27 phase32 engineering and owner handoff
