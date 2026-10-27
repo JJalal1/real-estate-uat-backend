@@ -57,9 +57,12 @@ Future<void> loadUxFixtures() async {
   await (FontLoader('NotoSansArabic')
     ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))
     ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'))).load();
-  await (FontLoader('PrimaryFont')
-    ..addFont(rootBundle.load('assets/ebroker/fonts/Manrope-Regular.ttf'))
-    ..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))).load();
+  await (FontLoader('sans-serif')..addFont(rootBundle.load('assets/fonts/NotoSansArabic-Regular.ttf'))).load();
+  final primary = FontLoader('PrimaryFont');
+  for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) {
+    primary.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf'));
+  }
+  await primary.load();
   final icons = await File('${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
   await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   final recorder = ui.PictureRecorder();
@@ -124,6 +127,11 @@ Future<void> closeUx(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox.shrink()); await tester.pump(const Duration(seconds: 1));
 }
 Future<void> uxPreview(WidgetTester tester, GlobalKey key, String name) async {
+  // Image codecs finish on the engine event loop, outside WidgetTester time.
+  for (var frame = 0; frame < 3; frame++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 80)));
+    await tester.pump();
+  }
   final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
   await tester.runAsync(() async {
     final image = await boundary.toImage(pixelRatio: 2);

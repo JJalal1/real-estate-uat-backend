@@ -93,6 +93,7 @@ void main() {
         await pumpUx(tester, scope, _gallery, size: const Size(320, 568), scale: scale, dark: dark, boundary: boundary);
         expect(tester.getRect(_viewer), const Rect.fromLTWH(0, 0, 320, 568));
         await uxPreview(tester, boundary, 'gallery-${dark ? 'dark' : 'light'}-$scale');
+        expect(find.byWidgetPredicate((widget) => widget is RawImage && widget.image != null), findsWidgets);
         expect(tester.takeException(), isNull); await closeUx(tester);
         await pumpUx(tester, scope, Scaffold(body: SingleChildScrollView(child: EbrokerPropertyHorizontalCard(
           title: 'منزل للبيع في إب', price: '999999999999', currency: 'YER', imageFirst: true,
