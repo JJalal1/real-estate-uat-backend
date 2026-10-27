@@ -1365,7 +1365,8 @@
     "id": 12691172891,
     "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40404098635/artifacts/12691172891",
     "sha256": "3175ace0dd5b7d6e2a40b2c7b678ed7f6afd4e95ae20f06104ffc1a76b062b83",
-    "bytes": 236832590
+    "bytes": 236832590,
+    "expires_at_utc": "2026-10-29T21:43:11Z"
   },
   "application_tree_ids": {
     "backend-api-runtime": "efed1a96666aeb1213efeeda87bef8d07cf16485",
@@ -1548,5 +1549,15 @@
       }
     },
     "viewport_evidence_artifact": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/40444068574/artifacts/12707626973"
+  },
+  "legacy_post_merge_failure": {
+    "source_sha": "04b28182645af61c3c7aa11dfbfdaed4c9e86454",
+    "job_id": 121976083509,
+    "run_id": 40439482213,
+    "original_result": "failure_before_build",
+    "cause": "Historical discovery build pinned to accepted source92bdd0c4a9de37290d68d6b876a1f8fdd0f36b46 and build1124; new accepted application correctly fails that old tree comparison.",
+    "remediation": "Update explicit accepted source to already-tested PR160 merge04b2818, preserve mobile/backend tree assertions and all40 nearby reads at concurrency20, serialize with other Free-UAT measurements, add pull-request validation, reuse existing Firebase importer, and upload only sanitized native verification JSON. The canonical owner installer remains the encrypted1358/1359 pair.",
+    "file": ".github/workflows/build-current-discovery-uat-apk.yml",
+    "corrected_check_evidence": "Latest check-runs on PR161; do not infer pass from this remediation description."
   }
 }

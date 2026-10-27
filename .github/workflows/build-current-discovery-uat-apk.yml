@@ -1,6 +1,10 @@
 name: Build current discovery UAT APK
 
 on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - '.github/workflows/build-current-discovery-uat-apk.yml'
   push:
     branches: [work/wave2-review-current]
     paths:
@@ -15,8 +19,10 @@ concurrency:
 
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
-  ACCEPTED_SOURCE_SHA: 92bdd0c4a9de37290d68d6b876a1f8fdd0f36b46
-  UAT_BUILD_NUMBER: '1124'
+  # PR160's accepted merge is application-identical to the fully tested
+  # source of the encrypted 1358/1359 pair. Keep this guard explicit.
+  ACCEPTED_SOURCE_SHA: 04b28182645af61c3c7aa11dfbfdaed4c9e86454
+  UAT_BUILD_NUMBER: '1359'
   AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
   APP_SHARE_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com
 
@@ -25,6 +31,12 @@ jobs:
     name: Verify and build current UAT APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    # Preserve the existing 40 reads / concurrency20 assertions, while keeping
+    # this historical discovery check isolated from other Free-UAT probes.
+    concurrency:
+      group: aqer-free-uat-http-measurements
+      queue: max
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,7 +50,7 @@ jobs:
           test "$(git rev-parse "${ACCEPTED_SOURCE_SHA}:mobile_app")" = "$(git rev-parse HEAD:mobile_app)"
           test "$(git rev-parse "${ACCEPTED_SOURCE_SHA}:backend-api-runtime")" = "$(git rev-parse HEAD:backend-api-runtime)"
           git diff --check "${ACCEPTED_SOURCE_SHA}..HEAD"
-          echo "Application trees match accepted discovery merge: ${ACCEPTED_SOURCE_SHA}"
+          echo "Application trees match the tested PR160 merge: ${ACCEPTED_SOURCE_SHA}"
 
       - uses: actions/setup-java@v4
         with:
@@ -112,6 +124,11 @@ jobs:
           print(f'40/40 nearby reads OK; p50={times[len(times)//2]:.3f}s; p95={times[max(0,int(len(times)*.95)-1)]:.3f}s')
           PY
 
+      - name: Reuse the validated optional UAT Firebase importer
+        env:
+          AQER_UAT_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.AQER_UAT_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: python3 -B scripts/import_ci_uat_firebase.py
+
       - name: Build release UAT APK
         working-directory: mobile_app
         run: >-
@@ -122,29 +139,38 @@ jobs:
           --dart-define=APP_BUILD_NUMBER=${UAT_BUILD_NUMBER}
           --dart-define=APP_SHARE_BASE_URL=${APP_SHARE_BASE_URL}
 
-      - name: Prepare verified artifact
+      - name: Verify current identity and prepare evidence without a plaintext installer
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
           src="mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk"
           test -f "$src"
-          out="dist/aqer-uat-${UAT_BUILD_NUMBER}.apk"
-          cp "$src" "$out"
-          sha256sum "$out" > dist/SHA256.txt
-          cat > dist/BUILD_INFO.txt <<EOF
-          environment=uat
-          build_number=${UAT_BUILD_NUMBER}
-          api_base_url=${UAT_API_BASE_URL}
-          accepted_source_sha=${ACCEPTED_SOURCE_SHA}
-          workflow_sha=${GITHUB_SHA}
-          android_application_id=com.aqer.yemen.uat
-          flutter_version=3.27.3
-          EOF
+          python3 - <<'PY'
+          import hashlib,json,os,re,subprocess,zipfile
+          from pathlib import Path
+          apk=Path('mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk')
+          sdk=Path(os.environ.get('ANDROID_SDK_ROOT') or os.environ['ANDROID_HOME'])
+          versions=sorted((p for p in (sdk/'build-tools').iterdir() if (p/'aapt').is_file() and (p/'apksigner').is_file()),key=lambda p:tuple(int(n) for n in re.findall(r'\d+',p.name)))
+          assert versions,'Android verification tools unavailable'
+          tools=versions[-1]
+          badging=subprocess.check_output([str(tools/'aapt'),'dump','badging',str(apk)],text=True)
+          identity=re.search(r"package: name='([^']+)' versionCode='([0-9]+)'",badging)
+          assert identity and identity.group(1)=='com.aqer.yemen.uat'
+          assert int(identity.group(2))==int(os.environ['UAT_BUILD_NUMBER'])
+          signature=subprocess.check_output([str(tools/'apksigner'),'verify','--verbose','--print-certs',str(apk)],text=True)
+          certificate=re.search(r'certificate SHA-256 digest: ([0-9a-fA-F]{64})',signature)
+          assert certificate,'No verified signing certificate'
+          with zipfile.ZipFile(apk) as archive:
+              assert archive.testzip() is None
+          report={'source_commit':os.environ['GITHUB_SHA'],'accepted_application_source':os.environ['ACCEPTED_SOURCE_SHA'],'package':identity.group(1),'version_code':int(identity.group(2)),'sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'certificate_sha256':certificate.group(1).lower(),'apksigner':'passed','zip_crc':'passed','purpose':'CI verification only; canonical owner APK delivery is the recipient-encrypted broker workflow','plaintext_apk_uploaded':False}
+          Path('dist/DISCOVERY_APK_VERIFICATION.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,sort_keys=True))
+          PY
 
       - uses: actions/upload-artifact@v4
         with:
-          name: aqer-uat-1124
-          path: dist/
+          name: discovery-uat-verification-${{ github.run_number }}
+          path: dist/DISCOVERY_APK_VERIFICATION.json
           if-no-files-found: error
           retention-days: 14
