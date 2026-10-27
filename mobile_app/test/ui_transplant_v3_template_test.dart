@@ -304,8 +304,8 @@ void main() {
     testWidgets('$type sees the navigation for its approved identity', (tester) async {
       await _pump(tester, user: _user(verified: true, type: type));
       final labels = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((item) => item.label).toList();
-      expect(labels.contains('الخريطة'), type != 'owner');
-      expect(labels.contains('الرسائل'), isTrue);
+      expect(labels, type == 'broker' ? ['الرئيسية','عملي','العملاء','حسابي']
+        : type == 'office' ? ['العقارات','الخريطة','الرسائل','حسابي'] : ['العقارات','الرسائل','إعلاناتي','حسابي']);
       expect(labels.contains('حسابي'), isTrue);
       expect(tester.takeException(), isNull);
     });

@@ -17,6 +17,7 @@ import 'package:real_estate_mobile/features/properties/data/property_repository.
 import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_location_address.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_location_picker_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_ai_sheet.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 import 'broker_experience_ui_test.dart' show BrokerTestAuth;
@@ -100,6 +101,7 @@ Future<void> _pump(WidgetTester tester, Widget child, {required _Assistant ai, _
     aiRepositoryProvider.overrideWithValue(ai), propertyRepositoryProvider.overrideWithValue(_Properties()),
     listingAccountDraftRepositoryProvider.overrideWithValue(drafts ?? Wave6Drafts()),
     if (picker != null) propertyLocationPickerProvider.overrideWithValue(picker),
+    propertyMapPreviewBuilderProvider.overrideWithValue((context,lat,lon) => Text('نقطة اختبار $lat,$lon')),
     authControllerProvider.overrideWith(() => BrokerTestAuth(1)),
     listingRecoveryStoreProvider.overrideWithValue(recovery ?? _Recovery(null)),
     voiceInputProvider.overrideWithValue(voice ?? Wave3VoiceFake()),
@@ -338,6 +340,7 @@ void main() {
     await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:recovery,drafts:drafts,picker:picker,boundary:boundary);
     await _tap(tester,'listing-select-location');
     expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    expect(find.text('نقطة اختبار 13.966,44.183'),findsOneWidget);
     await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
     expect(find.text('3/4'),findsOneWidget);
     await tester.tap(find.text('السابق'));await tester.pumpAndSettle();

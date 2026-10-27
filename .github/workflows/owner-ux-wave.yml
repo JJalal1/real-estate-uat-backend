@@ -45,6 +45,7 @@ jobs:
           flutter test --reporter expanded \
             test/owner_ux_gallery_filters_test.dart test/owner_ux_location_navigation_test.dart \
             test/new_wave_handoff_test.dart test/broker_experience_ui_test.dart \
+            test/wave6_product_ui_test.dart test/ui_transplant_v3_template_test.dart test/broker_listing_assistant_test.dart \
             test/startup_navigation_layout_test.dart test/uat_map_location_picker_test.dart \
             test/owner_share_release_test.dart test/uat_comments_fix_test.dart \
             test/active_wave_discovery_test.dart test/adaptive_image_quality_test.dart
