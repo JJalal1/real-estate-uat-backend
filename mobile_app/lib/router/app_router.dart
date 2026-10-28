@@ -1,3 +1,4 @@
+import '../features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:flutter/material.dart';
 import '../features/discovery/presentation/assisted_search_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -305,6 +306,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ),
       ),
+      GoRoute(path: '/marketplace-search-map', builder: (context, state) => const MarketplaceSearchMapScreen()),
       GoRoute(
         path: '/property-market',
         builder: (context, state) => AssistedSearchScreen(initialMapMode:true,entryFilters:SmartSearchFilters.fromMap({
@@ -353,3 +355,4 @@ class _RouteErrorScreen extends StatelessWidget {
     );
   }
 }
+

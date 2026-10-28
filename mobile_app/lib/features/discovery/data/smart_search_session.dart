@@ -34,6 +34,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   SmartSearchSession(this._ai, this._properties, {this.defaultLocation}) : super(const SmartSearchState());
   final AiRepository _ai;
   final PropertyRepository _properties;
+  SmartSearchState get snapshot => state;
   final SmartSearchFilters Function()? defaultLocation;
   Map<String, dynamic> _defaultContext = {};
   bool _usingDefaultLocation = false;
@@ -104,10 +105,10 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       message: message, lastRequest: state.lastRequest, draftText: draftText ?? state.draftText);
   }
 
-  void replaceManually(SmartSearchFilters filters) {
+  Future<void> replaceManually(SmartSearchFilters filters, {List<PropertySummary> retainedRows = const []}) {
     _usingDefaultLocation = false;
-    _replace(filters);
-    unawaited(search());
+    _replace(filters, retainedRows: retainedRows);
+    return search();
   }
 
   void remove(String key) => replaceManually(state.filters.without(key));
@@ -154,3 +155,4 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>((ref) =>
   SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
     defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).searchContext)));
+

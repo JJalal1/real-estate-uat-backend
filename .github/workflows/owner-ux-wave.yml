@@ -1,7 +1,7 @@
 name: Owner requested UX acceptance
 on:
   pull_request:
-    branches: [work/wave2-review-current, work/owner-ux-wave-20261027]
+    branches: [work/wave2-review-current, work/owner-ux-wave-20261027, work/wave1-experience-20261028]
     paths: ['mobile_app/**', '.github/workflows/owner-ux-wave.yml']
   workflow_dispatch:
 permissions:
@@ -57,3 +57,4 @@ jobs:
           path: mobile_app/build/owner-ux-preview/
           retention-days: 3
           if-no-files-found: warn
+

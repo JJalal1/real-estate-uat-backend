@@ -59,7 +59,7 @@ Future<GoRouter> _pumpHome(
         ),
       ),
       GoRoute(
-        path: '/property-market',
+        path: '/marketplace-search-map',
         builder: (_, __) => const Scaffold(body: Text('map destination')),
       ),
       GoRoute(
@@ -195,8 +195,16 @@ void main() {
       await tester.ensureVisible(target);
       await tester.tap(target);
       await tester.pumpAndSettle();
-      expect(router.state.uri.path, '/property-market');
-      expect(find.text('map destination'), findsOneWidget);
+      if (entry == 'home-search') {
+        // Wave2 explicitly replaces the old tap-to-map contract.
+        expect(router.state.uri.path, '/');
+        expect(tester.widget<TextField>(target).readOnly, isFalse);
+        expect(tester.widget<TextField>(target).textInputAction, TextInputAction.search);
+        expect(find.text('map destination'), findsNothing);
+      } else {
+        expect(router.state.uri.path, '/marketplace-search-map');
+        expect(find.text('map destination'), findsOneWidget);
+      }
     });
   }
 
@@ -228,7 +236,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();
-    expect(router.state.uri.path, '/property-market');
+    expect(router.state.uri.path, '/marketplace-search-map');
     expect(find.text('map destination'), findsOneWidget);
   });
 
@@ -343,3 +351,4 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+

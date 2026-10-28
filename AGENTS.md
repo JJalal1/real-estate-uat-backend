@@ -1,3 +1,7 @@
+# October28 Wave2 Home search - implementation authorized, review before merge
+
+The owner supplied the 11-page proposed search PDF, reviewed its five states, then explicitly requested implementation. Read `docs/WAVE2_HOME_SEARCH_2026-10-28_AR.md`. This supersedes the old Home tap-to-map and area/type autocomplete presentation for the new Home search flow. Preserve the current PR163/164 stack and its eight Wave1 changes; the new branch starts from PR164 a0e1c0e0. Editable Home input, first-character actual public listing suggestions, one IME/button submit, Home results, contextual horizontal chips and an optional map share semantic criteria while retaining separate Home/map spatial and scroll snapshots. Existing AI journeys, saved-search data/API and all protected permissions remain. No merge, deployment, schema change or paid resource is authorized by this implementation request. Exact-source CI/native APK and owner physical Android performance/acceptance remain distinct gates.
+
 # Owner UX wave — 2026-10-27 (implemented; live fixture gate open)
 
 The owner supplied the 12-page current-wave DOCX and asked to apply it on the latest unified source bdab326a. Read `docs/OWNER_UX_WAVE_2026-10-27_AR.md`. Six requests cover details/location, compact prices, fullscreen gestures, broker-only navigation, system location permission and filter chips. Existing search/map/AI entry behavior is explicitly excluded. PR163 implements this wave. Focused CI on 0df1791c passed strict analysis and124 behavioral/regression tests, including real Widget gestures, synthetic previews and GPS channel contracts. Full CI/native delivery is being collected. Live HTTP gates are blocked by the expired availability of synthetic fixtures60/62; auto-review rejected renewing them without explicit permission. Read `docs/OWNER_UX_UAT_FIXTURE_GATE_2026-10-27_AR.md`; no live mutation occurred and no red-CI merge is allowed. Physical phone acceptance remains open; historical evidence below does not certify the new UI.
@@ -234,4 +238,5 @@ Real-device subjective visual review is a Beta/launch-readiness gate. Lack of Co
 ## 14. When documentation and code disagree
 
 Code/live behavior wins for current-state facts. Product rules in this file and `docs/BUSINESS_RULES.md` win for intended behavior unless the product owner explicitly changes them. If a discrepancy is found, document it and fix the smallest correct layer before broad expansion.
+
 

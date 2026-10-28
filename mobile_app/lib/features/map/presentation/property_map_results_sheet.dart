@@ -12,11 +12,13 @@ const mapSaleColor = Color(0xff0b8a55);
 class PropertyMapResultsSheet extends StatefulWidget {
   const PropertyMapResultsSheet({required this.items, required this.itemBuilder,
     this.selectedId, this.loading = false, this.error, this.onRetry, this.onShowList,
-    this.more = false, this.onMore, super.key});
+    this.more = false, this.onMore, this.maxExtent = .84, this.collapsed = false, super.key});
   final List<PropertyMarker> items;
   final Widget Function(PropertyMarker property) itemBuilder;
   final int? selectedId;
   final bool loading, more;
+  final bool collapsed;
+  final double maxExtent;
   final String? error;
   final VoidCallback? onRetry, onShowList, onMore;
   @override
@@ -29,7 +31,13 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
   @override
   void didUpdateWidget(PropertyMapResultsSheet old) {
     super.didUpdateWidget(old);
-    if (widget.selectedId != null && widget.selectedId != old.selectedId) {
+    if (widget.collapsed != old.collapsed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _extent.isAttached) _extent.animateTo(widget.collapsed ? .14 : .29,
+          duration: const Duration(milliseconds: 200), curve: Curves.easeOutCubic);
+      });
+    }
+    if (!widget.collapsed && widget.selectedId != null && widget.selectedId != old.selectedId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         if (_scroll?.hasClients == true) _scroll!.jumpTo(0);
@@ -46,7 +54,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
     final selected = widget.items.where((row) => row.id == widget.selectedId);
     final rows = [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
     return DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
-      controller: _extent, initialChildSize: .29, minChildSize: .14, maxChildSize: .84,
+      controller: _extent, initialChildSize: .29, minChildSize: .14, maxChildSize: widget.maxExtent,
       snap: true, snapSizes: const [.29, .5], shouldCloseOnMinExtent: false,
       builder: (context, scroll) {
         _scroll = scroll;
@@ -147,3 +155,4 @@ class _Legend extends StatelessWidget {
     const SizedBox(width: 5), Text(label, style: Theme.of(context).textTheme.labelMedium),
   ]);
 }
+
