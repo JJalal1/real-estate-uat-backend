@@ -11,8 +11,7 @@ import 'smart_search_session.dart';
 // Reuse the existing public results engine, cancellation, paging and retry.
 // Home and the visible map have separate spatial snapshots, with one editor.
 SmartSearchSession _results(Ref ref) {
-  ref.watch(authControllerProvider.select((value) => value.isLoading
-    ? 'pending' : value.asData?.value?.id.toString() ?? 'guest'));
+  ref.watch(authControllerProvider.select((value) => value.asData?.value?.id));
   return SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider));
 }
 final homeSearchResultsProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>(_results);

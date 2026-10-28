@@ -33,8 +33,10 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
     super.didUpdateWidget(old);
     if (widget.collapsed != old.collapsed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _extent.isAttached) _extent.animateTo(widget.collapsed ? .14 : .29,
-          duration: const Duration(milliseconds: 200), curve: Curves.easeOutCubic);
+        if (mounted && _extent.isAttached) {
+          _extent.animateTo(widget.collapsed ? .14 : .29,
+            duration: const Duration(milliseconds: 200), curve: Curves.easeOutCubic);
+        }
       });
     }
     if (!widget.collapsed && widget.selectedId != null && widget.selectedId != old.selectedId) {
@@ -155,4 +157,3 @@ class _Legend extends StatelessWidget {
     const SizedBox(width: 5), Text(label, style: Theme.of(context).textTheme.labelMedium),
   ]);
 }
-

@@ -110,8 +110,9 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   void _openMap() {
     FocusScope.of(context).unfocus();
     final controller = ref.read(marketplaceSearchControllerProvider.notifier);
-    if (!ref.read(marketplaceSearchControllerProvider).active && _type != null) controller.applyFilters(
-      SmartSearchFilters.fromMap({...ref.read(marketplaceSearchControllerProvider).criteria.values, 'type': _type}));
+    if (!ref.read(marketplaceSearchControllerProvider).active && _type != null) {
+      controller.applyFilters(SmartSearchFilters.fromMap({...ref.read(marketplaceSearchControllerProvider).criteria.values, 'type': _type}));
+    }
     controller.enterMap();
     final place = ref.read(homeLocationProvider);
     context.push(Uri(path: '/marketplace-search-map', queryParameters: {
@@ -332,4 +333,3 @@ class _HomeLocationSheet extends ConsumerWidget {
           leading: const EbrokerIcon(Icons.location_on_outlined, size: 22), title: Text(row.label), onTap: () => Navigator.of(context).pop(row))]))),
     ])));
 }
-

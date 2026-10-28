@@ -238,5 +238,3 @@ Real-device subjective visual review is a Beta/launch-readiness gate. Lack of Co
 ## 14. When documentation and code disagree
 
 Code/live behavior wins for current-state facts. Product rules in this file and `docs/BUSINESS_RULES.md` win for intended behavior unless the product owner explicitly changes them. If a discrepancy is found, document it and fix the smallest correct layer before broad expansion.
-
-

@@ -231,8 +231,9 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !ref.read(marketplaceSearchControllerProvider).mapOpen)
+      if (mounted && !ref.read(marketplaceSearchControllerProvider).mapOpen) {
         ref.read(marketplaceSearchControllerProvider.notifier).enterMap();
+      }
     });
   }
   @override

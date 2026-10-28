@@ -166,7 +166,7 @@ void main() {
       (tester) async {
     final router = await _pumpHome(tester);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-property-37')), 250, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-property-37')), 250, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     // The October20 owner request hides Sai on discovery cards; price and real-ID navigation remain below.
     expect(find.textContaining('السعي'), findsNothing);
@@ -228,11 +228,11 @@ void main() {
   testWidgets('empty home leaves discovery usable', (tester) async {
     final router = await _pumpHome(tester, load: () async => []);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('لا توجد عقارات في هذه المنطقة الآن'), 250, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(find.text('لا توجد عقارات في هذه المنطقة الآن'), 250, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     expect(find.text('لا توجد عقارات في هذه المنطقة الآن'), findsOneWidget);
     final action = find.byKey(const ValueKey('home-map'));
-    await tester.scrollUntilVisible(action, -300, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(action, -300, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();
@@ -249,13 +249,13 @@ void main() {
     });
     await tester.pumpAndSettle();
     final retry = find.text('إعادة المحاولة');
-    await tester.scrollUntilVisible(retry, 250, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(retry, 250, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     await tester.tap(retry);
     await tester.pumpAndSettle();
     expect(calls, 2);
     expect(find.byKey(const ValueKey('home-property-37')), findsOneWidget);
-    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-search')), -300, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-search')), -300, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -304,7 +304,7 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         final pending = Completer<List<PropertyMarker>>();
         await _pumpHome(tester, load: () => pending.future, scale: scale);
-        await tester.scrollUntilVisible(find.byKey(const ValueKey('home-feed-loading')), 250, scrollable: find.byType(Scrollable).first);
+        await tester.scrollUntilVisible(find.byKey(const ValueKey('home-feed-loading')), 250, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
         await tester.pump();
         expect(find.byType(AppSkeleton), findsWidgets);
         expect(Directionality.of(tester.element(find.byType(MarketplaceHomeScreen))),
@@ -313,10 +313,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         final card = find.byKey(const ValueKey('home-property-37'));
-        await tester.scrollUntilVisible(card, 250, scrollable: find.byType(Scrollable).first);
+        await tester.scrollUntilVisible(card, 250, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        tester.state<ScrollableState>(find.byType(Scrollable).first).position.jumpTo(0);
+        tester.state<ScrollableState>(find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first).position.jumpTo(0);
         await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
       });
@@ -345,10 +345,9 @@ void main() {
     }
 
     await capture('home-top');
-    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-property-37')), 250, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('home-property-37')), 250, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     await capture('home-properties');
     expect(tester.takeException(), isNull);
   });
 }
-

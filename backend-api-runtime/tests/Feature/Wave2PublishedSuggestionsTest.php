@@ -73,7 +73,7 @@ class Wave2PublishedSuggestionsTest extends TestCase
     }
     private function listing(User $owner, array $values): Property
     {
-        return Property::create(array_merge(['user_id' => $owner->id, 'title' => 'شقة', 'description' => 'وصف الإعلان',
+        return Property::forceCreate(array_merge(['user_id' => $owner->id, 'title' => 'شقة', 'description' => 'وصف الإعلان',
             'purpose' => 'sale', 'type' => 'apartment', 'price' => 45000000, 'currency' => 'YER',
             'address' => 'صنعاء', 'latitude' => 15.36, 'longitude' => 44.19,
             'status' => 'published', 'review_status' => 'approved', 'availability_status' => 'available', 'published_at' => now()], $values));

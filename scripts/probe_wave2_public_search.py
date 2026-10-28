@@ -61,7 +61,7 @@ def main():
         listings({})  # Empty text remains a six-row page, never an unbounded fetch.
         for row in listings({'search': 'ش', 'south': 15.25, 'west': 44.0, 'north': 15.6, 'east': 44.5}):
             assert 15.25 <= float(row['latitude']) <= 15.6 and 44.0 <= float(row['longitude']) <= 44.5
-        for path in ('/properties/mine', '/listing-editor-drafts'):
+        for path in ('/properties/mine/list', '/listing-editor-drafts'):
             status, _ = get(path)
             assert status == 401
         times = sorted(m['ms'] for m in measurements)

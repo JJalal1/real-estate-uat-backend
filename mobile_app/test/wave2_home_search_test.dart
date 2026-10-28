@@ -116,8 +116,10 @@ void main() {
   test('S22 retain rows on 503, retry exact failed page and deduplicate pagination', () async {
     var fail = false;
     final properties = Listings()..respond = (_, page) async {
-      if (fail) throw DioException(requestOptions: RequestOptions(path:'/properties'),
-        response: Response(requestOptions: RequestOptions(path:'/properties'),statusCode:503),type:DioExceptionType.badResponse);
+      if (fail) {
+        throw DioException(requestOptions: RequestOptions(path:'/properties'),
+          response: Response(requestOptions: RequestOptions(path:'/properties'),statusCode:503),type:DioExceptionType.badResponse);
+      }
       return ([row(1), if(page==2) row(2)], page==1);
     };
     final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties)]);
@@ -189,8 +191,8 @@ void main() {
       expect(tester.widget<TextField>(input).controller!.text,'ش');
       expect(find.byKey(const ValueKey('published-suggestion-1')),findsOneWidget);
       await tester.tap(input);
-      if(keyboard) await tester.testTextInput.receiveAction(TextInputAction.search);
-      else await tester.tap(find.byKey(const ValueKey('published-search-submit')));
+      if(keyboard) { await tester.testTextInput.receiveAction(TextInputAction.search); }
+      else { await tester.tap(find.byKey(const ValueKey('published-search-submit'))); }
       await tester.pumpAndSettle();
       expect(properties.calls,hasLength(1));
       expect(find.byKey(const ValueKey('home-result-1')),findsOneWidget);
@@ -216,10 +218,10 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('home-search')),'ش');
     await tester.tap(find.byKey(const ValueKey('published-search-submit'))); await tester.pumpAndSettle();
     final homeScroll=tester.widget<CustomScrollView>(find.byKey(const PageStorageKey('home-search-results'))).controller!;
+    final open=tester.widget<TextButton>(find.byKey(const ValueKey('home-search-map'))).onPressed!;
     homeScroll.jumpTo(150); await tester.pump();
     // The entry lives at the top of the result sliver. Invoke its real callback
     // without altering the saved scroll position to make the restoration check exact.
-    final open=tester.widget<TextButton>(find.byKey(const ValueKey('home-search-map'))).onPressed!;
     open(); await tester.pumpAndSettle();
     expect(scope.read(marketplaceMapResultsProvider).filters.values['search'],'ش');
     final element=tester.element(find.byKey(const ValueKey('w2-native-canvas')));
@@ -257,6 +259,7 @@ void main() {
       expect(find.byKey(const ValueKey('published-filter-rooms')),findsNothing);
       expect(find.byKey(const ValueKey('published-filter-land-use')),findsOneWidget);
       expect(find.byType(DropdownButtonFormField<String>),findsNothing);
+      await tester.ensureVisible(find.byKey(const ValueKey('home-search'))); await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('home-search'))); await tester.enterText(find.byKey(const ValueKey('home-search')),'ش\nق');
       expect(tester.widget<TextField>(find.byKey(const ValueKey('home-search'))).controller!.text, 'شق');
       tester.view.viewInsets=const FakeViewPadding(bottom:200); await uxFrames(tester);

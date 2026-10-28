@@ -355,4 +355,3 @@ class _RouteErrorScreen extends StatelessWidget {
     );
   }
 }
-

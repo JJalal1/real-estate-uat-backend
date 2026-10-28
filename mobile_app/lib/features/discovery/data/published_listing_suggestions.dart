@@ -53,8 +53,7 @@ class PublishedListingSuggestions {
 }
 
 final publishedListingSuggestionsRepositoryProvider = Provider<PublishedListingSuggestions>((ref) {
-  ref.watch(authControllerProvider.select((value) => value.isLoading
-    ? 'pending' : value.asData?.value?.id.toString() ?? 'guest'));
+  ref.watch(authControllerProvider.select((value) => value.asData?.value?.id));
   ref.watch(propertyDataRevisionProvider);
   final repo = PublishedListingSuggestions(ref.watch(dioProvider));
   ref.onDispose(repo.clear);

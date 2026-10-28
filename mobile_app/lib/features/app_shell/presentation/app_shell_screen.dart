@@ -287,4 +287,3 @@ class _NavItemData {
   final String label;
   final IconData icon;
 }
-

@@ -155,4 +155,3 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>((ref) =>
   SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
     defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).searchContext)));
-

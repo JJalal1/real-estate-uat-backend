@@ -75,4 +75,3 @@ jobs:
             mobile_app/viewport-loading-http-metrics.json
           retention-days: 3
           if-no-files-found: warn
-

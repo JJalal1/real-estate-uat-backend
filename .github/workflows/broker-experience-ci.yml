@@ -502,4 +502,3 @@ jobs:
         env:
           APK_READ_TOKEN: ${{ github.token }}
         run: python3 -B scripts/read_ci_encrypted_apk_segment.py --part ${{ matrix.part }}
-

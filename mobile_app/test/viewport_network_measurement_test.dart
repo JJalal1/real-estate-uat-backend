@@ -81,7 +81,7 @@ void main() {
     await tester.pumpWidget(_app(dio, const MarketplaceHomeScreen()));
     await _networkFrames(tester, frames: 14);
     final initial = requested.length, initialBytes = bytes;
-    final position = tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+    final position = tester.state<ScrollableState>(find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first).position;
     position.jumpTo(position.maxScrollExtent);
     await _networkFrames(tester);
     final afterFastScroll = requested.length;
