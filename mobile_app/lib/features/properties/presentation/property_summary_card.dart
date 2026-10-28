@@ -96,5 +96,3 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
           : Icon(selected ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 19)));
   }
 }
-
-

@@ -237,7 +237,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         try { await ref.read(propertyDetailsProvider(widget.propertyId).future); } catch (_) { /* The page renders failure and retry. */ }
       },
       child: ListView(
-        key: PageStorageKey('property-details-${widget.propertyId}'),
+        key: ValueKey('property-details-${widget.propertyId}'),
         controller: widget.scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsetsDirectional.fromSTEB(
@@ -248,7 +248,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         ),
         children: [
           if (widget.inSheet) Center(child: Padding(padding: const EdgeInsets.only(bottom: 12),
-            child: Container(width: 42, height: 4, decoration: BoxDecoration(
+            child: Container(key: const ValueKey('property-details-handle'), width: 42, height: 4, decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))))),
           _Gallery(
             images: property.images,
@@ -857,4 +857,3 @@ String _formatPrice(double value) {
   }
   return buffer.toString();
 }
-

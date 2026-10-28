@@ -34,6 +34,7 @@ class PublicPhotoDiskCache {
   Future<void> _tail = Future.value();
   int _epoch = 0;
   int get epoch => _epoch;
+  Future<void> get idle => _tail;
   int hits = 0, writes = 0, invalidations = 0;
 
   bool eligible(String url) {
@@ -42,7 +43,7 @@ class PublicPhotoDiskCache {
         uri.host != origin.host || uri.port != origin.port ||
         !RegExp(r'^/api/property-media/[1-9][0-9]*$').hasMatch(uri.path) ||
         uri.queryParametersAll.values.any((values) => values.length != 1) ||
-        uri.queryParameters.keys.any((key) => key != 'variant' && key != 'v')) return false;
+        uri.queryParameters.keys.any((key) => key != 'variant' && key != 'v')) { return false; }
     final variant = uri.queryParameters['variant'];
     final version = uri.queryParameters['v'];
     return (variant == null || const ['thumb','card','preview','detail','gallery'].contains(variant)) &&
@@ -79,7 +80,7 @@ class PublicPhotoDiskCache {
       if (!await metadata.exists() || !await image.exists()) return null;
       final raw = jsonDecode(await metadata.readAsString());
       if (raw is! Map || raw['url'] != url || raw['etag'] is! String ||
-          raw['expires_at'] is! String) return null;
+          raw['expires_at'] is! String) { return null; }
       final expires = DateTime.tryParse(raw['expires_at'] as String);
       final length = await image.length();
       if (expires == null || !expires.isAfter(_clock()) || length < 1 || length > maxImageBytes || raw['bytes'] != length) {
@@ -97,7 +98,7 @@ class PublicPhotoDiskCache {
     if (!rules.contains('public') || rules.contains('private') || rules.contains('no-store') ||
         rules.contains('no-cache') || headers['set-cookie']?.isNotEmpty == true ||
         !(headers.value('content-type') ?? '').toLowerCase().startsWith('image/') ||
-        (headers.value('etag') ?? '').isEmpty) return null;
+        (headers.value('etag') ?? '').isEmpty) { return null; }
     for (final rule in rules) {
       if (!rule.startsWith('max-age=')) continue;
       final seconds = int.tryParse(rule.substring(8));
@@ -105,6 +106,7 @@ class PublicPhotoDiskCache {
     }
     return null;
   }
+  bool accepts(Headers headers) => _lifetime(headers) != null;
 
   Future<void> put(String url, Uint8List bytes, Headers headers, {required int expectedEpoch}) async {
     final lifetime = _lifetime(headers);
@@ -150,7 +152,12 @@ class PublicPhotoDiskCache {
   Future<void> _trim(Directory root) async {
     final entries = <({String key, DateTime at, int bytes})>[];
     await for (final file in root.list(followLinks: false)) {
-      if (file is! File || !file.path.endsWith('.json')) continue;
+      if (file is! File) continue;
+      if (file.path.endsWith('.tmp') || (file.path.endsWith('.img') &&
+          !await File(file.path.replaceFirst(RegExp(r'\.img$'), '.json')).exists())) {
+        await file.delete(); continue;
+      }
+      if (!file.path.endsWith('.json')) continue;
       final key = file.uri.pathSegments.last.replaceAll('.json', '');
       try {
         final data = jsonDecode(await file.readAsString()) as Map;

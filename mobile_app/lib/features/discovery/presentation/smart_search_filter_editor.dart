@@ -172,4 +172,3 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
       ]))));
   }
 }
-

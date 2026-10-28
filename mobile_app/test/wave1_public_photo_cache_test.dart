@@ -92,6 +92,22 @@ void main() {
     expect(await store.read(_url), isNull); dio.close();
   });
 
+  test('a new public revision replaces old bytes and a later no-store response removes the disk copy', () async {
+    final store = cache(); await store.put(_url, bytes, _headers(), expectedEpoch: store.epoch);
+    final replacement = Uint8List.fromList([5,6,7,8]);
+    var private = false;
+    final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (request, handler) =>
+      handler.resolve(Response<List<int>>(requestOptions: request, statusCode: 200, data: replacement,
+        headers: _headers(etag: '"revision-two"', control: private ? 'private, no-store' : 'public, max-age=86400')))));
+    final loader = PublicPhotoLoader(dio, store);
+    final result = await loader.load(_url, cancelToken: CancelToken()); await store.idle;
+    expect(result.bytes, replacement); expect(result.downloadedBytes, 4); expect(result.notModified, isFalse);
+    expect((await cache().read(_url))!.etag, '"revision-two"');
+    private = true;
+    await loader.load(_url, cancelToken: CancelToken()); await store.idle;
+    expect(await cache().read(_url), isNull); dio.close();
+  });
+
   test('superseded image response cannot persist or return a successful transfer', () async {
     final store = cache(), pending = Completer<Response<List<int>>>(), started = Completer<void>();
     final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (request, handler) async {

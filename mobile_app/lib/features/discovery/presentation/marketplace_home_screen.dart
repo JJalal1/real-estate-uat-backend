@@ -108,6 +108,18 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context), location = ref.watch(homeLocationProvider);
     final feed = ref.watch(marketplaceFeedProvider(_query));
+    ref.listen(marketplaceFeedProvider(_query), (_, next) {
+      final governorate = next.asData?.value.governorate;
+      final current = ref.read(homeLocationProvider);
+      if (!current.device || governorate == null) return;
+      unawaited(() async {
+        try {
+          final registry = await ref.read(homeLocationsProvider.future);
+          if (!mounted || !identical(ref.read(homeLocationProvider), current)) return;
+          await ref.read(discoveryLocationCoordinatorProvider).rememberPublicRegion(governorate, registry);
+        } catch (_) { /* Public context caching never blocks discovery. */ }
+      }());
+    });
     final data = feed.asData?.value;
     final label = data?.label ?? location.label;
     return Scaffold(backgroundColor: EbrokerDesign.page,
@@ -257,4 +269,3 @@ class _HomeLocationSheet extends ConsumerWidget {
           leading: const EbrokerIcon(Icons.location_on_outlined, size: 22), title: Text(row.label), onTap: () => Navigator.of(context).pop(row))]))),
     ])));
 }
-

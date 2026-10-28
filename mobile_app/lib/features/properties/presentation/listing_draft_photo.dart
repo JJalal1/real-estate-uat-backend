@@ -236,4 +236,3 @@ class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
     return Center(child: Semantics(label:'جارٍ تحميل الصورة',child:const SizedBox(width:22,height:22,child:CircularProgressIndicator(strokeWidth:2))));
   });
 }
-

@@ -168,6 +168,10 @@ jobs:
           php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php
           --filter=test_postgis_rejects_interior_overlap_but_allows_touching_borders
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Wave1 exact viewport and real area suggestions on PostGIS
+        run: |
+          php artisan test tests/Feature/Wave1ViewportDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+          php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php --filter=test_wave1_autocomplete --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Gemini boundaries and marketplace presentation on PostgreSQL
         run: >-
           php artisan test tests/Feature/Wave3AiAssistantTest.php tests/Feature/BrokerListingAssistantTest.php tests/Feature/Wave3DesignApiTest.php

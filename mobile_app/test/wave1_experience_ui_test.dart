@@ -1,0 +1,168 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
+import 'package:real_estate_mobile/features/discovery/data/discovery_location.dart';
+import 'package:real_estate_mobile/features/discovery/data/discovery_suggestions.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
+import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
+import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_details_sheet.dart';
+import 'support/owner_ux_fixtures.dart';
+
+class _LocationStore extends DiscoveryLocationStore {
+  DiscoveryLocationPreferences saved = const DiscoveryLocationPreferences();
+  @override
+  Future<DiscoveryLocationPreferences> load() async => saved;
+  @override
+  Future<void> save(DiscoveryLocationPreferences preferences) async { saved = preferences; }
+}
+class _LocationAccess extends DiscoveryLocationAccess {
+  int checks = 0, requests = 0;
+  final fix = Completer<HomeLocation>();
+  @override
+  Future<LocationPermission> permission() async { checks++; return LocationPermission.whileInUse; }
+  @override
+  Future<LocationPermission> requestPermission() async { requests++; return LocationPermission.whileInUse; }
+  @override
+  Future<HomeLocation> locate() => fix.future;
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadUxFixtures);
+
+  test('location introduction is passive, manual wins a late fix, and restart restores only a public city center', () async {
+    final store = _LocationStore(), access = _LocationAccess();
+    var state = const HomeLocation();
+    DiscoveryLocationCoordinator coordinator() => DiscoveryLocationCoordinator(store, access, () => state, (next) => state = next);
+    final first = coordinator(); await first.initialize();
+    expect(access.checks, 0); expect(access.requests, 0); expect(first.shouldOfferChoice, isTrue);
+    await first.markIntroductionShown();
+    final pending = first.useDevice();
+    await Future<void>.delayed(Duration.zero);
+    const manual = HomeLocation(latitude: 14, longitude: 44, governorate: 'إب', label: 'إب', manual: true);
+    await first.selectManual(manual);
+    access.fix.complete(const HomeLocation(latitude: 13.123456, longitude: 44.654321, device: true));
+    await pending; expect(state, same(manual)); expect(store.saved.manual, same(manual));
+    state = const HomeLocation(); await coordinator().initialize();
+    expect(state.governorate, 'إب'); expect(state.manual, isTrue); expect(access.requests, 0);
+
+    final secondStore = _LocationStore(), secondAccess = _LocationAccess();
+    var secondState = const HomeLocation();
+    final second = DiscoveryLocationCoordinator(secondStore, secondAccess, () => secondState, (next) => secondState = next);
+    await second.initialize();
+    final device = second.useDevice();
+    secondAccess.fix.complete(const HomeLocation(latitude: 13.123456, longitude: 44.654321, device: true));
+    await device;
+    await second.rememberPublicRegion('إب', const [manual]);
+    expect(secondStore.saved.manual, isNull);
+    expect(secondStore.saved.lastPublicRegion!.latitude, 14);
+    expect(secondStore.saved.lastPublicRegion!.longitude, 44);
+    expect(secondStore.saved.lastPublicRegion!.device, isFalse);
+    secondState = const HomeLocation();
+    final restarted = DiscoveryLocationCoordinator(secondStore, secondAccess, () => secondState, (next) => secondState = next);
+    await restarted.initialize();
+    expect(secondState.governorate, 'إب'); expect(secondState.latitude, 14);
+    expect(restarted.shouldOfferChoice, isFalse); expect(secondAccess.checks, 1);
+  });
+
+  for (final keyboard in [true, false]) {
+    testWidgets('typed suggestions submit exactly once by ${keyboard ? 'IME' : 'icon'} without clearing literal text', (tester) async {
+      DiscoverySearchChoice? result;
+      var submissions = 0;
+      final scope = uxContainer(extra: [discoverySuggestionsProvider.overrideWith((ref, text) async => [
+        if (text.contains('حدة')) const DiscoverySuggestion(label: 'حدة', kind: 'حي / منطقة'),
+      ])]);
+      await pumpUx(tester, scope, Builder(builder: (context) => Scaffold(body: TextButton(onPressed: () async {
+        final choice = await showModalBottomSheet<DiscoverySearchChoice>(context: context, isScrollControlled: true,
+          builder: (_) => const DiscoverySearchSheet(initialValue: 'صنعاء'));
+        if (choice != null) { result = choice; submissions++; }
+      }, child: const Text('افتح البحث')))));
+      await tester.tap(find.text('افتح البحث')); await tester.pumpAndSettle();
+      final field = find.byKey(const ValueKey('discovery-search-input'));
+      expect(tester.widget<TextField>(field).controller!.text, 'صنعاء');
+      await tester.enterText(field, 'منزل في حدة'); await uxFrames(tester);
+      expect(find.text('حدة'), findsOneWidget);
+      expect(find.text('حي / منطقة'), findsOneWidget);
+      expect(tester.widget<TextField>(field).controller!.text, 'منزل في حدة');
+      if (keyboard) { await tester.testTextInput.receiveAction(TextInputAction.search); }
+      else { await tester.tap(find.byKey(const ValueKey('discovery-search-submit'))); }
+      await tester.pumpAndSettle();
+      expect(submissions, 1); expect(result!.text, 'منزل في حدة'); expect(result!.suggestion, isNull);
+      expect(find.byKey(const ValueKey('discovery-search-input')), findsNothing);
+      expect(tester.takeException(), isNull); await closeUx(tester);
+    });
+  }
+
+  testWidgets('details expands, collapses and system back returns the original list offset', (tester) async {
+    final homeScroll = ScrollController(); addTearDown(homeScroll.dispose);
+    final details = PropertyDetails.fromJson({'id': 11, 'title': 'منزل اختبار حركة الإعلان', 'type': 'house',
+      'purpose': 'sale', 'price': 10000000, 'currency': 'YER', 'status': 'published', 'availability_status': 'available',
+      'description': List.filled(20, 'وصف العقار للاختبار.').join(' '),
+      'advertiser': {'id': 2, 'name': 'معلن اختبار', 'account_type': 'broker', 'verification_status': 'approved'}});
+    final scope = uxContainer(extra: [propertyDetailsProvider.overrideWith((ref, id) async => details)]);
+    final router = GoRouter(routes: [
+      GoRoute(path: '/', builder: (context, _) => Scaffold(appBar: AppBar(actions: [TextButton(
+        key: const ValueKey('open-details'), onPressed: () => context.push('/properties/11'), child: const Text('افتح الإعلان'))]),
+        body: ListView.builder(controller: homeScroll, itemCount: 100, itemBuilder: (_, index) => ListTile(title: Text('عقار $index'))))),
+      GoRoute(path: '/properties/:id', pageBuilder: (_, state) => PropertyDetailsSheetPage(propertyId: 11, key: state.pageKey)),
+    ]); addTearDown(router.dispose);
+    final boundary = GlobalKey();
+    await pumpUx(tester, scope, const SizedBox.shrink(), router: router, boundary: boundary);
+    homeScroll.jumpTo(400); await tester.pump(); final before = homeScroll.offset;
+    await tester.tap(find.byKey(const ValueKey('open-details'))); await tester.pumpAndSettle();
+    final draggable = tester.widget<DraggableScrollableSheet>(find.byKey(const ValueKey('property-details-sheet')));
+    expect(draggable.controller!.size, closeTo(.72, .02));
+    expect(find.text('منزل اختبار حركة الإعلان'), findsOneWidget);
+    await uxPreview(tester, boundary, 'wave1-details-partial');
+    await tester.drag(find.byKey(const ValueKey('property-details-handle')), const Offset(0, -650));
+    await tester.pumpAndSettle(); expect(draggable.controller!.size, greaterThan(.95));
+    final verification = find.text('التوثيق والتقييم');
+    await tester.scrollUntilVisible(verification, 300, scrollable: find.descendant(
+      of: find.byKey(const ValueKey('property-details-11')), matching: find.byType(Scrollable)).first);
+    await tester.ensureVisible(verification); await tester.tap(verification); await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull); // ExpansionTile state must not read a numeric scroll offset.
+    final list = tester.widget<ListView>(find.byKey(const ValueKey('property-details-11')));
+    list.controller!.jumpTo(0); await tester.pumpAndSettle();
+    await tester.drag(find.byKey(const ValueKey('property-details-handle')), const Offset(0, 200));
+    await tester.pumpAndSettle();
+    expect(draggable.controller!.size, lessThan(.95)); expect(draggable.controller!.size, greaterThan(.38));
+    await tester.binding.handlePopRoute(); await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('property-details-sheet')), findsNothing); expect(homeScroll.offset, before);
+    expect(tester.takeException(), isNull); await closeUx(tester);
+  });
+
+  for (final dark in [false, true]) {
+    testWidgets('map sheet drag and selection preserve the canvas at small RTL scale 2.4 theme $dark', (tester) async {
+      final rows = List.generate(5, (index) => PropertyMarker(id: index + 1, title: 'عقار اختبار ${index + 1}',
+        price: 999999999999, currency: 'YER', latitude: 15.36, longitude: 44.19, distanceKm: 0,
+        purpose: index.isEven ? 'sale' : 'rent', type: 'house', address: 'إب، منطقة الاختبار'));
+      int? selected; var canvasBuilds = 0;
+      final boundary = GlobalKey(), scope = uxContainer();
+      await pumpUx(tester, scope, StatefulBuilder(builder: (context, update) => Scaffold(body: Stack(children: [
+        Positioned.fill(child: Builder(builder: (_) { canvasBuilds++; return ColoredBox(key: const ValueKey('persistent-map'),
+          color: Colors.teal.shade50, child: Align(alignment: Alignment.topCenter, child: TextButton(
+            key: const ValueKey('select-marker'), onPressed: () => update(() => selected = 5), child: const Text('علامة الاختبار')))); })),
+        PropertyMapResultsSheet(items: rows, selectedId: selected, itemBuilder: (row) => PropertyMapResultCard(
+          property: row, favorite: false, onFavorite: () {}, onMap: () => update(() => selected = row.id), onDetails: () {})),
+      ]))), size: const Size(320, 568), scale: 2.4, dark: dark, boundary: boundary);
+      final canvasElement = tester.element(find.byKey(const ValueKey('persistent-map')));
+      await tester.tap(find.byKey(const ValueKey('select-marker'))); await tester.pumpAndSettle();
+      final sheet = tester.widget<DraggableScrollableSheet>(find.byKey(const ValueKey('map-results-sheet')));
+      expect(sheet.controller!.size, closeTo(.5, .02));
+      await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -300));
+      await tester.pumpAndSettle(); expect(sheet.controller!.size, greaterThan(.75));
+      expect(tester.element(find.byKey(const ValueKey('persistent-map'))), same(canvasElement)); expect(canvasBuilds, 2);
+      final list = tester.widget<ListView>(find.byKey(const ValueKey('map-results-list')));
+      expect(list.controller!.hasClients, isTrue);
+      expect(find.byKey(const ValueKey('map-result-5')), findsOneWidget);
+      await uxPreview(tester, boundary, 'wave1-map-sheet-${dark ? 'dark' : 'light'}-2.4');
+      expect(tester.takeException(), isNull); await closeUx(tester);
+    });
+  }
+}

@@ -61,7 +61,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     final text = _description.text.trim();
     final state = ref.read(smartSearchSessionProvider);
     if (text.isEmpty || _capture.active || state.interpreting ||
-      (state.started && state.aiError == null && state.draftText.isEmpty && text == state.lastRequest)) return;
+      (state.started && state.aiError == null && state.draftText.isEmpty && text == state.lastRequest)) { return; }
     if (text.length > 5000) { setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.'); return; }
     FocusScope.of(context).unfocus();
     _capture.clearError();
@@ -310,4 +310,3 @@ class _SmartSearchEmptyState extends StatelessWidget {
     );
   }
 }
-

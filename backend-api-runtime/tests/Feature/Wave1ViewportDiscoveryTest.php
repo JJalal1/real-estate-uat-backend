@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Property;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class Wave1ViewportDiscoveryTest extends TestCase
@@ -25,6 +26,9 @@ class Wave1ViewportDiscoveryTest extends TestCase
         $outside = $make('Synthetic outside', 17.0, 45.0);
         $private = $make('Synthetic private', 15.50, 44.20, 'draft');
         $rent = $make('Synthetic other purpose', 15.55, 44.20, 'published', 'rent');
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('UPDATE properties SET location = ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography WHERE user_id = ?', [$owner->id]);
+        }
         $query = ['latitude' => 15.36, 'longitude' => 44.19, 'radius_km' => 1,
             'south' => 15.30, 'west' => 44.10, 'north' => 16.0, 'east' => 44.30, 'purpose' => 'sale'];
         $legacy = $this->getJson('/api/properties/nearby?'.http_build_query($query))->assertOk();

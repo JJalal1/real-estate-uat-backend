@@ -29,8 +29,6 @@ import '../../../core/widgets/app_components.dart';
 import '../../discovery/presentation/smart_search_filter_editor.dart';
 import '../../discovery/data/discovery_suggestions.dart';
 import 'property_map_results_sheet.dart';
-import '../../properties/presentation/adaptive_property_photo.dart';
-import '../../../core/network/adaptive_image_policy.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../../discovery/data/smart_search_session.dart';
 import '../../discovery/data/marketplace_repository.dart';
@@ -945,7 +943,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
     if (!mounted) return;
     setState(() {
-      _center = center;
       _selected = null;
       _lastMarkerSignature = '';
     });
@@ -962,7 +959,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     });
     await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
     if (!mounted) return;
-    setState(() => _center = target);
+    // onCameraIdle commits center and bounds together after the animation.
   }
 
   void _openDetails(PropertyMarker property) {
@@ -1400,7 +1397,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               loading: rawProperties.isLoading, error: apiError == null ? null : friendlyApiError(apiError),
               onRetry: () => ref.invalidate(nearbyPropertiesProvider(query)),
               onShowList: () => setState(() => _listMode = true),
-              itemBuilder: (row) => _PropertyResultCard(property: row, selected: row.id == _selected?.id,
+              itemBuilder: (row) => PropertyMapResultCard(property: row,
                 favorite: favoriteIds.contains(row.id), onFavorite: _changingFavorite ? null : () => _toggleFavorite(row.id,
                   currentlyFavorite: favoriteIds.contains(row.id)), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
             if (_mapMessage != null && !_selectingArea)
@@ -1467,7 +1464,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(smartSearchSessionProvider.notifier).retryResults(),
         more: state.more, onMore: () => ref.read(smartSearchSessionProvider.notifier).search(more: true),
         onShowList: widget.onShowList,
-        itemBuilder: (row) => _PropertyResultCard(property: row, selected: row.id == _selected?.id,
+        itemBuilder: (row) => PropertyMapResultCard(property: row,
           favorite: favoriteIds.contains(row.id), onFavorite: _changingFavorite ? null : () => _toggleFavorite(row.id,
             currentlyFavorite: favoriteIds.contains(row.id)), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
     ]);
@@ -2114,7 +2111,7 @@ class _DiscoverySearchSheetState extends ConsumerState<DiscoverySearchSheet> {
             onChanged: (_) => setState(() {}), onSubmitted: (text) => _submit(text)),
           if (remote.isLoading && query.length >= 2) const Padding(padding: EdgeInsets.only(top: 8), child: LinearProgressIndicator()),
           if (query.isEmpty && widget.recentSearches.isNotEmpty) ...[
-            const SizedBox(height: 12), const Text('بحثت مؤخرًا'),
+            const SizedBox(height: 12), const Text('بحثت مؤخراً'),
             Wrap(spacing: 8, children: [for (final text in widget.recentSearches)
               ActionChip(label: Text(text), avatar: const Icon(Icons.history, size: 16), onPressed: () => _submit(text))]),
           ],
@@ -2414,4 +2411,3 @@ String _formatPrice(double value) {
   }
   return value.toStringAsFixed(0);
 }
-

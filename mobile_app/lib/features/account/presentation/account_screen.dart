@@ -395,4 +395,3 @@ class _AccountRow {
   final String? subtitle;
   final Key? key;
 }
-

@@ -25,6 +25,7 @@ jobs:
           channel: stable
           cache: true
       - name: Original dependency lock
+        id: lock
         working-directory: mobile_app
         run: |
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
@@ -35,9 +36,11 @@ jobs:
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
       - name: Wave1 behavior and regression
+        if: ${{ !cancelled() && steps.lock.outcome == 'success' }}
         working-directory: mobile_app
         run: |
           flutter test --reporter expanded test/wave1_public_photo_cache_test.dart \
+            test/wave1_experience_ui_test.dart \
             test/current_wave_contract_test.dart test/current_wave_ui_test.dart \
             test/search_query_wave_test.dart test/wave6_product_ui_test.dart \
             test/viewport_media_test.dart test/viewport_network_measurement_test.dart \

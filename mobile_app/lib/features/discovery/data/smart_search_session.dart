@@ -55,12 +55,12 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   void startFromHome({required String location, String? type}) => reset();
   void updateViewport({required double south, required double west, required double north, required double east}) {
     if (![south, west, north, east].every((value) => value.isFinite) || south >= north ||
-      south < -90 || north > 90 || west < -180 || east > 180) return;
+      south < -90 || north > 90 || west < -180 || east > 180) { return; }
     final values = Map<String,dynamic>.from(state.filters.values)..remove('latitude')..remove('longitude')..remove('radius_km')..remove('governorate');
     values.addAll({'south':south,'west':west,'north':north,'east':east});
     final next = SmartSearchFilters.fromMap(values);
     if (next.values.length == state.filters.values.length &&
-      next.values.entries.every((entry) => state.filters.values[entry.key] == entry.value)) return;
+      next.values.entries.every((entry) => state.filters.values[entry.key] == entry.value)) { return; }
     final retained = state.rows.where((row) => row.latitude >= south && row.latitude <= north &&
       (west <= east ? row.longitude >= west && row.longitude <= east : row.longitude >= west || row.longitude <= east)).toList(growable: false);
     _usingDefaultLocation = false;
@@ -154,4 +154,3 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>((ref) =>
   SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
     defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).searchContext)));
-

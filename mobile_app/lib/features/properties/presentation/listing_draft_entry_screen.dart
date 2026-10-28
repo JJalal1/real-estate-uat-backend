@@ -105,7 +105,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
             const SizedBox(height: 8), Text('${draft.progress}% من البيانات الأساسية'),
             TextButton(onPressed: _loading || _working ? null : () => _resume(draft), child: const Text('متابعة الإعلان')),
           ])),
-          for (final property in (_all || _drafts.isEmpty) ? _legacy.where((p) => !_drafts.any((d) => d.propertyId == p.id)) : <PropertyDetails>[])
+          for (final property in (_all || _drafts.isEmpty) ? _legacy.where((p) => !_drafts.any((d) => d.propertyId == p.id)).take(_all ? _legacy.length : 1) : <PropertyDetails>[])
             ListTile(title: Text(property.title), subtitle: const Text('مسودة محفوظة'),
               onTap: _working || _loading ? null : () => setState(() { _property = property; _open = true; }),
               trailing: PopupMenuButton<String>(tooltip: 'خيارات المسودة', enabled: !_working && !_loading, onSelected: (_) async {
@@ -124,4 +124,3 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       ])))))));
   }
 }
-

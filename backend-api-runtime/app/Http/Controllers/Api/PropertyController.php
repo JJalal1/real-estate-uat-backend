@@ -110,6 +110,19 @@ class PropertyController extends Controller
         if ($viewport && ! isset($validated['south'], $validated['west'], $validated['north'], $validated['east'])) {
             throw ValidationException::withMessages(['bounds' => ['Viewport discovery requires all four bounds.']]);
         }
+        // A conservative circle contains the complete rectangle, including a
+        // wrapped longitude interval. Keep ST_DWithin and its GiST index before
+        // the exact bounds filter and distance sort; the caller's old radius
+        // must not silently clip the visible viewport.
+        $candidateMeters = $radiusKm * 1000;
+        if ($viewport) {
+            $width = fmod((float) $validated['east'] - (float) $validated['west'] + 360, 360);
+            if ((float) $validated['east'] - (float) $validated['west'] >= 360) $width = 360;
+            $midpoint = (float) $validated['west'] + $width / 2;
+            $longitudeDelta = abs(fmod($longitude - $midpoint + 540, 360) - 180);
+            $latitudeDelta = max(abs($latitude - (float) $validated['south']), abs($latitude - (float) $validated['north']));
+            $candidateMeters = min(20100000, 112000 * ($latitudeDelta + min(180, $longitudeDelta + $width / 2)));
+        }
 
         if (DB::connection()->getDriverName() === 'pgsql') {
             $cacheFacts = $validated;
@@ -127,7 +140,7 @@ class PropertyController extends Controller
                 ]);
             }
 
-            $load = function () use ($validated, $longitude, $latitude, $radiusKm, $request, $viewport): array {
+            $load = function () use ($validated, $longitude, $latitude, $candidateMeters, $request): array {
                 $query = app(\App\Services\PropertyDiscoveryFilterService::class)
                     ->publicQuery()
                     ->with('primaryImage');
@@ -141,10 +154,10 @@ class PropertyController extends Controller
                     ->select('properties.*')
                     ->selectRaw("{$distanceSql} AS distance_m", [$longitude, $latitude])
                     ->whereNotNull('location')
-                    ->when(! $viewport, fn ($query) => $query->whereRaw(
+                    ->whereRaw(
                         "ST_DWithin(location, {$pointSql}, ?)",
-                        [$longitude, $latitude, $radiusKm * 1000],
-                    ))
+                        [$longitude, $latitude, $candidateMeters],
+                    )
                     ->orderBy('distance_m')
                     ->orderByDesc('id')
                     ->limit(250)
@@ -1152,4 +1165,3 @@ class PropertyController extends Controller
         return $earthRadiusKm * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 }
-

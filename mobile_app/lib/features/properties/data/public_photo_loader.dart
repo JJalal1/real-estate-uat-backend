@@ -17,7 +17,7 @@ class PublicPhotoLoader {
 
   Future<PublicPhotoTransfer> load(String url, {required CancelToken cancelToken}) async {
     final epoch = disk.epoch;
-    final cached = await disk.read(url);
+    final cached = await disk.read(url).timeout(const Duration(milliseconds: 300), onTimeout: () => null);
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
     final response = await dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes,
       headers: {if (cached != null) 'If-None-Match': cached.etag}, followRedirects: false,
@@ -30,6 +30,7 @@ class PublicPhotoLoader {
       await disk.forget(url);
       throw DioException.badResponse(statusCode: response.statusCode!, requestOptions: response.requestOptions, response: response);
     }
+    if (!disk.accepts(response.headers)) unawaited(disk.forget(url));
     // Disk bytes are never displayed before the server has revalidated public
     // visibility. Unpublication/authorization failure wins over a cached ETag.
     if (response.statusCode == 304 && cached != null) {

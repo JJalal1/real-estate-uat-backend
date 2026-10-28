@@ -311,5 +311,3 @@ class Stage8RegionsBrokerApiTest extends TestCase
         ];
     }
 }
-
-
