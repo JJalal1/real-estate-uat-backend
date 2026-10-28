@@ -9,6 +9,7 @@ import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/discovery/data/discovery_location.dart';
 import 'package:real_estate_mobile/features/discovery/data/discovery_suggestions.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_details_screen.dart';
@@ -18,6 +19,7 @@ import 'package:real_estate_mobile/features/properties/domain/property_details.d
 import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_details_sheet.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_draft_entry_screen.dart';
+import 'package:real_estate_mobile/router/app_router.dart';
 import 'support/owner_ux_fixtures.dart';
 import 'support/wave6_fakes.dart';
 import 'wave6_product_ui_test.dart' show editorSnapshot;
@@ -197,6 +199,44 @@ void main() {
     old.pending.complete(old.drafts[secondKey]!); await uxFrames(tester);
     expect(find.text('المسودة الأخيرة'), findsNothing); expect(find.text('مسودة سابقة'), findsNothing);
     expect(old.drafts, hasLength(2)); expect(old.saves, isEmpty);
+    expect(tester.takeException(), isNull); await closeUx(tester);
+  });
+
+  testWidgets('a directly opened property link can drag closed to Home with the actual router', (tester) async {
+    final scope = uxContainer(extra: [propertyDetailsProvider.overrideWith((ref, id) async => wave6Property(id))]);
+    await scope.read(authControllerProvider.future);
+    final router = scope.read(appRouterProvider); addTearDown(router.dispose);
+    router.go('/properties/11');
+    await pumpUx(tester, scope, const SizedBox.shrink(), router: router);
+    await tester.pumpAndSettle(); expect(router.canPop(), isTrue);
+    await tester.drag(find.byKey(const ValueKey('property-details-handle')), const Offset(0, 600));
+    await uxFrames(tester); await tester.pumpAndSettle();
+    expect(router.routeInformationProvider.value.uri.path, '/');
+    expect(find.byKey(const ValueKey('property-details-sheet')), findsNothing);
+    expect(tester.takeException(), isNull); await closeUx(tester);
+  });
+
+  testWidgets('ordinary map and full list roundtrip keeps the same canvas, typed query and result request', (tester) async {
+    var requests = 0;
+    const row = PropertyMarker(id: 11, title: 'منزل اختبار حدة', price: 10000000, currency: 'YER',
+      latitude: 15.36, longitude: 44.19, distanceKm: 0, type: 'house', purpose: 'sale');
+    final scope = uxContainer(extra: [
+      nearbyPropertiesProvider.overrideWith((ref, query) async { requests++; return const [row]; }),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, select, viewport) =>
+        const ColoredBox(key: ValueKey('ordinary-native-canvas'), color: Colors.teal)),
+    ]);
+    await pumpUx(tester, scope, MapScreen(initialFilters: SmartSearchFilters.fromMap({'search': 'حدة', 'type': 'house'})));
+    await tester.pumpAndSettle();
+    final element = tester.element(find.byKey(const ValueKey('ordinary-native-canvas')));
+    final query = tester.widget<TextField>(find.byType(TextField).first).controller!.text;
+    await tester.tap(find.byTooltip('عرض القائمة')); await tester.pumpAndSettle();
+    expect(find.text('قائمة العقارات'), findsOneWidget);
+    expect(find.byKey(const ValueKey('ordinary-native-canvas')), findsNothing);
+    expect(find.byKey(const ValueKey('ordinary-native-canvas'), skipOffstage: false), findsOneWidget);
+    await tester.tap(find.text('خريطة')); await tester.pumpAndSettle();
+    expect(tester.element(find.byKey(const ValueKey('ordinary-native-canvas'))), same(element));
+    expect(tester.widget<TextField>(find.byType(TextField).first).controller!.text, query);
+    expect(query, 'حدة'); expect(requests, 1);
     expect(tester.takeException(), isNull); await closeUx(tester);
   });
 

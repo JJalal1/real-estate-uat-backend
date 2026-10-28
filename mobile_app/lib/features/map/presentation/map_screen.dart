@@ -1370,14 +1370,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               orElse: () => const <int>{},
             );
 
-    if (_listMode) {
-      return _withSharedSession(_buildListMode(properties, query, favoriteIds));
-    }
-
     final apiError = properties.asError?.error;
     final canvas = ref.watch(sharedSearchMapBuilderProvider);
 
-    return _withSharedSession(Directionality(
+    return _withSharedSession(Stack(fit: StackFit.expand, children: [Offstage(offstage: _listMode, child: Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         body: SmartSearchAssistantLayer(enabled: !_selectingArea, showComparisonTray: false, bottom: MediaQuery.sizeOf(context).height * .29 + 24, onPressed: _openSmartSearch, child: Stack(
@@ -1409,7 +1405,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ],
         )),
       ),
-    ));
+    )),
+      if (_listMode) _buildListMode(properties, query, favoriteIds),
+    ]));
   }
 
   String _viewportSignature(LatLngBounds bounds) => '${bounds.southwest.latitude.toStringAsFixed(5)}:${bounds.southwest.longitude.toStringAsFixed(5)}:${bounds.northeast.latitude.toStringAsFixed(5)}:${bounds.northeast.longitude.toStringAsFixed(5)}';

@@ -56,7 +56,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) => internalLocationForAppLink(state.uri),
     errorBuilder: (context, state) => const _RouteErrorScreen(),
     routes: [
-      GoRoute(path: '/', builder: (context, state) => const AppShellScreen()),
+      GoRoute(path: '/', builder: (context, state) => const AppShellScreen(), routes: [
+        // Keep a home page below a directly opened property link as well as
+        // normal pushes, so dragging the sheet closed always has a destination.
+        GoRoute(path: 'properties/:id', pageBuilder: (context, state) {
+          final propertyId = int.tryParse(state.pathParameters['id'] ?? '');
+          if (propertyId == null || propertyId <= 0) {
+            return MaterialPage<void>(key: state.pageKey, child: const _RouteErrorScreen());
+          }
+          return PropertyDetailsSheetPage(key: state.pageKey, propertyId: propertyId,
+            summary: state.extra is PropertySummary ? state.extra as PropertySummary : null);
+        }),
+      ]),
       GoRoute(path: '/smart-search', builder: (context, state) => AssistedSearchScreen(savedSearch:state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null)),
       GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(
         section: state.uri.queryParameters['section'] ?? 'latest',
@@ -264,17 +275,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const Stage6AuthGate(
           child: SupportWorkLogScreen(),
         ),
-      ),
-      GoRoute(
-        path: '/properties/:id',
-        pageBuilder: (context, state) {
-          final propertyId = int.tryParse(state.pathParameters['id'] ?? '');
-          if (propertyId == null || propertyId <= 0) {
-            return MaterialPage<void>(key: state.pageKey, child: const _RouteErrorScreen());
-          }
-          return PropertyDetailsSheetPage(key: state.pageKey, propertyId: propertyId,
-            summary: state.extra is PropertySummary ? state.extra as PropertySummary : null);
-        },
       ),
       GoRoute(
         path: '/add-property',

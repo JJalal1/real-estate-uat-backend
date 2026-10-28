@@ -70,7 +70,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       final coordinator = ref.read(discoveryLocationCoordinatorProvider);
       if (prompt) { await coordinator.useDevice(); } else {
         await coordinator.initialize();
-        if (mounted && coordinator.shouldOfferChoice) {
+        if (mounted && coordinator.shouldOfferChoice && ModalRoute.of(context)?.isCurrent != false) {
           await coordinator.markIntroductionShown();
           if (!mounted) return;
           setState(() => _locationBusy = false);
