@@ -1,0 +1,77 @@
+name: Wave1 experience acceptance
+on:
+  pull_request:
+    branches: [work/owner-ux-wave-20261027, work/wave2-review-current]
+    paths: ['mobile_app/**', 'backend-api-runtime/**', '.github/workflows/wave1-experience.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: wave1-experience-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  wave1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Original dependency lock
+        id: lock
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Strict analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Wave1 behavior and regression
+        if: ${{ !cancelled() && steps.lock.outcome == 'success' }}
+        working-directory: mobile_app
+        run: |
+          flutter test --reporter expanded test/wave1_public_photo_cache_test.dart \
+            test/wave1_experience_ui_test.dart \
+            test/current_wave_contract_test.dart test/current_wave_ui_test.dart \
+            test/search_query_wave_test.dart test/wave6_product_ui_test.dart \
+            test/product_ux_current_search_save_test.dart \
+            test/viewport_media_test.dart test/viewport_network_measurement_test.dart \
+            test/user_work_media_test.dart test/owner_ux_gallery_filters_test.dart \
+            test/owner_ux_location_navigation_test.dart test/public_discovery_cancellation_test.dart
+      - name: Actual loopback HTTP viewport measurements
+        if: ${{ !cancelled() && steps.lock.outcome == 'success' }}
+        working-directory: mobile_app
+        run: >-
+          flutter test --reporter expanded --dart-define=AQER_VIEWPORT_HTTP_PROBE=true
+          test/viewport_network_measurement_test.dart
+          --name='count actual home HTTP requests|fast ballistic scrolling'
+      - name: Actual loopback HTTP refresh, retry and pagination
+        if: ${{ !cancelled() && steps.lock.outcome == 'success' }}
+        working-directory: mobile_app
+        run: >-
+          flutter test --reporter expanded --dart-define=AQER_DISCOVERY_HTTP_PROBE=true
+          test/discovery_http_acceptance_test.dart
+          --name='actual HTTP delayed load'
+      - name: Synthetic previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wave1-synthetic-previews-${{ github.run_number }}
+          path: |
+            mobile_app/build/owner-ux-preview/
+            mobile_app/build/wave6-preview/
+            mobile_app/build/search-query-preview/
+            mobile_app/viewport-http-metrics.json
+            mobile_app/viewport-fling-metrics.json
+            mobile_app/viewport-loading-http-metrics.json
+          retention-days: 3
+          if-no-files-found: warn

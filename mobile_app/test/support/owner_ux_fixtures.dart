@@ -18,6 +18,7 @@ import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/properties/data/favorites_repository.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'package:real_estate_mobile/features/properties/data/public_photo_disk_cache.dart';
 import 'package:real_estate_mobile/features/properties/data/recent_properties_store.dart';
 import '../broker_experience_ui_test.dart' show BrokerTestRepository;
 import 'wave3_fakes.dart';
@@ -50,6 +51,18 @@ class _Credentials implements AuthRepository {
 class _Network extends MediaNetworkMonitor {
   @override
   Future<ImageNetworkConditions> snapshot({bool refresh = false}) async => const ImageNetworkConditions(metered: false, transport: 'wifi');
+}
+
+// Widget previews isolate native filesystem access. Real disk/ETag behavior
+// is covered separately by wave1_public_photo_cache_test.dart with actual IO.
+class _PreviewDisk extends PublicPhotoDiskCache {
+  _PreviewDisk() : super(origin: Uri.parse('https://synthetic.example'));
+  @override
+  Future<PublicPhotoRecord?> read(String url) async => null;
+  @override
+  Future<void> put(String url, Uint8List bytes, Headers headers, {required int expectedEpoch}) async {}
+  @override
+  Future<void> forget(String url) async {}
 }
 
 late Uint8List uxImage;
@@ -91,6 +104,7 @@ ProviderContainer uxContainer({AuthUser? user, UxAuth? auth, BrokerRepository? b
     authControllerProvider.overrideWith(() => auth ?? UxAuth(user)),
     authRepositoryProvider.overrideWithValue(_Credentials()),
     dioProvider.overrideWithValue(dio),
+    publicPhotoDiskCacheProvider.overrideWithValue(_PreviewDisk()),
     mediaNetworkMonitorProvider.overrideWithValue(_Network()),
     propertyRepositoryProvider.overrideWithValue(Wave6Properties()),
     brokerRepositoryProvider.overrideWithValue(broker ?? BrokerTestRepository()),

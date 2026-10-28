@@ -39,27 +39,18 @@ class AccountScreen extends ConsumerWidget {
               SliverPersistentHeader(pinned: true, delegate: _AccountHeaderDelegate(user: user, scale: MediaQuery.textScalerOf(context).scale(14) / 14)),
               SliverPadding(padding: const EdgeInsetsDirectional.fromSTEB(AppLayout.compactPageGutter, 12, AppLayout.compactPageGutter, AppSpacing.s32),
                 sliver: SliverList.list(children: [
-                AppListRow(key: const ValueKey('account-smart-search'),
-                  title: 'البحث الذكي', subtitle: 'ابحث بالنص أو الصوت وعدّل شروطك بسهولة',
-                  leading: const EbrokerIcon(Icons.auto_awesome_outlined),
-                  onTap: () => context.push('/smart-search')),
-                const SizedBox(height: AppSpacing.s12),
-                AppListRow(
-                  title: 'شوهد مؤخرًا',
-                  subtitle: 'سجل محلي على هذا الجهاز فقط',
-                  leading: const EbrokerIcon(Icons.history_outlined),
-                  onTap: () => context.push('/recent'),
-                ),
-                const SizedBox(height: AppSpacing.s12),
-                AppListRow(
-                  title: 'المظهر',
-                  subtitle: _themeModeLabel(ref.watch(appThemeModeProvider)),
-                  leading: const EbrokerIcon(Icons.contrast_outlined),
-                  onTap: () => showModalBottomSheet<void>(
+                _AccountGroup(key: const ValueKey('account-preferences-group'), rows: [
+                  _AccountRow('البحث الذكي', Icons.auto_awesome_outlined,
+                    () => context.push('/smart-search'),
+                    key: const ValueKey('account-smart-search'),
+                    subtitle: 'ابحث بالنص أو الصوت وعدّل شروطك بسهولة'),
+                  _AccountRow('شوهد مؤخرًا', Icons.history_outlined,
+                    () => context.push('/recent'), subtitle: 'سجل محلي على هذا الجهاز فقط'),
+                  _AccountRow('المظهر', Icons.contrast_outlined, () => showModalBottomSheet<void>(
                     context: context,
                     builder: (_) => const _ThemeModeSheet(),
-                  ),
-                ),
+                  ), subtitle: _themeModeLabel(ref.watch(appThemeModeProvider))),
+                ]),
                 const SizedBox(height: AppSpacing.s12),
                 if (user == null) ...[
                   AppListRow(title: 'المفضلة', leading: const EbrokerImage('heart'),
@@ -319,7 +310,7 @@ class _AccountHeaderDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class _AccountGroup extends StatelessWidget {
-  const _AccountGroup({required this.rows});
+  const _AccountGroup({required this.rows, super.key});
 
   final List<_AccountRow> rows;
 
@@ -333,7 +324,9 @@ class _AccountGroup extends StatelessWidget {
           return Column(
             children: [
               AppListRow(
+                key: row.key,
                 title: row.title,
+                subtitle: row.subtitle,
                 leading: EbrokerIcon(row.icon),
                 onTap: row.onTap,
               ),
@@ -394,9 +387,11 @@ class _ThemeModeSheet extends ConsumerWidget {
 
 
 class _AccountRow {
-  const _AccountRow(this.title, this.icon, this.onTap);
+  const _AccountRow(this.title, this.icon, this.onTap, {this.subtitle, this.key});
 
   final String title;
   final IconData icon;
   final VoidCallback onTap;
+  final String? subtitle;
+  final Key? key;
 }

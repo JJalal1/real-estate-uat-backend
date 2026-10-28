@@ -46,9 +46,12 @@ final propertyDetailsProvider =
 });
 
 class PropertyDetailsScreen extends ConsumerStatefulWidget {
-  const PropertyDetailsScreen({required this.propertyId, super.key});
+  const PropertyDetailsScreen({required this.propertyId, this.scrollController, this.inSheet = false, this.initialSummary, super.key});
 
   final int propertyId;
+  final ScrollController? scrollController;
+  final bool inSheet;
+  final PropertySummary? initialSummary;
 
   @override
   ConsumerState<PropertyDetailsScreen> createState() => _PropertyDetailsScreenState();
@@ -161,7 +164,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         body: details.when(
           skipLoadingOnReload: false,
           skipError: retain,
-          loading: () => const _PropertyDetailsSkeleton(),
+          loading: () => _PropertyDetailsSkeleton(scrollController: widget.scrollController,
+            summary: widget.initialSummary?.id == widget.propertyId && widget.initialSummary?.status == 'published' ? widget.initialSummary : null),
           error: (error, _) => AppErrorState(
             message: friendlyApiError(error),
             onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId)),
@@ -222,6 +226,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     ];
 
     return RefreshIndicator(
+      notificationPredicate: (notification) => !widget.inSheet && notification.depth == 0,
       onRefresh: () async {
         ref.invalidate(propertyDetailsProvider(widget.propertyId));
         ref.invalidate(propertySaiPublicProvider(widget.propertyId));
@@ -232,6 +237,8 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         try { await ref.read(propertyDetailsProvider(widget.propertyId).future); } catch (_) { /* The page renders failure and retry. */ }
       },
       child: ListView(
+        key: ValueKey('property-details-${widget.propertyId}'),
+        controller: widget.scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsetsDirectional.fromSTEB(
           AppLayout.compactPageGutter,
@@ -240,6 +247,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           published && !property.isOwner ? 124.0 : AppSpacing.s40,
         ),
         children: [
+          if (widget.inSheet) Semantics(label: 'اسحب لتوسيع الإعلان أو تصغيره',
+            child: Listener(key: const ValueKey('property-details-handle'), behavior: HitTestBehavior.opaque,
+              child: SizedBox(height: 24, child: Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))))))),
           _Gallery(
             images: property.images,
             privateImages:property.status!='published',
@@ -776,22 +787,28 @@ class _PropertyPrimaryActions extends StatelessWidget {
 }
 
 class _PropertyDetailsSkeleton extends StatelessWidget {
-  const _PropertyDetailsSkeleton();
+  const _PropertyDetailsSkeleton({this.scrollController, this.summary});
+  final ScrollController? scrollController;
+  final PropertySummary? summary;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
+      controller: scrollController,
       padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
-      children: const [
-        AppSkeleton(height: 260, radius: AppRadii.card),
-        SizedBox(height: AppSpacing.s40),
-        AppSkeleton(height: 32),
-        SizedBox(height: AppSpacing.s12),
-        AppSkeleton(height: 24, width: 180),
-        SizedBox(height: AppSpacing.s24),
-        AppSkeleton(height: 120, radius: AppRadii.card),
-        SizedBox(height: AppSpacing.s16),
-        AppSkeleton(height: 160, radius: AppRadii.card),
+      children: [
+        if (summary case final PropertySummary row) ...[
+          AppPropertyMedia(imageUrl: row.mainImage, height: 260, propertyType: row.type),
+          const SizedBox(height: 12), Text(row.title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8), AppPropertyPrice(price: _formatPrice(row.purpose == 'rent' ? row.monthlyRent ?? row.price : row.price), currency: row.currency),
+          const SizedBox(height: 8), const Text('جارٍ تحديث تفاصيل الإعلان…'),
+        ] else ...[
+          const AppSkeleton(height: 260, radius: AppRadii.card),
+          const SizedBox(height: AppSpacing.s40), const AppSkeleton(height: 32),
+          const SizedBox(height: AppSpacing.s12), const AppSkeleton(height: 24, width: 180),
+        ],
+        const SizedBox(height: AppSpacing.s24), const AppSkeleton(height: 120, radius: AppRadii.card),
+        const SizedBox(height: AppSpacing.s16), const AppSkeleton(height: 160, radius: AppRadii.card),
       ],
     );
   }

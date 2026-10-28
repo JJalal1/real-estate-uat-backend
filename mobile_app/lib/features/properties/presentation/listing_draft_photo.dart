@@ -2,6 +2,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/listing_account_draft_repository.dart';
+import '../data/public_photo_disk_cache.dart';
+import '../data/public_photo_loader.dart';
+import '../data/property_repository.dart';
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_controller.dart';
 import 'dart:async';
@@ -13,6 +16,7 @@ import '../../../core/widgets/viewport_media.dart';
 final listingPhotoCacheProvider = Provider<ListingPhotoCache>((ref) {
   ref.watch(authControllerProvider.select((s) => (s.asData?.value?.id, s.asData?.value?.isActive, s.asData?.value?.permissions.toString())));
   final cache = ListingPhotoCache();
+  ref.listen(propertyDataRevisionProvider, (_, __) => cache.clear());
   ref.onDispose(cache.clear);
   return cache;
 });
@@ -27,6 +31,16 @@ class ListingPhotoCache {
   final DateTime Function() _clock;
   final _entries = <String, _PhotoEntry>{};
   int _epoch = 0;
+  int memoryHits = 0, deduplicatedLoads = 0, networkRequests = 0, networkBytes = 0, notModified = 0;
+  Uint8List? peek(String key) => _entries[key]?.data;
+  Uint8List? peekPublicPreview(String url) {
+    if (!AdaptiveImagePolicy.supportsVariants(url)) return null;
+    for (final variant in const ['card','thumb','preview','detail']) {
+      final bytes = peek('public:${AdaptiveImagePolicy.variantUrl(url, variant)}');
+      if (bytes != null) return bytes;
+    }
+    return null;
+  }
   void clear() {
     _epoch++;
     for (final entry in _entries.values) {
@@ -55,7 +69,10 @@ class ListingPhotoCache {
       return expired;
     });
     final previous = _entries.remove(key);
-    if (previous != null) { if (retain) previous.references++; _entries[key] = previous; return previous.future; }
+    if (previous != null) {
+      if (previous.data != null) { memoryHits++; } else { deduplicatedLoads++; }
+      if (retain) previous.references++; _entries[key] = previous; return previous.future;
+    }
     final epoch = _epoch, entry = _PhotoEntry()..cancellation = cancellation..references = retain ? 1 : 0;
     entry.future = Future<Uint8List>.sync(loader).then((bytes) {
       if (bytes.isEmpty || bytes.lengthInBytes > maxImageBytes) throw StateError('Invalid display image size');
@@ -142,29 +159,49 @@ class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
   String get _cacheKey => '${widget.authenticated ? 'private' : 'public'}:${widget.url}';
   Future<Uint8List> _load() {
     _lease?.close();
-    _lease = ref.read(listingPhotoCacheProvider).acquire(_cacheKey, _fetch);
+    final cache = ref.read(listingPhotoCacheProvider);
+    _displayBytes ??= cache.peek(_cacheKey) ?? (widget.authenticated ? null : cache.peekPublicPreview(widget.url));
+    _lease = cache.acquire(_cacheKey, _fetch);
     return _lease!.future;
   }
   Future<Uint8List> _fetch(CancelToken cancel) async {
     final timer = Stopwatch()..start();
     final network = widget.network;
     final monitor = ref.read(mediaNetworkMonitorProvider);
+    final statistics = ref.read(listingPhotoCacheProvider);
+    var transferredBytes = 0;
     Uint8List bytes;
     if (widget.authenticated) {
-      bytes = await ref.read(listingAccountDraftRepositoryProvider).photo(widget.url, cancelToken: cancel);
+      statistics.networkRequests++;
+      try {
+        bytes = await ref.read(listingAccountDraftRepositoryProvider).photo(widget.url, cancelToken: cancel);
+      } on DioException catch (error) {
+        if (const [401,403,404].contains(error.response?.statusCode) && mounted) setState(() => _displayBytes = null);
+        rethrow;
+      }
+      transferredBytes = bytes.lengthInBytes;
     } else {
-    final response=await ref.read(dioProvider).get<List<int>>(widget.url,options:Options(responseType:ResponseType.bytes,
-      followRedirects: false),cancelToken:cancel)
-      .timeout(const Duration(seconds:25),onTimeout:() { cancel.cancel('Image deadline');throw TimeoutException('Image unavailable'); });
-    bytes = Uint8List.fromList(response.data ?? const []);
+    statistics.networkRequests++;
+    try {
+      final result = await PublicPhotoLoader(ref.read(dioProvider), ref.read(publicPhotoDiskCacheProvider))
+        .load(widget.url, cancelToken: cancel);
+      bytes = result.bytes;
+      transferredBytes = result.downloadedBytes;
+      if (result.notModified) statistics.notModified++;
+    } on DioException catch (error) {
+      if (const [401,403,404].contains(error.response?.statusCode) && mounted) setState(() => _displayBytes = null);
+      rethrow;
     }
-    if (network != null) monitor.policy.recordTransfer(network, bytes.lengthInBytes, timer.elapsed);
+    }
+    statistics.networkBytes += transferredBytes;
+    if (network != null) monitor.policy.recordTransfer(network, transferredBytes, timer.elapsed);
     return bytes;
   }
   @override
   void initState() {
     super.initState(); _bytes = _beginLoad();
-    ref.listenManual(authControllerProvider.select((state)=>state.asData?.value?.id),(_,next) {
+    ref.listenManual(authControllerProvider.select((state)=>(state.asData?.value?.id,
+      state.asData?.value?.isActive, state.asData?.value?.permissions.toString())),(_,next) {
       if (widget.authenticated && mounted) setState(() { _displayBytes = null; _bytes=_beginLoad(); });
     });
   }
@@ -172,7 +209,11 @@ class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
   void didUpdateWidget(_VisibleListingDraftPhoto oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated) {
-      if (Uri.parse(oldWidget.url).replace(query: '').toString() != Uri.parse(widget.url).replace(query: '').toString() ||
+      String identity(String url) {
+        final uri = Uri.parse(url), parameters = Map<String, String>.from(Uri.parse(url).queryParameters)..remove('variant');
+        return uri.replace(queryParameters: parameters).toString();
+      }
+      if (identity(oldWidget.url) != identity(widget.url) ||
           oldWidget.authenticated != widget.authenticated) { _displayBytes = null; }
       _bytes = _beginLoad();
     }
@@ -183,6 +224,7 @@ class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
     if (widget.onRetry != null) { widget.onRetry!(); return; }
     setState(() {
     ref.read(listingPhotoCacheProvider).forget(_cacheKey);
+    if (!widget.authenticated) unawaited(ref.read(publicPhotoDiskCacheProvider).forget(widget.url));
     _bytes=_beginLoad();
     });
   }, child: const Text('إعادة تحميل الصورة',textAlign:TextAlign.center)));
