@@ -706,7 +706,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       hasValidPropertyCoordinates(row.latitude, row.longitude) &&
       (bounds == null || _insideBounds(row, bounds)) &&
       (_filterPurpose == null || row.purpose == _filterPurpose) &&
-      (_filterType == null || row.type == _filterType)).toList(growable: false);
+      (_filterType == null || row.type == _filterType ||
+        (_filterType == 'apartment' && row.type == 'floor'))).toList(growable: false);
   }
 
   String _markerSignature(List<PropertyMarker> items) {

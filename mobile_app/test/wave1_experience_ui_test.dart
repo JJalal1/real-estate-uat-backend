@@ -203,7 +203,9 @@ void main() {
   });
 
   testWidgets('a directly opened property link can drag closed to Home with the actual router', (tester) async {
-    final scope = uxContainer(extra: [propertyDetailsProvider.overrideWith((ref, id) async => wave6Property(id))]);
+    final scope = uxContainer(extra: [propertyDetailsProvider.overrideWith((ref, id) async => PropertyDetails.fromJson({
+      'id': id, 'title': 'عقار اختبار الرابط', 'type': 'house', 'purpose': 'sale', 'price': 10000000,
+      'currency': 'YER', 'status': 'published', 'availability_status': 'available'}))]);
     await scope.read(authControllerProvider.future);
     final router = scope.read(appRouterProvider); addTearDown(router.dispose);
     router.go('/properties/11');
@@ -218,15 +220,21 @@ void main() {
 
   testWidgets('ordinary map and full list roundtrip keeps the same canvas, typed query and result request', (tester) async {
     var requests = 0;
-    const row = PropertyMarker(id: 11, title: 'منزل اختبار حدة', price: 10000000, currency: 'YER',
-      latitude: 15.36, longitude: 44.19, distanceKm: 0, type: 'house', purpose: 'sale');
+    const row = PropertyMarker(id: 11, title: 'شقة اختبار حدة', price: 10000000, currency: 'YER',
+      latitude: 15.36, longitude: 44.19, distanceKm: 0, type: 'apartment', purpose: 'sale');
+    const floor = PropertyMarker(id: 12, title: 'دور كامل حدة', price: 20000000, currency: 'YER',
+      latitude: 15.36, longitude: 44.19, distanceKm: 0, type: 'floor', purpose: 'sale');
+    var shown = <int>[];
     final scope = uxContainer(extra: [
-      nearbyPropertiesProvider.overrideWith((ref, query) async { requests++; return const [row]; }),
-      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, select, viewport) =>
-        const ColoredBox(key: ValueKey('ordinary-native-canvas'), color: Colors.teal)),
+      nearbyPropertiesProvider.overrideWith((ref, query) async { requests++; return const [row, floor]; }),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, select, viewport) {
+        shown = rows.map((row) => row.id).toList();
+        return const ColoredBox(key: ValueKey('ordinary-native-canvas'), color: Colors.teal);
+      }),
     ]);
-    await pumpUx(tester, scope, MapScreen(initialFilters: SmartSearchFilters.fromMap({'search': 'حدة', 'type': 'house'})));
+    await pumpUx(tester, scope, MapScreen(initialFilters: SmartSearchFilters.fromMap({'search': 'حدة', 'type': 'apartment'})));
     await tester.pumpAndSettle();
+    expect(shown, [11, 12]);
     final element = tester.element(find.byKey(const ValueKey('ordinary-native-canvas')));
     final query = tester.widget<TextField>(find.byType(TextField).first).controller!.text;
     await tester.tap(find.byTooltip('عرض القائمة')); await tester.pumpAndSettle();
