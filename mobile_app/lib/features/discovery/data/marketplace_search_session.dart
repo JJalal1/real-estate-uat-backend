@@ -94,10 +94,17 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   }
   void enterMap() {
     state = state.copyWith(mapOpen: true, active: true, editing: false);
-    final filters = _filters(text: state.draftQuery);
-    state = state.copyWith(submittedQuery: state.draftQuery.trim());
-    if (!home.snapshot.started) unawaited(home.replaceManually(filters));
-    unawaited(map.replaceManually(filters, retainedRows: home.snapshot.rows));
+    // Opening the map applies the current editor through the same guarded
+    // submit path, including Home results previously loaded for another text.
+    unawaited(submit());
+    final filters = _filters(text: state.submittedQuery, onMap: true);
+    final previous = map.snapshot.filters.apiFilters, next = filters.apiFilters;
+    if (!map.snapshot.started || map.snapshot.resultsError != null || previous.length != next.length ||
+        next.entries.any((entry) => previous[entry.key] != entry.value)) {
+      // A repeated entry preserves the map's independent viewport and rows.
+      // submit() may already have started this exact request synchronously.
+      unawaited(map.replaceManually(filters, retainedRows: home.snapshot.rows));
+    }
   }
   void leaveMap() { if (mounted) state = state.copyWith(mapOpen: false, editing: false); }
   Future<void> refresh() {
