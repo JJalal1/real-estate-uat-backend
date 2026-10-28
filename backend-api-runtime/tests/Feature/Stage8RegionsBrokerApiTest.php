@@ -18,6 +18,34 @@ class Stage8RegionsBrokerApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_wave1_autocomplete_is_bounded_and_reads_only_active_public_regions(): void
+    {
+        [$owner, $headers] = $this->verifiedUser('wave1-regions@example.test', '+967700000399');
+        app(AccessControlService::class)->bootstrapPlatformOwner($owner);
+        $govId = (int) $this->withHeaders($headers)->postJson('/api/admin/regions/governorates', [
+            'code' => 'W1_PUBLIC', 'name_ar' => 'محافظة اختبار البحث',
+        ])->assertCreated()->json('data.id');
+        $ids = [];
+        for ($index = 0; $index < 10; $index++) {
+            $ids[] = $this->createCell($headers, $govId, 'W1_CELL_'.$index, 'حي حدة '.$index, 15.6, 44.0 + $index * .025);
+        }
+        GeoCell::findOrFail($ids[0])->forceFill(['is_active' => false])->save();
+        $this->flushHeaders();
+        DB::enableQueryLog();
+        $response = $this->getJson('/api/regions/cells?'.http_build_query(['search' => 'حدة', 'limit' => 3]))
+            ->assertOk()->assertJsonCount(3, 'data')->assertJsonMissingPath('data.0.assignment_history');
+        $selects = array_filter(DB::getQueryLog(), fn ($entry) => str_starts_with(strtolower(ltrim($entry['query'])), 'select'));
+        DB::disableQueryLog();
+        $this->assertLessThanOrEqual(2, count($selects), 'Cells and governorates must be eager loaded, independent of result count.');
+        $this->assertNotContains($ids[0], array_column($response->json('data'), 'id'));
+        $this->getJson('/api/regions/cells?'.http_build_query(['search' => 'منطقة غير موجودة']))->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/regions/cells?'.http_build_query(['search' => 'حدة', 'limit' => 100]))->assertUnprocessable();
+        $this->getJson('/api/regions/cells?'.http_build_query(['search' => 'ح']))->assertUnprocessable();
+        $this->getJson('/api/regions/cells?governorate_id='.$govId)->assertOk()->assertJsonCount(9, 'data');
+        \App\Models\Governorate::findOrFail($govId)->forceFill(['is_active' => false])->save();
+        $this->getJson('/api/regions/cells?'.http_build_query(['search' => 'حدة']))->assertOk()->assertJsonCount(0, 'data');
+    }
+
     public function test_broker_assignment_admin_routes_are_retired_but_region_management_remains_available(): void
     {
         [$owner, $headers] = $this->verifiedUser('stage8-owner@example.test', '+967700000301');
@@ -283,4 +311,5 @@ class Stage8RegionsBrokerApiTest extends TestCase
         ];
     }
 }
+
 

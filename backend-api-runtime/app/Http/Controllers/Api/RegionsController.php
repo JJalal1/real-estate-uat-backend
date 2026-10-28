@@ -28,6 +28,8 @@ class RegionsController extends Controller
     {
         $validated = $request->validate([
             'governorate_id' => ['nullable', 'integer', 'exists:governorates,id'],
+            'search' => ['nullable', 'string', 'min:2', 'max:120'],
+            'limit' => ['nullable', 'integer', 'between:1,8'],
             'south' => ['nullable', 'numeric', 'between:-90,90'],
             'west' => ['nullable', 'numeric', 'between:-180,180'],
             'north' => ['nullable', 'numeric', 'between:-90,90'],
@@ -52,6 +54,16 @@ class RegionsController extends Controller
             );
         }
 
+        $search = trim((string) ($validated['search'] ?? ''));
+        if ($search !== '') {
+            // Bound work and response size for public autocomplete. Existing
+            // map reads without search/limit keep their compatible contract.
+            $query->where(fn ($q) => $q->where('name_ar', 'like', '%'.$search.'%')
+                ->orWhere('name_en', 'like', '%'.$search.'%'));
+            $query->limit((int) ($validated['limit'] ?? 6));
+        } elseif (isset($validated['limit'])) {
+            $query->limit((int) $validated['limit']);
+        }
         $cells = $query->orderBy('governorate_id')->orderBy('id')->get();
         return response()->json(['data' => $cells->map(fn (GeoCell $cell) => $this->cellData($cell, false))->values()]);
     }
@@ -485,4 +497,5 @@ class RegionsController extends Controller
         ];
     }
 }
+
 

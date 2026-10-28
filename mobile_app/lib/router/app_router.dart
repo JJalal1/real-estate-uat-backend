@@ -31,12 +31,13 @@ import '../features/messages/presentation/conversation_screen.dart';
 import '../features/messages/presentation/messages_screen.dart';
 import '../features/messages/presentation/notifications_screen.dart';
 import '../features/properties/domain/saved_property_search.dart';
+import '../features/properties/domain/property_details.dart';
 import '../features/discovery/domain/smart_search_filters.dart';
 import '../features/discovery/presentation/marketplace_section_screen.dart';
 import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/favorites_screen.dart';
 import '../features/properties/presentation/my_listings_screen.dart';
-import '../features/properties/presentation/property_details_screen.dart';
+import '../features/properties/presentation/property_details_sheet.dart';
 import '../features/properties/presentation/recent_properties_screen.dart';
 import '../features/regions/presentation/regions_management_screen.dart';
 import '../features/reviews/presentation/listing_review_screen.dart';
@@ -266,20 +267,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/properties/:id',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final propertyId = int.tryParse(state.pathParameters['id'] ?? '');
           if (propertyId == null || propertyId <= 0) {
-            return const _RouteErrorScreen();
+            return MaterialPage<void>(key: state.pageKey, child: const _RouteErrorScreen());
           }
-          return PropertyDetailsScreen(propertyId: propertyId);
+          return PropertyDetailsSheetPage(key: state.pageKey, propertyId: propertyId,
+            summary: state.extra is PropertySummary ? state.extra as PropertySummary : null);
         },
       ),
       GoRoute(
         path: '/add-property',
-        builder: (context, state) => Stage6AuthGate(
+        pageBuilder: (context, state) => CustomTransitionPage<void>(key: state.pageKey,
+          opaque: false, barrierDismissible: true, barrierColor: Colors.black38,
+          barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) => FadeTransition(opacity: animation, child: child),
+          child: Stage6AuthGate(
           requireListingEligible: true,
           child: AddPropertyWizardScreen(startWithAssistant: state.uri.queryParameters['assistant'] == '1'),
-        ),
+        )),
       ),
       GoRoute(
         path: '/my-listings',
@@ -347,3 +353,4 @@ class _RouteErrorScreen extends StatelessWidget {
     );
   }
 }
+

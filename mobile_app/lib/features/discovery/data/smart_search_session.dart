@@ -54,9 +54,18 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   void setDraftText(String value) { if (value != state.draftText) state = state.copyWith(draftText:value); }
   void startFromHome({required String location, String? type}) => reset();
   void updateViewport({required double south, required double west, required double north, required double east}) {
-    final values = Map<String,dynamic>.from(state.filters.values)..remove('latitude')..remove('longitude')..remove('radius_km');
+    if (![south, west, north, east].every((value) => value.isFinite) || south >= north ||
+      south < -90 || north > 90 || west < -180 || east > 180) return;
+    final values = Map<String,dynamic>.from(state.filters.values)..remove('latitude')..remove('longitude')..remove('radius_km')..remove('governorate');
     values.addAll({'south':south,'west':west,'north':north,'east':east});
-    replaceManually(SmartSearchFilters.fromMap(values));
+    final next = SmartSearchFilters.fromMap(values);
+    if (next.values.length == state.filters.values.length &&
+      next.values.entries.every((entry) => state.filters.values[entry.key] == entry.value)) return;
+    final retained = state.rows.where((row) => row.latitude >= south && row.latitude <= north &&
+      (west <= east ? row.longitude >= west && row.longitude <= east : row.longitude >= west || row.longitude <= east)).toList(growable: false);
+    _usingDefaultLocation = false;
+    _replace(next, retainedRows: retained);
+    unawaited(search());
   }
 
   Future<void> interpret(String message) async {
@@ -87,10 +96,12 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     }
   }
 
-  void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.', String? draftText}) {
+  void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.', String? draftText,
+    List<PropertySummary> retainedRows = const []}) {
     _inference++; _results++;
     _resultTransfer?.cancel('Search criteria changed');
-    state = SmartSearchState(filters: filters, revision: state.revision + 1, message: message, lastRequest: state.lastRequest, draftText: draftText ?? state.draftText);
+    state = SmartSearchState(filters: filters, rows: retainedRows, revision: state.revision + 1,
+      message: message, lastRequest: state.lastRequest, draftText: draftText ?? state.draftText);
   }
 
   void replaceManually(SmartSearchFilters filters) {
@@ -143,3 +154,4 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>((ref) =>
   SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
     defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).searchContext)));
+

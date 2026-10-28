@@ -93,6 +93,7 @@ class PropertyController extends Controller
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'radius_km' => ['nullable', 'numeric', 'min:0.1', 'max:100'],
+            'viewport' => ['sometimes', 'boolean'],
             'south' => ['nullable', 'numeric', 'between:-90,90'],
             'west' => ['nullable', 'numeric', 'between:-180,180'],
             'north' => ['nullable', 'numeric', 'between:-90,90'],
@@ -105,6 +106,10 @@ class PropertyController extends Controller
         $validated['radius_km'] = $radiusKm;
 
         $this->validateBounds($validated);
+        $viewport = (bool) ($validated['viewport'] ?? false);
+        if ($viewport && ! isset($validated['south'], $validated['west'], $validated['north'], $validated['east'])) {
+            throw ValidationException::withMessages(['bounds' => ['Viewport discovery requires all four bounds.']]);
+        }
 
         if (DB::connection()->getDriverName() === 'pgsql') {
             $cacheFacts = $validated;
@@ -122,7 +127,7 @@ class PropertyController extends Controller
                 ]);
             }
 
-            $load = function () use ($validated, $longitude, $latitude, $radiusKm, $request): array {
+            $load = function () use ($validated, $longitude, $latitude, $radiusKm, $request, $viewport): array {
                 $query = app(\App\Services\PropertyDiscoveryFilterService::class)
                     ->publicQuery()
                     ->with('primaryImage');
@@ -136,10 +141,10 @@ class PropertyController extends Controller
                     ->select('properties.*')
                     ->selectRaw("{$distanceSql} AS distance_m", [$longitude, $latitude])
                     ->whereNotNull('location')
-                    ->whereRaw(
+                    ->when(! $viewport, fn ($query) => $query->whereRaw(
                         "ST_DWithin(location, {$pointSql}, ?)",
                         [$longitude, $latitude, $radiusKm * 1000],
-                    )
+                    ))
                     ->orderBy('distance_m')
                     ->orderByDesc('id')
                     ->limit(250)
@@ -196,7 +201,7 @@ class PropertyController extends Controller
                     'distance_km' => round($distanceKm, 2),
                 ]);
             })
-            ->filter(fn (array $property) => $property['distance_km'] <= $radiusKm)
+            ->filter(fn (array $property) => $viewport || $property['distance_km'] <= $radiusKm)
             ->sortBy('distance_km')
             ->values()
             ->take(250);
@@ -1147,3 +1152,4 @@ class PropertyController extends Controller
         return $earthRadiusKm * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 }
+

@@ -129,6 +129,23 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
   @override
   Widget build(BuildContext context) {
     final type = _values['type'], rent = _values['purpose'] == 'rent';
+    final advanced = <Widget>[
+        _field('min_area_m2', 'أقل مساحة بالمتر المربع'), _field('max_area_m2', 'أقصى مساحة بالمتر المربع'),
+        if (_visible('floor_number')) Padding(padding:const EdgeInsets.only(top:12),child:DropdownButtonFormField<String>(key:const ValueKey('filter-floor_number'),
+          value:_text['floor_number']!.text.isEmpty ? null : _text['floor_number']!.text,isExpanded:true,isDense:false,itemHeight:null,decoration:const InputDecoration(labelText:'الدور'),
+          items:[const DropdownMenuItem(value:null,child:Text('أي دور')),for(final e in DynamicPropertySchema.floorOptions.entries) DropdownMenuItem(value:e.key,child:Text(e.value)),
+            if(_text['floor_number']!.text.isNotEmpty && !DynamicPropertySchema.floorOptions.containsKey(_text['floor_number']!.text)) DropdownMenuItem(value:_text['floor_number']!.text,child:Text(_text['floor_number']!.text))],
+          onChanged:(v)=>setState(()=>_text['floor_number']!.text=v??''))),
+        if (_visible('unit_occupies_entire_floor')) _boolean('unit_occupies_entire_floor', 'الوحدة تشغل الدور كاملًا'),
+        if (_visible('has_elevator')) _boolean('has_elevator', 'مصعد'),
+        if (type == 'land' && _visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, isDense: false, itemHeight: null, decoration: const InputDecoration(labelText: 'واجهة الأرض'),
+          items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
+          onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } })),
+        if (_visible('has_parking')) ...[_boolean('has_parking', 'موقف'), const SizedBox(height: 12),
+          if (_visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, isDense: false, itemHeight: null, decoration: const InputDecoration(labelText: 'الواجهة'),
+            items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
+            onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } }))],
+    ];
     return Directionality(textDirection: TextDirection.rtl, child: Padding(
       padding: EdgeInsets.fromLTRB(18, 18, 18, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -142,27 +159,17 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
           items: const [DropdownMenuItem(value: null, child: Text('ريال يمني للميزانية')), DropdownMenuItem(value: 'YER', child: Text('ريال يمني')),
             DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
           onChanged: (value) => setState(() { if (value == null) { _values.remove('currency'); } else { _values['currency'] = value; } })),
-        _field('min_area_m2', 'أقل مساحة بالمتر المربع'), _field('max_area_m2', 'أقصى مساحة بالمتر المربع'),
         if (type == null || const ['apartment', 'house', 'villa'].contains(type)) ...[
           _minimumChoices('min_bedrooms', 'غرف النوم على الأقل', 6),
           _minimumChoices('min_bathrooms', 'دورات المياه على الأقل', 5),
         ],
-        if (_visible('floor_number')) Padding(padding:const EdgeInsets.only(top:12),child:DropdownButtonFormField<String>(key:const ValueKey('filter-floor_number'),
-          value:_text['floor_number']!.text.isEmpty ? null : _text['floor_number']!.text,isExpanded:true,isDense:false,itemHeight:null,decoration:const InputDecoration(labelText:'الدور'),
-          items:[const DropdownMenuItem(value:null,child:Text('أي دور')),for(final e in DynamicPropertySchema.floorOptions.entries) DropdownMenuItem(value:e.key,child:Text(e.value)),
-            if(_text['floor_number']!.text.isNotEmpty && !DynamicPropertySchema.floorOptions.containsKey(_text['floor_number']!.text)) DropdownMenuItem(value:_text['floor_number']!.text,child:Text(_text['floor_number']!.text))],
-          onChanged:(v)=>setState(()=>_text['floor_number']!.text=v??''))),
-        if (_applicable('unit_occupies_entire_floor')) _boolean('unit_occupies_entire_floor', 'الوحدة تشغل الدور كاملًا'),
-        if (_applicable('has_elevator')) _boolean('has_elevator', 'مصعد'),
-        if (type == 'land' && _visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, isDense: false, itemHeight: null, decoration: const InputDecoration(labelText: 'واجهة الأرض'),
-          items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
-          onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } })),
-        if (_applicable('has_parking')) ...[_boolean('has_parking', 'موقف'), const SizedBox(height: 12),
-          if (_visible('building_facade')) DropdownButtonFormField<String>(value: _values['building_facade'] as String?, isExpanded: true, isDense: false, itemHeight: null, decoration: const InputDecoration(labelText: 'الواجهة'),
-            items: [const DropdownMenuItem(value: null, child: Text('كل الواجهات')), for (final entry in SmartSearchFilters.facades.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value))],
-            onChanged: (value) => setState(() { if (value == null) { _values.remove('building_facade'); } else { _values['building_facade'] = value; } }))],
+        if (widget.focus == null) ExpansionTile(key: const ValueKey('filter-more'),
+          tilePadding: EdgeInsets.zero, title: const Text('المزيد من الخيارات'),
+          initiallyExpanded: const ['min_area_m2','max_area_m2','floor_number','unit_occupies_entire_floor','has_parking','building_facade']
+            .any((key) => _values.containsKey(key)), children: advanced) else ...advanced,
         if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
         const SizedBox(height: 20), AppButton(label: 'تطبيق الشروط', expand: true, onPressed: _save),
       ]))));
   }
 }
+

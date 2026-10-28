@@ -12,7 +12,6 @@ import '../domain/smart_search_filters.dart';
 import 'smart_search_filter_editor.dart';
 import 'smart_search_assistant.dart';
 import 'smart_search_query_summary.dart';
-import '../../properties/presentation/save_search_action.dart';
 import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/saved_property_search.dart';
 
@@ -30,7 +29,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   final _scroll = ScrollController();
   final _focus = FocusNode();
   late final VoiceCaptureController _capture;
-  String _voiceDraft = '';
+  String _voiceDraft = '', _voiceRestoration = '';
   late final SmartSearchSession _session;
   int _journey = 0;
   bool _ready = false, _mapMode = false;
@@ -60,7 +59,9 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
 
   Future<void> _send() async {
     final text = _description.text.trim();
-    if (text.isEmpty || _capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
+    final state = ref.read(smartSearchSessionProvider);
+    if (text.isEmpty || _capture.active || state.interpreting ||
+      (state.started && state.aiError == null && state.draftText.isEmpty && text == state.lastRequest)) return;
     if (text.length > 5000) { setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.'); return; }
     FocusScope.of(context).unfocus();
     _capture.clearError();
@@ -72,18 +73,22 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     if (_capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
     FocusScope.of(context).unfocus();
     final revision = ref.read(smartSearchSessionProvider).revision;
-    _voiceDraft = _description.text;
+    final current = ref.read(smartSearchSessionProvider);
+    _voiceRestoration = _description.text;
+    _voiceDraft = current.started && current.draftText.isEmpty && _description.text.trim() == current.lastRequest
+      ? '' : _description.text;
+    if (_description.text != _voiceDraft) _description.text = _voiceDraft;
     final text = await _capture.start();
     if (!mounted) return;
     if (text == null) {
-      _description.text = _voiceDraft;
+      _description.text = _voiceRestoration;
     } else if (revision == ref.read(smartSearchSessionProvider).revision && ModalRoute.of(context)?.isCurrent != false) {
       final combined = appendDictation(_voiceDraft, text);
       _description.text = combined; _session.setDraftText(combined);
       if (combined.length > 5000) setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.');
     }
   }
-  void _cancelVoice() { if (_capture.active) { _capture.cancel(); _description.text = _voiceDraft; } }
+  void _cancelVoice() { if (_capture.active) { _capture.cancel(); _description.text = _voiceRestoration; } }
 
   Future<void> _edit({String? focus}) async {
     if (_capture.active) _cancelVoice();
@@ -112,9 +117,6 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       ]),
       if(_capture.active) InlineVoiceCapture(capture:_capture,onCancel:_cancelVoice),
       if(_capture.error!=null || state.aiError!=null) Text(_capture.error ?? state.aiError!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
-      if(state.page>0 && !state.loading && state.resultsError==null) Align(alignment:AlignmentDirectional.centerStart,
-        child:TextButton.icon(key:const ValueKey('smart-search-save'),onPressed:()=>saveSearchFilters(context,ref,state.filters.apiFilters),
-          icon:const Icon(Icons.bookmark_add_outlined,size:18),label:const Text('حفظ البحث والتنبيه'))),
     ])));
 
   @override
@@ -128,7 +130,9 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       if (before != null && before.revision != after.revision &&
           before.draftText.isNotEmpty && after.draftText.isEmpty &&
           _description.text.trim() == before.draftText.trim()) {
-        _description.clear();
+        // Keep the accepted text visible. A fresh voice followup starts from
+        // an empty draft in _voice(), never replays this accepted sentence.
+        _description.text = after.lastRequest;
       }
     });
     if (ModalRoute.of(context)?.isCurrent == false && _capture.active) {
@@ -192,8 +196,6 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
             child: Text(_capture.error ?? state.aiError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
         const SizedBox(height: 12),
         Wrap(spacing: 8, children: [
-          if (state.page > 0 && !state.loading && state.resultsError == null) TextButton.icon(key: const ValueKey('smart-search-save'), onPressed: _capture.active || state.interpreting ? null : () => saveSearchFilters(context, ref, state.filters.apiFilters),
-            icon: const Icon(Icons.bookmark_add_outlined, size: 18), label: const Text('حفظ البحث')),
           TextButton.icon(key: const ValueKey('smart-search-map'), onPressed: _capture.active || state.interpreting ? null : _openMap,
             icon: const Icon(Icons.map_outlined, size: 18), label: const Text('الخريطة')),
         ]),
@@ -308,3 +310,4 @@ class _SmartSearchEmptyState extends StatelessWidget {
     );
   }
 }
+

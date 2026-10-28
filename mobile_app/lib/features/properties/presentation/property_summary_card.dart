@@ -44,7 +44,7 @@ class PropertySummaryCard extends StatelessWidget {
       facts: summaryPropertyFacts(p), trailing: PropertyFavoriteAction(propertyId: p.id, enabled: p.status == 'published'),
       action: PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published'), supportingText: [
         if (monthly && p.price != p.monthlyRent) '${p.advanceMonths != null ? 'مقدم ${arabicDigits('${p.advanceMonths}')} أشهر' : 'القيمة المعروضة'}: ${moneyLabel(p.price, p.currency)}',
-      ], onTap: onTap ?? () => context.push('/properties/${p.id}'));
+      ], onTap: onTap ?? () => context.push('/properties/${p.id}', extra: p));
   }
 }
 
@@ -96,4 +96,5 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
           : Icon(selected ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 19)));
   }
 }
+
 

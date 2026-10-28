@@ -67,7 +67,17 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     setState(() => _locationBusy = true);
     try {
       final coordinator = ref.read(discoveryLocationCoordinatorProvider);
-      if (prompt) { await coordinator.useDevice(); } else { await coordinator.initialize(); }
+      if (prompt) { await coordinator.useDevice(); } else {
+        await coordinator.initialize();
+        if (mounted && coordinator.shouldOfferChoice) {
+          await coordinator.markIntroductionShown();
+          if (!mounted) return;
+          final choice = await AppBottomSheet.show<String>(context, builder: (_) => const DiscoveryLocationIntroduction());
+          if (!mounted) return;
+          if (choice == 'device') { await coordinator.useDevice(); }
+          else if (choice == 'manual') { await _chooseLocation(); }
+        }
+      }
     } catch (_) {
       if (prompt && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر تحديد موقعك. يمكنك اختيار المنطقة يدويًا.')));
     } finally { if (mounted) setState(() => _locationBusy = false); }
@@ -190,6 +200,27 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   }
 }
 
+/// A foreground choice; displaying this explanation never requests OS access.
+class DiscoveryLocationIntroduction extends StatelessWidget {
+  const DiscoveryLocationIntroduction({super.key});
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
+    child: SafeArea(top: false, child: SingleChildScrollView(padding: const EdgeInsets.all(20),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('عقارات في منطقتك', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 10),
+        const Text('اختر محافظتك أو اسمح بموقعك التقريبي لعرض العقارات والدلالين القريبين. يمكنك المتابعة وتغيير المنطقة لاحقًا.'),
+        const SizedBox(height: 20),
+        AppButton(key: const ValueKey('location-introduction-device'), label: 'تحديد موقعي',
+          icon: Icons.my_location, expand: true, onPressed: () => Navigator.pop(context, 'device')),
+        const SizedBox(height: 8),
+        TextButton(key: const ValueKey('location-introduction-manual'), onPressed: () => Navigator.pop(context, 'manual'),
+          child: const Text('اختيار المحافظة يدويًا')),
+        TextButton(key: const ValueKey('location-introduction-later'), onPressed: () => Navigator.pop(context),
+          child: const Text('المتابعة الآن')),
+      ]))));
+}
+
 class _HomeBrokerCard extends StatelessWidget {
   const _HomeBrokerCard({required this.profile});
   final BrokerProfile profile;
@@ -226,3 +257,4 @@ class _HomeLocationSheet extends ConsumerWidget {
           leading: const EbrokerIcon(Icons.location_on_outlined, size: 22), title: Text(row.label), onTap: () => Navigator.of(context).pop(row))]))),
     ])));
 }
+

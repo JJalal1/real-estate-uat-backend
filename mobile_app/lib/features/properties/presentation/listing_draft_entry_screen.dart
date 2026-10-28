@@ -85,8 +85,16 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     }
     final actor = ref.watch(authControllerProvider).asData?.value;
     final canStart = actor?.isOwner != true || (_drafts.isEmpty && _legacy.isEmpty);
-    return Directionality(textDirection: TextDirection.rtl, child: Scaffold(appBar: const AppAppBar(title: 'أضف عقار'),
-      body: _loading && _drafts.isEmpty && _legacy.isEmpty ? const AppLoadingState(label: 'جارٍ تحميل المسودات…') : ListView(padding: const EdgeInsets.all(20), children: [
+    return Directionality(textDirection: TextDirection.rtl, child: SafeArea(child: Align(alignment: Alignment.bottomCenter,
+      child: Material(key: const ValueKey('listing-draft-choice'), color: Theme.of(context).colorScheme.surface,
+        clipBehavior: Clip.antiAlias, borderRadius: BorderRadius.circular(22),
+        child: ConstrainedBox(constraints: BoxConstraints(maxWidth: 640, maxHeight: MediaQuery.sizeOf(context).height * .82),
+          child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [Expanded(child: Text('أضف عقار', style: Theme.of(context).textTheme.titleLarge)),
+          IconButton(key: const ValueKey('listing-draft-choice-close'), tooltip: 'إغلاق',
+            onPressed: () => Navigator.of(context).maybePop(), icon: const Icon(Icons.close))]),
+        if (_loading && _drafts.isEmpty && _legacy.isEmpty) const AppLoadingState(label: 'جارٍ تحميل المسودات…'),
         if (_loading || _working || _error != null) AppRefreshStatus(loading: _loading || _working, error: _error, onRetry: _load),
         if (_drafts.isNotEmpty || _legacy.isNotEmpty) ...[
           Text('لديك إعلان غير مكتمل', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 16),
@@ -106,12 +114,14 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
                 catch (e) { if (mounted) setState(() => _error = friendlyApiError(e)); }
                 finally { if (mounted) setState(() => _working = false); }
               }, itemBuilder: (_) => [const PopupMenuItem(value: 'delete', child: Text('حذف المسودة'))])),
-          if (!_all) TextButton(onPressed: () => setState(() => _all = true), child: const Text('عرض كل المسودات')),
+          if (!_all && _drafts.length + _legacy.where((p) => !_drafts.any((d) => d.propertyId == p.id)).length > 1)
+            TextButton(onPressed: () => setState(() => _all = true), child: const Text('عرض كل المسودات')),
         ],
         const SizedBox(height: 20),
         AppButton(label: 'بدء إعلان جديد', icon: Icons.add_home_outlined, expand: true,
           onPressed: !canStart || _working || _loading || _error != null ? null : () => setState(() { _fresh = true; _selected = null; _property = null; _open = true; })),
         if (!canStart) const Padding(padding: EdgeInsets.only(top: 12), child: Text('تابع عقارك الشخصي الحالي أو فعّل حساب دلال لإدارة عدة عقارات.')),
-      ])));
+      ])))))));
   }
 }
+

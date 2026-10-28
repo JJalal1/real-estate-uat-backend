@@ -65,10 +65,12 @@ void main() {
     final repository=Wave3MarketplaceFake(onFeed:(q)async=>MarketplaceFeed(label:q.governorate??(q.device?'عدن':'صنعاء')));
     await pumpWave6(tester,const MarketplaceHomeScreen(),allowLocation:true,locationStore:store,locationAccess:access,marketplace:repository);
     expect(access.requests,0);expect(repository.queries.last.device,false);
-    await tester.tap(find.text('الموقع'));await tester.pumpAndSettle();await tester.tap(find.text('استخدم موقعي'));await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('location-introduction-device')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('location-introduction-device')));await tester.pumpAndSettle();
     expect(access.requests,1);expect(repository.queries.last.device,true);expect(repository.queries.last.latitude,12.8);expect(find.text('عدن'),findsOneWidget);
     await tester.tap(find.text('الموقع'));await tester.pumpAndSettle();await tester.tap(find.text('تعز'));await tester.pumpAndSettle();
     expect(repository.queries.last.governorate,'تعز');expect(store.value.manual!.governorate,'تعز');expect(access.requests,1);
     expect(tester.takeException(),isNull);await finishWave6(tester);
   });
 }
+

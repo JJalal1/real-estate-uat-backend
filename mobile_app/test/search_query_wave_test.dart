@@ -115,7 +115,7 @@ void main() {
     final router = await pumpHome(tester, container);
     final session = container.read(smartSearchSessionProvider.notifier);
     await _submit(tester, 'ابحث لي عن عقارات في إب');
-    expect(_draft(tester), isEmpty);
+    expect(_draft(tester), 'ابحث لي عن عقارات في إب');
     expect(session.state.draftText, isEmpty);
     expect(find.byKey(const ValueKey('smart-search-query-summary')), findsOneWidget);
     expect(find.byKey(const ValueKey('smart-chip-search')), findsOneWidget);
@@ -143,7 +143,7 @@ void main() {
     expect(ai.requests.last.message, 'السعر أكثر من ١٠٠ مليون');
     expect(ai.requests.last.filters, {'search': 'إب'});
     expect(session.state.filters.values, {'search': 'إب', 'min_price': 100000000, 'currency': 'YER'});
-    expect(_draft(tester), isEmpty);
+    expect(_draft(tester), 'السعر أكثر من ١٠٠ مليون');
     expect(find.text('من 100 مليون ريال يمني'), findsOneWidget);
     expect(properties.queries.last.filters['min_price'], 100000000);
 
@@ -156,7 +156,7 @@ void main() {
     expect(session.state.filters.values['search'], 'ذمار');
     expect(session.state.filters.values['min_price'], 100000000);
     expect(ai.requests, hasLength(4));
-    expect(_draft(tester), isEmpty);
+    expect(_draft(tester), 'بدّل الموقع إلى ذمار');
     expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/smart-search');
     expect(find.byType(AssistedSearchScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -239,7 +239,7 @@ void main() {
       final boundary = GlobalKey();
       await pumpHome(tester, container, boundary: boundary, scale: scale, reducedMotion: true);
       await _submit(tester, 'منزل للبيع في إب بسعر أكثر من مئة مليون، ثلاث غرف وموقف');
-      expect(_draft(tester), isEmpty);
+      expect(_draft(tester), 'منزل للبيع في إب بسعر أكثر من مئة مليون، ثلاث غرف وموقف');
       await tester.drag(find.byType(Scrollable).first, const Offset(0, 2000));
       await tester.pumpAndSettle();
       for (final key in ['type', 'purpose', 'search', 'budget', 'min_bedrooms', 'has_parking']) {
@@ -268,7 +268,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('voice-cancel')));
       await tester.pumpAndSettle();
-      expect(_draft(tester), isEmpty);
+      expect(_draft(tester), 'منزل للبيع في إب بسعر أكثر من مئة مليون، ثلاث غرف وموقف');
       expect(container.read(smartSearchSessionProvider).filters.values['min_price'], 100000000);
       expect(ai.requests, hasLength(1));
       expect(tester.takeException(), isNull);
@@ -314,3 +314,4 @@ void main() {
 
 
 }
+

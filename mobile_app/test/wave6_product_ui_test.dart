@@ -107,10 +107,10 @@ void main(){
     final field=find.byKey(const ValueKey('smart-search-description'));await tester.enterText(field,'شقة للإيجار في صنعاء');
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));await tester.tap(find.byKey(const ValueKey('smart-search-send')));await tester.pumpAndSettle();
     final before=container.read(smartSearchSessionProvider).filters.values;
-    expect(tester.widget<TextField>(field).controller!.text,isEmpty);
+    expect(tester.widget<TextField>(field).controller!.text,'شقة للإيجار في صنعاء');
     expect(find.byKey(const ValueKey('smart-search-query-summary')),findsOneWidget);
     await tester.enterText(field,'مسودة متابعة لم أرسلها');
-    expect(find.byKey(const ValueKey('smart-search-save')),findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-search-save')),findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text,'مسودة متابعة لم أرسلها');expect(container.read(smartSearchSessionProvider).filters.values,before);
     expect(find.text('15.3694,44.191'),findsOneWidget);
@@ -261,3 +261,4 @@ void main(){
     expect(textField('وصف العقار'),findsOneWidget);expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text,'وصف كتبه الدلال');await finishWave6(tester);
   });
 }
+
