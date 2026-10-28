@@ -1104,7 +1104,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _searchText = normalized;
       if (suggestion?.type != null) {
         _filterType = suggestion!.type;
-        _searchText = ''; _searchController.clear();
         if (!_typeUsesRooms(_filterType)) { _filterMinBedrooms = null; _filterMinBathrooms = null; }
       }
       if (suggestion?.location case final HomeLocation location) {

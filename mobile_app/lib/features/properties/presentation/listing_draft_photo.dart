@@ -209,7 +209,11 @@ class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
   void didUpdateWidget(_VisibleListingDraftPhoto oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated) {
-      if (Uri.parse(oldWidget.url).replace(query: '').toString() != Uri.parse(widget.url).replace(query: '').toString() ||
+      String identity(String url) {
+        final uri = Uri.parse(url), parameters = Map<String, String>.from(Uri.parse(url).queryParameters)..remove('variant');
+        return uri.replace(queryParameters: parameters).toString();
+      }
+      if (identity(oldWidget.url) != identity(widget.url) ||
           oldWidget.authenticated != widget.authenticated) { _displayBytes = null; }
       _bytes = _beginLoad();
     }

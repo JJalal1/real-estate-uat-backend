@@ -198,7 +198,7 @@ void main() {
     response.complete({'revision': ai.requests.single.revision, 'filters': {'search': 'إب'}});
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('smart-chip-search')), findsOneWidget);
-    expect(_draft(tester), isEmpty);
+    expect(_draft(tester), 'عقارات في إب');
     expect(tester.takeException(), isNull);
   });
 

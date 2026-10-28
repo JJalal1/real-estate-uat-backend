@@ -64,6 +64,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     if (!prompt && ref.read(homeLocationAttemptedProvider)) return;
     ref.read(homeLocationAttemptedProvider.notifier).state = true;
     if (!prompt && ref.read(homeLocationProvider).manual) return;
+    var deviceChosen = prompt;
     setState(() => _locationBusy = true);
     try {
       final coordinator = ref.read(discoveryLocationCoordinatorProvider);
@@ -72,14 +73,21 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         if (mounted && coordinator.shouldOfferChoice) {
           await coordinator.markIntroductionShown();
           if (!mounted) return;
+          setState(() => _locationBusy = false);
           final choice = await AppBottomSheet.show<String>(context, builder: (_) => const DiscoveryLocationIntroduction());
           if (!mounted) return;
-          if (choice == 'device') { await coordinator.useDevice(); }
+          if (choice == 'device') {
+            deviceChosen = true;
+            setState(() => _locationBusy = true);
+            await coordinator.useDevice();
+          }
           else if (choice == 'manual') { await _chooseLocation(); }
         }
       }
     } catch (_) {
-      if (prompt && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر تحديد موقعك. يمكنك اختيار المنطقة يدويًا.')));
+      if (deviceChosen && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('تعذّر تحديد موقعك. يمكنك اختيار المنطقة يدويًا.'),
+        action: SnackBarAction(label: 'اختيار منطقة', onPressed: _chooseLocation)));
     } finally { if (mounted) setState(() => _locationBusy = false); }
   }
 

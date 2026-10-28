@@ -57,8 +57,9 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
             itemCount: rows.length + 2,
             itemBuilder: (context, index) {
               if (index == 0) { return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Center(child: Container(key: const ValueKey('map-results-handle'), width: 42, height: 4, margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))),
+                Padding(padding: const EdgeInsets.only(bottom: 10), child: Center(
+                  child: Container(key: const ValueKey('map-results-handle'), width: 42, height: 4,
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))))),
                 Row(children: [Expanded(child: Text('${rows.length}${widget.more ? '+' : ''} عقار في النطاق',
                   key: const ValueKey('map-results-count'), style: Theme.of(context).textTheme.titleSmall)),
                   if (widget.loading) const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
