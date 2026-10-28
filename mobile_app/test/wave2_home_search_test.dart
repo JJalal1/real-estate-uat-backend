@@ -98,6 +98,31 @@ void main() {
     expect(scope.read(marketplaceMapResultsProvider).filters.values['purpose'], 'rent');
     expect(scope.read(marketplaceMapResultsProvider).filters.values['south'], 14);
     expect(scope.read(homeSearchResultsProvider).filters.values['governorate'], 'صنعاء');
+    final callsBeforeReturn = properties.calls.length;
+    controller.leaveMap(); controller.enterMap(); await Future<void>.delayed(Duration.zero);
+    expect(scope.read(marketplaceMapResultsProvider).filters.values['south'], 14);
+    expect(scope.read(marketplaceMapResultsProvider).filters.values['west'], 43);
+    expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'), isFalse);
+    expect(properties.calls, hasLength(callsBeforeReturn));
+  });
+
+  test('S10 S14 S20 entering map applies edited text to both existing result snapshots once', () async {
+    final properties = Listings()..respond = (filters, _) async => ([
+      row(filters['search'] == 'ش' ? 1 : 2, title: filters['search'].toString()),
+    ], false);
+    final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties)]);
+    final controller = scope.read(marketplaceSearchControllerProvider.notifier);
+    controller.edit('ش'); await controller.submit();
+    controller.edit('ج'); controller.enterMap(); await Future<void>.delayed(Duration.zero);
+    expect(properties.calls, hasLength(3));
+    expect(properties.calls.skip(1).every((call) => call['search'] == 'ج'), isTrue);
+    expect(scope.read(homeSearchResultsProvider).filters.values['search'], 'ج');
+    expect(scope.read(homeSearchResultsProvider).rows.single.id, 2);
+    expect(scope.read(marketplaceMapResultsProvider).filters.values['search'], 'ج');
+    expect(scope.read(marketplaceMapResultsProvider).rows.single.id, 2);
+    controller.leaveMap();
+    expect(scope.read(marketplaceSearchControllerProvider).draftQuery, 'ج');
+    expect(scope.read(marketplaceSearchControllerProvider).submittedQuery, 'ج');
   });
 
   test('S13 land removes housing criteria and declared-use keyword remains visible and reversible', () async {
