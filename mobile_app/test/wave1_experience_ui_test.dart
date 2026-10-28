@@ -3,16 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/discovery/data/discovery_location.dart';
 import 'package:real_estate_mobile/features/discovery/data/discovery_suggestions.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_details_screen.dart';
+import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/listing_account_draft.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_details_sheet.dart';
+import 'package:real_estate_mobile/features/properties/presentation/listing_draft_entry_screen.dart';
 import 'support/owner_ux_fixtures.dart';
+import 'support/wave6_fakes.dart';
+import 'wave6_product_ui_test.dart' show editorSnapshot;
 
 class _LocationStore extends DiscoveryLocationStore {
   DiscoveryLocationPreferences saved = const DiscoveryLocationPreferences();
@@ -31,9 +38,17 @@ class _LocationAccess extends DiscoveryLocationAccess {
   @override
   Future<HomeLocation> locate() => fix.future;
 }
+class _DelayedDrafts extends Wave6Drafts {
+  int gets = 0;
+  final pending = Completer<ListingAccountDraft>();
+  @override
+  Future<ListingAccountDraft> get(String key) { gets++; return pending.future; }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() { WidgetController.hitTestWarningShouldBeFatal = true; });
+  tearDownAll(() { WidgetController.hitTestWarningShouldBeFatal = false; });
   setUpAll(loadUxFixtures);
 
   test('location introduction is passive, manual wins a late fix, and restart restores only a public city center', () async {
@@ -104,6 +119,9 @@ void main() {
     final details = PropertyDetails.fromJson({'id': 11, 'title': 'منزل اختبار حركة الإعلان', 'type': 'house',
       'purpose': 'sale', 'price': 10000000, 'currency': 'YER', 'status': 'published', 'availability_status': 'available',
       'description': List.filled(20, 'وصف العقار للاختبار.').join(' '),
+      'images': [for (var image = 1; image <= 2; image++) {'id': image,
+        'url': 'https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/$image?v=synthetic-wave1',
+        'is_primary': image == 1, 'sort_order': image - 1}],
       'advertiser': {'id': 2, 'name': 'معلن اختبار', 'account_type': 'broker', 'verification_status': 'approved'}});
     final scope = uxContainer(extra: [propertyDetailsProvider.overrideWith((ref, id) async => details)]);
     final router = GoRouter(routes: [
@@ -120,12 +138,19 @@ void main() {
     expect(draggable.controller!.size, closeTo(.72, .02));
     expect(find.text('منزل اختبار حركة الإعلان'), findsOneWidget);
     await uxPreview(tester, boundary, 'wave1-details-partial');
+    final gallery = find.byType(PageView).first;
+    await tester.drag(gallery, const Offset(300, 0)); await uxFrames(tester);
+    final galleryPosition = tester.state<ScrollableState>(find.descendant(of: gallery, matching: find.byType(Scrollable)).first).position;
+    expect(galleryPosition.pixels, greaterThan(galleryPosition.viewportDimension * .8));
+    expect(draggable.controller!.size, closeTo(.72, .02));
+    await uxPreview(tester, boundary, 'wave1-details-gallery-swipe');
     await tester.drag(find.byKey(const ValueKey('property-details-handle')), const Offset(0, -650));
     await tester.pumpAndSettle(); expect(draggable.controller!.size, greaterThan(.95));
     final verification = find.text('التوثيق والتقييم');
     await tester.scrollUntilVisible(verification, 300, scrollable: find.descendant(
       of: find.byKey(const ValueKey('property-details-11')), matching: find.byType(Scrollable)).first);
-    await tester.ensureVisible(verification); await tester.tap(verification); await tester.pumpAndSettle();
+    await tester.ensureVisible(verification); await tester.pumpAndSettle();
+    await tester.tap(verification); await tester.pumpAndSettle();
     expect(tester.takeException(), isNull); // ExpansionTile state must not read a numeric scroll offset.
     final list = tester.widget<ListView>(find.byKey(const ValueKey('property-details-11')));
     list.controller!.jumpTo(0); await tester.pumpAndSettle();
@@ -134,6 +159,43 @@ void main() {
     expect(draggable.controller!.size, lessThan(.95)); expect(draggable.controller!.size, greaterThan(.38));
     await tester.binding.handlePopRoute(); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('property-details-sheet')), findsNothing); expect(homeScroll.offset, before);
+    expect(tester.takeException(), isNull); await closeUx(tester);
+  });
+
+  testWidgets('draft choice closes over its source, shows all, deduplicates resume and discards an old actor response', (tester) async {
+    final old = _DelayedDrafts(), next = Wave6Drafts(), auth = UxAuth(uxUser(type: 'broker'));
+    final firstKey = newListingDraftKey(), secondKey = newListingDraftKey();
+    old.drafts[firstKey] = ListingAccountDraft(key: firstKey, revision: 2, payload: editorSnapshot(), title: 'مسودة سابقة', progress: 40);
+    old.drafts[secondKey] = ListingAccountDraft(key: secondKey, revision: 3, payload: editorSnapshot(), title: 'المسودة الأخيرة', progress: 60);
+    final scope = uxContainer(auth: auth, extra: [
+      listingAccountDraftRepositoryProvider.overrideWith((ref) => ref.watch(authControllerProvider).asData?.value?.id == 1 ? old : next),
+      listingRecoveryStoreProvider.overrideWithValue(Wave6Recovery()),
+    ]);
+    final router = GoRouter(routes: [
+      GoRoute(path: '/', builder: (context, _) => Scaffold(body: Center(child: TextButton(
+        onPressed: () => context.push('/add-property'), child: const Text('سياق البحث الأصلي'))))),
+      GoRoute(path: '/add-property', pageBuilder: (_, state) => CustomTransitionPage<void>(key: state.pageKey,
+        opaque: false, barrierColor: Colors.black38,
+        transitionsBuilder: (_, animation, __, child) => FadeTransition(opacity: animation, child: child),
+        child: const ListingDraftEntryScreen())),
+    ]); addTearDown(router.dispose);
+    final boundary = GlobalKey();
+    await pumpUx(tester, scope, const SizedBox.shrink(), router: router, boundary: boundary);
+    await tester.tap(find.text('سياق البحث الأصلي')); await tester.pumpAndSettle();
+    expect(find.text('المسودة الأخيرة'), findsOneWidget); expect(find.text('مسودة سابقة'), findsNothing);
+    expect(find.text('سياق البحث الأصلي'), findsOneWidget);
+    await uxPreview(tester, boundary, 'wave1-draft-choice');
+    await tester.tap(find.text('عرض كل المسودات')); await tester.pumpAndSettle();
+    expect(find.text('مسودة سابقة'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('listing-draft-choice-close'))); await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('listing-draft-choice')), findsNothing); expect(old.drafts, hasLength(2));
+    await tester.tap(find.text('سياق البحث الأصلي')); await tester.pumpAndSettle();
+    final resume = find.text('متابعة الإعلان');
+    await tester.tap(resume); await tester.tap(resume); await tester.pump(); expect(old.gets, 1);
+    auth.change(uxUser(id: 2, type: 'broker')); await uxFrames(tester);
+    old.pending.complete(old.drafts[secondKey]!); await uxFrames(tester);
+    expect(find.text('المسودة الأخيرة'), findsNothing); expect(find.text('مسودة سابقة'), findsNothing);
+    expect(old.drafts, hasLength(2)); expect(old.saves, isEmpty);
     expect(tester.takeException(), isNull); await closeUx(tester);
   });
 

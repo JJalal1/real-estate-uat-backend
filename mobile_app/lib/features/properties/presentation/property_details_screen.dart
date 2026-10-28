@@ -247,9 +247,10 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           published && !property.isOwner ? 124.0 : AppSpacing.s40,
         ),
         children: [
-          if (widget.inSheet) Center(child: Padding(padding: const EdgeInsets.only(bottom: 12),
-            child: Container(key: const ValueKey('property-details-handle'), width: 42, height: 4, decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))))),
+          if (widget.inSheet) Semantics(label: 'اسحب لتوسيع الإعلان أو تصغيره',
+            child: Listener(key: const ValueKey('property-details-handle'), behavior: HitTestBehavior.opaque,
+              child: SizedBox(height: 24, child: Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))))))),
           _Gallery(
             images: property.images,
             privateImages:property.status!='published',

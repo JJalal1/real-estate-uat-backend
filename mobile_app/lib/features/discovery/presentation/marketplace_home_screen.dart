@@ -85,9 +85,9 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         }
       }
     } catch (_) {
-      if (deviceChosen && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (deviceChosen && mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('تعذّر تحديد موقعك. يمكنك اختيار المنطقة يدويًا.'),
-        action: SnackBarAction(label: 'اختيار منطقة', onPressed: _chooseLocation)));
+        action: SnackBarAction(label: 'اختيار منطقة', onPressed: _chooseLocation))); }
     } finally { if (mounted) setState(() => _locationBusy = false); }
   }
 

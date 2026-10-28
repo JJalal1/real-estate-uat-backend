@@ -57,9 +57,10 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
             itemCount: rows.length + 2,
             itemBuilder: (context, index) {
               if (index == 0) { return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Padding(padding: const EdgeInsets.only(bottom: 10), child: Center(
-                  child: Container(key: const ValueKey('map-results-handle'), width: 42, height: 4,
-                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))))),
+                Semantics(label: 'اسحب لتوسيع قائمة العقارات أو تصغيرها', child: Listener(
+                  key: const ValueKey('map-results-handle'), behavior: HitTestBehavior.opaque,
+                  child: SizedBox(height: 24, child: Center(child: Container(width: 42, height: 4,
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))))))),
                 Row(children: [Expanded(child: Text('${rows.length}${widget.more ? '+' : ''} عقار في النطاق',
                   key: const ValueKey('map-results-count'), style: Theme.of(context).textTheme.titleSmall)),
                   if (widget.loading) const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
