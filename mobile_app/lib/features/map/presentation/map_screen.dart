@@ -1439,8 +1439,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _fitSharedRows() async {
-    final rows=ref.read(_searchSession).rows, controller=_mapController;
-    if(controller==null || rows.isEmpty || !mounted)return;
+    final search=ref.read(_searchSession), controller=_mapController;
+    if(controller==null || !mounted)return;
+    final values=search.filters.values;
+    if(widget.enforceViewport && const ['south','west','north','east'].every((key)=>values[key] is num)) {
+      // Reopening the same map restores its actual bounds, including an empty
+      // result viewport, rather than fitting only its remaining listing pins.
+      final bounds=LatLngBounds(southwest:LatLng((values['south'] as num).toDouble(),(values['west'] as num).toDouble()),
+        northeast:LatLng((values['north'] as num).toDouble(),(values['east'] as num).toDouble()));
+      _fittingShared=true;
+      try {
+        await controller.moveCamera(CameraUpdate.newLatLngBounds(bounds,left:0,top:0,right:0,bottom:0));
+        _lastSharedViewport=_viewportSignature(await controller.getVisibleRegion());
+      } catch(_) { /* Keep the canonical viewport when the native camera is unavailable. */ }
+      finally { _fittingShared=false; }
+      return;
+    }
+    final rows=search.rows;
+    if(rows.isEmpty)return;
     final points=rows.where((p)=>p.latitude.isFinite && p.longitude.isFinite && p.latitude.abs()<=90 && p.longitude.abs()<=180).toList();
     if(points.isEmpty)return;
     double south=points.first.latitude,north=south,west=points.first.longitude,east=west;
