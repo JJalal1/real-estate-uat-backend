@@ -44,7 +44,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
         if (!mounted) return;
         if (_scroll?.hasClients == true) _scroll!.jumpTo(0);
         if (_extent.isAttached && _extent.size < .5) {
-          _extent.animateTo(.5, duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+          _extent.animateTo(widget.maxExtent < .5 ? widget.maxExtent : .5,
+            duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
         }
       });
     }
@@ -57,7 +58,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
     final rows = [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
     return DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
       controller: _extent, initialChildSize: .29, minChildSize: .14, maxChildSize: widget.maxExtent,
-      snap: true, snapSizes: const [.29, .5], shouldCloseOnMinExtent: false,
+      snap: true, snapSizes: [if (widget.maxExtent > .29) .29, if (widget.maxExtent > .5) .5], shouldCloseOnMinExtent: false,
       builder: (context, scroll) {
         _scroll = scroll;
         return Material(color: Theme.of(context).colorScheme.surface, elevation: 8,
@@ -108,15 +109,40 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
 /// amount as discovery cards. Larger text grows vertically without hiding actions.
 class PropertyMapResultCard extends StatelessWidget {
   const PropertyMapResultCard({required this.property, required this.favorite,
-    required this.onFavorite, required this.onMap, required this.onDetails, super.key});
+    required this.onFavorite, required this.onMap, required this.onDetails, this.compact = false, super.key});
   final PropertyMarker property;
-  final bool favorite;
+  final bool favorite, compact;
   final VoidCallback? onFavorite;
   final VoidCallback onMap, onDetails;
   @override
   Widget build(BuildContext context) {
     final p = property, rent = p.purpose == 'rent', scheme = Theme.of(context).colorScheme;
     final photo = p.mainImage ?? (p.imageUrls.isEmpty ? null : p.imageUrls.first);
+    if (compact && MediaQuery.textScalerOf(context).scale(14) <= 24) {
+      return InkWell(onTap: onDetails, borderRadius: BorderRadius.circular(10),
+        child: Padding(padding: const EdgeInsets.all(8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ClipRRect(borderRadius: BorderRadius.circular(8), child: SizedBox(width: 64, height: 88,
+            child: photo == null ? ColoredBox(color: scheme.surfaceContainerHighest,
+              child: const Icon(Icons.home_outlined)) : AdaptivePropertyPhoto(url: photo))),
+          const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
+            Text('${SmartSearchFilters.types[p.type] ?? 'عقار'} · ${rent ? 'للإيجار' : 'للبيع'}',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: rent ? mapRentColor : mapSaleColor)),
+            if (p.address?.isNotEmpty == true) Text(p.address!, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 4),
+            FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart,
+              child: AppPropertyPrice(price: (rent ? p.monthlyRent ?? p.price : p.price).toString(), currency: p.currency,
+                suffix: rent && p.monthlyRent != null ? 'شهريًا' : null)),
+          ])),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
+              onPressed: onFavorite, icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded)),
+            IconButton(key: ValueKey('map-card-focus-${p.id}'), tooltip: 'عرض على الخريطة',
+              onPressed: onMap, icon: const Icon(Icons.location_on_outlined)),
+          ]),
+        ])));
+    }
     return InkWell(onTap: onDetails, borderRadius: BorderRadius.circular(10),
       child: Padding(padding: const EdgeInsets.all(8), child: Column(children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

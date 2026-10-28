@@ -26,6 +26,7 @@ class MarketplaceSearchPanel extends ConsumerStatefulWidget {
 class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel> {
   final _text = TextEditingController();
   final _focus = FocusNode();
+  bool _mapFiltersExpanded = false;
   @override
   void dispose() { _text.dispose(); _focus.dispose(); super.dispose(); }
   Future<void> _submit() async {
@@ -36,6 +37,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
       return;
     }
     _focus.unfocus();
+    if (widget.onMap && _mapFiltersExpanded) setState(() => _mapFiltersExpanded = false);
     await controller.submit();
   }
   Future<void> _editFilters([String? focus]) async {
@@ -92,11 +94,24 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
           child: const Text('إلغاء البحث والعودة للرئيسية'))),
         if (active && !ui.editing) ...[
           _ChipRail(children: [
+            if (widget.onMap) ActionChip(key: const ValueKey('published-map-filters'),
+              avatar: const Icon(Icons.tune, size: 18), label: Text(_mapFiltersExpanded ? 'إخفاء الفلاتر' : 'الفلاتر'),
+              onPressed: () => setState(() => _mapFiltersExpanded = !_mapFiltersExpanded)),
             for (final e in const {'all': 'الكل', 'rent': 'إيجار', 'sale': 'بيع'}.entries)
               ChoiceChip(key: ValueKey('published-purpose-${e.key}'), label: Text(e.value),
                 selected: e.key == 'all' ? values['purpose'] == null : values['purpose'] == e.key,
                 onSelected: (_) => controller.setChoice('purpose', e.key == 'all' ? null : e.key)),
+            if (widget.onMap && values['type'] != null) InputChip(
+              label: Text(SmartSearchFilters.types[values['type']] ?? 'نوع العقار'),
+              onPressed: () => _editFilters('type'), onDeleted: () => controller.setChoice('type', null)),
+            if (widget.onMap) ...[
+              for (final chip in ui.criteria.chips.where((e) => !const ['type', 'purpose'].contains(e.$1)))
+                InputChip(label: Text(chip.$2), onPressed: () => _editFilters(chip.$1), onDeleted: () => controller.remove(chip.$1)),
+              if (ui.landUse.isNotEmpty) InputChip(label: Text('الاستخدام المعلن: ${ui.landUse}'),
+                onPressed: _landUse, onDeleted: () => controller.setLandUse('')),
+            ],
           ]),
+          if (!widget.onMap || _mapFiltersExpanded) ...[
           _ChipRail(children: [
             for (final e in const {'all': 'كل الأنواع', 'apartment': 'شقق', 'house': 'منازل', 'villa': 'فلل',
               'land': 'أراضٍ', 'shop': 'محلات', 'office': 'مكاتب', 'building': 'عمائر', 'farm': 'مزارع'}.entries)
@@ -116,7 +131,8 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
               label: const Text('الاستخدام المعلن'), onPressed: _landUse),
             ActionChip(key: const ValueKey('published-filter-more'), label: const Text('المزيد'), onPressed: () => _editFilters()),
           ]),
-          if (ui.criteria.chips.any((e) => !const ['type', 'purpose'].contains(e.$1)) || ui.landUse.isNotEmpty)
+          ],
+          if (!widget.onMap && (ui.criteria.chips.any((e) => !const ['type', 'purpose'].contains(e.$1)) || ui.landUse.isNotEmpty))
             _ChipRail(children: [
               for (final chip in ui.criteria.chips.where((e) => !const ['type', 'purpose'].contains(e.$1)))
                 InputChip(label: Text(chip.$2), onDeleted: () => controller.remove(chip.$1)),
@@ -227,6 +243,19 @@ class MarketplaceSearchMapScreen extends ConsumerStatefulWidget {
   ConsumerState<MarketplaceSearchMapScreen> createState() => _MarketplaceSearchMapScreenState();
 }
 class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMapScreen> {
+  final _toolbarSizeKey = GlobalKey();
+  double _toolbarHeight = 0;
+  bool _measuring = false;
+  void _measureToolbar() {
+    if (_measuring) return;
+    _measuring = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measuring = false;
+      if (!mounted) return;
+      final height = _toolbarSizeKey.currentContext?.size?.height;
+      if (height != null && (height - _toolbarHeight).abs() > 1) setState(() => _toolbarHeight = height);
+    });
+  }
   @override
   void initState() {
     super.initState();
@@ -238,18 +267,29 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
   }
   @override
   Widget build(BuildContext context) {
+    _measureToolbar();
     final ui = ref.watch(marketplaceSearchControllerProvider);
     final actor = ref.watch(authControllerProvider.select((value) => value.asData?.value?.id));
     return PopScope(onPopInvokedWithResult: (didPop, _) {
       if (didPop) ref.read(marketplaceSearchControllerProvider.notifier).leaveMap();
-    }, child: Scaffold(appBar: AppBar(title: const Text('البحث على الخريطة'), automaticallyImplyLeading: !widget.embedded),
-      resizeToAvoidBottomInset: true, body: LayoutBuilder(builder: (context, viewport) => MapScreen(key: ValueKey('marketplace-map-$actor'), sharedSearchJourney: true,
+    }, child: Scaffold(appBar: AppBar(title: const Text('البحث على الخريطة', maxLines: 2),
+      toolbarHeight: (56 + (MediaQuery.textScalerOf(context).scale(18) - 18) * 2).clamp(56,116).toDouble(),
+      automaticallyImplyLeading: !widget.embedded),
+      resizeToAvoidBottomInset: true, body: LayoutBuilder(builder: (context, viewport) {
+        final height = viewport.maxHeight > 0 ? viewport.maxHeight : 1.0;
+        // Reserve a real, visible map strip between the measured toolbar and
+        // expanded list, including on short displays and large system fonts.
+        final maxSheet = (1 - (_toolbarHeight + 82) / height).clamp(.29, .72).toDouble();
+        final toolbarLimit = (height * (ui.editing ? .86 : .71) - 82).clamp(0.0, height * .65).toDouble();
+        return MapScreen(key: ValueKey('marketplace-map-$actor'), sharedSearchJourney: true,
         searchSessionProvider: marketplaceMapResultsProvider, enforceViewport: true,
-        resultsMaxExtent: .72, collapseResults: ui.editing,
+        resultsMaxExtent: maxSheet, collapseResults: ui.editing,
         onMapInteraction: () { FocusScope.of(context).unfocus(); ref.read(marketplaceSearchControllerProvider.notifier).stopEditing(); },
-        searchToolbar: LayoutBuilder(builder: (context, bounds) => ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: viewport.maxHeight * .65),
-          child: const SingleChildScrollView(child: MarketplaceSearchPanel(onMap: true)))),
-      ))));
+        searchToolbar: NotificationListener<SizeChangedLayoutNotification>(onNotification: (_) { _measureToolbar(); return false; },
+          child: SizeChangedLayoutNotifier(child: SizedBox(key: _toolbarSizeKey,
+            child: ConstrainedBox(key: const ValueKey('marketplace-search-toolbar'),
+              constraints: BoxConstraints(maxHeight: toolbarLimit),
+              child: const SingleChildScrollView(child: MarketplaceSearchPanel(onMap: true)))))),
+      ); })));
   }
 }
