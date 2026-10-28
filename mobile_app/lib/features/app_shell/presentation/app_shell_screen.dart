@@ -15,7 +15,7 @@ import '../../messages/presentation/messages_screen.dart';
 import '../../broker/presentation/broker_workspaces.dart';
 import '../../broker/presentation/broker_connections_screen.dart';
 import '../../properties/presentation/my_listings_screen.dart';
-import '../../map/presentation/map_screen.dart';
+import '../../discovery/presentation/marketplace_search_panel.dart';
 import '../../discovery/presentation/smart_search_assistant.dart';
 import 'listing_creation_menu.dart';
 import '../../support/presentation/support_tasks_screen.dart';
@@ -249,7 +249,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         );
       case 'advertiser':
         return const _ShellData(pages: [
-          MarketplaceHomeScreen(showAdvertiserActions: true), MapScreen(), Stage6AuthGate(child: MessagesScreen()), AccountScreen(),
+          MarketplaceHomeScreen(showAdvertiserActions: true), MarketplaceSearchMapScreen(embedded: true), Stage6AuthGate(child: MessagesScreen()), AccountScreen(),
         ], items: [
           _NavItemData(label: 'العقارات', icon: Icons.home_outlined),
           _NavItemData(label: 'الخريطة', icon: Icons.map_outlined),

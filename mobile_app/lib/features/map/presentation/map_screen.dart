@@ -339,13 +339,19 @@ typedef SharedSearchMapBuilder = Widget Function(BuildContext context, List<Prop
 final sharedSearchMapBuilderProvider = Provider<SharedSearchMapBuilder?>((ref)=>null);
 
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({this.initialLatitude, this.initialLongitude, this.initialType, this.initialFilters, this.sharedSearchJourney=false, this.searchToolbar, this.onShowList, super.key});
+  const MapScreen({this.initialLatitude, this.initialLongitude, this.initialType, this.initialFilters, this.sharedSearchJourney=false, this.searchToolbar, this.onShowList,
+    this.searchSessionProvider, this.enforceViewport = false, this.resultsMaxExtent = .84,
+    this.collapseResults = false, this.onMapInteraction, super.key});
   final double? initialLatitude, initialLongitude;
   final String? initialType;
   final SmartSearchFilters? initialFilters;
   final bool sharedSearchJourney;
   final Widget? searchToolbar;
   final VoidCallback? onShowList;
+  final StateNotifierProvider<SmartSearchSession, SmartSearchState>? searchSessionProvider;
+  final bool enforceViewport, collapseResults;
+  final double resultsMaxExtent;
+  final VoidCallback? onMapInteraction;
   bool get hasInitialLocation => initialLatitude != null && initialLongitude != null &&
       initialLatitude!.isFinite && initialLongitude!.isFinite &&
       initialLatitude!.abs() <= 90 && initialLongitude!.abs() <= 180;
@@ -355,6 +361,7 @@ class MapScreen extends ConsumerStatefulWidget {
 }
 
 class _MapScreenState extends ConsumerState<MapScreen> {
+  StateNotifierProvider<SmartSearchSession, SmartSearchState> get _searchSession => widget.searchSessionProvider ?? smartSearchSessionProvider;
   static const _fallback = LatLng(15.3694, 44.1910);
   static const _openFreeMapStyle =
       'https://tiles.openfreemap.org/styles/liberty';
@@ -418,9 +425,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (const ['apartment', 'house', 'villa', 'building', 'land', 'shop', 'office', 'farm'].contains(widget.initialType)) _filterType = widget.initialType;
     if (widget.initialFilters != null) { _sharedSessionLinked = true; _applySharedFilters(widget.initialFilters!); }
     if (widget.sharedSearchJourney) {
-      _applySharedFilters(ref.read(smartSearchSessionProvider).filters);
-      final rows=ref.read(smartSearchSessionProvider).rows;
-      if(rows.isNotEmpty && !ref.read(smartSearchSessionProvider).filters.hasMapArea) _center=LatLng(rows.first.latitude,rows.first.longitude);
+      _applySharedFilters(ref.read(_searchSession).filters);
+      final rows=ref.read(_searchSession).rows;
+      if(rows.isNotEmpty && !ref.read(_searchSession).filters.hasMapArea) _center=LatLng(rows.first.latitude,rows.first.longitude);
     } else {
       if (!widget.hasInitialLocation && widget.initialFilters == null) {
         _applySharedFilters(SmartSearchFilters.fromMap({...ref.read(homeLocationProvider).searchContext,
@@ -537,11 +544,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _openSmartSearch() async {
     _sharedSessionLinked = true;
-    ref.read(smartSearchSessionProvider.notifier).replaceManually(_currentSmartFilters());
+    ref.read(_searchSession.notifier).replaceManually(_currentSmartFilters());
     if (widget.initialFilters != null) { Navigator.of(context).pop(); return; }
     await context.push('/smart-search');
     if (!mounted) return;
-    setState(() => _applySharedFilters(ref.read(smartSearchSessionProvider).filters));
+    setState(() => _applySharedFilters(ref.read(_searchSession).filters));
     _persistDiscoveryHistory();
     await _renderSelectedAreaAnnotations();
   }
@@ -549,8 +556,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget _withSharedSession(Widget child) => PopScope(
     onPopInvokedWithResult: (didPop, _) {
       if (didPop && _sharedSessionLinked) {
-        final filters = _currentSmartFilters(), current = ref.read(smartSearchSessionProvider).filters.values;
-        if (current.length != filters.values.length || !filters.values.entries.every((entry) => current[entry.key] == entry.value)) ref.read(smartSearchSessionProvider.notifier).replaceManually(filters);
+        final filters = _currentSmartFilters(), current = ref.read(_searchSession).filters.values;
+        if (current.length != filters.values.length || !filters.values.entries.every((entry) => current[entry.key] == entry.value)) ref.read(_searchSession.notifier).replaceManually(filters);
       }
     }, child: child,
   );
@@ -649,7 +656,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && widget.sharedSearchJourney) {
-        if (ref.read(smartSearchSessionProvider).started) { _fitSharedRows(); } else { _sharedViewport(); }
+        if (widget.enforceViewport) {
+          unawaited(_fitSharedRows().whenComplete(() {
+            if (mounted) { _lastSharedViewport = ''; return _sharedViewport(); }
+          }));
+        } else if (ref.read(_searchSession).started) { _fitSharedRows(); } else { _sharedViewport(); }
       } else if (mounted) { _renderSelectedAreaAnnotations(); _commitCameraCenter(); }
     });
   }
@@ -951,24 +962,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _focusProperty(PropertyMarker property) async {
     final controller = _mapController;
-    if (controller == null) return;
     final target = LatLng(property.latitude, property.longitude);
     setState(() {
       _listMode = false;
       _selected = property;
       _lastMarkerSignature = '';
     });
+    if (controller == null) return;
     await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
     if (!mounted) return;
     // onCameraIdle commits center and bounds together after the animation.
   }
 
-  void _openDetails(PropertyMarker property) {
+  Future<void> _openDetails(PropertyMarker property) async {
     setState(() => _selected = property);
-    context.push('/properties/${property.id}', extra: PropertySummary(id: property.id, title: property.title,
+    await context.push('/properties/${property.id}', extra: PropertySummary(id: property.id, title: property.title,
       purpose: property.purpose ?? '', type: property.type ?? '', price: property.price, currency: property.currency,
       latitude: property.latitude, longitude: property.longitude, monthlyRent: property.monthlyRent,
       mainImage: property.mainImage, imageUrls: property.imageUrls));
+    if (mounted && widget.enforceViewport) await ref.read(_searchSession.notifier).search();
   }
 
   Future<void> _toggleFavorite(
@@ -1422,13 +1434,29 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       final signature=_viewportSignature(bounds);
       if(signature==_lastSharedViewport)return;
       _lastSharedViewport=signature;
-      ref.read(smartSearchSessionProvider.notifier).updateViewport(south:bounds.southwest.latitude,west:bounds.southwest.longitude,north:bounds.northeast.latitude,east:bounds.northeast.longitude);
+      ref.read(_searchSession.notifier).updateViewport(south:bounds.southwest.latitude,west:bounds.southwest.longitude,north:bounds.northeast.latitude,east:bounds.northeast.longitude);
     } catch(_) { if(mounted)setState(()=>_mapMessage='تعذر تحديد النطاق. حرّك الخريطة للمحاولة مجددًا.'); }
   }
 
   Future<void> _fitSharedRows() async {
-    final rows=ref.read(smartSearchSessionProvider).rows, controller=_mapController;
-    if(controller==null || rows.isEmpty || !mounted)return;
+    final search=ref.read(_searchSession), controller=_mapController;
+    if(controller==null || !mounted)return;
+    final values=search.filters.values;
+    if(widget.enforceViewport && const ['south','west','north','east'].every((key)=>values[key] is num)) {
+      // Reopening the same map restores its actual bounds, including an empty
+      // result viewport, rather than fitting only its remaining listing pins.
+      final bounds=LatLngBounds(southwest:LatLng((values['south'] as num).toDouble(),(values['west'] as num).toDouble()),
+        northeast:LatLng((values['north'] as num).toDouble(),(values['east'] as num).toDouble()));
+      _fittingShared=true;
+      try {
+        await controller.moveCamera(CameraUpdate.newLatLngBounds(bounds,left:0,top:0,right:0,bottom:0));
+        _lastSharedViewport=_viewportSignature(await controller.getVisibleRegion());
+      } catch(_) { /* Keep the canonical viewport when the native camera is unavailable. */ }
+      finally { _fittingShared=false; }
+      return;
+    }
+    final rows=search.rows;
+    if(rows.isEmpty)return;
     final points=rows.where((p)=>p.latitude.isFinite && p.longitude.isFinite && p.latitude.abs()<=90 && p.longitude.abs()<=180).toList();
     if(points.isEmpty)return;
     double south=points.first.latitude,north=south,west=points.first.longitude,east=west;
@@ -1443,7 +1471,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _sharedJourney() {
-    final state=ref.watch(smartSearchSessionProvider);
+    final state=ref.watch(_searchSession);
     final rows=state.rows.where((p)=>hasValidPropertyCoordinates(p.latitude, p.longitude)).map((p)=>PropertyMarker(
       id:p.id,title:p.title,price:p.monthlyRent??p.price,currency:p.currency,latitude:p.latitude,longitude:p.longitude,distanceKm:0,
       purpose:p.purpose,type:p.type,areaM2:p.areaM2,bedrooms:p.bedrooms,bathrooms:p.bathrooms,address:p.address,
@@ -1455,14 +1483,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final canvas=ref.watch(sharedSearchMapBuilderProvider);
     void select(int id){for(final p in rows){if(p.id==id){setState(()=>_selected=p);break;}}}
     return Stack(fit:StackFit.expand,children:[
-      Positioned.fill(child:canvas==null ? _buildMap() : canvas(context,rows,select,(south,west,north,east)=>
-        ref.read(smartSearchSessionProvider.notifier).updateViewport(south:south,west:west,north:north,east:east))),
+      Positioned.fill(child:Listener(onPointerDown: (_) => widget.onMapInteraction?.call(),
+        child:canvas==null ? _buildMap() : canvas(context,rows,select,(south,west,north,east)=>
+        ref.read(_searchSession.notifier).updateViewport(south:south,west:west,north:north,east:east)))),
       if(widget.searchToolbar!=null) PositionedDirectional(start:12,end:12,top:10,child:widget.searchToolbar!),
       PropertyMapResultsSheet(items: rows, selectedId: _selected?.id, loading: state.loading,
-        error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(smartSearchSessionProvider.notifier).retryResults(),
-        more: state.more, onMore: () => ref.read(smartSearchSessionProvider.notifier).search(more: true),
+        maxExtent: widget.resultsMaxExtent, collapsed: widget.collapseResults,
+        error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),
+        more: state.more, onMore: () => ref.read(_searchSession.notifier).search(more: true),
         onShowList: widget.onShowList,
-        itemBuilder: (row) => PropertyMapResultCard(property: row,
+        itemBuilder: (row) => PropertyMapResultCard(property: row, compact: widget.enforceViewport,
           favorite: favoriteIds.contains(row.id), onFavorite: _changingFavorite ? null : () => _toggleFavorite(row.id,
             currentlyFavorite: favoriteIds.contains(row.id)), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
     ]);

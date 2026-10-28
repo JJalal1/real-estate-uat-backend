@@ -82,14 +82,14 @@ void main() {
     final feed = Wave3MarketplaceFake(onFeed: (q) async => MarketplaceFeed(label: q.governorate ?? 'صنعاء',
       governorate: q.governorate ?? 'صنعاء', sections: {'latest': [wave3Property(11)]}));
     final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const MarketplaceHomeScreen()),
-      GoRoute(path: '/property-market', builder: (_, __) => const Scaffold(body: Text('الخريطة')))]); addTearDown(router.dispose);
+      GoRoute(path: '/marketplace-search-map', builder: (_, __) => const Scaffold(body: Text('الخريطة')))]); addTearDown(router.dispose);
     await tester.pumpWidget(ProviderScope(overrides: [marketplaceRepositoryProvider.overrideWithValue(feed), homeLocationAttemptedProvider.overrideWith((_) => true)],
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
     await tester.pumpAndSettle(); expect(feed.queries.single.device, false); expect(feed.queries.single.governorate, isNull);
     await tester.tap(find.text('صنعاء')); await tester.pumpAndSettle(); await tester.tap(find.text('تعز')); await tester.pumpAndSettle();
     expect(feed.queries.last.governorate, 'تعز'); expect(feed.queries.last.device, false);
     await tester.tap(find.byKey(const ValueKey('home-map'))); await tester.pumpAndSettle();
-    expect(router.state.uri.path, '/property-market'); expect(router.state.uri.queryParameters['lat'], '13.58'); expect(router.state.uri.queryParameters['lon'], '44.02');
+    expect(router.state.uri.path, '/marketplace-search-map'); expect(router.state.uri.queryParameters['lat'], '13.58'); expect(router.state.uri.queryParameters['lon'], '44.02');
     expect(tester.takeException(), isNull);
   });
 }
