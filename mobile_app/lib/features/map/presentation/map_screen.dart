@@ -1476,7 +1476,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),
         more: state.more, onMore: () => ref.read(_searchSession.notifier).search(more: true),
         onShowList: widget.onShowList,
-        itemBuilder: (row) => PropertyMapResultCard(property: row,
+        itemBuilder: (row) => PropertyMapResultCard(property: row, compact: widget.enforceViewport,
           favorite: favoriteIds.contains(row.id), onFavorite: _changingFavorite ? null : () => _toggleFavorite(row.id,
             currentlyFavorite: favoriteIds.contains(row.id)), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
     ]);

@@ -237,7 +237,10 @@ void main() {
     await tester.drag(find.byKey(const ValueKey('map-results-handle')),const Offset(0,-400)); await tester.pumpAndSettle();
     expect(tester.element(find.byKey(const ValueKey('w2-native-canvas'))),same(element));
     final sheet=tester.widget<DraggableScrollableSheet>(find.byKey(const ValueKey('map-results-sheet')));
-    expect(sheet.controller!.size,greaterThan(.5)); expect(sheet.maxChildSize,.72);
+    expect(sheet.controller!.size,greaterThan(.5));
+    final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
+    final sheetBounds = tester.getRect(find.byKey(const ValueKey('map-results-list')));
+    expect(sheetBounds.top - toolbar.bottom, greaterThanOrEqualTo(70));
     await uxPreview(tester,boundary,'w2-E-map-expanded');
     pan(15,44,16,45); await tester.pumpAndSettle();
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'),isFalse);
@@ -267,6 +270,23 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('published-search-submit')));
       expect(tester.getRect(find.byKey(const ValueKey('published-search-submit'))).bottom,lessThanOrEqualTo(368));
       expect(tester.takeException(),isNull); await closeUx(tester);
+    });
+  }
+  for (final scale in [1.0, 2.4]) {
+    testWidgets('S18 expanded map list reserves visible map on 320px and text $scale', (tester) async {
+      final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(Listings()),
+        sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, viewport) =>
+          const ColoredBox(key: ValueKey('small-map-canvas'), color: Colors.teal)),
+      ]);
+      await pumpUx(tester, scope, const MarketplaceSearchMapScreen(), size: const Size(320,568), scale: scale);
+      await tester.pumpAndSettle();
+      final canvas = tester.element(find.byKey(const ValueKey('small-map-canvas')));
+      await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0,-500)); await tester.pumpAndSettle();
+      final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
+      final list = tester.getRect(find.byKey(const ValueKey('map-results-list')));
+      expect(list.top - toolbar.bottom, greaterThanOrEqualTo(70));
+      expect(tester.element(find.byKey(const ValueKey('small-map-canvas'))), same(canvas));
+      expect(tester.takeException(), isNull); await closeUx(tester);
     });
   }
 }

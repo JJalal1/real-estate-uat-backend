@@ -10,12 +10,12 @@ permissions:
   contents: read
 concurrency:
   group: private-wave2-chat-uat-installer-20261028
-  cancel-in-progress: false
+  cancel-in-progress: true
 env:
-  SOURCE_COMMIT: ecc81623d64bfdf2bb3be88c33c767dc6999dace
+  SOURCE_COMMIT: 76af5c9e338ccb3bc40b85859375c3900ff845c6
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
   OWNER_UPGRADE_PAIR: 'true'
-  AQER_PRIVATE_DELIVERY_VERSION: '1389'
+  AQER_PRIVATE_DELIVERY_VERSION: '1390'
 jobs:
   private_installer:
     name: Build verified APK for private chat delivery
@@ -27,11 +27,11 @@ jobs:
         ref: ${{ env.SOURCE_COMMIT }}
         fetch-depth: 0
         persist-credentials: false
-    - name: Verify the exact accepted application source
+    - name: Verify the exact requested application source
       run: |
         set -euo pipefail
         test "$(git rev-parse HEAD)" = "${SOURCE_COMMIT}"
-        test "$(git rev-parse HEAD^{tree})" = 783c4c9d91bd8fe35f75043a02988d6032095ac2
+        test "$(git rev-parse HEAD^{tree})" = cc83a59d06730e46c91b2c5a5652b5b1990e7a00
         git diff --exit-code
     - name: Set up Java 17
       uses: actions/setup-java@v4
@@ -278,7 +278,7 @@ jobs:
         assert cipher[:1] == b'\x30' and not cipher.startswith(b'PK')
         out = Path('private-chat-encrypted')
         out.mkdir()
-        (out / 'AQER-UAT-1389.apk.cms').write_bytes(cipher)
+        (out / 'AQER-UAT-1390.apk.cms').write_bytes(cipher)
         for name in ['APK_VERIFICATION.json','ANDROID_UPGRADE_VERIFICATION.json','ANDROID_PUSH_ISOLATION.json','BUILD_INFO.txt']:
             shutil.copyfile(Path('dist', name), out / name)
         meta = {'accepted_application_source':source,'delivery_workflow_source':os.environ['GITHUB_SHA'],
@@ -292,7 +292,7 @@ jobs:
     - name: Upload ciphertext and verification receipts only
       uses: actions/upload-artifact@v4
       with:
-        name: private-chat-uat-1389-${{ github.run_number }}
+        name: private-chat-uat-1390-${{ github.run_number }}
         path: private-chat-encrypted/
         if-no-files-found: error
         retention-days: 1
