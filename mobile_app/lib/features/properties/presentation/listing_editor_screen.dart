@@ -518,7 +518,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_requiresResidential && !missing.contains('bedrooms') && !missing.contains('bathrooms')) '${_bedrooms.text} غرف نوم · ${_bathrooms.text} حمامات',
       if (_unitNeedsFloor && !missing.contains('floor_number')) 'الدور: ${DynamicPropertySchema.floorOptionsFor(_type)[_floorNumber.text] ?? _floorNumber.text}',
       if (_hasLocation) 'نقطة العقار مؤكدة',
-      if (_effectiveImageCount > 0) '${_effectiveImageCount} صور في المسودة',
+      if (_effectiveImageCount > 0) '$_effectiveImageCount صور في المسودة',
     ];
     return AppSurface(key: const ValueKey('listing-completed-summary'), child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1622,7 +1622,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Widget _actions() {
-    if (_reviewingCompleted) return Material(color: Theme.of(context).colorScheme.surface, child: SafeArea(top: false,
+    if (_reviewingCompleted) {
+      return Material(color: Theme.of(context).colorScheme.surface, child: SafeArea(top: false,
       child: Padding(padding: const EdgeInsets.all(12), child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           Expanded(child: TextButton(onPressed: _busy || _step == 0 ? null : () => _showFullStep(_step - 1), child: const Text('السابق'))),
@@ -1631,6 +1632,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         EbrokerStepButton(key: const ValueKey('listing-return-completion'), label: 'العودة إلى النواقص',
           onPressed: _busy || _descriptionCapture.active ? null : _returnToCompletion, expand: true),
       ]))));
+    }
     if (_step < 3) {
       return _BottomBar(
         children: [
