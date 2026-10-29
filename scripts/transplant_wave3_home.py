@@ -190,9 +190,14 @@ class EbrokerHomePropertyCard extends StatelessWidget {
     ]);
 }
 '''
+    header = header.replace('final VoidCallback onTap;', 'final Future<void> Function() onTap;')
+    header = header.replace('  Widget build(BuildContext context) {', '  Widget build(BuildContext context) => SourceNavigationGuard(onOpen: onTap, builder: (context, handleCardTap) {')
+    header = header.replace('    final handleCardTap = onTap;\n', '')
+    assert body.endswith('  }\n\n')
+    body = body.removesuffix('  }\n\n') + '  });\n\n'
     text = header + body + footer
     text = text.replace('(showFeatured ?? false)', 'showFeatured')
-    emit('property_card_big.dart', text, ['Original PropertyCardBig presentation body and image/category/title/location/divider/price hierarchy.',
+    emit('property_card_big.dart', text, ['Original PropertyCardBig presentation body and image/category/title/location/divider/price hierarchy; retained single-navigation guard.',
         'Original paid/premium/guest/comparison backend removed; real Aqer navigation, comparison, favorite and editorial Spotlight supplied.',
         'Actual Yemeni currency/monthly-vs-advance values, applicable compact facts, constrained long Arabic locations and accessible favorite target.',
         'Intrinsic responsive rows replace fixed 248px source grid where Arabic/font scaling would clip.'])
@@ -249,6 +254,11 @@ class EbrokerHomeAgentCard extends StatelessWidget {
 ''' + body
     text = text.replace('                  Positioned(\n                    right: 4.rw(context),', '                  if (!largeText) Positioned(\n                    right: 4.rw(context),')
     text = text.replace('            // Property & Project counts', '            if (largeText) Padding(padding: const EdgeInsets.only(bottom: 8),\n              child: SourceText(ratingLabel, fontSize: 11.5, color: context.sourceColors.tertiaryColor)),\n            // Property & Project counts')
+    text = text.replace('final VoidCallback onTap;', 'final Future<void> Function() onTap;')
+    text = text.replace('  Widget build(BuildContext context) {', '  Widget build(BuildContext context) => SourceNavigationGuard(onOpen: onTap, builder: (context, open) {')
+    text = text.replace('onTap: onTap,', 'onTap: open,').replace('onPressed: onTap,', 'onPressed: open,')
+    assert text.endswith('  }\n}\n')
+    text = text.removesuffix('  }\n}\n') + '  });\n}\n'
     # Source uses physical positioning; mirror the avatar/rating arrangement in Arabic.
     text = text.replace('Positioned(\n                    right: 4.rw(context),', 'PositionedDirectional(\n                    end: 4.rw(context),')
     text = text.replace('                  Positioned(\n                    left: 6.rw(context),', '                  PositionedDirectional(\n                    start: 6.rw(context),')
@@ -259,7 +269,7 @@ class EbrokerHomeAgentCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 SourceText('صفقات مؤكدة: ${profile.completedDeals}', fontSize: 12),
               ]) : Row(""" + text[row + len('child: Row('):]
-    emit('agent_card.dart', text, ['Original AgentCard presentation body/banner-avatar/name/stats composition.',
+    emit('agent_card.dart', text, ['Original AgentCard presentation body/banner-avatar/name/stats composition and single-navigation guard.',
         'No source follow/appointments/WhatsApp/private email/project claims. Existing authorized public profile/contact route.',
         'Unavailable public cover is a neutral color gradient; no demo imagery. Actual verified state, ratings, listing and confirmed-deal counts.',
         'Directional positioning for RTL and intrinsic text/button height for accessibility.'])

@@ -237,7 +237,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           for (final broker in data.brokers) Padding(padding: const EdgeInsetsDirectional.only(end: 8),
             child: EbrokerHomeAgentCard(profile: broker,
               width: (MediaQuery.sizeOf(context).width - 60).clamp(240, 320).toDouble(),
-              onTap: () => context.push('/advertisers/${broker.id}'))),
+              onTap: () async { await context.push('/advertisers/${broker.id}'); })),
         ]))));
     }
     final seen = <int>{}, width = MediaQuery.sizeOf(context).width;
@@ -261,7 +261,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                 favorite: PropertyFavoriteAction(propertyId: group[i].id, enabled: group[i].status == 'published', sourceStyle: true),
                 action: PropertyCompareAction(propertyId: group[i].id, enabled: group[i].status == 'published'),
                 facts: summaryPropertyFacts(group[i]).take(3).toList(),
-                onTap: () => context.push('/properties/${group[i].id}', extra: group[i]))),
+                onTap: () async { await context.push('/properties/${group[i].id}', extra: group[i]); })),
             ],
           ]))));
       }

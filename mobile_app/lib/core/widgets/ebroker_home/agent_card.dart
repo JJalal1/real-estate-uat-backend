@@ -7,16 +7,16 @@ import 'responsive_size.dart';
 class EbrokerHomeAgentCard extends StatelessWidget {
   const EbrokerHomeAgentCard({required this.profile, required this.onTap, this.width = 285, super.key});
   final BrokerProfile profile;
-  final VoidCallback onTap;
+  final Future<void> Function() onTap;
   final double width;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => SourceNavigationGuard(onOpen: onTap, builder: (context, open) {
     final resolvedHeroTag = 'home-agent-${profile.id}';
     final largeText = MediaQuery.textScalerOf(context).scale(11.5) > 18;
     final ratingLabel = profile.ratingCount == 0 ? 'لا تقييمات بعد'
       : '${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييم';
     return GestureDetector(
-      onTap: onTap,
+      onTap: open,
       child: Container(
         width: width,
         padding: EdgeInsets.all(12.rw(context)),
@@ -229,11 +229,11 @@ class EbrokerHomeAgentCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            TextButton(onPressed: onTap, child: const Text('عرض الملف والتواصل')),
+            TextButton(onPressed: open, child: const Text('عرض الملف والتواصل')),
 
           ],
         ),
       ),
     );
-  }
+  });
 }

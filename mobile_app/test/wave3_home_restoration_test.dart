@@ -8,6 +8,7 @@ import 'package:real_estate_mobile/core/widgets/ebroker_home/image_swiper.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_home/property_card_big.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_home/agent_card.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_home/favorite_visual.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_home/source_adapters.dart';
 import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
@@ -189,13 +190,28 @@ void main() {
     expect(tester.takeException(), isNull); await closeUx(tester);
   });
 
+  testWidgets('C08 original property card does not open duplicate detail routes while navigation is pending', (tester) async {
+    final scope = uxContainer(), pending = Completer<void>();
+    var opens = 0;
+    await pumpUx(tester, scope, Scaffold(body: SizedBox(width: 300, child: EbrokerHomePropertyCard(
+      property: SourceProperty(row(12, title: 'شقة اختبار التنقل')),
+      onTap: () async { opens++; await pending.future; }))));
+    final title = find.text('شقة اختبار التنقل 12');
+    await tester.tap(title); await tester.tap(title); await tester.pump();
+    expect(opens, 1);
+    pending.complete(); await tester.pump();
+    await tester.tap(title); await tester.pump();
+    expect(opens, 2);
+    expect(tester.takeException(), isNull); await closeUx(tester);
+  });
+
   for (final scale in [1.0, 2.4]) {
     testWidgets('C06 C10 original expert layout uses factual counts without overlapping Arabic rating at $scale', (tester) async {
       final boundary = GlobalKey(), scope = uxContainer();
       const broker = BrokerProfile(id: 7, name: 'دلال اختبار ذو اسم عربي طويل', type: 'broker',
         verified: true, rating: 4.8, ratingCount: 12, completedDeals: 3, activeListings: 7);
       await pumpUx(tester, scope, Scaffold(body: SingleChildScrollView(child: EbrokerHomeAgentCard(
-        profile: broker, width: 280, onTap: () {}))), size: const Size(320, 700), scale: scale, boundary: boundary);
+        profile: broker, width: 280, onTap: () async {}))), size: const Size(320, 700), scale: scale, boundary: boundary);
       final portrait = find.byWidgetPredicate((widget) => widget is Hero && widget.tag == 'agent-hero-7');
       final rating = find.text('4.8 · 12 تقييم');
       expect(rating, findsOneWidget);
