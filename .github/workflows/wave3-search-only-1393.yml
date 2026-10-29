@@ -1,0 +1,72 @@
+name: Wave3 search only on APK1393
+on:
+  pull_request:
+    branches: [work/branch2-*, work/wave3-search-only-*]
+    paths: ['mobile_app/**', 'backend-api-runtime/**', 'scripts/verify_wave3_search_only_1393.py', '.github/workflows/wave3-search-only-1393.yml']
+permissions:
+  contents: read
+concurrency:
+  group: wave3-search-only-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove unchanged APK1393 property, category and broker components
+        run: python3 -B scripts/verify_wave3_search_only_1393.py
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Existing locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Strict original analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Standalone search, purpose, restored1393 design and retained regressions
+        if: ${{ !cancelled() }}
+        working-directory: mobile_app
+        run: >-
+          flutter test --reporter expanded test/wave3_search_only_1393_test.dart
+          test/wave2_home_search_test.dart test/ui_transplant_v3_home_test.dart
+          test/owner_ux_gallery_filters_test.dart test/wave1_experience_ui_test.dart
+          test/public_discovery_cancellation_test.dart test/smart_search_pagination_recovery_test.dart
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wave3-search-only-1393-previews
+          path: mobile_app/build/owner-ux-preview/w3-two-*.png
+          if-no-files-found: warn
+          retention-days: 7
+  purpose-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Disposable backend only
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+      - name: Purpose, privacy and existing public discovery regression
+        run: php artisan test --filter='Wave3MarketplacePurposeTest|Wave2PublishedSuggestionsTest|UatPerformanceRegressionTest|Wave6EditorDiscoveryTest' --display-warnings --fail-on-warning --fail-on-risky

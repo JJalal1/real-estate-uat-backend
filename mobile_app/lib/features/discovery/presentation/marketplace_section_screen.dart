@@ -10,10 +10,10 @@ import '../../properties/domain/property_details.dart';
 import 'smart_search_assistant.dart';
 
 class MarketplaceSectionScreen extends ConsumerStatefulWidget {
-  const MarketplaceSectionScreen({this.section = 'latest', this.governorate, this.type, this.latitude, this.longitude, super.key});
+  const MarketplaceSectionScreen({this.section = 'latest', this.governorate, this.type, this.purpose, this.latitude, this.longitude, super.key});
   final String section;
   final double? latitude, longitude;
-  final String? governorate, type;
+  final String? governorate, type, purpose;
   @override
   ConsumerState<MarketplaceSectionScreen> createState() => _MarketplaceSectionState();
 }
@@ -30,7 +30,7 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
   @override
   void didUpdateWidget(MarketplaceSectionScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.section != widget.section || oldWidget.governorate != widget.governorate || oldWidget.type != widget.type || oldWidget.latitude != widget.latitude || oldWidget.longitude != widget.longitude) {
+    if (oldWidget.section != widget.section || oldWidget.governorate != widget.governorate || oldWidget.type != widget.type || oldWidget.purpose != widget.purpose || oldWidget.latitude != widget.latitude || oldWidget.longitude != widget.longitude) {
       _rows.clear(); _page = 0; _more = false; _busy = true; _error = null;
       _transfer?.cancel('Section changed'); _request++;
       Future.microtask(_load);
@@ -49,7 +49,8 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
       final r = await ref.read(propertyRepositoryProvider).searchListings({
         if (widget.governorate != null) 'governorate': widget.governorate,
         if (widget.type != null) 'type': widget.type,
-        if (const ['sale', 'rent'].contains(widget.section)) 'purpose': widget.section,
+        if (widget.purpose != null) 'purpose': widget.purpose
+        else if (const ['sale', 'rent'].contains(widget.section)) 'purpose': widget.section,
         if (widget.section=='nearby' && widget.latitude!=null && widget.longitude!=null)...{'latitude':widget.latitude,'longitude':widget.longitude,'radius_km':30},
         if (widget.section == 'spotlight') 'spotlight': 1,
       }, page: page, cancelToken: transfer, refresh: !more && _page > 0);

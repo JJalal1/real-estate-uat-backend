@@ -225,21 +225,28 @@ class PropertyController extends Controller
     public function marketplace(Request $request): JsonResponse
     {
         $v = $request->validate(['type' => ['nullable', Rule::in(self::TYPES)],
+            'purpose' => ['nullable', Rule::in(['sale', 'rent'])],
             'governorate' => ['nullable', 'string', 'max:120'],
             'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180']]);
         $context = app(\App\Services\MarketplaceContextService::class)->resolve($v);
+        $context['purpose'] = $v['purpose'] ?? null;
         $base = $this->publicQuery();
-        $this->applyFilters($base, ['type' => $v['type'] ?? null, 'governorate' => $context['governorate']]);
+        $this->applyFilters($base, ['type' => $v['type'] ?? null, 'purpose' => $v['purpose'] ?? null,
+            'governorate' => $context['governorate']]);
         $sections = [];
         foreach (['spotlight', 'latest', 'sale', 'rent'] as $section) {
+            if (isset($v['purpose']) && in_array($section, ['sale', 'rent'], true) && $section !== $v['purpose']) {
+                $sections[$section] = [];
+                continue;
+            }
             $query = clone $base;
             if ($section === 'spotlight') $query->where('spotlight_until', '>', now());
             if (in_array($section, ['sale', 'rent'], true)) $query->where('purpose', $section);
             $sections[$section] = $query->latest('id')->limit(6)->get()->map(fn ($p) => $this->summaryData($p, $request))->values()->all();
         }
         if (isset($v['latitude'],$v['longitude'])) {
-            $nearby=$this->publicQuery();$this->applyFilters($nearby,['type'=>$v['type'] ?? null]);$lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
+            $nearby=$this->publicQuery();$this->applyFilters($nearby,['type'=>$v['type'] ?? null,'purpose'=>$v['purpose'] ?? null]);$lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
             if(DB::getDriverName()==='pgsql'){
                 $point='ST_SetSRID(ST_MakePoint(?, ?),4326)::geography';
                 $nearby->whereRaw("ST_DWithin(location::geography, $point, ?)",[$lon,$lat,30000])

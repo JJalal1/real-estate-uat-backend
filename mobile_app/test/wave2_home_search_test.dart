@@ -9,6 +9,7 @@ import 'package:real_estate_mobile/features/discovery/data/marketplace_search_se
 import 'package:real_estate_mobile/features/discovery/data/published_listing_suggestions.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
@@ -51,6 +52,7 @@ Dio suggestionsDio(List<Map<String, dynamic>> calls, {Completer<void>? delayed})
 
 GoRouter router() => GoRouter(routes: [
   GoRoute(path: '/', builder: (_, __) => const MarketplaceHomeScreen()),
+  GoRoute(path: '/marketplace-search', builder: (_, __) => const MarketplaceSearchScreen()),
   GoRoute(path: '/marketplace-search-map', builder: (_, __) => const MarketplaceSearchMapScreen()),
   GoRoute(path: '/properties/:id', builder: (context, state) => Scaffold(appBar: AppBar(),
     body: Text('تفاصيل العقار ${state.pathParameters['id']}'))),
@@ -197,13 +199,13 @@ void main() {
   });
 
   for(final keyboard in [true,false]) {
-    testWidgets('S01 S02 S06 S07 S08 S09 S10 ${keyboard?'IME':'button'} stays on Home and restores a selected listing', (tester) async {
+    testWidgets('S01 S02 S06 S07 S08 S09 S10 ${keyboard?'IME':'button'} uses standalone search and restores a selected listing', (tester) async {
       final properties=Listings(),calls=<Map<String,dynamic>>[],boundary=GlobalKey();
       final scope=uxContainer(extra:[propertyRepositoryProvider.overrideWithValue(properties),dioProvider.overrideWithValue(suggestionsDio(calls))]);
       final navigation=router(); addTearDown(navigation.dispose);
       await pumpUx(tester,scope,const SizedBox(),router:navigation,boundary:boundary);
       final input=find.byKey(const ValueKey('home-search'));
-      await tester.tap(input); await tester.enterText(input,'ش'); await uxFrames(tester);
+      await tester.tap(input); await tester.pumpAndSettle(); await tester.enterText(input,'ش'); await uxFrames(tester);
       expect(find.byType(MapScreen),findsNothing);
       expect(tester.widget<TextField>(input).readOnly,isFalse);
       expect(tester.widget<TextField>(input).maxLines,1);
@@ -240,6 +242,7 @@ void main() {
     ]);
     final navigation=router(); addTearDown(navigation.dispose);
     await pumpUx(tester,scope,const SizedBox(),router:navigation,boundary:boundary);
+    await tester.tap(find.byKey(const ValueKey('home-search'))); await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('home-search')),'ش');
     await tester.tap(find.byKey(const ValueKey('published-search-submit'))); await tester.pumpAndSettle();
     final homeScroll=tester.widget<CustomScrollView>(find.byKey(const PageStorageKey('home-search-results'))).controller!;
@@ -279,7 +282,7 @@ void main() {
   for(final dark in [false,true]) {
     testWidgets('S11 S12 S13 S24 small RTL large text and keyboard theme $dark', (tester) async {
       final scope=uxContainer(extra:[propertyRepositoryProvider.overrideWithValue(Listings())]);
-      await pumpUx(tester,scope,const MarketplaceHomeScreen(),size:const Size(320,568),scale:2.4,dark:dark);
+      await pumpUx(tester,scope,const MarketplaceSearchScreen(),size:const Size(320,568),scale:2.4,dark:dark);
       final controller=scope.read(marketplaceSearchControllerProvider.notifier);
       controller.edit(''); await controller.submit(); await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const ValueKey('published-type-land')));

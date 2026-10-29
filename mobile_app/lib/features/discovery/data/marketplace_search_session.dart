@@ -56,6 +56,38 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   void stopEditing() => state = state.copyWith(editing: false);
   void leaveHomeSearch() => state = state.copyWith(active: false, editing: false);
 
+  void prepareSearch({String? type}) {
+    final changed = state.criteria.values['type'] != type;
+    final next = Map<String, dynamic>.from(state.criteria.values)..remove('type');
+    if (type != null) next['type'] = type;
+    state = state.copyWith(active: true, criteria: SmartSearchFilters.fromMap(next),
+      editing: state.draftQuery.trim() != state.submittedQuery);
+    if (changed) { _lastSubmit = ''; home.reset(); }
+  }
+
+  /// One explicit session choice supplies Home, suggestions, list and map.
+  /// No new-user default or cross-account/device preference is invented.
+  void choosePurpose(String? purpose) {
+    if (purpose != null && !const ['rent', 'sale'].contains(purpose)) return;
+    if (state.criteria.values['purpose'] == purpose) return;
+    final next = Map<String, dynamic>.from(state.criteria.values)..remove('purpose');
+    if (purpose != null) next['purpose'] = purpose;
+    state = state.copyWith(criteria: SmartSearchFilters.fromMap(next));
+    _lastSubmit = '';
+    if (home.snapshot.started) {
+      final filters = _filters(text: state.submittedQuery);
+      _lastSubmit = jsonEncode(filters.apiFilters);
+      unawaited(home.replaceManually(filters));
+    }
+    if (state.mapOpen) {
+      unawaited(map.replaceManually(_filters(text: state.submittedQuery, onMap: true)));
+    }
+  }
+
+  bool _sameFilters(SmartSearchFilters a, SmartSearchFilters b) =>
+    a.apiFilters.length == b.apiFilters.length &&
+    a.apiFilters.entries.every((entry) => b.apiFilters[entry.key] == entry.value);
+
   Future<void> submit({bool force = false}) async {
     if (!mounted || state.draftQuery.trim().length > 120) return;
     final filters = _filters(text: state.draftQuery);
@@ -64,9 +96,12 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     state = state.copyWith(active: true, editing: false, submittedQuery: state.draftQuery.trim());
     if (!force && key == _lastSubmit && home.snapshot.started && home.snapshot.resultsError == null) return;
     _lastSubmit = key;
-    final loading = home.replaceManually(filters, retainedRows: home.snapshot.rows);
+    final loading = home.replaceManually(filters,
+      retainedRows: _sameFilters(home.snapshot.filters, filters) ? home.snapshot.rows : const []);
     if (state.mapOpen) {
-      unawaited(map.replaceManually(_filters(text: state.submittedQuery, onMap: true), retainedRows: map.snapshot.rows));
+      final mapFilters = _filters(text: state.submittedQuery, onMap: true);
+      unawaited(map.replaceManually(mapFilters,
+        retainedRows: _sameFilters(map.snapshot.filters, mapFilters) ? map.snapshot.rows : const []));
     }
     await loading;
   }
@@ -103,7 +138,8 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
         next.entries.any((entry) => previous[entry.key] != entry.value)) {
       // A repeated entry preserves the map's independent viewport and rows.
       // submit() may already have started this exact request synchronously.
-      unawaited(map.replaceManually(filters, retainedRows: home.snapshot.rows));
+      unawaited(map.replaceManually(filters,
+        retainedRows: _sameFilters(home.snapshot.filters, filters) ? home.snapshot.rows : const []));
     }
   }
   void leaveMap() { if (mounted) state = state.copyWith(mapOpen: false, editing: false); }

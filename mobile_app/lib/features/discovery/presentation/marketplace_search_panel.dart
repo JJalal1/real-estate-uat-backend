@@ -16,9 +16,10 @@ import 'smart_search_filter_editor.dart';
 
 /// The same editable input, IME action and public suggestions on Home and map.
 class MarketplaceSearchPanel extends ConsumerStatefulWidget {
-  const MarketplaceSearchPanel({this.onMap = false, this.onOpenMap, super.key});
+  const MarketplaceSearchPanel({this.onMap = false, this.onOpenMap, this.openFilters = false, super.key});
   final bool onMap;
   final VoidCallback? onOpenMap;
+  final bool openFilters;
   @override
   ConsumerState<MarketplaceSearchPanel> createState() => _MarketplaceSearchPanelState();
 }
@@ -27,6 +28,11 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
   final _text = TextEditingController();
   final _focus = FocusNode();
   bool _mapFiltersExpanded = false;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openFilters) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _editFilters(); });
+  }
   @override
   void dispose() { _text.dispose(); _focus.dispose(); super.dispose(); }
   Future<void> _submit() async {
@@ -89,9 +95,6 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
         else Row(children: [Expanded(child: field), const SizedBox(width: 4), execute,
           if (widget.onOpenMap != null) IconButton(key: const ValueKey('home-map'), tooltip: 'الخريطة',
             onPressed: widget.onOpenMap, icon: const Icon(Icons.map_outlined))]),
-        if (active && !widget.onMap) Align(alignment: AlignmentDirectional.centerEnd, child: TextButton(
-          key: const ValueKey('home-search-cancel'), onPressed: () { _focus.unfocus(); controller.leaveHomeSearch(); },
-          child: const Text('إلغاء البحث والعودة للرئيسية'))),
         if (active && !ui.editing) ...[
           _ChipRail(children: [
             if (widget.onMap) ActionChip(key: const ValueKey('published-map-filters'),
