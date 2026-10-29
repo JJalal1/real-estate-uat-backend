@@ -11,7 +11,7 @@ concurrency:
   group: private-branch2-chat-uat-installer-20261029
   cancel-in-progress: true
 env:
-  SOURCE_COMMIT: ce3c6b32917cb443f4c1ae4711d95ed975b3afca
+  SOURCE_COMMIT: c52ee4f29f2d84ffa3ef101d1de3de10d0ff37b5
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
   OWNER_UPGRADE_PAIR: 'true'
   AQER_PRIVATE_DELIVERY_VERSION: '1393'
@@ -30,7 +30,7 @@ jobs:
       run: |
         set -euo pipefail
         test "$(git rev-parse HEAD)" = "${SOURCE_COMMIT}"
-        test "$(git rev-parse HEAD^{tree})" = cc510fad4ad33db4a9e1b44aee81257ba16929c8
+        test "$(git rev-parse HEAD^{tree})" = f8628eebb2afd6ccf805321e3a5d6294c01426be
         git diff --exit-code
     - name: Set up Java 17
       uses: actions/setup-java@v4
@@ -66,7 +66,7 @@ jobs:
       id: stage1_ui
       working-directory: mobile_app
       run: |-
-        flutter test test/aqer_brand_test.dart test/wave2_trust_account_media_test.dart test/compact_cards_email_login_test.dart test/template_creation_menu_test.dart test/broker_experience_ui_test.dart test/broker_convenience_test.dart test/ux_refinement_test.dart test/wave3_personal_listing_test.dart test/wave3_ai_session_test.dart test/wave3_ai_design_ui_test.dart test/broker_listing_assistant_test.dart test/active_wave_discovery_test.dart test/wave6_product_contract_test.dart test/wave6_product_ui_test.dart test/new_wave_handoff_test.dart test/user_work_media_test.dart test/current_wave_contract_test.dart test/current_wave_ui_test.dart test/search_query_wave_test.dart test/listing_design_wave_test.dart test/phase3_favorites_screen_test.dart test/uat_account_types_kyc_models_test.dart test/wave4_listing_ui_test.dart test/wave4_sai_consent_test.dart test/in_app_voice_search_test.dart test/live_dictation_test.dart test/ui_transplant_v3_home_test.dart test/ui_transplant_v3_template_test.dart test/app_components_test.dart test/app_theme_test.dart test/uat_comments_fix_test.dart test/uat_listing_publish_viewing_flow_test.dart test/startup_navigation_layout_test.dart test/branch2_recovery_test.dart test/branch2_completion_test.dart test/branch2_voice_test.dart test/branch2_location_test.dart
+        flutter test test/aqer_brand_test.dart test/wave2_trust_account_media_test.dart test/compact_cards_email_login_test.dart test/template_creation_menu_test.dart test/broker_experience_ui_test.dart test/broker_convenience_test.dart test/ux_refinement_test.dart test/wave3_personal_listing_test.dart test/wave3_ai_session_test.dart test/wave3_ai_design_ui_test.dart test/broker_listing_assistant_test.dart test/active_wave_discovery_test.dart test/wave6_product_contract_test.dart test/wave6_product_ui_test.dart test/new_wave_handoff_test.dart test/user_work_media_test.dart test/current_wave_contract_test.dart test/current_wave_ui_test.dart test/search_query_wave_test.dart test/listing_design_wave_test.dart test/phase3_favorites_screen_test.dart test/uat_account_types_kyc_models_test.dart test/wave4_listing_ui_test.dart test/wave4_sai_consent_test.dart test/in_app_voice_search_test.dart test/live_dictation_test.dart test/ui_transplant_v3_home_test.dart test/ui_transplant_v3_template_test.dart test/app_components_test.dart test/app_theme_test.dart test/uat_comments_fix_test.dart test/uat_listing_publish_viewing_flow_test.dart test/startup_navigation_layout_test.dart test/branch2_recovery_test.dart test/branch2_completion_test.dart test/branch2_voice_test.dart test/branch2_location_test.dart test/loading_recovery_test.dart
     - name: Full Flutter regression
       id: flutter_regression
       working-directory: mobile_app
