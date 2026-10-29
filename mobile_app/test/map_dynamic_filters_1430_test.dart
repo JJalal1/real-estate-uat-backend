@@ -84,17 +84,17 @@ void main() {
     await _tap(tester, 'published-filter-rooms');
     await _tap(tester, 'filter-min_bedrooms-3');
     await _apply(tester);
-    expect(find.text('3 غرف فأكثر'), findsOneWidget);
+    expect(find.byTooltip('3 غرف فأكثر'), findsOneWidget);
     await _tap(tester, 'published-filter-bathrooms');
     await _tap(tester, 'filter-min_bathrooms-2');
     await _apply(tester);
-    expect(find.text('2 دورات مياه فأكثر'), findsOneWidget);
+    expect(find.byTooltip('2 دورات مياه فأكثر'), findsOneWidget);
     await _tap(tester, 'published-filter-max-price');
     await tester.enterText(find.byKey(const ValueKey('filter-max_price')), '٢٥٠٬٠٠٠');
     await _apply(tester);
     await _tap(tester, 'published-search-submit');
-    expect(find.text('3 غرف فأكثر'), findsOneWidget);
-    expect(find.text('2 دورات مياه فأكثر'), findsOneWidget);
+    expect(find.byTooltip('3 غرف فأكثر'), findsOneWidget);
+    expect(find.byTooltip('2 دورات مياه فأكثر'), findsOneWidget);
     expect(scope.read(marketplaceSearchControllerProvider).criteria.values['max_price'], 250000);
     expect(find.byKey(const ValueKey('published-map-filters')), findsOneWidget);
     await _tap(tester, 'published-type-land');
@@ -254,7 +254,18 @@ void main() {
         final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
         final list = tester.getRect(find.byKey(const ValueKey('map-results-list')));
         expect(list.top - toolbar.bottom, greaterThanOrEqualTo(70));
+        final maximum = find.byKey(const ValueKey('published-filter-max-price'));
+        if (scale == 1) {
+          final rect = tester.getRect(maximum);
+          expect(rect.left, greaterThanOrEqualTo(toolbar.left));
+          expect(rect.right, lessThanOrEqualTo(toolbar.right));
+          expect(rect.bottom, lessThanOrEqualTo(toolbar.bottom));
+        }
         await uxPreview(tester, boundary, 'map-filters-1430-$dark-$scale');
+        await tester.ensureVisible(maximum);
+        await tester.pumpAndSettle();
+        expect(tester.getRect(maximum).bottom, lessThanOrEqualTo(toolbar.bottom + 1));
+        await uxPreview(tester, boundary, 'map-filters-1430-$dark-$scale-controls');
         expect(tester.takeException(), isNull);
         await closeUx(tester);
       });

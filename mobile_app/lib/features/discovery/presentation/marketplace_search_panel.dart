@@ -133,18 +133,18 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
                 icon: const SmartSearchRobotIcon()),
             ],
           ]),
-          _ChipRail(children: [
+          LayoutBuilder(builder: (_, space) => Wrap(spacing: 6, runSpacing: 6, children: [
             if ((values['type'] != null || values.containsKey('min_bedrooms')) && DynamicPropertySchema.applies('bedrooms', values))
-              _quickFilter('min_bedrooms', 'الغرف', Icons.bed_outlined),
+              _quickFilter('min_bedrooms', 'الغرف', Icons.bed_outlined, large ? space.maxWidth : 110),
             if ((values['type'] != null || values.containsKey('min_bathrooms')) && DynamicPropertySchema.applies('bathrooms', values))
-              _quickFilter('min_bathrooms', 'الحمامات', Icons.bathtub_outlined),
-            _maximumPrice(ui.criteria),
+              _quickFilter('min_bathrooms', 'الحمامات', Icons.bathtub_outlined, large ? space.maxWidth : 110),
+            _maximumPrice(ui.criteria, large ? space.maxWidth : 128),
             if (DynamicPropertySchema.applies('area_value', values))
               ActionChip(key: const ValueKey('published-filter-area'), label: const Text('المساحة'),
                 onPressed: () => _editFilters('min_area_m2')),
             if (values['type'] == 'land') ActionChip(key: const ValueKey('published-filter-land-use'),
               label: const Text('الاستخدام المعلن'), onPressed: _landUse),
-          ]),
+          ])),
           if (ui.criteria.chips.any((e) => !_representedByQuickFilter(e.$1, values)) ||
               ui.landUse.isNotEmpty || widget.mapActions?.hasDrawnArea == true)
             _ChipRail(children: [
@@ -171,28 +171,30 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
     const ['type', 'purpose', 'min_bedrooms', 'min_bathrooms'].contains(key) ||
     (key == 'budget' && values['min_price'] == null);
 
-  Widget _quickFilter(String field, String label, IconData icon) {
+  Widget _quickFilter(String field, String label, IconData icon, double width) {
     final filters = ref.watch(marketplaceSearchControllerProvider).criteria;
     final selected = filters.values[field] != null;
-    final text = selected ? filters.chips.firstWhere((chip) => chip.$1 == field).$2 : label;
+    final summary = selected ? filters.chips.firstWhere((chip) => chip.$1 == field).$2 : label;
+    final text = selected ? '$label ${arabicDigits(filters.values[field].toString())}+' : label;
     final key = ValueKey(field == 'min_bedrooms' ? 'published-filter-rooms' : 'published-filter-bathrooms');
-    return InputChip(key: key, avatar: Icon(icon, size: 18), label: Text(text),
-      selected: selected, showCheckmark: false, onPressed: () => _editFilters(field),
-      onDeleted: selected ? () => ref.read(marketplaceSearchControllerProvider.notifier).remove(field) : null);
+    return Tooltip(message: summary, child: SizedBox(width: width,
+      child: ActionChip(key: key, avatar: Icon(icon, size: 16), label: Text(text),
+        backgroundColor: selected ? Theme.of(context).colorScheme.primaryContainer : null,
+        onPressed: () => _editFilters(field))));
   }
 
-  Widget _maximumPrice(SmartSearchFilters filters) {
+  Widget _maximumPrice(SmartSearchFilters filters, double width) {
     final max = filters.values['max_price'];
     final value = max is num ? '${arabicDigits(mapPropertyPriceLabel(max.toDouble()))} ${filters.currencyLabel}' : null;
-    return ConstrainedBox(constraints: const BoxConstraints(minWidth: 124, maxWidth: 230),
+    return SizedBox(width: width,
       child: OutlinedButton(key: const ValueKey('published-filter-max-price'),
         onPressed: () => _editFilters('max_price'),
         style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48),
           backgroundColor: value == null ? null : Theme.of(context).colorScheme.primaryContainer,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(filters.values['purpose'] == 'rent' ? 'أعلى إيجار شهري' : 'أعلى سعر'),
+          Text(filters.values['purpose'] == 'rent' ? 'أعلى إيجار' : 'أعلى سعر'),
           if (value != null) Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
         ])));
   }
