@@ -23,7 +23,7 @@ class HomeLocation {
     governorate: j['governorate']?.toString(), label: j['label']?.toString() ?? 'المنطقة', manual: true);
 }
 
-typedef HomeFeedQuery = ({double latitude, double longitude, String? governorate, String? type, bool device});
+typedef HomeFeedQuery = ({double latitude, double longitude, String? governorate, String? type, String? purpose, bool device});
 
 class MarketplaceFeed {
   const MarketplaceFeed({required this.label, this.governorate, this.source = 'default', this.sections = const {}, this.brokers = const [], this.sectionOrder = const ['spotlight','latest','sale','rent']});
@@ -59,10 +59,32 @@ class MarketplaceRepository {
       if (query.governorate != null) 'governorate': query.governorate,
       if (query.governorate == null && query.device) ...{'latitude': query.latitude, 'longitude': query.longitude},
       if (query.type != null) 'type': query.type,
+      if (query.purpose != null) 'purpose': query.purpose,
     }, cancelToken: cancelToken);
     final body = r.data?['data'];
     if (body is! Map) throw StateError('Invalid marketplace response.');
-    final feed = MarketplaceFeed.fromJson(Map<String, dynamic>.from(body));
+    var feed = MarketplaceFeed.fromJson(Map<String, dynamic>.from(body));
+    if (query.purpose != null && brokerMap(body['context'])['purpose'] != query.purpose) {
+      // Older UAT servers do not accept a purpose on /marketplace. Obtain all
+      // displayed property rows from the existing server-filtered public API;
+      // never present, or merely hide locally, an unscoped marketplace feed.
+      final keys = [if (query.device && query.governorate == null) 'nearby', 'spotlight', 'latest'];
+      final sections = await Future.wait(keys.map((section) async {
+        final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {
+          'purpose': query.purpose, 'per_page': 6, 'sort': 'latest',
+          if (query.type != null) 'type': query.type,
+          if (section == 'nearby') ...{'latitude': query.latitude, 'longitude': query.longitude, 'radius_km': 30}
+          else if (feed.governorate != null) 'governorate': feed.governorate,
+          if (section == 'spotlight') 'spotlight': 1,
+        }, cancelToken: cancelToken);
+        return MapEntry(section, brokerRows(response.data?['data']).map(PropertySummary.fromJson).toList(growable: false));
+      }));
+      feed = MarketplaceFeed(label: feed.label, governorate: feed.governorate, source: feed.source,
+        brokers: feed.brokers, sections: Map.fromEntries(sections), sectionOrder: keys);
+    }
+    if (query.purpose != null && feed.sections.values.expand((rows) => rows).any((row) => row.purpose != query.purpose)) {
+      throw StateError('The public server returned properties for another purpose.');
+    }
     if (cancelToken?.isCancelled != true && epoch == _cacheEpoch) {
       _cache[key] = (at: _now(), feed: feed);
       while (_cache.length > 8) { _cache.remove(_cache.keys.first); }

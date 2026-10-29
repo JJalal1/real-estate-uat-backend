@@ -1,0 +1,76 @@
+name: Wave3 original Home and standalone search
+on:
+  pull_request:
+    branches: [work/branch2-*, work/wave3-home-*]
+    paths: ['mobile_app/**', 'backend-api-runtime/**', 'scripts/transplant_wave3_home.py', '.github/workflows/wave3-home-restoration.yml']
+permissions:
+  contents: read
+concurrency:
+  group: wave3-home-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify reproducible source transplant against the immutable reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/ebroker-archive" 425f019070db73253ff77181c77623d28225cc25
+          python3 "$RUNNER_TEMP/ebroker-archive/scripts/restore_reference.py" --destination "$RUNNER_TEMP/ebroker-restored"
+          python3 scripts/transplant_wave3_home.py --reference-root "$RUNNER_TEMP/ebroker-restored" --check
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Existing locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Strict original analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Search, purpose, source gallery and retained regressions
+        working-directory: mobile_app
+        run: >-
+          flutter test --reporter expanded test/wave3_home_restoration_test.dart
+          test/wave2_home_search_test.dart test/ui_transplant_v3_home_test.dart
+          test/owner_ux_gallery_filters_test.dart test/wave1_experience_ui_test.dart
+          test/public_discovery_cancellation_test.dart test/smart_search_pagination_recovery_test.dart
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wave3-home-search-previews
+          path: mobile_app/build/owner-ux-preview/w3-*.png
+          if-no-files-found: warn
+          retention-days: 7
+  purpose-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Disposable backend only
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+      - name: Purpose, privacy and existing public discovery regression
+        run: php artisan test --filter='Wave3MarketplacePurposeTest|Wave2PublishedSuggestionsTest|UatPerformanceRegressionTest|Wave6EditorDiscoveryTest' --display-warnings --fail-on-warning --fail-on-risky

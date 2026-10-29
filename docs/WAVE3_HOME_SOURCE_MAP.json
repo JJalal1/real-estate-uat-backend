@@ -1,0 +1,60 @@
+{
+  "reference_commit": "425f019070db73253ff77181c77623d28225cc25",
+  "archive_sha256": "4d57450d87d471be8758ec3f350e9867ed56f5d46b4b56bb4a8fb3f7c756a0cc",
+  "source_files": [
+    {
+      "source": "app/lib/utils/responsive_size.dart",
+      "source_sha256": "f216fcac6f9efce0c796aa81cc9a45c3d60233f13919eefd9efc1904c62a2b08",
+      "target": "mobile_app/lib/core/widgets/ebroker_home/responsive_size.dart",
+      "target_sha256": "b2bcaef2bf56569b7a42d4d9bdfffe3fa8c83e6df5741c3de57272350b0e9e29",
+      "adaptations": [
+        "Unchanged original responsive sizing; no dependency additions."
+      ]
+    },
+    {
+      "source": "app/lib/ui/screens/widgets/project_image_swiper.dart",
+      "source_sha256": "ad63e9a48d0501d2faaa05ec272c0d640d1b3343358e236c42f6587becfdf889",
+      "target": "mobile_app/lib/core/widgets/ebroker_home/image_swiper.dart",
+      "target_sha256": "99bb0a1223177916a0cd46ce7443fa90c2a3b7ffc54282d7f0586fc01405b3d0",
+      "adaptations": [
+        "Original looping PageView and complete animated ScrollingDotsIndicator.",
+        "CustomImage delegates to the existing viewport-aware sanitized media/cache path.",
+        "Fence changed image collections, disable implicit offscreen loading, preserve route/page state and reduced motion."
+      ]
+    },
+    {
+      "source": "app/lib/ui/screens/home/widgets/category_card.dart",
+      "source_sha256": "07aa74cad8412cb25023c57cd91f83577df9e8bf654671b19a96db383db5af37",
+      "target": "mobile_app/lib/core/widgets/ebroker_home/category_card.dart",
+      "target_sha256": "266f7bb4a60dd88e11ff03de90dc2d70b9751306a74b24a91928915479beafb6",
+      "adaptations": [
+        "Original rectangular category card, dimensions, icon/text spacing and callbacks.",
+        "Canonical Aqer type taxonomy and selected state; minimum 48 logical-pixel touch target."
+      ]
+    },
+    {
+      "source": "app/lib/ui/screens/home/widgets/property_card_big.dart",
+      "source_sha256": "bad09b3c2e2e173fe847f3dbe2f3a4b9f03512431f43321f697f990f740c4400",
+      "target": "mobile_app/lib/core/widgets/ebroker_home/property_card_big.dart",
+      "target_sha256": "7016f5c2c8a910f85a9371afde9573d60962301cd202fb3c85b41256686ca50a",
+      "adaptations": [
+        "Original PropertyCardBig presentation body and image/category/title/location/divider/price hierarchy.",
+        "Original paid/premium/guest/comparison backend removed; real Aqer navigation, comparison, favorite and editorial Spotlight supplied.",
+        "Actual Yemeni currency/monthly-vs-advance values, applicable compact facts, constrained long Arabic locations and accessible favorite target.",
+        "Intrinsic responsive rows replace fixed 248px source grid where Arabic/font scaling would clip."
+      ]
+    },
+    {
+      "source": "app/lib/ui/screens/agent_mode/cards/agent_card.dart",
+      "source_sha256": "2cf987d33c1a4d2bc050e6bee8314b632c6869263f1d359807c912fe4e4315f8",
+      "target": "mobile_app/lib/core/widgets/ebroker_home/agent_card.dart",
+      "target_sha256": "34fce70e8600f8e96b215976843acf986a2403af16240c077177c492cd51d619",
+      "adaptations": [
+        "Original AgentCard presentation body/banner-avatar/name/stats composition.",
+        "No source follow/appointments/WhatsApp/private email/project claims. Existing authorized public profile/contact route.",
+        "Unavailable public cover is a neutral color gradient; no demo imagery. Actual verified state, ratings, listing and confirmed-deal counts.",
+        "Directional positioning for RTL and intrinsic text/button height for accessibility."
+      ]
+    }
+  ]
+}
