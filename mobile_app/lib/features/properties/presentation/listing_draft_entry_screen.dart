@@ -52,6 +52,12 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   }
   bool get _localAutomatic => _local != null && isAutomaticListingRecovery(_local!) &&
     !_drafts.any((draft) => draft.key == _local!['draft_key'] && !draft.isRecovery);
+  List<Map<String, dynamic>> get _deviceDrafts {
+    final byKey = <String, Map<String, dynamic>>{};
+    for (final row in _savedLocal) { if (row['draft_key'] is String) byKey[row['draft_key'] as String] = row; }
+    if (_local?['draft_key'] is String) byKey[_local!['draft_key'] as String] = _local!;
+    return byKey.values.toList(growable: false);
+  }
   @override
   void initState() { super.initState(); Future.microtask(_load); }
   Future<void> _load() async {
@@ -94,11 +100,13 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     try {
       final current = await _repository.get(draft.key);
       final property = current.propertyId == null ? null : await ref.read(propertyRepositoryProvider).details(current.propertyId!);
-      if (_current) setState(() {
-        _selected = current; _property = property; _editorLocal = _localFor(current.key);
-        _assistant = current.entryMethod == 'assistant' && current.payload['completion_only'] != true;
-        _fresh = false; _open = true;
-      });
+      if (_current) {
+        setState(() {
+          _selected = current; _property = property; _editorLocal = _localFor(current.key);
+          _assistant = current.entryMethod == 'assistant' && current.payload['completion_only'] != true;
+          _fresh = false; _open = true;
+        });
+      }
     } catch (e) { if (_current) setState(() => _error = friendlyApiError(e)); }
     finally { if (_current) setState(() => _working = false); }
   }
@@ -126,8 +134,8 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       final revision = local != null && remote?.key != key ? (local['server_revision'] as num? ?? 0).toInt() : remote?.revision ?? 0;
       if (key != null) await _repository.retireRecovery(key, revision);
       if (!_current) return;
-      if (local != null && local['draft_key'] == key) await _store.clear(widget.actor, null);
-      else await _protectSavedLocal();
+      if (local != null && local['draft_key'] == key) { await _store.clear(widget.actor, null); }
+      else { await _protectSavedLocal(); }
       if (_current) setState(() { _fresh = true; _selected = null; _editorLocal = null; _property = null; _assistant = widget.startWithAssistant; _open = true; });
     } catch (_) { if (_current) setState(() => _error = 'لم يكتمل إلغاء التقدم المؤقت. بياناتك باقية؛ أعد المحاولة أو تابع الإعلان.'); }
     finally { if (_current) setState(() => _working = false); }
@@ -138,6 +146,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     setState(() => _working = true);
     try {
       await _repository.delete(draft.key); await _store.deleteSaved(widget.actor, draft.key);
+      if (_local?['draft_key'] == draft.key) await _store.clear(widget.actor, null);
       if (_current) await _load();
     } catch (e) { if (_current) setState(() => _error = friendlyApiError(e)); }
     finally { if (_current) setState(() => _working = false); }
@@ -148,6 +157,18 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     setState(() => _working = true);
     try { await ref.read(propertyRepositoryProvider).deleteListing(property.id); if (_current) await _load(); }
     catch (e) { if (_current) setState(() => _error = friendlyApiError(e)); }
+    finally { if (_current) setState(() => _working = false); }
+  }
+  Future<void> _deleteLocal(Map<String, dynamic> data) async {
+    if (_working || !await _confirm('حذف المسودة المحلية؟', 'لن يحذف ذلك إعلانًا محفوظًا على الخادم.')) return;
+    if (!_current) return;
+    setState(() => _working = true);
+    try {
+      final key = data['draft_key'] as String;
+      await _store.deleteSaved(widget.actor, key);
+      if (_local?['draft_key'] == key) await _store.clear(widget.actor, null);
+      if (_current) await _load();
+    } catch (e) { if (_current) setState(() => _error = friendlyApiError(e)); }
     finally { if (_current) setState(() => _working = false); }
   }
   @override
@@ -190,14 +211,12 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       if (_loading || _working || _error != null) AppRefreshStatus(loading: _loading || _working, error: _error, onRetry: _load),
       for (final draft in _drafts) ListTile(title: Text(draft.title), subtitle: Text(draft.isRecovery ? 'تقدم تلقائي' : 'مسودة محفوظة'),
         onTap: _working ? null : () => _resume(draft), trailing: IconButton(tooltip: 'حذف المسودة', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _delete(draft))),
-      for (final data in _savedLocal.where((data) => !_drafts.any((d) => d.key == data['draft_key']))) ListTile(
+      for (final data in _deviceDrafts.where((data) => !_drafts.any((d) => d.key == data['draft_key']))) ListTile(
         title: Text((data['fields'] as Map?)?['title']?.toString().trim().isNotEmpty == true ? (data['fields'] as Map)['title'].toString() : 'مسودة محفوظة على الجهاز'),
         subtitle: const Text('بيانات محلية محفوظة؛ قد تحتاج مزامنة الحساب'), onTap: _working ? null : () => _resumeLocal(data),
-        trailing: IconButton(tooltip: 'حذف المسودة المحلية', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () async {
-          if (await _confirm('حذف المسودة المحلية؟', 'لن يحذف ذلك إعلانًا محفوظًا على الخادم.') && _current) { await _store.deleteSaved(widget.actor, data['draft_key'] as String); await _load(); }
-        })),
+        trailing: IconButton(tooltip: 'حذف المسودة المحلية', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _deleteLocal(data))),
       for (final property in _legacy.where((p) => !_drafts.any((d) => d.propertyId == p.id))) ListTile(
         title: Text(property.title), subtitle: const Text('إعلان محفوظ في المسودات'), onTap: _working ? null : () => setState(() { _property = property; _assistant = false; _open = true; }), trailing: IconButton(tooltip: 'حذف الإعلان المحفوظ', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _deleteLegacy(property))),
-      if (!_loading && _drafts.isEmpty && _legacy.isEmpty && _savedLocal.isEmpty) const Text('لا توجد مسودات محفوظة.'),
+      if (!_loading && _drafts.isEmpty && _legacy.isEmpty && _deviceDrafts.isEmpty) const Text('لا توجد مسودات محفوظة.'),
     ])));
 }

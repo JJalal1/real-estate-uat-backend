@@ -39,6 +39,7 @@ class ListingEditorDraftController extends Controller
             'payload.fields'=>['nullable','array'],'payload.image_order'=>['nullable','array','max:12'],
             'payload.image_order.*'=>['string','distinct',function($attribute,$value,$fail){ if (!Str::isUuid($value) && !preg_match('/^property-[1-9][0-9]*$/D',$value)) $fail('مرجع الصورة غير صالح.'); }],
             'payload.checkpoint_key'=>['nullable','uuid'],'payload.media_version'=>['nullable','integer','in:1'],
+            'payload.editor_version'=>['nullable','integer','between:1,100'],
             'payload.draft_kind'=>['nullable','in:recovery,saved'],'payload.entry_method'=>['nullable','in:manual,assistant'],
         ]);
         abort_if(strlen(json_encode($v['payload']))>100000,422);

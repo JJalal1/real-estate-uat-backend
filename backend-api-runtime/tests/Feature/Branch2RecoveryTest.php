@@ -21,7 +21,8 @@ class Branch2RecoveryTest extends TestCase
     public function test_recovery_retirement_clears_private_work_and_fences_late_writes(): void
     {
         [$user,$a]=$this->actor('b2-retire','broker');$key=(string)Str::uuid();$url='/api/listing-editor-drafts/'.$key;
-        $this->withHeaders($a)->putJson($url,['payload'=>$this->payload(),'expected_revision'=>0])->assertOk();
+        $this->withHeaders($a)->putJson($url,['payload'=>$this->payload(),'expected_revision'=>0])->assertOk()
+            ->assertJsonPath('data.payload.editor_version',10)->assertJsonPath('data.payload.draft_kind','recovery');
         $this->withHeaders($a)->deleteJson($url,['recovery_only'=>true,'expected_revision'=>1])->assertOk();
         $draft=ListingEditorDraft::where('user_id',$user->id)->where('client_key',$key)->firstOrFail();
         $this->assertSame('retired',$draft->payload['draft_kind']);$this->assertSame([],$draft->payload['fields']);$this->assertSame([],$draft->images);

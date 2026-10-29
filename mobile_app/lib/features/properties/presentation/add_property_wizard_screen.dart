@@ -16,8 +16,10 @@ class _AddPropertyWizardState extends State<AddPropertyWizardScreen> {
   late bool? _assistant = widget.existingProperty != null || widget.showSavedDrafts ? false : widget.startWithAssistant;
   @override
   Widget build(BuildContext context) {
-    if (_assistant != null) return ListingDraftEntryScreen(existingProperty: widget.existingProperty,
-      startWithAssistant: _assistant!, showSavedDrafts: widget.showSavedDrafts);
+    if (_assistant != null) {
+      return ListingDraftEntryScreen(existingProperty: widget.existingProperty,
+        startWithAssistant: _assistant!, showSavedDrafts: widget.showSavedDrafts);
+    }
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(backgroundColor: Colors.transparent,
       body: Center(child: Dialog(key: const ValueKey('listing-method-choice'), child: Padding(padding: const EdgeInsets.all(20),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
