@@ -314,7 +314,7 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
           onFiltersChanged: (filters) => selected = filters)));
       if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
       if (initial.values.length == selected.values.length &&
-          initial.values.entries.every((entry) => selected.values[entry.key] == entry.value)) return;
+          initial.values.entries.every((entry) => selected.values[entry.key] == entry.value)) { return; }
       ref.read(marketplaceSearchControllerProvider.notifier).adoptMapSearch(selected);
     } finally {
       _openingSmartSearch = false;
@@ -335,13 +335,13 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
     _measureToolbar();
     final ui = ref.watch(marketplaceSearchControllerProvider);
     final actor = ref.watch(authControllerProvider.select((value) => value.asData?.value?.id));
-    if (!ui.mapOpen) WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!ui.mapOpen) { WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && actor == ref.read(authControllerProvider).asData?.value?.id &&
           !ref.read(marketplaceSearchControllerProvider).mapOpen &&
           ModalRoute.of(context)?.isCurrent != false) {
         ref.read(marketplaceSearchControllerProvider.notifier).enterMap();
       }
-    });
+    }); }
     return PopScope(onPopInvokedWithResult: (didPop, _) {
       if (didPop) ref.read(marketplaceSearchControllerProvider.notifier).leaveMap();
     }, child: Scaffold(appBar: AppBar(title: const Text('البحث على الخريطة', maxLines: 2),
