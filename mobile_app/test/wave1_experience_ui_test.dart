@@ -165,7 +165,7 @@ void main() {
     expect(tester.takeException(), isNull); await closeUx(tester);
   });
 
-  testWidgets('draft choice closes over its source, shows all, deduplicates resume and discards an old actor response', (tester) async {
+  testWidgets('A05 A07 explicit My Drafts preserves its source, all saved work, deduplicated resume and actor fence', (tester) async {
     final old = _DelayedDrafts(), next = Wave6Drafts(), auth = UxAuth(uxUser(type: 'broker'));
     final firstKey = newListingDraftKey(), secondKey = newListingDraftKey();
     old.drafts[firstKey] = ListingAccountDraft(key: firstKey, revision: 2, payload: editorSnapshot(), title: 'مسودة سابقة', progress: 40);
@@ -180,20 +180,19 @@ void main() {
       GoRoute(path: '/add-property', pageBuilder: (_, state) => CustomTransitionPage<void>(key: state.pageKey,
         opaque: false, barrierColor: Colors.black38,
         transitionsBuilder: (_, animation, __, child) => FadeTransition(opacity: animation, child: child),
-        child: const ListingDraftEntryScreen())),
+        child: const ListingDraftEntryScreen(showSavedDrafts: true))),
     ]); addTearDown(router.dispose);
     final boundary = GlobalKey();
     await pumpUx(tester, scope, const SizedBox.shrink(), router: router, boundary: boundary);
     await tester.tap(find.text('سياق البحث الأصلي')); await tester.pumpAndSettle();
-    expect(find.text('المسودة الأخيرة'), findsOneWidget); expect(find.text('مسودة سابقة'), findsNothing);
+    expect(find.text('المسودة الأخيرة'), findsOneWidget); expect(find.text('مسودة سابقة'), findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-recovery-choice')), findsNothing);
     expect(find.text('سياق البحث الأصلي'), findsOneWidget);
     await uxPreview(tester, boundary, 'wave1-draft-choice');
-    await tester.tap(find.text('عرض كل المسودات')); await tester.pumpAndSettle();
-    expect(find.text('مسودة سابقة'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('listing-draft-choice-close'))); await tester.pumpAndSettle();
+    await tester.tap(find.byType(BackButton)); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('listing-draft-choice')), findsNothing); expect(old.drafts, hasLength(2));
     await tester.tap(find.text('سياق البحث الأصلي')); await tester.pumpAndSettle();
-    final resume = find.text('متابعة الإعلان');
+    final resume = find.text('المسودة الأخيرة');
     await tester.tap(resume); await tester.tap(resume); await tester.pump(); expect(old.gets, 1);
     auth.change(uxUser(id: 2, type: 'broker')); await uxFrames(tester);
     old.pending.complete(old.drafts[secondKey]!); await uxFrames(tester);
@@ -277,3 +276,4 @@ void main() {
     });
   }
 }
+

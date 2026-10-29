@@ -333,4 +333,3 @@ class _SmartSearchEmptyState extends StatelessWidget {
     );
   }
 }
-
