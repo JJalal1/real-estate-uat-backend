@@ -229,7 +229,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     if (data.brokers.isNotEmpty) {
       slivers.add(SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'دلالون ومكاتب في ${data.label}',
         onSeeAll: () => context.push('/brokers'))));
-      slivers.add(SliverToBoxAdapter(child: SingleChildScrollView(scrollDirection: Axis.horizontal,
+      slivers.add(SliverToBoxAdapter(child: SingleChildScrollView(key: const PageStorageKey('home-brokers-rail'), scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 18), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           for (final broker in data.brokers) Padding(padding: const EdgeInsetsDirectional.only(end: 8),
             child: EbrokerHomeAgentCard(profile: broker,
@@ -269,7 +269,12 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         ? 'لا توجد عقارات في هذه المنطقة الآن' : 'لا توجد عقارات مطابقة في هذه المنطقة الآن', message: 'يمكنك تغيير المنطقة أو الغرض.',
       actionLabel: 'تغيير المنطقة', onAction: _chooseLocation)));
     }
-    return SliverMainAxisGroup(slivers: slivers);
+    // Keep Aqer's original SliverList host: on retained Flutter 3.27, grouping
+    // all box adapters leaves far media geometry unusable after a large jump.
+    // The original eBroker card/section bodies remain inside this lazy host.
+    return SliverList(delegate: SliverChildListDelegate.fixed([
+      for (final section in slivers.cast<SliverToBoxAdapter>()) section.child!,
+    ]));
   }
 }
 

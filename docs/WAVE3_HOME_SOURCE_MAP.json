@@ -15,7 +15,7 @@
       "source": "app/lib/ui/screens/widgets/project_image_swiper.dart",
       "source_sha256": "ad63e9a48d0501d2faaa05ec272c0d640d1b3343358e236c42f6587becfdf889",
       "target": "mobile_app/lib/core/widgets/ebroker_home/image_swiper.dart",
-      "target_sha256": "99bb0a1223177916a0cd46ce7443fa90c2a3b7ffc54282d7f0586fc01405b3d0",
+      "target_sha256": "52abb420d0976b3c3521ed8bbe88543e1857a7175f206b7f7083d2ca56f91b51",
       "adaptations": [
         "Original looping PageView and complete animated ScrollingDotsIndicator.",
         "CustomImage delegates to the existing viewport-aware sanitized media/cache path.",
@@ -48,7 +48,7 @@
       "source": "app/lib/ui/screens/agent_mode/cards/agent_card.dart",
       "source_sha256": "2cf987d33c1a4d2bc050e6bee8314b632c6869263f1d359807c912fe4e4315f8",
       "target": "mobile_app/lib/core/widgets/ebroker_home/agent_card.dart",
-      "target_sha256": "f6dbb40d49dc1a140c2ab8a8124d35235243cc1a322bbf19f480fc87e4153465",
+      "target_sha256": "5d4547e919e4fd88fe246046117d4aadac8dd9f572032995cb55ee222489c510",
       "adaptations": [
         "Original AgentCard presentation body/banner-avatar/name/stats composition.",
         "No source follow/appointments/WhatsApp/private email/project claims. Existing authorized public profile/contact route.",

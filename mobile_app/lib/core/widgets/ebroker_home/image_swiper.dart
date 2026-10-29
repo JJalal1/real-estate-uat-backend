@@ -111,7 +111,7 @@ class _ProjectImageSwiperState extends State<EbrokerHomeImageSwiper> {
           child: Stack(
             children: [
               PageView.builder(
-                key: PageStorageKey('source-gallery-${widget.heroTag}'),
+                key: PageStorageKey('source-gallery-${widget.heroTag}-${widget.images.join("|")}'),
                 allowImplicitScrolling: false,
                 controller: _pageController,
                 onPageChanged: (index) {

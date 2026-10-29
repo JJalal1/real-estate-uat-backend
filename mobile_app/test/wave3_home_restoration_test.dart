@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_home/image_swiper.dart';
@@ -201,6 +202,7 @@ void main() {
       expect(tester.getRect(portrait).overlaps(tester.getRect(rating)), isFalse);
       expect(find.text('عقارات: 7'), findsOneWidget);
       expect(find.text('صفقات مؤكدة: 3'), findsOneWidget);
+      expect(tester.renderObject<RenderParagraph>(find.text('صفقات مؤكدة: 3')).didExceedMaxLines, isFalse);
       await uxPreview(tester, boundary, 'w3-expert-$scale');
       expect(tester.takeException(), isNull); await closeUx(tester);
     });

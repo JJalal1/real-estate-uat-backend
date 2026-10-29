@@ -190,7 +190,11 @@ class EbrokerHomeAgentCard extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(8.rw(context)),
               ),
-              child: Row(
+              child: largeText ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SourceText('عقارات: ${profile.activeListings}', fontSize: 12),
+                const SizedBox(height: 4),
+                SourceText('صفقات مؤكدة: ${profile.completedDeals}', fontSize: 12),
+              ]) : Row(
                 children: [
                   Expanded(
                     child: Center(

@@ -98,7 +98,7 @@ def main():
 
   @override
   void dispose()''')
-    text = text.replace('              PageView.builder(\n', "              PageView.builder(\n                key: PageStorageKey('source-gallery-${widget.heroTag}'),\n                allowImplicitScrolling: false,\n")
+    text = text.replace('              PageView.builder(\n', "              PageView.builder(\n                key: PageStorageKey('source-gallery-${widget.heroTag}-${widget.images.join(\"|\")}'),\n                allowImplicitScrolling: false,\n")
     text = text.replace('duration: _kWindowDuration,', 'duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : _kWindowDuration,')
     emit('image_swiper.dart', text, ['Original looping PageView and complete animated ScrollingDotsIndicator.',
         'CustomImage delegates to the existing viewport-aware sanitized media/cache path.',
@@ -252,6 +252,13 @@ class EbrokerHomeAgentCard extends StatelessWidget {
     # Source uses physical positioning; mirror the avatar/rating arrangement in Arabic.
     text = text.replace('Positioned(\n                    right: 4.rw(context),', 'PositionedDirectional(\n                    end: 4.rw(context),')
     text = text.replace('                  Positioned(\n                    left: 6.rw(context),', '                  PositionedDirectional(\n                    start: 6.rw(context),')
+    stats = text.index('// Property & Project counts')
+    row = text.index('child: Row(', stats)
+    text = text[:row] + """child: largeText ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SourceText('عقارات: ${profile.activeListings}', fontSize: 12),
+                const SizedBox(height: 4),
+                SourceText('صفقات مؤكدة: ${profile.completedDeals}', fontSize: 12),
+              ]) : Row(""" + text[row + len('child: Row('):]
     emit('agent_card.dart', text, ['Original AgentCard presentation body/banner-avatar/name/stats composition.',
         'No source follow/appointments/WhatsApp/private email/project claims. Existing authorized public profile/contact route.',
         'Unavailable public cover is a neutral color gradient; no demo imagery. Actual verified state, ratings, listing and confirmed-deal counts.',
