@@ -254,6 +254,12 @@ void main() {
         final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
         final list = tester.getRect(find.byKey(const ValueKey('map-results-list')));
         expect(list.top - toolbar.bottom, greaterThanOrEqualTo(70));
+        for (final key in ['published-purpose-rent', 'published-map-filters', 'map-draw-area', 'map-smart-search']) {
+          final rect = tester.getRect(find.byKey(ValueKey(key)));
+          expect(rect.left, greaterThanOrEqualTo(toolbar.left - 1));
+          expect(rect.right, lessThanOrEqualTo(toolbar.right + 1));
+          expect(rect.bottom, lessThanOrEqualTo(toolbar.bottom + 1));
+        }
         final maximum = find.byKey(const ValueKey('published-filter-max-price'));
         if (scale == 1) {
           final rect = tester.getRect(maximum);

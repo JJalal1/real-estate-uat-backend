@@ -87,10 +87,22 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
     final execute = TextButton(key: const ValueKey('published-search-submit'),
       onPressed: () => unawaited(_submit()), child: const Text('تنفيذ'));
     final large = MediaQuery.textScalerOf(context).scale(14) > 23;
+    final mapTools = widget.mapActions == null ? const <Widget>[] : <Widget>[
+      const SizedBox(width: 4),
+      IconButton.outlined(key: const ValueKey('map-draw-area'), tooltip: 'رسم منطقة على الخريطة',
+        isSelected: widget.mapActions!.hasDrawnArea, onPressed: () {
+          _focus.unfocus();
+          widget.mapActions!.onDrawArea();
+        }, icon: const Icon(Icons.gesture_rounded)),
+      const SizedBox(width: 4),
+      IconButton.outlined(key: const ValueKey('map-smart-search'), tooltip: 'البحث الذكي',
+        onPressed: () { _focus.unfocus(); widget.mapActions!.onSmartSearch(); },
+        icon: const SmartSearchRobotIcon()),
+    ];
     return Material(color: theme.colorScheme.surface, borderRadius: BorderRadius.circular(16),
       child: Padding(padding: const EdgeInsets.all(10), child: Column(mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (large) ...[field, Row(mainAxisAlignment: MainAxisAlignment.end, children: [execute,
+        if (large) ...[field, Row(mainAxisAlignment: MainAxisAlignment.end, children: [execute, ...mapTools,
           if (widget.onOpenMap != null) IconButton(key: const ValueKey('home-map'), tooltip: 'الخريطة',
             onPressed: widget.onOpenMap, icon: const Icon(Icons.map_outlined))])]
         else Row(children: [Expanded(child: field), const SizedBox(width: 4), execute,
@@ -106,7 +118,9 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
                   onSelected: (_) => controller.setChoice('purpose', e.key)),
             ])),
             const SizedBox(width: 6),
-            OutlinedButton.icon(key: ValueKey(widget.onMap ? 'published-map-filters' : 'published-filter-more'),
+            if (large) IconButton.outlined(key: ValueKey(widget.onMap ? 'published-map-filters' : 'published-filter-more'),
+              tooltip: 'تصفية', onPressed: () => _editFilters(), icon: const Icon(Icons.tune))
+            else OutlinedButton.icon(key: ValueKey(widget.onMap ? 'published-map-filters' : 'published-filter-more'),
               onPressed: () => _editFilters(), icon: const Icon(Icons.tune, size: 18),
               label: Text(ui.criteria.chips.isEmpty ? 'تصفية' : 'تصفية (${arabicDigits(ui.criteria.chips.length.toString())})'),
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48),
@@ -120,18 +134,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
                   selected: e.key == 'all' ? values['type'] == null : values['type'] == e.key,
                   onSelected: (_) => controller.setChoice('type', e.key == 'all' ? null : e.key)),
             ])),
-            if (widget.mapActions != null) ...[
-              const SizedBox(width: 4),
-              IconButton.outlined(key: const ValueKey('map-draw-area'), tooltip: 'رسم منطقة على الخريطة',
-                isSelected: widget.mapActions!.hasDrawnArea, onPressed: () {
-                  _focus.unfocus();
-                  widget.mapActions!.onDrawArea();
-                }, icon: const Icon(Icons.gesture_rounded)),
-              const SizedBox(width: 4),
-              IconButton.outlined(key: const ValueKey('map-smart-search'), tooltip: 'البحث الذكي',
-                onPressed: () { _focus.unfocus(); widget.mapActions!.onSmartSearch(); },
-                icon: const SmartSearchRobotIcon()),
-            ],
+            if (!large) ...mapTools,
           ]),
           LayoutBuilder(builder: (_, space) => Wrap(spacing: 6, runSpacing: 6, children: [
             if ((values['type'] != null || values.containsKey('min_bedrooms')) && DynamicPropertySchema.applies('bedrooms', values))
