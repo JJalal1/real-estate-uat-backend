@@ -1,0 +1,11 @@
+{
+  "feature_source": "e606b9e7617bfa357533e10d8089cfcf533db72a",
+  "mobile_tree": "7df9dc10b1f6664bcbf348d06f7d4d1a5e7e0536",
+  "backend_tree": "5b53bb66976b784cfdaa79b72e3b819750954c0b",
+  "transport_only": true,
+  "private_key_in_git": false,
+  "private_key_in_apk": false,
+  "temporary_transport_recipient_sha256": "0705dcb18aa84e9ca35d0f3985c8e1999739a25a9dbedd5cff5d07161f4b6ced",
+  "original_owner_recipient_preserved": true,
+  "no_merge_or_deployment": true
+}

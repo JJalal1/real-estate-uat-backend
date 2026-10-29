@@ -20,7 +20,7 @@ concurrency:
 env:
   SOURCE_COMMIT: ${{ github.sha }}
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
-  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' || startsWith(github.head_ref, 'work/branch2-') || startsWith(github.head_ref, 'work/wave3-home-') }}
+  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' || startsWith(github.head_ref, 'work/branch2-') || startsWith(github.head_ref, 'work/wave3-home-') || startsWith(github.ref_name, 'work/wave3-home-delivery-') }}
 jobs:
   source:
     name: Tracked source checkpoint
