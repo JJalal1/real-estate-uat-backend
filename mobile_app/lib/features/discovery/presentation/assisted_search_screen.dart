@@ -1,3 +1,5 @@
+import '../../account/data/auth_controller.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,6 +32,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   final _focus = FocusNode();
   late final VoiceCaptureController _capture;
   String _voiceDraft = '', _voiceRestoration = '';
+  String? _lastVoiceBase, _lastVoiceText;
+  int _voiceTurn = 0;
   late final SmartSearchSession _session;
   int _journey = 0;
   bool _ready = false, _mapMode = false;
@@ -69,7 +73,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     await ref.read(smartSearchSessionProvider.notifier).interpret(text);
   }
 
-  Future<void> _voice() async {
+  Future<void> _voice({bool wholeRecording = false}) async {
     if (_capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
     FocusScope.of(context).unfocus();
     final revision = ref.read(smartSearchSessionProvider).revision;
@@ -78,17 +82,31 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     _voiceDraft = current.started && current.draftText.isEmpty && _description.text.trim() == current.lastRequest
       ? '' : _description.text;
     if (_description.text != _voiceDraft) _description.text = _voiceDraft;
-    final text = await _capture.start();
-    if (!mounted) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final turn = ++_voiceTurn;
+    final text = await _capture.start(wholeRecording: wholeRecording);
+    if (!mounted || turn != _voiceTurn || actor != ref.read(authControllerProvider).asData?.value?.id) return;
     if (text == null) {
-      _description.text = _voiceRestoration;
+      _description.text = _capture.error != null && _capture.stablePreview.isNotEmpty
+        ? appendDictation(_voiceDraft, _capture.stablePreview) : _voiceRestoration;
     } else if (revision == ref.read(smartSearchSessionProvider).revision && ModalRoute.of(context)?.isCurrent != false) {
       final combined = appendDictation(_voiceDraft, text);
+      _lastVoiceBase = _voiceDraft; _lastVoiceText = combined;
       _description.text = combined; _session.setDraftText(combined);
       if (combined.length > 5000) setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.');
     }
   }
-  void _cancelVoice() { if (_capture.active) { _capture.cancel(); _description.text = _voiceRestoration; } }
+  void _cancelVoice() { if (_capture.active || _capture.canRetry) { ++_voiceTurn; _capture.cancel(); _description.text = _voiceRestoration; } }
+  void _restartVoice() {
+    if (_capture.active) { _cancelVoice(); }
+    else if (_lastVoiceBase != null && _description.text == _lastVoiceText) { _description.text = _lastVoiceBase!; }
+    unawaited(_voice());
+  }
+
+  Widget _voiceOptions() => Wrap(spacing: 8, children: [
+    if (_lastVoiceBase != null && _description.text == _lastVoiceText) TextButton(onPressed: _restartVoice, child: const Text('ابدأ الإملاء من جديد')),
+    TextButton(key: const ValueKey('search-voice-clip'), onPressed: () => _voice(wholeRecording: true), child: const Text('تسجيل مقطع كامل (بديل)')),
+  ]);
 
   Future<void> _edit({String? focus}) async {
     if (_capture.active) _cancelVoice();
@@ -110,12 +128,13 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         key:const ValueKey('smart-search-description'),controller:_description,focusNode:_focus,readOnly:_capture.active || state.interpreting,
         minLines:1,maxLines:2,onChanged:_session.setDraftText,onSubmitted:(_)=>_send(),
         decoration:InputDecoration(hintText:_capture.active ? null : state.started ? 'أضف أو عدّل أي شرط…' : 'صف العقار الذي تبحث عنه',isDense:true,border:InputBorder.none))),
-        IconButton(key:const ValueKey('smart-search-voice'),tooltip:'أكمل بحثك بالصوت',onPressed:state.interpreting?null:_voice,icon:const Icon(Icons.mic_none_outlined)),
+        IconButton(key:const ValueKey('smart-search-voice'),tooltip:'أكمل بحثك بالصوت',onPressed:state.interpreting?null:() => _voice(),icon:const Icon(Icons.mic_none_outlined)),
         IconButton(key:const ValueKey('smart-search-send'),tooltip:'بحث',onPressed:state.interpreting?null:_send,
           icon:state.interpreting?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.search)),
         IconButton(key:const ValueKey('smart-search-manual'),tooltip:'الفلاتر',onPressed:()=>_edit(),icon:const Icon(Icons.tune)),
       ]),
-      if(_capture.active) InlineVoiceCapture(capture:_capture,onCancel:_cancelVoice),
+      if(_capture.active) InlineVoiceCapture(capture:_capture,onCancel:_cancelVoice,onRestart:_restartVoice),
+      if (!_capture.active && !state.interpreting) _voiceOptions(),
       if(_capture.error!=null || state.aiError!=null) Text(_capture.error ?? state.aiError!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
     ])));
 
@@ -123,6 +142,9 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   Widget build(BuildContext context) {
     if (!_ready) return const Scaffold(body:Center(child:CircularProgressIndicator()));
     final state = ref.watch(smartSearchSessionProvider), theme = Theme.of(context);
+    ref.listen(authControllerProvider, (previous, next) {
+      if (previous?.asData?.value?.id != next.asData?.value?.id) _cancelVoice();
+    });
     ref.listen<SmartSearchState>(smartSearchSessionProvider, (before, after) {
       if (_capture.active && before?.revision != after.revision) _cancelVoice();
       // Applied criteria belong to the summary. Only consume the exact draft
@@ -180,7 +202,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
             minLines: state.started ? 1 : 2, maxLines: 4, maxLength: 5000, textInputAction: TextInputAction.search,
             onChanged: _session.setDraftText, onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
               hintText: _capture.active ? null : !state.started ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
-          if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice),
+          if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, onRestart: _restartVoice),
+          if (!_capture.active && !state.interpreting) _voiceOptions(),
           const SizedBox(height: 8),
           if (!_capture.active && !state.started) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('اكتب أو أمْلِ طلبك، راجعه ثم اضغط البحث.')),
           if (!_capture.active) Row(children: [
@@ -189,7 +212,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
               onPressed: state.interpreting ? null : _send)),
             const SizedBox(width: 8),
             IconButton.filledTonal(key: const ValueKey('smart-search-voice'), tooltip: 'أكمل بحثك بالصوت',
-              onPressed: state.interpreting ? null : _voice,
+              onPressed: state.interpreting ? null : () => _voice(),
               icon: const EbrokerIcon(Icons.mic_none_outlined, size: 22)),
           ]),
           if (_capture.error != null || state.aiError != null) Padding(padding: const EdgeInsets.only(top: 12),

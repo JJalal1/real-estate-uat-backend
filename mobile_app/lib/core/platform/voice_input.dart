@@ -78,7 +78,7 @@ class _NativeVoiceRecording implements RetryableVoiceRecording {
         return;
       }
       if (raw['type'] == 'mode') { current._dictating = current._liveDictation && raw['code'] == 'dictation'; }
-      if (raw['type'] == 'partial' && !current._dictating) return;
+      if (const ['partial','segment'].contains(raw['type']) && !current._dictating) return;
       if (raw['type'] == 'final') {
         if (!current._dictating || !current._stopping || raw['complete'] != true) return;
         current._finish(VoiceEvent('final', text: raw['text']?.toString() ?? ''));

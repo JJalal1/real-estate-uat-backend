@@ -164,6 +164,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool _selectingLocation = false, _showLocationPreview = false;
   bool _locationNeedsSettings = false, _locationServiceDisabled = false;
   late final VoiceCaptureController _descriptionCapture;
+  String _descriptionVoiceBase = '';
+  String? _lastDescriptionVoiceBase, _lastDescriptionVoiceText;
+  int _descriptionVoiceTurn = 0;
   bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false, _reviewingCompleted = false;
   Timer? _descriptionRetryTimer;
   bool get _descriptionCoolingDown => ref.read(aiRepositoryProvider).descriptionRetryAt?.isAfter(DateTime.now()) == true;
@@ -396,18 +399,36 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     finally { if (mounted) setState(() => _descriptionBusy = false); }
   }
 
-  void _descriptionVoiceChanged() { if (mounted) setState(() {}); }
-  Future<void> _dictateDescription({bool retry = false}) async {
+  void _descriptionVoiceChanged() {
+    if (!mounted) return;
+    if (_descriptionCapture.active && _descriptionCapture.preview.isNotEmpty) {
+      final text = appendDictation(_descriptionVoiceBase, _descriptionCapture.preview);
+      _description.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    }
+    super.setState(() {});
+  }
+  void _cancelDescriptionVoice() {
+    if (!_descriptionCapture.active && !_descriptionCapture.canRetry) return;
+    ++_descriptionVoiceTurn; _descriptionCapture.cancel(); _description.text = _descriptionVoiceBase;
+  }
+  void _restartDescriptionVoice() {
+    if (_descriptionCapture.active) { _cancelDescriptionVoice(); }
+    else if (_lastDescriptionVoiceBase != null && _description.text == _lastDescriptionVoiceText) { _description.text = _lastDescriptionVoiceBase!; }
+    unawaited(_dictateDescription());
+  }
+  Future<void> _dictateDescription({bool retry = false, bool wholeRecording = false}) async {
     if (_busy || _descriptionBusy || _descriptionCapture.active) return;
     FocusScope.of(context).unfocus();
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
-    final text = retry ? await _descriptionCapture.retryTranscription() : await _descriptionCapture.start(wholeRecording: true);
-    if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
-    final complete = text ?? _descriptionCapture.transcript;
-    if (complete.trim().isNotEmpty) {
-      _description.text = appendDictation(_description.text, complete);
-      if (_description.text.length > 5000) setState(() => _descriptionError = 'الوصف محفوظ هنا. اختصره إلى 5000 حرف قبل الحفظ.');
-    }
+    _recoveryTimer?.cancel();
+    _descriptionVoiceBase = _description.text;
+    final actor = ref.read(authControllerProvider).asData?.value?.id, turn = ++_descriptionVoiceTurn;
+    final text = retry ? await _descriptionCapture.retryTranscription() : await _descriptionCapture.start(wholeRecording: wholeRecording);
+    if (!mounted || turn != _descriptionVoiceTurn || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+    final complete = text ?? (_descriptionCapture.error != null ? _descriptionCapture.stablePreview : '');
+    _description.text = appendDictation(_descriptionVoiceBase, complete);
+    if (complete.isNotEmpty) { _lastDescriptionVoiceBase = _descriptionVoiceBase; _lastDescriptionVoiceText = _description.text; }
+    if (_description.text.length > 5000) setState(() => _descriptionError = 'الوصف محفوظ هنا. اختصره إلى 5000 حرف قبل الحفظ.');
+    _scheduleRecovery();
   }
 
   Set<String> _missingFields() {
@@ -590,14 +611,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'replace_images': _replaceImages, 'price_display_mode': _priceDisplayMode,
     'server_property_id': _existing?.id ?? _recoveredServerId,
     'proof_needs_reselection': _ownershipProofPath != null,
-    'fields': {for (final entry in _recoveryFields.entries) entry.key: entry.value.text},
+    'fields': {for (final entry in _recoveryFields.entries) entry.key: entry.key == 'description' && _descriptionCapture.active ? _descriptionVoiceBase : entry.value.text},
   };
 
   @override
   void setState(VoidCallback fn) { super.setState(() { fn(); _clearHiddenFields(); }); _scheduleRecovery(); }
 
   void _scheduleRecovery() {
-    if (!_recoveryReady || _recoveryFinished || _recoveryUserId == null || _busy || !_sessionValid || _disposed) return;
+    if (!_recoveryReady || _recoveryFinished || _recoveryUserId == null || _busy || _descriptionCapture.active || !_sessionValid || _disposed) return;
     if (_initialEditSignature!=null && _editSignature==_initialEditSignature && _confirmedEditSignature==null && !_recoverySaved && widget.accountDraft==null) return;
     if (_hasUnsavedChanges && _accountSaved) super.setState(() => _accountSaved=false);
     _recoveryTimer?.cancel();
@@ -619,7 +640,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _saveRecovery({bool retryFailed = false}) async {
-    if (!_recoveryReady || _recoveryFinished || !_sessionValid || _disposed || _recoveryUserId==null) return;
+    if (!_recoveryReady || _recoveryFinished || !_sessionValid || _disposed || _recoveryUserId==null || _descriptionCapture.active) return;
     final signature=jsonEncode([_recoverySnapshot(),_imagePaths]);
     if (signature==_lastRecoverySignature && _accountSaved) return;
     if (retryFailed) _retryPhotoKeys.addAll(_photoKeys.where((key)=>_photoStates[key]=='failed'));
@@ -947,6 +968,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   @override
   void dispose() {
+    _cancelDescriptionVoice();
     _descriptionCapture.removeListener(_descriptionVoiceChanged); _descriptionCapture.dispose();
     _editorScroll.dispose();
     _descriptionRetryTimer?.cancel();
@@ -1000,6 +1022,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     ref.listen(authControllerProvider,(previous,next) {
       final actor=next.asData;
       if (actor==null || _recoveryUserId==null || actor.value?.id==_recoveryUserId || !_sessionValid) return;
+      _cancelDescriptionVoice();
       unawaited(_writeLocalRecovery());_pendingAccount=null;
       for (final cancel in _photoCancels.values) { cancel.cancel('Account changed'); }
       super.setState(()=>_sessionValid=false);
@@ -1383,7 +1406,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           hint: 'اذكر التفاصيل التي لا تظهر في المواصفات: مجلس، حوش، مدخل مستقل، حمام خارجي، سطح…',
           enabled: !_busy && !_descriptionCapture.active, maxLines: 5),
         if (_descriptionCapture.active) InlineVoiceCapture(capture: _descriptionCapture,
-          listeningLabel: 'جارٍ تسجيل الوصف', onCancel: _descriptionCapture.cancel),
+          listeningLabel: 'جارٍ إملاء الوصف', onCancel: _cancelDescriptionVoice, onRestart: _restartDescriptionVoice),
+        if (!_descriptionCapture.active && !_busy && !_descriptionBusy) Wrap(spacing: 8, children: [
+          if (_lastDescriptionVoiceBase != null && _description.text == _lastDescriptionVoiceText) TextButton(onPressed: _restartDescriptionVoice, child: const Text('ابدأ الإملاء من جديد')),
+          TextButton(onPressed: () => _dictateDescription(wholeRecording: true), child: const Text('تسجيل مقطع كامل (بديل)')),
+        ]),
         if (!_descriptionCapture.active) TextButton.icon(key: const ValueKey('listing-description-voice'),
           onPressed: _busy || _descriptionBusy ? null : _dictateDescription,
           icon: const Icon(Icons.mic_none, size: 19), label: const Text('إملاء الوصف')),
