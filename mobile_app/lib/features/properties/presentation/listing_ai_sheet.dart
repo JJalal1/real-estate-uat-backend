@@ -286,9 +286,6 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           TextButton(key: const ValueKey('listing-voice-clip'), onPressed: () => _voice(wholeRecording: true),
             child: const Text('تسجيل مقطع كامل (بديل)')),
         ]),
-        AppButton(key: const ValueKey('listing-ai-prepare'),
-          label: _busy ? widget.prepareDraft ? 'جارٍ فهم تفاصيل العقار…' : 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
-          onPressed: _busy || _voiceBusy ? null : _request, expand: true),
         SizedBox(key: _resultKey),
         if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),
         if (_error != null || _capture.error != null) Padding(padding: const EdgeInsets.only(top: 12),
@@ -356,6 +353,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
             onPressed: _busy ? null : () => Navigator.of(context).pop({'description': _description.text.trim()})),
         ],
       ])),
+      if (!widget.prepareDraft || _fields == null) SafeArea(top: false, child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 12), child: AppButton(key: const ValueKey('listing-ai-prepare'),
+          label: _busy ? widget.prepareDraft ? 'جارٍ فهم تفاصيل العقار…' : 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
+          onPressed: _busy || _voiceBusy ? null : _request, expand: true))),
       if (widget.prepareDraft && _fields != null) SafeArea(top: false, child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
         child: AppButton(key: ValueKey(_copyReady ? 'listing-ai-apply-draft' : 'listing-ai-refresh-copy'),
