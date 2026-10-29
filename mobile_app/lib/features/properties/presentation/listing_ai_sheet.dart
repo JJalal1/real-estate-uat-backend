@@ -37,7 +37,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   Map<String, dynamic>? _fields;
   bool _busy = false, _hasDescription = false, _copyReady = false;
   late final VoiceCaptureController _capture;
-  String _voiceDraft = '';
+  String _voiceDraft = '', _lastBriefText = '';
   String? _lastVoiceBase, _lastVoiceText;
   int _voiceTurn = 0;
   bool _restoringVoice = false;
@@ -52,13 +52,19 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   @override
   void initState() {
     super.initState();
-    _message.text = widget.initialMessage;
+    _message.text = widget.initialMessage; _lastBriefText = _message.text;
     _message.addListener(_briefChanged);
     _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
   }
 
   void _briefChanged() {
+    if (_lastBriefText == _message.text) return;
+    _lastBriefText = _message.text;
     if (_capture.active || _restoringVoice) return;
+    _commitBriefChange();
+  }
+
+  void _commitBriefChange() {
     widget.onMessageChanged?.call(_message.text);
     if (widget.prepareDraft && _fields != null && mounted) {
       setState(() { _fields = null; _selected.clear(); _copyReady = false; _notice = null; });
@@ -209,6 +215,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     }
     final combined = appendDictation(_voiceDraft, text);
     _lastVoiceBase = _voiceDraft; _lastVoiceText = combined;
+    _restoringVoice = true; _message.text = combined; _restoringVoice = false; _commitBriefChange();
     if (combined.length > 5000) {
       _message.text = combined;
       setState(() => _error = 'النص محفوظ هنا. اختصره إلى 5000 حرف قبل تجهيز الإعلان.');

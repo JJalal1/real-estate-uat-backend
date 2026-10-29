@@ -346,20 +346,23 @@ void main() {
     }
     await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:recovery,drafts:drafts,picker:picker,boundary:boundary);
     await _tap(tester,'listing-select-location');
-    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    expect(find.text('نقطة العقار مؤكدة'),findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-select-location')),findsNothing);
     expect(find.text('نقطة اختبار 13.966,44.183'),findsOneWidget);
     await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
     expect(find.text('3/4'),findsOneWidget);
     await tester.tap(find.text('السابق'));await tester.pumpAndSettle();
     await _tap(tester,'listing-select-location');
-    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    expect(find.text('نقطة العقار مؤكدة'),findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-select-location')),findsNothing);
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(recovery.snapshot!['latitude'],13.966);expect(recovery.snapshot!['longitude'],44.183);
     expect((recovery.snapshot!['fields'] as Map)['district'],isEmpty);
     expect(drafts.saves.last['latitude'],13.966);expect(drafts.saves.last['longitude'],44.183);
     await tester.pumpWidget(const SizedBox.shrink());await tester.pumpAndSettle();
     await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:recovery,drafts:drafts,picker:picker,boundary:boundary);
-    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    expect(find.text('نقطة العقار مؤكدة'),findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-select-location')),findsNothing);
     await _capture(tester,boundary,'complete-pin-restored');
     await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
     expect(find.text('3/4'),findsOneWidget);expect(picks,2);expect(tester.takeException(),isNull);
@@ -373,7 +376,8 @@ void main() {
     await tester.ensureVisible(find.text('إغلاق المعاينة'));await tester.tap(find.text('إغلاق المعاينة'));await tester.pumpAndSettle();
     for (var i=0;i<2;i++) {await tester.tap(find.text('السابق'));await tester.pumpAndSettle();}
     expect(find.text('2/4'),findsOneWidget);
-    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    expect(find.text('نقطة العقار مؤكدة'),findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-select-location')),findsNothing);
     await tester.tap(find.text('التالي'));await tester.pumpAndSettle();
     expect(find.text('3/4'),findsOneWidget);
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
@@ -402,7 +406,8 @@ void main() {
     await _tap(tester,'listing-draft-assistant');
     await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),'منزل للبيع في اب شارع الروضة');
     await _tap(tester,'listing-ai-prepare');await _tap(tester,'listing-ai-apply-draft');
-    expect(find.text('تم تحديد موقع العقار على الخريطة'),findsOneWidget);
+    expect(find.text('نقطة العقار مؤكدة'),findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-select-location')),findsNothing);
     expect(find.text('إرسال للمراجعة'),findsNothing);expect(find.text('معاينة الإعلان'),findsOneWidget);
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(recovery.snapshot!['latitude'],13.966);expect(recovery.snapshot!['longitude'],44.183);

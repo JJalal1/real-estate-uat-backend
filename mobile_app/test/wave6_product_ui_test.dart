@@ -231,7 +231,7 @@ void main(){
       await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-voice')));await tester.tap(find.byKey(const ValueKey('listing-ai-voice')));await tester.pump();
       voice.latest.emit(const VoiceEvent('ready'));voice.latest.emit(const VoiceEvent('partial',text:'وصف لم يكتمل'));await tester.pump(const Duration(seconds:12));
       expect(voice.latest.stops,0);expect(drafts.saves.any((p)=>(p['fields'] as Map)['ai_listing_brief']=='وصف لم يكتمل'),isFalse);
-      await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
+      await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.pump(const Duration(milliseconds:200));expect(find.byKey(const ValueKey('voice-finish')).hitTestable(),findsOneWidget);await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
       voice.latest.emit(const VoiceEvent('final',text:'محل للإيجار في حدة، المساحة خمسة وستون مترًا والإيجار خمسة وسبعون ألفًا والسعي خمسون بالمئة'));await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('listing-ai-field-type')),findsNothing);
       await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-prepare')));await tester.tap(find.byKey(const ValueKey('listing-ai-prepare')));await tester.pumpAndSettle();

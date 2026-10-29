@@ -419,6 +419,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Future<void> _dictateDescription({bool retry = false, bool wholeRecording = false}) async {
     if (_busy || _descriptionBusy || _descriptionCapture.active) return;
     FocusScope.of(context).unfocus();
+    _recoveryTimer?.cancel();
     _descriptionVoiceBase = _description.text;
     final actor = ref.read(authControllerProvider).asData?.value?.id, turn = ++_descriptionVoiceTurn;
     final text = retry ? await _descriptionCapture.retryTranscription() : await _descriptionCapture.start(wholeRecording: wholeRecording);
@@ -610,7 +611,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'replace_images': _replaceImages, 'price_display_mode': _priceDisplayMode,
     'server_property_id': _existing?.id ?? _recoveredServerId,
     'proof_needs_reselection': _ownershipProofPath != null,
-    'fields': {for (final entry in _recoveryFields.entries) entry.key: entry.value.text},
+    'fields': {for (final entry in _recoveryFields.entries) entry.key: entry.key == 'description' && _descriptionCapture.active ? _descriptionVoiceBase : entry.value.text},
   };
 
   @override
@@ -639,7 +640,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _saveRecovery({bool retryFailed = false}) async {
-    if (!_recoveryReady || _recoveryFinished || !_sessionValid || _disposed || _recoveryUserId==null) return;
+    if (!_recoveryReady || _recoveryFinished || !_sessionValid || _disposed || _recoveryUserId==null || _descriptionCapture.active) return;
     final signature=jsonEncode([_recoverySnapshot(),_imagePaths]);
     if (signature==_lastRecoverySignature && _accountSaved) return;
     if (retryFailed) _retryPhotoKeys.addAll(_photoKeys.where((key)=>_photoStates[key]=='failed'));
