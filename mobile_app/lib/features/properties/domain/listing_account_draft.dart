@@ -16,6 +16,10 @@ class ListingAccountDraft {
   final int? propertyId;
   final Map<String, dynamic> payload;
   final Map<String, String> images;
+  // Legacy checkpoints may have been explicitly saved. Unknown means protected.
+  bool get isRecovery => propertyId == null && isAutomaticListingRecovery(payload);
+  bool get isRetired => payload['draft_kind'] == 'retired';
+  String get entryMethod => payload['entry_method'] == 'assistant' ? 'assistant' : 'manual';
   factory ListingAccountDraft.fromJson(Map<String, dynamic> data) => ListingAccountDraft(
     key: data['key'] as String, revision: (data['revision'] as num).toInt(),
     payload: Map<String, dynamic>.from(data['payload'] as Map), title: data['title']?.toString() ?? 'إعلان غير مكتمل',
@@ -23,3 +27,7 @@ class ListingAccountDraft {
     images: {for (final image in data['images'] as List? ?? const []) (image as Map)['key'] as String: image['url'] as String},
   );
 }
+
+bool isAutomaticListingRecovery(Map<String, dynamic> data) =>
+  data['draft_kind'] == 'recovery' && (data['editor_version'] as num? ?? 0) >= 10 &&
+  data['server_property_id'] == null;

@@ -161,7 +161,7 @@ void main() {
     });
   }
 
-  testWidgets('pending broker tools remain gated and plus opens the existing manual route', (tester) async {
+  testWidgets('pending broker tools remain gated and plus chooses a creation method before the existing manual route', (tester) async {
     final work = _Work(); Uri? opened;
     final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, state) => const AppShellScreen()),
       GoRoute(path: '/add-property', builder: (_, state) { opened = state.uri; return const Scaffold(body: Text('محرر الإعلان')); })]);
@@ -172,6 +172,7 @@ void main() {
     nav.onSelected(1); await uxFrames(tester);
     expect(work.calls, 0); expect(find.text('يحتاج إجراء منك'), findsNothing);
     nav.onCreate!(); await uxFrames(tester);
+    expect(opened,isNull); await tester.tap(find.byKey(const ValueKey('create-listing-manual'))); await uxFrames(tester);
     expect(opened!.path, '/add-property'); expect(opened!.queryParameters['assistant'], '0');
     expect(tester.takeException(), isNull); await closeUx(tester);
   });

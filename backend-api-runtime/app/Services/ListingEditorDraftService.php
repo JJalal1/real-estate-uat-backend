@@ -13,11 +13,19 @@ use Illuminate\Support\Str;
 /** Partial account checkpoints; only the normal Property workflow can submit them. */
 class ListingEditorDraftService
 {
-    public function owned(User $actor, string $key, bool $lock = false): ListingEditorDraft
+    public function owned(User $actor, string $key, bool $lock = false, bool $includeRetired = false): ListingEditorDraft
     {
         abort_unless(Str::isUuid($key), 404);
         $query = ListingEditorDraft::query()->where('user_id',$actor->id)->where('client_key',$key);
-        return ($lock ? $query->lockForUpdate() : $query)->firstOrFail();
+        $draft = ($lock ? $query->lockForUpdate() : $query)->firstOrFail();
+        abort_if(!$includeRetired && ($draft->payload['draft_kind'] ?? null) === 'retired',410,'ألغي هذا التقدم المؤقت. ابدأ إعلانًا جديدًا.');
+        return $draft;
+    }
+
+    public function isRecovery(ListingEditorDraft $draft): bool
+    {
+        return $draft->property_id === null && ($draft->payload['draft_kind'] ?? null) === 'recovery'
+            && (int)($draft->payload['editor_version'] ?? 0) >= 10;
     }
 
     public function assertEditable(User $actor, ?Property $property = null): void
@@ -38,7 +46,7 @@ class ListingEditorDraftService
 
     public function clean(array $payload): array
     {
-        $allowed = ['checkpoint_key','media_version','editor_version','sai_amount_type','rental_conditions','unit_occupies_entire_floor','sai_touched','sai_terms_accepted',
+        $allowed = ['draft_kind','entry_method','checkpoint_key','media_version','editor_version','sai_amount_type','rental_conditions','unit_occupies_entire_floor','sai_touched','sai_terms_accepted',
             'units_per_floor','same_floor_units','step','purpose','type','area_unit','tenure_type','parking','elevator','facade','ownership_document_type','relationship_type',
             'latitude','longitude','land_boundary','replace_images','price_display_mode','server_property_id','proof_needs_reselection',
             'type_confirmed','purpose_confirmed','completion_only','image_order','fields'];
@@ -106,6 +114,7 @@ class ListingEditorDraftService
         $images=$draft->images;
         $removed=[];
         $payload=$draft->payload;
+        $payload['draft_kind']='saved';
         if (($draft->payload['media_version'] ?? 0) === 1) {
             $wanted=$draft->payload['image_order'] ?? [];
             foreach ($wanted as $token) if (str_starts_with($token,'property-')) {

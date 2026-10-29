@@ -53,6 +53,13 @@ import 'package:real_estate_mobile/features/properties/presentation/listing_edit
 // Layout fixtures isolate device IO; broker_convenience_test covers actual recovery files.
 class _EmptyRecovery extends ListingRecoveryStore {
   @override
+  Future<List<Map<String,dynamic>>> saved(int userId) async => [];
+  @override
+  Future<void> pinExplicitSave(int userId, {bool preserveUnclassified = false}) async {}
+  @override
+  Future<void> deleteSaved(int userId, String key) async {}
+
+  @override
   Future<Map<String, dynamic>?> read(int userId, int? listingId) async => null;
   @override
   Future<void> write(int userId, int? listingId, Map<String, dynamic> snapshot, List<String> paths) async {}

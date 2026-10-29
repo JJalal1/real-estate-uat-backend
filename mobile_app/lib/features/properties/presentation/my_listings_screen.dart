@@ -76,7 +76,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppAppBar(title: 'عقاراتي', actions: [IconButton(tooltip: 'تحديث التوفر الجماعي', onPressed: () => context.push('/broker/availability'), icon: const EbrokerIcon(Icons.update, size: 20))]),
+        appBar: AppAppBar(title: 'عقاراتي', actions: [IconButton(key: const ValueKey('my-saved-listing-drafts'), tooltip: 'مسوداتي', onPressed: () => context.push('/add-property?drafts=1'), icon: const Icon(Icons.drafts_outlined)), IconButton(tooltip: 'تحديث التوفر الجماعي', onPressed: () => context.push('/broker/availability'), icon: const EbrokerIcon(Icons.update, size: 20))]),
         floatingActionButton: listings.asData?.value.isNotEmpty == true ? EbrokerButton(
           onPressed: () => _create(context, ref),
           icon: const EbrokerIcon(Icons.add_home_work_outlined),

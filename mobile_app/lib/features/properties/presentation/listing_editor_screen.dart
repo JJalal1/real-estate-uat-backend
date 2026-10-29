@@ -45,9 +45,10 @@ import 'rental_conditions_editor.dart';
 import '../../discovery/data/ai_repository.dart';
 
 class ListingEditorScreen extends ConsumerStatefulWidget {
-  const ListingEditorScreen({super.key, this.existingProperty, this.accountDraft, this.startFresh = false, this.startWithAssistant = false});
+  const ListingEditorScreen({super.key, this.existingProperty, this.accountDraft, this.localRecovery, this.startFresh = false, this.startWithAssistant = false});
 
   final ListingAccountDraft? accountDraft;
+  final Map<String, dynamic>? localRecovery;
   final bool startFresh;
   final bool startWithAssistant;
 
@@ -156,6 +157,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   late ListingAccountDraftRepository _accountRepository;
   late String _draftKey;
   int _draftRevision = 0;
+  bool _draftSavedExplicitly = false;
   bool _accountSaved = false, _accountSyncing = false, _accountConflict = false;
   String? _accountError, _descriptionError;
   String? _stepError, _locationError;
@@ -201,6 +203,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   void _adoptAccountDraft(ListingAccountDraft draft) {
     _draftRevision = draft.revision;
+    if (!draft.isRecovery) _draftSavedExplicitly = true;
     _remotePhotos..clear()..addAll(draft.images);
     for (final key in draft.images.keys) { if (!_removedPhotoKeys.contains(key)) { _photoStates[key]='complete';_photoErrors.remove(key); } }
     _recoveredServerId = draft.propertyId ?? _recoveredServerId;
@@ -517,7 +520,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
-    'editor_version': 9, 'media_version':1, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
+    'editor_version': 10, 'draft_kind': _draftSavedExplicitly ? 'saved' : 'recovery',
+    'entry_method': widget.startWithAssistant ? 'assistant' : 'manual',
+    'media_version':1, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
     'type_confirmed': _typeConfirmed, 'purpose_confirmed': _purposeConfirmed, 'completion_only': _completionOnly,
     'draft_key': _draftKey, 'server_revision': _draftRevision, 'image_tokens': _localPhotoKeys, 'image_order': _photoKeys,
     'remote_images':_remotePhotos, 'removed_image_keys':_removedPhotoKeys.toList(), 'photo_states':_photoStates,
@@ -551,6 +556,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final signature = jsonEncode([data, images]);
     try {
       await _recoveryStore.write(userId, widget.existingProperty?.id, data, images);
+      if (_draftSavedExplicitly && widget.existingProperty == null) await _recoveryStore.pinExplicitSave(userId);
       _lastRecoverySignature = signature;
       if (mounted && !_recoveryFinished && !_disposed) super.setState(() { _recoverySaved = true; _recoveryFailed = false; });
       return true;
@@ -587,6 +593,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (_recoveryUserId!=null) await _recoveryStore.clear(_recoveryUserId!,widget.existingProperty?.id);
         if (mounted) _leaveEditor();
       } else if (choice=='save') {
+        _draftSavedExplicitly = true;
         await _saveRecovery(retryFailed:true);
         if (!mounted) return;
         if (_accountSaved && !_recoveryFailed) { _leaveEditor(); }
@@ -616,8 +623,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!mounted) return;
     final userId = _recoveryUserId;
     if (userId == null) { _recoveryReady = true; super.setState(() {}); return; }
-    Map<String,dynamic>? local;
-    if (!widget.startFresh) {
+    Map<String,dynamic>? local = widget.localRecovery;
+    if (local == null && !widget.startFresh) {
       try { local=await _recoveryStore.read(userId, widget.existingProperty?.id).timeout(const Duration(seconds:8)); }
       catch (_) { _recoveryFailed=true; }
     }
@@ -625,6 +632,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final data = useLocal ? local : widget.accountDraft?.payload;
     if (!mounted) return;
     if (data != null) {
+      _draftSavedExplicitly = _draftSavedExplicitly || !isAutomaticListingRecovery(data) || widget.accountDraft?.propertyId != null;
       if (widget.accountDraft == null && data['draft_key'] is String) _draftKey = data['draft_key'] as String;
       if (widget.accountDraft == null && data['server_revision'] is int) _draftRevision = data['server_revision'] as int;
       _checkpointKey=data['account_checkpoint_key'] as String?;
@@ -1952,6 +1960,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Future<void> _persist({required bool submit}) async {
     if (_persistStarting || _busy || !_sessionValid) return;
+    if (!submit) _draftSavedExplicitly = true;
     _persistStarting=true;
     try { await _persistOnce(submit:submit); } finally { _persistStarting=false; }
   }

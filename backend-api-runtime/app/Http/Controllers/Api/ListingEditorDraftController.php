@@ -21,10 +21,11 @@ class ListingEditorDraftController extends Controller
     public function index(Request $request)
     {
         $rows=ListingEditorDraft::query()->where('user_id',$request->user()->id)
+            ->where(fn($q)=>$q->whereNull('payload->draft_kind')->orWhere('payload->draft_kind','!=','retired'))
             ->where(function($q):void {$q->whereNull('property_id')->orWhereHas('property',fn($p)=>$p->where('status','draft')->whereNotIn('review_status',['submitted','under_review','rejected_blocked']));})
             ->orderByDesc('updated_at')->orderByDesc('id')->paginate(50);
         return response()->json(['data'=>$rows->getCollection()->map(fn($d)=>$this->drafts->present($d)),
-            'meta'=>['current_page'=>$rows->currentPage(),'last_page'=>$rows->lastPage()]]);
+            'meta'=>['current_page'=>$rows->currentPage(),'last_page'=>$rows->lastPage(),'recovery_contract'=>1]]);
     }
     public function show(Request $request,string $key) { return response()->json(['data'=>$this->drafts->present($this->drafts->owned($request->user(),$key))]); }
 
@@ -38,6 +39,7 @@ class ListingEditorDraftController extends Controller
             'payload.fields'=>['nullable','array'],'payload.image_order'=>['nullable','array','max:12'],
             'payload.image_order.*'=>['string','distinct',function($attribute,$value,$fail){ if (!Str::isUuid($value) && !preg_match('/^property-[1-9][0-9]*$/D',$value)) $fail('مرجع الصورة غير صالح.'); }],
             'payload.checkpoint_key'=>['nullable','uuid'],'payload.media_version'=>['nullable','integer','in:1'],
+            'payload.draft_kind'=>['nullable','in:recovery,saved'],'payload.entry_method'=>['nullable','in:manual,assistant'],
         ]);
         abort_if(strlen(json_encode($v['payload']))>100000,422);
         $result=DB::transaction(function()use($request,$key,$v){
@@ -50,9 +52,11 @@ class ListingEditorDraftController extends Controller
                 if (!$property) app(ListingAccessService::class)->assertCanCreate($actor,$key);
                 $draft=new ListingEditorDraft(['user_id'=>$actor->id,'client_key'=>$key,'revision'=>0,'images'=>[],'payload'=>[],'property_id'=>$property?->id]);
             } else {
+                abort_if(($draft->payload['draft_kind'] ?? null)==='retired',410,'ألغي هذا التقدم المؤقت ولا يمكن إعادته بطلب قديم.');
                 if ($draft->property_id) $this->drafts->assertEditable($actor,Property::query()->findOrFail($draft->property_id));
                 abort_if($property && $draft->property_id !== null && (int)$property->id !== $draft->property_id,409);
                 $incoming=$this->drafts->clean($v['payload']);
+                if (($draft->payload['draft_kind'] ?? null)==='saved') $incoming['draft_kind']='saved';
                 if (isset($incoming['checkpoint_key']) && ($draft->payload['checkpoint_key'] ?? null)===$incoming['checkpoint_key']) {
                     abort_unless($draft->payload == $incoming,409,'مفتاح الحفظ مستخدم لتعديل مختلف.');
                     return $draft;
@@ -60,6 +64,11 @@ class ListingEditorDraftController extends Controller
                 $this->drafts->assertRevision($draft,$v['expected_revision']);
             }
             $clean=$this->drafts->clean($v['payload']);
+            // Explicitly saved and unclassified legacy work cannot be downgraded
+            // by an old editor, including a delayed save from another device.
+            if ($draft->exists && (($draft->payload['draft_kind'] ?? null)==='saved' ||
+                (($clean['draft_kind'] ?? null)==='recovery' && !$this->drafts->isRecovery($draft)))) $clean['draft_kind']='saved';
+            if ($property || $draft->property_id) $clean['draft_kind']='saved';
             foreach ($clean['image_order'] as $token) if (str_starts_with($token,'property-')) {
                 $propertyId=$property?->id ?? $draft->property_id;
                 abort_unless($propertyId && \App\Models\PropertyImage::query()->where('property_id',$propertyId)->whereKey((int)substr($token,9))->exists(),422,'الصورة لا تنتمي لهذا الإعلان.');
@@ -114,6 +123,37 @@ class ListingEditorDraftController extends Controller
 
     public function destroy(Request $request,string $key)
     {
+        if ($request->boolean('recovery_only')) {
+            $v=$request->validate(['expected_revision'=>['required','integer','min:0']]);
+            abort_unless(Str::isUuid($key),404);
+            $paths=DB::transaction(function()use($request,$key,$v){
+                $actor=User::query()->lockForUpdate()->findOrFail($request->user()->id);
+                $this->drafts->assertEditable($actor);
+                $draft=ListingEditorDraft::query()->where('user_id',$actor->id)->where('client_key',$key)->lockForUpdate()->first();
+                if (!$draft) {
+                    abort_if(ListingEditorDraft::query()->where('client_key',$key)->exists(),404);
+                    abort_unless($v['expected_revision']===0,409);
+                    $draft=new ListingEditorDraft(['user_id'=>$actor->id,'client_key'=>$key,'revision'=>0,'images'=>[],'payload'=>[]]);
+                } elseif (($draft->payload['draft_kind'] ?? null)==='retired') {
+                    return (array)($draft->payload['cleanup_paths'] ?? []);
+                } else {
+                    abort_unless($this->drafts->isRecovery($draft),409,'هذه مسودة محفوظة؛ لن تُحذف عند بدء إعلان جديد.');
+                    $this->drafts->assertRevision($draft,$v['expected_revision']);
+                }
+                $paths=array_values($draft->images ?? []);
+                // Retain only a small revision tombstone, never the private data.
+                // This fences an in-flight revision-zero save even before it arrives.
+                $draft->payload=['editor_version'=>10,'draft_kind'=>'retired','image_order'=>[],'fields'=>[], 'cleanup_paths'=>$paths];
+                $draft->images=[];$draft->property_id=null;$draft->revision++;$draft->save();
+                return $paths;
+            });
+            foreach ($paths as $path) app(ListingImageService::class)->removeIfUnused($path,true);
+            DB::transaction(function()use($request,$key){
+                $draft=ListingEditorDraft::query()->where('user_id',$request->user()->id)->where('client_key',$key)->lockForUpdate()->firstOrFail();
+                $payload=$draft->payload;unset($payload['cleanup_paths']);$draft->payload=$payload;$draft->save();
+            });
+            return response()->json(['message'=>'أُلغي التقدم المؤقت.']);
+        }
         $paths=DB::transaction(function()use($request,$key){
             User::query()->lockForUpdate()->findOrFail($request->user()->id);$draft=$this->drafts->owned($request->user(),$key,true);
             if($draft->property_id){$property=Property::query()->lockForUpdate()->find($draft->property_id);

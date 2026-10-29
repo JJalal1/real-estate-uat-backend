@@ -67,12 +67,6 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     if (_openingEditor) return;
     FocusManager.instance.primaryFocus?.unfocus();
     ref.read(brokerAssistantMenuProvider.notifier).state = false;
-    final user = ref.read(authControllerProvider).asData?.value;
-    if (user?.isBroker == true || user?.hasVerifiedProfessionalProfile == true) {
-      _openingEditor = true;
-      context.push('/add-property?assistant=0').whenComplete(() => _openingEditor = false);
-      return;
-    }
     setState(() => _createMenuOpen = !_createMenuOpen);
   }
 
@@ -151,7 +145,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           body: Stack(children: [
             ExcludeSemantics(excluding: _createMenuOpen,
               child: IndexedStack(index: _index, children: lazyPages)),
-            if (const ['anonymous', 'regular', 'advertiser'].contains(mode))
+            if (const ['anonymous', 'regular', 'advertiser', 'broker'].contains(mode))
               ListingCreationMenu(isOpen: _createMenuOpen,
                 onClose: _closeCreationMenu, onSelected: _selectCreationMode),
           ]),

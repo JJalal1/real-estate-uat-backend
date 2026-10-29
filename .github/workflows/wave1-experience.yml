@@ -1,7 +1,7 @@
 name: Wave1 experience acceptance
 on:
   pull_request:
-    branches: [work/owner-ux-wave-20261027, work/wave2-review-current, work/wave1-experience-20261028]
+    branches: [work/owner-ux-wave-20261027, work/wave2-review-current, work/wave1-experience-20261028, work/wave2-home-search-20261028, work/branch2-*]
     paths: ['mobile_app/**', 'backend-api-runtime/**', '.github/workflows/wave1-experience.yml']
   workflow_dispatch:
 permissions:

@@ -1,0 +1,68 @@
+name: Branch2 creation and recovery acceptance
+on:
+  pull_request:
+    branches: [work/wave2-home-search-20261028, work/branch2-*]
+    paths: ['mobile_app/**', 'backend-api-runtime/**', '.github/workflows/branch2-creation.yml']
+permissions:
+  contents: read
+concurrency:
+  group: branch2-creation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Original locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Strict analysis
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Recovery behavior and existing creation regressions
+        working-directory: mobile_app
+        run: flutter test --reporter expanded test/branch2_recovery_test.dart test/user_work_media_test.dart test/wave6_product_ui_test.dart test/template_creation_menu_test.dart test/owner_ux_location_navigation_test.dart
+      - name: Synthetic widget review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch2-creation-previews-${{ github.run_number }}
+          path: mobile_app/build/wave6-preview/
+          retention-days: 3
+          if-no-files-found: warn
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, gd, exif
+          coverage: none
+          tools: composer:v2
+      - name: Disposable test environment
+        run: |
+          cp .env.example .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate
+      - name: Recovery privacy revision tombstones and existing persistence regressions
+        run: php artisan test --filter='Branch2RecoveryTest|Wave6EditorDiscoveryTest|UserWorkMediaTest'

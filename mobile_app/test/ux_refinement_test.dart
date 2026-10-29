@@ -33,6 +33,13 @@ const _policy = PropertySaiManagement(configured: false, advertiserType: 'broker
   platformTermsMessage: 'للتطبيق نسبة مقدارها 20% من مبلغ السعي عند إتمام الصفقة.');
 
 class _Recovery extends ListingRecoveryStore {
+  @override
+  Future<List<Map<String,dynamic>>> saved(int userId) async => [];
+  @override
+  Future<void> pinExplicitSave(int userId, {bool preserveUnclassified = false}) async {}
+  @override
+  Future<void> deleteSaved(int userId, String key) async {}
+
   _Recovery(this.snapshot);
   Map<String, dynamic>? snapshot;
   @override

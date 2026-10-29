@@ -255,7 +255,7 @@ void main(){
   testWidgets('starting a new account draft keeps previous drafts and resume restores the saved step',(tester)async{
     final drafts=Wave6Drafts(),key=newListingDraftKey();drafts.drafts[key]=ListingAccountDraft(key:key,revision:2,payload:editorSnapshot(),title:'مسودة الدلال',progress:60);
     await pumpWave6(tester,const ListingDraftEntryScreen(),drafts:drafts);
-    expect(find.text('لديك إعلان غير مكتمل'),findsOneWidget);await tester.tap(find.text('بدء إعلان جديد'));await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('listing-recovery-choice')),findsNothing); expect(drafts.drafts.containsKey(key),isTrue);
     await tester.ensureVisible(textField('عنوان الإعلان *'));await tester.enterText(textField('عنوان الإعلان *'),'إعلان جديد محفوظ');await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(drafts.drafts.containsKey(key),isTrue);expect(drafts.drafts.length,2);await finishWave6(tester);
     await pumpWave6(tester,ListingEditorScreen(accountDraft:drafts.drafts[key]),drafts:drafts,recovery:Wave6Recovery());

@@ -23,6 +23,13 @@ import 'package:real_estate_mobile/features/properties/presentation/listing_edit
 import 'broker_experience_ui_test.dart' show BrokerTestAuth, BrokerTestRepository;
 
 class _Recovery extends ListingRecoveryStore {
+  @override
+  Future<List<Map<String,dynamic>>> saved(int userId) async => [];
+  @override
+  Future<void> pinExplicitSave(int userId, {bool preserveUnclassified = false}) async {}
+  @override
+  Future<void> deleteSaved(int userId, String key) async {}
+
   Map<String, dynamic>? snapshot;
   final writes = <Map<String, dynamic>>[];
   @override
