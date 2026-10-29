@@ -1,9 +1,11 @@
 {
   "repository": "JJalal1/real-estate-uat-backend",
   "owner_approval_date": "2026-10-20",
+  "delivery_request_date": "2026-10-29",
   "visibility": "public",
   "apk_delivery": "recipient-encrypted-cms-only",
   "plaintext_public_artifacts": false,
-  "recipient_certificate": ".github/uat-apk-recipient.pem",
-  "recipient_sha256": "12f6a686d39cef1b63f90011b979ebaef0a25f431d9f4eb1aa4d114a19c0f5e2"
+  "recipient_certificate": ".github/uat-apk-w3-search-only-direct-recipient.pem",
+  "recipient_sha256": "95d29046e7aa7846240bd004a6542acb482c528caf3cc527078fdc540207a57e",
+  "delivery_scope": "One-time private owner handoff of W3-001/002 on exact APK1393. W3-003 rejected. Transport branch must not be merged."
 }

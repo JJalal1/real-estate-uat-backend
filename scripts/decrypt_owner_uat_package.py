@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import zipfile
 
-RECIPIENT = '12f6a686d39cef1b63f90011b979ebaef0a25f431d9f4eb1aa4d114a19c0f5e2'
+RECIPIENT = '95d29046e7aa7846240bd004a6542acb482c528caf3cc527078fdc540207a57e'
 PACKAGE = 'com.aqer.yemen.uat'
 
 

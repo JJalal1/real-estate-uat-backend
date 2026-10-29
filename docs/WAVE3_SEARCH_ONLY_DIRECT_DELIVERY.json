@@ -1,0 +1,18 @@
+{
+  "base_owner_apk_version": 1393,
+  "base_source": "edb79f6436aa5fbb4c829f66c128c0f9a81b85b8",
+  "feature_source": "ae43f6e334093b51a86246f7230f684eea6a6a5a",
+  "mobile_tree": "25b320496fe92d4c0a044863a46709cf0f10eb70",
+  "backend_tree": "5b53bb66976b784cfdaa79b72e3b819750954c0b",
+  "retained_wave3_items": [
+    "W3-001",
+    "W3-002"
+  ],
+  "rejected_wave3_item": "W3-003",
+  "protected_original_component_blobs": 698,
+  "transport_only": true,
+  "private_key_in_git": false,
+  "private_key_in_apk": false,
+  "original_backend_owner_recipient_preserved": true,
+  "no_merge_or_deployment": true
+}
