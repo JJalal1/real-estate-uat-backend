@@ -5,15 +5,36 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_home/image_swiper.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_home/property_card_big.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_home/agent_card.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_home/favorite_visual.dart';
+import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'package:real_estate_mobile/features/properties/data/favorites_repository.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
 import 'support/owner_ux_fixtures.dart';
 import 'support/wave3_fakes.dart';
 import 'wave2_home_search_test.dart' show Listings, PageResult, row;
+
+class _Favorites implements FavoritesRepository {
+  final ids = <int>{};
+  final reply = Completer<void>();
+  int adds = 0;
+  bool rejectRemove = false;
+  @override
+  Future<void> add(int id) async { adds++; await reply.future; ids.add(id); }
+  @override
+  Future<void> remove(int id) async {
+    if (rejectRemove) throw StateError('Synthetic server failure');
+    ids.remove(id);
+  }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
+}
 
 void main() {
   setUpAll(loadUxFixtures);
@@ -141,4 +162,47 @@ void main() {
     expect(tester.widget<ScrollingDotsIndicator>(find.byType(ScrollingDotsIndicator)).currentIndex, 1);
     expect(tester.takeException(), isNull); await closeUx(tester);
   });
+
+  testWidgets('C04 original favorite visual follows server truth, deduplicates taps and retains a failed removal', (tester) async {
+    final repository = _Favorites();
+    final scope = uxContainer(user: uxUser(), extra: [
+      favoritesRepositoryProvider.overrideWithValue(repository),
+      favoritePropertyIdsProvider.overrideWith((ref) async {
+        ref.watch(favoriteDataRevisionProvider); return {...repository.ids};
+      }),
+    ]);
+    await pumpUx(tester, scope, const Scaffold(body: PropertyFavoriteAction(propertyId: 12, sourceStyle: true)));
+    final action = find.byKey(const ValueKey('favorite-property-12'));
+    await tester.tap(action); await tester.tap(action); await uxFrames(tester);
+    expect(repository.adds, 1);
+    expect(tester.widget<EbrokerHomeFavoriteVisual>(action).selected, isFalse);
+    repository.reply.complete(); await tester.pumpAndSettle();
+    expect(tester.widget<EbrokerHomeFavoriteVisual>(action).selected, isTrue);
+    repository.rejectRemove = true;
+    await tester.tap(action); await tester.pumpAndSettle();
+    expect(tester.widget<EbrokerHomeFavoriteVisual>(action).selected, isTrue);
+    expect(repository.ids, {12});
+    repository.rejectRemove = false;
+    await tester.tap(action); await tester.pumpAndSettle();
+    expect(tester.widget<EbrokerHomeFavoriteVisual>(action).selected, isFalse);
+    expect(tester.takeException(), isNull); await closeUx(tester);
+  });
+
+  for (final scale in [1.0, 2.4]) {
+    testWidgets('C06 C10 original expert layout uses factual counts without overlapping Arabic rating at $scale', (tester) async {
+      final boundary = GlobalKey(), scope = uxContainer();
+      const broker = BrokerProfile(id: 7, name: 'دلال اختبار ذو اسم عربي طويل', type: 'broker',
+        verified: true, rating: 4.8, ratingCount: 12, completedDeals: 3, activeListings: 7);
+      await pumpUx(tester, scope, Scaffold(body: SingleChildScrollView(child: EbrokerHomeAgentCard(
+        profile: broker, width: 280, onTap: () {}))), size: const Size(320, 700), scale: scale, boundary: boundary);
+      final portrait = find.byWidgetPredicate((widget) => widget is Hero && widget.tag == 'agent-hero-7');
+      final rating = find.text('4.8 · 12 تقييم');
+      expect(rating, findsOneWidget);
+      expect(tester.getRect(portrait).overlaps(tester.getRect(rating)), isFalse);
+      expect(find.text('عقارات: 7'), findsOneWidget);
+      expect(find.text('صفقات مؤكدة: 3'), findsOneWidget);
+      await uxPreview(tester, boundary, 'w3-expert-$scale');
+      expect(tester.takeException(), isNull); await closeUx(tester);
+    });
+  }
 }

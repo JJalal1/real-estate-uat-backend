@@ -1,5 +1,6 @@
 import '../features/discovery/presentation/marketplace_search_panel.dart';
 import '../features/discovery/presentation/marketplace_search_screen.dart';
+import '../features/discovery/data/marketplace_search_session.dart';
 import 'package:flutter/material.dart';
 import '../features/discovery/presentation/assisted_search_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,9 +71,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             summary: state.extra is PropertySummary ? state.extra as PropertySummary : null);
         }),
       ]),
-      GoRoute(path: '/smart-search', builder: (context, state) => AssistedSearchScreen(
-        savedSearch:state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null,
-        entryFilters: state.extra is SmartSearchFilters ? state.extra as SmartSearchFilters : null)),
+      GoRoute(path: '/smart-search', builder: (context, state) {
+        final purpose = ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'];
+        return AssistedSearchScreen(
+          savedSearch: state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null,
+          entryFilters: state.extra is SmartSearchFilters ? state.extra as SmartSearchFilters
+            : state.extra is SavedPropertySearch || purpose == null ? null : SmartSearchFilters.fromMap({'purpose': purpose}));
+      }),
       GoRoute(path: '/marketplace-search', builder: (context, state) => MarketplaceSearchScreen(
         openFilters: state.uri.queryParameters['filters'] == '1')),
       GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(

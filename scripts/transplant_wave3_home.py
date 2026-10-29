@@ -243,11 +243,14 @@ class EbrokerHomeAgentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolvedHeroTag = 'home-agent-${profile.id}';
+    final largeText = MediaQuery.textScalerOf(context).scale(11.5) > 18;
     final ratingLabel = profile.ratingCount == 0 ? 'لا تقييمات بعد'
       : '${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييم';
 ''' + body
+    text = text.replace('                  Positioned(\n                    right: 4.rw(context),', '                  if (!largeText) Positioned(\n                    right: 4.rw(context),')
+    text = text.replace('            // Property & Project counts', '            if (largeText) Padding(padding: const EdgeInsets.only(bottom: 8),\n              child: SourceText(ratingLabel, fontSize: 11.5, color: context.sourceColors.tertiaryColor)),\n            // Property & Project counts')
     # Source uses physical positioning; mirror the avatar/rating arrangement in Arabic.
-    text = text.replace('                  Positioned(\n                    right: 4.rw(context),', '                  PositionedDirectional(\n                    end: 4.rw(context),')
+    text = text.replace('Positioned(\n                    right: 4.rw(context),', 'PositionedDirectional(\n                    end: 4.rw(context),')
     text = text.replace('                  Positioned(\n                    left: 6.rw(context),', '                  PositionedDirectional(\n                    start: 6.rw(context),')
     emit('agent_card.dart', text, ['Original AgentCard presentation body/banner-avatar/name/stats composition.',
         'No source follow/appointments/WhatsApp/private email/project claims. Existing authorized public profile/contact route.',

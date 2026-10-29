@@ -40,6 +40,7 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
     final controller = ref.read(marketplaceSearchControllerProvider.notifier);
     ref.listen(homeSearchResultsProvider, (previous, next) {
       if (previous?.filters == next.filters) return;
+      if (ModalRoute.of(context)?.isCurrent == false) return;
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _scroll.hasClients) _scroll.jumpTo(0); });
     });
     return PopScope(onPopInvokedWithResult: (didPop, _) {

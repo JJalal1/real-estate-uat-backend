@@ -12,6 +12,7 @@ class EbrokerHomeAgentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolvedHeroTag = 'home-agent-${profile.id}';
+    final largeText = MediaQuery.textScalerOf(context).scale(11.5) > 18;
     final ratingLabel = profile.ratingCount == 0 ? 'لا تقييمات بعد'
       : '${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييم';
     return GestureDetector(
@@ -50,7 +51,7 @@ class EbrokerHomeAgentCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  PositionedDirectional(
+                  if (!largeText) PositionedDirectional(
                     end: 4.rw(context),
                     top: 162.rh(context),
                     child: Container(
@@ -175,6 +176,8 @@ class EbrokerHomeAgentCard extends StatelessWidget {
               ),
             ),
             SizedBox(height: 10.rh(context)),
+            if (largeText) Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: SourceText(ratingLabel, fontSize: 11.5, color: context.sourceColors.tertiaryColor)),
             // Property & Project counts
             Container(
               padding: EdgeInsets.symmetric(

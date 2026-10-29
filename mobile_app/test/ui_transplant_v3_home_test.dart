@@ -174,7 +174,7 @@ void main() {
     expect(find.textContaining('السعي'), findsNothing);
     expect(
       find.byWidgetPredicate((widget) => widget is Text &&
-          widget.textSpan?.toPlainText().contains('١٠٢٬٠٠٠٬٠٠٠ ريال') == true),
+          (widget.data ?? widget.textSpan?.toPlainText() ?? '').contains('١٠٢٬٠٠٠٬٠٠٠ ريال')),
       findsOneWidget,
     );
     expect(find.text('إضافة عقار'), findsNothing);

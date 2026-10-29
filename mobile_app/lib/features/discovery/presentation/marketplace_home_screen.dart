@@ -21,6 +21,7 @@ import '../../properties/presentation/property_details_screen.dart';
 import '../data/marketplace_repository.dart';
 import '../data/discovery_location.dart';
 import 'home_ai_search_entry.dart';
+import 'smart_search_assistant.dart';
 import '../data/marketplace_search_session.dart';
 
 const homeDiscoveryQuery = NearbyQuery(center: LatLng(15.3694, 44.1910));
@@ -118,7 +119,11 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     final controller = ref.read(marketplaceSearchControllerProvider.notifier);
     controller.prepareSearch(type: _type);
     controller.enterMap();
-    context.push('/marketplace-search-map');
+    final place = ref.read(homeLocationProvider);
+    context.push(Uri(path: '/marketplace-search-map', queryParameters: {
+      if (place.manual) ...{'lat': '${place.latitude}', 'lon': '${place.longitude}',
+        if (place.governorate != null) 'governorate': place.governorate!},
+    }).toString());
   }
   void _section(String section,String? governorate) {
     final location=ref.read(homeLocationProvider);
@@ -153,17 +158,18 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         toolbarHeight: (58 + (MediaQuery.textScalerOf(context).scale(15) - 15) * 2).clamp(58, 112).toDouble(),
         titleSpacing: 18, title: Row(children: [
           const AqerBrandMark(size: 32), const SizedBox(width: 8),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('عقار اليمن', style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w700)),
-            Text('بيتك… يبدأ من هنا', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10)),
-          ])),
-          Flexible(child: TextButton.icon(onPressed: _chooseLocation,
+          Flexible(child: Semantics(button: true, label: 'تغيير المنطقة', child: TextButton.icon(onPressed: _chooseLocation,
             icon: _locationBusy ? const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2))
               : const EbrokerImage('location', size: 17),
-            label: Text(data?.label ?? location.label, maxLines: 1, overflow: TextOverflow.ellipsis))),
+            label: Text(data?.label ?? location.label, maxLines: 1, overflow: TextOverflow.ellipsis)))),
+          Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text('عقار اليمن', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w700)),
+            Text('بيتك… يبدأ من هنا', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10)),
+          ])),
         ]), actions: [IconButton(tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'),
           icon: const EbrokerImage('notification', size: 21))]),
-      body: RefreshIndicator(onRefresh: () async {
+      body: SmartSearchAssistantLayer(onPressed: () => context.push('/smart-search'), child: RefreshIndicator(onRefresh: () async {
         try { ref.read(marketplaceRepositoryProvider).invalidateFeed(query); ref.invalidate(marketplaceFeedProvider(query));
           await ref.read(marketplaceFeedProvider(query).future); } catch (_) { /* Inline retry retains only this query. */ }
       }, child: CustomScrollView(key: const PageStorageKey('marketplace-home'), controller: _feedScroll,
@@ -174,7 +180,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               onTap: () => _openSearch(filters: true)),
             const SizedBox(width: 8), Expanded(child: TextField(key: const ValueKey('home-search'), readOnly: true,
               onTap: _openSearch, decoration: const InputDecoration(hintText: 'ابحث عن عقار أو منطقة…',
-                filled: true, fillColor: Colors.white, prefixIcon: Icon(Icons.search),
+                filled: true, fillColor: Colors.white, suffixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(18)), borderSide: BorderSide.none)))),
             const SizedBox(width: 8), _HomeCircleAction(key: const ValueKey('home-map'),
               tooltip: 'الخريطة', icon: 'propertymap', onTap: _openMap),
@@ -213,7 +219,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error),
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))), data: _feedSliver),
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
-      ])),
+      ]))),
     );
   }
 
@@ -258,7 +264,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     }
     if (seen.isEmpty) {
       slivers.add(SliverToBoxAdapter(child: AppEmptyState(
-      title: 'لا توجد عقارات مطابقة في هذه المنطقة الآن', message: 'يمكنك تغيير المنطقة أو الغرض.',
+      title: ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'] == null
+        ? 'لا توجد عقارات في هذه المنطقة الآن' : 'لا توجد عقارات مطابقة في هذه المنطقة الآن', message: 'يمكنك تغيير المنطقة أو الغرض.',
       actionLabel: 'تغيير المنطقة', onAction: _chooseLocation)));
     }
     return SliverMainAxisGroup(slivers: slivers);
