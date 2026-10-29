@@ -133,8 +133,8 @@ Future<void> pumpUx(WidgetTester tester, ProviderContainer container, Widget chi
     child: Directionality(textDirection: TextDirection.rtl, child: child!));
   final theme = dark ? AppTheme.dark : AppTheme.light;
   await tester.pumpWidget(UncontrolledProviderScope(container: container, child: RepaintBoundary(key: boundary,
-    child: router == null ? MaterialApp(theme: theme, builder: builder, home: child)
-      : MaterialApp.router(theme: theme, builder: builder, routerConfig: router))));
+    child: router == null ? MaterialApp(debugShowCheckedModeBanner: false, theme: theme, builder: builder, home: child)
+      : MaterialApp.router(debugShowCheckedModeBanner: false, theme: theme, builder: builder, routerConfig: router))));
   await uxFrames(tester);
 }
 Future<void> closeUx(WidgetTester tester) async {

@@ -14,6 +14,7 @@ import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_gate.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'support/wave3_fakes.dart';
@@ -58,6 +59,7 @@ Future<GoRouter> _pumpHome(
           showAdvertiserActions: advertiser,
         ),
       ),
+      GoRoute(path: '/marketplace-search', builder: (_, __) => const MarketplaceSearchScreen()),
       GoRoute(
         path: '/marketplace-search-map',
         builder: (_, __) => const Scaffold(body: Text('map destination')),
@@ -196,8 +198,8 @@ void main() {
       await tester.tap(target);
       await tester.pumpAndSettle();
       if (entry == 'home-search') {
-        // Wave2 explicitly replaces the old tap-to-map contract.
-        expect(router.state.uri.path, '/');
+        // Wave3 explicitly moves the retained public editor to one pushed page.
+        expect(router.state.uri.path, '/marketplace-search');
         expect(tester.widget<TextField>(target).readOnly, isFalse);
         expect(tester.widget<TextField>(target).textInputAction, TextInputAction.search);
         expect(find.text('map destination'), findsNothing);

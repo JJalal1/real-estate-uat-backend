@@ -255,7 +255,11 @@ void main() {
       expect(find.byKey(const ValueKey('home-ai-description')), findsNothing);
       expect(find.byKey(const ValueKey('home-ai-voice')), findsNothing);
       expect(find.text('بحث ذكي'), findsOneWidget);
-      expect(tester.getSize(find.byKey(const ValueKey('home-smart-search'))).height, lessThan(100));
+      // Wave3 restores the approved wide smart-search strip with its explanatory text.
+      final smartBar = tester.getSize(find.byKey(const ValueKey('home-smart-search')));
+      expect(smartBar.width, closeTo(tester.view.physicalSize.width / tester.view.devicePixelRatio - 36, .1));
+      expect(smartBar.height, lessThan(180));
+      expect(find.text('صف ما تحتاجه بالنص أو الصوت'), findsOneWidget);
       await preview(tester, boundary, scale == 1 ? 'wave5-home' : 'wave5-home-large');
       await tester.tap(find.byKey(const ValueKey('home-smart-search'))); await tester.pumpAndSettle();
       expect(find.byType(AssistedSearchScreen), findsOneWidget);

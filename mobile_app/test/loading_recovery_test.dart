@@ -250,7 +250,7 @@ void main() {
     final repo = MarketplaceRepository(dio, now: () => now);
     final container = ProviderContainer(overrides: [marketplaceRepositoryProvider.overrideWithValue(repo)]);
     addTearDown(container.dispose);
-    const query = (latitude: 15.3, longitude: 44.2, governorate: null, type: null, device: false);
+    const query = (latitude: 15.3, longitude: 44.2, governorate: null, type: null, purpose: null, device: false);
     final provider = marketplaceFeedProvider(query);
     var subscription = container.listen(provider, (_, __) {});
     await container.read(provider.future);
@@ -271,7 +271,7 @@ void main() {
   testWidgets('an abandoned pending home request cancels instead of becoming a retained cache entry', (tester) async {
     final pending = Completer<MarketplaceFeed>();
     final repo = _Feed(onFeed: (_) => pending.future);
-    const query = (latitude: 15.3, longitude: 44.2, governorate: null, type: null, device: false);
+    const query = (latitude: 15.3, longitude: 44.2, governorate: null, type: null, purpose: null, device: false);
     var visible = true;
     late StateSetter change;
     await tester.pumpWidget(ProviderScope(overrides: [marketplaceRepositoryProvider.overrideWithValue(repo)],

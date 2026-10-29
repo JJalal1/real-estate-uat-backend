@@ -82,9 +82,11 @@ void main() {
     await _networkFrames(tester, frames: 14);
     final initial = requested.length, initialBytes = bytes;
     final position = tester.state<ScrollableState>(find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first).position;
-    position.jumpTo(position.maxScrollExtent);
-    await _networkFrames(tester);
+    final extentBeforeJump = position.maxScrollExtent;
+    position.jumpTo(extentBeforeJump);
+    await _networkFrames(tester, frames: 20);
     final afterFastScroll = requested.length;
+    final destinationOffset = position.pixels;
     position.jumpTo(0);
     await _networkFrames(tester);
     final returnRequests = requested.length - afterFastScroll;
@@ -92,9 +94,14 @@ void main() {
       'feed_requests': feedRequests, 'initial_image_requests': initial, 'initial_image_bytes': initialBytes,
       'after_fast_scroll_requests': afterFastScroll, 'return_image_requests': returnRequests,
       'unique_image_requests': requested.toSet().length, 'total_image_bytes': bytes};
+    stdout.writeln('AQER_VIEWPORT_DESTINATION ${jsonEncode({
+      'destination_offset': destinationOffset, 'extent_before_jump': extentBeforeJump,
+      'max_scroll_extent': position.maxScrollExtent, 'requested': requested,
+    })}');
     if (_required) {
       expect(initial, inInclusiveRange(1, 2));
       expect(requested.where((path) => path.endsWith('/120')), isEmpty, reason: 'fast scrolling skips an unseen middle section');
+      expect(afterFastScroll, greaterThan(initial), reason: 'the settled destination must actually load its visible images');
       expect(returnRequests, 0);
     }
     expect(feedRequests, 1);
