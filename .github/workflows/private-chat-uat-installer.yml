@@ -1,0 +1,319 @@
+name: Branch2 private owner installable UAT APK
+'on':
+  pull_request:
+    branches:
+    - work/branch2-location-20261029
+    paths:
+    - .github/workflows/private-chat-uat-installer.yml
+permissions:
+  contents: read
+concurrency:
+  group: private-branch2-chat-uat-installer-20261029
+  cancel-in-progress: true
+env:
+  SOURCE_COMMIT: ce3c6b32917cb443f4c1ae4711d95ed975b3afca
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+  OWNER_UPGRADE_PAIR: 'true'
+  AQER_PRIVATE_DELIVERY_VERSION: '1393'
+jobs:
+  private_installer:
+    name: Build verified APK for private chat delivery
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ env.SOURCE_COMMIT }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Verify the exact requested application source
+      run: |
+        set -euo pipefail
+        test "$(git rev-parse HEAD)" = "${SOURCE_COMMIT}"
+        test "$(git rev-parse HEAD^{tree})" = cc510fad4ad33db4a9e1b44aee81257ba16929c8
+        git diff --exit-code
+    - name: Set up Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        packages: platform-tools
+        log-accepted-android-sdk-licenses: false
+    - name: Set up original Flutter 3.27.3
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 3.27.3
+        channel: stable
+        cache: true
+    - name: Resolve original locked packages
+      working-directory: mobile_app
+      run: |
+        cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+        flutter pub get
+        python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+        flutter pub get --enforce-lockfile
+    - name: Ensure original dependency declaration is unchanged
+      run: |-
+        git diff --exit-code -- mobile_app/pubspec.yaml
+    - name: Static analysis with exact original INFO baseline
+      working-directory: mobile_app
+      run: |-
+        python3 -B ../scripts/check_v3_analysis.py
+    - name: Broker journeys, template components and navigation acceptance
+      id: stage1_ui
+      working-directory: mobile_app
+      run: |-
+        flutter test test/aqer_brand_test.dart test/wave2_trust_account_media_test.dart test/compact_cards_email_login_test.dart test/template_creation_menu_test.dart test/broker_experience_ui_test.dart test/broker_convenience_test.dart test/ux_refinement_test.dart test/wave3_personal_listing_test.dart test/wave3_ai_session_test.dart test/wave3_ai_design_ui_test.dart test/broker_listing_assistant_test.dart test/active_wave_discovery_test.dart test/wave6_product_contract_test.dart test/wave6_product_ui_test.dart test/new_wave_handoff_test.dart test/user_work_media_test.dart test/current_wave_contract_test.dart test/current_wave_ui_test.dart test/search_query_wave_test.dart test/listing_design_wave_test.dart test/phase3_favorites_screen_test.dart test/uat_account_types_kyc_models_test.dart test/wave4_listing_ui_test.dart test/wave4_sai_consent_test.dart test/in_app_voice_search_test.dart test/live_dictation_test.dart test/ui_transplant_v3_home_test.dart test/ui_transplant_v3_template_test.dart test/app_components_test.dart test/app_theme_test.dart test/uat_comments_fix_test.dart test/uat_listing_publish_viewing_flow_test.dart test/startup_navigation_layout_test.dart test/branch2_recovery_test.dart test/branch2_completion_test.dart test/branch2_voice_test.dart test/branch2_location_test.dart
+    - name: Full Flutter regression
+      id: flutter_regression
+      working-directory: mobile_app
+      shell: bash
+      run: |
+        set -euo pipefail
+        mapfile -d '' tests < <(find test -type f -name '*_test.dart' ! -path 'test/uat_compiled_environment_test.dart' -print0 | sort -z)
+        test "${#tests[@]}" -gt 0
+        flutter test "${tests[@]}"
+    - name: Verify compiled Frankfurt endpoint
+      id: compiled_environment
+      if: ${{ !cancelled() && (steps.flutter_regression.conclusion == 'success' || steps.flutter_regression.conclusion
+        == 'failure') }}
+      working-directory: mobile_app
+      run: |-
+        flutter test --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }} --dart-define=APP_BUILD_NUMBER=${AQER_PRIVATE_DELIVERY_VERSION} test/uat_compiled_environment_test.dart test/push_registration_guard_test.dart
+    - name: Validate optional owner UAT Firebase client configuration
+      env:
+        AQER_UAT_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.AQER_UAT_GOOGLE_SERVICES_JSON_BASE64 }}
+      run: |
+        python3 -m unittest discover -s scripts/tests -p 'test_uat_firebase_configuration.py' -v
+        python3 scripts/import_ci_uat_firebase.py
+    - name: Build same-source UAT upgrade predecessor with this job's signing key
+      if: ${{ !cancelled() && env.OWNER_UPGRADE_PAIR == 'true' && steps.compiled_environment.conclusion == 'success'
+        && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
+      working-directory: mobile_app
+      env:
+        AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+      run: |
+        flutter test --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }} --dart-define=APP_BUILD_NUMBER=$((AQER_PRIVATE_DELIVERY_VERSION - 1)) test/uat_compiled_environment_test.dart
+        flutter build apk --flavor uat --release --build-number=$((AQER_PRIVATE_DELIVERY_VERSION - 1)) --dart-define=APP_BUILD_NUMBER=$((AQER_PRIVATE_DELIVERY_VERSION - 1)) --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+        mkdir -p ../dist
+        cp build/app/outputs/flutter-apk/app-uat-release.apk ../dist/uat-upgrade-predecessor.apk
+        sha256sum ../dist/uat-upgrade-predecessor.apk > ../dist/UPGRADE_PREDECESSOR_SHA256.txt
+    - name: Build tested broker UAT APK
+      id: build_apk
+      if: ${{ !cancelled() && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion
+        == 'success' && steps.stage1_ui.conclusion == 'success' }}
+      working-directory: mobile_app
+      env:
+        AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+      run: |-
+        flutter build apk --flavor uat --release --build-number=${AQER_PRIVATE_DELIVERY_VERSION} --dart-define=APP_BUILD_NUMBER=${AQER_PRIVATE_DELIVERY_VERSION} --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+    - name: Prepare APK evidence
+      if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p dist
+        apk="mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk"
+        test -f "$apk"
+        cp "$apk" "dist/real-estate-broker-uat-${GITHUB_RUN_NUMBER}.apk"
+        sha256sum "dist/real-estate-broker-uat-${GITHUB_RUN_NUMBER}.apk" > dist/SHA256.txt
+        cp mobile_app/pubspec.lock dist/RESOLVED_PUBSPEC.lock
+        cp mobile_app/pubspec_overrides.yaml dist/BUILD_PUBSPEC_OVERRIDES.yaml
+        sha256sum dist/RESOLVED_PUBSPEC.lock > dist/DEPENDENCY_SHA256.txt
+        cat > dist/BUILD_INFO.txt <<EOF
+        purpose=broker-experience-uat
+        acceptance_status=not-approved
+        stage1_ui=${{ steps.stage1_ui.conclusion }}
+        flutter_regression=${{ steps.flutter_regression.conclusion }}
+        source_commit=${SOURCE_COMMIT}
+        template_reference=c2c7769f1114de434d10866a1032a84c086c1d47
+        backend_expected_commit=${SOURCE_COMMIT}
+        api_base_url=${UAT_API_BASE_URL}
+        flutter_version=3.27.3
+        android_application_id=com.aqer.yemen.uat
+        signing=original-development-debug-key
+        run_number=${GITHUB_RUN_NUMBER}
+        EOF
+    - name: Verify the tested UAT APK
+      id: verify_apk
+      if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' }}
+      env:
+        APK_VERIFY_TOKEN: ${{ github.token }}
+      run: |
+        python3 - <<'PYCODE'
+        import os
+        from pathlib import Path
+        source = Path('scripts/verify_built_uat_apk.py').read_text()
+        old = 'version = 1000 + run - int(args.upgrade_predecessor)'
+        new = "version = int(os.environ['AQER_PRIVATE_DELIVERY_VERSION']) - int(args.upgrade_predecessor)"
+        assert source.count(old) == 1
+        Path(os.environ['RUNNER_TEMP'], 'verify_private_delivery_apk.py').write_text(source.replace(old, new))
+        PYCODE
+        python3 -B "$RUNNER_TEMP/verify_private_delivery_apk.py"
+        if [ -f dist/uat-upgrade-predecessor.apk ]; then
+          python3 -B "$RUNNER_TEMP/verify_private_delivery_apk.py" --upgrade-predecessor
+        fi
+    - name: Build isolated native Android push tests
+      if: ${{ !cancelled() && env.OWNER_UPGRADE_PAIR == 'true' && steps.verify_apk.conclusion == 'success' }}
+      working-directory: mobile_app
+      env:
+        AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+      run: |
+        flutter build apk --flavor uat --debug --target-platform android-x64 --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+        cd android
+        ./gradlew app:assembleUatDebugAndroidTest
+        cd ../..
+        mkdir -p android-push-tests
+        cp mobile_app/build/app/outputs/flutter-apk/app-uat-debug.apk android-push-tests/target.apk
+        cp mobile_app/build/app/outputs/apk/androidTest/uat/debug/app-uat-debug-androidTest.apk android-push-tests/tests.apk
+    - name: Real API36 emulator package upgrade and private fixture preservation
+      id: android_upgrade
+      if: ${{ !cancelled() && env.OWNER_UPGRADE_PAIR == 'true' && steps.verify_apk.conclusion == 'success' }}
+      timeout-minutes: 15
+      shell: bash
+      run: |
+        set -euo pipefail
+        # The verified APKs are already copied into dist/. Release disposable
+        # build caches before allocating a real API36 system image and userdata.
+        test "${GITHUB_ACTIONS}" = true
+        test -f dist/APK_VERIFICATION.json
+        rm -rf mobile_app/build "$HOME/.gradle/caches" "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
+        df -h .
+        sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+        export ANDROID_USER_HOME="$RUNNER_TEMP/aqer-android-user"
+        export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+        export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+        mkdir -p "$ANDROID_AVD_HOME"
+        avdmanager create avd --force --name aqer-owner-upgrade --device pixel --path "$ANDROID_AVD_HOME/aqer-owner-upgrade.avd" --package 'system-images;android-36;google_apis;x86_64'
+        test -f "$ANDROID_AVD_HOME/aqer-owner-upgrade.ini"
+        "$ANDROID_HOME/emulator/emulator" -list-avds | grep -x aqer-owner-upgrade
+        sudo chmod 666 /dev/kvm
+        QT_QPA_PLATFORM=offscreen "$ANDROID_HOME/emulator/emulator" -avd aqer-owner-upgrade -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -memory 2048 -cores 2 > "$RUNNER_TEMP/aqer-emulator.log" 2>&1 &
+        emulator_pid=$!
+        cleanup() {
+          result=$?
+          if [ "$result" -ne 0 ]; then tail -80 "$RUNNER_TEMP/aqer-emulator.log"; fi
+          kill "$emulator_pid" 2>/dev/null || true
+          return "$result"
+        }
+        trap cleanup EXIT
+        ready=false
+        for attempt in $(seq 1 120); do
+          if ! kill -0 "$emulator_pid" 2>/dev/null; then echo 'Emulator exited before boot'; exit 1; fi
+          if [ "$(timeout 3s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = '1' ]; then ready=true; break; fi
+          sleep 2
+        done
+        test "$ready" = true
+        python3 -B scripts/probe_uat_android_upgrade.py
+        python3 -B scripts/probe_android_push_isolation.py
+
+        python3 - <<'VOICEPROOF'
+        import json, os, subprocess
+        from pathlib import Path
+        pkg = 'com.aqer.yemen.uat'
+        def run(*args):
+            return subprocess.run(list(args), capture_output=True, text=True, timeout=180, check=True).stdout
+        run('adb', 'install', 'android-push-tests/target.apk')
+        run('adb', 'install', 'android-push-tests/tests.apk')
+        try:
+            output = run('adb', 'shell', 'am', 'instrument', '-w', '-r', '-e', 'class',
+                         'com.example.real_estate_mobile.VoiceAudioFocusTest', pkg + '.test/androidx.test.runner.AndroidJUnitRunner')
+            assert 'OK (2 tests)' in output, output
+            assert 'FAILURES!!!' not in output and 'INSTRUMENTATION_FAILED' not in output, output
+            proof = {'source_commit': os.environ['SOURCE_COMMIT'], 'status': 'passed', 'android_tests': 2,
+                     'android_api': int(run('adb', 'shell', 'getprop', 'ro.build.version.sdk').strip()),
+                     'foreground_focus_granted_and_released': True, 'competing_focus_loss_released': True,
+                     'volume_unchanged': True, 'microphone_asr_tested': False, 'real_music_player_tested': False,
+                     'handset_tested': False}
+            Path('dist/ANDROID_VOICE_FOCUS.json').write_text(json.dumps(proof, indent=2) + '\n')
+            print(json.dumps(proof))
+        finally:
+            run('adb', 'uninstall', pkg + '.test')
+            run('adb', 'uninstall', pkg)
+        VOICEPROOF
+    - name: Encrypt for the approved owner and this private chat session
+      env:
+        SESSION_PUBLIC_CERTIFICATE: |
+          -----BEGIN CERTIFICATE-----
+          MIIEOzCCAqOgAwIBAgIUImCNCbDNAZID0xF0dDlOZHdYMBowDQYJKoZIhvcNAQEL
+          BQAwLTErMCkGA1UEAwwiQXFlciBCcmFuY2gyIHByaXZhdGUgQ2hhdCBkZWxpdmVy
+          eTAeFw0yNjEwMjkwNDAyMjVaFw0yNjExMDEwNDAyMjVaMC0xKzApBgNVBAMMIkFx
+          ZXIgQnJhbmNoMiBwcml2YXRlIENoYXQgZGVsaXZlcnkwggGiMA0GCSqGSIb3DQEB
+          AQUAA4IBjwAwggGKAoIBgQC/BDLPvpwccnLdGKH+3rvQmEtp6FrtzBy+qTAEpaYY
+          BLhBQCvuR31ZXV3WjLshf1K8x+ir9oPHa0zXdtcXz8PE9ZVoJAok6Dx/yk3LkuCC
+          PeG7odIWS96pw1GSL51C86wJ2S8kiGLabipAlkvhhofR9CTWM+thH7+DcbdOMoj1
+          mCm8YetM1i+PbEljcAkgvpQKf8IUocP9bu5+wX/l9YVSp3Ll9P2HRoepjYFMIxpA
+          Yts01H5ZsMHIV8RMiBLgNphJThago8thKb9WudaWwfizANOp8qqizB5GHl8E9mW9
+          0LPAupWBwID8pVRq6vuvU7T5e2MrS2vhm1TKqq82X5O/d/9GtpBDz0wQEaOI/BXx
+          EZm3iAjn7epCTmzBP5Dlp9VusR2mMMP4alDd0UBLHsq6eIMpUjdhT8cmnSyek04P
+          2wn2yagajQWbsS2zvYtuC1aX3Y6L/KR7H5MME6cUg0U28jnto4savlCz9bJPoOx0
+          BnOAdffVHhG7095pPD9/p/MCAwEAAaNTMFEwHQYDVR0OBBYEFFHGpjV7X4sOCD1J
+          7B5ZZv6ig32zMB8GA1UdIwQYMBaAFFHGpjV7X4sOCD1J7B5ZZv6ig32zMA8GA1Ud
+          EwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggGBAJCxaBM7kxz6qx6k8nRE/9jF
+          mtxvIXTOnwRDghlSx0GcD1zmlXzxt6TlCEhnL5qVAGajemplYJlNirITVO24F/66
+          SDYbHyk2NvPaq0dgAUxqYVjlABFH0eKsGbDR4FHTZoWkqjOYZ/PsTlJ4qmPFiO0b
+          9yi3t3QelHCwoBvjLTPnpEPujwfbGfn+7UTknXEwyWdOF07bG8F9wZaBaQNqrSVA
+          ihyBs9e+GcGJqYTeuBBV8PEjCAspGCsx4wGf/SpaDtqr7k5yyb5vMOmopB0ayiCe
+          GYZxooPl69KyunUDqYDAFRGouNlr+iBlz39ZPsnpmF3Y/5QYM0hKsAU/GsSHbPXs
+          0ZbXa2g81TalhmI7AMutsXnKRmO3255fNpuGeJzlWipQUuqNHMa/rx+mAUijFSm6
+          Jaykx7fxp+HfZBqA9oesa1j3DwFv233LCzb1yHxfQZx1Ug8fSrwcA0Np1uQzvOqO
+          FqPkRB1RCJrxMOMrMPMKYz9D4GZeQOchxBYYpL9OXQ==
+          -----END CERTIFICATE-----
+        SESSION_PUBLIC_CERTIFICATE_SHA256: 8fd9d780ec68939308c571b244a3f96dcff46882741509075f86da91d82eca48
+      run: |
+        python3 - <<'PYCODE'
+        import base64,hashlib,json,os,shutil,subprocess
+        from pathlib import Path
+        source = os.environ['SOURCE_COMMIT']
+        version = int(os.environ['AQER_PRIVATE_DELIVERY_VERSION'])
+        policy = json.loads(Path('docs/PUBLIC_UAT_DELIVERY.json').read_text())
+        assert policy['repository'] == os.environ['GITHUB_REPOSITORY'] == 'JJalal1/real-estate-uat-backend'
+        assert policy['apk_delivery'] == 'recipient-encrypted-cms-only' and policy['plaintext_public_artifacts'] is False
+        owner = Path(policy['recipient_certificate'])
+        assert hashlib.sha256(owner.read_bytes()).hexdigest() == policy['recipient_sha256']
+        session = Path(os.environ['RUNNER_TEMP'], 'private-chat-public-recipient.pem')
+        session.write_text(os.environ['SESSION_PUBLIC_CERTIFICATE'])
+        assert hashlib.sha256(session.read_bytes()).hexdigest() == os.environ['SESSION_PUBLIC_CERTIFICATE_SHA256']
+        assert session.read_text().startswith('-----BEGIN CERTIFICATE-----')
+        proof = json.loads(Path('dist/APK_VERIFICATION.json').read_text())
+        upgrade = json.loads(Path('dist/ANDROID_UPGRADE_VERIFICATION.json').read_text())
+        push = json.loads(Path('dist/ANDROID_PUSH_ISOLATION.json').read_text())
+        voice = json.loads(Path('dist/ANDROID_VOICE_FOCUS.json').read_text())
+        assert voice['source_commit'] == source and voice['status'] == 'passed' and voice['android_tests'] == 2
+        assert proof['source_commit'] == upgrade['source_commit'] == push['source_commit'] == source
+        assert proof['version_code'] == version and proof['apksigner'] == proof['zip_crc'] == 'passed'
+        assert upgrade['status'] == push['status'] == 'passed' and upgrade['same_certificate'] is True
+        assert push['synthetic_android_tests'] == 13
+        apk = Path('dist', 'real-estate-broker-uat-' + os.environ['GITHUB_RUN_NUMBER'] + '.apk')
+        payload = apk.read_bytes()
+        assert len(payload) == proof['bytes'] and hashlib.sha256(payload).hexdigest() == proof['sha256']
+        cipher = subprocess.run(['openssl','cms','-encrypt','-binary','-aes-256-gcm','-outform','DER',
+            '-recip',str(owner),'-keyopt','rsa_padding_mode:oaep','-keyopt','rsa_oaep_md:sha256',
+            '-recip',str(session),'-keyopt','rsa_padding_mode:oaep','-keyopt','rsa_oaep_md:sha256'],
+            input=payload,capture_output=True,check=True,timeout=120).stdout
+        assert cipher[:1] == b'\x30' and not cipher.startswith(b'PK')
+        out = Path('private-chat-encrypted')
+        out.mkdir()
+        (out / 'AQER-UAT-1393.apk.cms').write_bytes(cipher)
+        for name in ['APK_VERIFICATION.json','ANDROID_UPGRADE_VERIFICATION.json','ANDROID_PUSH_ISOLATION.json','ANDROID_VOICE_FOCUS.json','BUILD_INFO.txt']:
+            shutil.copyfile(Path('dist', name), out / name)
+        meta = {'accepted_application_source':source,'delivery_workflow_source':os.environ['GITHUB_SHA'],
+            'delivery_run_id':int(os.environ['GITHUB_RUN_ID']),'version_code':version,'cipher':'CMS-AES256GCM-RSAOAEP-SHA256',
+            'owner_recipient_sha256':policy['recipient_sha256'],'private_chat_recipient_sha256':os.environ['SESSION_PUBLIC_CERTIFICATE_SHA256'],
+            'payload_sha256':proof['sha256'],'payload_bytes':len(payload),'cipher_sha256':hashlib.sha256(cipher).hexdigest(),
+            'cipher_bytes':len(cipher),'plaintext_publication':False,'delivery_destination':'Owner-requested private ChatGPT file'}
+        (out / 'PRIVATE_CHAT_DELIVERY.json').write_text(json.dumps(meta,indent=2)+'\n')
+        print(json.dumps(meta))
+        PYCODE
+    - name: Upload ciphertext and verification receipts only
+      uses: actions/upload-artifact@v4
+      with:
+        name: private-chat-uat-1393-${{ github.run_number }}
+        path: private-chat-encrypted/
+        if-no-files-found: error
+        retention-days: 1
+    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && github.actor == 'JJalal1' && github.event.pull_request.head.repo.full_name
+      == github.repository && github.head_ref == 'work/private-branch2-chat-uat-installer-20261029' }}
