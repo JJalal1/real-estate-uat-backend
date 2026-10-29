@@ -11,7 +11,7 @@ concurrency:
   group: private-branch2-chat-uat-installer-20261029
   cancel-in-progress: true
 env:
-  SOURCE_COMMIT: c52ee4f29f2d84ffa3ef101d1de3de10d0ff37b5
+  SOURCE_COMMIT: edb79f6436aa5fbb4c829f66c128c0f9a81b85b8
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
   OWNER_UPGRADE_PAIR: 'true'
   AQER_PRIVATE_DELIVERY_VERSION: '1393'
@@ -30,7 +30,7 @@ jobs:
       run: |
         set -euo pipefail
         test "$(git rev-parse HEAD)" = "${SOURCE_COMMIT}"
-        test "$(git rev-parse HEAD^{tree})" = f8628eebb2afd6ccf805321e3a5d6294c01426be
+        test "$(git rev-parse HEAD^{tree})" = dcf01a97907632e2d71f7d6460e04f547dc10f0f
         git diff --exit-code
     - name: Set up Java 17
       uses: actions/setup-java@v4

@@ -1292,7 +1292,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const SizedBox(height: AppSpacing.s12),
         AppTextField(controller: _street, label: 'الشارع', enabled: !_busy && hasLocation),
         if (hasLocation) ...[
-          const SizedBox(height: 8), const Text('العنوان اقتراح يحتاج مراجعتك. لن نضع اسم الحي في خانة الشارع.'),
+          const SizedBox(height: 8), const Text('العنوان اقتراح للمنطقة ويحتاج مراجعتك وتصحيح الشارع عند الحاجة.'),
           if (_addressContext.attribution.isNotEmpty) Text(_addressContext.attribution, style: Theme.of(context).textTheme.bodySmall),
           TextButton.icon(key: const ValueKey('listing-nearby-landmarks'), onPressed: _busy || _landmarksBusy || _resolvingLocation ? null : _suggestLandmarks,
             icon: const Icon(Icons.near_me_outlined, size: 19), label: Text(_landmarksBusy ? 'نجلب المعالم المسجلة…' : 'اقتراح وصف بمعلم قريب (اختياري)')),
