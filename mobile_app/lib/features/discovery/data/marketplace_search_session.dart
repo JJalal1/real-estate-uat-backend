@@ -121,6 +121,20 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     if (key == 'land_use') { setLandUse(''); return; }
     applyFilters(state.criteria.without(key));
   }
+
+  /// Accept the map assistant's semantic criteria while keeping its spatial
+  /// snapshot on the map. Home retains its own location/scroll journey.
+  void adoptMapSearch(SmartSearchFilters filters) {
+    final next = Map<String, dynamic>.from(filters.values)
+      ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || key == 'search');
+    final text = filters.values['search']?.toString().trim() ?? '';
+    state = state.copyWith(criteria: SmartSearchFilters.fromMap(next), draftQuery: text,
+      submittedQuery: text, landUse: '', active: true, editing: false);
+    final homeFilters = _filters(text: text);
+    _lastSubmit = jsonEncode(homeFilters.apiFilters);
+    unawaited(home.replaceManually(homeFilters));
+    unawaited(map.replaceManually(filters));
+  }
   void setLandUse(String text) {
     // Existing listings have free-text declared use, not a legal classification
     // column. A visible keyword criterion uses the same canonical public search.

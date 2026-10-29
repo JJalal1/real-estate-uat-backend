@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:dio/dio.dart';
@@ -338,15 +339,27 @@ typedef SharedSearchMapBuilder = Widget Function(BuildContext context, List<Prop
 // Native MapLibre is the default. Tests replace only the canvas, retaining the real journey/controller.
 final sharedSearchMapBuilderProvider = Provider<SharedSearchMapBuilder?>((ref)=>null);
 
+typedef SharedSearchMapProjector = Future<LatLng> Function(math.Point<num> pixels);
+final sharedSearchMapProjectorProvider = Provider<SharedSearchMapProjector?>((ref) => null);
+
+class MapSearchActions {
+  const MapSearchActions({required this.onDrawArea, required this.onClearArea,
+    required this.onSmartSearch, required this.hasDrawnArea});
+  final VoidCallback onDrawArea, onClearArea, onSmartSearch;
+  final bool hasDrawnArea;
+}
+
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({this.initialLatitude, this.initialLongitude, this.initialType, this.initialFilters, this.sharedSearchJourney=false, this.searchToolbar, this.onShowList,
     this.searchSessionProvider, this.enforceViewport = false, this.resultsMaxExtent = .84,
-    this.collapseResults = false, this.onMapInteraction, super.key});
+    this.collapseResults = false, this.onMapInteraction, this.searchToolbarBuilder, this.onSmartSearch, super.key});
   final double? initialLatitude, initialLongitude;
   final String? initialType;
   final SmartSearchFilters? initialFilters;
   final bool sharedSearchJourney;
   final Widget? searchToolbar;
+  final Widget Function(BuildContext, MapSearchActions)? searchToolbarBuilder;
+  final Future<void> Function()? onSmartSearch;
   final VoidCallback? onShowList;
   final StateNotifierProvider<SmartSearchSession, SmartSearchState>? searchSessionProvider;
   final bool enforceViewport, collapseResults;
@@ -399,6 +412,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Line? _selectedAreaLine;
   List<Offset> _areaDraftPoints = <Offset>[];
   bool _selectingArea = false;
+  int _areaSelectionGeneration = 0;
+  bool _convertingArea = false;
+  int _areaAnnotationGeneration = 0;
   bool _listMode = false;
   bool _changingFavorite = false;
   int _sortMode = 0;
@@ -439,6 +455,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   void dispose() {
+    _areaSelectionGeneration++;
+    _areaAnnotationGeneration++;
     _viewportGeneration++;
     _styleLoadTimer?.cancel(); _viewportTimer?.cancel();
     _searchController.dispose();
@@ -543,6 +561,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   });
 
   Future<void> _openSmartSearch() async {
+    if (widget.onSmartSearch != null) { await widget.onSmartSearch!(); return; }
     _sharedSessionLinked = true;
     ref.read(_searchSession.notifier).replaceManually(_currentSmartFilters());
     if (widget.initialFilters != null) { Navigator.of(context).pop(); return; }
@@ -1158,7 +1177,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _beginAreaSelection() {
+    _areaSelectionGeneration++;
+    _viewportGeneration++;
+    widget.onMapInteraction?.call();
     setState(() {
+      _convertingArea = false;
       _selectingArea = true;
       _areaDraftPoints = <Offset>[];
       _listMode = false;
@@ -1168,7 +1191,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _cancelAreaSelection() {
+    _areaSelectionGeneration++;
     setState(() {
+      _convertingArea = false;
       _selectingArea = false;
       _areaDraftPoints = <Offset>[];
     });
@@ -1190,8 +1215,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _finishAreaStroke(DragEndDetails _) async {
     final controller = _mapController;
+    final projector = ref.read(sharedSearchMapProjectorProvider);
     final draft = _simplifyAreaStroke(_areaDraftPoints);
-    if (controller == null || draft.length < 5) {
+    if ((controller == null && projector == null) || draft.length < 5) {
       if (mounted) {
         setState(() {
           _areaDraftPoints = <Offset>[];
@@ -1200,19 +1226,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       }
       return;
     }
-
+    final generation = ++_areaSelectionGeneration;
+    setState(() => _convertingArea = true);
     try {
       final geoPoints = <LatLng>[];
       final pixelRatio = MediaQuery.devicePixelRatioOf(context);
       for (final point in draft) {
-        geoPoints.add(
-          await controller.toLatLng(
-            MapScreenCoordinateSpace.logicalToPlatformPixels(
-              point,
-              pixelRatio,
-            ),
-          ),
-        );
+        final pixels = MapScreenCoordinateSpace.logicalToPlatformPixels(point, pixelRatio);
+        geoPoints.add(await (projector != null ? projector(pixels) : controller!.toLatLng(pixels)));
+        if (!mounted || generation != _areaSelectionGeneration || !_selectingArea) return;
       }
       final geometry = MapAreaGeometry.fromPoints(geoPoints);
       if (!geometry.isMeaningful) {
@@ -1233,15 +1255,27 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         _selected = null;
         _lastMarkerSignature = '';
         _center = geometry.center;
-        _mapMessage = 'تم اعتماد المنطقة المرسومة وعرض العقارات داخلها فقط.';
+        _mapMessage = widget.sharedSearchJourney ? null : 'تم اعتماد المنطقة المرسومة وعرض العقارات داخلها فقط.';
       });
+      Future<void>? sharedSearch;
+      if (widget.sharedSearchJourney) {
+        final values = Map<String, dynamic>.from(ref.read(_searchSession).filters.values)
+          ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || key == 'governorate');
+        values.addAll({'area_polygon': geometry.encodedRing,
+          'south': geometry.bounds.southwest.latitude, 'west': geometry.bounds.southwest.longitude,
+          'north': geometry.bounds.northeast.latitude, 'east': geometry.bounds.northeast.longitude});
+        sharedSearch = ref.read(_searchSession.notifier).replaceManually(SmartSearchFilters.fromMap(values));
+      }
       await _renderSelectedAreaAnnotations();
+      if (sharedSearch != null) await sharedSearch;
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != _areaSelectionGeneration) return;
       setState(() {
         _areaDraftPoints = <Offset>[];
         _mapMessage = 'تعذر تحويل الرسم إلى منطقة على الخريطة. حاول مرة أخرى.';
       });
+    } finally {
+      if (mounted && generation == _areaSelectionGeneration) setState(() => _convertingArea = false);
     }
   }
 
@@ -1289,14 +1323,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _renderSelectedAreaAnnotations() async {
+    final generation = ++_areaAnnotationGeneration;
     final controller = _mapController;
     final geometry = _selectedAreaGeometry;
     if (controller == null || !_styleLoaded) return;
     await _removeAreaAnnotations();
+    if (!mounted || generation != _areaAnnotationGeneration) return;
     if (geometry == null) return;
 
+    Fill? fill;
+    Line? line;
     try {
-      final fill = await controller.addFill(
+      fill = await controller.addFill(
         FillOptions(
           geometry: <List<LatLng>>[geometry.points],
           fillColor: '#0B8A55',
@@ -1304,7 +1342,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           fillOutlineColor: '#0B8A55',
         ),
       );
-      final line = await controller.addLine(
+      line = await controller.addLine(
         LineOptions(
           geometry: geometry.points,
           lineColor: '#0B8A55',
@@ -1312,11 +1350,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           lineOpacity: 0.96,
         ),
       );
-      if (!mounted) return;
+      if (!mounted || generation != _areaAnnotationGeneration) {
+        try { await controller.removeFill(fill); } catch (_) {}
+        try { await controller.removeLine(line); } catch (_) {}
+        return;
+      }
       _selectedAreaFill = fill;
       _selectedAreaLine = line;
     } catch (_) {
-      if (mounted) {
+      try { if (fill != null) await controller.removeFill(fill); } catch (_) {}
+      try { if (line != null) await controller.removeLine(line); } catch (_) {}
+      if (mounted && generation == _areaAnnotationGeneration) {
         setState(() => _mapMessage =
             'تم تطبيق فلتر المنطقة، لكن تعذر رسم حدودها فوق الخريطة.');
       }
@@ -1324,6 +1368,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _clearSelectedArea() {
+    _areaSelectionGeneration++;
+    _areaAnnotationGeneration++;
     unawaited(_removeAreaAnnotations());
     setState(() {
       _selectedAreaBounds = null;
@@ -1332,6 +1378,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _lastMarkerSignature = '';
       _mapMessage = null;
     });
+    if (widget.sharedSearchJourney) {
+      unawaited(ref.read(_searchSession.notifier).replaceManually(
+        ref.read(_searchSession).filters.without('area_polygon')));
+    }
   }
 
 
@@ -1427,7 +1477,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _sharedViewport([int? generation]) async {
     final controller=_mapController;
-    if(controller==null || !mounted || _fittingShared)return;
+    if(controller==null || !mounted || _fittingShared || _selectingArea)return;
     try {
       final bounds=await controller.getVisibleRegion();
       if(!mounted || _fittingShared || (generation != null && generation != _viewportGeneration))return;
@@ -1472,6 +1522,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _sharedJourney() {
     final state=ref.watch(_searchSession);
+    ref.listen<SmartSearchState>(_searchSession, (before, after) {
+      if (before?.filters.values['area_polygon'] == after.filters.values['area_polygon']) return;
+      final encoded = after.filters.values['area_polygon'];
+      MapAreaGeometry? geometry;
+      if (encoded is String) {
+        try { geometry = MapAreaGeometry.fromEncodedRing(encoded); } catch (_) { /* Invalid areas are rejected by the API. */ }
+      }
+      setState(() { _selectedAreaGeometry = geometry; _selectedAreaBounds = geometry?.bounds; });
+      unawaited(_renderSelectedAreaAnnotations());
+    });
     final rows=state.rows.where((p)=>hasValidPropertyCoordinates(p.latitude, p.longitude)).map((p)=>PropertyMarker(
       id:p.id,title:p.title,price:p.monthlyRent??p.price,currency:p.currency,latitude:p.latitude,longitude:p.longitude,distanceKm:0,
       purpose:p.purpose,type:p.type,areaM2:p.areaM2,bedrooms:p.bedrooms,bathrooms:p.bathrooms,address:p.address,
@@ -1482,12 +1542,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final favoriteIds = user == null ? const <int>{} : ref.watch(favoritePropertyIdsProvider).asData?.value ?? const <int>{};
     final canvas=ref.watch(sharedSearchMapBuilderProvider);
     void select(int id){for(final p in rows){if(p.id==id){setState(()=>_selected=p);break;}}}
-    return Stack(fit:StackFit.expand,children:[
+    final toolbar = widget.searchToolbarBuilder?.call(context, MapSearchActions(
+      onDrawArea: _beginAreaSelection, onClearArea: _clearSelectedArea,
+      onSmartSearch: _openSmartSearch, hasDrawnArea: state.filters.values.containsKey('area_polygon'))) ?? widget.searchToolbar;
+    return PopScope(canPop: !_selectingArea, onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && _selectingArea) _cancelAreaSelection();
+    }, child: Stack(fit:StackFit.expand,children:[
       Positioned.fill(child:Listener(onPointerDown: (_) => widget.onMapInteraction?.call(),
-        child:canvas==null ? _buildMap() : canvas(context,rows,select,(south,west,north,east)=>
-        ref.read(_searchSession.notifier).updateViewport(south:south,west:west,north:north,east:east)))),
-      if(widget.searchToolbar!=null) PositionedDirectional(start:12,end:12,top:10,child:widget.searchToolbar!),
-      PropertyMapResultsSheet(items: rows, selectedId: _selected?.id, loading: state.loading,
+        child:canvas==null ? _buildMap() : canvas(context,rows,select,(south,west,north,east)
+        { if (!_selectingArea) ref.read(_searchSession.notifier).updateViewport(south:south,west:west,north:north,east:east); }))),
+      if (!_selectingArea && toolbar != null) PositionedDirectional(start:12,end:12,top:10,child:toolbar),
+      if (!_selectingArea) PropertyMapResultsSheet(items: rows, selectedId: _selected?.id, loading: state.loading,
         maxExtent: widget.resultsMaxExtent, collapsed: widget.collapseResults,
         error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),
         more: state.more, onMore: () => ref.read(_searchSession.notifier).search(more: true),
@@ -1495,7 +1560,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         itemBuilder: (row) => PropertyMapResultCard(property: row, compact: widget.enforceViewport,
           favorite: favoriteIds.contains(row.id), onFavorite: _changingFavorite ? null : () => _toggleFavorite(row.id,
             currentlyFavorite: favoriteIds.contains(row.id)), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
-    ]);
+      if (_selectingArea) _buildAreaSelectionOverlay(),
+    ]));
   }
 
   Widget _buildMap() {
@@ -1609,10 +1675,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         children: [
           Positioned.fill(
             child: GestureDetector(
+              key: const ValueKey('map-area-drawing'),
               behavior: HitTestBehavior.opaque,
-              onPanStart: _startAreaStroke,
-              onPanUpdate: _updateAreaStroke,
-              onPanEnd: _finishAreaStroke,
+              onPanStart: _convertingArea ? null : _startAreaStroke,
+              onPanUpdate: _convertingArea ? null : _updateAreaStroke,
+              onPanEnd: _convertingArea ? null : _finishAreaStroke,
               child: CustomPaint(
                 painter: _AreaStrokePainter(points: _areaDraftPoints),
               ),
@@ -1625,17 +1692,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             child: IgnorePointer(
               child: Card(
                 elevation: 5,
-                color: Colors.white.withValues(alpha: 0.96),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.96),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Row(
                     children: [
-                      EbrokerIcon(Icons.draw_rounded, color: AppTheme.brand),
-                      SizedBox(width: 10),
+                      const EbrokerIcon(Icons.draw_rounded, color: AppTheme.brand),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'ارسم بإصبعك حدود المنطقة المطلوبة مثل القلم. عند رفع إصبعك سيتم عرض العقارات داخل الرسم فقط.',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                          _convertingArea ? 'جارٍ تحديد حدود المنطقة…' :
+                            _mapMessage ?? 'ارسم بإصبعك حدود المنطقة المطلوبة مثل القلم. عند رفع إصبعك سيتم عرض العقارات داخل الرسم فقط.',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
