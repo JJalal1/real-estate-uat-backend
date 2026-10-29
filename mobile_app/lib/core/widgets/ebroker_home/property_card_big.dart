@@ -9,12 +9,12 @@ class EbrokerHomePropertyCard extends StatelessWidget {
   const EbrokerHomePropertyCard({required this.property, required this.onTap,
     this.isFromGrid = true, this.favorite, this.action, this.facts = const [], super.key});
   final SourceProperty property;
-  final VoidCallback onTap;
+  final Future<void> Function() onTap;
   final bool isFromGrid;
   final Widget? favorite, action;
   final List<AppPropertyFact> facts;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => SourceNavigationGuard(onOpen: onTap, builder: (context, handleCardTap) {
     final widget = this;
     final property = widget.property;
     final isRent = property.isRent;
@@ -23,7 +23,6 @@ class EbrokerHomePropertyCard extends StatelessWidget {
     final price = property.priceLabel;
     final resolvedHeroTag = 'home-property-${property.id}';
     final propertyImages = property.images;
-    final handleCardTap = onTap;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: handleCardTap,
@@ -163,7 +162,7 @@ class EbrokerHomePropertyCard extends StatelessWidget {
         ),
       ),
     );
-  }
+  });
 
   Widget _buildPrice(BuildContext context, String price, bool isRent, String resolvedHeroTag) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [

@@ -13,6 +13,26 @@ extension SourceContext on BuildContext {
   SourceFonts get sourceFonts => const SourceFonts();
 }
 
+/// Preserve the template's single-navigation guard while Aqer's router owns
+/// the destination and all data/authorization. Rapid taps cannot stack pages.
+class SourceNavigationGuard extends StatefulWidget {
+  const SourceNavigationGuard({required this.onOpen, required this.builder, super.key});
+  final Future<void> Function() onOpen;
+  final Widget Function(BuildContext, VoidCallback) builder;
+  @override
+  State<SourceNavigationGuard> createState() => _SourceNavigationGuardState();
+}
+class _SourceNavigationGuardState extends State<SourceNavigationGuard> {
+  bool _isNavigating = false;
+  Future<void> _open() async {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try { await widget.onOpen(); } finally { _isNavigating = false; }
+  }
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _open);
+}
+
 class SourceColors {
   const SourceColors(this.scheme);
   final ColorScheme scheme;
