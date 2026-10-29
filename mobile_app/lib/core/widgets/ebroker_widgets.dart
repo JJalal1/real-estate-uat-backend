@@ -367,10 +367,11 @@ class EbrokerTitleHeader extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsetsDirectional.only(top: 20, bottom: 16, start: 18, end: 18),
     child: Row(children: [
-      Expanded(child: EbrokerText(title, size: 16, weight: FontWeight.w700, maxLines: 2)),
+      Expanded(child: EbrokerText(title, size: 16, weight: FontWeight.w700, maxLines: 2,
+        color: Theme.of(context).colorScheme.onSurface)),
       if (onSeeAll != null) InkWell(onTap: onSeeAll,
         child: Padding(padding: const EdgeInsetsDirectional.only(start: 4),
-          child: EbrokerText(action, size: 12, color: EbrokerDesign.textLight))),
+          child: EbrokerText(action, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))),
     ]),
   );
 }

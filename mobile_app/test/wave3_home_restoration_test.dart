@@ -238,6 +238,10 @@ void main() {
     final text = tester.widget<Text>(find.text('إيجار').first);
     final theme = Theme.of(tester.element(find.byKey(const ValueKey('home-search'))));
     expect(contrast(text.style!.color!, theme.colorScheme.primary), greaterThan(4.5));
+    final heading = tester.widget<Text>(find.text('ماذا تبحث عنه؟'));
+    final seeAll = tester.widget<Text>(find.text('رؤية الكل').first);
+    expect(contrast(heading.style!.color!, theme.colorScheme.surface), greaterThan(4.5));
+    expect(contrast(seeAll.style!.color!, theme.colorScheme.surface), greaterThan(4.5));
     await uxPreview(tester, boundary, 'w3-home-dark-large');
     expect(tester.takeException(), isNull); await closeUx(tester);
   });
