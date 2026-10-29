@@ -53,6 +53,9 @@ class ListingEditorDraftController extends Controller
             'payload.land_boundary'=>['nullable','array'],'payload.replace_images'=>['nullable','boolean'],
             'payload.price_display_mode'=>['nullable','in:excludes_sai,includes_sai'],'payload.server_property_id'=>['nullable','integer','min:1'],
             'payload.proof_needs_reselection'=>['nullable','boolean'],
+            'payload.location_accuracy_m'=>['nullable','numeric','between:0,100000'],
+            'payload.location_reduced_accuracy'=>['nullable','boolean'],'payload.location_method'=>['nullable','in:gps,manual,unknown'],
+            'payload.location_context'=>['nullable','array'],
         ]);
         abort_if(strlen(json_encode($v['payload']))>100000,422);
         $result=DB::transaction(function()use($request,$key,$v){

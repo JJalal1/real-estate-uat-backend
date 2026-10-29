@@ -172,168 +172,33 @@ class PropertyRepository {
   }
 
   Future<PropertyLocationAddress> resolveLocationAddress({
-    required double latitude,
-    required double longitude,
+    required double latitude, required double longitude, bool includeLandmarks = false,
   }) async {
-    var result = const PropertyLocationAddress();
-
+    final key = '${latitude.toStringAsFixed(6)}:${longitude.toStringAsFixed(6)}:$includeLandmarks';
+    final cached = _addressCache[key];
+    if (cached != null) return cached;
+    final pending = _addressRequests[key];
+    if (pending != null) return pending;
+    final future = _resolveAddress(latitude, longitude, includeLandmarks);
+    _addressRequests[key] = future;
+    try { final value = await future; if (value.isComplete && (!includeLandmarks || value.landmarks.isNotEmpty)) _addressCache[key] = value; return value; }
+    finally { _addressRequests.remove(key); if (_addressCache.length > 20) _addressCache.remove(_addressCache.keys.first); }
+  }
+  final _addressCache = <String, PropertyLocationAddress>{};
+  final _addressRequests = <String, Future<PropertyLocationAddress>>{};
+  Future<PropertyLocationAddress> _resolveAddress(double latitude, double longitude, bool landmarks) async {
+    final token = CancelToken();
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/regions/reverse-address',
-        queryParameters: {
-          'latitude': latitude,
-          'longitude': longitude,
-        },
-      );
+      // Coordinates are in the HTTPS body, absent from URLs and access logs.
+      // A short debounce coalesces UI requests; the shared server enforces the fleet budget.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      final response = await _dio.post<Map<String, dynamic>>('/regions/reverse-address',
+        data: {'latitude': latitude, 'longitude': longitude, 'include_landmarks': landmarks}, cancelToken: token,
+        options: Options(sendTimeout: const Duration(seconds: 4), receiveTimeout: const Duration(seconds: 7)))
+        .timeout(const Duration(seconds: 8), onTimeout: () { token.cancel('Address lookup deadline'); throw StateError('Address unavailable'); });
       final data = response.data?['data'];
-      if (data is Map<String, dynamic>) {
-        result = PropertyLocationAddress(
-          governorate: _nullableText(data['governorate']),
-          district: _nullableText(data['district']),
-          street: _nullableText(data['street']),
-          formattedAddress: _nullableText(data['formatted_address']),
-        );
-      }
-    } catch (_) {
-      // Continue with device-side providers. Coordinates remain authoritative.
-    }
-
-    if (result.isComplete) return result;
-
-    final nominatim = await _deviceNominatimAddress(latitude, longitude);
-    result = result.mergeFallback(nominatim);
-    if (result.isComplete) return result;
-
-    final photon = await _devicePhotonAddress(latitude, longitude);
-    return result.mergeFallback(photon);
-  }
-
-  Future<PropertyLocationAddress> _deviceNominatimAddress(
-    double latitude,
-    double longitude,
-  ) async {
-    try {
-      final reverseGeocoder = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 5),
-          sendTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 7),
-          headers: const {
-            'Accept': 'application/json',
-            'User-Agent': 'RealEstate-UAT/1.8 map-location-picker',
-          },
-        ),
-      );
-      final response = await reverseGeocoder.get<Map<String, dynamic>>(
-        'https://nominatim.openstreetmap.org/reverse',
-        queryParameters: {
-          'format': 'jsonv2',
-          'lat': latitude,
-          'lon': longitude,
-          'zoom': 18,
-          'addressdetails': 1,
-          'namedetails': 1,
-          'accept-language': 'ar',
-        },
-      );
-      final data = response.data;
-      final address = data?['address'];
-      if (address is! Map<String, dynamic>) {
-        return const PropertyLocationAddress();
-      }
-      var street = _firstText(address, const [
-        'road',
-        'pedestrian',
-        'residential',
-        'footway',
-        'path',
-      ]);
-      final formatted = _nullableText(data?['display_name']);
-      if (street == null && formatted != null) {
-        final first = formatted.split(',').first.trim();
-        if (first.isNotEmpty) street = first;
-      }
-      return PropertyLocationAddress(
-        governorate: _firstText(address, const [
-          'state',
-          'province',
-          'state_district',
-          'county',
-        ]),
-        district: _firstText(address, const [
-          'neighbourhood',
-          'suburb',
-          'quarter',
-          'city_district',
-          'district',
-          'village',
-          'town',
-          'city',
-        ]),
-        street: street,
-        formattedAddress: formatted,
-      );
-    } catch (_) {
-      return const PropertyLocationAddress();
-    }
-  }
-
-  Future<PropertyLocationAddress> _devicePhotonAddress(
-    double latitude,
-    double longitude,
-  ) async {
-    try {
-      final reverseGeocoder = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 5),
-          sendTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 7),
-          headers: const {
-            'Accept': 'application/json',
-            'User-Agent': 'RealEstate-UAT/1.8 map-location-picker',
-          },
-        ),
-      );
-      final response = await reverseGeocoder.get<Map<String, dynamic>>(
-        'https://photon.komoot.io/reverse',
-        queryParameters: {
-          'lat': latitude,
-          'lon': longitude,
-          'limit': 5,
-          'radius': 10,
-        },
-      );
-      final features = response.data?['features'];
-      if (features is! List) return const PropertyLocationAddress();
-
-      String? governorate;
-      String? district;
-      String? street;
-      String? formatted;
-      for (final feature in features.whereType<Map<String, dynamic>>()) {
-        final properties = feature['properties'];
-        if (properties is! Map<String, dynamic>) continue;
-        governorate ??= _firstText(properties, const ['state', 'county']);
-        district ??= _firstText(
-          properties,
-          const ['district', 'locality', 'city', 'county'],
-        );
-        street ??= _nullableText(properties['street']);
-        if (street == null && properties['osm_key'] == 'highway') {
-          street = _nullableText(properties['name']);
-        }
-        formatted ??= _nullableText(properties['name']);
-        if (governorate != null && district != null && street != null) break;
-      }
-      return PropertyLocationAddress(
-        governorate: governorate,
-        district: district,
-        street: street,
-        formattedAddress: formatted,
-      );
-    } catch (_) {
-      return const PropertyLocationAddress();
-    }
+      return data is Map<String, dynamic> ? PropertyLocationAddress.fromJson(data) : const PropertyLocationAddress();
+    } catch (_) { return const PropertyLocationAddress(providerStatus: 'unavailable'); }
   }
 
   Future<PropertySaiEnvelope> saiForEditor(int propertyId) async {
@@ -639,18 +504,7 @@ class PropertyRepository {
     return form;
   }
 
-  String? _firstText(Map<String, dynamic> source, List<String> keys) {
-    for (final key in keys) {
-      final value = _nullableText(source[key]);
-      if (value != null) return value;
-    }
-    return null;
-  }
 
-  String? _nullableText(dynamic value) {
-    final text = value?.toString().trim();
-    return text == null || text.isEmpty ? null : text;
-  }
 
   int _positiveInt(dynamic value, {required int fallback}) {
     final parsed =

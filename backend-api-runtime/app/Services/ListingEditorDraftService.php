@@ -49,13 +49,29 @@ class ListingEditorDraftService
         $allowed = ['draft_kind','entry_method','checkpoint_key','media_version','editor_version','sai_amount_type','rental_conditions','unit_occupies_entire_floor','sai_touched','sai_terms_accepted',
             'units_per_floor','same_floor_units','step','purpose','type','area_unit','tenure_type','parking','elevator','facade','ownership_document_type','relationship_type',
             'latitude','longitude','land_boundary','replace_images','price_display_mode','server_property_id','proof_needs_reselection',
+            'location_accuracy_m','location_reduced_accuracy','location_method','location_context',
             'type_confirmed','purpose_confirmed','completion_only','completion_reviewing','image_order','fields'];
         $payload = array_intersect_key($payload,array_flip($allowed));
         $fields = array_intersect_key((array)($payload['fields'] ?? []),array_flip([
             'title','description','ai_listing_brief','price','monthly_rent','rental_term_months','advance_months','area',
-            'floors_count','shop_openings','bedrooms','bathrooms','governorate','district','street','building_reference','unit_number','floor_number','phone','whatsapp',
+            'floors_count','shop_openings','bedrooms','bathrooms','governorate','city','district','neighborhood','street','building_reference','unit_number','floor_number','phone','whatsapp',
             'document_owner_name','relationship_note','broker_sai_rate_percent','fixed_sai_amount']));
         foreach ($fields as $key=>$value) { abort_unless(is_scalar($value) || $value === null,422); $fields[$key] = mb_substr((string)$value,0,$key === 'ai_listing_brief' ? 10000 : ($key === 'description' ? 5000 : 1500)); }
+        if (isset($payload['location_context'])) {
+            $context=(array)$payload['location_context'];$safe=[];
+            foreach (['governorate','city','district','neighborhood','street','formatted_address','provider_status','attribution'] as $key) {
+                if (is_string($context[$key] ?? null)) $safe[$key]=mb_substr($context[$key],0,300);
+            }
+            $safe['field_sources']=array_filter(array_intersect_key((array)($context['field_sources'] ?? []),array_flip(['governorate','city','district','neighborhood','street'])),fn($v)=>in_array($v,['nominatim','photon','internal','manual'],true));
+            $safe['landmarks']=[];
+            foreach (array_slice((array)($context['landmarks'] ?? []),0,5) as $landmark) {
+                if (!is_array($landmark) || !is_string($landmark['name'] ?? null) || !is_string($landmark['kind'] ?? null) || !is_string($landmark['source_url'] ?? null) || !preg_match('~^https://www\.openstreetmap\.org/(node|way|relation)/[1-9][0-9]*$~D',$landmark['source_url']) ||
+                    !is_numeric($landmark['distance_m'] ?? null) || (float)$landmark['distance_m']<0 || (float)$landmark['distance_m']>1000) continue;
+                $safe['landmarks'][]=['name'=>mb_substr((string)($landmark['name'] ?? ''),0,200),'kind'=>mb_substr((string)($landmark['kind'] ?? ''),0,100),
+                    'source'=>($landmark['source'] ?? '')==='nominatim'?'nominatim':'photon','source_url'=>$landmark['source_url'],'distance_m'=>(int)$landmark['distance_m']];
+            }
+            $payload['location_context']=$safe;
+        }
         if (isset($payload['units_per_floor'])) {
             abort_unless(is_array($payload['units_per_floor']) && array_is_list($payload['units_per_floor']) && count($payload['units_per_floor'])<=50,422);
             $payload['units_per_floor']=array_map(function ($value) { abort_unless(is_scalar($value) || $value===null,422); return mb_substr((string)$value,0,3); },$payload['units_per_floor']);

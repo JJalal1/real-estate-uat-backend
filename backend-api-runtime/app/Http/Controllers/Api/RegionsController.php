@@ -13,7 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
+use App\Services\PropertyAddressContext;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -116,66 +116,15 @@ class RegionsController extends Controller
             $cell->loadMissing('governorate');
         }
 
-        $nominatim = $this->lookupNominatim($latitude, $longitude);
-        $nominatimAddress = is_array($nominatim['address'] ?? null) ? $nominatim['address'] : [];
-        $displayName = $this->cleanAddressText($nominatim['display_name'] ?? null);
-
-        $internalGovernorate = $cell?->governorate?->name_ar ?: $cell?->governorate?->name_en;
-        $internalDistrict = $cell?->name_ar ?: $cell?->name_en;
-        $governorate = $this->cleanAddressText($internalGovernorate)
-            ?? $this->firstAddressText($nominatimAddress, ['state', 'province', 'state_district', 'county']);
-        $district = $this->firstAddressText($nominatimAddress, [
-            'neighbourhood', 'suburb', 'quarter', 'city_district', 'district',
-            'village', 'town', 'city',
-        ]) ?? $this->cleanAddressText($internalDistrict);
-        $street = $this->firstAddressText($nominatimAddress, [
-            'road', 'pedestrian', 'residential', 'footway', 'path',
-        ]);
-
-        $photon = [];
-        if ($governorate === null || $district === null || $street === null) {
-            $photon = $this->lookupPhoton($latitude, $longitude);
-            $governorate ??= $this->firstPhotonText($photon, ['state', 'county']);
-            $district ??= $this->firstPhotonText($photon, [
-                'district', 'locality', 'city', 'county',
-            ]);
-            $street ??= $this->firstPhotonStreet($photon);
-        }
-
-        if ($street === null && $displayName !== null) {
-            $first = trim(explode(',', $displayName)[0] ?? '');
-            $street = $first !== '' && $first !== $district && $first !== $governorate ? $first : null;
-        }
-
-        $providers = [];
-        if (($nominatim['ok'] ?? false) === true) {
-            $providers[] = 'nominatim';
-        }
-        if (($photon['ok'] ?? false) === true) {
-            $providers[] = 'photon';
-        }
-        if ($cell !== null) {
-            $providers[] = 'internal';
-        }
-        $providerStatus = $providers === [] ? 'unavailable' : implode('+', array_values(array_unique($providers)));
-
-        return response()->json([
-            'data' => [
-                'latitude' => $latitude,
-                'longitude' => $longitude,
-                'governorate' => $governorate,
-                'district' => $district,
-                'street' => $street,
-                'formatted_address' => $displayName,
-                'provider_status' => $providerStatus,
-                'provider_attempts' => [
-                    'nominatim' => $nominatim['status'] ?? 'not_attempted',
-                    'photon' => $photon['status'] ?? 'not_needed',
-                ],
-                'cell_id' => $cell?->id,
-                'governorate_id' => $cell?->governorate?->id,
-            ],
-        ]);
+        $include=$request->boolean('include_landmarks');
+        $data=app(PropertyAddressContext::class)->resolve($latitude,$longitude,
+            $cell?->governorate?->name_ar ?: $cell?->governorate?->name_en,$cell?->name_ar ?: $cell?->name_en,$include);
+        // The old GET field remains compatible. New POST callers receive the
+        // actual hierarchy; a neighborhood is never relabeled as a street.
+        if ($request->isMethod('GET')) $data['district'] ??= $data['neighborhood'];
+        return response()->json(['data'=>$data+['latitude'=>$latitude,'longitude'=>$longitude,
+            'cell_id'=>$cell?->id,'governorate_id'=>$cell?->governorate?->id]])
+            ->header('Cache-Control','private, no-store');
     }
 
     public function governorates(): JsonResponse
@@ -335,120 +284,6 @@ class RegionsController extends Controller
 
         $cell->refresh()->load(['governorate'])->loadCount(['properties']);
         return response()->json(['data' => $this->cellData($cell, true)]);
-    }
-
-    private function lookupNominatim(float $latitude, float $longitude): array
-    {
-        try {
-            $response = Http::acceptJson()
-                ->withHeaders([
-                    'Accept-Language' => 'ar',
-                    'User-Agent' => 'RealEstate-UAT/1.5 map-location-picker',
-                ])
-                ->connectTimeout(4)
-                ->timeout(8)
-                ->get('https://nominatim.openstreetmap.org/reverse', [
-                    'format' => 'jsonv2',
-                    'lat' => $latitude,
-                    'lon' => $longitude,
-                    'zoom' => 18,
-                    'addressdetails' => 1,
-                    'namedetails' => 1,
-                    'accept-language' => 'ar',
-                ]);
-            if (! $response->successful()) {
-                return ['ok' => false, 'status' => 'http_'.$response->status()];
-            }
-            return [
-                'ok' => true,
-                'status' => 'ok',
-                'address' => is_array($response->json('address')) ? $response->json('address') : [],
-                'display_name' => $this->cleanAddressText($response->json('display_name')),
-            ];
-        } catch (\Throwable $error) {
-            return ['ok' => false, 'status' => 'exception:'.class_basename($error)];
-        }
-    }
-
-    private function lookupPhoton(float $latitude, float $longitude): array
-    {
-        try {
-            $response = Http::acceptJson()
-                ->withHeaders([
-                    'User-Agent' => 'RealEstate-UAT/1.8 map-location-picker',
-                ])
-                ->connectTimeout(4)
-                ->timeout(8)
-                ->get('https://photon.komoot.io/reverse', [
-                    'lat' => $latitude,
-                    'lon' => $longitude,
-                    'limit' => 5,
-                    'radius' => 10,
-                ]);
-            if (! $response->successful()) {
-                return ['ok' => false, 'status' => 'http_'.$response->status(), 'features' => []];
-            }
-            $features = $response->json('features');
-            return [
-                'ok' => true,
-                'status' => 'ok',
-                'features' => is_array($features) ? $features : [],
-            ];
-        } catch (\Throwable $error) {
-            return ['ok' => false, 'status' => 'exception:'.class_basename($error), 'features' => []];
-        }
-    }
-
-    private function firstPhotonText(array $photon, array $keys): ?string
-    {
-        $features = is_array($photon['features'] ?? null) ? $photon['features'] : [];
-        foreach ($features as $feature) {
-            $properties = is_array($feature['properties'] ?? null) ? $feature['properties'] : [];
-            $value = $this->firstAddressText($properties, $keys);
-            if ($value !== null) {
-                return $value;
-            }
-        }
-        return null;
-    }
-
-    private function firstPhotonStreet(array $photon): ?string
-    {
-        $features = is_array($photon['features'] ?? null) ? $photon['features'] : [];
-        foreach ($features as $feature) {
-            $properties = is_array($feature['properties'] ?? null) ? $feature['properties'] : [];
-            $street = $this->cleanAddressText($properties['street'] ?? null);
-            if ($street !== null) {
-                return $street;
-            }
-            if (($properties['osm_key'] ?? null) === 'highway') {
-                $name = $this->cleanAddressText($properties['name'] ?? null);
-                if ($name !== null) {
-                    return $name;
-                }
-            }
-        }
-        return null;
-    }
-
-    private function firstAddressText(array $address, array $keys): ?string
-    {
-        foreach ($keys as $key) {
-            $value = $this->cleanAddressText($address[$key] ?? null);
-            if ($value !== null) {
-                return $value;
-            }
-        }
-        return null;
-    }
-
-    private function cleanAddressText(mixed $value): ?string
-    {
-        if (! is_string($value)) {
-            return null;
-        }
-        $value = trim($value);
-        return $value === '' ? null : $value;
     }
 
     private function rethrowSpatialValidation(QueryException $error): never

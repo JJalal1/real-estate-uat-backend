@@ -41,19 +41,32 @@ final propertyCurrentLocationProvider = Provider<PropertyCurrentLocation>((ref) 
   if (!hasValidPropertyCoordinates(position.latitude, position.longitude)) {
     throw PlatformException(code: 'LOCATION_UNAVAILABLE', message: 'تعذر تحديد نقطة صالحة. اختر موقع العقار يدويًا.');
   }
-  return PropertyLocationSelection(latitude: position.latitude, longitude: position.longitude);
+  LocationAccuracyStatus? status;
+  try { status = await Geolocator.getLocationAccuracy(); } catch (_) {}
+  return PropertyLocationSelection(latitude: position.latitude, longitude: position.longitude, method: 'gps',
+    accuracyMetres: position.accuracy.isFinite && position.accuracy > 0 ? position.accuracy : null,
+    reducedAccuracy: status == null ? null : status == LocationAccuracyStatus.reduced);
 });
 
 class PropertyLocationSelection {
   const PropertyLocationSelection({
     required this.latitude,
     required this.longitude,
-    this.address = const PropertyLocationAddress(),
+    this.address = const PropertyLocationAddress(), this.accuracyMetres, this.reducedAccuracy, this.method = 'manual',
   });
 
   final double latitude;
   final double longitude;
   final PropertyLocationAddress address;
+  final double? accuracyMetres;
+  final bool? reducedAccuracy;
+  final String method;
+  String get accuracyLabel => propertyLocationAccuracyLabel(accuracyMetres, reducedAccuracy);
+}
+
+String propertyLocationAccuracyLabel(double? metres, bool? reduced) {
+  final accuracy = metres != null && metres.isFinite && metres > 0 ? 'دقة الهاتف المبلّغ عنها: ±${metres.ceil()} متر' : 'لم يبلّغ الهاتف عن دقة الموقع';
+  return '$accuracy${reduced == true ? ' · الإذن يعطي موقعًا تقريبيًا' : ''}. راجع الدبوس قبل اعتماد موقع العقار.';
 }
 
 class PropertyLocationPickerScreen extends ConsumerStatefulWidget {
@@ -91,7 +104,10 @@ class _PropertyLocationPickerScreenState
   bool _draggingPin = false;
   bool _resolving = false;
   bool _styleFailed = false, _needsSettings = false, _locationDisabled = false, _locating = false;
-  int _mapAttempt = 0;
+  int _mapAttempt = 0, _pointVersion = 0;
+  double? _accuracyMetres;
+  bool? _reducedAccuracy;
+  String _pointMethod = 'manual';
   Timer? _mapTimeout;
   String? _message;
 
@@ -139,8 +155,9 @@ class _PropertyLocationPickerScreenState
     final box = _mapStackKey.currentContext?.findRenderObject();
     if (!_styleLoaded || controller == null || box is! RenderBox) return;
     try {
+      final version = _pointVersion;
       final point = await controller.toScreenLocation(_selection);
-      if (!mounted) return;
+      if (!mounted || version != _pointVersion) return;
       final size = box.size;
       final logicalPoint = MapScreenCoordinateSpace.platformPixelsToLogical(
         point,
@@ -172,7 +189,16 @@ class _PropertyLocationPickerScreenState
     return _pinOffset ?? Offset(size.width / 2, size.height / 2);
   }
 
+  void _manualPointInteraction() {
+    if (_resolving) return;
+    ++_pointVersion;
+    if (_pointMethod == 'gps') setState(() => _message = 'عدلت الدبوس يدويًا؛ دقة الهاتف لا تصف موضعه الجديد.');
+    _pointMethod = 'manual'; _accuracyMetres = null; _reducedAccuracy = null;
+  }
+
   void _moveDraggedPin(DragUpdateDetails details, Size size) {
+    if (_resolving) return;
+    _manualPointInteraction();
     final box = _mapStackKey.currentContext?.findRenderObject();
     if (box is! RenderBox) return;
     final local = box.globalToLocal(details.globalPosition);
@@ -190,13 +216,14 @@ class _PropertyLocationPickerScreenState
     final pin = _pinForSize(size);
     if (controller == null) return;
     try {
+      final version = _pointVersion;
       final location = await controller.toLatLng(
         MapScreenCoordinateSpace.logicalToPlatformPixels(
           pin,
           MediaQuery.devicePixelRatioOf(context),
         ),
       );
-      if (!mounted) return;
+      if (!mounted || version != _pointVersion) return;
       setState(() {
         _selection = location;
         _draggingPin = false;
@@ -212,16 +239,18 @@ class _PropertyLocationPickerScreenState
   }
 
   Future<void> _moveToCurrentLocation() async {
-    if (_locating) return;
+    if (_locating || _resolving) return;
+    final version = ++_pointVersion;
     setState(() { _locating=true;_needsSettings=false;_locationDisabled=false; });
     try {
       final position = await ref.read(propertyCurrentLocationProvider)();
       final location = LatLng(position.latitude, position.longitude);
-      if (!mounted) return;
+      if (!mounted || version != _pointVersion) return;
       setState(() {
+        _pointMethod = 'gps'; _accuracyMetres = position.accuracyMetres; _reducedAccuracy = position.reducedAccuracy;
         _selection = location;
         _pinOffset = null;
-        _message = 'تم الانتقال إلى موقعك الحالي.';
+        _message = position.accuracyLabel;
       });
       await _controller
           ?.animateCamera(CameraUpdate.newLatLngZoom(location, 16));
@@ -243,7 +272,7 @@ class _PropertyLocationPickerScreenState
     final selection = _selection;
     setState(() {
       _resolving = true;
-      _message = 'جارٍ قراءة المحافظة والحي والشارع…';
+      _message = 'ثبّتنا النقطة. نجلب اقتراح العنوان…';
     });
 
     var address = const PropertyLocationAddress();
@@ -251,7 +280,7 @@ class _PropertyLocationPickerScreenState
     if (lookup != null) {
       try {
         address = await lookup(selection.latitude, selection.longitude)
-          .timeout(const Duration(seconds: 4));
+          .timeout(const Duration(seconds: 8));
       } catch (_) {
         address = const PropertyLocationAddress();
       }
@@ -262,7 +291,7 @@ class _PropertyLocationPickerScreenState
       PropertyLocationSelection(
         latitude: selection.latitude,
         longitude: selection.longitude,
-        address: address,
+        address: address, accuracyMetres: _accuracyMetres, reducedAccuracy: _reducedAccuracy, method: _pointMethod,
       ),
     );
   }
@@ -284,7 +313,7 @@ class _PropertyLocationPickerScreenState
               key: _mapStackKey,
               children: [
                 Positioned.fill(
-                  child: MapLibreMap(
+                  child: Listener(onPointerDown: (_) => _manualPointInteraction(), child: IgnorePointer(ignoring: _resolving, child: MapLibreMap(
                     key:ValueKey(_mapAttempt),
                     styleString: _mapStyle,
                     initialCameraPosition:
@@ -296,7 +325,7 @@ class _PropertyLocationPickerScreenState
                     minMaxZoomPreference: const MinMaxZoomPreference(3, 19),
                     rotateGesturesEnabled: false,
                     tiltGesturesEnabled: false,
-                  ),
+                  ))),
                 ),
                 PositionedDirectional(
                   start: 14,
@@ -421,12 +450,12 @@ class _PropertyLocationPickerScreenState
                               const SizedBox(height: 8),
                             ] else
                               const Text(
-                                'بعد التأكيد سنحاول تعبئة المحافظة والحي والشارع تلقائياً، ويمكنك تعديلها.',
+                                'أكد النقطة ثم راجع اقتراح المحافظة والمدينة والمديرية والحي والشارع. تبقى الحقول قابلة للتعديل.',
                                 textAlign: TextAlign.center,
                               ),
                             EbrokerFilledButton.icon(
                               onPressed:
-                                  _styleLoaded && !_resolving ? _confirm : null,
+                                  _styleLoaded && !_resolving && !_locating ? _confirm : null,
                               icon: _resolving
                                   ? const SizedBox.square(
                                       dimension: 18,
@@ -459,4 +488,3 @@ class _PropertyLocationPickerScreenState
     );
   }
 }
-

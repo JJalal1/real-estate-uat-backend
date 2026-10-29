@@ -37,6 +37,7 @@ import '../domain/property_sai.dart';
 import 'property_land_boundary_picker_screen.dart';
 import 'property_location_picker_screen.dart';
 import 'property_location_preview.dart';
+import 'location_landmark_review_sheet.dart';
 import '../domain/property_coordinates.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
 import 'listing_sai_section.dart';
@@ -104,7 +105,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _bedrooms = TextEditingController();
   final _bathrooms = TextEditingController();
   final _governorate = TextEditingController();
+  final _city = TextEditingController();
   final _district = TextEditingController();
+  final _neighborhood = TextEditingController();
   final _street = TextEditingController();
   final _buildingReference = TextEditingController();
   final _unitNumber = TextEditingController();
@@ -132,7 +135,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool get _hasLocation => hasValidPropertyCoordinates(_latitude, _longitude);
   Map<String, dynamic>? _landBoundaryGeoJson;
   bool _busy = false;
-  bool _resolvingLocation = false;
+  bool _resolvingLocation = false, _landmarksBusy = false;
+  double? _locationAccuracyMetres;
+  bool? _locationReducedAccuracy;
+  String _locationMethod = 'unknown';
+  PropertyLocationAddress _addressContext = const PropertyLocationAddress();
   bool _replaceImages = false;
   List<String> _imagePaths = <String>[];
   String? _ownershipProofPath;
@@ -539,6 +546,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_requiresResidential && !missing.contains('bedrooms') && !missing.contains('bathrooms')) '${_bedrooms.text} غرف نوم · ${_bathrooms.text} حمامات',
       if (_unitNeedsFloor && !missing.contains('floor_number')) 'الدور: ${DynamicPropertySchema.floorOptionsFor(_type)[_floorNumber.text] ?? _floorNumber.text}',
       if (_hasLocation) 'نقطة العقار مؤكدة',
+      if (_hasLocation && _locationMethod == 'gps') propertyLocationAccuracyLabel(_locationAccuracyMetres, _locationReducedAccuracy),
       if (_effectiveImageCount > 0) '$_effectiveImageCount صور في المسودة',
     ];
     return AppSurface(key: const ValueKey('listing-completed-summary'), child: Column(
@@ -589,14 +597,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'fixed_sai_amount': _saiAmount,
     'title': _title, 'description': _description, 'ai_listing_brief': _assistantBrief, 'price': _price, 'monthly_rent': _monthlyRent,
     'rental_term_months': _rentalTermMonths, 'advance_months': _advanceMonths, 'area': _area,
-    'floors_count': _floorsCount, 'shop_openings': _shopOpenings, 'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'district': _district,
+    'floors_count': _floorsCount, 'shop_openings': _shopOpenings, 'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'city': _city, 'district': _district, 'neighborhood': _neighborhood,
     'street': _street, 'building_reference': _buildingReference, 'unit_number': _unitNumber,
     'floor_number': _floorNumber, 'phone': _phone, 'whatsapp': _whatsapp,
     'document_owner_name': _documentOwnerName, 'relationship_note': _relationshipNote,
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
-    'editor_version': 10, 'draft_kind': _draftSavedExplicitly ? 'saved' : 'recovery',
+    'editor_version': 11, 'draft_kind': _draftSavedExplicitly ? 'saved' : 'recovery',
     'entry_method': widget.startWithAssistant ? 'assistant' : 'manual',
     'media_version':1, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
     'type_confirmed': _typeConfirmed, 'purpose_confirmed': _purposeConfirmed, 'completion_only': _completionOnly, 'completion_reviewing': _reviewingCompleted,
@@ -607,6 +615,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
     'tenure_type': _tenureType, 'parking': _parkingChoice, 'elevator': _elevatorChoice, 'facade': _facade,
     'ownership_document_type': _ownershipDocumentType, 'relationship_type': _relationshipType,
+    'location_accuracy_m': _locationAccuracyMetres, 'location_reduced_accuracy': _locationReducedAccuracy,
+    'location_method': _locationMethod, 'location_context': _addressContext.toJson(),
     'latitude': _latitude, 'longitude': _longitude, 'land_boundary': _landBoundaryGeoJson,
     'replace_images': _replaceImages, 'price_display_mode': _priceDisplayMode,
     'server_property_id': _existing?.id ?? _recoveredServerId,
@@ -741,6 +751,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _ownershipDocumentType = _ownershipDocumentTypes.containsKey(data['ownership_document_type']) ? data['ownership_document_type'] as String : null;
       _relationshipType = _relationshipTypes.containsKey(data['relationship_type']) ? data['relationship_type'] as String : null;
       _latitude = (data['latitude'] as num?)?.toDouble(); _longitude = (data['longitude'] as num?)?.toDouble();
+      _locationAccuracyMetres = (data['location_accuracy_m'] as num?)?.toDouble();
+      _locationReducedAccuracy = data['location_reduced_accuracy'] is bool ? data['location_reduced_accuracy'] as bool : null;
+      _locationMethod = const ['gps','manual'].contains(data['location_method']) ? data['location_method'] as String : 'unknown';
+      if (data['location_context'] is Map) _addressContext = PropertyLocationAddress.fromJson(Map<String, dynamic>.from(data['location_context'] as Map));
       if (data['land_boundary'] is Map) _landBoundaryGeoJson = Map<String, dynamic>.from(data['land_boundary'] as Map);
       _replaceImages = data['replace_images'] == true;
       if (const ['excludes_sai', 'includes_sai'].contains(data['price_display_mode'])) _priceDisplayMode = data['price_display_mode'] as String;
@@ -767,6 +781,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           if (const ['broker_sai_rate_percent', 'fixed_sai_amount'].contains(entry.key) && data['sai_touched'] != true) continue;
           final text = fields[entry.key]; if (text is String) entry.value.text = text;
         }
+      }
+      if ((data['editor_version'] as num? ?? 0) < 11 && _neighborhood.text.isEmpty && _district.text.isNotEmpty) {
+        _neighborhood.text = _district.text; _district.clear();
       }
       if (_purpose == 'rent' && data['rental_conditions'] is! List) {
         _rentalConditions = [
@@ -948,7 +965,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _elevatorChoice = property.hasElevator == null ? null : property.hasElevator! ? 'yes' : 'no';
     final address = PropertyLocationAddress.fromStoredAddress(property.address);
     _governorate.text = address.governorate ?? '';
-    _district.text = address.district ?? '';
+    _city.text = address.city ?? '';
+    _district.text = address.legacyMixedArea ? '' : address.district ?? '';
+    _neighborhood.text = address.neighborhood ?? (address.legacyMixedArea ? address.district : null) ?? '';
     _street.text = address.street ?? '';
     _latitude = property.hasValidLocation ? property.latitude : null;
     _longitude = property.hasValidLocation ? property.longitude : null;
@@ -1001,7 +1020,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _bedrooms,
       _bathrooms,
       _governorate,
+      _city,
       _district,
+      _neighborhood,
       _street,
       _buildingReference,
       _unitNumber,
@@ -1225,6 +1246,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       const SizedBox(height: 8),
       Text(_hasLocation ? 'النقطة محفوظة عند الرجوع والمعاينة. عدّلها فقط إذا تغيّر موقع العقار.'
         : 'استخدم موقعك الحالي أو حدد النقطة يدويًا على الخريطة ثم أكدها. بعدها يمكنك تصحيح العنوان.'),
+      if (_hasLocation) Padding(padding: const EdgeInsets.only(top: 8), child: SelectableText(
+        'إحداثيات الدبوس: ${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}', key: const ValueKey('listing-owner-coordinates'))),
+      if (_hasLocation && _locationMethod == 'gps') Padding(padding: const EdgeInsets.only(top: 8),
+        child: Text(propertyLocationAccuracyLabel(_locationAccuracyMetres, _locationReducedAccuracy), key: const ValueKey('listing-gps-accuracy'))),
       const SizedBox(height: 12),
       AppButton(key: const ValueKey('listing-select-location'),
         label: _hasLocation ? 'تعديل الموقع على الخريطة' : 'تأكيد الموقع على الخريطة',
@@ -1259,9 +1284,19 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const SizedBox(height: AppSpacing.s16),
         AppTextField(controller: _governorate, label: 'المحافظة *', enabled: !_busy && hasLocation),
         const SizedBox(height: AppSpacing.s12),
-        AppTextField(controller: _district, label: 'المنطقة / الحي', enabled: !_busy && hasLocation),
+        AppTextField(controller: _city, label: 'المدينة', enabled: !_busy && hasLocation),
+        const SizedBox(height: AppSpacing.s12),
+        AppTextField(controller: _district, label: 'المديرية', enabled: !_busy && hasLocation),
+        const SizedBox(height: AppSpacing.s12),
+        AppTextField(controller: _neighborhood, label: 'الحي', enabled: !_busy && hasLocation),
         const SizedBox(height: AppSpacing.s12),
         AppTextField(controller: _street, label: 'الشارع', enabled: !_busy && hasLocation),
+        if (hasLocation) ...[
+          const SizedBox(height: 8), const Text('العنوان اقتراح للمنطقة ويحتاج مراجعتك وتصحيح الشارع عند الحاجة.'),
+          if (_addressContext.attribution.isNotEmpty) Text(_addressContext.attribution, style: Theme.of(context).textTheme.bodySmall),
+          TextButton.icon(key: const ValueKey('listing-nearby-landmarks'), onPressed: _busy || _landmarksBusy || _resolvingLocation ? null : _suggestLandmarks,
+            icon: const Icon(Icons.near_me_outlined, size: 19), label: Text(_landmarksBusy ? 'نجلب المعالم المسجلة…' : 'اقتراح وصف بمعلم قريب (اختياري)')),
+        ],
         if (_type == 'land' && hasLocation) ...[
           const SizedBox(height: AppSpacing.s16),
           AppInlineMessage(
@@ -1915,7 +1950,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_title.text.trim().isNotEmpty) 'title': _title.text.trim(),
     if (_composedAddress.trim().isNotEmpty) 'address': _composedAddress,
     if (_governorate.text.trim().isNotEmpty) 'governorate': _governorate.text.trim(),
-    if (_district.text.trim().isNotEmpty) 'district': _district.text.trim(),
+    if (_neighborhood.text.trim().isNotEmpty) 'district': _neighborhood.text.trim(),
     if (_street.text.trim().isNotEmpty) 'street': _street.text.trim(),
     if (_purpose == 'sale' && (double.tryParse(_price.text) ?? 0) > 0) 'price': double.parse(_price.text),
     if (_purpose == 'rent' && (double.tryParse(_monthlyRent.text) ?? 0) > 0) 'monthly_rent': double.parse(_monthlyRent.text),
@@ -1948,7 +1983,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_typeLabels.containsKey(result['type'])) { _type = result['type'] as String; _typeConfirmed = true; }
       if (const ['sale', 'rent'].contains(result['purpose'])) { _purpose = result['purpose'] as String; _purposeConfirmed = true; }
       for (final entry in <String, TextEditingController>{
-        'title': _title, if (!_isRentalApartment) 'area_value': _area, 'governorate': _governorate, 'district': _district, 'street': _street,
+        'title': _title, if (!_isRentalApartment) 'area_value': _area, 'governorate': _governorate, 'district': _neighborhood, 'street': _street,
         if (_purpose == 'sale') 'price': _price,
         if (_purpose == 'rent') 'monthly_rent': _monthlyRent,
         if (_applies('floors_count')) 'floors_count': _floorsCount,
@@ -2538,9 +2573,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (_latitude != point.latitude || _longitude != point.longitude) _landBoundaryGeoJson = null;
         final city = point.address.governorate;
         if (city != null && _normalizedName(city) != _normalizedName(_governorate.text)) {
-          _district.text = point.address.district ?? ''; _street.text = point.address.street ?? '';
+          _city.text = point.address.city ?? ''; _district.text = point.address.district ?? ''; _neighborhood.text = point.address.neighborhood ?? ''; _street.text = point.address.street ?? '';
         }
         _latitude = point.latitude; _longitude = point.longitude; _stepError = null;
+        _locationMethod = useCurrent ? 'gps' : point.method; _locationAccuracyMetres = point.accuracyMetres; _locationReducedAccuracy = point.reducedAccuracy;
+        _addressContext = point.address;
         _showLocationPreview = true;
       });
       await _fillAddress(point.address, point.latitude, point.longitude, resolveMissing: useCurrent);
@@ -2563,7 +2600,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   ) async {
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    final before = [_governorate.text, _district.text, _street.text];
+    final controllers = [_governorate, _city, _district, _neighborhood, _street];
+    final before = controllers.map((c) => c.text).toList();
     setState(() => _resolvingLocation = true);
     try {
       var address = initial;
@@ -2571,16 +2609,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         final resolved = await ref
             .read(propertyRepositoryProvider)
             .resolveLocationAddress(latitude: latitude, longitude: longitude)
-            .timeout(const Duration(seconds: 4));
+            .timeout(const Duration(seconds: 8));
         address = address.mergeFallback(resolved);
       }
       if (!_locationRequestCurrent(actor, epoch) || _latitude != latitude || _longitude != longitude) return;
       setState(() {
-        if (address.governorate != null && _governorate.text == before[0]) {
-          _governorate.text = address.governorate!;
-        }
-        if (address.district != null && _district.text == before[1]) _district.text = address.district!;
-        if (address.street != null && _street.text == before[2]) _street.text = address.street!;
+        final values = [address.governorate, address.city, address.district, address.neighborhood, address.street];
+        for (var i = 0; i < controllers.length; i++) { if (values[i] != null && controllers[i].text == before[i]) controllers[i].text = values[i]!; }
+        _addressContext = address;
+        if (address.isEmpty) _locationError = 'النقطة مؤكدة. لم يرجع المصدر عنوانًا؛ أكمله يدويًا.';
       });
     } catch (_) {
       if (_locationRequestCurrent(actor, epoch)) {
@@ -2589,6 +2626,23 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     } finally {
       if (mounted) setState(() => _resolvingLocation = false);
     }
+  }
+
+  Future<void> _suggestLandmarks() async {
+    if (!_hasLocation || _landmarksBusy || _busy) return;
+    final latitude = _latitude!, longitude = _longitude!;
+    final actor = ref.read(authControllerProvider).asData?.value?.id, epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    setState(() => _landmarksBusy = true);
+    try {
+      PropertyLocationAddress address;
+      try { address = await ref.read(propertyRepositoryProvider).resolveLocationAddress(latitude: latitude, longitude: longitude, includeLandmarks: true); }
+      catch (_) { address = const PropertyLocationAddress(providerStatus: 'unavailable'); }
+      if (!_locationRequestCurrent(actor, epoch) || _latitude != latitude || _longitude != longitude) return;
+      if (!mounted) return;
+      final text = await AppBottomSheet.show<String>(context, builder: (_) => LocationLandmarkReviewSheet(landmarks: address.landmarks));
+      if (!_locationRequestCurrent(actor, epoch) || _latitude != latitude || _longitude != longitude || text == null) return;
+      setState(() { _description.text = appendDictation(_description.text, text); });
+    } finally { if (mounted) setState(() => _landmarksBusy = false); }
   }
 
   Future<void> _clearUploadedTemporaryFiles() async {
@@ -2606,7 +2660,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   String get _composedAddress => PropertyLocationAddress(
         governorate: _governorate.text,
-        district: _district.text,
+        city: _city.text, district: _district.text, neighborhood: _neighborhood.text,
         street: _street.text,
       ).combined;
 
