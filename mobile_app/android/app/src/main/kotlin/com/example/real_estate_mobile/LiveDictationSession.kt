@@ -9,7 +9,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 
-/** In-app dictation. Recognition segments are previews until the user stops. */
+/** Main-thread recognition; stable segments and hypotheses remain distinct until capture stops. */
 class LiveDictationSession(
     private val activity: Activity,
     private val event: (String, Array<out Pair<String, Any>>) -> Unit,
@@ -53,7 +53,7 @@ class LiveDictationSession(
             override fun onReadyForSpeech(params: Bundle?) {
                 if (current() && !stopping) { handler.removeCallbacks(readyTimeout); event("ready", emptyArray()) }
             }
-            override fun onBeginningOfSpeech() { if (current()) spoke = true }
+            override fun onBeginningOfSpeech() { if (current() && !stopping) { spoke = true; event("speech_start", emptyArray()) } }
             override fun onRmsChanged(rmsdB: Float) {
                 if (current() && !stopping) event("level", arrayOf("level" to ((rmsdB + 2) / 12.0).coerceIn(0.0, 1.0)))
             }
@@ -73,7 +73,11 @@ class LiveDictationSession(
                 if (value.isNotEmpty()) completed.add(value)
                 partial = ""
                 if (text().length > 5000) { fail("SPEECH_TOO_LONG"); return }
-                if (stopping) finish() else { preview(text()); handler.postDelayed(restart, 150L) }
+                if (stopping) finish() else {
+                    event("segment", arrayOf("text" to text()))
+                    if (value.isNotEmpty()) event("speech_end", emptyArray())
+                    handler.postDelayed(restart, 150L)
+                }
             }
             override fun onError(error: Int) {
                 if (!current()) return
@@ -90,7 +94,12 @@ class LiveDictationSession(
                     else -> "SPEECH_UNAVAILABLE"
                 })
             }
-            override fun onEndOfSpeech() { if (current() && !stopping) event("level", arrayOf("level" to 0.0)) }
+            override fun onEndOfSpeech() {
+                if (current() && !stopping) {
+                    event("level", arrayOf("level" to 0.0))
+                    event("speech_end", emptyArray())
+                }
+            }
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })

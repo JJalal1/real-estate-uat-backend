@@ -233,6 +233,8 @@ void main(){
       expect(voice.latest.stops,0);expect(drafts.saves.any((p)=>(p['fields'] as Map)['ai_listing_brief']=='وصف لم يكتمل'),isFalse);
       await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
       voice.latest.emit(const VoiceEvent('final',text:'محل للإيجار في حدة، المساحة خمسة وستون مترًا والإيجار خمسة وسبعون ألفًا والسعي خمسون بالمئة'));await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('listing-ai-field-type')),findsNothing);
+      await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-prepare')));await tester.tap(find.byKey(const ValueKey('listing-ai-prepare')));await tester.pumpAndSettle();
       final scroll=find.descendant(of:find.byKey(const ValueKey('listing-ai-scroll')),matching:find.byType(Scrollable)).first;
       await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-field-type')),250,scrollable:scroll);
       expect(find.byKey(const ValueKey('listing-ai-field-type')),findsOneWidget);

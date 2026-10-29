@@ -13,7 +13,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import kotlin.math.ln
 
-/** Silence never finishes a recording. Only the explicit stop produces a clip. */
+/** Foreground, session-fenced capture with temporary focus and honest clip fallback. */
 class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenger) {
     private val channel = MethodChannel(messenger, "real_estate/speech")
     private val handler = Handler(Looper.getMainLooper())
@@ -26,6 +26,11 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
     private var foreground = false
     private var processing = false
     private val permissionCode = 7421
+    private val audioFocus = VoiceAudioFocus(activity) { cancel() }
+    private var noiseFloor = 200.0
+    private var voiceFrames = 0
+    private var quietFrames = 0
+    private var clipSpeaking = false
     private val levels = object : Runnable {
         override fun run() {
             val id = activeId ?: return
@@ -33,6 +38,16 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
             try {
                 val amplitude = recorder?.maxAmplitude ?: 0
                 emit(id, "level", "level" to (ln(1.0 + amplitude) / ln(32768.0)).coerceIn(0.0, 1.0))
+                // The fallback uses amplitude activity, never a partial transcript, for silence.
+                val voiced = amplitude > maxOf(600.0, noiseFloor * 3.0)
+                if (!voiced && !clipSpeaking) noiseFloor = (.9 * noiseFloor + .1 * amplitude).coerceIn(100.0, 3000.0)
+                if (voiced) {
+                    quietFrames = 0; voiceFrames++
+                    if (!clipSpeaking && voiceFrames >= 2) { clipSpeaking = true; emit(id, "speech_start") }
+                } else {
+                    voiceFrames = 0; quietFrames++
+                    if (clipSpeaking && quietFrames >= 4) { clipSpeaking = false; emit(id, "speech_end") }
+                }
                 handler.postDelayed(this, 120L)
             } catch (_: Exception) { fail("SPEECH_UNAVAILABLE") }
         }
@@ -83,6 +98,7 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
         val id = activeId ?: return
         if (!foreground || permissionPending || recorder != null || dictation != null || processing) return
         try {
+            if (!audioFocus.acquire()) { fail("SPEECH_AUDIO_FOCUS"); return }
             if (liveRequested && SpeechRecognizer.isRecognitionAvailable(activity)) {
                 emit(id, "mode", "code" to "dictation")
                 val session = LiveDictationSession(activity,
@@ -106,8 +122,10 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
             engine.setOutputFile(file.absolutePath)
             // A resource limit is an explicit failure, never a partial search.
             engine.setMaxFileSize(8L * 1024 * 1024)
+            engine.setMaxDuration(180000)
             engine.setOnInfoListener { _, what, _ ->
                 if (id == activeId && what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED) fail("SPEECH_TOO_LARGE")
+                if (id == activeId && what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) fail("SPEECH_TOO_LONG")
             }
             engine.setOnErrorListener { _, _, _ -> if (id == activeId) fail("SPEECH_UNAVAILABLE") }
             engine.prepare()
@@ -128,18 +146,22 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
             engine.stop()
             engine.release()
             recorder = null
+            audioFocus.release()
             val file = clip
             if (file == null || file.length() < 512) { fail("SPEECH_NO_MATCH"); return }
             emit(id, "recorded", "path" to file.absolutePath)
         } catch (_: Exception) { fail("SPEECH_NO_MATCH") }
     }
     private fun emit(id: Int, type: String, vararg values: Pair<String, Any>) {
+        if (id == activeId && type in setOf("final", "error", "cancelled")) audioFocus.release()
         if (id == activeId) channel.invokeMethod("event", mapOf("id" to id, "type" to type) + values.toMap())
     }
     private fun fail(code: String) { activeId?.let { emit(it, "error", "code" to code) }; release() }
     private fun cancel() { activeId?.let { emit(it, "cancelled") }; release() }
     private fun release() {
         activeId = null
+        audioFocus.release()
+        noiseFloor = 200.0; voiceFrames = 0; quietFrames = 0; clipSpeaking = false
         processing = false
         handler.removeCallbacks(levels)
         dictation?.dispose()

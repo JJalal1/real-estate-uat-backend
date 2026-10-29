@@ -202,9 +202,9 @@ void main() {
         await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.pump(const Duration(milliseconds:180));
         await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
         voice.latest.emit(const VoiceEvent('final',text:ownerBrief));await tester.pumpAndSettle();
-        expect(ai.prepares,1);expect(applied,isNull);
+        expect(ai.prepares,0);expect(applied,isNull);
       }else{await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),ownerBrief);}
-      if(!byVoice) { await _tap(tester,'listing-ai-prepare'); } expect(ai.received,ownerBrief);expect(applied,isNull);
+      await _tap(tester,'listing-ai-prepare'); expect(ai.received,ownerBrief);expect(applied,isNull);
       await _reveal(tester,'listing-ai-field-type');
       await _capture(tester,boundary,'complete-fields-${byVoice?'voice':'typed'}');
       for(final field in ai.proposals.keys.where((key) => key != 'sai_amount_type')) { await _reveal(tester,'listing-ai-field-$field'); }
