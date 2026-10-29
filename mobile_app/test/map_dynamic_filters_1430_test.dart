@@ -134,6 +134,8 @@ void main() {
     await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
     await tester.pumpAndSettle();
     await _tap(tester, 'published-type-house');
+    scope.read(marketplaceMapResultsProvider.notifier).updateViewport(south: 15, west: 44, north: 16, east: 45);
+    await tester.pumpAndSettle();
     await _tap(tester, 'map-draw-area');
     expect(find.byKey(const ValueKey('map-results-sheet')), findsNothing);
     await _stroke(tester);
@@ -142,6 +144,8 @@ void main() {
     expect(filters['area_polygon'], isA<String>());
     expect(filters['type'], 'house');
     expect(filters['south'], isA<double>());
+    expect(filters['south'], 15);
+    expect(filters['north'], 16);
     expect(listings.calls.last['area_polygon'], filters['area_polygon']);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('area_polygon'), isFalse);
     expect(find.byKey(const ValueKey('map-drawn-area')), findsOneWidget);

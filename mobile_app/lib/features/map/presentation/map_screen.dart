@@ -1259,11 +1259,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       });
       Future<void>? sharedSearch;
       if (widget.sharedSearchJourney) {
-        final values = Map<String, dynamic>.from(ref.read(_searchSession).filters.values)
+        final current = ref.read(_searchSession).filters.values;
+        const bounds = ['south', 'west', 'north', 'east'];
+        final hasViewport = bounds.every((key) => current[key] is num);
+        final values = Map<String, dynamic>.from(current)
           ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || key == 'governorate');
         values.addAll({'area_polygon': geometry.encodedRing,
-          'south': geometry.bounds.southwest.latitude, 'west': geometry.bounds.southwest.longitude,
-          'north': geometry.bounds.northeast.latitude, 'east': geometry.bounds.northeast.longitude});
+          if (hasViewport) ...{for (final key in bounds) key: current[key]}
+          else ...{'south': geometry.bounds.southwest.latitude, 'west': geometry.bounds.southwest.longitude,
+            'north': geometry.bounds.northeast.latitude, 'east': geometry.bounds.northeast.longitude}});
         sharedSearch = ref.read(_searchSession.notifier).replaceManually(SmartSearchFilters.fromMap(values));
       }
       await _renderSelectedAreaAnnotations();
