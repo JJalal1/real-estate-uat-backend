@@ -99,6 +99,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     setState(() { _working = true; _error = null; });
     try {
       final current = await _repository.get(draft.key);
+      if (!_current) return;
       final property = current.propertyId == null ? null : await ref.read(propertyRepositoryProvider).details(current.propertyId!);
       if (_current) {
         setState(() {

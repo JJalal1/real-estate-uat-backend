@@ -372,7 +372,9 @@ void main() {
       expect(shape, findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('home-add-property')));
       await tester.pumpAndSettle();
-      if (!verified) { await tester.tap(find.byKey(const ValueKey('create-listing-manual'))); await tester.pumpAndSettle(); }
+      expect(router.state.uri.path, '/');
+      expect(find.byKey(const ValueKey('create-listing-ai')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('create-listing-manual'))); await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
       expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
       expect(tester.takeException(), isNull);
