@@ -158,7 +158,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         toolbarHeight: (58 + (MediaQuery.textScalerOf(context).scale(15) - 15) * 2).clamp(58, 112).toDouble(),
         titleSpacing: 18, title: Row(children: [
           const AqerBrandMark(size: 32), const SizedBox(width: 8),
-          Flexible(child: Semantics(button: true, label: 'تغيير المنطقة', child: TextButton.icon(onPressed: _chooseLocation,
+          Flexible(child: Semantics(button: true, label: 'تغيير المنطقة', child: TextButton.icon(
+            key: const ValueKey('home-location'), onPressed: _chooseLocation,
             icon: _locationBusy ? const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2))
               : const EbrokerImage('location', size: 17),
             label: Text(data?.label ?? location.label, maxLines: 1, overflow: TextOverflow.ellipsis)))),
