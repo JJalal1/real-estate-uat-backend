@@ -20,7 +20,7 @@ class _LocationLandmarkReviewState extends State<LocationLandmarkReviewSheet> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('راجع وصف الموقع', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
-          Expanded(child: ListView(shrinkWrap: true, children: [
+          Expanded(child: ListView(key: const ValueKey('landmark-review-list'), shrinkWrap: true, children: [
             Text(widget.landmarks.isEmpty ? 'لم يرجع المصدر معالم موثوقة قريبة. اكتب معلماً تعرفه إن رغبت، أو تابع دون وصف إضافي.'
               : 'هذه معالم مسجلة على الخريطة وتحتاج مراجعتك. المسافة بخط مستقيم، وليست مسافة طريق أو زمن مشي.'),
             for (final landmark in widget.landmarks) RadioListTile<String>(

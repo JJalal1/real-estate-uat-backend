@@ -128,7 +128,11 @@ void main() {
       await tester.tap(find.text('افتح')); await tester.pumpAndSettle(); expect(accepted, isNull);
       await tester.tap(find.byType(RadioListTile<String>)); await tester.pumpAndSettle();
       expect(find.textContaining('بخط مستقيم'), findsWidgets);
-      await tester.ensureVisible(find.byKey(const ValueKey('landmark-description')));
+      final description = find.byKey(const ValueKey('landmark-description'));
+      if (description.evaluate().isEmpty) {
+        await tester.scrollUntilVisible(description, 220, scrollable: find.descendant(of: find.byKey(const ValueKey('landmark-review-list')), matching: find.byType(Scrollable)).first);
+      }
+      await tester.ensureVisible(description);
       await tester.enterText(find.byKey(const ValueKey('landmark-description')), 'وصف الموقع بعد مراجعة صاحبه');
       FocusManager.instance.primaryFocus?.unfocus(); await tester.pumpAndSettle();
       await previewWave6(tester, boundary, 'branch2-landmark-review-$scale');
