@@ -7,7 +7,10 @@ class PropertyNearbyLandmark {
     final name = value['name'], kind = value['kind'], distance = value['distance_m'], url = value['source_url'];
     if (name is! String || name.trim().isEmpty || name.length > 200 || kind is! String ||
         distance is! num || !distance.isFinite || distance < 0 || distance > 1000 || url is! String ||
-        !RegExp(r'^https://www\.openstreetmap\.org/(node|way|relation)/[1-9][0-9]*$').hasMatch(url)) return null;
+        !RegExp(r'^https://www\.openstreetmap\.org/(node|way|relation)/[1-9][0-9]*$').hasMatch(url) ||
+        !const ['photon','nominatim'].contains(value['source'])) {
+      return null;
+    }
     return PropertyNearbyLandmark(name: name, kind: kind, distanceMetres: distance.round(),
       source: value['source'] == 'nominatim' ? 'Nominatim' : 'Photon', sourceUrl: url);
   }

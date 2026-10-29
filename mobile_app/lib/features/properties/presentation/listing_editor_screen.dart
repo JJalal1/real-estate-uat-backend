@@ -1246,6 +1246,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       const SizedBox(height: 8),
       Text(_hasLocation ? 'النقطة محفوظة عند الرجوع والمعاينة. عدّلها فقط إذا تغيّر موقع العقار.'
         : 'استخدم موقعك الحالي أو حدد النقطة يدويًا على الخريطة ثم أكدها. بعدها يمكنك تصحيح العنوان.'),
+      if (_hasLocation) Padding(padding: const EdgeInsets.only(top: 8), child: SelectableText(
+        'إحداثيات الدبوس: ${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}', key: const ValueKey('listing-owner-coordinates'))),
       if (_hasLocation && _locationMethod == 'gps') Padding(padding: const EdgeInsets.only(top: 8),
         child: Text(propertyLocationAccuracyLabel(_locationAccuracyMetres, _locationReducedAccuracy), key: const ValueKey('listing-gps-accuracy'))),
       const SizedBox(height: 12),
@@ -2636,6 +2638,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       try { address = await ref.read(propertyRepositoryProvider).resolveLocationAddress(latitude: latitude, longitude: longitude, includeLandmarks: true); }
       catch (_) { address = const PropertyLocationAddress(providerStatus: 'unavailable'); }
       if (!_locationRequestCurrent(actor, epoch) || _latitude != latitude || _longitude != longitude) return;
+      if (!mounted) return;
       final text = await AppBottomSheet.show<String>(context, builder: (_) => LocationLandmarkReviewSheet(landmarks: address.landmarks));
       if (!_locationRequestCurrent(actor, epoch) || _latitude != latitude || _longitude != longitude || text == null) return;
       setState(() { _description.text = appendDictation(_description.text, text); });

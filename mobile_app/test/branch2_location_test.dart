@@ -31,7 +31,7 @@ class _Addresses extends Wave6Properties {
 
 void main() {
   setUpAll(loadUxFixtures);
-  test('C01 five address levels round-trip without changing historical display', () {
+  test('C03 five address levels round-trip without changing historical display', () {
     final restored = PropertyLocationAddress.fromStoredAddress(_address.combined);
     expect(restored.city, _address.city); expect(restored.district, _address.district);
     expect(restored.neighborhood, _address.neighborhood); expect(restored.street, _address.street);
@@ -40,7 +40,7 @@ void main() {
     final missingStreet = PropertyLocationAddress.fromJson({'neighborhood': 'حي فقط', 'formatted_address': 'حي فقط، مدينة'});
     expect(missingStreet.street, isNull);
   });
-  test('C05 proxy debounce and cache coalesce the same point, with coordinates absent from URLs', () async {
+  test('C06 proxy debounce and cache coalesce the same point, with coordinates absent from URLs', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test')), requests = <RequestOptions>[];
     dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
       requests.add(request); handler.resolve(Response(requestOptions: request, statusCode: 200, data: {'data': _address.toJson()}));
@@ -53,14 +53,14 @@ void main() {
     await repo.resolveLocationAddress(latitude: 14.54, longitude: 44.4); expect(requests.length, 1);
     dio.close();
   });
-  test('C05 provider failure returns manual mode without direct device requests', () async {
+  test('C05 C06 provider failure returns manual mode without direct device requests', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test')); var calls = 0;
     dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) { calls++;
       handler.reject(DioException(requestOptions: request, type: DioExceptionType.connectionError)); }));
     final value = await PropertyRepository(dio, _NoAuth()).resolveLocationAddress(latitude: 14.54, longitude: 44.4);
     expect(value.isEmpty, isTrue); expect(value.providerStatus, 'unavailable'); expect(calls, 1); dio.close();
   });
-  testWidgets('C02 approximate permission reports actual accuracy without requesting a precision upgrade', (tester) async {
+  testWidgets('C01 C06 approximate permission reports actual accuracy without requesting a precision upgrade', (tester) async {
     const channel = MethodChannel('flutter.baseflow.com/geolocator'); final calls = <String>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
       calls.add(call.method);
@@ -80,7 +80,7 @@ void main() {
     expect(point.accuracyLabel, contains('±68')); expect(point.accuracyLabel, contains('تقريبي'));
     expect(calls, isNot(contains('requestTemporaryFullAccuracy')));
   });
-  testWidgets('C03 C07 late address fills only untouched fields and never replaces the confirmed point', (tester) async {
+  testWidgets('C02 C03 C06 late address fills only untouched fields and never replaces the confirmed point', (tester) async {
     final addresses = _Addresses()..pending = Completer(), recovery = Wave6Recovery(editorSnapshot()..['step'] = 1);
     await pumpWave6(tester, ProviderScope(overrides: [propertyRepositoryProvider.overrideWithValue(addresses),
       propertyCurrentLocationProvider.overrideWithValue(() async => const PropertyLocationSelection(latitude: 14.54, longitude: 44.4,
@@ -100,7 +100,7 @@ void main() {
     expect(recovery.snapshot!['location_accuracy_m'], 67.5);
     await finishWave6(tester);
   });
-  testWidgets('C04 manual correction retains its point and clears stale GPS accuracy', (tester) async {
+  testWidgets('C02 manual correction retains its point and clears stale GPS accuracy', (tester) async {
     final recovery = Wave6Recovery({...editorSnapshot(), 'editor_version': 11, 'step': 1,
       'location_method': 'gps', 'location_accuracy_m': 70.0, 'location_reduced_accuracy': true});
     await pumpWave6(tester, ProviderScope(overrides: [
@@ -118,7 +118,7 @@ void main() {
     await finishWave6(tester);
   });
   for (final scale in [1.0, 2.4]) {
-    testWidgets('C06 source distance and edited landmark text require explicit acceptance at $scale', (tester) async {
+    testWidgets('C03 C04 source distance and edited landmark text require explicit acceptance at $scale', (tester) async {
       final boundary = GlobalKey(); String? accepted;
       await pumpWave6(tester, Builder(builder: (context) => Scaffold(body: TextButton(child: const Text('افتح'),
         onPressed: () async { accepted = await AppBottomSheet.show<String>(context, builder: (_) => const LocationLandmarkReviewSheet(landmarks: [
@@ -136,7 +136,7 @@ void main() {
       expect(accepted, 'وصف الموقع بعد مراجعة صاحبه'); expect(tester.takeException(), isNull); await finishWave6(tester);
     });
   }
-  testWidgets('C06 empty landmark coverage offers manual text without inventing a nearby feature', (tester) async {
+  testWidgets('C05 empty landmark coverage offers manual text without inventing a nearby feature', (tester) async {
     await pumpWave6(tester, const Scaffold(body: LocationLandmarkReviewSheet(landmarks: [])));
     expect(find.byType(RadioListTile<String>), findsNothing); expect(find.textContaining('لم يرجع المصدر'), findsOneWidget);
     expect(find.byKey(const ValueKey('landmark-description')), findsOneWidget); await finishWave6(tester);
