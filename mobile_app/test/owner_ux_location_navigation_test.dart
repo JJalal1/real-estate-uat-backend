@@ -86,6 +86,7 @@ void main() {
           case 'isLocationServiceEnabled': return true;
           case 'checkPermission': return initial.index;
           case 'requestPermission': return LocationPermission.whileInUse.index;
+          case 'getLocationAccuracy': return LocationAccuracyStatus.precise.index;
           case 'getCurrentPosition': return {'latitude': 13.966, 'longitude': 44.182, 'timestamp': 1793059200000,
             'accuracy': 5.0, 'altitude': 0.0, 'heading': 0.0, 'speed': 0.0, 'speed_accuracy': 0.0};
         }

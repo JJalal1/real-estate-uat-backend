@@ -11,7 +11,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 
 class GeneralManagerInsightsController extends Controller
@@ -181,12 +180,12 @@ SQL);
 
     private function searchNominatim(string $query): array
     {
-        try{$r=Http::acceptJson()->withHeaders(['Accept-Language'=>'ar','User-Agent'=>'RealEstate-UAT/2.0 general-manager-map'])->connectTimeout(4)->timeout(8)->get('https://nominatim.openstreetmap.org/search',['format'=>'jsonv2','q'=>$query,'countrycodes'=>'ye','limit'=>8,'addressdetails'=>1,'accept-language'=>'ar']);if(!$r->successful()||!is_array($r->json()))return[];return collect($r->json())->filter(fn($x)=>is_array($x)&&isset($x['lat'],$x['lon']))->map(fn($x)=>['label'=>trim((string)($x['display_name']??'')),'latitude'=>(float)$x['lat'],'longitude'=>(float)$x['lon'],'type'=>(string)($x['type']??$x['class']??'place'),'bounds'=>$this->nominatimBounds($x['boundingbox']??null)])->filter(fn($x)=>$x['label']!=='')->values()->all();}catch(\Throwable){return[];}
+        try{$r=app(\App\Services\GeocodingGateway::class)->get('nominatim','/search',['format'=>'jsonv2','q'=>$query,'countrycodes'=>'ye','limit'=>8,'addressdetails'=>1,'accept-language'=>'ar']);if($r['status']!=='ok')return[];return collect($r['data'])->filter(fn($x)=>is_array($x)&&isset($x['lat'],$x['lon']))->map(fn($x)=>['label'=>trim((string)($x['display_name']??'')),'latitude'=>(float)$x['lat'],'longitude'=>(float)$x['lon'],'type'=>(string)($x['type']??$x['class']??'place'),'bounds'=>$this->nominatimBounds($x['boundingbox']??null)])->filter(fn($x)=>$x['label']!=='')->values()->all();}catch(\Throwable){return[];}
     }
 
     private function searchPhoton(string $query): array
     {
-        try{$r=Http::acceptJson()->withHeaders(['User-Agent'=>'RealEstate-UAT/2.0 general-manager-map'])->connectTimeout(4)->timeout(8)->get('https://photon.komoot.io/api/',['q'=>$query,'limit'=>8,'lang'=>'ar','lat'=>15.3694,'lon'=>44.1910]);if(!$r->successful()||!is_array($r->json('features')))return[];return collect($r->json('features'))->filter(fn($x)=>is_array($x)&&is_array($x['geometry']['coordinates']??null))->map(function($x){$p=is_array($x['properties']??null)?$x['properties']:[];$c=$x['geometry']['coordinates'];$parts=array_filter([$p['name']??null,$p['district']??null,$p['city']??null,$p['state']??null],fn($v)=>is_string($v)&&trim($v)!=='');return['label'=>implode('، ',array_values(array_unique($parts))),'latitude'=>(float)($c[1]??0),'longitude'=>(float)($c[0]??0),'type'=>(string)($p['type']??'place'),'bounds'=>$this->photonBounds($p['extent']??null)];})->filter(fn($x)=>$x['label']!=='')->values()->all();}catch(\Throwable){return[];}
+        try{$r=app(\App\Services\GeocodingGateway::class)->get('photon','/api/',['q'=>$query,'limit'=>8,'lang'=>'ar','lat'=>15.3694,'lon'=>44.1910]);if($r['status']!=='ok'||!is_array($r['data']['features']??null))return[];return collect($r['data']['features'])->filter(fn($x)=>is_array($x)&&is_array($x['geometry']['coordinates']??null))->map(function($x){$p=is_array($x['properties']??null)?$x['properties']:[];$c=$x['geometry']['coordinates'];$parts=array_filter([$p['name']??null,$p['district']??null,$p['city']??null,$p['state']??null],fn($v)=>is_string($v)&&trim($v)!=='');return['label'=>implode('، ',array_values(array_unique($parts))),'latitude'=>(float)($c[1]??0),'longitude'=>(float)($c[0]??0),'type'=>(string)($p['type']??'place'),'bounds'=>$this->photonBounds($p['extent']??null)];})->filter(fn($x)=>$x['label']!=='')->values()->all();}catch(\Throwable){return[];}
     }
 
     private function nominatimBounds(mixed $v):?array{return is_array($v)&&count($v)>=4?['south'=>(float)$v[0],'north'=>(float)$v[1],'west'=>(float)$v[2],'east'=>(float)$v[3]]:null;}

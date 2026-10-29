@@ -86,7 +86,7 @@ Route::get('/property-media/{image}', [PropertyController::class, 'media']);
 Route::get('/advertisers/{advertiser}/ratings/summary', [CommunityController::class, 'ratingSummary']);
 Route::get('/regions/cells', [RegionsController::class, 'publicCells']);
 Route::get('/regions/resolve', [RegionsController::class, 'resolvePoint']);
-Route::get('/regions/reverse-address', [RegionsController::class, 'reverseAddress']);
+Route::match(['get','post'],'/regions/reverse-address', [RegionsController::class, 'reverseAddress'])->middleware('throttle:30,1');
 Route::get('/developers', [DevelopmentController::class, 'developers']);
 Route::get('/developers/{developer}', [DevelopmentController::class, 'developerShow']);
 Route::get('/developments', [DevelopmentController::class, 'index']);
@@ -297,4 +297,3 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::get('/audit-logs', [AccessControlController::class, 'auditLogs'])->middleware('permission:audit.view');
     });
 });
-
