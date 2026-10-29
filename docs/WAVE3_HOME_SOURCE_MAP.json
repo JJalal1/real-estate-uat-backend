@@ -36,7 +36,7 @@
       "source": "app/lib/ui/screens/home/widgets/property_card_big.dart",
       "source_sha256": "bad09b3c2e2e173fe847f3dbe2f3a4b9f03512431f43321f697f990f740c4400",
       "target": "mobile_app/lib/core/widgets/ebroker_home/property_card_big.dart",
-      "target_sha256": "7016f5c2c8a910f85a9371afde9573d60962301cd202fb3c85b41256686ca50a",
+      "target_sha256": "4f698b1fc6ba72ce0c5a6c3d02efa8dcc4aea042c83d0cd67771d247a17b5fdc",
       "adaptations": [
         "Original PropertyCardBig presentation body and image/category/title/location/divider/price hierarchy.",
         "Original paid/premium/guest/comparison backend removed; real Aqer navigation, comparison, favorite and editorial Spotlight supplied.",
@@ -54,6 +54,17 @@
         "No source follow/appointments/WhatsApp/private email/project claims. Existing authorized public profile/contact route.",
         "Unavailable public cover is a neutral color gradient; no demo imagery. Actual verified state, ratings, listing and confirmed-deal counts.",
         "Directional positioning for RTL and intrinsic text/button height for accessibility."
+      ]
+    },
+    {
+      "source": "app/lib/ui/screens/widgets/like_button_widget.dart",
+      "source_sha256": "cd28f22e12ed3ede53aa4f62cb8e3d5274cfd9c3c665a0ecd0764fe3a97aff86",
+      "target": "mobile_app/lib/core/widgets/ebroker_home/favorite_visual.dart",
+      "target_sha256": "1164e987857c63349a2a8835f6ec39197c2e13c3578d960647b4d1e75739071d",
+      "adaptations": [
+        "Original 300ms cubic 1-1.4-1 scale animation and circular white-heart presentation.",
+        "Existing Aqer authenticated favorite action and server/account truth; no template optimistic Cubit or agent-role bypass.",
+        "48px accessible hit area, reduced motion and single activation through navigation/network waits."
       ]
     }
   ]

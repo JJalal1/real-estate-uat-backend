@@ -145,6 +145,7 @@ class EbrokerHomePropertyCard extends StatelessWidget {
                     ]),
                   ]),
                 ],
+                if (property.advanceLabel != null) SourceText(property.advanceLabel!, fontSize: 10),
                 if (widget.action != null) widget.action!,
               ],
             ),

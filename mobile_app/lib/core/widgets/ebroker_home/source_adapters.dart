@@ -69,8 +69,9 @@ class SourceImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dimension = width?.isFinite == true ? width! : 18.0;
-    if (imageUrl.startsWith('type:')) return PropertyTypeIcon(
-      type: imageUrl.substring(5), size: dimension, color: color);
+    if (imageUrl.startsWith('type:')) {
+      return PropertyTypeIcon(type: imageUrl.substring(5), size: dimension, color: color);
+    }
     if (imageUrl == 'star') return Icon(Icons.star_rounded, size: dimension, color: color);
     if (const ['location', 'defaultProfileIcon'].contains(imageUrl)) {
       return EbrokerImage(imageUrl, size: dimension, color: color);
@@ -102,6 +103,8 @@ class SourceProperty {
     ...value.imageUrls.where((url) => url.isNotEmpty)}.take(12).toList(growable: false);
   String get priceLabel => moneyLabel(isRent ? value.monthlyRent ?? value.price : value.price, value.currency);
   String get rentLabel => value.monthlyRent == null ? 'القيمة المعروضة' : 'شهريًا';
+  String? get advanceLabel => isRent && value.monthlyRent != null && value.price != value.monthlyRent
+    ? '${value.advanceMonths == null ? 'القيمة المعروضة' : 'مقدم ${value.advanceMonths} أشهر'}: ${moneyLabel(value.price, value.currency)}' : null;
 }
 
 class SourcePurposeLabel extends StatelessWidget {

@@ -18,6 +18,7 @@ import '../../properties/presentation/property_compare_actions.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/property_details.dart';
+import '../../properties/presentation/property_details_screen.dart';
 import '../data/marketplace_repository.dart';
 import '../data/discovery_location.dart';
 import 'home_ai_search_entry.dart';
@@ -248,7 +249,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               if (i > 0) const SizedBox(width: 8),
               Expanded(child: i >= group.length ? const SizedBox.shrink() : EbrokerHomePropertyCard(
                 key: ValueKey('home-property-${group[i].id}'), property: SourceProperty(group[i]), isFromGrid: columns > 1,
-                favorite: PropertyFavoriteAction(propertyId: group[i].id, enabled: group[i].status == 'published'),
+                favorite: PropertyFavoriteAction(propertyId: group[i].id, enabled: group[i].status == 'published', sourceStyle: true),
                 action: PropertyCompareAction(propertyId: group[i].id, enabled: group[i].status == 'published'),
                 facts: summaryPropertyFacts(group[i]).take(3).toList(),
                 onTap: () => context.push('/properties/${group[i].id}', extra: group[i]))),
@@ -256,9 +257,11 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           ]))));
       }
     }
-    if (seen.isEmpty) slivers.add(SliverToBoxAdapter(child: AppEmptyState(
+    if (seen.isEmpty) {
+      slivers.add(SliverToBoxAdapter(child: AppEmptyState(
       title: 'لا توجد عقارات مطابقة في هذه المنطقة الآن', message: 'يمكنك تغيير المنطقة أو الغرض.',
       actionLabel: 'تغيير المنطقة', onAction: _chooseLocation)));
+    }
     return SliverMainAxisGroup(slivers: slivers);
   }
 }

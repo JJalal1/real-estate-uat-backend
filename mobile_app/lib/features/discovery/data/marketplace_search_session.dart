@@ -57,10 +57,12 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   void leaveHomeSearch() => state = state.copyWith(active: false, editing: false);
 
   void prepareSearch({String? type}) {
+    final changed = state.criteria.values['type'] != type;
     final next = Map<String, dynamic>.from(state.criteria.values)..remove('type');
     if (type != null) next['type'] = type;
     state = state.copyWith(active: true, criteria: SmartSearchFilters.fromMap(next),
       editing: state.draftQuery.trim() != state.submittedQuery);
+    if (changed) { _lastSubmit = ''; home.reset(); }
   }
 
   /// One explicit session choice supplies Home, suggestions, list and map.
@@ -73,7 +75,9 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     state = state.copyWith(criteria: SmartSearchFilters.fromMap(next));
     _lastSubmit = '';
     if (home.snapshot.started) {
-      unawaited(home.replaceManually(_filters(text: state.submittedQuery)));
+      final filters = _filters(text: state.submittedQuery);
+      _lastSubmit = jsonEncode(filters.apiFilters);
+      unawaited(home.replaceManually(filters));
     }
     if (state.mapOpen) {
       unawaited(map.replaceManually(_filters(text: state.submittedQuery, onMap: true)));

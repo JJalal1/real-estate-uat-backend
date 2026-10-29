@@ -14,7 +14,7 @@ class Wave3MarketplacePurposeTest extends TestCase
 
     public function test_every_home_section_applies_the_requested_purpose_before_limiting_rows(): void
     {
-        Governorate::create(['name_ar' => 'صنعاء', 'is_active' => true]);
+        Governorate::create(['code' => 'W3-SYN', 'name_ar' => 'صنعاء', 'is_active' => true]);
         $owner = User::create(['name' => 'Synthetic Wave3 owner', 'email' => 'wave3@example.test',
             'password' => 'fixture-only', 'account_status' => 'active', 'phone_verified_at' => now()]);
         foreach (['rent', 'sale'] as $purpose) {

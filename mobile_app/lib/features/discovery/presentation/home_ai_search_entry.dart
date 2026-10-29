@@ -19,7 +19,8 @@ class HomeAiSearchEntry extends ConsumerWidget {
     final color = Theme.of(context).colorScheme.primary;
     void open() => context.push('/smart-search', extra: type == null && purpose == null ? null
       : SmartSearchFilters.fromMap({if (type != null) 'type': type, if (purpose != null) 'purpose': purpose}));
-    if (wide) return Material(color: color.withValues(alpha: .07), borderRadius: BorderRadius.circular(16),
+    if (wide) {
+      return Material(color: color.withValues(alpha: .07), borderRadius: BorderRadius.circular(16),
       child: InkWell(key: const ValueKey('home-smart-search'), onTap: open, borderRadius: BorderRadius.circular(16),
         child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), child: Row(children: [
           Icon(Icons.chevron_right, color: color, size: 22), const SizedBox(width: 8),
@@ -28,6 +29,7 @@ class HomeAiSearchEntry extends ConsumerWidget {
             Text('صف ما تحتاجه بالنص أو الصوت', style: Theme.of(context).textTheme.bodySmall),
           ])), const SizedBox(width: 8), const SmartSearchRobotIcon(size: 30),
         ]))));
+    }
     return TextButton.icon(
       key: const ValueKey('home-smart-search'),
       onPressed: open,

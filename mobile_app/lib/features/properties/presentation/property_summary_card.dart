@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/ebroker_home/favorite_visual.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
@@ -49,9 +50,10 @@ class PropertySummaryCard extends StatelessWidget {
 }
 
 class PropertyFavoriteAction extends ConsumerStatefulWidget {
-  const PropertyFavoriteAction({required this.propertyId, this.enabled = true, super.key});
+  const PropertyFavoriteAction({required this.propertyId, this.enabled = true, this.sourceStyle = false, super.key});
   final int propertyId;
   final bool enabled;
+  final bool sourceStyle;
   @override
   ConsumerState<PropertyFavoriteAction> createState() => _PropertyFavoriteState();
 }
@@ -85,6 +87,10 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).asData?.value;
     final selected = user?.isActive == true && (ref.watch(favoritePropertyIdsProvider).asData?.value.contains(widget.propertyId) ?? false);
+    if (widget.sourceStyle) {
+      return EbrokerHomeFavoriteVisual(key: ValueKey('favorite-property-${widget.propertyId}'),
+        selected: selected, busy: _busy, onPressed: _busy || !widget.enabled ? null : () => _toggle(selected));
+    }
     return IconButton(key: ValueKey('favorite-property-${widget.propertyId}'), tooltip: selected ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
       onPressed: _busy || !widget.enabled ? null : () => _toggle(selected),
       isSelected: selected,
