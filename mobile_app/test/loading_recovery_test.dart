@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/network/api_error_message.dart';
+import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
@@ -449,14 +450,16 @@ void main() {
     expect(tester.takeException(), isNull);
   }, timeout: const Timeout(Duration(seconds: 45)));
 
-  testWidgets('repeated draft resume starts one read and a late failure stays outside the next account', (tester) async {
+  testWidgets('A05 A06 explicit saved-draft resume starts one read and a late failure stays outside the next account', (tester) async {
     final drafts = _Drafts(), auth = _Auth();
     drafts.drafts['synthetic'] = const ListingAccountDraft(key: 'synthetic', revision: 1, payload: {}, title: 'مسودة اصطناعية', progress: 40);
     await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(() => auth),
-      listingAccountDraftRepositoryProvider.overrideWithValue(drafts), propertyRepositoryProvider.overrideWithValue(Wave6Properties())],
-      child: const MaterialApp(home: ListingDraftEntryScreen())));
+      listingAccountDraftRepositoryProvider.overrideWithValue(drafts), propertyRepositoryProvider.overrideWithValue(Wave6Properties()),
+      listingRecoveryStoreProvider.overrideWithValue(Wave6Recovery())],
+      child: const MaterialApp(home: ListingDraftEntryScreen(showSavedDrafts: true))));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('متابعة الإعلان')); await tester.tap(find.text('متابعة الإعلان')); await tester.pump();
+    expect(find.byKey(const ValueKey('listing-recovery-choice')), findsNothing);
+    await tester.tap(find.text('مسودة اصطناعية')); await tester.tap(find.text('مسودة اصطناعية')); await tester.pump();
     expect(drafts.calls, 1);
     auth.change(null); await tester.pumpAndSettle();
     drafts.pending.completeError(_failure()); await tester.pumpAndSettle();
