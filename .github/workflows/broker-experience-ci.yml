@@ -3,7 +3,7 @@ on:
   push:
     branches: [work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1, work/wave2-brand-trust-account, work/wave2-review-current, work/1123-release-readiness]
   pull_request:
-    branches: [work/wave2-review-current, work/owner-ux-wave-20261027, work/wave1-experience-20261028]
+    branches: [work/wave2-review-current, work/owner-ux-wave-20261027, work/wave1-experience-20261028, work/wave2-home-search-20261028, work/branch2-*]
     paths:
       - 'backend-api-runtime/**'
       - 'mobile_app/**'
@@ -19,7 +19,7 @@ concurrency:
 env:
   SOURCE_COMMIT: ${{ github.sha }}
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
-  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' }}
+  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' || startsWith(github.head_ref, 'work/branch2-') }}
 jobs:
   source:
     name: Tracked source checkpoint
@@ -170,7 +170,7 @@ jobs:
           --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Wave1 exact viewport and real area suggestions on PostGIS
         run: |
-          php artisan test tests/Feature/Wave1ViewportDiscoveryTest.php tests/Feature/Wave2PublishedSuggestionsTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+          php artisan test tests/Feature/Wave1ViewportDiscoveryTest.php tests/Feature/Wave2PublishedSuggestionsTest.php tests/Feature/Branch2RecoveryTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
           php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php --filter=test_wave1_autocomplete --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Gemini boundaries and marketplace presentation on PostgreSQL
         run: >-

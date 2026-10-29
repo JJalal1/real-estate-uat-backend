@@ -69,6 +69,13 @@ class _PinnedAssistant extends _Assistant {
 }
 
 class _Recovery extends ListingRecoveryStore {
+  @override
+  Future<List<Map<String,dynamic>>> saved(int userId) async => [];
+  @override
+  Future<void> pinExplicitSave(int userId, {bool preserveUnclassified = false}) async {}
+  @override
+  Future<void> deleteSaved(int userId, String key) async {}
+
   _Recovery(this.snapshot);
   Map<String, dynamic>? snapshot;
   @override
@@ -467,4 +474,3 @@ void main() {
     });
   }
 }
-

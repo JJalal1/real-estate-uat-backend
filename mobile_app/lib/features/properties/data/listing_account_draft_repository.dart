@@ -18,11 +18,13 @@ class ListingAccountDraftRepository {
   // Capture the originating session, so queued saves cannot move to another account.
   final Future<Options> _options;
   static const _base = '/listing-editor-drafts';
+  bool supportsSafeRecovery = false;
   ListingAccountDraft _draft(Response<dynamic> response) => ListingAccountDraft.fromJson(Map<String, dynamic>.from(response.data['data'] as Map));
   Future<List<ListingAccountDraft>> list() async {
     final rows = <ListingAccountDraft>[]; var page = 1;
     while (true) {
       final r = await _dio.get<dynamic>(_base, queryParameters: {'page': page}, options: await _options);
+      if (page == 1) supportsSafeRecovery = (r.data['meta'] as Map?)?['recovery_contract'] == 1;
       rows.addAll((r.data['data'] as List).map((e) => ListingAccountDraft.fromJson(Map<String, dynamic>.from(e as Map))));
       if (page >= ((r.data['meta'] as Map?)?['last_page'] as num? ?? 1)) break;
       page++;
@@ -47,6 +49,10 @@ class ListingAccountDraftRepository {
   Future<ListingAccountDraft> removeImage(String key, String imageKey, int revision) async =>
     _draft(await _dio.delete<dynamic>('$_base/$key/images/$imageKey', data: {'expected_revision': revision}, options: await _options));
   Future<void> delete(String key) async { await _dio.delete<dynamic>('$_base/$key', options: await _options); }
+  Future<void> retireRecovery(String key, int revision) async {
+    if (!supportsSafeRecovery) throw StateError('يلزم تحديث خدمة حفظ المسودات قبل حذف التقدم المؤقت. بياناتك محفوظة.');
+    await _dio.delete<dynamic>('$_base/$key', data: {'recovery_only': true, 'expected_revision': revision}, options: await _options);
+  }
   Future<Uint8List> photo(String url, {CancelToken? cancelToken}) async {
     final target=Uri.parse(url), base=Uri.parse(_dio.options.baseUrl);
     if (target.origin != base.origin || !(target.path.startsWith('${base.path}/listing-editor-drafts/') ||

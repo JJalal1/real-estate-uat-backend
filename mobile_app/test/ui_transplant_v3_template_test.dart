@@ -53,6 +53,13 @@ import 'package:real_estate_mobile/features/properties/presentation/listing_edit
 // Layout fixtures isolate device IO; broker_convenience_test covers actual recovery files.
 class _EmptyRecovery extends ListingRecoveryStore {
   @override
+  Future<List<Map<String,dynamic>>> saved(int userId) async => [];
+  @override
+  Future<void> pinExplicitSave(int userId, {bool preserveUnclassified = false}) async {}
+  @override
+  Future<void> deleteSaved(int userId, String key) async {}
+
+  @override
   Future<Map<String, dynamic>?> read(int userId, int? listingId) async => null;
   @override
   Future<void> write(int userId, int? listingId, Map<String, dynamic> snapshot, List<String> paths) async {}
@@ -365,7 +372,9 @@ void main() {
       expect(shape, findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('home-add-property')));
       await tester.pumpAndSettle();
-      if (!verified) { await tester.tap(find.byKey(const ValueKey('create-listing-manual'))); await tester.pumpAndSettle(); }
+      expect(router.state.uri.path, '/');
+      expect(find.byKey(const ValueKey('create-listing-ai')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('create-listing-manual'))); await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
       expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
       expect(tester.takeException(), isNull);

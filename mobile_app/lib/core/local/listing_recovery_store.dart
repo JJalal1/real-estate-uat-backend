@@ -21,10 +21,19 @@ class ListingRecoveryStore {
 
   static bool isSavedMedia(String path) => path.replaceAll('\\', '/').contains('/listing_recovery/');
 
+  static final _key = RegExp(r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$');
+  Future<Directory> _savedScope(int userId, String key) async {
+    if (!_key.hasMatch(key)) throw ArgumentError('Invalid saved draft identifier');
+    return Directory('${(await _scope(userId, null)).parent.path}/saved/$key');
+  }
+
   Future<Map<String, dynamic>?> read(int userId, int? listingId) async {
+    await _queue;
+    return _readScope(await _scope(userId, listingId), userId, listingId);
+  }
+
+  Future<Map<String, dynamic>?> _readScope(Directory scope, int userId, int? listingId) async {
     try {
-      await _queue;
-      final scope = await _scope(userId, listingId);
       final file = File('${scope.path}/state.json');
       if (!await file.exists() || await file.length() > 1048576) return null;
       final decoded = jsonDecode(await file.readAsString());
@@ -57,6 +66,60 @@ class ListingRecoveryStore {
       }
       return data;
     } catch (_) { return null; }
+  }
+
+  Future<List<Map<String, dynamic>>> saved(int userId) async {
+    await _queue;
+    final directory = Directory('${(await _scope(userId, null)).parent.path}/saved');
+    if (!await directory.exists()) return const [];
+    final rows = <Map<String, dynamic>>[];
+    await for (final item in directory.list()) {
+      final key = item.uri.pathSegments.where((part) => part.isNotEmpty).last;
+      if (item is! Directory || !_key.hasMatch(key)) continue;
+      final row = await _readScope(item, userId, null);
+      if (row != null) rows.add(row);
+    }
+    return rows;
+  }
+
+  Future<void> pinExplicitSave(int userId, {bool preserveUnclassified = false}) {
+    final operation = _queue.then<void>((_) async {
+      final source = await _scope(userId, null);
+      final data = await _readScope(source, userId, null);
+      if (data == null) {
+        if (await File('${source.path}/state.json').exists()) throw const FileSystemException('Cannot protect the saved draft');
+        return;
+      }
+      if (!preserveUnclassified && data['draft_kind'] != 'saved' && data['server_property_id'] == null) return;
+      final key = data['draft_key'];
+      if (key is! String || !_key.hasMatch(key)) throw const FileSystemException('Cannot protect a draft without its identifier');
+      final destination = await _savedScope(userId, key);
+      final media = Directory('${destination.path}/media'); await media.create(recursive: true);
+      final state = Map<String, dynamic>.from(jsonDecode(await File('${source.path}/state.json').readAsString()) as Map);
+      final files = <String>[...(state['image_files'] as List).cast<String>(), if (state['proof_file'] is String) state['proof_file'] as String];
+      for (final name in files) {
+        if (!RegExp(r'^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$').hasMatch(name)) throw const FileSystemException('Invalid saved media');
+        final target = File('${media.path}/$name');
+        if (!await target.exists()) await File('${source.path}/media/$name').copy(target.path);
+      }
+      (state['data'] as Map)['draft_kind'] = 'saved';
+      final pending = File('${destination.path}/state.pending');
+      await pending.writeAsString(jsonEncode(state), flush: true); await pending.rename('${destination.path}/state.json');
+      await for (final file in media.list()) {
+        if (file is File && !files.contains(file.uri.pathSegments.last)) await file.delete();
+      }
+    });
+    _queue = operation.then<void>((_) {}, onError: (_, __) {});
+    return operation;
+  }
+
+  Future<void> deleteSaved(int userId, String key) {
+    final operation = _queue.then<void>((_) async {
+      final scope = await _savedScope(userId, key);
+      if (await scope.exists()) await scope.delete(recursive: true);
+    });
+    _queue = operation.then<void>((_) {}, onError: (_, __) {});
+    return operation;
   }
 
   Future<void> write(int userId, int? listingId, Map<String, dynamic> snapshot, List<String> imagePaths) {

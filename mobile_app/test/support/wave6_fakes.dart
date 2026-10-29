@@ -20,9 +20,24 @@ class Wave6Recovery extends ListingRecoveryStore {
   }
   @override
   Future<void> clear(int userId,int? listingId) async {snapshot=null;}
+  @override
+  Future<List<Map<String,dynamic>>> saved(int userId) async => [];
+  @override
+  Future<void> pinExplicitSave(int userId, {bool preserveUnclassified = false}) async {}
+  @override
+  Future<void> deleteSaved(int userId, String key) async {}
+
 }
 
 class Wave6Drafts implements ListingAccountDraftRepository {
+  @override
+  bool supportsSafeRecovery = true;
+  @override
+  Future<void> retireRecovery(String key, int revision) async {
+    final draft = drafts[key];
+    if (draft != null && (!draft.isRecovery || draft.revision != revision)) throw StateError('Protected or changed draft');
+    drafts.remove(key);
+  }
   final drafts=<String,ListingAccountDraft>{};
   final saves=<Map<String,dynamic>>[];
   @override

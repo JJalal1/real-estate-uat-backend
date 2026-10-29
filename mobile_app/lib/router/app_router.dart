@@ -285,7 +285,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           transitionsBuilder: (context, animation, secondaryAnimation, child) => FadeTransition(opacity: animation, child: child),
           child: Stage6AuthGate(
           requireListingEligible: true,
-          child: AddPropertyWizardScreen(startWithAssistant: state.uri.queryParameters['assistant'] == '1'),
+          child: AddPropertyWizardScreen(startWithAssistant: state.uri.queryParameters.containsKey('assistant') ? state.uri.queryParameters['assistant'] == '1' : null, showSavedDrafts: state.uri.queryParameters['drafts'] == '1'),
         )),
       ),
       GoRoute(

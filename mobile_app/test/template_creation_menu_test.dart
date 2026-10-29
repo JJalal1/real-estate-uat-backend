@@ -103,14 +103,21 @@ void main() {
     await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   });
 
-  testWidgets('broker main plus opens manual entry directly once', (tester) async {
-    final observer = _EditorPushes();
-    await _pump(tester, user: brokerTestUser(), observer: observer);
-    await tester.tap(find.byKey(const ValueKey('home-add-property')));
-    await tester.pumpAndSettle();
-    expect(observer.count, 1); expect(find.text('editor-assistant=0'), findsOneWidget);
-    expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing); expect(tester.takeException(), isNull);
-  });
+  for (final assistant in [false, true]) {
+    testWidgets('A01 broker chooses method before one editor navigation: $assistant', (tester) async {
+      final observer = _EditorPushes();
+      await _pump(tester, user: brokerTestUser(), observer: observer);
+      await tester.tap(find.byKey(const ValueKey('home-add-property'))); await tester.pumpAndSettle();
+      expect(observer.count, 0);
+      expect(find.byKey(const ValueKey('create-listing-ai')), findsOneWidget);
+      expect(find.byKey(const ValueKey('create-listing-manual')), findsOneWidget);
+      await tester.tap(find.byKey(ValueKey(assistant ? 'create-listing-ai' : 'create-listing-manual')));
+      await tester.pumpAndSettle();
+      expect(observer.count, 1); expect(find.text('editor-assistant=${assistant ? 1 : 0}'), findsOneWidget);
+      expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('template pills sit above the undimmed bar with original SVGs', (tester) async {
     final key = GlobalKey();
