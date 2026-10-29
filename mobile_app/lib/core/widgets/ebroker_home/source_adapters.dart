@@ -18,6 +18,7 @@ class SourceColors {
   final ColorScheme scheme;
   Color get secondaryColor => scheme.surface;
   Color get tertiaryColor => scheme.primary;
+  Color get onTertiaryColor => scheme.onPrimary;
   Color get borderColor => scheme.outlineVariant;
   Color get textColorDark => scheme.onSurface;
   Color get textLightColor => scheme.onSurfaceVariant;
@@ -121,5 +122,5 @@ class SourceSpotlightBadge extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
     decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary,
       borderRadius: BorderRadius.circular(4)),
-    child: const Text('مميز', style: TextStyle(color: Colors.white, fontSize: 10)));
+    child: Text('مميز', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary, fontSize: 10)));
 }

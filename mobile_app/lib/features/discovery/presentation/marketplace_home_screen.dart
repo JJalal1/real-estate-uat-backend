@@ -138,6 +138,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final location = ref.watch(homeLocationProvider), theme = Theme.of(context);
+    final background = theme.brightness == Brightness.dark ? theme.colorScheme.surface : EbrokerDesign.page;
     final query = _query, purpose = ref.watch(marketplaceSearchControllerProvider).criteria.values['purpose']?.toString();
     final feed = ref.watch(marketplaceFeedProvider(query));
     ref.listen(marketplaceFeedProvider(query), (_, next) {
@@ -153,8 +154,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       }());
     });
     final data = feed.asData?.value;
-    return Scaffold(backgroundColor: EbrokerDesign.page,
-      appBar: AppBar(backgroundColor: EbrokerDesign.page, elevation: 0, automaticallyImplyLeading: false,
+    return Scaffold(backgroundColor: background,
+      appBar: AppBar(backgroundColor: background, elevation: 0, automaticallyImplyLeading: false,
         toolbarHeight: (58 + (MediaQuery.textScalerOf(context).scale(15) - 15) * 2).clamp(58, 112).toDouble(),
         titleSpacing: 18, title: Row(children: [
           const AqerBrandMark(size: 32), const SizedBox(width: 8),
@@ -180,8 +181,10 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             _HomeCircleAction(key: const ValueKey('home-filters'), tooltip: 'فلاتر البحث', icon: 'filter',
               onTap: () => _openSearch(filters: true)),
             const SizedBox(width: 8), Expanded(child: TextField(key: const ValueKey('home-search'), readOnly: true,
+              style: const TextStyle(color: EbrokerDesign.text),
               onTap: _openSearch, decoration: const InputDecoration(hintText: 'ابحث عن عقار أو منطقة…',
-                filled: true, fillColor: Colors.white, suffixIcon: Icon(Icons.search),
+                filled: true, fillColor: Colors.white, hintStyle: TextStyle(color: EbrokerDesign.textLight),
+                suffixIcon: Icon(Icons.search, color: EbrokerDesign.textLight),
                 border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(18)), borderSide: BorderSide.none)))),
             const SizedBox(width: 8), _HomeCircleAction(key: const ValueKey('home-map'),
               tooltip: 'الخريطة', icon: 'propertymap', onTap: _openMap),
@@ -197,7 +200,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                     decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
                       color: purpose == entry.key ? theme.colorScheme.primary : theme.colorScheme.primary.withValues(alpha: .06)),
                     child: Text(entry.value, style: theme.textTheme.labelMedium?.copyWith(
-                      color: purpose == entry.key ? Colors.white : theme.colorScheme.primary)))))),
+                      color: purpose == entry.key ? theme.colorScheme.onPrimary : theme.colorScheme.primary)))))),
           ])),
           HomeAiSearchEntry(wide: true, location: data?.governorate ?? location.governorate ?? 'صنعاء', type: _type, purpose: purpose),
         ]))),

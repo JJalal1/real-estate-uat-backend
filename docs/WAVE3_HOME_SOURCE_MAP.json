@@ -26,7 +26,7 @@
       "source": "app/lib/ui/screens/home/widgets/category_card.dart",
       "source_sha256": "07aa74cad8412cb25023c57cd91f83577df9e8bf654671b19a96db383db5af37",
       "target": "mobile_app/lib/core/widgets/ebroker_home/category_card.dart",
-      "target_sha256": "266f7bb4a60dd88e11ff03de90dc2d70b9751306a74b24a91928915479beafb6",
+      "target_sha256": "fc659ccdc39f55746c4b6e2c0f54909c55a17c7267b39d40d7861843b51c004c",
       "adaptations": [
         "Original rectangular category card, dimensions, icon/text spacing and callbacks.",
         "Canonical Aqer type taxonomy and selected state; minimum 48 logical-pixel touch target."

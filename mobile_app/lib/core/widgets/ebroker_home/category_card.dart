@@ -49,7 +49,7 @@ class EbrokerHomeCategoryCard extends StatelessWidget {
                 children: [
                   SourceImage(
                     imageUrl: category.image ?? '',
-                    color: category.selected ? Colors.white : context.sourceColors.tertiaryColor,
+                    color: category.selected ? context.sourceColors.onTertiaryColor : context.sourceColors.tertiaryColor,
                     width: 18.rw(context),
                     height: 18.rh(context),
                   ),
@@ -61,7 +61,7 @@ class EbrokerHomeCategoryCard extends StatelessWidget {
                       maxLines: 1,
                       fontWeight: FontWeight.w400,
                       fontSize: context.sourceFonts.sm,
-                      color: category.selected ? Colors.white : context.sourceColors.textColorDark,
+                      color: category.selected ? context.sourceColors.onTertiaryColor : context.sourceColors.textColorDark,
                     ),
                   ),
                 ],

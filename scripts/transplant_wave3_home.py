@@ -111,8 +111,8 @@ def main():
     text = common(text)
     text = text.replace('minHeight: 28.rh(context),', 'minHeight: 48.rh(context),')
     text = text.replace('color: context.sourceColors.secondaryColor,', 'color: category.selected ? context.sourceColors.tertiaryColor : context.sourceColors.secondaryColor,')
-    text = text.replace('color: context.sourceColors.tertiaryColor,', 'color: category.selected ? Colors.white : context.sourceColors.tertiaryColor,')
-    text = text.replace('fontSize: context.sourceFonts.sm,', 'fontSize: context.sourceFonts.sm,\n                      color: category.selected ? Colors.white : context.sourceColors.textColorDark,')
+    text = text.replace('color: context.sourceColors.tertiaryColor,', 'color: category.selected ? context.sourceColors.onTertiaryColor : context.sourceColors.tertiaryColor,')
+    text = text.replace('fontSize: context.sourceFonts.sm,', 'fontSize: context.sourceFonts.sm,\n                      color: category.selected ? context.sourceColors.onTertiaryColor : context.sourceColors.textColorDark,')
     text = "import 'package:flutter/material.dart';\nimport 'source_adapters.dart';\nimport 'responsive_size.dart';\n\n" + text
     emit('category_card.dart', text, ['Original rectangular category card, dimensions, icon/text spacing and callbacks.',
         'Canonical Aqer type taxonomy and selected state; minimum 48 logical-pixel touch target.'])

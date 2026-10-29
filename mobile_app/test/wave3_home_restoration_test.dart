@@ -207,4 +207,22 @@ void main() {
       expect(tester.takeException(), isNull); await closeUx(tester);
     });
   }
+
+  testWidgets('B08 C10 dark Home retains a readable white search entry and selected purpose', (tester) async {
+    final scope = uxContainer(), boundary = GlobalKey();
+    await pumpUx(tester, scope, const MarketplaceHomeScreen(), dark: true,
+      size: const Size(320, 700), scale: 2.4, boundary: boundary);
+    final field = tester.widget<TextField>(find.byKey(const ValueKey('home-search')));
+    double contrast(Color a, Color b) {
+      final x = a.computeLuminance(), y = b.computeLuminance();
+      return ((x > y ? x : y) + .05) / ((x > y ? y : x) + .05);
+    }
+    expect(contrast(field.decoration!.hintStyle!.color!, field.decoration!.fillColor!), greaterThan(4.5));
+    await tester.tap(find.byKey(const ValueKey('home-purpose-rent'))); await tester.pumpAndSettle();
+    final text = tester.widget<Text>(find.text('إيجار').first);
+    final theme = Theme.of(tester.element(find.byKey(const ValueKey('home-search'))));
+    expect(contrast(text.style!.color!, theme.colorScheme.primary), greaterThan(4.5));
+    await uxPreview(tester, boundary, 'w3-home-dark-large');
+    expect(tester.takeException(), isNull); await closeUx(tester);
+  });
 }
