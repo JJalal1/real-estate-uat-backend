@@ -178,7 +178,9 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
     final filters = ref.watch(marketplaceSearchControllerProvider).criteria;
     final selected = filters.values[field] != null;
     final summary = selected ? filters.chips.firstWhere((chip) => chip.$1 == field).$2 : label;
-    final text = selected ? '$label ${arabicDigits(filters.values[field].toString())}+' : label;
+    final noun = field == 'min_bedrooms' ? 'غرف' : 'حمام';
+    final text = selected ? '${arabicDigits(filters.values[field].toString())}+ $noun'
+      : field == 'min_bedrooms' ? label : 'حمامات';
     final key = ValueKey(field == 'min_bedrooms' ? 'published-filter-rooms' : 'published-filter-bathrooms');
     return Tooltip(message: summary, child: SizedBox(width: width,
       child: ActionChip(key: key, avatar: Icon(icon, size: 16), label: Text(text),

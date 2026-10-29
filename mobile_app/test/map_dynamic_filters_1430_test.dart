@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
@@ -259,6 +260,11 @@ void main() {
           expect(rect.left, greaterThanOrEqualTo(toolbar.left - 1));
           expect(rect.right, lessThanOrEqualTo(toolbar.right + 1));
           expect(rect.bottom, lessThanOrEqualTo(toolbar.bottom + 1));
+        }
+        for (final key in ['published-filter-rooms', 'published-filter-bathrooms']) {
+          final label = find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(Text));
+          final paragraph = tester.renderObject<RenderParagraph>(label);
+          expect(paragraph.getMaxIntrinsicWidth(double.infinity), lessThanOrEqualTo(paragraph.size.width + 1));
         }
         final maximum = find.byKey(const ValueKey('published-filter-max-price'));
         if (scale == 1) {
