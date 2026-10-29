@@ -21,16 +21,28 @@ class MarketplaceSearchScreen extends ConsumerStatefulWidget {
 class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScreen> {
   final _scroll = ScrollController();
   bool _openingMap = false;
+  double? _mapReturnOffset;
   @override
   void dispose() { _scroll.dispose(); super.dispose(); }
 
   Future<void> _openMap() async {
     if (_openingMap) return;
     _openingMap = true;
+    _mapReturnOffset = _scroll.hasClients ? _scroll.offset : 0;
     FocusScope.of(context).unfocus();
     ref.read(marketplaceSearchControllerProvider.notifier).enterMap();
     try { await context.push('/marketplace-search-map'); }
-    finally { _openingMap = false; }
+    finally { _openingMap = false; _restoreMapOffset(); }
+  }
+
+  void _restoreMapOffset() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _mapReturnOffset == null || !_scroll.hasClients || ModalRoute.of(context)?.isCurrent == false) return;
+      final target = _mapReturnOffset!;
+      if (ref.read(homeSearchResultsProvider).loading && _scroll.position.maxScrollExtent < target) return;
+      _scroll.jumpTo(target.clamp(0, _scroll.position.maxScrollExtent).toDouble());
+      _mapReturnOffset = null;
+    });
   }
 
   @override
@@ -39,6 +51,7 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
     final search = ref.watch(homeSearchResultsProvider);
     final controller = ref.read(marketplaceSearchControllerProvider.notifier);
     ref.listen(homeSearchResultsProvider, (previous, next) {
+      if (_mapReturnOffset != null) { _restoreMapOffset(); return; }
       if (previous?.filters == next.filters) return;
       if (ModalRoute.of(context)?.isCurrent == false) return;
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _scroll.hasClients) _scroll.jumpTo(0); });
@@ -64,7 +77,7 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
         ]))),
         // The old query's title, rows, count, error and paging controls all stay
         // out of the new editor state, including while requests finish late.
-        if (ui.editing || !search.started)
+        if ((ui.editing && !ui.mapOpen) || !search.started)
           SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             child: Text(ui.draftQuery.isEmpty ? 'اكتب اسم العقار أو ما تبحث عنه، ثم نفّذ البحث.'
               : 'الاقتراحات تخص النص الحالي. اضغط «تنفيذ» لعرض نتائجه.')))

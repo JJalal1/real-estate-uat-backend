@@ -257,7 +257,7 @@ void main() {
       expect(find.text('بحث ذكي'), findsOneWidget);
       // Wave3 restores the approved wide smart-search strip with its explanatory text.
       final smartBar = tester.getSize(find.byKey(const ValueKey('home-smart-search')));
-      expect(smartBar.width, greaterThan(700));
+      expect(smartBar.width, closeTo(tester.view.physicalSize.width / tester.view.devicePixelRatio - 36, .1));
       expect(smartBar.height, lessThan(180));
       expect(find.text('صف ما تحتاجه بالنص أو الصوت'), findsOneWidget);
       await preview(tester, boundary, scale == 1 ? 'wave5-home' : 'wave5-home-large');
