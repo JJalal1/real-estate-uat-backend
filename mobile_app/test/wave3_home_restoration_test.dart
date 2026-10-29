@@ -67,6 +67,22 @@ void main() {
     await repository.feed(sale); expect(calls, hasLength(6));
   });
 
+  test('B06 a late rent reply cannot replace a faster explicit sale selection', () async {
+    final rent = Completer<PageResult>(), sale = Completer<PageResult>();
+    final listings = Listings();
+    final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(listings)]);
+    final controller = scope.read(marketplaceSearchControllerProvider.notifier);
+    controller.edit('عقار'); await controller.submit();
+    listings.respond = (filters, _) => filters['purpose'] == 'rent' ? rent.future : sale.future;
+    controller.choosePurpose('rent'); controller.choosePurpose('sale');
+    expect(listings.transfers[listings.transfers.length - 2]!.isCancelled, isTrue);
+    sale.complete(([row(42, purpose: 'sale')], false)); await Future<void>.delayed(Duration.zero);
+    rent.complete(([row(41, purpose: 'rent')], false)); await Future<void>.delayed(Duration.zero);
+    expect(scope.read(homeSearchResultsProvider).rows.single.id, 42);
+    expect(scope.read(homeSearchResultsProvider).filters.values['purpose'], 'sale');
+    expect(scope.read(marketplaceSearchControllerProvider).criteria.values['purpose'], 'sale');
+  });
+
   for (final scale in [1.0, 2.4]) {
     testWidgets('A01 A02 A04 A03 one standalone route, back, IME and edited query at scale $scale', (tester) async {
       final listings = Listings(), boundary = GlobalKey();

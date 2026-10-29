@@ -15,7 +15,6 @@ import '../../../core/widgets/ebroker_home/property_card_big.dart';
 import '../../../core/widgets/ebroker_home/agent_card.dart';
 import '../../../core/widgets/ebroker_home/source_adapters.dart';
 import '../../properties/presentation/property_compare_actions.dart';
-import '../../broker/domain/broker_models.dart';
 import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/presentation/property_details_screen.dart';

@@ -172,6 +172,7 @@ jobs:
       - name: Wave1 exact viewport and real area suggestions on PostGIS
         run: |
           php artisan test tests/Feature/Wave1ViewportDiscoveryTest.php tests/Feature/Wave2PublishedSuggestionsTest.php tests/Feature/Branch2RecoveryTest.php tests/Feature/Branch2CompletionTest.php tests/Feature/Branch2LocationTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+          php artisan test tests/Feature/Wave3MarketplacePurposeTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
           php artisan test tests/Feature/Stage8RegionsBrokerApiTest.php --filter=test_wave1_autocomplete --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Gemini boundaries and marketplace presentation on PostgreSQL
         run: >-
