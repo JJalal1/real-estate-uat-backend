@@ -164,7 +164,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool _selectingLocation = false, _showLocationPreview = false;
   bool _locationNeedsSettings = false, _locationServiceDisabled = false;
   late final VoiceCaptureController _descriptionCapture;
-  bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false;
+  bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false, _reviewingCompleted = false;
   Timer? _descriptionRetryTimer;
   bool get _descriptionCoolingDown => ref.read(aiRepositoryProvider).descriptionRetryAt?.isAfter(DateTime.now()) == true;
   Set<String> _completionFields = {};
@@ -419,16 +419,28 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (value == null || value == '' || (const ['area_value','price','bedrooms','bathrooms'].contains(key) && (value is! num || value <= 0))) result.add(key);
     }
     if (!_typeConfirmed) result.add('type'); if (!_purposeConfirmed) result.add('purpose');
-    if (_effectiveImageCount == 0) result.add('photos');
+    if (_title.text.trim().length < 4) result.add('title');
+    if (_governorate.text.trim().length < 2) result.add('governorate');
+    if (_composedAddress.length < 3) result.add('address');
+    if (_applies('floors_count')) {
+      final count = _optionalInt(_floorsCount) ?? 0;
+      if (count < 1 || count > 50) result.add('floors_count');
+      if (_unitsPerFloor.length != count || _unitsPerFloor.any((v) => (int.tryParse(v) ?? 0) < 1 || (int.tryParse(v) ?? 0) > 100)) result.add('units_per_floor');
+    }
+    if (_type == 'shop' && ((_optionalInt(_shopOpenings) ?? 0) < 1 || (_optionalInt(_shopOpenings) ?? 0) > 100)) result.add('shop_openings');
+    if (_type == 'apartment' && !DynamicPropertySchema.floorOptionsFor(_type).containsKey(_floorNumber.text.trim())) result.add('floor_number');
+    if (_purpose == 'rent' && _rentalConditionsError() != null) result.add('rental_conditions');
+    if (_effectiveImageCount == 0 || _photoKeys.any((key) => !key.startsWith('property-') && !_remotePhotos.containsKey(key))) result.add('photos');
     if (!_isSaiReady) result.add('sai');
     if (_ownershipValidation() != null) result.add('ownership');
     if (_type == 'land' && _landBoundaryGeoJson == null) result.add('boundary');
-    if (_contactPolicy.error(_phone.text, required: true) != null) result.add('contact_phone');
+    if (_contactPolicy.error(_phone.text, required: true) != null || _contactPolicy.error(_whatsapp.text) != null) result.add('contact_phone');
     return result;
   }
 
   Widget _completionStep() {
     final keys = _completionFields;
+    final locationMissing = keys.any(const {'latitude','longitude','governorate','address'}.contains);
     Widget text(String key, TextEditingController controller, String label, {bool numeric = false}) =>
       !keys.contains(key) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: AppTextField(
         controller: controller, label: label, enabled: !_busy && (!const ['governorate','district','street'].contains(key) || _hasLocation),
@@ -440,21 +452,22 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text('أكمل الناقص فقط', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 8),
       const Text('نقلنا المعلومات التي راجعتها إلى المسودة. أكمل البيانات المطلوبة ثم راجع الإعلان وأرسله.'),
+      const SizedBox(height: 12),
+      _completedSummary(),
       choice('type','أكد نوع العقار',_typeConfirmed ? _type : null,_typeLabels,(v) => setState(() { _type = v!; _typeConfirmed = true; _clearHiddenFields(); _completionFields = _missingFields(); })),
       choice('purpose','أكد الغرض',_purposeConfirmed ? _purpose : null,const {'sale':'للبيع','rent':'للإيجار'},(v) => setState(() {
         _purpose = v!; _purposeConfirmed = true; _clearHiddenFields(); _completionFields = _missingFields(); unawaited(_loadSaiPolicy()); })),
       if (_typeConfirmed && _purposeConfirmed) ...[
         text('title',_title,'عنوان الإعلان *'),
         if (_requiresSaleTenure) choice('tenure_type','نوع الملكية *',_tenureType,const {'freehold':'حر','waqf':'وقف'},(v) => setState(() => _tenureType = v)),
-        const SizedBox(height: 12),
-        _locationCard(),
+        if (locationMissing) ...[const SizedBox(height: 12), _locationCard()],
         text('governorate',_governorate,'المحافظة *'),
         if (keys.contains('boundary')) TextButton(onPressed: _busy ? null : _pickLandBoundary, child: const Text('تحديد حدود الأرض')),
         if (keys.contains('floor_number') && _unitNeedsFloor) Padding(padding: const EdgeInsets.only(top: 12), child: _floorSelector()),
         if (_applies('unit_number')) text('unit_number',_unitNumber,'رقم الوحدة أو موضعها *'),
         if (_applies('area_value')) text('area_value',_area,_type == 'shop' ? 'المساحة بالمتر المربع *' : 'المساحة *',numeric:true),
-        if (_applies('floors_count')) ..._structureFields(),
-        if (_type == 'shop') ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات *', keyboardType: TextInputType.number, enabled: !_busy)],
+        if (_applies('floors_count') && (keys.contains('floors_count') || keys.contains('units_per_floor'))) ..._structureFields(),
+        if (_type == 'shop' && keys.contains('shop_openings')) ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات *', keyboardType: TextInputType.number, enabled: !_busy)],
         if (_requiresResidential) ...[text('bedrooms',_bedrooms,'غرف النوم *',numeric:true),text('bathrooms',_bathrooms,'الحمامات *',numeric:true)],
         if (_requiresStructure) choice('has_parking','موقف السيارة *',_parkingChoice,const {'yes':'يوجد','no':'لا يوجد'},(v) => setState(() => _parkingChoice = v)),
         if (_supportsFacade) choice('building_facade','واجهة البناء *',_facade,propertyFacadeLabels,(v) => setState(() => _facade = v)),
@@ -464,11 +477,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           basis:_effectivePrice,amountType:_saiAmountType,accepted:_saiAccepted,error:_saiPolicyError,enabled:!_busy,
           onChanged:() => setState(() => _saiTouched = true),onAcceptanceChanged:(v) => setState(() => _saiAccepted = v),
           onAmountTypeChanged:(v) => setState(() { _saiAmountType=v;_saiTouched=true; }),onRetry:_loadSaiPolicy),
-        if (keys.contains('contact_phone')) ...[const SizedBox(height: 12), AppTextField(controller: _phone, label: 'رقم الاتصال *', keyboardType: TextInputType.phone, enabled: !_busy, helperText: 'رقم جوال يمني من 9 أرقام')],
+        if (keys.contains('contact_phone')) ...[const SizedBox(height: 12),
+          AppTextField(controller: _phone, label: 'رقم الاتصال *', keyboardType: TextInputType.phone, enabled: !_busy, helperText: 'رقم جوال يمني من 9 أرقام'),
+          if (_contactPolicy.error(_whatsapp.text) != null) AppTextField(controller: _whatsapp, label: 'رقم اتصال آخر', keyboardType: TextInputType.phone, enabled: !_busy)],
+        if (keys.contains('rental_conditions')) RentalConditionsEditor(value: _rentalConditions, enabled: !_busy,
+          onChanged: (value) => setState(() => _rentalConditions = value)),
         if (keys.contains('ownership')) _ownershipEvidence(),
       ],
       const SizedBox(height: 20),
-      TextButton(onPressed: _busy ? null : () => _showFullStep(_step), child: const Text('مراجعة وتعديل كل الحقول')),
+      TextButton(key: const ValueKey('listing-review-completed'), onPressed: _busy ? null : () => _showFullStep(0), child: const Text('مراجعة وتعديل البيانات المكتملة والاختيارية')),
     ]);
   }
 
@@ -481,7 +498,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     FocusScope.of(context).unfocus();
     final validation = _validateForSubmit();
     if (validation != null) {
-      setState(() => _completionFields.addAll(_missingFields()));
+      setState(() => _completionFields = _missingFields());
       setState(() => _stepError = validation);
       if (_editorScroll.hasClients) {
         _editorScroll.animateTo(0, duration: AppMotion.fast, curve: Curves.easeOut);
@@ -489,6 +506,44 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       return;
     }
     unawaited(_preview());
+  }
+
+  Widget _completedSummary() {
+    final missing = _missingFields();
+    final lines = <String>[
+      if (!missing.contains('title')) _title.text.trim(),
+      if (_typeConfirmed && _purposeConfirmed) '${_typeLabels[_type]} ${_purpose == 'rent' ? 'للإيجار' : 'للبيع'}',
+      if (!missing.contains('governorate')) _composedAddress,
+      if (!missing.contains('price')) _priceSummaryText,
+      if (_requiresResidential && !missing.contains('bedrooms') && !missing.contains('bathrooms')) '${_bedrooms.text} غرف نوم · ${_bathrooms.text} حمامات',
+      if (_unitNeedsFloor && !missing.contains('floor_number')) 'الدور: ${DynamicPropertySchema.floorOptionsFor(_type)[_floorNumber.text] ?? _floorNumber.text}',
+      if (_hasLocation) 'نقطة العقار مؤكدة',
+      if (_effectiveImageCount > 0) '$_effectiveImageCount صور في المسودة',
+    ];
+    return AppSurface(key: const ValueKey('listing-completed-summary'), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('بياناتك المكتملة', style: Theme.of(context).textTheme.titleSmall),
+        for (final line in lines) Padding(padding: const EdgeInsets.only(top: 4), child: Text(line)),
+        if (missing.isEmpty) const Padding(padding: EdgeInsets.only(top: 8), child: Text('المتطلبات مكتملة. راجع المعاينة قبل الإرسال.')),
+      ]));
+  }
+
+  void _returnToCompletion() {
+    FocusScope.of(context).unfocus();
+    setState(() { _reviewingCompleted = false; _completionOnly = true; _completionFields = _missingFields(); _stepError = null; });
+    if (_editorScroll.hasClients) _editorScroll.jumpTo(0);
+  }
+
+  String? _rentalConditionsError() {
+    int? advance, duration;
+    for (final condition in _rentalConditions) {
+      if (const ['advance', 'duration'].contains(condition['kind']) && (condition['months'] is! int || (condition['months'] as int) < 1 || (condition['months'] as int) > 24)) return 'أكمل عدد الأشهر للشرط المحدد (من 1 إلى 24).';
+      if (condition['kind'] == 'special' && (condition['text']?.toString().trim().isEmpty ?? true)) return 'اكتب الشرط الخاص أو احذفه.';
+      if (condition['kind'] == 'advance') advance = condition['months'] as int;
+      if (condition['kind'] == 'duration') duration = condition['months'] as int;
+    }
+    if (advance != null && duration != null && advance > duration) return 'أشهر المقدم لا يمكن أن تتجاوز مدة العقد المحددة.';
+    return null;
   }
 
   List<Widget> _structureFields() {
@@ -523,7 +578,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'editor_version': 10, 'draft_kind': _draftSavedExplicitly ? 'saved' : 'recovery',
     'entry_method': widget.startWithAssistant ? 'assistant' : 'manual',
     'media_version':1, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
-    'type_confirmed': _typeConfirmed, 'purpose_confirmed': _purposeConfirmed, 'completion_only': _completionOnly,
+    'type_confirmed': _typeConfirmed, 'purpose_confirmed': _purposeConfirmed, 'completion_only': _completionOnly, 'completion_reviewing': _reviewingCompleted,
     'draft_key': _draftKey, 'server_revision': _draftRevision, 'image_tokens': _localPhotoKeys, 'image_order': _photoKeys,
     'remote_images':_remotePhotos, 'removed_image_keys':_removedPhotoKeys.toList(), 'photo_states':_photoStates,
     'account_checkpoint_key':_checkpointKey, 'account_checkpoint_signature':_checkpointSignature,
@@ -576,6 +631,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Future<void> _requestExit() async {
     if (_exitDialogOpen || _disposed) return;
+    if (_reviewingCompleted && !_busy) { _returnToCompletion(); return; }
     if (!_hasUnsavedChanges && !_busy) { _leaveEditor();return; }
     _exitDialogOpen=true;
     final choice=await AppDialog.show<String>(context,title:'لديك تعديلات غير محفوظة',
@@ -640,6 +696,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _needsReconcile=useLocal && _draftRevision>0;
       _typeConfirmed = data['type_confirmed'] == true || ((data['editor_version'] as num? ?? 0) < 8); _purposeConfirmed = data['purpose_confirmed'] == true || ((data['editor_version'] as num? ?? 0) < 8);
       _completionOnly = data['completion_only'] == true;
+      _reviewingCompleted = data['completion_reviewing'] == true && !_completionOnly;
       if (data['image_tokens'] is Map) _localPhotoKeys.addAll(Map<String,String>.from(data['image_tokens'] as Map));
       if (data['remote_images'] is Map) _remotePhotos.addAll(Map<String,String>.from(data['remote_images'] as Map));
       _removedPhotoKeys.addAll((data['removed_image_keys'] as List? ?? const []).whereType<String>());
@@ -954,7 +1011,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: PopScope<Object?>(canPop:_allowExit || !_sessionValid || (!_hasUnsavedChanges && !_busy),
+      child: PopScope<Object?>(canPop:_allowExit || !_sessionValid || (!_reviewingCompleted && !_hasUnsavedChanges && !_busy),
         onPopInvokedWithResult:(didPop,result) { if (!didPop) unawaited(_requestExit()); },
       child: Scaffold(
         appBar: AppAppBar(
@@ -1565,6 +1622,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Widget _actions() {
+    if (_reviewingCompleted) {
+      return Material(color: Theme.of(context).colorScheme.surface, child: SafeArea(top: false,
+      child: Padding(padding: const EdgeInsets.all(12), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Expanded(child: TextButton(onPressed: _busy || _step == 0 ? null : () => _showFullStep(_step - 1), child: const Text('السابق'))),
+          Expanded(child: TextButton(onPressed: _busy || _step == 3 ? null : () => _showFullStep(_step + 1), child: const Text('التالي'))),
+        ]),
+        EbrokerStepButton(key: const ValueKey('listing-return-completion'), label: 'العودة إلى النواقص',
+          onPressed: _busy || _descriptionCapture.active ? null : _returnToCompletion, expand: true),
+      ]))));
+    }
     if (_step < 3) {
       return _BottomBar(
         children: [
@@ -1614,7 +1682,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   void _showFullStep(int step) {
     FocusScope.of(context).unfocus();
-    setState(() { _completionOnly = false; _step = step; _stepError = null; });
+    setState(() { if (_completionOnly) _reviewingCompleted = true; _completionOnly = false; _step = step.clamp(0, 3).toInt(); _stepError = null; });
     if (_editorScroll.hasClients) _editorScroll.jumpTo(0);
   }
 
@@ -1648,16 +1716,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (!_isRentalApartment && (areaValue == null || areaValue <= 0)) return 'أدخل مساحة صحيحة أكبر من صفر.';
       final images = _effectiveImageCount;
       if (requireImages && images == 0) return 'أضف صورًا حقيقية للعقار قبل المتابعة.';
-      if (_purpose == 'rent') {
-        int? advance, duration;
-        for (final condition in _rentalConditions) {
-          if (const ['advance', 'duration'].contains(condition['kind']) && (condition['months'] is! int || (condition['months'] as int) < 1 || (condition['months'] as int) > 24)) return 'أكمل عدد الأشهر للشرط المحدد (من 1 إلى 24).';
-          if (condition['kind'] == 'special' && (condition['text']?.toString().trim().isEmpty ?? true)) return 'اكتب الشرط الخاص أو احذفه.';
-          if (condition['kind'] == 'advance') advance = condition['months'] as int;
-          if (condition['kind'] == 'duration') duration = condition['months'] as int;
-        }
-        if (advance != null && duration != null && advance > duration) return 'أشهر المقدم لا يمكن أن تتجاوز مدة العقد المحددة.';
-      }
+      if (_purpose == 'rent' && _rentalConditionsError() != null) return _rentalConditionsError();
       if (_isUnitType) {
         if (!_wholeFloor && !_isRentalApartment && _unitNumber.text.trim().isEmpty) {
           return 'أدخل رقم الوحدة أو موضعها لتمييزها عن غيرها.';
@@ -1899,7 +1958,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (prepareDraft) {
       final gaps = _completionGaps();
       setState(() {
-        _completionOnly = true; _completionFields = _missingFields();
+        _completionOnly = true; _reviewingCompleted = false; _completionFields = _missingFields();
         if (gaps.isNotEmpty) _step = gaps.first.$1;
       });
       if (_editorScroll.hasClients) _editorScroll.jumpTo(0);

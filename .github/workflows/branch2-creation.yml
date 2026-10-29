@@ -34,13 +34,13 @@ jobs:
         run: python3 -B ../scripts/check_v3_analysis.py
       - name: Recovery behavior and existing creation regressions
         working-directory: mobile_app
-        run: flutter test --reporter expanded test/branch2_recovery_test.dart test/user_work_media_test.dart test/wave6_product_ui_test.dart test/template_creation_menu_test.dart test/owner_ux_location_navigation_test.dart
+        run: flutter test --reporter expanded test/branch2_recovery_test.dart test/branch2_completion_test.dart test/user_work_media_test.dart test/wave6_product_ui_test.dart test/template_creation_menu_test.dart test/owner_ux_location_navigation_test.dart
       - name: Synthetic widget review
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: branch2-creation-previews-${{ github.run_number }}
-          path: mobile_app/build/wave6-preview/
+          path: mobile_app/build/broker-preview/
           retention-days: 3
           if-no-files-found: warn
   backend:
@@ -66,4 +66,4 @@ jobs:
           composer install --no-interaction --prefer-dist --no-progress
           php artisan key:generate --force
       - name: Recovery privacy revision tombstones and existing persistence regressions
-        run: php artisan test --filter='Branch2RecoveryTest|Wave6EditorDiscoveryTest|UserWorkMediaTest'
+        run: php artisan test --filter='Branch2RecoveryTest|Branch2CompletionTest|Wave6EditorDiscoveryTest|UserWorkMediaTest'
