@@ -46,19 +46,36 @@ class Branch2LocationTest extends TestCase
         ]])]);
         $this->postJson('/api/regions/reverse-address',$this->point(['include_landmarks'=>true]))->assertOk()->assertJsonCount(0,'data.landmarks');
     }
-    public function test_database_cache_and_atomic_budget_are_shared_across_reverse_and_manager_search(): void
+    public function test_database_cache_and_atomic_budget_are_shared_across_query_contexts(): void
     {
         config(['geocoding.cache_store'=>'database']);
         Http::fake(['*'=>Http::response($this->address())]);
         $gateway=app(GeocodingGateway::class);$query=['lat'=>14.54,'lon'=>44.4];
         $this->assertSame('ok',$gateway->get('nominatim','/reverse',$query)['status']);
         $this->assertTrue($gateway->get('nominatim','/reverse',$query)['cached']);
-        $this->assertSame('rate_limited',$gateway->get('nominatim','/search',['q'=>'مكان صناعي'])['status']);
+        $different=$query+['zoom'=>17];
+        $this->assertSame('rate_limited',$gateway->get('nominatim','/reverse',$different)['status']);
         Http::assertSentCount(1);
         $this->travel(2)->seconds();
-        $this->assertSame('ok',$gateway->get('nominatim','/search',['q'=>'مكان صناعي'])['status']);
+        $this->assertSame('ok',$gateway->get('nominatim','/reverse',$different)['status']);
         Http::assertSentCount(2);
         Http::assertSent(fn($r)=>str_contains($r->header('User-Agent')[0] ?? '','AqerYemen/'));
+    }
+    public function test_public_nominatim_is_never_used_for_autocomplete(): void
+    {
+        Http::fake();
+        $this->assertSame('public_autocomplete_disabled',app(GeocodingGateway::class)->get('nominatim','/search',['q'=>'مكان صناعي'])['status']);
+        Http::assertNothingSent();
+    }
+    public function test_public_provider_does_not_receive_the_precise_private_pin(): void
+    {
+        $data=$this->address();$data['address']['road']='شارع صناعي';
+        Http::fake(['*'=>Http::response($data)]);
+        $this->postJson('/api/regions/reverse-address',['latitude'=>14.540123,'longitude'=>44.400789])->assertOk()
+            ->assertJsonPath('data.latitude',14.540123)->assertJsonPath('data.longitude',44.400789);
+        Http::assertSent(fn($r)=>(float)$r['lat']===14.54 && (float)$r['lon']===44.401
+            && !str_contains($r->url(),'14.540123') && !str_contains($r->url(),'44.400789'));
+        Http::assertSentCount(1);
     }
     public function test_provider_failure_keeps_confirmed_point_and_allows_manual_address_without_fake_landmarks(): void
     {

@@ -15,6 +15,15 @@ class GeocodingGateway
         $base=rtrim((string)config('geocoding.'.$provider.'_url'),'/');
         $parts=parse_url($base);
         if (!$parts || ($parts['scheme'] ?? '')!=='https' || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) return ['status'=>'disabled','data'=>[]];
+        $host=strtolower($parts['host']);
+        // Manager place search is an autocomplete flow. The public Nominatim
+        // service forbids that use, even below its numerical request limit.
+        if ($provider==='nominatim' && $host==='nominatim.openstreetmap.org' && $path==='/search') return ['status'=>'public_autocomplete_disabled','data'=>[]];
+        if (in_array($host,['nominatim.openstreetmap.org','photon.komoot.io'],true)) {
+            // Public providers receive a roughly 100m area centre, never the
+            // precise private home pin. Distances use the original pin locally.
+            foreach (['lat','lon'] as $coordinate) if (is_numeric($query[$coordinate] ?? null)) $query[$coordinate]=round((float)$query[$coordinate],3);
+        }
         try {
             $store=(string)config('geocoding.cache_store','database');
             // Fail closed when a shared atomic limiter is not configured.
