@@ -49,7 +49,7 @@ class ListingEditorDraftService
         $allowed = ['draft_kind','entry_method','checkpoint_key','media_version','editor_version','sai_amount_type','rental_conditions','unit_occupies_entire_floor','sai_touched','sai_terms_accepted',
             'units_per_floor','same_floor_units','step','purpose','type','area_unit','tenure_type','parking','elevator','facade','ownership_document_type','relationship_type',
             'latitude','longitude','land_boundary','replace_images','price_display_mode','server_property_id','proof_needs_reselection',
-            'type_confirmed','purpose_confirmed','completion_only','image_order','fields'];
+            'type_confirmed','purpose_confirmed','completion_only','completion_reviewing','image_order','fields'];
         $payload = array_intersect_key($payload,array_flip($allowed));
         $fields = array_intersect_key((array)($payload['fields'] ?? []),array_flip([
             'title','description','ai_listing_brief','price','monthly_rent','rental_term_months','advance_months','area',

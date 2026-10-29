@@ -41,6 +41,18 @@ class ListingEditorDraftController extends Controller
             'payload.checkpoint_key'=>['nullable','uuid'],'payload.media_version'=>['nullable','integer','in:1'],
             'payload.editor_version'=>['nullable','integer','between:1,100'],
             'payload.draft_kind'=>['nullable','in:recovery,saved'],'payload.entry_method'=>['nullable','in:manual,assistant'],
+            'payload.type_confirmed'=>['nullable','boolean'],'payload.purpose_confirmed'=>['nullable','boolean'],
+            'payload.completion_only'=>['nullable','boolean'],'payload.completion_reviewing'=>['nullable','boolean'],
+            'payload.sai_amount_type'=>['nullable','in:percentage,fixed'],'payload.sai_touched'=>['nullable','boolean'],
+            'payload.sai_terms_accepted'=>['nullable','boolean'],'payload.rental_conditions'=>['nullable','array','max:24'],
+            'payload.unit_occupies_entire_floor'=>['nullable','boolean'],'payload.units_per_floor'=>['nullable','array','max:50'],
+            'payload.same_floor_units'=>['nullable','boolean'],'payload.area_unit'=>['nullable','string','max:30'],
+            'payload.tenure_type'=>['nullable','in:freehold,waqf'],'payload.parking'=>['nullable','in:yes,no'],
+            'payload.elevator'=>['nullable','in:yes,no'],'payload.facade'=>['nullable','string','max:50'],
+            'payload.ownership_document_type'=>['nullable','string','max:50'],'payload.relationship_type'=>['nullable','string','max:50'],
+            'payload.land_boundary'=>['nullable','array'],'payload.replace_images'=>['nullable','boolean'],
+            'payload.price_display_mode'=>['nullable','in:excludes_sai,includes_sai'],'payload.server_property_id'=>['nullable','integer','min:1'],
+            'payload.proof_needs_reselection'=>['nullable','boolean'],
         ]);
         abort_if(strlen(json_encode($v['payload']))>100000,422);
         $result=DB::transaction(function()use($request,$key,$v){
