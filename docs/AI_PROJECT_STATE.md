@@ -1,3 +1,7 @@
+# October30 owner-adopted1430 map-filter update
+
+Owner baseline1430 is linked to application source ae43f6e334093b51a86246f7230f684eea6a6a5a and successful Broker CI430 (1000+430). Main remains historical; work/1430-development-20261030 preserves this accepted source. The current map/filter task adds persistent dynamic controls, a maximum-budget field, optional sale/rent selection, drawing and contextual smart search. Verification is tracked in its PR and exact-source Actions runs; no handset, Production, store, merge or live-service readiness is inferred. See MAP_DYNAMIC_FILTERS_1430_2026-10-30_AR.md. Older roadmap/status sections below remain historical when superseded.
+
 # October29 owner correction: only W3-001/002 on1393; W3-003 rejected
 
 The latest owner request restores APK1393 property/category/expert cards and all other original component presentation. Start at exact1393 source edb79f6, not at the rejected APK1428 redesign. Only standalone search and the approved upper Home plus coherent server-side rent/sale scope remain in this revision. The698 protected component blobs and original feed/category/broker bodies must match the1393 tree; no W3-003 transplanted component is permitted. See WAVE3_SEARCH_ONLY_ON_1393_2026-10-29_AR.md and its verification script. PR173 is superseded. Automated CI/native evidence is being collected; physical Android acceptance is not claimed. No merge/deploy/live data write is authorized.

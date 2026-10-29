@@ -18,10 +18,11 @@ import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/saved_property_search.dart';
 
 class AssistedSearchScreen extends ConsumerStatefulWidget {
-  const AssistedSearchScreen({this.savedSearch, this.initialMapMode = false, this.entryFilters, super.key});
+  const AssistedSearchScreen({this.savedSearch, this.initialMapMode = false, this.entryFilters, this.onFiltersChanged, super.key});
   final SavedPropertySearch? savedSearch;
   final bool initialMapMode;
   final SmartSearchFilters? entryFilters;
+  final ValueChanged<SmartSearchFilters>? onFiltersChanged;
   @override
   ConsumerState<AssistedSearchScreen> createState() => _AssistedSearchState();
 }
@@ -146,6 +147,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       if (previous?.asData?.value?.id != next.asData?.value?.id) _cancelVoice();
     });
     ref.listen<SmartSearchState>(smartSearchSessionProvider, (before, after) {
+      if (before != null && before.revision != after.revision) widget.onFiltersChanged?.call(after.filters);
       if (_capture.active && before?.revision != after.revision) _cancelVoice();
       // Applied criteria belong to the summary. Only consume the exact draft
       // that was accepted; manual changes and newer unsent text stay intact.
