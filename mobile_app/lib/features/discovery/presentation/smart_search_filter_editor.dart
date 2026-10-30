@@ -63,9 +63,10 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
   }
   bool _applicable(String key) {
     const mapped = {'min_bedrooms':'bedrooms','min_bathrooms':'bathrooms','min_area_m2':'area_value','max_area_m2':'area_value'};
-    return DynamicPropertySchema.applies(mapped[key] ?? key,_values);
+    return DynamicPropertySchema.appliesToFilters(mapped[key] ?? key,_values);
   }
   bool _visible(String key) => _applicable(key) && (widget.focus == null || widget.focus == key ||
+    (key == 'type' && widget.focus!.startsWith('type:')) ||
     (const ['budget', 'min_price', 'max_price'].contains(widget.focus) && const ['min_price', 'max_price', 'currency'].contains(key)) ||
     (const ['min_area_m2', 'max_area_m2'].contains(widget.focus) && const ['min_area_m2', 'max_area_m2'].contains(key)));
 
@@ -79,22 +80,21 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
     items: const [DropdownMenuItem(value: null, child: Text('لا يشترط')), DropdownMenuItem(value: true, child: Text('نعم')), DropdownMenuItem(value: false, child: Text('لا'))],
     onChanged: (value) => setState(() { if (value == null) { _values.remove(key); } else { _values[key] = value; } })));
 
-  Widget _choices(String key, String label, Map<String, String> options, String allLabel) {
+  Widget _choices(String key, String label, Map<String, String> options) {
     if (!_visible(key)) return const SizedBox.shrink();
     final selected = _values[key];
+    final selectedTypes = SmartSearchFilters.fromMap(_values).selectedTypes;
     return Padding(key: ValueKey('filter-$key'), padding: const EdgeInsets.only(top: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 6),
         Wrap(spacing: 8, runSpacing: 6, children: [
-          ChoiceChip(key: ValueKey('filter-$key-all'), label: Text(allLabel),
-            selected: selected == null, showCheckmark: true,
-            onSelected: (_) => _changed(() => _values.remove(key))),
           for (final option in options.entries)
             ChoiceChip(key: ValueKey('filter-$key-${option.key}'), label: Text(option.value),
-              selected: selected == option.key, showCheckmark: true,
+              selected: key == 'type' ? selectedTypes.contains(option.key) : selected == option.key, showCheckmark: true,
               onSelected: (_) => _changed(() {
-                if (selected == option.key) { _values.remove(key); }
+                if (key == 'type') { _values = Map.of(SmartSearchFilters.fromMap(_values).toggleType(option.key).values); }
+                else if (selected == option.key) { _values.remove(key); }
                 else { _values[key] = option.key; }
               })),
         ]),
@@ -150,8 +150,8 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
       padding: EdgeInsets.fromLTRB(18, 18, 18, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('شروط البحث', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 18),
-        _choices('type', 'نوع العقار', SmartSearchFilters.types, 'كل الأنواع'),
-        _choices('purpose', 'الغرض', const {'sale': 'بيع', 'rent': 'إيجار'}, 'بيع وإيجار'),
+        _choices('type', 'نوع العقار', SmartSearchFilters.types),
+        _choices('purpose', 'الغرض', const {'sale': 'بيع', 'rent': 'إيجار'}),
         _field('search', 'المحافظة أو المنطقة'),
         _field('min_price', rent ? 'من إيجار شهري' : 'أقل سعر'), _field('max_price', rent ? 'حتى إيجار شهري' : 'أعلى سعر'),
         const SizedBox(height: 12),

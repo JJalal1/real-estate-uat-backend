@@ -23,6 +23,15 @@ final propertyRepositoryProvider = Provider<PropertyRepository>((ref) {
 /// refreshes without retaining stale family-provider results.
 final propertyDataRevisionProvider = StateProvider<int>((ref) => 0);
 
+/// An older server may silently ignore an unknown array filter. Never present
+/// its unscoped response as a successful multi-type search, including no rows.
+void ensurePropertyFilterContract(Response response, Map<String, dynamic> filters, {bool requireAcknowledgement = false}) {
+  if ((requireAcknowledgement || filters['types'] is List && (filters['types'] as List).length > 1) &&
+      response.headers.value('x-aqer-filter-contract') != '2') {
+    throw StateError('تعذّر تطبيق شروط البحث المختارة حاليًا. أعد المحاولة لاحقًا.');
+  }
+}
+
 class PropertyRepository {
   PropertyRepository(this._dio, this._auth);
 
@@ -146,7 +155,9 @@ class PropertyRepository {
   Future<List<PropertyMarker>> nearbyFiltered(Map<String, dynamic> filters, {CancelToken? cancelToken}) async {
     final params = Map<String, dynamic>.from(filters);
     return _cachedPublic<List<PropertyMarker>>('/properties/nearby', params, () async {
-      final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: params, cancelToken: cancelToken);
+      final response = await _dio.get<Map<String, dynamic>>('/properties/nearby', queryParameters: params, cancelToken: cancelToken,
+        options: Options(listFormat: ListFormat.multiCompatible));
+      ensurePropertyFilterContract(response, params);
       final rows = response.data?['data'] as List? ?? const [];
       return rows.whereType<Map<String, dynamic>>().map(PropertyMarker.fromJson).toList(growable: false);
     }, cancelToken: cancelToken);
@@ -219,7 +230,9 @@ class PropertyRepository {
     if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
     final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest'};
     return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
-      final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken);
+      final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken,
+        options: Options(listFormat: ListFormat.multiCompatible));
+      ensurePropertyFilterContract(response, params);
       final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
         .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
       final meta = response.data?['meta'] as Map? ?? const {};

@@ -5,6 +5,7 @@ import '../../../core/network/api_client.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
+import '../domain/smart_search_filters.dart';
 
 class HomeLocation {
   const HomeLocation({this.latitude = 15.3694, this.longitude = 44.1910, this.governorate,
@@ -23,7 +24,21 @@ class HomeLocation {
     governorate: j['governorate']?.toString(), label: j['label']?.toString() ?? 'المنطقة', manual: true);
 }
 
-typedef HomeFeedQuery = ({double latitude, double longitude, String? governorate, String? type, String? purpose, bool device});
+class HomeFeedQuery {
+  const HomeFeedQuery({required this.latitude, required this.longitude, this.governorate, this.type, this.purpose,
+    required this.device, this.filters = const SmartSearchFilters()});
+  final double latitude, longitude;
+  final String? governorate, type, purpose;
+  final bool device;
+  final SmartSearchFilters filters;
+  SmartSearchFilters get effectiveFilters => SmartSearchFilters.fromMap({...filters.values,
+    if (type != null) 'type': type, if (purpose != null) 'purpose': purpose});
+  @override
+  bool operator ==(Object other) => other is HomeFeedQuery && other.latitude == latitude && other.longitude == longitude &&
+    other.governorate == governorate && other.device == device && effectiveFilters.sameAs(other.effectiveFilters);
+  @override
+  int get hashCode => Object.hash(latitude, longitude, governorate, device, effectiveFilters.signature);
+}
 
 class MarketplaceFeed {
   const MarketplaceFeed({required this.label, this.governorate, this.source = 'default', this.sections = const {}, this.brokers = const [], this.sectionOrder = const ['spotlight','latest','sale','rent']});
@@ -55,34 +70,36 @@ class MarketplaceRepository {
     _cache.removeWhere((_, entry) => now.difference(entry.at) > const Duration(seconds: 20));
     final cached = _cache[key];
     if (cached != null) return cached.feed;
+    final filters = query.effectiveFilters.apiFilters;
     final r = await _dio.get<Map<String, dynamic>>('/marketplace', queryParameters: {
+      ...filters,
       if (query.governorate != null) 'governorate': query.governorate,
       if (query.governorate == null && query.device) ...{'latitude': query.latitude, 'longitude': query.longitude},
-      if (query.type != null) 'type': query.type,
-      if (query.purpose != null) 'purpose': query.purpose,
-    }, cancelToken: cancelToken);
+    }, cancelToken: cancelToken, options: Options(listFormat: ListFormat.multiCompatible));
+    ensurePropertyFilterContract(r, filters, requireAcknowledgement: filters.keys.any((key) => !const ['type', 'purpose'].contains(key)));
     final body = r.data?['data'];
     if (body is! Map) throw StateError('Invalid marketplace response.');
     var feed = MarketplaceFeed.fromJson(Map<String, dynamic>.from(body));
-    if (query.purpose != null && brokerMap(body['context'])['purpose'] != query.purpose) {
+    final purpose = filters['purpose'];
+    if (purpose != null && brokerMap(body['context'])['purpose'] != purpose) {
       // Older UAT servers do not accept a purpose on /marketplace. Obtain all
       // displayed property rows from the existing server-filtered public API;
       // never present, or merely hide locally, an unscoped marketplace feed.
       final keys = [if (query.device && query.governorate == null) 'nearby', 'spotlight', 'latest'];
       final sections = await Future.wait(keys.map((section) async {
         final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {
-          'purpose': query.purpose, 'per_page': 6, 'sort': 'latest',
-          if (query.type != null) 'type': query.type,
+          ...filters, 'per_page': 6, 'sort': 'latest',
           if (section == 'nearby') ...{'latitude': query.latitude, 'longitude': query.longitude, 'radius_km': 30}
           else if (feed.governorate != null) 'governorate': feed.governorate,
           if (section == 'spotlight') 'spotlight': 1,
-        }, cancelToken: cancelToken);
+        }, cancelToken: cancelToken, options: Options(listFormat: ListFormat.multiCompatible));
+        ensurePropertyFilterContract(response, filters);
         return MapEntry(section, brokerRows(response.data?['data']).map(PropertySummary.fromJson).toList(growable: false));
       }));
       feed = MarketplaceFeed(label: feed.label, governorate: feed.governorate, source: feed.source,
         brokers: feed.brokers, sections: Map.fromEntries(sections), sectionOrder: keys);
     }
-    if (query.purpose != null && feed.sections.values.expand((rows) => rows).any((row) => row.purpose != query.purpose)) {
+    if (purpose != null && feed.sections.values.expand((rows) => rows).any((row) => row.purpose != purpose)) {
       throw StateError('The public server returned properties for another purpose.');
     }
     if (cancelToken?.isCancelled != true && epoch == _cacheEpoch) {

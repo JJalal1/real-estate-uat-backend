@@ -1,0 +1,76 @@
+name: Wave01 precise acceptance
+on:
+  push:
+    branches: [work/wave01-complete-*]
+permissions:
+  contents: read
+concurrency:
+  group: wave01-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Protect the tested1436 baseline outside Wave01
+        run: python3 -B scripts/verify_wave01_scope.py
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve the existing locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Strict analysis without new diagnostics
+        working-directory: mobile_app
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Voice, recovery, themes and retained discovery behavior
+        working-directory: mobile_app
+        run: |
+          flutter test --reporter expanded test/in_app_voice_search_test.dart test/search_query_wave_test.dart test/branch2_voice_test.dart test/branch2_recovery_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart test/wave3_search_only_1393_test.dart test/app_theme_test.dart test/theme_preference_race_test.dart
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wave01-previews-${{ github.run_number }}
+          path: |
+            mobile_app/build/owner-ux-preview/*.png
+            mobile_app/build/broker-preview/voice-*.png
+          if-no-files-found: warn
+          retention-days: 7
+  laravel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer validate --no-check-publish
+      - name: Disposable local test environment
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+      - name: Shared schema and original assets
+        run: |
+          python3 ../scripts/generate_property_schema.py --check
+          python3 ../scripts/verify_aqer_brand.py
+      - name: Full Laravel regression
+        run: php artisan test --display-warnings --fail-on-warning --fail-on-risky

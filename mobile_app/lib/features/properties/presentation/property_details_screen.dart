@@ -307,13 +307,13 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                   mainAxisExtent: 39.rh(context) + (MediaQuery.sizeOf(context).width < 360 ? 18 : 0) + (MediaQuery.textScalerOf(context).scale(14) - 14) * 4.5),
                 itemBuilder: (context, index) => Row(children: [
                   Container(width: 36.rw(context), height: 36.rh(context), padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(color: EbrokerDesign.surface,
-                      borderRadius: BorderRadius.circular(4), border: Border.all(color: EbrokerDesign.border)),
-                    child: EbrokerIcon(facts[index].icon, size: 24, color: EbrokerDesign.text)),
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(4), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
+                    child: EbrokerIcon(facts[index].icon, size: 24, color: Theme.of(context).colorScheme.onSurface)),
                   SizedBox(width: 10.rw(context)),
                   Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      EbrokerText(_factLabel(facts[index].icon), size: 12, color: EbrokerDesign.textLight, maxLines: 1),
+                      EbrokerText(_factLabel(facts[index].icon), size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, maxLines: 1),
                       EbrokerText(facts[index].label, weight: FontWeight.w500, maxLines: 2),
                     ])),
                 ]))),
@@ -660,10 +660,10 @@ class _Gallery extends StatelessWidget {
                   child: GestureDetector(onTap: () => Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(builder: (_) => PropertyFullscreenGallery(images: images, initialIndex: index,privateImages:privateImages))),
                     child: Container(padding: EdgeInsets.symmetric(horizontal: 8.rw(context), vertical: 4.rh(context)),
-                      decoration: BoxDecoration(color: EbrokerDesign.surface,
-                        borderRadius: BorderRadius.circular(16), border: Border.all(color: EbrokerDesign.border)),
+                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const EbrokerImage('gallery', size: 14, color: EbrokerDesign.text),
+                        EbrokerImage('gallery', size: 14, color: Theme.of(context).colorScheme.onSurface),
                         SizedBox(width: 4.rw(context)),
                         EbrokerText('${images.length}', size: 12, weight: FontWeight.w600),
                       ]))))),

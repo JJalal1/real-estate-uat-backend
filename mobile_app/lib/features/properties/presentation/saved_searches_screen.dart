@@ -238,7 +238,7 @@ class _SavedSearchResultsPage extends ConsumerWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppAppBar(title: search.name),
-        body: SmartSearchAssistantLayer(onPressed: () {
+        body: SmartSearchAssistantLayer(mapFilters: SmartSearchFilters.fromApiFilters(search.filters), onPressed: () {
           context.push('/smart-search', extra:search);
         }, child: FutureBuilder<List<PropertyMarker>>(
           future: ref.read(savedSearchRepositoryProvider).results(search),

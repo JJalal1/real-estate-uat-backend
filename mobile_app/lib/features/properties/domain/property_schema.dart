@@ -39,10 +39,18 @@ abstract final class DynamicPropertySchema {
   static Map<String, dynamic> filters(Map<String, dynamic> input) {
     final result = Map<String, dynamic>.from(input);
     for (final entry in fields.entries) {
-      if (applies(entry.key, input)) continue;
+      if (appliesToFilters(entry.key, input)) continue;
       for (final key in (entry.value as Map)['filters'] as List? ?? const []) { result.remove(key); }
     }
     return result;
+  }
+
+  /// A shared constraint must be meaningful for every selected type. Listing
+  /// facts retain their original single-type applicability and write rules.
+  static bool appliesToFilters(String key, Map<String, dynamic> filters) {
+    final selected = filters['types'];
+    if (selected is! List || selected.isEmpty) return applies(key, filters);
+    return selected.every((type) => applies(key, {...filters, 'type': type}));
   }
 
   static Map<String, String> get floorOptions => {

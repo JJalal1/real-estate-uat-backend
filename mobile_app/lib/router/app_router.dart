@@ -72,17 +72,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }),
       ]),
       GoRoute(path: '/smart-search', builder: (context, state) {
-        final purpose = ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'];
+        final current = ref.read(marketplaceSearchControllerProvider);
+        final actor = ref.read(authControllerProvider).asData?.value?.id;
+        final entry = SmartSearchFilters.fromMap({...current.criteria.values,
+          if (current.submittedQuery.isNotEmpty) 'search': current.submittedQuery,
+          if (state.extra is SmartSearchFilters) ...(state.extra as SmartSearchFilters).values});
         return AssistedSearchScreen(
           savedSearch: state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null,
-          entryFilters: state.extra is SmartSearchFilters ? state.extra as SmartSearchFilters
-            : state.extra is SavedPropertySearch || purpose == null ? null : SmartSearchFilters.fromMap({'purpose': purpose}));
+          entryFilters: state.extra is SavedPropertySearch || entry.values.isEmpty ? null : entry,
+          onExitFilters: (filters) {
+            if (ref.read(authControllerProvider).asData?.value?.id != actor) return;
+            ref.read(marketplaceSearchControllerProvider.notifier).adoptMapSearch(filters,
+              applyMap: ref.read(marketplaceSearchControllerProvider).mapOpen);
+          });
       }),
       GoRoute(path: '/marketplace-search', builder: (context, state) => MarketplaceSearchScreen(
         openFilters: state.uri.queryParameters['filters'] == '1')),
       GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(
         section: state.uri.queryParameters['section'] ?? 'latest',
         governorate: state.uri.queryParameters['governorate'], type: state.uri.queryParameters['type'],
+        filters: state.extra is SmartSearchFilters ? state.extra as SmartSearchFilters : const SmartSearchFilters(),
         purpose: const ['sale', 'rent'].contains(state.uri.queryParameters['purpose']) ? state.uri.queryParameters['purpose'] : null,
         latitude:double.tryParse(state.uri.queryParameters['lat']??''),longitude:double.tryParse(state.uri.queryParameters['lon']??''))),
       GoRoute(path: '/brokers', builder: (context, state) => const BrokerDirectoryScreen()),

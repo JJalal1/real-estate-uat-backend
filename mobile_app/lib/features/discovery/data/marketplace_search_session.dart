@@ -57,8 +57,8 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   void leaveHomeSearch() => state = state.copyWith(active: false, editing: false);
 
   void prepareSearch({String? type}) {
-    final changed = state.criteria.values['type'] != type;
-    final next = Map<String, dynamic>.from(state.criteria.values)..remove('type');
+    final changed = state.criteria.values['type'] != type || state.criteria.values.containsKey('types');
+    final next = Map<String, dynamic>.from(state.criteria.values)..remove('type')..remove('types');
     if (type != null) next['type'] = type;
     state = state.copyWith(active: true, criteria: SmartSearchFilters.fromMap(next),
       editing: state.draftQuery.trim() != state.submittedQuery);
@@ -72,7 +72,14 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     if (state.criteria.values['purpose'] == purpose) return;
     final next = Map<String, dynamic>.from(state.criteria.values)..remove('purpose');
     if (purpose != null) next['purpose'] = purpose;
-    state = state.copyWith(criteria: SmartSearchFilters.fromMap(next));
+    _chooseScope(SmartSearchFilters.fromMap(next));
+  }
+
+  void chooseType(String type) => _chooseScope(state.criteria.toggleType(type));
+
+  void _chooseScope(SmartSearchFilters filters) {
+    if (filters.sameAs(state.criteria)) return;
+    state = state.copyWith(criteria: filters, landUse: filters.values['type'] == 'land' ? state.landUse : '');
     _lastSubmit = '';
     if (home.snapshot.started) {
       final filters = _filters(text: state.submittedQuery);
@@ -84,9 +91,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     }
   }
 
-  bool _sameFilters(SmartSearchFilters a, SmartSearchFilters b) =>
-    a.apiFilters.length == b.apiFilters.length &&
-    a.apiFilters.entries.every((entry) => b.apiFilters[entry.key] == entry.value);
+  bool _sameFilters(SmartSearchFilters a, SmartSearchFilters b) => a.sameAs(b);
 
   Future<void> submit({bool force = false}) async {
     if (!mounted || state.draftQuery.trim().length > 120) return;
@@ -107,9 +112,11 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   }
   void setChoice(String key, Object? value) {
     final next = Map<String, dynamic>.from(state.criteria.values);
+    if (key == 'type') next.remove('types');
     if (value == null || next[key] == value) { next.remove(key); } else { next[key] = value; }
     applyFilters(SmartSearchFilters.fromMap(next));
   }
+  void toggleType(String type) => applyFilters(state.criteria.toggleType(type));
   void applyFilters(SmartSearchFilters filters) {
     final next = Map<String, dynamic>.from(filters.values)
       ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || const ['governorate', 'search'].contains(key));
@@ -124,7 +131,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
 
   /// Accept the map assistant's semantic criteria while keeping its spatial
   /// snapshot on the map. Home retains its own location/scroll journey.
-  void adoptMapSearch(SmartSearchFilters filters) {
+  void adoptMapSearch(SmartSearchFilters filters, {bool applyMap = true}) {
     final next = Map<String, dynamic>.from(filters.values)
       ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || key == 'search');
     final text = filters.values['search']?.toString().trim() ?? '';
@@ -132,8 +139,12 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
       submittedQuery: text, landUse: '', active: true, editing: false);
     final homeFilters = _filters(text: text);
     _lastSubmit = jsonEncode(homeFilters.apiFilters);
-    unawaited(home.replaceManually(homeFilters));
-    unawaited(map.replaceManually(filters));
+    if (!home.snapshot.started || home.snapshot.resultsError != null || !home.snapshot.filters.sameAs(homeFilters)) {
+      unawaited(home.replaceManually(homeFilters));
+    }
+    if (applyMap && (!map.snapshot.started || map.snapshot.resultsError != null || !map.snapshot.filters.sameAs(filters))) {
+      unawaited(map.replaceManually(filters));
+    }
   }
   void setLandUse(String text) {
     // Existing listings have free-text declared use, not a legal classification
@@ -141,19 +152,22 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     state = state.copyWith(landUse: state.criteria.values['type'] == 'land' ? text.trim() : '');
     unawaited(submit(force: true));
   }
-  void enterMap() {
+  void enterMap({SmartSearchFilters? filters}) {
+    if (filters != null) {
+      adoptMapSearch(filters);
+      state = state.copyWith(mapOpen: true, active: true, editing: false);
+      return;
+    }
     state = state.copyWith(mapOpen: true, active: true, editing: false);
     // Opening the map applies the current editor through the same guarded
     // submit path, including Home results previously loaded for another text.
     unawaited(submit());
-    final filters = _filters(text: state.submittedQuery, onMap: true);
-    final previous = map.snapshot.filters.apiFilters, next = filters.apiFilters;
-    if (!map.snapshot.started || map.snapshot.resultsError != null || previous.length != next.length ||
-        next.entries.any((entry) => previous[entry.key] != entry.value)) {
+    final nextFilters = _filters(text: state.submittedQuery, onMap: true);
+    if (!map.snapshot.started || map.snapshot.resultsError != null || !map.snapshot.filters.sameAs(nextFilters)) {
       // A repeated entry preserves the map's independent viewport and rows.
       // submit() may already have started this exact request synchronously.
-      unawaited(map.replaceManually(filters,
-        retainedRows: _sameFilters(home.snapshot.filters, filters) ? home.snapshot.rows : const []));
+      unawaited(map.replaceManually(nextFilters,
+        retainedRows: _sameFilters(home.snapshot.filters, nextFilters) ? home.snapshot.rows : const []));
     }
   }
   void leaveMap() { if (mounted) state = state.copyWith(mapOpen: false, editing: false); }

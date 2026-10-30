@@ -52,6 +52,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   }
   bool get _localAutomatic => _local != null && isAutomaticListingRecovery(_local!) &&
     !_drafts.any((draft) => draft.key == _local!['draft_key'] && !draft.isRecovery);
+  bool get _hasRecoverableWork => _local != null || _savedLocal.isNotEmpty || _drafts.isNotEmpty || _legacy.isNotEmpty;
   List<Map<String, dynamic>> get _deviceDrafts {
     final byKey = <String, Map<String, dynamic>>{};
     for (final row in _savedLocal) { if (row['draft_key'] is String) byKey[row['draft_key'] as String] = row; }
@@ -65,7 +66,10 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     final request = ++_request;
     setState(() { _loading = true; _error = null; });
     try {
-      final device = await Future.wait<dynamic>([_store.read(widget.actor, null), _store.saved(widget.actor)]);
+      final device = await Future.wait<dynamic>([
+        _store.read(widget.actor, null).timeout(const Duration(seconds: 15)),
+        _store.saved(widget.actor).timeout(const Duration(seconds: 15)),
+      ]);
       if (!_current || request != _request) return;
       _local = device[0] as Map<String, dynamic>?; _savedLocal = device[1] as List<Map<String, dynamic>>;
       final rows = await Future.wait<dynamic>([
@@ -79,7 +83,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
         _property = widget.existingProperty;
         for (final draft in _drafts) { if (draft.propertyId == _property!.id) _selected = draft; }
         _open = true;
-      } else if (!_showSaved && !_localAutomatic && _automatic == null) {
+      } else if (!_showSaved && !_hasRecoverableWork) {
         await _protectSavedLocal();
         if (_current) { _fresh = true; _assistant = widget.startWithAssistant; _open = true; }
       }
@@ -118,14 +122,19 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       _assistant = data['entry_method'] == 'assistant' && data['completion_only'] != true;
     });
   }
+  void _resumeProperty(PropertyDetails property) {
+    if (_working || _loading || !_current) return;
+    setState(() { _property = property; _assistant = false; _fresh = false; _open = true; });
+  }
   Future<bool> _confirm(String title, String content) async => await showDialog<bool>(context: context,
     builder: (context) => AlertDialog(title: Text(title), content: Text(content), actions: [
       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('رجوع')),
       TextButton(key: const ValueKey('listing-confirm-discard'), onPressed: () => Navigator.pop(context, true), child: const Text('تأكيد')),
     ])) == true;
   Future<void> _startNew() async {
-    if (_working || _loading || !_current) return;
-    if (!await _confirm('بدء إعلان جديد؟', 'سيُحذف التقدم التلقائي المعروض فقط. تبقى المسودات التي حفظتها في «مسوداتي».')) return;
+    if (_working || _loading || _error != null || !_current) return;
+    if ((_localAutomatic || _automatic != null) &&
+        !await _confirm('بدء إعلان جديد؟', 'سيُستبدل التقدم التلقائي المعروض فقط. تبقى المسودات التي حفظتها صراحة في «مسوداتي» دون حذف.')) return;
     if (!_current) return;
     setState(() { _working = true; _error = null; });
     try {
@@ -182,8 +191,10 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       return _selected != null || _property != null || _editorLocal != null ? editor : PersonalListingCreationGate(child: editor);
     }
     if (_showSaved) return _saved();
-    final remote = _automatic;
-    final local = _localAutomatic ? _local : null;
+    final remote = _automatic ?? (_drafts.isEmpty ? null : _drafts.first);
+    final local = _localAutomatic ? _local : _automatic != null ? null
+      : _local ?? (remote == null && _savedLocal.isNotEmpty ? _savedLocal.first : null);
+    final legacy = local == null && remote == null && _legacy.isNotEmpty ? _legacy.first : null;
     final title = (local?['fields'] as Map?)?['title']?.toString().trim();
     final previousAssistant = local != null ? local['entry_method'] == 'assistant' : remote?.entryMethod == 'assistant';
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(backgroundColor: Colors.transparent,
@@ -194,14 +205,21 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
           Text(_loading ? 'التحقق من التقدم المحفوظ…' : 'لديك إعلان غير مكتمل', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           if (_loading || _working || _error != null) AppRefreshStatus(loading: _loading || _working, error: _error, onRetry: _load),
-          if (!_loading && (local != null || remote != null)) ...[
-            Text(title?.isNotEmpty == true ? title! : remote?.title ?? 'تقدم تلقائي محفوظ على جهازك'),
+          if (!_loading && (local != null || remote != null || legacy != null)) ...[
+            Text(title?.isNotEmpty == true ? title! : remote?.title ?? legacy?.title ?? 'إعلان محفوظ على جهازك'),
             if (remote != null && local == null) ...[const SizedBox(height: 8), LinearProgressIndicator(value: remote.progress / 100), Text('${remote.progress}% من البيانات الأساسية')],
             if (previousAssistant != widget.startWithAssistant) Text(previousAssistant ? 'ستتابع مسار الذكاء الاصطناعي السابق.' : 'ستتابع مسار التعبئة اليدوية السابق.'),
             const SizedBox(height: 16),
             AppButton(key: const ValueKey('listing-recovery-resume'), label: 'متابعة الإعلان', expand: true,
-              onPressed: _working ? null : () { if (local != null) { _resumeLocal(local); } else { _resume(remote!); } }),
-            TextButton(key: const ValueKey('listing-recovery-new'), onPressed: _working ? null : _startNew, child: const Text('بدء إعلان جديد')),
+              onPressed: _working ? null : () {
+                if (local != null) { _resumeLocal(local); }
+                else if (remote != null) { _resume(remote); }
+                else { _resumeProperty(legacy!); }
+              }),
+            TextButton(key: const ValueKey('listing-recovery-new'), onPressed: _working || _error != null ? null : _startNew,
+              child: const Text('بدء إعلان جديد')),
+            if (local != null && !_localAutomatic || remote != null && !remote.isRecovery || legacy != null)
+              const Text('تظل مسوداتك المحفوظة في «مسوداتي» عند بدء إعلان جديد.'),
           ],
           TextButton(key: const ValueKey('listing-saved-drafts'), onPressed: _working ? null : () => setState(() => _showSaved = true), child: const Text('مسوداتي')),
           TextButton(onPressed: _working ? null : () => Navigator.of(context).maybePop(), child: const Text('رجوع')),
@@ -217,7 +235,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
         subtitle: const Text('بيانات محلية محفوظة؛ قد تحتاج مزامنة الحساب'), onTap: _working ? null : () => _resumeLocal(data),
         trailing: IconButton(tooltip: 'حذف المسودة المحلية', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _deleteLocal(data))),
       for (final property in _legacy.where((p) => !_drafts.any((d) => d.propertyId == p.id))) ListTile(
-        title: Text(property.title), subtitle: const Text('إعلان محفوظ في المسودات'), onTap: _working ? null : () => setState(() { _property = property; _assistant = false; _open = true; }), trailing: IconButton(tooltip: 'حذف الإعلان المحفوظ', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _deleteLegacy(property))),
+        title: Text(property.title), subtitle: const Text('إعلان محفوظ في المسودات'), onTap: _working ? null : () => _resumeProperty(property), trailing: IconButton(tooltip: 'حذف الإعلان المحفوظ', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _deleteLegacy(property))),
       if (!_loading && _drafts.isEmpty && _legacy.isEmpty && _deviceDrafts.isEmpty) const Text('لا توجد مسودات محفوظة.'),
     ])));
 }

@@ -62,14 +62,15 @@ class _InlineVoiceCaptureState extends State<InlineVoiceCapture> with SingleTick
       const SizedBox(height: 8),
       Text(capture.liveDictation ? 'يظهر الكلام أثناء الحديث. ننهي الإملاء بعد صمت قصير؛ يمكنك إنهاؤه الآن.'
         : 'هذا وضع تسجيل مقطع كامل؛ يظهر النص بعد التفريغ. يمكنك الكتابة بدلًا منه.', style: theme.textTheme.bodySmall),
-      if (capture.liveDictation && capture.preview.isNotEmpty) Text(capture.preview == capture.stablePreview
-        ? 'المقاطع السابقة مثبتة. راجع النص قبل استخدامه.' : 'آخر الكلمات قيد التعرّف…', style: theme.textTheme.bodySmall),
+      if (capture.liveDictation && capture.preview.isNotEmpty)
+        Text('النص الظاهر معاينة حتى اكتمال الإملاء.', style: theme.textTheme.bodySmall),
       const SizedBox(height: 8),
       Wrap(spacing: 12, alignment: WrapAlignment.end, children: [
         TextButton.icon(key: const ValueKey('voice-cancel'), onPressed: widget.onCancel,
           icon: const EbrokerIcon(Icons.close, size: 18), label: const Text('إلغاء')),
         if (listening && widget.onRestart != null) TextButton(key: const ValueKey('voice-restart'), onPressed: widget.onRestart, child: const Text('ابدأ من جديد')),
-        if (listening) TextButton(key: const ValueKey('voice-finish'), onPressed: capture.stop, child: const Text('إنهاء التسجيل')),
+        if (listening) TextButton(key: const ValueKey('voice-finish'), onPressed: capture.stop,
+          child: Text(capture.liveDictation ? 'إنهاء الإملاء' : 'إنهاء التسجيل')),
       ]),
     ]);
   }

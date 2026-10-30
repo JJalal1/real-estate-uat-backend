@@ -88,7 +88,7 @@ void main() {
     expect(tester.widget<TextField>(brief).controller!.text, 'كتبت هذا حمامين');
     expect(find.byKey(const ValueKey('listing-ai-field-type')), findsNothing);
     expect(find.byKey(const ValueKey('listing-ai-prepare')), findsOneWidget);
-    expect(find.byKey(const ValueKey('listing-voice-clip')), findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-voice-clip')), findsNothing);
     await finishWave6(tester);
   });
   testWidgets('D01 D06 description displays live hypotheses but only saves finalized speech', (tester) async {

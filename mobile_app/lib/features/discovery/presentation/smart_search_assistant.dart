@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../properties/presentation/property_compare_actions.dart';
+import '../data/marketplace_search_session.dart';
+import '../domain/smart_search_filters.dart';
 
 /// A presentation preference only; it never contains search or account data.
 class AssistantHintStore {
@@ -36,11 +38,15 @@ final assistantHintStoreProvider = Provider<AssistantHintStore>((ref) => Assista
 /// Install only on public browsing bodies, above their bottom navigation.
 /// Physical left placement is intentional for the Arabic product reference.
 class SmartSearchAssistantLayer extends ConsumerStatefulWidget {
-  const SmartSearchAssistantLayer({required this.child, this.onPressed, this.bottom = 20, this.enabled = true, this.showComparisonTray = true, super.key});
+  const SmartSearchAssistantLayer({required this.child, this.onPressed, this.bottom = 20, this.enabled = true,
+    this.showComparisonTray = true, this.showMapButton = true, this.onOpenMap, this.mapFilters, super.key});
   final Widget child;
   final VoidCallback? onPressed;
   final double bottom;
   final bool enabled, showComparisonTray;
+  final bool showMapButton;
+  final Future<void> Function()? onOpenMap;
+  final SmartSearchFilters? mapFilters;
 
   @override
   ConsumerState<SmartSearchAssistantLayer> createState() => _AssistantLayerState();
@@ -56,6 +62,19 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
     ref.read(brokerAssistantMenuProvider.notifier).state = false;
     _openingAction = true;
     try { await context.push(search ? '/smart-search' : '/add-property?assistant=1'); } finally { _openingAction = false; }
+  }
+
+  Future<void> _openMap() async {
+    if (_openingAction) return;
+    _openingAction = true; _dismissHint();
+    ref.read(brokerAssistantMenuProvider.notifier).state = false;
+    try {
+      if (widget.onOpenMap != null) { await widget.onOpenMap!(); }
+      else {
+        if (widget.mapFilters != null) ref.read(marketplaceSearchControllerProvider.notifier).enterMap(filters: widget.mapFilters);
+        if (mounted) await context.push('/marketplace-search-map');
+      }
+    } finally { _openingAction = false; }
   }
 
   @override
@@ -102,6 +121,11 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
               ]),
             )),
           )),
+          if (widget.showMapButton && !menuOpen) Padding(padding: const EdgeInsets.only(bottom: 10), child: Material(
+            color: scheme.surface, elevation: 3, shape: const CircleBorder(),
+            child: IconButton(key: const ValueKey('floating-map-search'), onPressed: _openMap,
+              tooltip: 'الخريطة', constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
+              icon: Icon(Icons.map_outlined, color: scheme.primary)))),
           AnimatedBuilder(animation: _motion, builder: (context, child) => Transform.rotate(
             angle: math.sin(_motion.value * math.pi * 2) * .055,
             child: Transform.scale(scale: 1 + math.sin(_motion.value * math.pi) * .035, child: child),

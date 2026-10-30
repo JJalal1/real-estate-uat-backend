@@ -185,13 +185,13 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     });
   }
 
-  Future<void> _voice({bool wholeRecording = false}) async {
+  Future<void> _voice() async {
     if (_busy || _voiceBusy) return;
     FocusScope.of(context).unfocus(); _voiceDraft = _message.text;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() => _error = null);
     final turn = ++_voiceTurn;
-    final text = await _capture.start(wholeRecording: wholeRecording);
+    final text = await _capture.start();
     if (mounted && turn == _voiceTurn && actor == ref.read(authControllerProvider).asData?.value?.id) await _acceptVoice(text);
   }
   Future<void> _retryVoice() async {
@@ -272,10 +272,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 5000, minLines: 2, maxLines: 5, enabled: !_busy, readOnly: _voiceBusy,
             decoration: InputDecoration(labelText: _voiceBusy ? null : 'صف العقار', floatingLabelBehavior: FloatingLabelBehavior.never,
               hintText: _voiceBusy ? null : 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…')),
-          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, onRestart: _restartVoice, listeningLabel: 'جارٍ التسجيل'),
+          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, onRestart: _restartVoice, listeningLabel: 'جارٍ إملاء تفاصيل العقار'),
           if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _busy ? null : () => _voice(),
             key: const ValueKey('listing-ai-voice'),
-            icon: const EbrokerIcon(Icons.mic_none, size: 20), label: Text(_capture.error != null ? 'إعادة التسجيل' : 'سجّل تفاصيل العقار'))),
+            icon: const EbrokerIcon(Icons.mic_none, size: 20), label: Text(_capture.error != null ? 'إعادة الإملاء' : 'أمْلِ تفاصيل العقار'))),
           if (_capture.canRetry) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
             key: const ValueKey('listing-ai-retry-transcription'), onPressed: _busy ? null : _retryVoice,
             icon: const Icon(Icons.refresh_rounded, size: 19), label: const Text('إعادة محاولة التفريغ'))),
@@ -283,8 +283,6 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         if (!_voiceBusy && !_busy) Wrap(spacing: 8, children: [
           if (_lastVoiceBase != null && _message.text == _lastVoiceText) TextButton(key: const ValueKey('listing-voice-restart'),
             onPressed: _restartVoice, child: const Text('ابدأ الإملاء من جديد')),
-          TextButton(key: const ValueKey('listing-voice-clip'), onPressed: () => _voice(wholeRecording: true),
-            child: const Text('تسجيل مقطع كامل (بديل)')),
         ]),
         SizedBox(key: _resultKey),
         if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),

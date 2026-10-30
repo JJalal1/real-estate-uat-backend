@@ -8,9 +8,12 @@ import '../../properties/presentation/property_summary_card.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
 import 'smart_search_assistant.dart';
+import '../domain/smart_search_filters.dart';
 
 class MarketplaceSectionScreen extends ConsumerStatefulWidget {
-  const MarketplaceSectionScreen({this.section = 'latest', this.governorate, this.type, this.purpose, this.latitude, this.longitude, super.key});
+  const MarketplaceSectionScreen({this.section = 'latest', this.governorate, this.type, this.purpose, this.latitude, this.longitude,
+    this.filters = const SmartSearchFilters(), super.key});
+  final SmartSearchFilters filters;
   final String section;
   final double? latitude, longitude;
   final String? governorate, type, purpose;
@@ -30,7 +33,7 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
   @override
   void didUpdateWidget(MarketplaceSectionScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.section != widget.section || oldWidget.governorate != widget.governorate || oldWidget.type != widget.type || oldWidget.purpose != widget.purpose || oldWidget.latitude != widget.latitude || oldWidget.longitude != widget.longitude) {
+    if (oldWidget.section != widget.section || oldWidget.governorate != widget.governorate || oldWidget.type != widget.type || oldWidget.purpose != widget.purpose || oldWidget.latitude != widget.latitude || oldWidget.longitude != widget.longitude || !oldWidget.filters.sameAs(widget.filters)) {
       _rows.clear(); _page = 0; _more = false; _busy = true; _error = null;
       _transfer?.cancel('Section changed'); _request++;
       Future.microtask(_load);
@@ -47,6 +50,7 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
     setState(() { _busy = true; _error = null; });
     try {
       final r = await ref.read(propertyRepositoryProvider).searchListings({
+        ...widget.filters.apiFilters,
         if (widget.governorate != null) 'governorate': widget.governorate,
         if (widget.type != null) 'type': widget.type,
         if (widget.purpose != null) 'purpose': widget.purpose
@@ -69,7 +73,15 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
   Widget build(BuildContext context) {
     final title = switch (widget.section) { 'nearby'=>'قريبة منك', 'spotlight' => 'عقارات مميزة', 'sale' => 'عقارات للبيع', 'rent' => 'عقارات للإيجار', _ => 'أحدث العقارات' };
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(appBar: AppAppBar(title: title),
-      body: SmartSearchAssistantLayer(child: RefreshIndicator(onRefresh: _load, child: ListView.builder(
+      body: SmartSearchAssistantLayer(mapFilters: SmartSearchFilters.fromApiFilters({...widget.filters.apiFilters,
+        if (widget.governorate != null) 'governorate': widget.governorate,
+        if (widget.type != null) 'type': widget.type,
+        if (widget.purpose != null) 'purpose': widget.purpose
+        else if (const ['sale', 'rent'].contains(widget.section)) 'purpose': widget.section,
+        if (widget.section == 'nearby' && widget.latitude != null && widget.longitude != null)
+          ...{'latitude': widget.latitude, 'longitude': widget.longitude, 'radius_km': 30},
+        if (widget.section == 'spotlight') 'spotlight': 1,
+      }), child: RefreshIndicator(onRefresh: _load, child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 110), cacheExtent: 300,
         physics: const AlwaysScrollableScrollPhysics(), itemCount: _rows.length + 2,
         itemBuilder: (context, index) {

@@ -423,13 +423,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     else if (_lastDescriptionVoiceBase != null && _description.text == _lastDescriptionVoiceText) { _description.text = _lastDescriptionVoiceBase!; }
     unawaited(_dictateDescription());
   }
-  Future<void> _dictateDescription({bool retry = false, bool wholeRecording = false}) async {
+  Future<void> _dictateDescription({bool retry = false}) async {
     if (_busy || _descriptionBusy || _descriptionCapture.active) return;
     FocusScope.of(context).unfocus();
     _recoveryTimer?.cancel();
     _descriptionVoiceBase = _description.text;
     final actor = ref.read(authControllerProvider).asData?.value?.id, turn = ++_descriptionVoiceTurn;
-    final text = retry ? await _descriptionCapture.retryTranscription() : await _descriptionCapture.start(wholeRecording: wholeRecording);
+    final text = retry ? await _descriptionCapture.retryTranscription() : await _descriptionCapture.start();
     if (!mounted || turn != _descriptionVoiceTurn || actor != ref.read(authControllerProvider).asData?.value?.id) return;
     final complete = text ?? (_descriptionCapture.error != null ? _descriptionCapture.stablePreview : '');
     _description.text = appendDictation(_descriptionVoiceBase, complete);
@@ -1444,7 +1444,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           listeningLabel: 'جارٍ إملاء الوصف', onCancel: _cancelDescriptionVoice, onRestart: _restartDescriptionVoice),
         if (!_descriptionCapture.active && !_busy && !_descriptionBusy) Wrap(spacing: 8, children: [
           if (_lastDescriptionVoiceBase != null && _description.text == _lastDescriptionVoiceText) TextButton(onPressed: _restartDescriptionVoice, child: const Text('ابدأ الإملاء من جديد')),
-          TextButton(onPressed: () => _dictateDescription(wholeRecording: true), child: const Text('تسجيل مقطع كامل (بديل)')),
         ]),
         if (!_descriptionCapture.active) TextButton.icon(key: const ValueKey('listing-description-voice'),
           onPressed: _busy || _descriptionBusy ? null : _dictateDescription,

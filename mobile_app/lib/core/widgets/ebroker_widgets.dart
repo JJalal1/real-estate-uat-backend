@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/ebroker_design.dart';
 import '../theme/app_tokens.dart';
+import '../theme/app_semantic_colors.dart';
 import 'property_type_icon.dart';
 
 class EbrokerIcon extends StatelessWidget {
@@ -74,7 +75,7 @@ class EbrokerIcon extends StatelessWidget {
     if (asset == null) return Icon(icon, size: size, color: color, semanticLabel: semanticLabel, textDirection: textDirection);
     return Semantics(label: semanticLabel, child: EbrokerImage(asset,
       size: size ?? IconTheme.of(context).size ?? 24,
-      color: color ?? IconTheme.of(context).color ?? EbrokerDesign.text));
+      color: color ?? IconTheme.of(context).color ?? Theme.of(context).colorScheme.onSurface));
   }
 }
 
@@ -110,7 +111,7 @@ class EbrokerText extends StatelessWidget {
     maxLines: maxLines, overflow: TextOverflow.ellipsis, softWrap: true,
     textAlign: align,
     style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: size.rf(context),
-      fontWeight: weight, color: color ?? EbrokerDesign.text, height: 1.3),
+      fontWeight: weight, color: color ?? DefaultTextStyle.of(context).style.color ?? Theme.of(context).colorScheme.onSurface, height: 1.3),
   );
 }
 
@@ -132,7 +133,7 @@ class EbrokerButton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final states = <WidgetState>{if (onPressed == null || loading) WidgetState.disabled};
     final foreground = style?.foregroundColor?.resolve(states) ??
-      (outlined || tonal ? scheme.primary : Colors.white);
+      (outlined || tonal ? scheme.primary : scheme.onPrimary);
     final background = style?.backgroundColor?.resolve(states) ??
       (outlined ? Colors.transparent : tonal ? scheme.primaryContainer : scheme.primary);
     return MaterialButton(
@@ -208,20 +209,22 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
           onTap: enabled ? () => onSelectionChanged!(
             active && emptySelectionAllowed ? <T>{} : {segment.value}) : null,
           child: Container(
+            constraints: const BoxConstraints(minHeight: 48),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(color: active ? Theme.of(context).colorScheme.primaryContainer : EbrokerDesign.surface,
+            decoration: BoxDecoration(color: active ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: active ? primary : EbrokerDesign.border,
+              border: Border.all(color: active ? primary : Theme.of(context).colorScheme.outlineVariant,
                 width: active ? 1.5 : 1)),
             child: DefaultTextStyle(
               style: TextStyle(fontFamily: 'PrimaryFont',
                 fontFamilyFallback: const ['sans-serif'],
-                fontSize: 14.rf(context), height: 1.3, color: EbrokerDesign.text,
+                fontSize: 14.rf(context), height: 1.3, color: active
+                  ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurface,
                 fontWeight: active ? FontWeight.w500 : FontWeight.w400),
               child: Row(mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min, children: [
                 if (showSelectedIcon) ...[
                   Icon(active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                    size: 20, color: active ? primary : EbrokerDesign.textLight),
+                    size: 20, color: active ? primary : Theme.of(context).colorScheme.onSurfaceVariant),
                   SizedBox(width: 8.rh(context)),
                 ],
                 if (segment.icon != null) ...[segment.icon!, SizedBox(width: 8.rh(context))],
@@ -241,16 +244,23 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
           ],
         ]);
       }
-      final stacked = constraints.maxWidth < 400 && MediaQuery.textScalerOf(context).scale(14) > 20;
-      if (stacked) {
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [for (var i = 0; i < segments.length; i++) ...[
-            if (i > 0) SizedBox(height: 12.rh(context)), option(segments[i]),
-          ]]);
+      if (segments.isEmpty) return const SizedBox.shrink();
+      var minimum = 0.0;
+      for (final segment in segments) {
+        final label = segment.label;
+        final painter = TextPainter(textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context),
+          text: TextSpan(text: label is Text ? label.data : null, children: label is Text && label.data == null ? [label.textSpan!] : null,
+            style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: 14.rf(context))))..layout();
+        final needed = (label is Text ? painter.width : MediaQuery.textScalerOf(context).scale(90)) + 28 +
+          (showSelectedIcon ? 28 : 0) + (segment.icon == null ? 0 : 28);
+        if (needed > minimum) minimum = needed;
+        painter.dispose();
       }
-      return Row(children: [for (var i = 0; i < segments.length; i++) ...[
-        if (i > 0) SizedBox(width: 12.rh(context)), Expanded(child: option(segments[i])),
-      ]]);
+      final columns = ((constraints.maxWidth + 12) / (minimum + 12)).floor().clamp(1, segments.length);
+      final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
+      return Wrap(spacing: 12, runSpacing: 12, children: [
+        for (final segment in segments) SizedBox(width: width, child: option(segment)),
+      ]);
     });
   }
 }
@@ -270,14 +280,14 @@ class EbrokerChoiceChip extends StatelessWidget {
     child: GestureDetector(onTap: onSelected == null ? null : () => onSelected!(!selected),
       child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? Theme.of(context).colorScheme.primaryContainer : Colors.white,
-          border: Border.all(color: selected ? Theme.of(context).colorScheme.primary.withValues(alpha: .25) : EbrokerDesign.border),
+          color: selected ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
+          border: Border.all(color: selected ? Theme.of(context).colorScheme.primary.withValues(alpha: .5) : Theme.of(context).colorScheme.outlineVariant),
           borderRadius: BorderRadius.circular(999)),
         child: DefaultTextStyle(style: TextStyle(fontFamily: 'PrimaryFont',
           fontFamilyFallback: const ['sans-serif'],
           fontSize: 14.rf(context), height: 1.3,
-          color: selected ? Theme.of(context).colorScheme.onPrimaryContainer : EbrokerDesign.text),
-          child: IconTheme(data: IconThemeData(color: selected ? Theme.of(context).colorScheme.primary : EbrokerDesign.text),
+          color: selected ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurface),
+          child: IconTheme(data: IconThemeData(color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               if (avatar != null) ...[avatar!, const SizedBox(width: 8)],
               Flexible(child: label),
@@ -320,14 +330,14 @@ class EbrokerWizardCategoryCard extends StatelessWidget {
     return Semantics(button: true, selected: selected, enabled: onTap != null,
       child: GestureDetector(onTap: onTap,
         child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-          decoration: BoxDecoration(color: selected ? Theme.of(context).colorScheme.primaryContainer : EbrokerDesign.surface,
+          decoration: BoxDecoration(color: selected ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: selected ? primary : EbrokerDesign.border.withValues(alpha: .7))),
+            border: Border.all(color: selected ? primary : Theme.of(context).colorScheme.outlineVariant)),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            PropertyTypeIcon(label: label, size: 28.rw(context), color: selected ? primary : EbrokerDesign.text),
+            PropertyTypeIcon(label: label, size: 28.rw(context), color: selected ? primary : Theme.of(context).colorScheme.onSurface),
             SizedBox(height: 6.rh(context)),
             EbrokerText(label, size: 12, weight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected ? primary : EbrokerDesign.text, align: TextAlign.center, maxLines: 1),
+              color: selected ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurface, align: TextAlign.center, maxLines: 2),
           ]),
         ),
       ),
@@ -342,7 +352,7 @@ class EbrokerPropertyPlaceholder extends StatelessWidget {
   final double size;
   final String? type;
   @override
-  Widget build(BuildContext context) => ColoredBox(color: EbrokerDesign.page,
+  Widget build(BuildContext context) => ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerLow,
     child: LayoutBuilder(builder: (context, constraints) {
       final captionHeight = MediaQuery.textScalerOf(context).scale(12.rf(context)) * 1.3;
       final compact = constraints.maxHeight < size + 4 + captionHeight;
@@ -370,7 +380,7 @@ class EbrokerTitleHeader extends StatelessWidget {
       Expanded(child: EbrokerText(title, size: 16, weight: FontWeight.w700, maxLines: 2)),
       if (onSeeAll != null) InkWell(onTap: onSeeAll,
         child: Padding(padding: const EdgeInsetsDirectional.only(start: 4),
-          child: EbrokerText(action, size: 12, color: EbrokerDesign.textLight))),
+          child: EbrokerText(action, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))),
     ]),
   );
 }
@@ -391,8 +401,8 @@ class EbrokerCategoryCard extends StatelessWidget {
           decoration: BoxDecoration(color: selected ? scheme.secondary : scheme.surface,
             border: Border.all(color: selected ? scheme.secondary : scheme.outlineVariant), borderRadius: BorderRadius.circular(999)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            PropertyTypeIcon(label: label, size: 18, color: selected ? Colors.white : scheme.primary), const SizedBox(width: 8),
-            EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? Colors.white : scheme.onSurface, maxLines: 1),
+            PropertyTypeIcon(label: label, size: 18, color: selected ? scheme.onSecondary : scheme.primary), const SizedBox(width: 8),
+            EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? scheme.onSecondary : scheme.onSurface, maxLines: 1),
           ])))));
   }
 }
@@ -403,9 +413,12 @@ class EbrokerPurposeLabel extends StatelessWidget {
   final String label;
   @override
   Widget build(BuildContext context) {
-    final color = label.contains('إيجار') ? const Color(0xFF896024) : const Color(0xFF1C6092);
+    final theme = Theme.of(context);
+    final semantic = theme.extension<AppSemanticColors>() ?? (theme.brightness == Brightness.dark ? AppSemanticColors.dark : AppSemanticColors.light);
+    final rent = label.contains('إيجار');
+    final color = rent ? semantic.onWarningContainer : semantic.onInfoContainer;
     return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(48)),
+      decoration: BoxDecoration(color: rent ? semantic.warningContainer : semantic.infoContainer, borderRadius: BorderRadius.circular(48)),
       child: EbrokerText(label, size: 11, weight: FontWeight.w500, color: color));
   }
 }
@@ -426,12 +439,12 @@ class EbrokerProfileTile extends StatelessWidget {
         if (leading != null) ...[
           Container(padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(14)),
-            child: IconTheme(data: const IconThemeData(size: 24, color: EbrokerDesign.text), child: leading!)),
+            child: IconTheme(data: IconThemeData(size: 24, color: Theme.of(context).colorScheme.onSecondaryContainer), child: leading!)),
           const SizedBox(width: 8),
         ],
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           EbrokerText(title, size: 16, weight: FontWeight.w700),
-          if (subtitle != null) EbrokerText(subtitle!, size: 12, color: EbrokerDesign.textLight),
+          if (subtitle != null) EbrokerText(subtitle!, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ])),
         if (trailing != null) trailing!,
       ]),

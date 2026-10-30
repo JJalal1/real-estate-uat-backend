@@ -53,7 +53,7 @@ class _SavedSearchBuilderScreenState
   late final TextEditingController _maxArea;
   late Map<String, dynamic> _baseFilters;
   String? _purpose;
-  String? _type;
+  late Set<String> _types;
   String? _currency;
   bool _monthlyBudget = false;
   String _frequency = 'instant';
@@ -69,7 +69,10 @@ class _SavedSearchBuilderScreenState
     final filters = widget.existingSearch?.filters ?? widget.initialFilters;
     _baseFilters = Map<String, dynamic>.from(filters);
     _purpose = _nullable(filters['purpose']);
-    _type = _nullable(filters['type']);
+    _types = SmartSearchFilters.fromApiFilters(filters).selectedTypes.toSet();
+    if (filters['type'] == 'floor') {
+      _baseFilters..remove('type')..addAll({'type': 'apartment', 'unit_occupies_entire_floor': true});
+    }
     _currency = _nullable(filters['currency']);
     _monthlyBudget = filters.containsKey('min_monthly_rent') || filters.containsKey('max_monthly_rent');
     _keywords = TextEditingController(text: _nullable(filters['search']) ?? '');
@@ -102,13 +105,15 @@ class _SavedSearchBuilderScreenState
     super.dispose();
   }
 
-  Map<String,dynamic> get _schemaContext=>{'type':_type,'purpose':_purpose};
+  Map<String,dynamic> get _schemaContext => SmartSearchFilters.fromMap({
+    'types': _types.toList(growable: false), if (_purpose != null) 'purpose': _purpose,
+  }).values;
   void _clearIrrelevant(){
-    if(!DynamicPropertySchema.applies('bedrooms',_schemaContext))_minBedrooms.clear();
-    if(!DynamicPropertySchema.applies('bathrooms',_schemaContext))_minBathrooms.clear();
-    if(!DynamicPropertySchema.applies('area_value',_schemaContext)){_minArea.clear();_maxArea.clear();}
-    _baseFilters..remove('type')..remove('purpose');
-    _baseFilters=DynamicPropertySchema.filters({..._baseFilters,if(_type!=null)'type':_type,if(_purpose!=null)'purpose':_purpose});
+    if(!DynamicPropertySchema.appliesToFilters('bedrooms',_schemaContext))_minBedrooms.clear();
+    if(!DynamicPropertySchema.appliesToFilters('bathrooms',_schemaContext))_minBathrooms.clear();
+    if(!DynamicPropertySchema.appliesToFilters('area_value',_schemaContext)){_minArea.clear();_maxArea.clear();}
+    _baseFilters..remove('type')..remove('types')..remove('purpose');
+    _baseFilters=DynamicPropertySchema.filters({..._baseFilters, ..._schemaContext});
   }
 
   @override
@@ -168,7 +173,7 @@ class _SavedSearchBuilderScreenState
               segments: const [
                 ButtonSegment(
                   value: 'sale',
-                  label: Text('شراء'),
+                  label: Text('بيع'),
                   icon: EbrokerIcon(Icons.sell_outlined),
                 ),
                 ButtonSegment(
@@ -183,22 +188,15 @@ class _SavedSearchBuilderScreenState
                   setState(() { _purpose = value.isEmpty ? null : value.first; _monthlyBudget = _purpose == 'rent'; _clearIrrelevant(); }),
             ),
             const SizedBox(height: AppSpacing.s12),
-            DropdownButtonFormField<String>(
-              value: _type,
-              decoration: const InputDecoration(labelText: 'نوع العقار'),
-              items: const [
-                DropdownMenuItem(value: 'apartment', child: Text('شقة')),
-                DropdownMenuItem(value: 'house', child: Text('منزل')),
-                DropdownMenuItem(value: 'villa', child: Text('فيلا')),
-                DropdownMenuItem(value: 'building', child: Text('عمارة')),
-                DropdownMenuItem(value: 'floor', child: Text('دور كامل')),
-                DropdownMenuItem(value: 'land', child: Text('أرض')),
-                DropdownMenuItem(value: 'shop', child: Text('محل')),
-                DropdownMenuItem(value: 'office', child: Text('مكتب')),
-                DropdownMenuItem(value: 'farm', child: Text('مزرعة')),
-              ],
-              onChanged: _saving ? null : (value) => setState(() { _type = value; _clearIrrelevant(); }),
-            ),
+            Text('نوع العقار', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [for (final type in SmartSearchFilters.types.entries)
+              EbrokerChoiceChip(key: ValueKey('saved-filter-type-${type.key}'), label: Text(type.value),
+                selected: _types.contains(type.key), onSelected: _saving ? null : (_) => setState(() {
+                  if (!_types.remove(type.key)) _types.add(type.key);
+                  _clearIrrelevant();
+                })),
+            ]),
             const SizedBox(height: AppSpacing.s12),
             TextField(
               enabled: !_saving,
@@ -248,7 +246,7 @@ class _SavedSearchBuilderScreenState
             const SizedBox(height: AppSpacing.s20),
             const AppSectionHeader(title: 'المواصفات'),
             const SizedBox(height: AppSpacing.s8),
-            if(DynamicPropertySchema.applies('bedrooms',_schemaContext))             Row(
+            if(DynamicPropertySchema.appliesToFilters('bedrooms',_schemaContext))             Row(
               children: [
                 Expanded(
                   child: TextField(
@@ -272,7 +270,7 @@ class _SavedSearchBuilderScreenState
               ],
             ),
             const SizedBox(height: AppSpacing.s12),
-            if(DynamicPropertySchema.applies('area_value',_schemaContext))             Row(
+            if(DynamicPropertySchema.appliesToFilters('area_value',_schemaContext))             Row(
               children: [
                 Expanded(
                   child: TextField(
@@ -490,6 +488,7 @@ class _SavedSearchBuilderScreenState
       'max_monthly_rent',
       'purpose',
       'type',
+      'types',
       'search',
       'min_price',
       'max_price',
@@ -500,8 +499,7 @@ class _SavedSearchBuilderScreenState
     ]) {
       filters.remove(key);
     }
-    if (_purpose != null) filters['purpose'] = _purpose;
-    if (_type != null) filters['type'] = _type;
+    filters.addAll(_schemaContext);
     if (_keywords.text.trim().isNotEmpty) {
       filters['search'] = _keywords.text.trim();
     }
@@ -584,6 +582,9 @@ String _suggestedName(Map<String, dynamic> filters) {
   final search = _nullable(filters['search']);
   if (purpose != null) parts.add(purpose == 'rent' ? 'إيجار' : 'شراء');
   if (type != null) parts.add(_typeLabel(type));
+  if (filters['types'] is List) {
+    for (final type in SmartSearchFilters.fromApiFilters(filters).selectedTypes) { parts.add(_typeLabel(type)); }
+  }
   if (search != null) parts.add(search);
   return parts.isEmpty ? '' : parts.join(' • ');
 }
@@ -592,6 +593,8 @@ String _typeLabel(String type) => switch (type) {
       'apartment' => 'شقة',
       'house' => 'منزل',
       'villa' => 'فيلا',
+      'building' => 'عمارة',
+      'floor' => 'دور كامل',
       'land' => 'أرض',
       'shop' => 'محل',
       'office' => 'مكتب',

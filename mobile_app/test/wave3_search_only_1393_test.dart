@@ -57,14 +57,14 @@ void main() {
     }));
     addTearDown(() => dio.close(force: true));
     final repository = MarketplaceRepository(dio);
-    const query = (latitude: 15.36, longitude: 44.19, governorate: 'صنعاء', type: null, purpose: 'rent', device: false);
+    const query = HomeFeedQuery(latitude: 15.36, longitude: 44.19, governorate: 'صنعاء', type: null, purpose: 'rent', device: false);
     final feed = await repository.feed(query);
     expect(calls, hasLength(3));
     expect(calls.skip(1).every((call) => call.path == '/properties' && call.queryParameters['purpose'] == 'rent'), isTrue);
     expect(feed.sections.values.expand((value) => value).every((row) => row.purpose == 'rent'), isTrue);
     expect(feed.sections.values.expand((value) => value).any((row) => row.id == 99), isFalse);
     await repository.feed(query); expect(calls, hasLength(3));
-    final sale = (latitude: query.latitude, longitude: query.longitude, governorate: query.governorate,
+    final sale = HomeFeedQuery(latitude: query.latitude, longitude: query.longitude, governorate: query.governorate,
       type: query.type, purpose: 'sale', device: false);
     await repository.feed(sale); expect(calls, hasLength(6));
   });
