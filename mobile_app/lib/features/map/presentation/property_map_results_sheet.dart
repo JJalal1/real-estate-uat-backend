@@ -34,8 +34,24 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
   double _minimum = .14, _initial = .29, _maximum = .84;
   bool _expanded = true;
   bool _extentUpdateQueued = false;
+  bool _keyboardVisible = false;
   @override
   void initState() { super.initState(); _extent.addListener(_extentChanged); }
+  void _syncKeyboard(BuildContext context) {
+    // Scaffold already removes the bottom MediaQuery inset from its body.
+    // LayoutBuilder runs again when its usable height changes; read the View.
+    final visible = View.of(context).viewInsets.bottom > 0;
+    if (visible && !_keyboardVisible && widget.filterPanel != null) {
+      // Opening the keyboard follows an explicit field focus. Make room for
+      // that input while keeping the map strip; criteria updates never resize.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _keyboardVisible && _extent.isAttached) {
+          _extent.animateTo(_maximum, duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+        }
+      });
+    }
+    _keyboardVisible = visible;
+  }
   void _extentChanged() {
     if (!mounted || !_extent.isAttached || _extentUpdateQueued) return;
     _extentUpdateQueued = true;
@@ -96,11 +112,13 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, bounds) => _sheet(context, bounds.maxHeight));
 
   Widget _sheet(BuildContext context, double height) {
+    _syncKeyboard(context);
     _maximum = widget.filterPanel == null ? widget.maxExtent
       : (1 - 70 / (height > 0 ? height : 1)).clamp(.14, widget.maxExtent).toDouble();
     final titleStyle = Theme.of(context).textTheme.titleSmall;
     final titleHeight = MediaQuery.textScalerOf(context).scale(titleStyle?.fontSize ?? 16) * (titleStyle?.height ?? 1.4);
-    _minimum = ((40 + (titleHeight * 2 > 48 ? titleHeight * 2 : 48)) /
+    final countHeight = titleHeight * (_keyboardVisible ? 1 : 2);
+    _minimum = ((40 + (countHeight > 48 ? countHeight : 48)) /
       (height > 0 ? height : 1)).clamp(.14, _maximum).toDouble();
     _initial = (widget.filterPanel == null ? .29 : .55).clamp(_minimum, _maximum).toDouble();
     final selected = widget.items.where((row) => row.id == widget.selectedId);
@@ -123,7 +141,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                     child: Center(child: Container(width: 42, height: 4,
                       decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))))),
                 Row(children: [Expanded(child: Text('${rows.length}${widget.more ? '+' : ''} عقار في النطاق',
-                  key: const ValueKey('map-results-count'), maxLines: 2, overflow: TextOverflow.ellipsis,
+                  key: const ValueKey('map-results-count'), maxLines: _keyboardVisible ? 1 : 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall)),
                   if (widget.loading) const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                   if (widget.onShowList != null) IconButton(tooltip: 'عرض القائمة', onPressed: widget.onShowList, icon: const Icon(Icons.view_list_outlined)),

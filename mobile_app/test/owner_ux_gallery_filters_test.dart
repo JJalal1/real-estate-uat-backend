@@ -146,7 +146,10 @@ void main() {
       size: const Size(320, 568), scale: 2.4, dark: true, boundary: boundary);
     final house = find.byKey(const ValueKey('filter-type-house'));
     await tester.ensureVisible(house); await tester.tap(house); await tester.pump();
-    expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('filter-type-all'))).selected, isTrue);
+    expect(tester.widget<ChoiceChip>(house).selected, isFalse);
+    expect(find.byKey(const ValueKey('filter-type-all')), findsNothing);
+    expect(find.descendant(of: find.byKey(const ValueKey('filter-type')),
+      matching: find.byWidgetPredicate((widget) => widget is ChoiceChip && widget.selected)), findsNothing);
     final land = find.byKey(const ValueKey('filter-type-land'));
     await tester.ensureVisible(land); await tester.tap(land); await tester.pump();
     expect(find.byKey(const ValueKey('filter-min_bedrooms')), findsNothing);
@@ -154,7 +157,9 @@ void main() {
     await tester.ensureVisible(rent); await tester.tap(rent); await tester.pump();
     expect(tester.widget<ChoiceChip>(rent).selected, isTrue);
     await tester.tap(rent); await tester.pump();
-    expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('filter-purpose-all'))).selected, isTrue);
+    expect(tester.widget<ChoiceChip>(rent).selected, isFalse);
+    expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('filter-purpose-sale'))).selected, isFalse);
+    expect(find.byKey(const ValueKey('filter-purpose-all')), findsNothing);
     final currency = find.byKey(const ValueKey('filter-currency'));
     await tester.ensureVisible(currency); await tester.pumpAndSettle();
     final label = find.descendant(of: currency, matching: find.text('ريال يمني للميزانية')).first;

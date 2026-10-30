@@ -40,7 +40,7 @@ jobs:
         continue-on-error: true
         working-directory: mobile_app
         run: |
-          flutter test --reporter expanded test/wave01_shared_filters_test.dart test/wave01_acceptance_test.dart test/wave01_proof_video_test.dart test/wave3_ai_design_ui_test.dart test/live_dictation_test.dart test/wave6_product_ui_test.dart test/in_app_voice_search_test.dart test/search_query_wave_test.dart test/branch2_voice_test.dart test/branch2_recovery_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart test/wave3_search_only_1393_test.dart test/app_theme_test.dart test/theme_preference_race_test.dart
+          flutter test --reporter expanded test/wave01_shared_filters_test.dart test/wave01_acceptance_test.dart test/wave01_proof_video_test.dart test/owner_ux_gallery_filters_test.dart test/wave3_ai_design_ui_test.dart test/live_dictation_test.dart test/wave6_product_ui_test.dart test/in_app_voice_search_test.dart test/search_query_wave_test.dart test/branch2_voice_test.dart test/branch2_recovery_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart test/wave3_search_only_1393_test.dart test/app_theme_test.dart test/theme_preference_race_test.dart
       - name: Encode the explicitly synthetic Widget proof
         if: ${{ steps.analysis.outcome == 'success' && steps.journeys.outcome == 'success' }}
         run: |

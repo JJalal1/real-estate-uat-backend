@@ -225,6 +225,33 @@ void main() {
     expect(tester.takeException(), isNull); await closeUx(tester);
   });
 
+  for (final dark in [false, true]) {
+    testWidgets('T05 T08 320dp map keyboard keeps the whole editable field visible at 2.4 dark=$dark', (tester) async {
+      final properties = Wave6Properties();
+      final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties),
+        sharedSearchMapBuilderProvider.overrideWithValue((context, rows, select, viewport) =>
+          const ColoredBox(key: ValueKey('keyboard-map'), color: Color(0xffd5e4dd)))]);
+      await pumpUx(tester, scope, const MarketplaceSearchMapScreen(), size: const Size(320,568), scale: 2.4, dark: dark);
+      await tester.pumpAndSettle();
+      final field = find.byKey(const ValueKey('map-published-search-input'));
+      await tester.ensureVisible(field); await tester.tap(field); await tester.pump();
+      final queries = properties.queries.length;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 200);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle(); await tester.ensureVisible(field); await tester.pumpAndSettle();
+      await tester.enterText(field, 'مسودة بحث لم أرسلها'); await tester.pump();
+      final input = tester.getRect(field), viewport = tester.getRect(find.byKey(const ValueKey('map-results-list')));
+      expect(input.top, greaterThanOrEqualTo(viewport.top - 1));
+      expect(input.bottom, lessThanOrEqualTo(viewport.bottom + 1));
+      final panel = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
+      final map = tester.getRect(find.byKey(const ValueKey('keyboard-map')));
+      expect(panel.top - map.top, greaterThanOrEqualTo(70 - 1e-6));
+      expect(tester.widget<TextField>(field).controller!.text, 'مسودة بحث لم أرسلها');
+      expect(properties.queries.length, queries);
+      expect(tester.takeException(), isNull); await closeUx(tester);
+    });
+  }
+
   for (final source in ['server', 'local', 'legacy']) {
     testWidgets('T10 saved $source work keeps a stable choice until the user resumes', (tester) async {
       final key = newListingDraftKey(), drafts = _Drafts(), device = _Device(null);
