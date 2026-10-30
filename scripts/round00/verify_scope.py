@@ -29,6 +29,7 @@ dirty = git('diff','--name-only','--','mobile_app','backend-api-runtime').splitl
 # entries. All existing APK workflows use the same repository verifier for its
 # resolved lock. Pub also regenerates desktop registrants; none are Android code.
 generated = {'mobile_app/pubspec.lock',
+    'mobile_app/macos/Flutter/GeneratedPluginRegistrant.swift',
     'mobile_app/linux/flutter/generated_plugin_registrant.cc',
     'mobile_app/linux/flutter/generated_plugin_registrant.h',
     'mobile_app/linux/flutter/generated_plugins.cmake',
