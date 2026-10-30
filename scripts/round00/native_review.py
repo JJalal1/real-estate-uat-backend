@@ -45,6 +45,7 @@ def screenshot(name):
     return path.name
 
 def tree(name):
+    adb('shell','rm','-f','/sdcard/round00.xml',check=False)
     raw = adb('shell','uiautomator','dump','/sdcard/round00.xml',timeout=20,check=False)
     xml = adb('shell','cat','/sdcard/round00.xml',check=False)
     (OUT/(name+'.xml')).write_text(xml)
@@ -92,10 +93,10 @@ def api_rows():
     return [json.loads(x) for x in p.read_text().splitlines()] if p.exists() else []
 
 def home():
-    if tap_text('العقارات','seek-home-tab'):
+    if tap_text('العقارات','seek-home-tab',exact=True):
         return True
     adb('shell','input','keyevent','4');time.sleep(1)
-    return tap_text('العقارات','seek-home-tab-back')
+    return tap_text('العقارات','seek-home-tab-back',exact=True)
 
 recording = None
 try:
@@ -197,7 +198,7 @@ try:
     home()
     tabs=[]
     for text,name in [('الرسائل','11-messages-tab'),('إعلاناتي','12-listings-tab'),('حسابي','13-account-tab')]:
-        clicked=tap_text(text,'find-'+name)
+        clicked=tap_text(text,'find-'+name,exact=True)
         evidence=snapshot(name)
         tabs.append({'label':text,'clicked':clicked,'evidence':evidence['screen'],'visible_labels':evidence['labels']})
     case('R00-07','executed_needs_visual_review' if all(t['clicked'] for t in tabs) else 'blocked',tabs,
@@ -208,6 +209,10 @@ try:
     dark_account=snapshot('14-dark-account')
     home();time.sleep(1)
     dark_home=snapshot('15-dark-home')
+    if dark:
+        tap_text('حسابي','revisit-dark-account',exact=True)
+        time.sleep(2)
+        snapshot('16-dark-account-revisited')
     case('R00-08','executed_needs_visual_review' if dark else 'blocked',{'theme_row_opened':theme,'dark_selected':dark,
          'visible_labels':dark_home['labels']},'Switch to dark using actual account UI; check RTL/text/buttons',
          [dark_account['screen'],dark_home['screen']])

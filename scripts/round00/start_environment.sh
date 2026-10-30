@@ -38,6 +38,7 @@ done
 test "$ready" = true
 adb root
 adb wait-for-device
+set -x
 adb shell 'id; getprop ro.build.version.sdk; getconf PAGESIZE' > round00-out/android-environment.txt
 adb shell wm size 1080x2160
 adb shell wm density 420
@@ -48,16 +49,16 @@ adb shell settings put global animator_duration_scale 1
 adb shell settings put global private_dns_mode off
 adb shell input keyevent 82
 adb shell setenforce 0
-adb shell svc wifi enable
-adb shell cmd wifi help > round00-out/android-wifi-help.txt
+timeout 10s adb shell svc wifi enable > round00-out/android-wifi-enable.txt 2>&1 || true
+timeout 10s adb shell cmd wifi help > round00-out/android-wifi-help.txt 2>&1 || true
 if grep -q 'connect-network' round00-out/android-wifi-help.txt; then
   timeout 15s adb shell cmd wifi connect-network AndroidWifi open > round00-out/android-wifi-connect.txt 2>&1 || true
 fi
 for attempt in $(seq 1 8); do
-  if adb shell ip route get 1.1.1.1 > round00-out/android-network-route.txt 2>&1; then break; fi
+  if timeout 5s adb shell ip route get 1.1.1.1 > round00-out/android-network-route.txt 2>&1; then break; fi
   sleep 2
 done
-adb shell cmd wifi status > round00-out/android-wifi-status.txt 2>&1 || true
+timeout 10s adb shell cmd wifi status > round00-out/android-wifi-status.txt 2>&1 || true
 adb reverse tcp:443 tcp:443
 adb reverse --list > round00-out/adb-reverse.txt
 
