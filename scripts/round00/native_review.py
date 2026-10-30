@@ -19,12 +19,15 @@ PACKAGE = 'com.aqer.yemen.uat'
 ACTIVITY = PACKAGE + '/com.example.real_estate_mobile.MainActivity'
 assert os.environ.get('AQER_ROUND00_DISPOSABLE') == '20261030'
 report = {'kind':'actual-Android-APK-ADB-navigation','synthetic_widgets':False,
+    'offline_fallback':os.environ.get('ROUND00_OFFLINE_FALLBACK')=='true',
     'product_source':'03f77c1233776ef89868392b8afc0201a1dccdf5','cases':[],
     'data':'synthetic disposable matching Laravel/PostGIS and actual JPEG bytes',
     'limits':['x86_64 release rebuild; not original UAT1443 signature/bytes',
         'Runner CPU/GPU and local network are not owner handset or Render/Storage performance',
         'Android gfxinfo is not a complete Flutter raster/decode timing measurement'],
     'started_utc':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+if report['offline_fallback']:
+    report['data']='Offline environment; all Android outbound traffic rejected. No backend acceptance.'
 
 def adb(*args, timeout=25, check=True, binary=False):
     r = subprocess.run(['adb',*args],capture_output=True,text=not binary,timeout=timeout)
@@ -205,7 +208,7 @@ try:
          [dark_account['screen'],dark_home['screen']])
     report['final_process_alive']=bool(adb('shell','pidof',PACKAGE,check=False).strip())
     report['app_http_errors']=[r for r in api_rows() if r['status']>=400]
-    report['api_environment_confirmed_local']='(10.0.2.2)' in (OUT/'isolated-dns.txt').read_text()
+    report['api_environment_confirmed_local']=not report['offline_fallback'] and (OUT/'isolated-dns.txt').exists() and '(10.0.2.2)' in (OUT/'isolated-dns.txt').read_text()
     report['app_reached_matching_local_api']=any(r['path'].startswith('/api/marketplace') and
         r['status']==200 and r.get('contract')=='2' for r in api_rows())
 except Exception as error:

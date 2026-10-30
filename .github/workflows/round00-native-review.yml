@@ -98,6 +98,7 @@ jobs:
       - name: Capture final native diagnostics without product changes
         if: always()
         run: |
+          python3 scripts/round00/offline_fallback.py
           python3 scripts/round00/verify_scope.py
           adb shell getprop ro.build.version.sdk > round00-out/android-api.txt 2>/dev/null || true
           adb logcat -d -b crash > round00-out/crash-buffer.txt 2>/dev/null || true
