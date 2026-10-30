@@ -1,0 +1,9 @@
+{
+  "feature_source": "2300d3b7d71d12b6b115cfe31e2fad4288a86a30",
+  "feature_tree": "ecfc5615db93f677e4e8042b18dc910f2d6e3895",
+  "mobile_tree": "74ba170affdb19560f2987b2f00976d94b876c40",
+  "backend_tree": "6cbc4090c1cbf75102ed6e23fe820a5f345da4a2",
+  "delivery_only": true,
+  "must_not_merge": true,
+  "changes": "Public transport certificate and delivery metadata only. Application source is identical to the feature source."
+}
