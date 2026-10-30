@@ -29,7 +29,7 @@ export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
 mkdir -p "$ANDROID_AVD_HOME"
 avdmanager create avd --force --name aqer-round00 --device pixel --path "$ANDROID_AVD_HOME/aqer-round00.avd" --package 'system-images;android-36;google_apis;x86_64'
 sudo chmod 666 /dev/kvm
-QT_QPA_PLATFORM=offscreen "$ANDROID_HOME/emulator/emulator" -avd aqer-round00 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -memory 3072 -cores 2 -dns-server 127.0.0.1 -writable-system > "$RUNNER_TEMP/round00-emulator.log" 2>&1 &
+QT_QPA_PLATFORM=offscreen "$ANDROID_HOME/emulator/emulator" -avd aqer-round00 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -memory 3072 -cores 2 -writable-system > "$RUNNER_TEMP/round00-emulator.log" 2>&1 &
 ready=false
 for attempt in $(seq 1 120); do
   if [ "$(timeout 3s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then ready=true; break; fi
@@ -58,6 +58,11 @@ adb push "$ROUND00_TLS_CERT" "/data/local/tmp/round00-cacerts/$cert_hash.0"
 adb shell 'chmod 755 /data/local/tmp/round00-cacerts; chmod 644 /data/local/tmp/round00-cacerts/*; chown -R root:root /data/local/tmp/round00-cacerts; mount -o bind /data/local/tmp/round00-cacerts /system/etc/security/cacerts'
 adb shell 'for proc in $(pidof zygote64) $(pidof zygote); do nsenter -t "$proc" -m -- /system/bin/mount -o bind /data/local/tmp/round00-cacerts /system/etc/security/cacerts; done'
 adb shell ls "/system/etc/security/cacerts/$cert_hash.0" > round00-out/test-ca-installed.txt
+# Keep the emulator's working public DNS for real map tiles. Route only the
+# compiled application API to the synthetic backend through its hosts file.
+adb shell 'cat /system/etc/hosts > /data/local/tmp/round00-hosts'
+adb shell 'printf "\n10.0.2.2 real-estate-uat-api-frankfurt.onrender.com\n" >> /data/local/tmp/round00-hosts; chmod 644 /data/local/tmp/round00-hosts; mount -o bind /data/local/tmp/round00-hosts /system/etc/hosts'
+adb shell 'for proc in $(pidof netd) $(pidof zygote64) $(pidof zygote); do nsenter -t "$proc" -m -- /system/bin/mount -o bind /data/local/tmp/round00-hosts /system/etc/hosts; done'
 timeout 15s adb shell ping -c 1 real-estate-uat-api-frankfurt.onrender.com > round00-out/isolated-dns.txt || true
 grep -Fq '(10.0.2.2)' round00-out/isolated-dns.txt
 adb install "$RUNNER_TEMP/round00-app.apk"

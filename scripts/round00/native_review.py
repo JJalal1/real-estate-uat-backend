@@ -205,8 +205,9 @@ try:
          [dark_account['screen'],dark_home['screen']])
     report['final_process_alive']=bool(adb('shell','pidof',PACKAGE,check=False).strip())
     report['app_http_errors']=[r for r in api_rows() if r['status']>=400]
-    report['api_environment_confirmed_local']=all(r.get('api_isolated',False) for r in
-        [json.loads(x) for x in (OUT/'dns.jsonl').read_text().splitlines()] if r['host']=='real-estate-uat-api-frankfurt.onrender.com')
+    report['api_environment_confirmed_local']='(10.0.2.2)' in (OUT/'isolated-dns.txt').read_text()
+    report['app_reached_matching_local_api']=any(r['path'].startswith('/api/marketplace') and
+        r['status']==200 and r.get('contract')=='2' for r in api_rows())
 except Exception as error:
     report['probe_error']={'type':type(error).__name__,'message':str(error)[:800]}
     try: screenshot('99-probe-error')
