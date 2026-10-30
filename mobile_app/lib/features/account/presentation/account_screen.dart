@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
-import '../../../core/theme/ebroker_design.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -53,7 +52,7 @@ class AccountScreen extends ConsumerWidget {
                 ]),
                 const SizedBox(height: AppSpacing.s12),
                 if (user == null) ...[
-                  AppListRow(title: 'المفضلة', leading: const EbrokerImage('heart'),
+                  AppListRow(title: 'المفضلة', leading: EbrokerImage('heart', color: Theme.of(context).colorScheme.onSurface),
                     onTap: () => context.push('/favorites')),
                   const SizedBox(height: 12),
                   AppButton(
@@ -247,8 +246,8 @@ class _ProfileHeader extends ConsumerWidget {
     return Container(
       padding: const EdgeInsetsDirectional.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: EbrokerDesign.border, width: 1.5),
+        color: scheme.surface,
+        border: Border.all(color: scheme.outlineVariant, width: 1.5),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

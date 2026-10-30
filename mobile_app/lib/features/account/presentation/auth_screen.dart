@@ -27,8 +27,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   void dispose() { _phone.dispose(); _name.dispose(); _email.dispose(); super.dispose(); }
 
-  static const _mint = Color(0xFF9FE4D9);
-
   void _leave() {
     if (context.canPop()) {
       context.pop();
@@ -38,6 +36,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   InputDecoration _decoration(String label, IconData icon, {String? hint}) {
+    final scheme = Theme.of(context).colorScheme;
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(16),
       borderSide: BorderSide.none,
@@ -46,17 +45,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       labelText: label,
       hintText: hint,
       floatingLabelBehavior: FloatingLabelBehavior.always,
-      labelStyle: const TextStyle(color: AppTheme.textMuted),
-      hintStyle: const TextStyle(color: AppTheme.textMuted),
-      prefixIcon: Icon(icon, color: AppTheme.brand),
+      labelStyle: TextStyle(color: scheme.onSurfaceVariant),
+      hintStyle: TextStyle(color: scheme.onSurfaceVariant),
+      prefixIcon: Icon(icon, color: scheme.primary),
       filled: true,
-      fillColor: AppTheme.brandSoft,
+      fillColor: scheme.primaryContainer,
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
       border: border,
       enabledBorder: border,
       disabledBorder: border,
       focusedBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppTheme.brand, width: 1.5),
+        borderSide: BorderSide(color: scheme.primary, width: 1.5),
       ),
     );
   }
@@ -64,16 +63,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final submitColor = theme.brightness == Brightness.dark ? scheme.primary : AppTheme.brandMint;
+    final onSubmit = theme.brightness == Brightness.dark ? scheme.onPrimary : AppTheme.brandStrong;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: AppTheme.surface,
+        backgroundColor: scheme.surface,
         body: DecoratedBox(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topRight,
               end: Alignment.bottomLeft,
-              colors: [Color(0xFFEDF9F7), AppTheme.surface],
+              colors: [Color.lerp(scheme.primaryContainer, scheme.surface, .45)!, scheme.surface],
             ),
           ),
           child: SafeArea(
@@ -92,7 +94,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             tooltip: 'رجوع',
                             onPressed: _leave,
                             icon: const Icon(Icons.arrow_back_rounded),
-                            color: AppTheme.textStrong,
+                            color: scheme.onSurface,
                           ),
                           const Spacer(),
                           const AqerBrandWordmark(width: 124),
@@ -104,7 +106,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             _register ? 'أنشئ حسابك' : 'مرحبًا بعودتك',
                             key: const ValueKey('auth-heading'),
                             style: theme.textTheme.headlineLarge?.copyWith(
-                              color: AppTheme.textStrong,
+                              color: scheme.onSurface,
                               fontSize: 30,
                               fontWeight: FontWeight.w800,
                               height: 1.5,
@@ -117,7 +119,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             ? 'احفظ عقاراتك المفضلة وتواصل مع المعلنين.'
                             : 'سجّل دخولك لحفظ العقارات والتواصل مع المعلنين.',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.textMuted, height: 1.7,
+                            color: scheme.onSurfaceVariant, height: 1.7,
                           ),
                         ),
                         const SizedBox(height: 28),
@@ -152,7 +154,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   enabled: !_busy,
                                   autofillHints: const [AutofillHints.name],
                                   textInputAction: TextInputAction.next,
-                                  style: const TextStyle(color: AppTheme.textStrong),
+                                  style: TextStyle(color: scheme.onSurface),
                                   decoration: _decoration('الاسم الرباعي', Icons.person_outline_rounded),
                                 ),
                                 const SizedBox(height: 16),
@@ -167,7 +169,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   textDirection: TextDirection.ltr,
                                   textInputAction: TextInputAction.done,
                                   onSubmitted: _busy ? null : (_) => _submit(),
-                                  style: const TextStyle(color: AppTheme.textStrong),
+                                  style: TextStyle(color: scheme.onSurface),
                                   decoration: _decoration('البريد الإلكتروني', Icons.mail_outline_rounded,
                                     hint: 'name@example.com'),
                                 )
@@ -181,7 +183,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   textInputAction: TextInputAction.done,
                                   onSubmitted: _busy ? null : (_) => _submit(),
                                   textDirection: TextDirection.ltr,
-                                  style: const TextStyle(color: AppTheme.textStrong, fontSize: 18),
+                                  style: TextStyle(color: scheme.onSurface, fontSize: 18),
                                   decoration: _decoration('رقم واتساب', Icons.phone_outlined,
                                     hint: '+9677xxxxxxxx'),
                                 ),
@@ -191,7 +193,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   ? 'نرسل لك رمز تحقق من 6 أرقام إلى بريدك.'
                                   : 'نرسل لك رمز تحقق من 6 أرقام عبر واتساب.',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppTheme.textMuted, height: 1.7,
+                                  color: scheme.onSurfaceVariant, height: 1.7,
                                 ),
                               ),
                               if (_error != null)
@@ -208,10 +210,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 key: const ValueKey('auth-submit'),
                                 onPressed: _busy ? null : _submit,
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: _mint,
-                                  foregroundColor: AppTheme.brandStrong,
-                                  disabledBackgroundColor: _mint,
-                                  disabledForegroundColor: AppTheme.brandStrong,
+                                  backgroundColor: submitColor,
+                                  foregroundColor: onSubmit,
+                                  disabledBackgroundColor: submitColor,
+                                  disabledForegroundColor: onSubmit,
                                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                                   textStyle: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -221,7 +223,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                       liveRegion: true,
                                       label: 'جارٍ إرسال رمز التحقق',
                                       child: SizedBox.square(dimension: 24,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brandStrong)),
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: onSubmit)),
                                     )
                                   : Text(_useEmail ? 'إرسال رمز البريد' : 'إرسال رمز واتساب', textAlign: TextAlign.center),
                               ),
@@ -232,7 +234,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   _register = !_register; _error = null;
                                 }),
                                 style: TextButton.styleFrom(
-                                  foregroundColor: AppTheme.brandStrong,
+                                  foregroundColor: scheme.primary,
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                                 ),
                                 child: Text(_register ? 'لديك حساب؟ تسجيل الدخول' : 'إنشاء حساب جديد',
@@ -242,13 +244,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 const SizedBox(height: 8),
                                 Text('نحفظ اسمك بعد التحقق. توثيق الجوال مطلوب للنشر والتواصل.',
                                   textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textMuted, height: 1.7)),
+                                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, height: 1.7)),
                               ],
                               if (_useEmail && !_register) ...[
                                 const SizedBox(height: 8),
                                 Text('لحساب واتساب، استخدم البريد الذي أكّدته من ملفك الشخصي.',
                                   textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textMuted, height: 1.7)),
+                                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, height: 1.7)),
                               ],
                             ],
                           ),
@@ -257,7 +259,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         Row(children: [
                           const Expanded(child: Divider()),
                           Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Text('أو', style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.textMuted))),
+                            child: Text('أو', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant))),
                           const Expanded(child: Divider()),
                         ]),
                         const SizedBox(height: 20),
@@ -265,7 +267,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           key: const ValueKey('auth-browse'),
                           onPressed: _leave,
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.brandStrong,
+                            foregroundColor: scheme.primary,
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),

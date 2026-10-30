@@ -1,10 +1,11 @@
+import 'dart:convert';
 import '../../properties/domain/property_schema.dart';
 class SmartSearchFilters {
   const SmartSearchFilters([this.values = const {}]);
   final Map<String, dynamic> values;
 
   static const mapFields = {'area_polygon', 'latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east'};
-  static const fields = {'governorate', 'advertiser_id', 'spotlight', 'type', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
+  static const fields = {'governorate', 'advertiser_id', 'spotlight', 'type', 'types', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
     'min_bedrooms', 'min_bathrooms', 'floor_number', 'has_parking', 'has_elevator', 'building_facade', 'unit_occupies_entire_floor'};
   static const types = {'apartment': 'شقة', 'house': 'منزل', 'villa': 'فيلا', 'building': 'عمارة', 'land': 'أرض', 'farm': 'مزرعة', 'shop': 'محل', 'office': 'مكتب'};
   static const facades = {'north': 'شمالية', 'south': 'جنوبية', 'east': 'شرقية', 'west': 'غربية', 'northeast': 'شمالية شرقية',
@@ -16,6 +17,7 @@ class SmartSearchFilters {
   factory SmartSearchFilters.fromMap(Map<String, dynamic> source) {
     final next = <String, dynamic>{};
     for (final entry in source.entries) {
+      if (entry.key == 'types') continue;
       if ((!fields.contains(entry.key) && !mapFields.contains(entry.key)) || entry.value == null || entry.value == '') continue;
       if (entry.value is! String && entry.value is! num && entry.value is! bool) continue;
       next[entry.key] = entry.value;
@@ -25,6 +27,13 @@ class SmartSearchFilters {
       }
     }
     if (next['type'] == 'floor') { next['type'] = 'apartment'; next['unit_occupies_entire_floor'] = true; }
+    if (source['types'] is List) {
+      next.remove('type');
+      final selected = (source['types'] as List).whereType<String>().toSet();
+      final ordered = types.keys.where(selected.contains).toList(growable: false);
+      if (ordered.length == 1) next['type'] = ordered.single;
+      if (ordered.length > 1) next['types'] = List<String>.unmodifiable(ordered);
+    }
     return SmartSearchFilters(Map.unmodifiable(DynamicPropertySchema.filters(next)));
   }
 
@@ -38,11 +47,33 @@ class SmartSearchFilters {
   }
 
   bool get hasMapArea => mapFields.any(values.containsKey);
+  List<String> get selectedTypes => values['types'] is List
+    ? types.keys.where((key) => (values['types'] as List).contains(key)).toList(growable: false)
+    : types.containsKey(values['type']) ? [values['type'] as String] : const [];
+
+  SmartSearchFilters toggleType(String type) {
+    if (!types.containsKey(type)) return this;
+    final selected = selectedTypes.toSet();
+    if (!selected.remove(type)) selected.add(type);
+    return SmartSearchFilters.fromMap({...values, 'types': selected.toList(growable: false)});
+  }
+
+  /// Stable value equality also covers the multi-type list and map snapshots.
+  String get signature {
+    final query = apiFilters, keys = query.keys.toList()..sort();
+    return jsonEncode({for (final key in keys) key: query[key]});
+  }
+  bool sameAs(SmartSearchFilters other) => signature == other.signature;
 
   SmartSearchFilters without(String key) {
+    if (key.startsWith('type:')) {
+      final selected = selectedTypes.toSet()..remove(key.substring(5));
+      return SmartSearchFilters.fromMap({...values, 'types': selected.toList(growable: false)});
+    }
     final next = Map<String, dynamic>.from(values);
     if (key == 'budget') { next.remove('min_price'); next.remove('max_price'); }
     else if (key == 'map_area') { for (final field in mapFields) { next.remove(field); } }
+    else if (key == 'type' || key == 'types') { next.remove('type'); next.remove('types'); }
     else { next.remove(key); }
     return SmartSearchFilters.fromMap(next);
   }
@@ -59,13 +90,13 @@ class SmartSearchFilters {
   }
 
   List<String> get suggestions {
-    final keys = switch (values['type']) {
+    final keys = switch (selectedTypes.length == 1 ? selectedTypes.single : null) {
       'apartment' => ['min_bedrooms', 'floor_number', 'has_elevator', 'has_parking'],
       'house' || 'villa' => ['min_bedrooms', 'min_area_m2', 'has_parking'],
       'land' => ['min_area_m2', 'building_facade', 'max_area_m2', 'search'],
       'farm' => ['min_area_m2', 'max_area_m2', 'search'],
       'office' || 'shop' => ['min_area_m2', 'floor_number', 'building_facade'],
-      _ => ['type', 'purpose', 'search', 'budget'],
+      _ => [if (selectedTypes.isEmpty) 'type', 'purpose', 'search', 'budget'],
     };
     final allowed = DynamicPropertySchema.filters({...values, for (final key in keys) key: values[key] ?? true});
     return keys.where((key) => allowed.containsKey(key) && (key == 'budget' ? !values.containsKey('min_price') && !values.containsKey('max_price') : !values.containsKey(key))).toList();
@@ -79,6 +110,10 @@ class SmartSearchFilters {
     for (final entry in values.entries) {
       final key = entry.key, value = entry.value;
       if (const ['min_price', 'max_price'].contains(key) || mapFields.contains(key)) continue;
+      if (key == 'types') {
+        for (final type in selectedTypes) { result.add(('type:$type', types[type]!)); }
+        continue;
+      }
       final text = switch (key) {
         'governorate' => 'المحافظة: $value',
         'advertiser_id' => 'إعلانات معلن محدد',

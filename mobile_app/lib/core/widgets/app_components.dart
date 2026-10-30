@@ -640,8 +640,7 @@ class AppNavigationBar extends StatelessWidget {
         ));
       }
       final item = destinations[index], active = index == selectedIndex;
-      final color = active ? EbrokerDesign.templateBrand
-          : const Color(0xFF4D5454).withValues(alpha: .5);
+      final color = active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant;
       items.add(Expanded(
         child: Semantics(button: true, selected: active, label: item.label, excludeSemantics: true,
           child: Tooltip(message: item.label, child: GestureDetector(
@@ -664,15 +663,15 @@ class AppNavigationBar extends StatelessWidget {
     // main_activity.dart: original 76-high white bar, scaled SVG destinations
     // and the 56-high add button lifted 30 above the bar. No extra FAB label.
     return Container(
-      decoration: BoxDecoration(color: Colors.white, boxShadow: [
-        BoxShadow(color: const Color(0xFF4D5454).withValues(alpha: .2),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, boxShadow: [
+        BoxShadow(color: Theme.of(context).colorScheme.shadow.withValues(alpha: .15),
           offset: const Offset(0, -1), blurRadius: 5),
       ]),
       child: SafeArea(top: false, child: Column(mainAxisSize: MainAxisSize.min, children: [
         SizedBox(height: 76.rh(context), child: Row(children: items)),
         if (largeText) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: ExcludeSemantics(child: Text(destinations[selectedIndex].label,
-            style: const TextStyle(color: EbrokerDesign.templateBrand), textAlign: TextAlign.center))),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary), textAlign: TextAlign.center))),
       ])),
     );
   }

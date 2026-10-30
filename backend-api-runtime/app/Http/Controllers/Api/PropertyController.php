@@ -84,7 +84,7 @@ class PropertyController extends Controller
                 'per_page' => $page->perPage(),
                 'total' => $page->total(),
             ],
-        ]);
+        ])->header('X-Aqer-Filter-Contract', '2');
     }
 
     public function nearby(Request $request): JsonResponse
@@ -137,6 +137,7 @@ class PropertyController extends Controller
                 return response()->json(['data' => $cached], 200, [
                     'Cache-Control' => 'public, max-age=10, stale-while-revalidate=20',
                     'X-Aqer-Nearby-Cache' => 'HIT',
+                    'X-Aqer-Filter-Contract' => '2',
                 ]);
             }
 
@@ -190,6 +191,7 @@ class PropertyController extends Controller
             return response()->json(['data' => $properties], 200, [
                 'Cache-Control' => 'public, max-age=10, stale-while-revalidate=20',
                 'X-Aqer-Nearby-Cache' => 'MISS',
+                'X-Aqer-Filter-Contract' => '2',
             ]);
         }
 
@@ -219,21 +221,26 @@ class PropertyController extends Controller
             ->values()
             ->take(250);
 
-        return response()->json(['data' => $properties]);
+        return response()->json(['data' => $properties])->header('X-Aqer-Filter-Contract', '2');
     }
 
     public function marketplace(Request $request): JsonResponse
     {
-        $v = $request->validate(['type' => ['nullable', Rule::in(self::TYPES)],
-            'purpose' => ['nullable', Rule::in(['sale', 'rent'])],
-            'governorate' => ['nullable', 'string', 'max:120'],
+        $discovery = app(\App\Services\PropertyDiscoveryFilterService::class);
+        $rules = $discovery->rules();
+        foreach (['latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east', 'area_polygon'] as $key) unset($rules[$key]);
+        $v = $request->validate(array_merge($rules, [
             'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180']]);
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180']]));
+        $filters = $v;
+        unset($filters['latitude'], $filters['longitude']);
+        $discovery->validateGeometry($filters);
+        $filters = app(\App\Services\DynamicPropertySchema::class)->filters($filters);
         $context = app(\App\Services\MarketplaceContextService::class)->resolve($v);
-        $context['purpose'] = $v['purpose'] ?? null;
+        $context['purpose'] = $filters['purpose'] ?? null;
+        $context['filters'] = $filters;
         $base = $this->publicQuery();
-        $this->applyFilters($base, ['type' => $v['type'] ?? null, 'purpose' => $v['purpose'] ?? null,
-            'governorate' => $context['governorate']]);
+        $this->applyFilters($base, array_replace($filters, ['governorate' => $context['governorate']]));
         $sections = [];
         foreach (['spotlight', 'latest', 'sale', 'rent'] as $section) {
             if (isset($v['purpose']) && in_array($section, ['sale', 'rent'], true) && $section !== $v['purpose']) {
@@ -246,7 +253,9 @@ class PropertyController extends Controller
             $sections[$section] = $query->latest('id')->limit(6)->get()->map(fn ($p) => $this->summaryData($p, $request))->values()->all();
         }
         if (isset($v['latitude'],$v['longitude'])) {
-            $nearby=$this->publicQuery();$this->applyFilters($nearby,['type'=>$v['type'] ?? null,'purpose'=>$v['purpose'] ?? null]);$lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
+            $nearby=$this->publicQuery();
+            $nearbyFilters=$filters;unset($nearbyFilters['governorate']);$this->applyFilters($nearby,$nearbyFilters);
+            $lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
             if(DB::getDriverName()==='pgsql'){
                 $point='ST_SetSRID(ST_MakePoint(?, ?),4326)::geography';
                 $nearby->whereRaw("ST_DWithin(location::geography, $point, ?)",[$lon,$lat,30000])
@@ -269,7 +278,8 @@ class PropertyController extends Controller
                 ->orWhereJsonContains('details->work_areas', $context['governorate']))
                 ->orWhereIn('users.id', $localOwnerIds);
         })->limit(5)->get()->map(fn ($u) => $ranking->publicData($u))->values();
-        return response()->json(['data' => ['context' => $context, 'sections' => $sections, 'section_order'=>$sectionOrder, 'brokers' => $brokers]]);
+        return response()->json(['data' => ['context' => $context, 'sections' => $sections, 'section_order'=>$sectionOrder, 'brokers' => $brokers]])
+            ->header('X-Aqer-Filter-Contract', '2');
     }
 
     public function marketplaceLocations(): JsonResponse

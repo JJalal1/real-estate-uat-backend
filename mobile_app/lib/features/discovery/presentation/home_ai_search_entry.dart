@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'smart_search_assistant.dart';
 import '../domain/smart_search_filters.dart';
+import '../data/marketplace_search_session.dart';
 
 /// A lightweight entry to the existing search session, shared with My Account.
 class HomeAiSearchEntry extends ConsumerWidget {
@@ -17,8 +18,13 @@ class HomeAiSearchEntry extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final color = Theme.of(context).colorScheme.primary;
-    void open() => context.push('/smart-search', extra: type == null && purpose == null ? null
-      : SmartSearchFilters.fromMap({if (type != null) 'type': type, if (purpose != null) 'purpose': purpose}));
+    void open() {
+      final current = ref.read(marketplaceSearchControllerProvider);
+      final filters = SmartSearchFilters.fromMap({...current.criteria.values,
+        if (current.submittedQuery.isNotEmpty) 'search': current.submittedQuery,
+        if (type != null) 'type': type, if (purpose != null) 'purpose': purpose});
+      context.push('/smart-search', extra: filters.values.isEmpty ? null : filters);
+    }
     if (wide) {
       return Material(color: color.withValues(alpha: .07), borderRadius: BorderRadius.circular(16),
       child: InkWell(key: const ValueKey('home-smart-search'), onTap: open, borderRadius: BorderRadius.circular(16),

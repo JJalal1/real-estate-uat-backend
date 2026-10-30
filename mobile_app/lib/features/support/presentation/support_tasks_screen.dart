@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -439,11 +438,11 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            SizedBox(height: 140),
-            EbrokerIcon(Icons.inbox_outlined, size: 58, color: EbrokerDesign.textLight),
-            SizedBox(height: 14),
-            Center(child: Text('لا توجد مهام مطابقة لهذه الفلاتر.')),
+          children: [
+            const SizedBox(height: 140),
+            EbrokerIcon(Icons.inbox_outlined, size: 58, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(height: 14),
+            const Center(child: Text('لا توجد مهام مطابقة لهذه الفلاتر.')),
           ],
         ),
       );
@@ -623,9 +622,9 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'لا يتم فتح نص المحادثة من هذه الشاشة. تعتمد المتابعة على مؤشرات الرحلة والاتصال، وأي وصول لمحتوى خاص يبقى ضمن مسار صلاحيات منفصل ومسجل.',
-                    style: TextStyle(fontSize: 12, color: EbrokerDesign.textLight),
+                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -1239,11 +1238,11 @@ class _TaskCard extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: _typeColor(task.sourceType).withValues(alpha: .12),
+                    color: _typeColor(context, task.sourceType).withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: EbrokerIcon(_typeIcon(task.sourceType),
-                      color: _typeColor(task.sourceType)),
+                      color: _typeColor(context, task.sourceType)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1258,8 +1257,8 @@ class _TaskCard extends StatelessWidget {
                       ),
                       Text(
                         '${_taskTypeLabel(task)} • ${task.requesterName ?? 'مستخدم #${task.requesterUserId ?? task.sourceId}'}${task.supportTeamName == null ? '' : ' • ${task.supportTeamName}'}${task.governorateName == null ? '' : ' • ${task.governorateName}'}',
-                        style: const TextStyle(
-                            color: EbrokerDesign.textLight, fontSize: 12.5),
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12.5),
                       ),
                     ],
                   ),
@@ -1301,27 +1300,27 @@ class _TaskCard extends StatelessWidget {
               children: [
                 if (task.createdAt != null)
                   Text('وصلت ${_timeAgo(task.createdAt!)}',
-                      style: const TextStyle(
-                          fontSize: 11.5, color: EbrokerDesign.textLight)),
+                      style: TextStyle(
+                          fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 if (task.claimedAt != null)
                   Text('استلمت ${_timeAgo(task.claimedAt!)}',
-                      style: const TextStyle(
-                          fontSize: 11.5, color: EbrokerDesign.textLight)),
+                      style: TextStyle(
+                          fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 if (task.completedAt != null)
                   Text('أُنجزت ${_timeAgo(task.completedAt!)}',
-                      style: const TextStyle(
-                          fontSize: 11.5, color: EbrokerDesign.textLight)),
+                      style: TextStyle(
+                          fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 if (task.lastActivityAt != null && !task.isClosed)
                   Text('آخر تحديث ${_timeAgo(task.lastActivityAt!)}',
-                      style: const TextStyle(
-                          fontSize: 11.5, color: EbrokerDesign.textLight)),
+                      style: TextStyle(
+                          fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ],
             ),
             const SizedBox(height: 7),
             Row(
               children: [
-                const EbrokerIcon(Icons.person_outline,
-                    size: 18, color: EbrokerDesign.textLight),
+                EbrokerIcon(Icons.person_outline,
+                    size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 const SizedBox(width: 5),
                 Expanded(
                   child: Text(
@@ -1330,8 +1329,8 @@ class _TaskCard extends StatelessWidget {
                         : task.isMine
                             ? 'مستلم مني – ${task.assignedToName}'
                             : 'المسؤول: ${task.assignedToName}',
-                    style: const TextStyle(
-                        fontSize: 12.5, color: EbrokerDesign.textLight),
+                    style: TextStyle(
+                        fontSize: 12.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ),
                 Text(
@@ -1340,8 +1339,8 @@ class _TaskCard extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: task.isOverdue
-                        ? Colors.red.shade700
-                        : EbrokerDesign.textLight,
+                        ? Theme.of(context).colorScheme.error
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -1386,17 +1385,19 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppSemanticColors>()!;
+    final scheme = Theme.of(context).colorScheme;
     final background = switch (kind) {
-      1 => AppTheme.brandSoft,
-      2 => Colors.red.shade50,
-      3 => Colors.amber.shade50,
-      _ => AppTheme.accentSoft,
+      1 => colors.successContainer,
+      2 => scheme.errorContainer,
+      3 => colors.warningContainer,
+      _ => colors.infoContainer,
     };
     final foreground = switch (kind) {
-      1 => AppTheme.brandStrong,
-      2 => Colors.red.shade800,
-      3 => Colors.amber.shade900,
-      _ => AppTheme.accent,
+      1 => colors.onSuccessContainer,
+      2 => scheme.onErrorContainer,
+      3 => colors.onWarningContainer,
+      _ => colors.onInfoContainer,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
@@ -1462,7 +1463,7 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                     const SizedBox(height: 14),
                     ...d.messages.map(
                       (m) => Card(
-                        color: m.isInternal ? Colors.amber.shade50 : null,
+                        color: m.isInternal ? Theme.of(context).extension<AppSemanticColors>()!.warningContainer : null,
                         child: Padding(
                           padding: const EdgeInsets.all(10),
                           child: Column(
@@ -1472,12 +1473,12 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w700)),
                               const SizedBox(height: 4),
-                              Text(m.body),
+                              Text(m.body, style: m.isInternal ? TextStyle(color: Theme.of(context).extension<AppSemanticColors>()!.onWarningContainer) : null),
                               if (m.isInternal)
-                                const Text('ملاحظة داخلية',
+                                Text('ملاحظة داخلية',
                                     style: TextStyle(
                                         fontSize: 11,
-                                        color: EbrokerDesign.textLight)),
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
                             ],
                           ),
                         ),
@@ -1505,7 +1506,7 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                     EbrokerOutlinedButton.icon(
                       onPressed: _busy ? null : () => _compose(true),
                       icon: const EbrokerIcon(Icons.note_alt_outlined),
-                      label: const Text('ملاحظة داخلية'),
+                      label: Text('ملاحظة داخلية'),
                     ),
                     PopupMenuButton<String>(
                       enabled: !_busy,
@@ -1645,13 +1646,13 @@ IconData _typeIcon(String value) => switch (value) {
       _ => Icons.task_alt,
     };
 
-Color _typeColor(String value) => switch (value) {
-      'account_verification' => AppTheme.brand,
-      'listing_review' => AppTheme.accent,
-      'support_ticket' => Colors.deepPurple,
-      'report' => Colors.deepOrange,
-      'contact_followup' => Colors.teal,
-      _ => EbrokerDesign.textLight,
+Color _typeColor(BuildContext context, String value) => switch (value) {
+      'account_verification' => Theme.of(context).colorScheme.primary,
+      'listing_review' => Theme.of(context).extension<AppSemanticColors>()!.info,
+      'support_ticket' => Theme.of(context).colorScheme.tertiary,
+      'report' => Theme.of(context).extension<AppSemanticColors>()!.warning,
+      'contact_followup' => Theme.of(context).extension<AppSemanticColors>()!.success,
+      _ => Theme.of(context).colorScheme.onSurfaceVariant,
     };
 
 String _statusLabel(String? value) => switch (value) {

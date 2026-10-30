@@ -52,7 +52,11 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   void endJourney(int token) {
     scheduleMicrotask(() { if (mounted && token == _journey) reset(); });
   }
-  void setDraftText(String value) { if (value != state.draftText) state = state.copyWith(draftText:value); }
+  void setDraftText(String value) {
+    if (value == state.draftText) return;
+    if (state.interpreting) _inference++;
+    state = state.copyWith(draftText: value, interpreting: false);
+  }
   void startFromHome({required String location, String? type}) => reset();
   void updateViewport({required double south, required double west, required double north, required double east}) {
     if (![south, west, north, east].every((value) => value.isFinite) || south >= north ||
@@ -60,8 +64,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     final values = Map<String,dynamic>.from(state.filters.values)..remove('latitude')..remove('longitude')..remove('radius_km')..remove('governorate');
     values.addAll({'south':south,'west':west,'north':north,'east':east});
     final next = SmartSearchFilters.fromMap(values);
-    if (next.values.length == state.filters.values.length &&
-      next.values.entries.every((entry) => state.filters.values[entry.key] == entry.value)) { return; }
+    if (next.sameAs(state.filters)) return;
     final retained = state.rows.where((row) => row.latitude >= south && row.latitude <= north &&
       (west <= east ? row.longitude >= west && row.longitude <= east : row.longitude >= west || row.longitude <= east)).toList(growable: false);
     _usingDefaultLocation = false;

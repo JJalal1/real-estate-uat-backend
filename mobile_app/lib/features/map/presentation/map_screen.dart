@@ -14,7 +14,6 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/theme/ebroker_design.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
 import '../domain/property_marker_cluster.dart';
@@ -472,19 +471,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       return;
     }
     final filters = history.lastFilters;
-    final search = filters['search']?.toString().trim() ?? '';
     setState(() {
       _recentSearches = history.recentSearches;
-      _filterPurpose = _historyString(filters['purpose']);
-      _filterType = _historyString(filters['type']);
-      _filterMinPrice = _historyDouble(filters['min_price']);
-      _filterMaxPrice = _historyDouble(filters['max_price']);
-      _filterMinBedrooms = _historyInt(filters['min_bedrooms']);
-      _filterMinBathrooms = _historyInt(filters['min_bathrooms']);
-      _filterMinArea = _historyDouble(filters['min_area_m2']);
-      _filterMaxArea = _historyDouble(filters['max_area_m2']);
-      _searchText = search;
-      _searchController.text = search;
+      _applySharedFilters(SmartSearchFilters.fromMap(filters));
     });
   }
 
@@ -504,6 +493,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Map<String, dynamic> _discoveryHistorySnapshot() => <String, dynamic>{
+        ..._extraFilters,
         if (_filterPurpose != null) 'purpose': _filterPurpose,
         if (_filterType != null) 'type': _filterType,
         if (_filterMinPrice != null) 'min_price': _filterMinPrice,
@@ -565,8 +555,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _sharedSessionLinked = true;
     ref.read(_searchSession.notifier).replaceManually(_currentSmartFilters());
     if (widget.initialFilters != null) { Navigator.of(context).pop(); return; }
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final journey = ref.read(_searchSession.notifier);
     await context.push('/smart-search');
-    if (!mounted) return;
+    if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id ||
+        !identical(journey, ref.read(_searchSession.notifier))) { return; }
     setState(() => _applySharedFilters(ref.read(_searchSession).filters));
     _persistDiscoveryHistory();
     await _renderSelectedAreaAnnotations();
@@ -575,8 +568,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget _withSharedSession(Widget child) => PopScope(
     onPopInvokedWithResult: (didPop, _) {
       if (didPop && _sharedSessionLinked) {
-        final filters = _currentSmartFilters(), current = ref.read(_searchSession).filters.values;
-        if (current.length != filters.values.length || !filters.values.entries.every((entry) => current[entry.key] == entry.value)) ref.read(_searchSession.notifier).replaceManually(filters);
+        final filters = _currentSmartFilters(), current = ref.read(_searchSession).filters;
+        if (!current.sameAs(filters)) ref.read(_searchSession.notifier).replaceManually(filters);
       }
     }, child: child,
   );
@@ -1063,24 +1056,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _setQuickPurpose(String? purpose) {
-    setState(() {
-      _filterPurpose = _filterPurpose == purpose ? null : purpose;
-      _selected = null;
-      _lastMarkerSignature = '';
-    });
+    final current = _currentSmartFilters();
+    final next = Map<String, dynamic>.from(current.values)..remove('purpose');
+    if (purpose != null && current.values['purpose'] != purpose) next['purpose'] = purpose;
+    setState(() => _applySharedFilters(SmartSearchFilters.fromMap(next)));
     _persistDiscoveryHistory();
   }
 
   void _setQuickType(String? type) {
-    setState(() {
-      _filterType = _filterType == type ? null : type;
-      if (!_typeUsesRooms(_filterType)) {
-        _filterMinBedrooms = null;
-        _filterMinBathrooms = null;
-      }
-      _selected = null;
-      _lastMarkerSignature = '';
-    });
+    final current = _currentSmartFilters();
+    setState(() => _applySharedFilters(type == null ? current.without('type') : current.toggleType(type)));
     _persistDiscoveryHistory();
   }
 
@@ -1443,19 +1428,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return _withSharedSession(Stack(fit: StackFit.expand, children: [Offstage(offstage: _listMode, child: Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        body: SmartSearchAssistantLayer(enabled: !_selectingArea, showComparisonTray: false, bottom: MediaQuery.sizeOf(context).height * .29 + 24, onPressed: _openSmartSearch, child: Stack(
+        body: SmartSearchAssistantLayer(enabled: false, showComparisonTray: false, showMapButton: false, child: Stack(
           fit: StackFit.expand,
           children: [
             Positioned.fill(child: canvas != null
               ? canvas(context, displayed, (id) { for (final row in displayed) { if (row.id == id) setState(() => _selected = row); } },
                 (south, west, north, east) => _applyCameraViewport(LatLngBounds(southwest: LatLng(south, west), northeast: LatLng(north, east))))
               : _buildMap()),
-            if (!_selectingArea) _buildTopFilterPanel(properties),
             if (!_selectingArea) _buildMapControls(),
             if (_selectedAreaBounds != null && !_selectingArea)
               _buildAreaChip(),
             if (_selectingArea) _buildAreaSelectionOverlay(),
             if (!_selectingArea) PropertyMapResultsSheet(items: displayed, selectedId: _selected?.id,
+              filterPanel: _buildFilterPanel(properties),
               loading: rawProperties.isLoading, error: apiError == null ? null : friendlyApiError(apiError),
               onRetry: () => ref.invalidate(nearbyPropertiesProvider(query)),
               onShowList: () => setState(() => _listMode = true),
@@ -1555,9 +1540,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       Positioned.fill(child:Listener(onPointerDown: (_) => widget.onMapInteraction?.call(),
         child:canvas==null ? _buildMap() : canvas(context,rows,select,(south,west,north,east)
         { if (!_selectingArea) ref.read(_searchSession.notifier).updateViewport(south:south,west:west,north:north,east:east); }))),
-      if (!_selectingArea && toolbar != null) PositionedDirectional(start:12,end:12,top:10,child:toolbar),
       if (!_selectingArea) PropertyMapResultsSheet(items: rows, selectedId: _selected?.id, loading: state.loading,
-        maxExtent: widget.resultsMaxExtent, collapsed: widget.collapseResults,
+        maxExtent: widget.resultsMaxExtent, collapsed: widget.collapseResults, filterPanel: toolbar,
         error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),
         more: state.more, onMore: () => ref.read(_searchSession.notifier).search(more: true),
         onShowList: widget.onShowList,
@@ -1587,14 +1571,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  Widget _buildTopFilterPanel(AsyncValue<List<PropertyMarker>> properties) {
-    return PositionedDirectional(
-      top: MediaQuery.paddingOf(context).top + 8,
-      start: 10,
-      end: 10,
-      child: _MapQuickFilterPanel(
+  Widget _buildFilterPanel(AsyncValue<List<PropertyMarker>> properties) {
+    return _MapQuickFilterPanel(
         purpose: _filterPurpose,
-        type: _filterType,
+        types: _currentSmartFilters().selectedTypes,
         filterCount: _filterCount,
         searchText: _searchText,
         onPurpose: _setQuickPurpose,
@@ -1605,35 +1585,34 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         },
         onMore: () => _showFilters(),
         onRooms: () => _showFilters(focus: 'min_bedrooms'),
-      ),
-    );
+      );
   }
 
   Widget _buildMapControls() {
     return PositionedDirectional(
       start: 12,
-      bottom: MediaQuery.sizeOf(context).height * .29 + 18,
+      top: MediaQuery.paddingOf(context).top + 8,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Material(elevation: 3, color: Colors.white, borderRadius: BorderRadius.circular(16), child: TextButton.icon(
+          Material(elevation: 3, color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), child: TextButton.icon(
             key: const ValueKey('map-smart-search'), onPressed: _openSmartSearch, icon: const SmartSearchRobotIcon(), label: const Text('بحث ذكي'))),
           const SizedBox(height: 8),
           Material(
             elevation: 5,
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(8),
             child: InkWell(
               onTap: _beginAreaSelection,
               borderRadius: BorderRadius.circular(8),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    EbrokerIcon(Icons.gesture_rounded, color: AppTheme.brand),
-                    SizedBox(width: 7),
-                    Text(
+                    EbrokerIcon(Icons.gesture_rounded, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 7),
+                    const Text(
                       'رسم منطقة',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
@@ -1657,12 +1636,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _buildAreaChip() {
     return PositionedDirectional(
-      top: MediaQuery.paddingOf(context).top + 154,
-      start: 14,
+      top: MediaQuery.paddingOf(context).top + 8,
+      end: 14,
       child: Material(
         elevation: 3,
         borderRadius: BorderRadius.circular(8),
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         child: InputChip(
           avatar: const EbrokerIcon(Icons.gesture_rounded, size: 18),
           label: const Text('منطقة مرسومة'),
@@ -1798,7 +1777,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        body: SmartSearchAssistantLayer(onPressed: _openSmartSearch, child: Column(
+        body: SmartSearchAssistantLayer(onOpenMap: () async => setState(() => _listMode = false), onPressed: _openSmartSearch, child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
@@ -1942,10 +1921,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 }
 
 class _MapQuickFilterPanel extends StatelessWidget {
-  const _MapQuickFilterPanel({required this.purpose, required this.type, required this.filterCount,
+  const _MapQuickFilterPanel({required this.purpose, required this.filterCount,
     required this.searchText, required this.onPurpose, required this.onType, required this.onSearch,
-    required this.onMore, required this.onRooms});
-  final String? purpose, type;
+    required this.onMore, required this.onRooms, required this.types});
+  final List<String> types;
+  final String? purpose;
   final int filterCount;
   final String searchText;
   final ValueChanged<String?> onPurpose, onType;
@@ -1965,10 +1945,10 @@ class _MapQuickFilterPanel extends StatelessWidget {
         child: ListView(scrollDirection: Axis.horizontal, children: [
           _TypeChip(label: 'للإيجار', selected: purpose == 'rent', onTap: () => onPurpose('rent')),
           _TypeChip(label: 'للبيع', selected: purpose == 'sale', onTap: () => onPurpose('sale')),
-          _TypeChip(label: 'كل الأنواع', selected: type == null, onTap: () => onType(null)),
           for (final entry in SmartSearchFilters.types.entries)
-            _TypeChip(label: entry.value, selected: type == entry.key, onTap: () => onType(entry.key)),
-          if (const ['apartment','house','villa'].contains(type)) ActionChip(label: const Text('الغرف'), onPressed: onRooms),
+            _TypeChip(label: entry.value, selected: types.contains(entry.key), onTap: () => onType(entry.key)),
+          if (types.isNotEmpty && types.every((type) => const ['apartment','house','villa'].contains(type)))
+            ActionChip(label: const Text('الغرف'), onPressed: onRooms),
         ])),
     ])));
 }
@@ -2010,7 +1990,7 @@ class _MapListSwitcherBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.16),
       borderRadius: BorderRadius.circular(8),
@@ -2044,8 +2024,8 @@ class _MapListSwitcherBar extends StatelessWidget {
                   countText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: EbrokerDesign.text,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -2055,15 +2035,15 @@ class _MapListSwitcherBar extends StatelessWidget {
             Expanded(
               child: InkWell(
                 onTap: onAdd,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    EbrokerIcon(Icons.add_circle, color: AppTheme.brandStrong),
-                    SizedBox(width: 7),
+                    EbrokerIcon(Icons.add_circle, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 7),
                     Text(
                       'إضافة',
                       style: TextStyle(
-                        color: AppTheme.brandStrong,
+                        color: Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2140,7 +2120,7 @@ class _MapActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       elevation: 4,
       shadowColor: Colors.black.withValues(alpha: 0.14),
       shape: const CircleBorder(),
@@ -2246,9 +2226,9 @@ class _PropertyResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(decoration: BoxDecoration(color: Colors.white,
+    return Container(decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: selected ? scheme.primary : EbrokerDesign.border)),
+      border: Border.all(color: selected ? scheme.primary : Theme.of(context).colorScheme.outlineVariant)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
           price: _formatPrice(property.purpose == 'rent' ? property.monthlyRent ?? property.price : property.price), currency: _currencyLabel(property.currency),
@@ -2261,7 +2241,7 @@ class _PropertyResultCard extends StatelessWidget {
           action: PropertyCompareAction(propertyId: property.id),
           trailing:
             IconButton(tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة', onPressed: onFavorite,
-              style: IconButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size(44,44), shape: const CircleBorder()),
+              style: IconButton.styleFrom(backgroundColor: scheme.surface, minimumSize: const Size(44,44), shape: const CircleBorder()),
               icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 19, color: scheme.secondary))),
         Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: _PropertyFacts(property: property)),
         TextButton.icon(onPressed: onMap,
@@ -2305,12 +2285,12 @@ class _Fact extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        EbrokerIcon(icon, size: 16, color: EbrokerDesign.textLight),
+        EbrokerIcon(icon, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
         const SizedBox(width: 4),
         Text(
           text,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: EbrokerDesign.textLight,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
         ),
       ],
@@ -2326,9 +2306,9 @@ class _LoadingPropertyCard extends StatelessWidget {
     return Container(
       height: 164,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: EbrokerDesign.border),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -2336,7 +2316,7 @@ class _LoadingPropertyCard extends StatelessWidget {
           Container(
             width: 118,
             decoration: BoxDecoration(
-              color: AppTheme.brandSoft,
+              color: Theme.of(context).extension<AppSemanticColors>()!.skeletonBase,
               borderRadius: BorderRadius.circular(8),
             ),
           ),
@@ -2373,7 +2353,7 @@ class _LoadingLine extends StatelessWidget {
       child: Container(
         height: 12,
         decoration: BoxDecoration(
-          color: const Color(0xFFEAF1F0),
+          color: Theme.of(context).extension<AppSemanticColors>()!.skeletonBase,
           borderRadius: BorderRadius.circular(999),
         ),
       ),
@@ -2404,7 +2384,7 @@ class _ResultsState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            EbrokerIcon(icon, size: 48, color: EbrokerDesign.textLight),
+            EbrokerIcon(icon, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: 12),
             Text(
               title,
@@ -2438,7 +2418,7 @@ class _MessageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       elevation: 4,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
@@ -2447,7 +2427,7 @@ class _MessageCard extends StatelessWidget {
           children: [
             EbrokerIcon(
               Icons.info_outline,
-              color: AppTheme.accent,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 8),
             Expanded(child: Text(text)),

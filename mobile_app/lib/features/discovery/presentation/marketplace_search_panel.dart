@@ -128,21 +128,21 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
           ]),
           Row(children: [
             Expanded(child: _ChipRail(children: [
-              for (final e in const {'all': 'كل الأنواع', 'apartment': 'شقق', 'house': 'منازل', 'villa': 'فلل',
+              for (final e in const {'apartment': 'شقق', 'house': 'منازل', 'villa': 'فلل',
                 'land': 'أراضٍ', 'shop': 'محلات', 'office': 'مكاتب', 'building': 'عمائر', 'farm': 'مزارع'}.entries)
                 ChoiceChip(key: ValueKey('published-type-${e.key}'), label: Text(e.value),
-                  selected: e.key == 'all' ? values['type'] == null : values['type'] == e.key,
-                  onSelected: (_) => controller.setChoice('type', e.key == 'all' ? null : e.key)),
+                  selected: ui.criteria.selectedTypes.contains(e.key),
+                  onSelected: (_) => controller.toggleType(e.key)),
             ])),
             if (!large) ...mapTools,
           ]),
           LayoutBuilder(builder: (_, space) => Wrap(spacing: 6, runSpacing: 6, children: [
-            if ((values['type'] != null || values.containsKey('min_bedrooms')) && DynamicPropertySchema.applies('bedrooms', values))
+            if ((ui.criteria.selectedTypes.isNotEmpty || values.containsKey('min_bedrooms')) && DynamicPropertySchema.appliesToFilters('bedrooms', values))
               _quickFilter('min_bedrooms', 'الغرف', Icons.bed_outlined, large ? space.maxWidth : 110),
-            if ((values['type'] != null || values.containsKey('min_bathrooms')) && DynamicPropertySchema.applies('bathrooms', values))
+            if ((ui.criteria.selectedTypes.isNotEmpty || values.containsKey('min_bathrooms')) && DynamicPropertySchema.appliesToFilters('bathrooms', values))
               _quickFilter('min_bathrooms', 'الحمامات', Icons.bathtub_outlined, large ? space.maxWidth : 110),
             _maximumPrice(ui.criteria, large ? space.maxWidth : 128),
-            if (DynamicPropertySchema.applies('area_value', values))
+            if (DynamicPropertySchema.appliesToFilters('area_value', values))
               ActionChip(key: const ValueKey('published-filter-area'), label: const Text('المساحة'),
                 onPressed: () => _editFilters('min_area_m2')),
             if (values['type'] == 'land') ActionChip(key: const ValueKey('published-filter-land-use'),
@@ -171,7 +171,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
   }
 
   bool _representedByQuickFilter(String key, Map<String, dynamic> values) =>
-    const ['type', 'purpose', 'min_bedrooms', 'min_bathrooms'].contains(key) ||
+    key.startsWith('type:') || const ['type', 'purpose', 'min_bedrooms', 'min_bathrooms'].contains(key) ||
     (key == 'budget' && values['min_price'] == null);
 
   Widget _quickFilter(String field, String label, IconData icon, double width) {
@@ -301,9 +301,6 @@ class MarketplaceSearchMapScreen extends ConsumerStatefulWidget {
   ConsumerState<MarketplaceSearchMapScreen> createState() => _MarketplaceSearchMapScreenState();
 }
 class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMapScreen> {
-  final _toolbarSizeKey = GlobalKey();
-  double _toolbarHeight = 0;
-  bool _measuring = false;
   bool _openingSmartSearch = false;
 
   Future<void> _openSmartSearch() async {
@@ -312,6 +309,7 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
     FocusScope.of(context).unfocus();
     ref.read(marketplaceSearchControllerProvider.notifier).stopEditing();
     final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final journey = ref.read(marketplaceSearchControllerProvider.notifier);
     final initial = ref.read(marketplaceMapResultsProvider).filters;
     var selected = initial;
     try {
@@ -319,27 +317,16 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
         settings: const RouteSettings(name: 'map-smart-search'),
         builder: (_) => AssistedSearchScreen(entryFilters: initial,
           onFiltersChanged: (filters) => selected = filters)));
-      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
-      if (initial.values.length == selected.values.length &&
-          initial.values.entries.every((entry) => selected.values[entry.key] == entry.value)) { return; }
+      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id ||
+          !identical(journey, ref.read(marketplaceSearchControllerProvider.notifier))) { return; }
+      if (initial.sameAs(selected)) return;
       ref.read(marketplaceSearchControllerProvider.notifier).adoptMapSearch(selected);
     } finally {
       _openingSmartSearch = false;
     }
   }
-  void _measureToolbar() {
-    if (_measuring) return;
-    _measuring = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _measuring = false;
-      if (!mounted) return;
-      final height = _toolbarSizeKey.currentContext?.size?.height;
-      if (height != null && (height - _toolbarHeight).abs() > 1) setState(() => _toolbarHeight = height);
-    });
-  }
   @override
   Widget build(BuildContext context) {
-    _measureToolbar();
     final ui = ref.watch(marketplaceSearchControllerProvider);
     final actor = ref.watch(authControllerProvider.select((value) => value.asData?.value?.id));
     if (!ui.mapOpen) { WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -356,20 +343,16 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
       automaticallyImplyLeading: !widget.embedded),
       resizeToAvoidBottomInset: true, body: LayoutBuilder(builder: (context, viewport) {
         final height = viewport.maxHeight > 0 ? viewport.maxHeight : 1.0;
-        // Reserve a real, visible map strip between the measured toolbar and
-        // expanded list, including on short displays and large system fonts.
-        final maxSheet = (1 - (_toolbarHeight + 82) / height).clamp(.29, .72).toDouble();
-        final toolbarLimit = (height * (ui.editing ? .86 : .71) - 82).clamp(0.0, height * .65).toDouble();
+        // Filters and results share the draggable bottom panel. The remainder
+        // belongs exclusively to the native map, including at large text scale.
+        final maxSheet = (1 - 70 / height).clamp(.29, .88).toDouble();
         return MapScreen(key: ValueKey('marketplace-map-$actor'), sharedSearchJourney: true,
         searchSessionProvider: marketplaceMapResultsProvider, enforceViewport: true,
         onSmartSearch: _openSmartSearch,
-        resultsMaxExtent: maxSheet, collapseResults: ui.editing,
+        resultsMaxExtent: maxSheet,
         onMapInteraction: () { FocusScope.of(context).unfocus(); ref.read(marketplaceSearchControllerProvider.notifier).stopEditing(); },
-        searchToolbarBuilder: (_, actions) => NotificationListener<SizeChangedLayoutNotification>(onNotification: (_) { _measureToolbar(); return false; },
-          child: SizeChangedLayoutNotifier(child: SizedBox(key: _toolbarSizeKey,
-            child: ConstrainedBox(key: const ValueKey('marketplace-search-toolbar'),
-              constraints: BoxConstraints(maxHeight: toolbarLimit),
-              child: SingleChildScrollView(child: MarketplaceSearchPanel(onMap: true, mapActions: actions)))))),
+        searchToolbarBuilder: (_, actions) => SizedBox(key: const ValueKey('marketplace-search-toolbar'),
+          child: MarketplaceSearchPanel(onMap: true, mapActions: actions)),
       ); })));
   }
 }

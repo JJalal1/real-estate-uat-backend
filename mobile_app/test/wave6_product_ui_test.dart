@@ -114,6 +114,8 @@ void main(){
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text,'مسودة متابعة لم أرسلها');expect(container.read(smartSearchSessionProvider).filters.values,before);
     expect(find.text('15.3694,44.191'),findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('map-filter-panel-toggle'))); await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('marker-11')).hitTestable(), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('marker-11')));await tester.pumpAndSettle();expect(find.text('عقار تجريبي 11'),findsOneWidget);
     await tester.drag(find.byKey(const ValueKey('map-results-handle')),const Offset(0,350));await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('map-pan')));await tester.pumpAndSettle();expect(container.read(smartSearchSessionProvider).filters.values['south'],15.2);
@@ -195,6 +197,8 @@ void main(){
       await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
       expect(find.byType(MapScreen),findsOneWidget);
       expect(tester.widget<TextField>(field).controller!.text,'أضف شرطًا آخر');
+      await tester.tap(find.byKey(const ValueKey('map-filter-panel-toggle'))); await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('fixture-map-11')).hitTestable(), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('fixture-map-11')));await tester.pumpAndSettle();
       expect(find.text('عقار تجريبي 11'),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-map-$scale');
@@ -257,7 +261,13 @@ void main(){
   testWidgets('starting a new account draft keeps previous drafts and resume restores the saved step',(tester)async{
     final drafts=Wave6Drafts(),key=newListingDraftKey();drafts.drafts[key]=ListingAccountDraft(key:key,revision:2,payload:editorSnapshot(),title:'مسودة الدلال',progress:60);
     await pumpWave6(tester,const ListingDraftEntryScreen(),drafts:drafts);
-    expect(find.byKey(const ValueKey('listing-recovery-choice')),findsNothing); expect(drafts.drafts.containsKey(key),isTrue);
+    expect(find.byKey(const ValueKey('listing-recovery-choice')),findsOneWidget);
+    await tester.pump(const Duration(seconds: 20));
+    expect(find.byKey(const ValueKey('listing-recovery-choice')),findsOneWidget);
+    expect(drafts.drafts.containsKey(key),isTrue);
+    await tester.tap(find.byKey(const ValueKey('listing-recovery-new'))); await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(drafts.drafts[key]!.payload['fields'], editorSnapshot()['fields']);
     await tester.ensureVisible(textField('عنوان الإعلان *'));await tester.enterText(textField('عنوان الإعلان *'),'إعلان جديد محفوظ');await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(drafts.drafts.containsKey(key),isTrue);expect(drafts.drafts.length,2);await finishWave6(tester);
     await pumpWave6(tester,ListingEditorScreen(accountDraft:drafts.drafts[key]),drafts:drafts,recovery:Wave6Recovery());

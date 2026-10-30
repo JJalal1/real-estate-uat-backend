@@ -32,7 +32,8 @@ class PublishedListingSuggestions {
     if (text.isEmpty || text.length > 120 || transfer.isCancelled) return const [];
     final response = await dio.get<Map<String, dynamic>>('/properties', queryParameters: {
       ...filters, 'page': 1, 'per_page': limit, 'sort': 'latest',
-    }, cancelToken: transfer, options: Options(receiveTimeout: const Duration(seconds: 12)));
+    }, cancelToken: transfer, options: Options(receiveTimeout: const Duration(seconds: 12), listFormat: ListFormat.multiCompatible));
+    ensurePropertyFilterContract(response, filters);
     if (transfer.isCancelled) throw transfer.cancelError!;
     final raw = response.data?['data'];
     if (raw is! List) throw const FormatException('Invalid public suggestions response');
@@ -40,6 +41,8 @@ class PublishedListingSuggestions {
     final rows = raw.whereType<Map>().map((r) => PropertySummary.fromJson(Map<String, dynamic>.from(r)))
       .where((r) => r.id > 0 && r.status == 'published' && seen.add(r.id)
         && (filters['purpose'] == null || r.purpose == filters['purpose'])
+        && (filters['types'] is! List || (filters['types'] as List).contains(r.type) ||
+          (r.type == 'floor' && (filters['types'] as List).contains('apartment')))
         && (filters['type'] == null || r.type == filters['type'] || (filters['type'] == 'apartment' && r.type == 'floor')))
       // Description may match even when title/address do not; the server owns
       // normalized AND-token relevance and all visibility/availability checks.

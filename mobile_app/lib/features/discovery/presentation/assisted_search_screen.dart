@@ -18,11 +18,12 @@ import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/saved_property_search.dart';
 
 class AssistedSearchScreen extends ConsumerStatefulWidget {
-  const AssistedSearchScreen({this.savedSearch, this.initialMapMode = false, this.entryFilters, this.onFiltersChanged, super.key});
+  const AssistedSearchScreen({this.savedSearch, this.initialMapMode = false, this.entryFilters, this.onFiltersChanged, this.onExitFilters, super.key});
   final SavedPropertySearch? savedSearch;
   final bool initialMapMode;
   final SmartSearchFilters? entryFilters;
   final ValueChanged<SmartSearchFilters>? onFiltersChanged;
+  final ValueChanged<SmartSearchFilters>? onExitFilters;
   @override
   ConsumerState<AssistedSearchScreen> createState() => _AssistedSearchState();
 }
@@ -32,21 +33,33 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   final _scroll = ScrollController();
   final _focus = FocusNode();
   late final VoiceCaptureController _capture;
-  String _voiceDraft = '', _voiceRestoration = '';
+  String _voiceDraft = '', _voiceRestoration = '', _voiceVisibleText = '';
   String? _lastVoiceBase, _lastVoiceText;
   int _voiceTurn = 0;
-  late final SmartSearchSession _session;
+  SmartSearchSession get _session => ref.read(smartSearchSessionProvider.notifier);
+  late SmartSearchSession _journeySession;
+  late final int? _entryActor;
   int _journey = 0;
   bool _ready = false, _mapMode = false;
+  SmartSearchFilters? _acceptedFilters;
+  bool _returnedFilters = false;
+  bool _mayReturnFilters = true;
 
   @override
   void initState() {
     super.initState();
-    _session = ref.read(smartSearchSessionProvider.notifier);
+    _journeySession = _session;
+    _entryActor = ref.read(authControllerProvider).asData?.value?.id;
+    _acceptedFilters = widget.savedSearch == null ? widget.entryFilters : SmartSearchFilters.fromApiFilters(widget.savedSearch!.filters);
     _mapMode = widget.initialMapMode;
     Future.microtask(() {
       if (!mounted) return;
-      _journey = _session.beginJourney(savedFilters: widget.savedSearch == null ? null : SmartSearchFilters.fromApiFilters(widget.savedSearch!.filters), entryFilters: widget.entryFilters);
+      final sameActor = _entryActor == ref.read(authControllerProvider).asData?.value?.id;
+      if (!sameActor) { _mayReturnFilters = false; _acceptedFilters = null; }
+      _journeySession = _session;
+      _journey = _journeySession.beginJourney(
+        savedFilters: !sameActor || widget.savedSearch == null ? null : SmartSearchFilters.fromApiFilters(widget.savedSearch!.filters),
+        entryFilters: sameActor ? widget.entryFilters : null);
       setState(() => _ready = true);
     });
     _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
@@ -55,12 +68,13 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     if (!mounted) return;
     if (_capture.active && _capture.preview.isNotEmpty) {
       final text = appendDictation(_voiceDraft, _capture.preview);
+      _voiceVisibleText = text;
       if (_description.text != text) _description.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
     }
     setState(() {});
   }
   @override
-  void dispose() { if (_journey != 0) _session.endJourney(_journey); _capture.removeListener(_voiceChanged); _capture.dispose(); _description.dispose(); _scroll.dispose(); _focus.dispose(); super.dispose(); }
+  void dispose() { if (_journey != 0) _journeySession.endJourney(_journey); _capture.removeListener(_voiceChanged); _capture.dispose(); _description.dispose(); _scroll.dispose(); _focus.dispose(); super.dispose(); }
 
   Future<void> _send() async {
     final text = _description.text.trim();
@@ -74,8 +88,9 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     await ref.read(smartSearchSessionProvider.notifier).interpret(text);
   }
 
-  Future<void> _voice({bool wholeRecording = false}) async {
+  Future<void> _voice({bool retry = false}) async {
     if (_capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
+    if (retry && !_capture.canRetry) return;
     FocusScope.of(context).unfocus();
     final revision = ref.read(smartSearchSessionProvider).revision;
     final current = ref.read(smartSearchSessionProvider);
@@ -83,10 +98,12 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     _voiceDraft = current.started && current.draftText.isEmpty && _description.text.trim() == current.lastRequest
       ? '' : _description.text;
     if (_description.text != _voiceDraft) _description.text = _voiceDraft;
+    _voiceVisibleText = _voiceDraft;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     final turn = ++_voiceTurn;
-    final text = await _capture.start(wholeRecording: wholeRecording);
-    if (!mounted || turn != _voiceTurn || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+    final text = retry ? await _capture.retryTranscription() : await _capture.start();
+    if (!mounted || turn != _voiceTurn || actor != ref.read(authControllerProvider).asData?.value?.id ||
+        _description.text != _voiceVisibleText) { return; }
     if (text == null) {
       _description.text = _capture.error != null && _capture.stablePreview.isNotEmpty
         ? appendDictation(_voiceDraft, _capture.stablePreview) : _voiceRestoration;
@@ -94,7 +111,13 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       final combined = appendDictation(_voiceDraft, text);
       _lastVoiceBase = _voiceDraft; _lastVoiceText = combined;
       _description.text = combined; _session.setDraftText(combined);
-      if (combined.length > 5000) setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.');
+      if (combined.length > 5000) {
+        setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.');
+      } else if (text.trim().isNotEmpty) {
+        // Only the completed, current voice turn submits. Partials, stable
+        // segments, cancellation and transcription errors never reach here.
+        await _send();
+      }
     }
   }
   void _cancelVoice() { if (_capture.active || _capture.canRetry) { ++_voiceTurn; _capture.cancel(); _description.text = _voiceRestoration; } }
@@ -106,7 +129,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
 
   Widget _voiceOptions() => Wrap(spacing: 8, children: [
     if (_lastVoiceBase != null && _description.text == _lastVoiceText) TextButton(onPressed: _restartVoice, child: const Text('ابدأ الإملاء من جديد')),
-    TextButton(key: const ValueKey('search-voice-clip'), onPressed: () => _voice(wholeRecording: true), child: const Text('تسجيل مقطع كامل (بديل)')),
+    if (_capture.canRetry) TextButton(key: const ValueKey('search-voice-retry'),
+      onPressed: () => _voice(retry: true), child: const Text('إعادة محاولة التفريغ')),
   ]);
 
   Future<void> _edit({String? focus}) async {
@@ -140,14 +164,35 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     ])));
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope(onPopInvokedWithResult: (didPop, _) {
+    if (didPop && _mayReturnFilters && !_returnedFilters && _acceptedFilters != null) {
+      _returnedFilters = true;
+      widget.onExitFilters?.call(_acceptedFilters!);
+    }
+  }, child: _contents(context));
+
+  Widget _contents(BuildContext context) {
     if (!_ready) return const Scaffold(body:Center(child:CircularProgressIndicator()));
     final state = ref.watch(smartSearchSessionProvider), theme = Theme.of(context);
     ref.listen(authControllerProvider, (previous, next) {
-      if (previous?.asData?.value?.id != next.asData?.value?.id) _cancelVoice();
+      if (previous?.asData?.value?.id != next.asData?.value?.id) {
+        _cancelVoice(); _description.clear();
+        _lastVoiceBase = null; _lastVoiceText = null;
+        _mayReturnFilters = false; _acceptedFilters = null;
+        final actor = next.asData?.value?.id;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+          _journeySession.endJourney(_journey);
+          _journeySession = _session;
+          _journey = _journeySession.beginJourney();
+        });
+      }
     });
     ref.listen<SmartSearchState>(smartSearchSessionProvider, (before, after) {
-      if (before != null && before.revision != after.revision) widget.onFiltersChanged?.call(after.filters);
+      if (_mayReturnFilters && before != null && before.revision != after.revision) {
+        _acceptedFilters = after.filters;
+        widget.onFiltersChanged?.call(after.filters);
+      }
       if (_capture.active && before?.revision != after.revision) _cancelVoice();
       // Applied criteria belong to the summary. Only consume the exact draft
       // that was accepted; manual changes and newer unsent text stay intact.
@@ -172,7 +217,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           _cancelVoice(); _capture.clearError(); _description.clear(); controller.reset(useLocation: true);
         }, icon: const Icon(Icons.restart_alt)),
       ]),
-      body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active, onPressed: () {
+      body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active, onOpenMap: _openMap, onPressed: () {
         _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut); _focus.requestFocus();
       }, child: ListView(controller: _scroll, padding: const EdgeInsets.fromLTRB(18, 12, 18, 110), children: [
         if (!state.started) ...[
@@ -207,7 +252,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, onRestart: _restartVoice),
           if (!_capture.active && !state.interpreting) _voiceOptions(),
           const SizedBox(height: 8),
-          if (!_capture.active && !state.started) const Padding(padding: EdgeInsets.only(bottom: 8), child: Text('اكتب أو أمْلِ طلبك، راجعه ثم اضغط البحث.')),
+          if (!_capture.active && !state.started) const Padding(padding: EdgeInsets.only(bottom: 8),
+            child: Text('اكتب طلبك ثم اضغط البحث، أو أمْلِه ليبدأ البحث بعد اكتمال الإملاء.')),
           if (!_capture.active) Row(children: [
             Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: !state.started ? 'ابحث لي' : 'تحديث',
               icon: Icons.auto_awesome_outlined, loading: state.interpreting,

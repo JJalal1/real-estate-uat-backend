@@ -101,6 +101,8 @@ void main() {
     await _tap(tester, 'published-type-land');
     expect(find.byKey(const ValueKey('published-filter-rooms')), findsNothing);
     expect(find.byKey(const ValueKey('published-filter-bathrooms')), findsNothing);
+    expect(scope.read(marketplaceSearchControllerProvider).criteria.selectedTypes, ['apartment', 'land']);
+    await _tap(tester, 'published-type-apartment');
     expect(find.byKey(const ValueKey('published-filter-land-use')), findsOneWidget);
     expect(tester.takeException(), isNull);
     await closeUx(tester);
@@ -258,7 +260,13 @@ void main() {
         expect(find.byKey(const ValueKey('map-smart-search')), findsOneWidget);
         final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
         final list = tester.getRect(find.byKey(const ValueKey('map-results-list')));
-        expect(list.top - toolbar.bottom, greaterThanOrEqualTo(70));
+        final surface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
+        final map = tester.getRect(find.byKey(const ValueKey('filters-map-canvas')));
+        expect(surface.top - map.top, greaterThanOrEqualTo(70));
+        expect(toolbar.top, greaterThanOrEqualTo(surface.top));
+        expect(toolbar.left, greaterThanOrEqualTo(surface.left));
+        expect(toolbar.right, lessThanOrEqualTo(surface.right));
+        expect(list.top, greaterThan(surface.top));
         for (final key in ['published-purpose-rent', 'published-map-filters', 'map-draw-area', 'map-smart-search']) {
           final rect = tester.getRect(find.byKey(ValueKey(key)));
           expect(rect.left, greaterThanOrEqualTo(toolbar.left - 1));
@@ -278,9 +286,17 @@ void main() {
           expect(rect.bottom, lessThanOrEqualTo(toolbar.bottom));
         }
         await uxPreview(tester, boundary, 'map-filters-1430-$dark-$scale');
+        await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -280));
+        await tester.pumpAndSettle();
         await tester.ensureVisible(maximum);
         await tester.pumpAndSettle();
-        expect(tester.getRect(maximum).bottom, lessThanOrEqualTo(toolbar.bottom + 1));
+        final visible = tester.getRect(find.byKey(const ValueKey('map-results-list')));
+        final control = tester.getRect(maximum);
+        expect(control.top, greaterThanOrEqualTo(visible.top - 1));
+        expect(control.bottom, lessThanOrEqualTo(visible.bottom + 1));
+        // Binary floating-point layout may differ by less than one millionth of a pixel.
+        final expandedSurface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
+        expect(expandedSurface.top - map.top, greaterThanOrEqualTo(70 - 1e-6));
         await uxPreview(tester, boundary, 'map-filters-1430-$dark-$scale-controls');
         expect(tester.takeException(), isNull);
         await closeUx(tester);

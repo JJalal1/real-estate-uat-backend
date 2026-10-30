@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../properties/domain/property_marker.dart';
@@ -12,7 +13,8 @@ const mapSaleColor = Color(0xff0b8a55);
 class PropertyMapResultsSheet extends StatefulWidget {
   const PropertyMapResultsSheet({required this.items, required this.itemBuilder,
     this.selectedId, this.loading = false, this.error, this.onRetry, this.onShowList,
-    this.more = false, this.onMore, this.maxExtent = .84, this.collapsed = false, super.key});
+    this.more = false, this.onMore, this.maxExtent = .84, this.collapsed = false, this.filterPanel, super.key});
+  final Widget? filterPanel;
   final List<PropertyMarker> items;
   final Widget Function(PropertyMarker property) itemBuilder;
   final int? selectedId;
@@ -27,56 +29,134 @@ class PropertyMapResultsSheet extends StatefulWidget {
 
 class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
   final _extent = DraggableScrollableController();
+  final _filterPanelKey = GlobalKey();
   ScrollController? _scroll;
+  double _minimum = .14, _initial = .29, _maximum = .84;
+  bool _expanded = true;
+  bool _extentUpdateQueued = false;
+  bool _keyboardVisible = false;
+  @override
+  void initState() { super.initState(); _extent.addListener(_extentChanged); }
+  void _syncKeyboard(BuildContext context) {
+    // Scaffold already removes the bottom MediaQuery inset from its body.
+    // LayoutBuilder runs again when its usable height changes; read the View.
+    final visible = View.of(context).viewInsets.bottom > 0;
+    if (visible && !_keyboardVisible && widget.filterPanel != null) {
+      // Opening the keyboard follows an explicit field focus. Make room for
+      // that input while keeping the map strip; criteria updates never resize.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _keyboardVisible && _extent.isAttached) {
+          _extent.animateTo(_maximum, duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+        }
+      });
+    }
+    _keyboardVisible = visible;
+  }
+  void _extentChanged() {
+    if (!mounted || !_extent.isAttached || _extentUpdateQueued) return;
+    _extentUpdateQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _extentUpdateQueued = false;
+      if (!mounted || !_extent.isAttached) return;
+      final expanded = _extent.size > _minimum + .04;
+      if (_expanded != expanded) setState(() => _expanded = expanded);
+    });
+  }
+  void _toggleExtent() {
+    if (!_extent.isAttached) return;
+    FocusScope.of(context).unfocus();
+    _extent.animateTo(_expanded ? _minimum : _initial,
+      duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+  }
+  void _dragHeader(double delta, double height) {
+    if (!_extent.isAttached || height <= 0) return;
+    FocusScope.of(context).unfocus();
+    _extent.jumpTo((_extent.size - delta / height).clamp(_minimum, _maximum).toDouble());
+  }
+  void _snapHeader(double velocity) {
+    if (!_extent.isAttached) return;
+    final points = <double>{_minimum, _initial, _maximum}.toList()..sort();
+    final target = velocity.abs() > 500 ? (velocity < 0 ? _maximum : _minimum)
+      : points.reduce((a, b) => (a - _extent.size).abs() <= (b - _extent.size).abs() ? a : b);
+    _extent.animateTo(target, duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+  }
   @override
   void didUpdateWidget(PropertyMapResultsSheet old) {
     super.didUpdateWidget(old);
     if (widget.collapsed != old.collapsed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _extent.isAttached) {
-          _extent.animateTo(widget.collapsed ? .14 : .29,
+          _extent.animateTo(widget.collapsed ? _minimum : _initial,
             duration: const Duration(milliseconds: 200), curve: Curves.easeOutCubic);
         }
       });
     }
     if (!widget.collapsed && widget.selectedId != null && widget.selectedId != old.selectedId) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
-        if (_scroll?.hasClients == true) _scroll!.jumpTo(0);
         if (_extent.isAttached && _extent.size < .5) {
-          _extent.animateTo(widget.maxExtent < .5 ? widget.maxExtent : .5,
-            duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+          try {
+            await _extent.animateTo(.5.clamp(_minimum, _maximum).toDouble(),
+              duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+          } catch (_) { return; }
         }
+        if (!mounted || _scroll?.hasClients != true) return;
+        final offset = widget.filterPanel == null ? 0.0 : _filterPanelKey.currentContext?.size?.height ?? 0.0;
+        _scroll!.jumpTo(offset.clamp(0.0, _scroll!.position.maxScrollExtent).toDouble());
       });
     }
   }
   @override
   void dispose() { _extent.dispose(); super.dispose(); }
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, bounds) => _sheet(context, bounds.maxHeight));
+
+  Widget _sheet(BuildContext context, double height) {
+    _syncKeyboard(context);
+    _maximum = widget.filterPanel == null ? widget.maxExtent
+      : (1 - 70 / (height > 0 ? height : 1)).clamp(.14, widget.maxExtent).toDouble();
+    final titleStyle = Theme.of(context).textTheme.titleSmall;
+    final titleHeight = MediaQuery.textScalerOf(context).scale(titleStyle?.fontSize ?? 16) * (titleStyle?.height ?? 1.4);
+    final countHeight = titleHeight * (_keyboardVisible ? 1 : 2);
+    _minimum = ((40 + (countHeight > 48 ? countHeight : 48)) /
+      (height > 0 ? height : 1)).clamp(.14, _maximum).toDouble();
+    _initial = (widget.filterPanel == null ? .29 : .55).clamp(_minimum, _maximum).toDouble();
     final selected = widget.items.where((row) => row.id == widget.selectedId);
     final rows = [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
     return DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
-      controller: _extent, initialChildSize: .29, minChildSize: .14, maxChildSize: widget.maxExtent,
-      snap: true, snapSizes: [if (widget.maxExtent > .29) .29, if (widget.maxExtent > .5) .5], shouldCloseOnMinExtent: false,
+      controller: _extent, initialChildSize: _initial, minChildSize: _minimum, maxChildSize: _maximum,
+      snap: true, snapSizes: [for (final size in [_initial, widget.filterPanel == null ? .5 : .75]) if (size > _minimum && size < _maximum) size],
+      shouldCloseOnMinExtent: false,
       builder: (context, scroll) {
         _scroll = scroll;
-        return Material(color: Theme.of(context).colorScheme.surface, elevation: 8,
+        return Material(key: const ValueKey('map-search-panel-surface'), color: Theme.of(context).colorScheme.surface, elevation: 8,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)), clipBehavior: Clip.antiAlias,
-          child: ListView.builder(key: const ValueKey('map-results-list'), controller: scroll,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 24), cacheExtent: 0,
-            itemCount: rows.length + 2,
-            itemBuilder: (context, index) {
-              if (index == 0) { return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Semantics(label: 'اسحب لتوسيع قائمة العقارات أو تصغيرها', child: Listener(
-                  key: const ValueKey('map-results-handle'), behavior: HitTestBehavior.opaque,
-                  child: SizedBox(height: 24, child: Center(child: Container(width: 42, height: 4,
-                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))))))),
+          child: Column(children: [
+            GestureDetector(behavior: HitTestBehavior.opaque,
+              onVerticalDragUpdate: (details) => _dragHeader(details.primaryDelta ?? 0, height),
+              onVerticalDragEnd: (details) => _snapHeader(details.primaryVelocity ?? 0),
+              child: Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 0), child: Column(children: [
+                Semantics(label: 'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها',
+                  child: SizedBox(key: const ValueKey('map-results-handle'), height: 24, width: double.infinity,
+                    child: Center(child: Container(width: 42, height: 4,
+                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))))),
                 Row(children: [Expanded(child: Text('${rows.length}${widget.more ? '+' : ''} عقار في النطاق',
-                  key: const ValueKey('map-results-count'), style: Theme.of(context).textTheme.titleSmall)),
+                  key: const ValueKey('map-results-count'), maxLines: _keyboardVisible ? 1 : 2, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall)),
                   if (widget.loading) const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                   if (widget.onShowList != null) IconButton(tooltip: 'عرض القائمة', onPressed: widget.onShowList, icon: const Icon(Icons.view_list_outlined)),
+                  if (widget.filterPanel != null) IconButton(key: const ValueKey('map-filter-panel-toggle'),
+                    tooltip: _expanded ? 'تصغير الفلاتر' : 'فتح الفلاتر', onPressed: _toggleExtent,
+                    icon: Icon(_expanded ? Icons.keyboard_arrow_down : Icons.tune)),
                 ]),
+              ]))),
+            Expanded(child: ListView.builder(key: const ValueKey('map-results-list'), controller: scroll,
+              padding: EdgeInsets.fromLTRB(12, 0, 12, 24 + MediaQuery.paddingOf(context).bottom), cacheExtent: 0,
+              itemCount: rows.length + 2,
+              itemBuilder: (context, index) {
+              if (index == 0) { return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (widget.filterPanel != null) Padding(padding: const EdgeInsets.only(bottom: 12),
+                  child: SizedBox(key: _filterPanelKey, child: widget.filterPanel)),
                 const Wrap(spacing: 16, runSpacing: 4, children: [
                   _Legend(label: 'للإيجار', color: mapRentColor), _Legend(label: 'للبيع', color: mapSaleColor),
                 ]),
@@ -100,7 +180,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                     color: row.id == widget.selectedId ? Theme.of(context).colorScheme.primary
                       : row.purpose == 'rent' ? mapRentColor : mapSaleColor)),
                   child: widget.itemBuilder(row))));
-            }));
+            })),
+          ]));
       });
   }
 }
@@ -117,6 +198,9 @@ class PropertyMapResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = property, rent = p.purpose == 'rent', scheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>() ??
+      (scheme.brightness == Brightness.dark ? AppSemanticColors.dark : AppSemanticColors.light);
+    final purposeColor = rent ? semantic.info : semantic.success;
     final photo = p.mainImage ?? (p.imageUrls.isEmpty ? null : p.imageUrls.first);
     if (compact && MediaQuery.textScalerOf(context).scale(14) <= 24) {
       return InkWell(onTap: onDetails, borderRadius: BorderRadius.circular(10),
@@ -127,7 +211,7 @@ class PropertyMapResultCard extends StatelessWidget {
           const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
             Text('${SmartSearchFilters.types[p.type] ?? 'عقار'} · ${rent ? 'للإيجار' : 'للبيع'}',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: rent ? mapRentColor : mapSaleColor)),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: purposeColor)),
             if (p.address?.isNotEmpty == true) Text(p.address!, maxLines: 1, overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 4),
@@ -163,7 +247,7 @@ class PropertyMapResultCard extends StatelessWidget {
             child: AppPropertyPrice(price: (rent ? p.monthlyRent ?? p.price : p.price).toString(), currency: p.currency,
               suffix: rent && p.monthlyRent != null ? 'شهريًا' : null)))),
         Row(children: [Expanded(child: Text(rent ? 'للإيجار' : 'للبيع',
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(color: rent ? mapRentColor : mapSaleColor))),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(color: purposeColor))),
           IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
             onPressed: onFavorite, icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded)),
           IconButton(key: ValueKey('map-card-focus-${p.id}'), tooltip: 'عرض على الخريطة',

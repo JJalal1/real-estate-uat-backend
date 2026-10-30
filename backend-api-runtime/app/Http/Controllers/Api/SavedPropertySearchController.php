@@ -132,6 +132,9 @@ class SavedPropertySearchController extends Controller
 
     private function validatedFilters(array $input): array
     {
+        // Validate conflicting raw selections before canonicalization can
+        // collapse types into the legacy scalar representation.
+        app(\App\Services\PropertyDiscoveryFilterService::class)->validateGeometry($input);
         $filters = $this->searches->normalizeFilters($input);
         if ($filters === []) {
             throw ValidationException::withMessages(['filters' => 'حدد شرطًا واحدًا على الأقل للبحث المحفوظ.']);
@@ -148,7 +151,7 @@ class SavedPropertySearchController extends Controller
             'name' => array_merge($required, ['string', 'max:120']),
             'alert_frequency' => ['sometimes', Rule::in(SavedPropertySearchService::ALERT_FREQUENCIES)],
             'is_active' => ['sometimes', 'boolean'],
-            'filters' => array_merge($required, ['array:'.implode(',', array_keys($filterRules))]),
+            'filters' => array_merge($required, ['array:'.implode(',', array_filter(array_keys($filterRules), fn ($key) => !str_contains($key, '.')))]),
         ];
         foreach ($filterRules as $key => $constraints) {
             $rules['filters.'.$key] = array_map(

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -290,7 +289,7 @@ class _TeamMemberCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(member.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text('${member.teamName ?? 'فريق الدعم'} • ${member.isAvailable ? 'متاح' : 'غير متاح'}', style: const TextStyle(color: EbrokerDesign.textLight)),
+                  Text('${member.teamName ?? 'فريق الدعم'} • ${member.isAvailable ? 'متاح' : 'غير متاح'}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 ])),
                 Chip(label: Text('${member.openTasks}/${member.capacity}')),
               ]),
@@ -304,7 +303,7 @@ class _TeamMemberCard extends StatelessWidget {
                 _MetricChip('منجز اليوم', member.completedToday),
               ]),
               const SizedBox(height: 8),
-              Text('الاستلام: ${member.averageClaimMinutes ?? '—'} د • الرد: ${member.averageResponseMinutes ?? '—'} د • الإنجاز: ${member.averageCompletionMinutes ?? '—'} د', style: const TextStyle(color: EbrokerDesign.textLight, fontSize: 12.5)),
+              Text('الاستلام: ${member.averageClaimMinutes ?? '—'} د • الرد: ${member.averageResponseMinutes ?? '—'} د • الإنجاز: ${member.averageCompletionMinutes ?? '—'} د', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12.5)),
               const SizedBox(height: 10),
               Row(children: [
                 Expanded(child: EbrokerOutlinedButton.icon(onPressed: onManage, icon: const EbrokerIcon(Icons.manage_accounts_outlined), label: const Text('إدارة الموظف'))),
@@ -663,7 +662,7 @@ class _DashboardCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final urgent = spec.key == 'critical_reports' || spec.key == 'overdue';
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -676,9 +675,9 @@ class _DashboardCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  EbrokerIcon(spec.icon, color: urgent && count > 0 ? Colors.red.shade700 : AppTheme.brandStrong),
+                  EbrokerIcon(spec.icon, color: urgent && count > 0 ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary),
                   const Spacer(),
-                  Text('$count', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: urgent && count > 0 ? Colors.red.shade800 : EbrokerDesign.text)),
+                  Text('$count', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: urgent && count > 0 ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurface)),
                 ],
               ),
               Text(spec.label, maxLines: 2, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),

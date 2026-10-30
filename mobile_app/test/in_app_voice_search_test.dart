@@ -101,10 +101,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('voice-finish'))); await tester.pump();
     expect(voice.latest.stops, 1); expect(find.text('نفرّغ التسجيل كاملًا…'), findsOneWidget);
     voice.latest.emit(const VoiceEvent('final', text: 'خلي السعر من خمسين إلى مئة ألف')); await tester.pumpAndSettle();
-    expect(ai.requests, isEmpty);
+    expect(ai.requests, hasLength(1));
     expect(tester.widget<TextField>(find.byKey(const ValueKey('smart-search-description'))).controller!.text, 'خلي السعر من خمسين إلى مئة ألف');
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));
     await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
+    expect(ai.requests, hasLength(1)); // Repeating Send cannot replay the completed voice turn.
     expect(ai.requests.single.filters, currentFilters);
     expect(session.state.filters.values, {...currentFilters, 'min_price': 50000, 'max_price': 100000});
     expect(properties.queries.last.filters['min_monthly_rent'], 50000); expect(properties.queries.last.filters['max_monthly_rent'], 100000);

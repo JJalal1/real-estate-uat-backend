@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:real_estate_mobile/core/theme/ebroker_design.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
@@ -57,14 +56,14 @@ void main() {
     }));
     addTearDown(() => dio.close(force: true));
     final repository = MarketplaceRepository(dio);
-    const query = (latitude: 15.36, longitude: 44.19, governorate: 'صنعاء', type: null, purpose: 'rent', device: false);
+    const query = HomeFeedQuery(latitude: 15.36, longitude: 44.19, governorate: 'صنعاء', type: null, purpose: 'rent', device: false);
     final feed = await repository.feed(query);
     expect(calls, hasLength(3));
     expect(calls.skip(1).every((call) => call.path == '/properties' && call.queryParameters['purpose'] == 'rent'), isTrue);
     expect(feed.sections.values.expand((value) => value).every((row) => row.purpose == 'rent'), isTrue);
     expect(feed.sections.values.expand((value) => value).any((row) => row.id == 99), isFalse);
     await repository.feed(query); expect(calls, hasLength(3));
-    final sale = (latitude: query.latitude, longitude: query.longitude, governorate: query.governorate,
+    final sale = HomeFeedQuery(latitude: query.latitude, longitude: query.longitude, governorate: query.governorate,
       type: query.type, purpose: 'sale', device: false);
     await repository.feed(sale); expect(calls, hasLength(6));
   });
@@ -147,7 +146,7 @@ void main() {
     });
   }
 
-  testWidgets('B08 approved upper Home keeps readable white search and purpose with the1393 canvas', (tester) async {
+  testWidgets('B08 approved Home uses readable theme surfaces for search, purpose and heading', (tester) async {
     final scope = uxContainer(), boundary = GlobalKey();
     await pumpUx(tester, scope, const MarketplaceHomeScreen(), dark: true,
       size: const Size(320, 700), scale: 2.4, boundary: boundary);
@@ -163,7 +162,9 @@ void main() {
     final fill = tester.widget<AnimatedContainer>(find.descendant(of: purpose, matching: find.byType(AnimatedContainer)));
     expect(contrast(label.style!.color!, (fill.decoration! as BoxDecoration).color!), greaterThan(4.5));
     final heading = tester.widget<Text>(find.text('ماذا تبحث عنه؟'));
-    expect(contrast(heading.style!.color!, EbrokerDesign.page), greaterThan(4.5));
+    final canvas = tester.widget<Scaffold>(find.byType(Scaffold).first).backgroundColor!;
+    expect(contrast(heading.style!.color!, canvas), greaterThan(4.5));
+    expect(canvas.computeLuminance(), lessThan(.1));
     await uxPreview(tester, boundary, 'w3-two-upper-dark-large');
     expect(tester.takeException(), isNull); await closeUx(tester);
   });

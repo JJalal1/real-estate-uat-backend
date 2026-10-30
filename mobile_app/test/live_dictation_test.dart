@@ -121,7 +121,7 @@ void main() {
     expect(await next, isNull); expect(capture.transcript, isEmpty); expect(capture.preview, isEmpty);
   });
 
-  testWidgets('dictation appends to typed search, survives pauses and waits for explicit edited submission', (tester) async {
+  testWidgets('dictation appends to typed search, waits for final then permits a separate edited submission', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake(), properties = Wave3PropertiesFake();
     addTearDown(voice.dispose);
     final container = ProviderContainer(overrides: [
@@ -147,12 +147,14 @@ void main() {
     voice.latest.emit(const VoiceEvent('final', text: 'في صنعاء ثلاث غرف')); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(input).readOnly, isFalse);
     expect(tester.widget<TextField>(input).controller!.text, 'شقة للإيجار في صنعاء ثلاث غرف');
-    expect(ai.requests, isEmpty);
+    expect(ai.requests, hasLength(1));
+    expect(ai.requests.single.message, 'شقة للإيجار في صنعاء ثلاث غرف');
     await tester.enterText(input, 'شقة للإيجار في صنعاء أربع غرف');
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send'))); await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
-    expect(ai.requests.single.message, 'شقة للإيجار في صنعاء أربع غرف');
-    expect(ai.requests.single.filters['search'], 'صنعاء');
+    expect(ai.requests, hasLength(2));
+    expect(ai.requests.last.message, 'شقة للإيجار في صنعاء أربع غرف');
+    expect(ai.requests.last.filters['search'], 'صنعاء');
     expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

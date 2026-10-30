@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
-import '../../../core/theme/ebroker_design.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -316,7 +315,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: EbrokerDesign.page,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         appBar: AppBar(
             title: Text(thread?.otherUserName ?? 'محادثة'),
             actions: [
@@ -457,7 +456,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
                   ),
                   if (time != null) ...[
                     const SizedBox(width: 8),
-                    Text(time, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: item.isMine ? Colors.white : EbrokerDesign.textLight)),
+                    Text(time, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   ],
                 ],
               ),
@@ -473,19 +472,19 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: item.isMine ? Theme.of(context).colorScheme.primary : Colors.white,
-                border: Border.all(color: EbrokerDesign.border, width: 1.5),
+                color: item.isMine ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surface,
+                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1.5),
                 borderRadius: BorderRadius.circular(8)),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(item.senderName,
                   style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 12, color: item.isMine ? Colors.white : EbrokerDesign.text)),
+                      fontWeight: FontWeight.w700, fontSize: 12, color: item.isMine ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSurface)),
               const SizedBox(height: 4),
-              Text(item.body, style: TextStyle(fontSize: 14, height: 1.3, color: item.isMine ? Colors.white : EbrokerDesign.text)),
+              Text(item.body, style: TextStyle(fontSize: 14, height: 1.3, color: item.isMine ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSurface)),
               if (time != null) ...[
                 const SizedBox(height: 4),
-                Text(time, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: item.isMine ? Colors.white : EbrokerDesign.textLight)),
+                Text(time, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: item.isMine ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSurfaceVariant)),
               ],
             ]),
           ),

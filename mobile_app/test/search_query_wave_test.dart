@@ -76,7 +76,7 @@ void main() {
     response.complete({'revision': ai.requests.single.revision, 'filters': {'search': 'إب'}});
     await pending;
     expect(session.state.draftText, 'السعر أكثر من مئة مليون');
-    expect(session.state.filters.values, {'search': 'إب'});
+    expect(session.state.filters.values, isEmpty); // The earlier request became obsolete when this draft changed.
   });
 
   test('manual revisions invalidate pending interpretation without consuming a draft', () async {
@@ -136,7 +136,7 @@ void main() {
     voice.latest.emit(const VoiceEvent('final', text: 'السعر أكثر من ١٠٠ مليون'));
     await tester.pumpAndSettle();
     expect(_draft(tester), 'السعر أكثر من ١٠٠ مليون');
-    expect(ai.requests, hasLength(1));
+    expect(ai.requests, hasLength(2));
     await tester.ensureVisible(find.byKey(_send));
     await tester.tap(find.byKey(_send));
     await tester.pumpAndSettle();

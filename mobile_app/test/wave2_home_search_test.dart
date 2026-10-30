@@ -268,7 +268,12 @@ void main() {
     expect(sheet.controller!.size,greaterThan(.5));
     final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
     final sheetBounds = tester.getRect(find.byKey(const ValueKey('map-results-list')));
-    expect(sheetBounds.top - toolbar.bottom, greaterThanOrEqualTo(70));
+    final surface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
+    final canvasBounds = tester.getRect(find.byKey(const ValueKey('w2-native-canvas')));
+    expect(surface.top - canvasBounds.top, greaterThanOrEqualTo(70 - 1e-6));
+    expect(sheetBounds.top, greaterThan(surface.top));
+    expect(toolbar.left, greaterThanOrEqualTo(surface.left));
+    expect(toolbar.right, lessThanOrEqualTo(surface.right));
     await uxPreview(tester,boundary,'w2-E-map-expanded');
     pan(15,44,16,45); await tester.pumpAndSettle();
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'),isFalse);
@@ -312,7 +317,12 @@ void main() {
       await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0,-500)); await tester.pumpAndSettle();
       final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
       final list = tester.getRect(find.byKey(const ValueKey('map-results-list')));
-      expect(list.top - toolbar.bottom, greaterThanOrEqualTo(70));
+      final surface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
+      final canvasBounds = tester.getRect(find.byKey(const ValueKey('small-map-canvas')));
+      expect(surface.top - canvasBounds.top, greaterThanOrEqualTo(70 - 1e-6));
+      expect(list.top, greaterThan(surface.top));
+      expect(toolbar.left, greaterThanOrEqualTo(surface.left));
+      expect(toolbar.right, lessThanOrEqualTo(surface.right));
       expect(tester.element(find.byKey(const ValueKey('small-map-canvas'))), same(canvas));
       expect(tester.takeException(), isNull); await closeUx(tester);
     });

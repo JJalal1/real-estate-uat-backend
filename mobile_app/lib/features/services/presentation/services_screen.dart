@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,7 +23,7 @@ class ServicesScreen extends ConsumerWidget {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        backgroundColor: EbrokerDesign.page,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         appBar: const AppAppBar(title: 'الخدمات والأدوات'),
         body: auth.when(
           loading: () => const AppLoadingState(),

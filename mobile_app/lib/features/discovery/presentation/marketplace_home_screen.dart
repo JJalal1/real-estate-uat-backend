@@ -5,8 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/ebroker_design.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/viewport_media.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../../core/branding/aqer_brand.dart';
@@ -53,7 +51,6 @@ class MarketplaceHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
-  String? _type;
   bool _locationBusy = false;
   final _feedScroll = ScrollController();
   bool _openingSearch = false;
@@ -61,7 +58,10 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   void dispose() { _feedScroll.dispose(); super.dispose(); }
   HomeFeedQuery get _query {
     final location = ref.read(homeLocationProvider);
-    return (latitude: location.latitude, longitude: location.longitude, governorate: location.governorate, type: _type, purpose: ref.watch(marketplaceSearchControllerProvider).criteria.values['purpose']?.toString(), device: location.device);
+    final filters = ref.watch(marketplaceSearchControllerProvider).criteria;
+    return HomeFeedQuery(latitude: location.latitude, longitude: location.longitude, governorate: location.governorate,
+      type: filters.values['type']?.toString(), purpose: filters.values['purpose']?.toString(),
+      filters: filters, device: location.device);
   }
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _tryDeviceLocation(); }); }
@@ -107,36 +107,38 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   Future<void> _openSearch({bool filters = false}) async {
     if (_openingSearch) return;
     _openingSearch = true;
-    ref.read(marketplaceSearchControllerProvider.notifier).prepareSearch(type: _type);
+    ref.read(marketplaceSearchControllerProvider.notifier).begin();
     try { await context.push(filters ? '/marketplace-search?filters=1' : '/marketplace-search'); }
     finally { _openingSearch = false; }
   }
 
-  void _openMap() {
+  Future<void> _openMap() async {
+    if (_openingSearch) return;
+    _openingSearch = true;
     FocusScope.of(context).unfocus();
     final controller = ref.read(marketplaceSearchControllerProvider.notifier);
-    controller.prepareSearch(type: _type);
     controller.enterMap();
     final place = ref.read(homeLocationProvider);
-    context.push(Uri(path: '/marketplace-search-map', queryParameters: {
+    try { await context.push(Uri(path: '/marketplace-search-map', queryParameters: {
       if (place.manual) ...{'lat': '${place.latitude}', 'lon': '${place.longitude}',
         if (place.governorate != null) 'governorate': place.governorate!},
-    }).toString());
+    }).toString()); } finally { _openingSearch = false; }
   }
   void _section(String section,String? governorate) {
     final location=ref.read(homeLocationProvider);
     context.push(Uri(path:'/marketplace-section',queryParameters:{'section':section,
       if (ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'] != null) 'purpose': ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'].toString(),
-      if(governorate!=null && section!='nearby')'governorate':governorate,if(_type!=null)'type':_type!,
+      if(governorate!=null && section!='nearby')'governorate':governorate,
       if(section=='nearby')...{'lat':'${location.latitude}','lon':'${location.longitude}'},
-    }).toString());
+    }).toString(), extra: ref.read(marketplaceSearchControllerProvider).criteria);
   }
 
 
   @override
   Widget build(BuildContext context) {
-    final location = ref.watch(homeLocationProvider), theme = AppTheme.light;
-    const background = EbrokerDesign.page;
+    final location = ref.watch(homeLocationProvider), theme = Theme.of(context);
+    final background = theme.colorScheme.surfaceContainerLow;
+    final selectedTypes = ref.watch(marketplaceSearchControllerProvider).criteria.selectedTypes;
     final query = _query, purpose = ref.watch(marketplaceSearchControllerProvider).criteria.values['purpose']?.toString();
     final feed = ref.watch(marketplaceFeedProvider(query));
     ref.listen(marketplaceFeedProvider(query), (_, next) {
@@ -161,7 +163,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             key: const ValueKey('home-location'), onPressed: _chooseLocation,
             style: TextButton.styleFrom(foregroundColor: theme.colorScheme.primary),
             icon: _locationBusy ? const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2))
-              : const EbrokerImage('location', size: 17),
+              : EbrokerImage('location', size: 17, color: theme.colorScheme.primary),
             label: Text(data?.label ?? location.label, maxLines: 1, overflow: TextOverflow.ellipsis)))),
           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text('عقار اليمن', maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -169,8 +171,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             Text('بيتك… يبدأ من هنا', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10)),
           ])),
         ]), actions: [IconButton(tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'),
-          icon: const EbrokerImage('notification', size: 21))]),
-      body: SmartSearchAssistantLayer(onPressed: () => context.push('/smart-search'), child: RefreshIndicator(onRefresh: () async {
+          icon: EbrokerImage('notification', size: 21, color: theme.colorScheme.onSurface))]),
+      body: SmartSearchAssistantLayer(onOpenMap: _openMap, onPressed: () => context.push('/smart-search'), child: RefreshIndicator(onRefresh: () async {
         try { ref.read(marketplaceRepositoryProvider).invalidateFeed(query); ref.invalidate(marketplaceFeedProvider(query));
           await ref.read(marketplaceFeedProvider(query).future); } catch (_) { /* Inline retry retains only this query. */ }
       }, child: CustomScrollView(key: const PageStorageKey('marketplace-home'), controller: _feedScroll,
@@ -180,11 +182,11 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             _HomeCircleAction(key: const ValueKey('home-filters'), tooltip: 'فلاتر البحث', icon: 'filter',
               onTap: () => _openSearch(filters: true)),
             const SizedBox(width: 8), Expanded(child: TextField(key: const ValueKey('home-search'), readOnly: true,
-              style: const TextStyle(color: EbrokerDesign.text),
-              onTap: _openSearch, decoration: const InputDecoration(hintText: 'ابحث عن عقار أو منطقة…',
-                filled: true, fillColor: Colors.white, hintStyle: TextStyle(color: EbrokerDesign.textLight),
-                suffixIcon: Icon(Icons.search, color: EbrokerDesign.textLight),
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(18)), borderSide: BorderSide.none)))),
+              style: TextStyle(color: theme.colorScheme.onSurface),
+              onTap: _openSearch, decoration: InputDecoration(hintText: 'ابحث عن عقار أو منطقة…',
+                filled: true, fillColor: theme.colorScheme.surface, hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                suffixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
+                border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(18)), borderSide: BorderSide.none)))),
             const SizedBox(width: 8), _HomeCircleAction(key: const ValueKey('home-map'),
               tooltip: 'الخريطة', icon: 'propertymap', onTap: _openMap),
           ]),
@@ -192,7 +194,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             for (final entry in const {'rent': 'إيجار', 'sale': 'بيع'}.entries)
               Semantics(button: true, selected: purpose == entry.key, child: InkWell(
                 key: ValueKey('home-purpose-${entry.key}'), borderRadius: BorderRadius.circular(20),
-                onTap: () => ref.read(marketplaceSearchControllerProvider.notifier).choosePurpose(entry.key),
+                onTap: () => ref.read(marketplaceSearchControllerProvider.notifier).choosePurpose(purpose == entry.key ? null : entry.key),
                 child: Padding(padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
                   child: AnimatedContainer(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 160),
                     padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
@@ -201,15 +203,16 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                     child: Text(entry.value, style: theme.textTheme.labelMedium?.copyWith(
                       color: purpose == entry.key ? theme.colorScheme.onPrimary : theme.colorScheme.primary)))))),
           ])),
-          HomeAiSearchEntry(wide: true, location: data?.governorate ?? location.governorate ?? 'صنعاء', type: _type, purpose: purpose),
+          HomeAiSearchEntry(wide: true, location: data?.governorate ?? location.governorate ?? 'صنعاء', purpose: purpose),
         ])))),
         SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'ماذا تبحث عنه؟', onSeeAll: _openMap)),
               SliverToBoxAdapter(child: SizedBox(height: 48 + (MediaQuery.textScalerOf(context).scale(13) - 13) * 2,
                 child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 18), children: [
-                  for (final category in const [('الكل', null), ('شقق', 'apartment'), ('منازل', 'house'), ('فلل', 'villa'),
+                  for (final category in const [('شقق', 'apartment'), ('منازل', 'house'), ('فلل', 'villa'),
                     ('عمائر', 'building'), ('أراضٍ', 'land'), ('محلات', 'shop'), ('مكاتب', 'office'), ('مزارع', 'farm')])
                     Padding(padding: const EdgeInsetsDirectional.only(end: 6), child: EbrokerCategoryCard(label: category.$1,
-                      icon: ebrokerCategoryIcon(category.$2), selected: _type == category.$2, onTap: () => setState(() => _type = category.$2))),
+                      icon: ebrokerCategoryIcon(category.$2), selected: selectedTypes.contains(category.$2),
+                      onTap: () => ref.read(marketplaceSearchControllerProvider.notifier).chooseType(category.$2))),
                 ]))),
         if (feed.hasValue && (feed.isRefreshing || (feed.hasError && isTransientApiFailure(feed.error!))))
           SliverToBoxAdapter(child: AppRefreshStatus(loading: feed.isLoading,
