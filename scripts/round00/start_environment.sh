@@ -48,6 +48,18 @@ adb shell settings put global animator_duration_scale 1
 adb shell settings put global private_dns_mode off
 adb shell input keyevent 82
 adb shell setenforce 0
+adb shell svc wifi enable
+adb shell cmd wifi help > round00-out/android-wifi-help.txt
+if grep -q 'connect-network' round00-out/android-wifi-help.txt; then
+  timeout 15s adb shell cmd wifi connect-network AndroidWifi open > round00-out/android-wifi-connect.txt 2>&1 || true
+fi
+for attempt in $(seq 1 8); do
+  if adb shell ip route get 1.1.1.1 > round00-out/android-network-route.txt 2>&1; then break; fi
+  sleep 2
+done
+adb shell cmd wifi status > round00-out/android-wifi-status.txt 2>&1 || true
+adb reverse tcp:443 tcp:443
+adb reverse --list > round00-out/adb-reverse.txt
 
 # Dart3.6 loads Android roots from /system/etc/security/cacerts. Install only
 # this runner's temporary test CA, before starting the APK. Keep normal roots.
@@ -61,9 +73,9 @@ adb shell ls "/system/etc/security/cacerts/$cert_hash.0" > round00-out/test-ca-i
 # Keep the emulator's working public DNS for real map tiles. Route only the
 # compiled application API to the synthetic backend through its hosts file.
 adb shell 'cat /system/etc/hosts > /data/local/tmp/round00-hosts'
-adb shell 'printf "\n10.0.2.2 real-estate-uat-api-frankfurt.onrender.com\n" >> /data/local/tmp/round00-hosts; chmod 644 /data/local/tmp/round00-hosts; mount -o bind /data/local/tmp/round00-hosts /system/etc/hosts'
+adb shell 'printf "\n127.0.0.1 real-estate-uat-api-frankfurt.onrender.com\n" >> /data/local/tmp/round00-hosts; chmod 644 /data/local/tmp/round00-hosts; mount -o bind /data/local/tmp/round00-hosts /system/etc/hosts'
 adb shell 'for proc in $(pidof netd) $(pidof zygote64) $(pidof zygote); do nsenter -t "$proc" -m -- /system/bin/mount -o bind /data/local/tmp/round00-hosts /system/etc/hosts; done'
 timeout 15s adb shell ping -c 1 real-estate-uat-api-frankfurt.onrender.com > round00-out/isolated-dns.txt || true
-grep -Fq '(10.0.2.2)' round00-out/isolated-dns.txt
+grep -Fq '(127.0.0.1)' round00-out/isolated-dns.txt
 adb install "$RUNNER_TEMP/round00-app.apk"
 adb shell dumpsys package com.aqer.yemen.uat | sed -n '/versionCode=/p' > round00-out/installed-version.txt

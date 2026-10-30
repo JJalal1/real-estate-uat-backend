@@ -189,7 +189,7 @@ try:
         case('R00-06','executed_needs_visual_review',{'pan_gesture':True,'new_viewport_requests':map_queries,
              'before_screen_sha256':hashlib.sha256((OUT/map_before['screen']).read_bytes()).hexdigest(),
              'after_screen_sha256':hashlib.sha256((OUT/map_after['screen']).read_bytes()).hexdigest()},
-             'Actual MapLibre basemap loads and pans, with matching local property API',[map_before['screen'],map_after['screen'],'dns.jsonl','http.jsonl'])
+             'Actual MapLibre basemap loads and pans, with matching local property API',[map_before['screen'],map_after['screen'],'isolated-dns.txt','http.jsonl'])
         adb('shell','input','keyevent','4');time.sleep(1)
     else:
         case('R00-06','blocked','Map entry not located in Android accessibility tree','Open and pan the real map',['find-map-entry.xml'])
@@ -213,7 +213,7 @@ try:
          [dark_account['screen'],dark_home['screen']])
     report['final_process_alive']=bool(adb('shell','pidof',PACKAGE,check=False).strip())
     report['app_http_errors']=[r for r in api_rows() if r['status']>=400]
-    report['api_environment_confirmed_local']=not report['offline_fallback'] and (OUT/'isolated-dns.txt').exists() and '(10.0.2.2)' in (OUT/'isolated-dns.txt').read_text()
+    report['api_environment_confirmed_local']=not report['offline_fallback'] and (OUT/'isolated-dns.txt').exists() and '(127.0.0.1)' in (OUT/'isolated-dns.txt').read_text()
     report['app_reached_matching_local_api']=any(r['path'].startswith('/api/marketplace') and
         r['status']==200 and r.get('contract')=='2' for r in api_rows())
 except Exception as error:

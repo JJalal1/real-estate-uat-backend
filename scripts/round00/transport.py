@@ -121,13 +121,11 @@ class API(http.server.BaseHTTPRequestHandler):
             if response is None:
                 self.send_error(502, 'Isolated backend unavailable')
 
-dns = socketserver.ThreadingUDPServer(('127.0.0.1',53),DNS)
-threading.Thread(target=dns.serve_forever,daemon=True).start()
 server = http.server.ThreadingHTTPServer(('0.0.0.0',443),API)
 tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 tls.load_cert_chain(os.environ['ROUND00_TLS_CERT'],os.environ['ROUND00_TLS_KEY'])
 server.socket = tls.wrap_socket(server.socket,server_side=True)
-record('environment.jsonl', {'dns':'runner:53','tls':'runner:443','api_host':HOST,'backend':'127.0.0.1:8000',
+record('environment.jsonl', {'dns':'API hosts override to guest loopback; public map DNS unchanged','tls':'runner:443 via adb reverse','api_host':HOST,'backend':'127.0.0.1:8000',
     'trust':'temporary test CA, no APK verification bypass',
     'writes':'Only view counters for36 synthetic local properties allowed; every other write rejected','database':'aqer_round00'})
 server.serve_forever()
