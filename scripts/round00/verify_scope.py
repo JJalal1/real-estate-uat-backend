@@ -24,10 +24,28 @@ for component in components:
     ids[component] = original
 changed = git('diff', '--name-only', SOURCE, 'HEAD').splitlines()
 assert all(p.startswith('scripts/round00/') or p == '.github/workflows/round00-native-review.yml' for p in changed)
-subprocess.run(['git','diff','--exit-code','--','mobile_app','backend-api-runtime'],cwd=ROOT,check=True,capture_output=True)
+dirty = git('diff','--name-only','--','mobile_app','backend-api-runtime').splitlines()
+# The original committed lock intentionally omits thirteen build-only pinned
+# entries. All existing APK workflows use the same repository verifier for its
+# resolved lock. Pub also regenerates desktop registrants; none are Android code.
+generated = {'mobile_app/pubspec.lock',
+    'mobile_app/linux/flutter/generated_plugin_registrant.cc',
+    'mobile_app/linux/flutter/generated_plugin_registrant.h',
+    'mobile_app/linux/flutter/generated_plugins.cmake',
+    'mobile_app/windows/flutter/generated_plugin_registrant.cc',
+    'mobile_app/windows/flutter/generated_plugin_registrant.h',
+    'mobile_app/windows/flutter/generated_plugins.cmake'}
+print('ROUND00_BUILD_GENERATED_PATHS '+json.dumps(dirty),flush=True)
+assert set(dirty).issubset(generated), 'Unexpected product edit: '+str(dirty)
+if 'mobile_app/pubspec.lock' in dirty:
+    subprocess.run([sys.executable,str(ROOT/'scripts/verify_v3_dependency_lock.py'),
+        '--resolved',str(ROOT/'mobile_app/pubspec.lock')],cwd=ROOT,check=True)
 receipt = {'product_source': SOURCE, 'harness_source': git('rev-parse', 'HEAD'),
     'product_components_unchanged': ids, 'harness_only_changes': changed,
-    'no_merge_or_deployment_or_cloud_mutation': True}
+    'no_merge_or_deployment_or_cloud_mutation': True,
+    'build_generated_paths':dirty,
+    'resolved_lock_guard':'Existing verifier preserves every original package/checksum and SDK; allows only the same pinned build completion used by UAT1443',
+    'build_generated_blobs':{p:git('hash-object',p) for p in dirty}}
 (OUT / 'SOURCE.json').write_text(json.dumps(receipt, indent=2) + '\n')
 if '--apk' in sys.argv:
     apk = Path(os.environ['ROUND00_APK'])
