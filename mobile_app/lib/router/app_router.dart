@@ -6,6 +6,7 @@ import '../features/discovery/presentation/assisted_search_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/account/data/auth_controller.dart';
 import '../features/account/presentation/access_control_screen.dart';
 import '../features/account/presentation/account_safety_screen.dart';
 import '../features/account/presentation/account_verification_admin_screen.dart';
@@ -74,6 +75,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/smart-search', builder: (context, state) {
         final current = ref.read(marketplaceSearchControllerProvider);
         final actor = ref.read(authControllerProvider).asData?.value?.id;
+        final journey = ref.read(marketplaceSearchControllerProvider.notifier);
         final entry = SmartSearchFilters.fromMap({...current.criteria.values,
           if (current.submittedQuery.isNotEmpty) 'search': current.submittedQuery,
           if (state.extra is SmartSearchFilters) ...(state.extra as SmartSearchFilters).values});
@@ -81,7 +83,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           savedSearch: state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null,
           entryFilters: state.extra is SavedPropertySearch || entry.values.isEmpty ? null : entry,
           onExitFilters: (filters) {
-            if (ref.read(authControllerProvider).asData?.value?.id != actor) return;
+            if (ref.read(authControllerProvider).asData?.value?.id != actor ||
+                !identical(journey, ref.read(marketplaceSearchControllerProvider.notifier))) return;
             ref.read(marketplaceSearchControllerProvider.notifier).adoptMapSearch(filters,
               applyMap: ref.read(marketplaceSearchControllerProvider).mapOpen);
           });

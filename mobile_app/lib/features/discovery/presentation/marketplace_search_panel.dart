@@ -309,6 +309,7 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
     FocusScope.of(context).unfocus();
     ref.read(marketplaceSearchControllerProvider.notifier).stopEditing();
     final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final journey = ref.read(marketplaceSearchControllerProvider.notifier);
     final initial = ref.read(marketplaceMapResultsProvider).filters;
     var selected = initial;
     try {
@@ -316,7 +317,8 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
         settings: const RouteSettings(name: 'map-smart-search'),
         builder: (_) => AssistedSearchScreen(entryFilters: initial,
           onFiltersChanged: (filters) => selected = filters)));
-      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id ||
+          !identical(journey, ref.read(marketplaceSearchControllerProvider.notifier))) return;
       if (initial.sameAs(selected)) return;
       ref.read(marketplaceSearchControllerProvider.notifier).adoptMapSearch(selected);
     } finally {

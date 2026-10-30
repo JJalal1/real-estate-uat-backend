@@ -47,6 +47,9 @@ ALLOWED = {
     'mobile_app/lib/features/properties/presentation/saved_searches_screen.dart',
     'mobile_app/lib/features/services/presentation/services_screen.dart',
     'mobile_app/lib/router/app_router.dart',
+    # W1-03: only semantic presentation colors; support actions stay protected.
+    'mobile_app/lib/features/support/presentation/support_tasks_screen.dart',
+    'mobile_app/lib/features/support/presentation/support_workspace_pages.dart',
 }
 
 PREFIXES = ('mobile_app/lib/', 'mobile_app/assets/', 'mobile_app/android/',

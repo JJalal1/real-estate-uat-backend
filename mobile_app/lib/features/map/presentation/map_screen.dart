@@ -472,19 +472,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       return;
     }
     final filters = history.lastFilters;
-    final search = filters['search']?.toString().trim() ?? '';
     setState(() {
       _recentSearches = history.recentSearches;
-      _filterPurpose = _historyString(filters['purpose']);
-      _filterType = _historyString(filters['type']);
-      _filterMinPrice = _historyDouble(filters['min_price']);
-      _filterMaxPrice = _historyDouble(filters['max_price']);
-      _filterMinBedrooms = _historyInt(filters['min_bedrooms']);
-      _filterMinBathrooms = _historyInt(filters['min_bathrooms']);
-      _filterMinArea = _historyDouble(filters['min_area_m2']);
-      _filterMaxArea = _historyDouble(filters['max_area_m2']);
-      _searchText = search;
-      _searchController.text = search;
+      _applySharedFilters(SmartSearchFilters.fromMap(filters));
     });
   }
 
@@ -504,6 +494,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Map<String, dynamic> _discoveryHistorySnapshot() => <String, dynamic>{
+        ..._extraFilters,
         if (_filterPurpose != null) 'purpose': _filterPurpose,
         if (_filterType != null) 'type': _filterType,
         if (_filterMinPrice != null) 'min_price': _filterMinPrice,
@@ -565,8 +556,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _sharedSessionLinked = true;
     ref.read(_searchSession.notifier).replaceManually(_currentSmartFilters());
     if (widget.initialFilters != null) { Navigator.of(context).pop(); return; }
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final journey = ref.read(_searchSession.notifier);
     await context.push('/smart-search');
-    if (!mounted) return;
+    if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id ||
+        !identical(journey, ref.read(_searchSession.notifier))) return;
     setState(() => _applySharedFilters(ref.read(_searchSession).filters));
     _persistDiscoveryHistory();
     await _renderSelectedAreaAnnotations();
@@ -575,8 +569,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget _withSharedSession(Widget child) => PopScope(
     onPopInvokedWithResult: (didPop, _) {
       if (didPop && _sharedSessionLinked) {
-        final filters = _currentSmartFilters(), current = ref.read(_searchSession).filters.values;
-        if (current.length != filters.values.length || !filters.values.entries.every((entry) => current[entry.key] == entry.value)) ref.read(_searchSession.notifier).replaceManually(filters);
+        final filters = _currentSmartFilters(), current = ref.read(_searchSession).filters;
+        if (!current.sameAs(filters)) ref.read(_searchSession.notifier).replaceManually(filters);
       }
     }, child: child,
   );
@@ -1997,7 +1991,7 @@ class _MapListSwitcherBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.16),
       borderRadius: BorderRadius.circular(8),
@@ -2031,8 +2025,8 @@ class _MapListSwitcherBar extends StatelessWidget {
                   countText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: EbrokerDesign.text,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -2127,7 +2121,7 @@ class _MapActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       elevation: 4,
       shadowColor: Colors.black.withValues(alpha: 0.14),
       shape: const CircleBorder(),
@@ -2233,9 +2227,9 @@ class _PropertyResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(decoration: BoxDecoration(color: Colors.white,
+    return Container(decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: selected ? scheme.primary : EbrokerDesign.border)),
+      border: Border.all(color: selected ? scheme.primary : Theme.of(context).colorScheme.outlineVariant)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
           price: _formatPrice(property.purpose == 'rent' ? property.monthlyRent ?? property.price : property.price), currency: _currencyLabel(property.currency),
@@ -2248,7 +2242,7 @@ class _PropertyResultCard extends StatelessWidget {
           action: PropertyCompareAction(propertyId: property.id),
           trailing:
             IconButton(tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة', onPressed: onFavorite,
-              style: IconButton.styleFrom(backgroundColor: Colors.white, minimumSize: const Size(44,44), shape: const CircleBorder()),
+              style: IconButton.styleFrom(backgroundColor: scheme.surface, minimumSize: const Size(44,44), shape: const CircleBorder()),
               icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 19, color: scheme.secondary))),
         Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: _PropertyFacts(property: property)),
         TextButton.icon(onPressed: onMap,
@@ -2292,12 +2286,12 @@ class _Fact extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        EbrokerIcon(icon, size: 16, color: EbrokerDesign.textLight),
+        EbrokerIcon(icon, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
         const SizedBox(width: 4),
         Text(
           text,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: EbrokerDesign.textLight,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
         ),
       ],
@@ -2313,9 +2307,9 @@ class _LoadingPropertyCard extends StatelessWidget {
     return Container(
       height: 164,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: EbrokerDesign.border),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -2323,7 +2317,7 @@ class _LoadingPropertyCard extends StatelessWidget {
           Container(
             width: 118,
             decoration: BoxDecoration(
-              color: AppTheme.brandSoft,
+              color: Theme.of(context).extension<AppSemanticColors>()!.skeletonBase,
               borderRadius: BorderRadius.circular(8),
             ),
           ),
@@ -2360,7 +2354,7 @@ class _LoadingLine extends StatelessWidget {
       child: Container(
         height: 12,
         decoration: BoxDecoration(
-          color: const Color(0xFFEAF1F0),
+          color: Theme.of(context).extension<AppSemanticColors>()!.skeletonBase,
           borderRadius: BorderRadius.circular(999),
         ),
       ),
@@ -2391,7 +2385,7 @@ class _ResultsState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            EbrokerIcon(icon, size: 48, color: EbrokerDesign.textLight),
+            EbrokerIcon(icon, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: 12),
             Text(
               title,
@@ -2425,7 +2419,7 @@ class _MessageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       elevation: 4,
       borderRadius: BorderRadius.circular(16),
       child: Padding(

@@ -37,6 +37,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   List<Map<String, dynamic>> _savedLocal = [];
   Map<String, dynamic>? _local, _editorLocal;
   bool _loading = true, _open = false, _fresh = false, _working = false;
+  bool _sourcesComplete = false;
   late bool _showSaved = widget.showSavedDrafts;
   bool _assistant = false;
   ListingAccountDraft? _selected;
@@ -64,7 +65,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   Future<void> _load() async {
     if (!_current) return;
     final request = ++_request;
-    setState(() { _loading = true; _error = null; });
+    setState(() { _loading = true; _sourcesComplete = false; _error = null; });
     try {
       final device = await Future.wait<dynamic>([
         _store.read(widget.actor, null).timeout(const Duration(seconds: 15)),
@@ -79,6 +80,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       if (!_current || request != _request) return;
       _drafts = (rows[0] as List<ListingAccountDraft>).where((d) => !d.isRetired).toList();
       _legacy = (rows[1] as List<PropertyDetails>).where((p) => p.status == 'draft').toList();
+      _sourcesComplete = true;
       if (widget.existingProperty != null) {
         _property = widget.existingProperty;
         for (final draft in _drafts) { if (draft.propertyId == _property!.id) _selected = draft; }
@@ -132,12 +134,12 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       TextButton(key: const ValueKey('listing-confirm-discard'), onPressed: () => Navigator.pop(context, true), child: const Text('تأكيد')),
     ])) == true;
   Future<void> _startNew() async {
-    if (_working || _loading || _error != null || !_current) return;
-    if ((_localAutomatic || _automatic != null) &&
-        !await _confirm('بدء إعلان جديد؟', 'سيُستبدل التقدم التلقائي المعروض فقط. تبقى المسودات التي حفظتها صراحة في «مسوداتي» دون حذف.')) return;
-    if (!_current) return;
+    if (_working || _loading || !_sourcesComplete || !_current) return;
     setState(() { _working = true; _error = null; });
     try {
+      if ((_localAutomatic || _automatic != null) &&
+          !await _confirm('بدء إعلان جديد؟', 'سيُستبدل التقدم التلقائي المعروض فقط. تبقى المسودات التي حفظتها صراحة في «مسوداتي» دون حذف.')) { return; }
+      if (!_current) return;
       final remote = _automatic;
       final local = _localAutomatic ? _local : null;
       final key = local?['draft_key'] as String? ?? remote?.key;
@@ -151,10 +153,10 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     finally { if (_current) setState(() => _working = false); }
   }
   Future<void> _delete(ListingAccountDraft draft) async {
-    if (_working || !await _confirm('حذف المسودة المحفوظة؟', 'لن تتمكن من استعادتها بعد تأكيد الحذف.')) return;
-    if (!_current) return;
+    if (_working || _loading || !_current) return;
     setState(() => _working = true);
     try {
+      if (!await _confirm('حذف المسودة المحفوظة؟', 'لن تتمكن من استعادتها بعد تأكيد الحذف.') || !_current) return;
       await _repository.delete(draft.key); await _store.deleteSaved(widget.actor, draft.key);
       if (_local?['draft_key'] == draft.key) await _store.clear(widget.actor, null);
       if (_current) await _load();
@@ -162,18 +164,20 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     finally { if (_current) setState(() => _working = false); }
   }
   Future<void> _deleteLegacy(PropertyDetails property) async {
-    if (_working || !await _confirm('حذف الإعلان المحفوظ؟', 'سيحذف ذلك مسودة الإعلان المحددة فقط.')) return;
-    if (!_current) return;
+    if (_working || _loading || !_current) return;
     setState(() => _working = true);
-    try { await ref.read(propertyRepositoryProvider).deleteListing(property.id); if (_current) await _load(); }
+    try {
+      if (!await _confirm('حذف الإعلان المحفوظ؟', 'سيحذف ذلك مسودة الإعلان المحددة فقط.') || !_current) return;
+      await ref.read(propertyRepositoryProvider).deleteListing(property.id); if (_current) await _load();
+    }
     catch (e) { if (_current) setState(() => _error = friendlyApiError(e)); }
     finally { if (_current) setState(() => _working = false); }
   }
   Future<void> _deleteLocal(Map<String, dynamic> data) async {
-    if (_working || !await _confirm('حذف المسودة المحلية؟', 'لن يحذف ذلك إعلانًا محفوظًا على الخادم.')) return;
-    if (!_current) return;
+    if (_working || _loading || !_current) return;
     setState(() => _working = true);
     try {
+      if (!await _confirm('حذف المسودة المحلية؟', 'لن يحذف ذلك إعلانًا محفوظًا على الخادم.') || !_current) return;
       final key = data['draft_key'] as String;
       await _store.deleteSaved(widget.actor, key);
       if (_local?['draft_key'] == key) await _store.clear(widget.actor, null);
@@ -216,7 +220,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
                 else if (remote != null) { _resume(remote); }
                 else { _resumeProperty(legacy!); }
               }),
-            TextButton(key: const ValueKey('listing-recovery-new'), onPressed: _working || _error != null ? null : _startNew,
+            TextButton(key: const ValueKey('listing-recovery-new'), onPressed: _working || !_sourcesComplete ? null : _startNew,
               child: const Text('بدء إعلان جديد')),
             if (local != null && !_localAutomatic || remote != null && !remote.isRecovery || legacy != null)
               const Text('تظل مسوداتك المحفوظة في «مسوداتي» عند بدء إعلان جديد.'),

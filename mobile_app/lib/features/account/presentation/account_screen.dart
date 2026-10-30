@@ -52,7 +52,7 @@ class AccountScreen extends ConsumerWidget {
                 ]),
                 const SizedBox(height: AppSpacing.s12),
                 if (user == null) ...[
-                  AppListRow(title: 'المفضلة', leading: const EbrokerImage('heart'),
+                  AppListRow(title: 'المفضلة', leading: EbrokerImage('heart', color: Theme.of(context).colorScheme.onSurface),
                     onTap: () => context.push('/favorites')),
                   const SizedBox(height: 12),
                   AppButton(

@@ -163,7 +163,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             key: const ValueKey('home-location'), onPressed: _chooseLocation,
             style: TextButton.styleFrom(foregroundColor: theme.colorScheme.primary),
             icon: _locationBusy ? const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2))
-              : const EbrokerImage('location', size: 17),
+              : EbrokerImage('location', size: 17, color: theme.colorScheme.primary),
             label: Text(data?.label ?? location.label, maxLines: 1, overflow: TextOverflow.ellipsis)))),
           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text('عقار اليمن', maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -171,7 +171,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             Text('بيتك… يبدأ من هنا', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10)),
           ])),
         ]), actions: [IconButton(tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'),
-          icon: const EbrokerImage('notification', size: 21))]),
+          icon: EbrokerImage('notification', size: 21, color: theme.colorScheme.onSurface))]),
       body: SmartSearchAssistantLayer(onOpenMap: _openMap, onPressed: () => context.push('/smart-search'), child: RefreshIndicator(onRefresh: () async {
         try { ref.read(marketplaceRepositoryProvider).invalidateFeed(query); ref.invalidate(marketplaceFeedProvider(query));
           await ref.read(marketplaceFeedProvider(query).future); } catch (_) { /* Inline retry retains only this query. */ }

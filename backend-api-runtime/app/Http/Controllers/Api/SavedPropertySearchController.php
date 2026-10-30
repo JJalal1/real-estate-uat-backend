@@ -132,6 +132,9 @@ class SavedPropertySearchController extends Controller
 
     private function validatedFilters(array $input): array
     {
+        // Validate conflicting raw selections before canonicalization can
+        // collapse types into the legacy scalar representation.
+        app(\App\Services\PropertyDiscoveryFilterService::class)->validateGeometry($input);
         $filters = $this->searches->normalizeFilters($input);
         if ($filters === []) {
             throw ValidationException::withMessages(['filters' => 'حدد شرطًا واحدًا على الأقل للبحث المحفوظ.']);

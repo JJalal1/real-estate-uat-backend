@@ -103,7 +103,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     final turn = ++_voiceTurn;
     final text = retry ? await _capture.retryTranscription() : await _capture.start();
     if (!mounted || turn != _voiceTurn || actor != ref.read(authControllerProvider).asData?.value?.id ||
-        _description.text != _voiceVisibleText) return;
+        _description.text != _voiceVisibleText) { return; }
     if (text == null) {
       _description.text = _capture.error != null && _capture.stablePreview.isNotEmpty
         ? appendDictation(_voiceDraft, _capture.stablePreview) : _voiceRestoration;

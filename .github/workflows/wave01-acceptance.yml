@@ -31,12 +31,21 @@ jobs:
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
           flutter pub get --enforce-lockfile
       - name: Strict analysis without new diagnostics
+        id: analysis
+        continue-on-error: true
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
       - name: Voice, recovery, themes and retained discovery behavior
+        id: journeys
+        continue-on-error: true
         working-directory: mobile_app
         run: |
-          flutter test --reporter expanded test/in_app_voice_search_test.dart test/search_query_wave_test.dart test/branch2_voice_test.dart test/branch2_recovery_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart test/wave3_search_only_1393_test.dart test/app_theme_test.dart test/theme_preference_race_test.dart
+          flutter test --reporter expanded test/wave01_shared_filters_test.dart test/wave01_acceptance_test.dart test/in_app_voice_search_test.dart test/search_query_wave_test.dart test/branch2_voice_test.dart test/branch2_recovery_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart test/wave3_search_only_1393_test.dart test/app_theme_test.dart test/theme_preference_race_test.dart
+      - name: Require both analysis and behavioral acceptance
+        if: always()
+        run: |
+          test "${{ steps.analysis.outcome }}" = success
+          test "${{ steps.journeys.outcome }}" = success
       - uses: actions/upload-artifact@v4
         if: always()
         with:

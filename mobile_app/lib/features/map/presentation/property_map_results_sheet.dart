@@ -32,12 +32,18 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
   ScrollController? _scroll;
   double _minimum = .14, _initial = .29, _maximum = .84;
   bool _expanded = true;
+  bool _extentUpdateQueued = false;
   @override
   void initState() { super.initState(); _extent.addListener(_extentChanged); }
   void _extentChanged() {
-    if (!mounted || !_extent.isAttached) return;
-    final expanded = _extent.size > _minimum + .04;
-    if (_expanded != expanded) setState(() => _expanded = expanded);
+    if (!mounted || !_extent.isAttached || _extentUpdateQueued) return;
+    _extentUpdateQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _extentUpdateQueued = false;
+      if (!mounted || !_extent.isAttached) return;
+      final expanded = _extent.size > _minimum + .04;
+      if (_expanded != expanded) setState(() => _expanded = expanded);
+    });
   }
   void _toggleExtent() {
     if (!_extent.isAttached) return;
