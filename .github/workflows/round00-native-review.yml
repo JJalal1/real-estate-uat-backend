@@ -1,0 +1,114 @@
+name: Round00 actual Android screen review
+on:
+  push:
+    branches: [work/round00-android-*]
+permissions:
+  contents: read
+concurrency:
+  group: round00-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    name: Real API36 APK and isolated matching Laravel
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: aqer_round00
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aqer_round00"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      APP_URL: https://real-estate-uat-api-frankfurt.onrender.com
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: aqer_round00
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      UAT_CLOUD_STORAGE_ENABLED: 'false'
+      AQER_ROUND00_DISPOSABLE: '20261030'
+      AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove product source is unchanged
+        run: |
+          mkdir -p round00-out
+          python3 scripts/round00/verify_scope.py
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Create disposable matching database and synthetic image bytes
+        working-directory: backend-api-runtime
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          php artisan key:generate --force
+          psql -h 127.0.0.1 -U postgres -d aqer_round00 -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          php artisan migrate --force
+          php ../scripts/round00/seed.php
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Build actual release APK from unchanged Wave01 product source
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+          flutter build apk --flavor uat --release --target-platform android-x64 --build-number=1443 --dart-define=APP_BUILD_NUMBER=1443 --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
+          cp build/app/outputs/flutter-apk/app-uat-release.apk "$RUNNER_TEMP/round00-app.apk"
+          export ROUND00_APK="$RUNNER_TEMP/round00-app.apk"
+          python3 ../scripts/round00/verify_scope.py --apk
+      - name: Boot real rooted API36 Android with isolated HTTPS backend
+        timeout-minutes: 12
+        run: bash scripts/round00/start_environment.sh
+      - name: Navigate real rendered app and collect screen and performance evidence
+        timeout-minutes: 12
+        run: python3 scripts/round00/native_review.py
+      - name: Capture final native diagnostics without product changes
+        if: always()
+        run: |
+          python3 scripts/round00/verify_scope.py
+          adb shell getprop ro.build.version.sdk > round00-out/android-api.txt 2>/dev/null || true
+          adb logcat -d -b crash > round00-out/crash-buffer.txt 2>/dev/null || true
+          adb shell dumpsys gfxinfo com.aqer.yemen.uat framestats > round00-out/gfxinfo-final.txt 2>/dev/null || true
+          tail -100 "$RUNNER_TEMP/round00-emulator.log" > round00-out/emulator-tail.txt 2>/dev/null || true
+          tail -60 "$RUNNER_TEMP/round00-transport.log" > round00-out/transport-tail.txt 2>/dev/null || true
+          tail -60 "$RUNNER_TEMP/round00-php.log" > round00-out/php-http-tail.txt 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: round00-real-android-${{ github.run_number }}
+          path: round00-out/
+          if-no-files-found: error
+          retention-days: 14
