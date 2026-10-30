@@ -110,7 +110,7 @@ class API(http.server.BaseHTTPRequestHandler):
             if response is None:
                 self.send_error(502, 'Isolated backend unavailable')
 
-dns = socketserver.ThreadingUDPServer(('0.0.0.0',53),DNS)
+dns = socketserver.ThreadingUDPServer(('127.0.0.1',53),DNS)
 threading.Thread(target=dns.serve_forever,daemon=True).start()
 server = http.server.ThreadingHTTPServer(('0.0.0.0',443),API)
 tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
