@@ -10,6 +10,7 @@ import http.client
 import http.server
 import json
 import os
+import re
 import socket
 import socketserver
 import ssl
@@ -65,7 +66,11 @@ class API(http.server.BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
     def log_message(self, *args):
         pass
-    def do_POST(self): self.reject()
+    def do_POST(self):
+        if re.fullmatch(r'/api/properties/(?:[1-9]|[12][0-9]|3[0-6])/view',self.path):
+            self.forward(False)
+        else:
+            self.reject()
     def do_PUT(self): self.reject()
     def do_PATCH(self): self.reject()
     def do_DELETE(self): self.reject()
@@ -82,10 +87,16 @@ class API(http.server.BaseHTTPRequestHandler):
         try:
             connection = http.client.HTTPConnection('127.0.0.1', 8000, timeout=30)
             headers = {k:v for k,v in self.headers.items() if k.lower() in
-                {'accept','accept-encoding','user-agent','if-none-match','range','if-range','x-aqer-diagnostics'}}
+                {'accept','accept-encoding','content-type','user-agent','if-none-match','range','if-range','x-aqer-diagnostics'}}
             headers['Host'] = HOST
             headers['X-Forwarded-Proto'] = 'https'
-            connection.request(self.command, self.path, headers=headers)
+            payload = None
+            if self.command == 'POST':
+                length = int(self.headers.get('Content-Length','0'))
+                if length > 4096:
+                    self.reject(); return
+                payload = self.rfile.read(length)
+            connection.request(self.command, self.path, body=payload, headers=headers)
             response = connection.getresponse()
             header_ms = (time.perf_counter() - started)*1000
             body = response.read()
@@ -117,5 +128,6 @@ tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 tls.load_cert_chain(os.environ['ROUND00_TLS_CERT'],os.environ['ROUND00_TLS_KEY'])
 server.socket = tls.wrap_socket(server.socket,server_side=True)
 record('environment.jsonl', {'dns':'runner:53','tls':'runner:443','api_host':HOST,'backend':'127.0.0.1:8000',
-    'trust':'temporary test CA, no APK verification bypass','writes':'rejected','database':'aqer_round00'})
+    'trust':'temporary test CA, no APK verification bypass',
+    'writes':'Only view counters for36 synthetic local properties allowed; every other write rejected','database':'aqer_round00'})
 server.serve_forever()

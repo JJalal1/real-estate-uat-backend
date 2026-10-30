@@ -74,8 +74,9 @@ def tap_text(text, name, *, exact=False):
     return True
 
 def snapshot(name):
-    image = screenshot(name)
     nodes = tree(name)
+    time.sleep(.5)
+    image = screenshot(name)
     return {'screen':image,'tree':name+'.xml','labels':[label(n) for n in nodes if label(n)][:120]}
 
 def case(key, status, actual, expected, evidence=None):
@@ -124,6 +125,10 @@ try:
     for permission in ["Don't allow",'عدم السماح','Not now','لاحقًا']:
         if tap_text(permission,'permission-dialog'):
             time.sleep(2)
+    region_choice = tap_text('المتابعة الآن','initial-region-continue')
+    if region_choice:
+        time.sleep(3)
+    report['initial_region_choice_continued'] = region_choice
     initial=snapshot('03-home-after-permission')
     pid=adb('shell','pidof',PACKAGE,check=False).strip()
     case('R00-01','passed' if pid else 'failed',{'process_pid':pid,'launch':launch},
