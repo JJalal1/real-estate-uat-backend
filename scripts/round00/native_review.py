@@ -178,6 +178,16 @@ try:
     home()
     for _ in range(4): swipe(False)
     map_open=tap_text('الخريطة','find-map-entry')
+    map_entry='accessibility_label'
+    if not map_open:
+        # Run10 real PNG03: visible upper-left map circle centred at110,310
+        # on the asserted1080x2160 display; missing from Android semantics.
+        observed=snapshot('09-map-entry-before-coordinate-tap')
+        if '1080x2160' in report['device_size'] and any('ماذا تبحث عنه' in x for x in observed['labels']):
+            adb('shell','input','tap','110','310')
+            time.sleep(1.2)
+            map_open=True
+            map_entry='visible_icon_coordinate110_310_grounded_in_run10_PNG03'
     if map_open:
         time.sleep(6)
         map_before=snapshot('09-map-before-pan')
@@ -187,7 +197,7 @@ try:
         adb('shell','input','swipe','780','750','330','1000','900');time.sleep(3)
         map_after=snapshot('10-map-after-pan')
         map_queries=[r for r in api_rows()[len(rows_before):] if '/api/properties/nearby' in r['path']]
-        case('R00-06','executed_needs_visual_review',{'pan_gesture':True,'new_viewport_requests':map_queries,
+        case('R00-06','executed_needs_visual_review',{'entry':map_entry,'pan_gesture':True,'new_viewport_requests':map_queries,
              'before_screen_sha256':hashlib.sha256((OUT/map_before['screen']).read_bytes()).hexdigest(),
              'after_screen_sha256':hashlib.sha256((OUT/map_after['screen']).read_bytes()).hexdigest()},
              'Actual MapLibre basemap loads and pans, with matching local property API',[map_before['screen'],map_after['screen'],'isolated-dns.txt','http.jsonl'])
