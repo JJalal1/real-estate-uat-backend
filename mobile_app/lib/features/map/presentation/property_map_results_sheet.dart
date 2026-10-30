@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../properties/domain/property_marker.dart';
@@ -179,6 +180,9 @@ class PropertyMapResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = property, rent = p.purpose == 'rent', scheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>() ??
+      (scheme.brightness == Brightness.dark ? AppSemanticColors.dark : AppSemanticColors.light);
+    final purposeColor = rent ? semantic.info : semantic.success;
     final photo = p.mainImage ?? (p.imageUrls.isEmpty ? null : p.imageUrls.first);
     if (compact && MediaQuery.textScalerOf(context).scale(14) <= 24) {
       return InkWell(onTap: onDetails, borderRadius: BorderRadius.circular(10),
@@ -189,7 +193,7 @@ class PropertyMapResultCard extends StatelessWidget {
           const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
             Text('${SmartSearchFilters.types[p.type] ?? 'عقار'} · ${rent ? 'للإيجار' : 'للبيع'}',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: rent ? mapRentColor : mapSaleColor)),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: purposeColor)),
             if (p.address?.isNotEmpty == true) Text(p.address!, maxLines: 1, overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 4),
@@ -225,7 +229,7 @@ class PropertyMapResultCard extends StatelessWidget {
             child: AppPropertyPrice(price: (rent ? p.monthlyRent ?? p.price : p.price).toString(), currency: p.currency,
               suffix: rent && p.monthlyRent != null ? 'شهريًا' : null)))),
         Row(children: [Expanded(child: Text(rent ? 'للإيجار' : 'للبيع',
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(color: rent ? mapRentColor : mapSaleColor))),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(color: purposeColor))),
           IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
             onPressed: onFavorite, icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded)),
           IconButton(key: ValueKey('map-card-focus-${p.id}'), tooltip: 'عرض على الخريطة',

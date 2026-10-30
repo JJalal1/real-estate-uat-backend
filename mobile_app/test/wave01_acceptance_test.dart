@@ -17,10 +17,12 @@ import 'package:real_estate_mobile/features/discovery/presentation/assisted_sear
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/smart_search_assistant.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
+import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/listing_account_draft.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_draft_entry_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 import 'support/owner_ux_fixtures.dart';
@@ -87,6 +89,28 @@ Future<void> _tap(WidgetTester tester, String key, {bool settle = true}) async {
 
 void main() {
   setUpAll(loadUxFixtures);
+
+  for (final dark in [false, true]) {
+    for (final purpose in ['sale', 'rent']) {
+      for (final compact in [false, true]) {
+        testWidgets('T05 actual map purpose text meets contrast dark=$dark purpose=$purpose compact=$compact', (tester) async {
+          final scope = uxContainer();
+          await pumpUx(tester, scope, Scaffold(body: Builder(builder: (context) => Material(
+            color: Theme.of(context).colorScheme.surface,
+            child: PropertyMapResultCard(property: PropertyMarker(id: 11, title: 'عقار اختبار', price: 100000,
+              currency: 'YER', latitude: 15.37, longitude: 44.19, distanceKm: 0, type: 'apartment', purpose: purpose),
+              compact: compact, favorite: false, onFavorite: () {}, onMap: () {}, onDetails: () {})))), dark: dark);
+          final label = find.textContaining(purpose == 'rent' ? 'للإيجار' : 'للبيع');
+          final foreground = tester.widget<Text>(label).style!.color!;
+          final background = Theme.of(tester.element(label)).colorScheme.surface;
+          final a = foreground.computeLuminance(), b = background.computeLuminance();
+          final ratio = ((a > b ? a : b) + .05) / ((a > b ? b : a) + .05);
+          expect(ratio, greaterThanOrEqualTo(4.5));
+          expect(tester.takeException(), isNull); await closeUx(tester);
+        });
+      }
+    }
+  }
 
   for (final dark in [false, true]) {
     testWidgets('T01 T02 live voice appends once and executes only one final query dark=$dark', (tester) async {

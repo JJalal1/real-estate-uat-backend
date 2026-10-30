@@ -2035,15 +2035,15 @@ class _MapListSwitcherBar extends StatelessWidget {
             Expanded(
               child: InkWell(
                 onTap: onAdd,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    EbrokerIcon(Icons.add_circle, color: AppTheme.brandStrong),
-                    SizedBox(width: 7),
+                    EbrokerIcon(Icons.add_circle, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 7),
                     Text(
                       'إضافة',
                       style: TextStyle(
-                        color: AppTheme.brandStrong,
+                        color: Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2427,7 +2427,7 @@ class _MessageCard extends StatelessWidget {
           children: [
             EbrokerIcon(
               Icons.info_outline,
-              color: AppTheme.accent,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 8),
             Expanded(child: Text(text)),
