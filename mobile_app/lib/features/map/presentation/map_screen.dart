@@ -14,7 +14,6 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/theme/ebroker_design.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
 import '../domain/property_marker_cluster.dart';
@@ -560,7 +559,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final journey = ref.read(_searchSession.notifier);
     await context.push('/smart-search');
     if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id ||
-        !identical(journey, ref.read(_searchSession.notifier))) return;
+        !identical(journey, ref.read(_searchSession.notifier))) { return; }
     setState(() => _applySharedFilters(ref.read(_searchSession).filters));
     _persistDiscoveryHistory();
     await _renderSelectedAreaAnnotations();

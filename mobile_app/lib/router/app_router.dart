@@ -84,7 +84,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           entryFilters: state.extra is SavedPropertySearch || entry.values.isEmpty ? null : entry,
           onExitFilters: (filters) {
             if (ref.read(authControllerProvider).asData?.value?.id != actor ||
-                !identical(journey, ref.read(marketplaceSearchControllerProvider.notifier))) return;
+                !identical(journey, ref.read(marketplaceSearchControllerProvider.notifier))) { return; }
             ref.read(marketplaceSearchControllerProvider.notifier).adoptMapSearch(filters,
               applyMap: ref.read(marketplaceSearchControllerProvider).mapOpen);
           });

@@ -17,17 +17,22 @@ class Wave01SharedFiltersTest extends TestCase
     private function listing(string $type, string $purpose = 'sale', array $changes = []): Property
     {
         $owner = User::factory()->create(['phone_verified_at' => now(), 'account_status' => 'active']);
-        return Property::create(array_replace([
+        $property = Property::create(array_replace([
             'user_id' => $owner->id, 'title' => 'عقار اصطناعي '.$type, 'description' => 'بيانات اختبار فقط',
             'type' => $type, 'purpose' => $purpose, 'price' => 1000000, 'currency' => 'YER',
             'area_m2' => 160, 'bedrooms' => 3, 'bathrooms' => 2, 'address' => 'صنعاء، حدة',
             'latitude' => 15.3694, 'longitude' => 44.1910, 'status' => 'published',
             'review_status' => 'approved', 'published_at' => now(), 'availability_status' => 'available',
         ], $changes));
+        if (isset($changes['availability_status'])) $property->forceFill(['availability_status' => $changes['availability_status']])->save();
+        return $property;
     }
 
     private function publicGet(string $path, array $filters = [])
     {
+        if (isset($filters['types']) && is_array($filters['types'])) {
+            $filters['types'] = array_map(fn ($value) => $value === null ? '' : $value, $filters['types']);
+        }
         return $this->getJson('/api/'.$path.'?'.http_build_query($filters));
     }
 
@@ -61,7 +66,7 @@ class Wave01SharedFiltersTest extends TestCase
         $expected = [$apartment->id, $villa->id, $floor->id];
         $list = $this->publicGet('properties', $filters)->assertOk()->assertHeader('X-Aqer-Filter-Contract', '2');
         $this->assertSame($expected, $this->ids($list->json('data')));
-        $map = $this->publicGet('properties/nearby', $filters + ['south' => 15, 'west' => 44, 'north' => 16, 'east' => 45])
+        $map = $this->publicGet('properties/nearby', $filters + ['latitude' => 15.37, 'longitude' => 44.19, 'radius_km' => 30, 'viewport' => 1, 'south' => 15, 'west' => 44, 'north' => 16, 'east' => 45])
             ->assertOk()->assertHeader('X-Aqer-Filter-Contract', '2');
         $this->assertSame($expected, $this->ids($map->json('data')));
         $home = $this->publicGet('marketplace', $filters + ['governorate' => 'صنعاء'])
@@ -95,7 +100,7 @@ class Wave01SharedFiltersTest extends TestCase
             ['types' => ['selected' => 'apartment']], ['types' => array_fill(0, 9, 'villa')],
             ['type' => 'land', 'types' => ['apartment', 'villa']]] as $filters) {
             $this->publicGet('properties', $filters)->assertUnprocessable();
-            $this->publicGet('properties/nearby', $filters + ['south' => 15, 'west' => 44, 'north' => 16, 'east' => 45])->assertUnprocessable();
+            $this->publicGet('properties/nearby', $filters + ['latitude' => 15.37, 'longitude' => 44.19, 'radius_km' => 30, 'viewport' => 1, 'south' => 15, 'west' => 44, 'north' => 16, 'east' => 45])->assertUnprocessable();
             $this->publicGet('marketplace', $filters)->assertUnprocessable();
         }
     }

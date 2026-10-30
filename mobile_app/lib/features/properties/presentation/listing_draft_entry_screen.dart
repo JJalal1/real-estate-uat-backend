@@ -38,6 +38,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   Map<String, dynamic>? _local, _editorLocal;
   bool _loading = true, _open = false, _fresh = false, _working = false;
   bool _sourcesComplete = false;
+  bool _confirming = false;
   late bool _showSaved = widget.showSavedDrafts;
   bool _assistant = false;
   ListingAccountDraft? _selected;
@@ -128,11 +129,16 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     if (_working || _loading || !_current) return;
     setState(() { _property = property; _assistant = false; _fresh = false; _open = true; });
   }
-  Future<bool> _confirm(String title, String content) async => await showDialog<bool>(context: context,
-    builder: (context) => AlertDialog(title: Text(title), content: Text(content), actions: [
-      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('رجوع')),
-      TextButton(key: const ValueKey('listing-confirm-discard'), onPressed: () => Navigator.pop(context, true), child: const Text('تأكيد')),
-    ])) == true;
+  Future<bool> _confirm(String title, String content) async {
+    setState(() => _confirming = true);
+    try {
+      return await showDialog<bool>(context: context,
+        builder: (context) => AlertDialog(title: Text(title), content: Text(content), actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('رجوع')),
+          TextButton(key: const ValueKey('listing-confirm-discard'), onPressed: () => Navigator.pop(context, true), child: const Text('تأكيد')),
+        ])) == true;
+    } finally { if (_current) setState(() => _confirming = false); }
+  }
   Future<void> _startNew() async {
     if (_working || _loading || !_sourcesComplete || !_current) return;
     setState(() { _working = true; _error = null; });
@@ -208,7 +214,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
           crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(_loading ? 'التحقق من التقدم المحفوظ…' : 'لديك إعلان غير مكتمل', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          if (_loading || _working || _error != null) AppRefreshStatus(loading: _loading || _working, error: _error, onRetry: _load),
+          if (_loading || _working || _error != null) AppRefreshStatus(loading: _loading || _working && !_confirming, error: _error, onRetry: _load),
           if (!_loading && (local != null || remote != null || legacy != null)) ...[
             Text(title?.isNotEmpty == true ? title! : remote?.title ?? legacy?.title ?? 'إعلان محفوظ على جهازك'),
             if (remote != null && local == null) ...[const SizedBox(height: 8), LinearProgressIndicator(value: remote.progress / 100), Text('${remote.progress}% من البيانات الأساسية')],
@@ -231,7 +237,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   }
   Widget _saved() => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
     appBar: AppBar(title: const Text('مسوداتي')), body: ListView(padding: const EdgeInsets.all(18), children: [
-      if (_loading || _working || _error != null) AppRefreshStatus(loading: _loading || _working, error: _error, onRetry: _load),
+      if (_loading || _working || _error != null) AppRefreshStatus(loading: _loading || _working && !_confirming, error: _error, onRetry: _load),
       for (final draft in _drafts) ListTile(title: Text(draft.title), subtitle: Text(draft.isRecovery ? 'تقدم تلقائي' : 'مسودة محفوظة'),
         onTap: _working ? null : () => _resume(draft), trailing: IconButton(tooltip: 'حذف المسودة', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _delete(draft))),
       for (final data in _deviceDrafts.where((data) => !_drafts.any((d) => d.key == data['draft_key']))) ListTile(

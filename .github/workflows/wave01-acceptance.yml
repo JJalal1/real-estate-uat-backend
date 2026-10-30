@@ -40,7 +40,15 @@ jobs:
         continue-on-error: true
         working-directory: mobile_app
         run: |
-          flutter test --reporter expanded test/wave01_shared_filters_test.dart test/wave01_acceptance_test.dart test/in_app_voice_search_test.dart test/search_query_wave_test.dart test/branch2_voice_test.dart test/branch2_recovery_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart test/wave3_search_only_1393_test.dart test/app_theme_test.dart test/theme_preference_race_test.dart
+          flutter test --reporter expanded test/wave01_shared_filters_test.dart test/wave01_acceptance_test.dart test/wave01_proof_video_test.dart test/in_app_voice_search_test.dart test/search_query_wave_test.dart test/branch2_voice_test.dart test/branch2_recovery_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart test/wave3_search_only_1393_test.dart test/app_theme_test.dart test/theme_preference_race_test.dart
+      - name: Encode the explicitly synthetic Widget proof
+        if: ${{ steps.analysis.outcome == 'success' && steps.journeys.outcome == 'success' }}
+        run: |
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -y -loglevel warning -framerate 5 -i mobile_app/build/wave01-video/frame-%04d.png -vf "pad=iw:ih+64:0:64:color=0x12262d,drawtext=text='Synthetic widget proof':fontcolor=white:fontsize=18:x=12:y=8,drawtext=text='No physical ASR or map provider test':fontcolor=white:fontsize=12:x=12:y=34" -c:v libx264 -pix_fmt yuv420p -movflags +faststart mobile_app/build/wave01-video/wave01-synthetic-proof.mp4
       - name: Require both analysis and behavioral acceptance
         if: always()
         run: |
@@ -53,6 +61,8 @@ jobs:
           path: |
             mobile_app/build/owner-ux-preview/*.png
             mobile_app/build/broker-preview/voice-*.png
+            mobile_app/build/wave01-video/wave01-synthetic-proof.mp4
+            mobile_app/build/wave01-video/proof.json
           if-no-files-found: warn
           retention-days: 7
   laravel:

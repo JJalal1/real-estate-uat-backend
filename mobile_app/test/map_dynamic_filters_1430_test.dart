@@ -266,7 +266,7 @@ void main() {
         expect(toolbar.top, greaterThanOrEqualTo(surface.top));
         expect(toolbar.left, greaterThanOrEqualTo(surface.left));
         expect(toolbar.right, lessThanOrEqualTo(surface.right));
-        expect(list.top, surface.top);
+        expect(list.top, greaterThan(surface.top));
         for (final key in ['published-purpose-rent', 'published-map-filters', 'map-draw-area', 'map-smart-search']) {
           final rect = tester.getRect(find.byKey(ValueKey(key)));
           expect(rect.left, greaterThanOrEqualTo(toolbar.left - 1));
@@ -294,7 +294,9 @@ void main() {
         final control = tester.getRect(maximum);
         expect(control.top, greaterThanOrEqualTo(visible.top - 1));
         expect(control.bottom, lessThanOrEqualTo(visible.bottom + 1));
-        expect(visible.top - map.top, greaterThanOrEqualTo(70));
+        // Binary floating-point layout may differ by less than one millionth of a pixel.
+        final expandedSurface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
+        expect(expandedSurface.top - map.top, greaterThanOrEqualTo(70 - 1e-6));
         await uxPreview(tester, boundary, 'map-filters-1430-$dark-$scale-controls');
         expect(tester.takeException(), isNull);
         await closeUx(tester);

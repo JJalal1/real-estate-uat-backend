@@ -51,6 +51,18 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
     _extent.animateTo(_expanded ? _minimum : _initial,
       duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
   }
+  void _dragHeader(double delta, double height) {
+    if (!_extent.isAttached || height <= 0) return;
+    FocusScope.of(context).unfocus();
+    _extent.jumpTo((_extent.size - delta / height).clamp(_minimum, _maximum).toDouble());
+  }
+  void _snapHeader(double velocity) {
+    if (!_extent.isAttached) return;
+    final points = <double>{_minimum, _initial, _maximum}.toList()..sort();
+    final target = velocity.abs() > 500 ? (velocity < 0 ? _maximum : _minimum)
+      : points.reduce((a, b) => (a - _extent.size).abs() <= (b - _extent.size).abs() ? a : b);
+    _extent.animateTo(target, duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic);
+  }
   @override
   void didUpdateWidget(PropertyMapResultsSheet old) {
     super.didUpdateWidget(old);
@@ -87,7 +99,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
       : (1 - 70 / (height > 0 ? height : 1)).clamp(.14, widget.maxExtent).toDouble();
     final titleStyle = Theme.of(context).textTheme.titleSmall;
     final titleHeight = MediaQuery.textScalerOf(context).scale(titleStyle?.fontSize ?? 16) * (titleStyle?.height ?? 1.4);
-    _minimum = widget.filterPanel == null ? .14 : ((40 + (titleHeight * 2 > 48 ? titleHeight * 2 : 48)) /
+    _minimum = ((40 + (titleHeight * 2 > 48 ? titleHeight * 2 : 48)) /
       (height > 0 ? height : 1)).clamp(.14, _maximum).toDouble();
     _initial = (widget.filterPanel == null ? .29 : .55).clamp(_minimum, _maximum).toDouble();
     final selected = widget.items.where((row) => row.id == widget.selectedId);
@@ -100,15 +112,15 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
         _scroll = scroll;
         return Material(key: const ValueKey('map-search-panel-surface'), color: Theme.of(context).colorScheme.surface, elevation: 8,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)), clipBehavior: Clip.antiAlias,
-          child: ListView.builder(key: const ValueKey('map-results-list'), controller: scroll,
-            padding: EdgeInsets.fromLTRB(12, 8, 12, 24 + MediaQuery.paddingOf(context).bottom), cacheExtent: 0,
-            itemCount: rows.length + 2,
-            itemBuilder: (context, index) {
-              if (index == 0) { return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Semantics(label: 'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها', child: Listener(
-                  key: const ValueKey('map-results-handle'), behavior: HitTestBehavior.opaque,
-                  child: SizedBox(height: 24, child: Center(child: Container(width: 42, height: 4,
-                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4))))))),
+          child: Column(children: [
+            GestureDetector(behavior: HitTestBehavior.opaque,
+              onVerticalDragUpdate: (details) => _dragHeader(details.primaryDelta ?? 0, height),
+              onVerticalDragEnd: (details) => _snapHeader(details.primaryVelocity ?? 0),
+              child: Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 0), child: Column(children: [
+                Semantics(label: 'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها',
+                  child: SizedBox(key: const ValueKey('map-results-handle'), height: 24, width: double.infinity,
+                    child: Center(child: Container(width: 42, height: 4,
+                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))))),
                 Row(children: [Expanded(child: Text('${rows.length}${widget.more ? '+' : ''} عقار في النطاق',
                   key: const ValueKey('map-results-count'), maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall)),
@@ -118,6 +130,12 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                     tooltip: _expanded ? 'تصغير الفلاتر' : 'فتح الفلاتر', onPressed: _toggleExtent,
                     icon: Icon(_expanded ? Icons.keyboard_arrow_down : Icons.tune)),
                 ]),
+              ]))),
+            Expanded(child: ListView.builder(key: const ValueKey('map-results-list'), controller: scroll,
+              padding: EdgeInsets.fromLTRB(12, 0, 12, 24 + MediaQuery.paddingOf(context).bottom), cacheExtent: 0,
+              itemCount: rows.length + 2,
+              itemBuilder: (context, index) {
+              if (index == 0) { return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (widget.filterPanel != null) Padding(padding: const EdgeInsets.only(bottom: 12),
                   child: SizedBox(key: _filterPanelKey, child: widget.filterPanel)),
                 const Wrap(spacing: 16, runSpacing: 4, children: [
@@ -143,7 +161,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                     color: row.id == widget.selectedId ? Theme.of(context).colorScheme.primary
                       : row.purpose == 'rent' ? mapRentColor : mapSaleColor)),
                   child: widget.itemBuilder(row))));
-            }));
+            })),
+          ]));
       });
   }
 }

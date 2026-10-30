@@ -318,7 +318,7 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
         builder: (_) => AssistedSearchScreen(entryFilters: initial,
           onFiltersChanged: (filters) => selected = filters)));
       if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id ||
-          !identical(journey, ref.read(marketplaceSearchControllerProvider.notifier))) return;
+          !identical(journey, ref.read(marketplaceSearchControllerProvider.notifier))) { return; }
       if (initial.sameAs(selected)) return;
       ref.read(marketplaceSearchControllerProvider.notifier).adoptMapSearch(selected);
     } finally {

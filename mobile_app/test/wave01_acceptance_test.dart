@@ -6,12 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/core/platform/voice_input.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 import 'package:real_estate_mobile/features/account/data/account_verification_repository.dart';
 import 'package:real_estate_mobile/features/account/domain/account_verification.dart';
 import 'package:real_estate_mobile/features/account/presentation/account_verification_screen.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
-import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
@@ -217,8 +217,13 @@ void main() {
       await _tap(tester, 'listing-recovery-resume');
       expect(find.byType(ListingEditorScreen), findsOneWidget);
       expect(drafts.retired, 0); expect(device.deleted, 0);
-      expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text,
-        source == 'legacy' ? 'وصف المسودة القديمة' : 'وصف كتبه الدلال');
+      if (source == 'legacy') {
+        final restored = tester.widget<ListingEditorScreen>(find.byType(ListingEditorScreen)).existingProperty!;
+        expect(restored.id, 77); expect(restored.description, 'وصف المسودة القديمة');
+        expect(drafts.reads, 0);
+      } else {
+        expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text, 'وصف كتبه الدلال');
+      }
       expect(tester.takeException(), isNull); await closeUx(tester);
     });
   }
@@ -267,7 +272,8 @@ void main() {
         final boundary = GlobalKey();
         await pumpUx(tester, scope, const AccountVerificationScreen(), dark: dark, scale: scale, size: const Size(320, 700), boundary: boundary);
         await tester.pumpAndSettle();
-        await tester.ensureVisible(find.text('مكتب عقارات')); await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(find.text('مكتب عقارات'), 180);
+        await tester.ensureVisible(find.byType(EbrokerSegmentedButton<String>)); await tester.pumpAndSettle();
         for (final label in ['مالك', 'دلال', 'مكتب عقارات']) {
           final paragraph = tester.renderObject<RenderParagraph>(find.text(label));
           expect(paragraph.getMaxIntrinsicWidth(double.infinity), lessThanOrEqualTo(paragraph.size.width + 1), reason: label);
