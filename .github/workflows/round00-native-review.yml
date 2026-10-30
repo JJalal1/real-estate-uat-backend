@@ -100,9 +100,9 @@ jobs:
         run: |
           python3 scripts/round00/offline_fallback.py
           python3 scripts/round00/verify_scope.py
-          adb shell getprop ro.build.version.sdk > round00-out/android-api.txt 2>/dev/null || true
-          adb logcat -d -b crash > round00-out/crash-buffer.txt 2>/dev/null || true
-          adb shell dumpsys gfxinfo com.aqer.yemen.uat framestats > round00-out/gfxinfo-final.txt 2>/dev/null || true
+          timeout 8s adb shell getprop ro.build.version.sdk > round00-out/android-api.txt 2>/dev/null || true
+          timeout 8s adb logcat -d -b crash > round00-out/crash-buffer.txt 2>/dev/null || true
+          timeout 8s adb shell dumpsys gfxinfo com.aqer.yemen.uat framestats > round00-out/gfxinfo-final.txt 2>/dev/null || true
           tail -100 "$RUNNER_TEMP/round00-emulator.log" > round00-out/emulator-tail.txt 2>/dev/null || true
           tail -60 "$RUNNER_TEMP/round00-transport.log" > round00-out/transport-tail.txt 2>/dev/null || true
           tail -60 "$RUNNER_TEMP/round00-php.log" > round00-out/php-http-tail.txt 2>/dev/null || true
