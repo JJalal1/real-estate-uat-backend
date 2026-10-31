@@ -160,6 +160,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   late ListingRecoveryStore _recoveryStore;
   int? _recoveryUserId, _recoveredServerId;
   bool _recoveryReady = false, _recoveryFinished = false, _recoverySaved = false, _recoveryFailed = false;
+  bool _automaticSaveStarted = false;
   String? _lastRecoverySignature;
   late ListingAccountDraftRepository _accountRepository;
   late String _draftKey;
@@ -630,6 +631,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   void _scheduleRecovery() {
     if (!_recoveryReady || _recoveryFinished || _recoveryUserId == null || _busy || _descriptionCapture.active || !_sessionValid || _disposed) return;
     if (_initialEditSignature!=null && _editSignature==_initialEditSignature && _confirmedEditSignature==null && !_recoverySaved && widget.accountDraft==null) return;
+    if (!_autoSaveEligible()) return;
     if (_hasUnsavedChanges && _accountSaved) super.setState(() => _accountSaved=false);
     _recoveryTimer?.cancel();
     _recoveryTimer = Timer(const Duration(milliseconds: 650), () => unawaited(_saveRecovery()));
@@ -651,6 +653,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Future<void> _saveRecovery({bool retryFailed = false}) async {
     if (!_recoveryReady || _recoveryFinished || !_sessionValid || _disposed || _recoveryUserId==null || _descriptionCapture.active) return;
+    // The timer can fire after a user has removed fields. Check the current
+    // snapshot here as well as when scheduling. Once saving began, keep the
+    // existing draft current even if progress later falls below the threshold.
+    if (!_autoSaveEligible()) return;
+    _automaticSaveStarted = true;
     final signature=jsonEncode([_recoverySnapshot(),_imagePaths]);
     if (signature==_lastRecoverySignature && _accountSaved) return;
     if (retryFailed) _retryPhotoKeys.addAll(_photoKeys.where((key)=>_photoStates[key]=='failed'));
@@ -659,6 +666,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final data=_recoverySnapshot();
     await _saveAccount(data,{for (final path in List<String>.of(_imagePaths)) _localPhotoKeys[path]!:path});
   }
+
+  bool _autoSaveEligible() => _draftSavedExplicitly || _automaticSaveStarted ||
+    widget.accountDraft != null || _recoverySaved ||
+    DynamicPropertySchema.canBeginAutomaticSave(
+      DynamicPropertySchema.draftProgress(_recoverySnapshot()));
 
   Future<void> _requestExit() async {
     if (_exitDialogOpen || _disposed) return;
@@ -996,12 +1008,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _monthlyRent.removeListener(_onPriceChanged);
     _advanceMonths.removeListener(_onPriceChanged);
     _recoveryTimer?.cancel();
+    final eligible = _autoSaveEligible();
     final snapshot=_recoverySnapshot(), paths=List<String>.of(_imagePaths), userId=_recoveryUserId;
     final temporary=[...paths,if(_ownershipProofPath!=null)_ownershipProofPath!].where((path)=>!ListingRecoveryStore.isSavedMedia(path));
     _disposed=true;_pendingAccount=null;
     for (final cancel in _photoCancels.values) { cancel.cancel('Editor closed'); }
     // Never delete the only remaining copy if the durable device write failed.
-    final backup=!_recoveryFinished && _recoveryReady && userId!=null && (_hasUnsavedChanges || _recoverySaved)
+    final backup=!_recoveryFinished && _recoveryReady && userId!=null && eligible && (_hasUnsavedChanges || _recoverySaved)
       ? _recoveryStore.write(userId,widget.existingProperty?.id,snapshot,paths) : Future<void>.value();
     unawaited(backup.then((_)=>_mediaPicker.clearTemporaryFiles(temporary)).catchError((_) {}));
     for (final controller in <TextEditingController>[
