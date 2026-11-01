@@ -14,10 +14,14 @@ sed -ri "s#<VirtualHost \*:[0-9]+>#<VirtualHost *:${listen_port}>#" /etc/apache2
 php artisan config:clear
 php artisan cache:clear || true
 
-# Fail fast in UAT if the cloud runtime is misconfigured. This command verifies
-# HTTPS URL, PostgreSQL/PostGIS, Supabase Storage, and UAT guards without
-# printing secrets.
-php artisan uat:cloud-check
+# Verify HTTPS, PostgreSQL/PostGIS, Storage configuration, and UAT guards.
+# A synthetic Storage write/read/delete is opt-in so routine cold starts do
+# not create remote objects.
+if [ "${UAT_CLOUD_STORAGE_PROBE_ON_STARTUP:-false}" = "true" ]; then
+  php artisan uat:cloud-check
+else
+  php artisan uat:cloud-check --skip-storage-probe
+fi
 
 # Opt-in synthetic storage canary for the new video protocol. It never reads
 # real listings and is off by default. If enabled, a failed range/download
@@ -37,7 +41,7 @@ if [ "${UAT_RUN_MIGRATIONS:-false}" = "true" ]; then
 fi
 
 # Safe, idempotent UAT-only test accounts and published demo properties.
-if [ "${UAT_DEMO_SEED_ENABLED:-true}" = "true" ]; then
+if [ "${UAT_DEMO_SEED_ENABLED:-false}" = "true" ]; then
   case "${APP_ENV:-production}" in
     uat|staging)
       php artisan db:seed --class=UatDemoSeeder --force
@@ -52,8 +56,10 @@ fi
 
 case "${APP_ENV:-production}" in
   uat|staging)
-    if ! php artisan uat:ai-check; then
-      echo "AI provider is unavailable; manual marketplace workflows remain ready."
+    if [ "${UAT_AI_PROBE_ON_STARTUP:-false}" = "true" ]; then
+      if ! php artisan uat:ai-check; then
+        echo "AI provider is unavailable; manual marketplace workflows remain ready."
+      fi
     fi
     ;;
 esac
