@@ -11,6 +11,17 @@ final class SqliteMathFallback
 {
     public static function registerMissing(PDO $pdo): void
     {
+        self::register($pdo, '');
+    }
+
+    /** Give the fallback callbacks absent names so tests cover them on every SQLite build. */
+    public static function registerTestAliases(PDO $pdo): void
+    {
+        self::register($pdo, 'AQER_TEST_');
+    }
+
+    private static function register(PDO $pdo, string $prefix): void
+    {
         if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') {
             return;
         }
@@ -37,18 +48,19 @@ final class SqliteMathFallback
         ];
 
         foreach ($functions as $name => [$arity, $callback]) {
+            $sqlName = $prefix.$name;
             $args = $arity === 2 ? '2, 3' : '0';
             try {
-                $pdo->query("SELECT {$name}({$args})")->fetchColumn();
+                $pdo->query("SELECT {$sqlName}({$args})")->fetchColumn();
                 continue;
             } catch (PDOException $error) {
-                if (! str_contains($error->getMessage(), "no such function: {$name}")) {
+                if (! str_contains($error->getMessage(), "no such function: {$sqlName}")) {
                     throw $error;
                 }
             }
 
-            if (! $pdo->sqliteCreateFunction($name, $callback, $arity)) {
-                throw new RuntimeException("Unable to register missing SQLite test function {$name}.");
+            if (! $pdo->sqliteCreateFunction($sqlName, $callback, $arity)) {
+                throw new RuntimeException("Unable to register missing SQLite test function {$sqlName}.");
             }
         }
     }
