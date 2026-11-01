@@ -246,6 +246,13 @@ void main(){
       expect(find.text('أكمل الناقص فقط'),findsOneWidget);expect(find.text('تأكيد الموقع على الخريطة'),findsOneWidget);
       expect(find.text('الشقة في الدور *'),findsNothing);expect(textField('الإيجار الشهري بالريال اليمني *'),findsNothing);expect(textField('المساحة بالمتر المربع *'),findsNothing);
       await tester.pump(const Duration(seconds:5));await tester.pumpAndSettle();
+      // The reviewed AI result is still below the automatic-save threshold.
+      expect(drafts.saves,isEmpty);
+      final saveMenu=find.byType(PopupMenuButton<String>);
+      expect(saveMenu,findsOneWidget);
+      await tester.tap(saveMenu);await tester.pumpAndSettle();
+      await tester.tap(find.byWidgetPredicate((widget)=>widget is PopupMenuItem<String> && widget.value=='save'));
+      await tester.pumpAndSettle();
       expect((drafts.saves.last['fields'] as Map)['monthly_rent'],'75000');expect(drafts.saves.last['parking'],isNull);expect(drafts.saves.last['completion_only'],isTrue);
       await previewWave6(tester,boundary,'wave6-completion-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
@@ -258,7 +265,7 @@ void main(){
     expect(fields.containsKey('floor_number'),isFalse);expect(fields.containsKey('unit_number'),isFalse);expect(last.containsKey('parking'),isFalse);expect(last['area_unit'],'sqm');
     await finishWave6(tester);
   });
-  testWidgets('starting a new account draft keeps previous drafts and resume restores the saved step',(tester)async{
+  testWidgets('starting an incomplete draft keeps previous drafts without autosaving and resume restores the saved step',(tester)async{
     final drafts=Wave6Drafts(),key=newListingDraftKey();drafts.drafts[key]=ListingAccountDraft(key:key,revision:2,payload:editorSnapshot(),title:'مسودة الدلال',progress:60);
     await pumpWave6(tester,const ListingDraftEntryScreen(),drafts:drafts);
     expect(find.byKey(const ValueKey('listing-recovery-choice')),findsOneWidget);
@@ -269,7 +276,8 @@ void main(){
     expect(find.byType(AlertDialog), findsNothing);
     expect(drafts.drafts[key]!.payload['fields'], editorSnapshot()['fields']);
     await tester.ensureVisible(textField('عنوان الإعلان *'));await tester.enterText(textField('عنوان الإعلان *'),'إعلان جديد محفوظ');await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
-    expect(drafts.drafts.containsKey(key),isTrue);expect(drafts.drafts.length,2);await finishWave6(tester);
+    expect(drafts.drafts.containsKey(key),isTrue);expect(drafts.drafts.length,1);
+    await finishWave6(tester);
     await pumpWave6(tester,ListingEditorScreen(accountDraft:drafts.drafts[key]),drafts:drafts,recovery:Wave6Recovery());
     expect(textField('وصف العقار'),findsOneWidget);expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text,'وصف كتبه الدلال');await finishWave6(tester);
   });

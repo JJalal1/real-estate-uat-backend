@@ -19,6 +19,7 @@ import 'package:real_estate_mobile/features/messages/domain/message_models.dart'
 import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_schema.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 import 'broker_experience_ui_test.dart' show BrokerTestAuth, BrokerTestRepository;
 
@@ -160,7 +161,16 @@ void main() {
     expect(tester.takeException(), isNull);
   });
   testWidgets('listing editor restores its actual step and autosaves changed text', (tester) async {
-    final recovery = _Recovery()..snapshot = {'step': 0, 'fields': {'title': 'عنوان محفوظ'}, 'purpose': 'sale', 'type': 'apartment'};
+    final recovery = _Recovery()..snapshot = {
+      'editor_version': 11, 'step': 0,
+      'type_confirmed': true, 'purpose_confirmed': true,
+      'type': 'apartment', 'purpose': 'sale', 'tenure_type': 'freehold',
+      'latitude': 15.37, 'longitude': 44.19, 'parking': 'no',
+      'fields': {'title': 'عنوان محفوظ', 'area': '120', 'price': '1000000',
+        'bedrooms': '2', 'bathrooms': '1', 'phone': '771234567',
+        'governorate': 'Synthetic governorate', 'district': 'Synthetic district'},
+    };
+    expect(DynamicPropertySchema.draftProgress(recovery.snapshot!), greaterThanOrEqualTo(50));
     await _pump(tester, const ListingEditorScreen(), recovery: recovery);
     expect(find.text('عنوان محفوظ'), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, 'عنوان جديد'); await tester.pump(const Duration(milliseconds: 750)); await tester.pump();

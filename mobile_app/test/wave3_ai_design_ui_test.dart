@@ -7,6 +7,7 @@ import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_property_card.dart';
 import 'package:real_estate_mobile/core/widgets/property_card_gallery.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
@@ -14,6 +15,7 @@ import 'package:real_estate_mobile/features/discovery/presentation/marketplace_h
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_ai_sheet.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_question_section.dart';
+import 'broker_experience_ui_test.dart' show BrokerTestAuth;
 import 'support/wave3_fakes.dart';
 
 void main() {
@@ -61,7 +63,8 @@ void main() {
 
   testWidgets('field proposals require review and apply only the checked fields', (tester) async {
     Map<String, dynamic>? applied;
-    await tester.pumpWidget(ProviderScope(overrides: [aiRepositoryProvider.overrideWithValue(Wave3AiFake())],
+    await tester.pumpWidget(ProviderScope(overrides: [aiRepositoryProvider.overrideWithValue(Wave3AiFake()),
+      authControllerProvider.overrideWith(() => BrokerTestAuth(1))],
       child: MaterialApp(theme: AppTheme.light, home: Builder(builder: (context) => Scaffold(body: TextButton(onPressed: () async {
         applied = await AppBottomSheet.show<Map<String, dynamic>>(context, builder: (_) => const ListingAiSheet(facts: {'type': 'apartment'}));
       }, child: const Text('المساعد')))))));
