@@ -106,7 +106,9 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         _description.text != _voiceVisibleText) { return; }
     if (text == null) {
       _description.text = _capture.error != null && _capture.stablePreview.isNotEmpty
-        ? appendDictation(_voiceDraft, _capture.stablePreview) : _voiceRestoration;
+        ? appendDictation(_voiceDraft, _capture.stablePreview)
+        : _capture.error != null && _capture.preview.trim().isNotEmpty
+          ? appendDictation(_voiceDraft, _capture.preview) : _voiceRestoration;
     } else if (revision == ref.read(smartSearchSessionProvider).revision && ModalRoute.of(context)?.isCurrent != false) {
       final combined = appendDictation(_voiceDraft, text);
       _lastVoiceBase = _voiceDraft; _lastVoiceText = combined;

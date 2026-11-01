@@ -30,6 +30,23 @@ class ListingAiSheet extends ConsumerStatefulWidget {
 }
 
 class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
+  Object? _openedAccount;
+  int? _openedAccountId;
+  bool _accountBound = false;
+  bool _sessionInvalidated = false;
+  bool get _sessionValid {
+    final account = ref.read(authControllerProvider).asData?.value;
+    if (!_accountBound && !_sessionInvalidated && account != null) {
+      // A directly opened sheet can precede asynchronous session restoration.
+      _openedAccount = account;
+      _openedAccountId = account.id;
+      _accountBound = true;
+    }
+    return !_sessionInvalidated &&
+        _accountBound &&
+        _openedAccountId == account?.id &&
+        identical(_openedAccount, account);
+  }
   final _message = TextEditingController(), _description = TextEditingController(), _title = TextEditingController();
   final _selected = <String>{};
   final _scroll = ScrollController();
@@ -52,6 +69,10 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   @override
   void initState() {
     super.initState();
+    final account = ref.read(authControllerProvider).asData?.value;
+    _openedAccount = account;
+    _openedAccountId = account?.id;
+    _accountBound = account != null;
     _message.text = widget.initialMessage; _lastBriefText = _message.text;
     _message.addListener(_briefChanged);
     _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
@@ -65,6 +86,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   void _commitBriefChange() {
+    if (!_sessionValid) return;
     widget.onMessageChanged?.call(_message.text);
     if (widget.prepareDraft && _fields != null && mounted) {
       setState(() { _fields = null; _selected.clear(); _copyReady = false; _notice = null; });
@@ -72,7 +94,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   void _voiceChanged() {
-    if (!mounted) return;
+    if (!mounted || !_sessionValid) return;
     if (_capture.active && _capture.preview.isNotEmpty) {
       final text = appendDictation(_voiceDraft, _capture.preview);
       if (_message.text != text) _message.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
@@ -99,9 +121,8 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   Future<void> _request() async {
-    if (_busy || _voiceBusy || !widget.description && _message.text.trim().isEmpty) return;
+    if (!_sessionValid || _busy || _voiceBusy || !widget.description && _message.text.trim().isEmpty) return;
     FocusScope.of(context).unfocus();
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() { _busy = true; _error = null; });
     try {
       final api = ref.read(aiRepositoryProvider);
@@ -110,7 +131,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         : widget.prepareDraft
           ? await api.prepareListing(_message.text, widget.facts, propertyId: widget.propertyId, draftKey: widget.draftKey)
           : await api.listingFields(_message.text, widget.facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
-      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+      if (!mounted || !_sessionValid) return;
       if (widget.description) {
         final text = result['description'];
         if (text is! String || text.trim().isEmpty) throw StateError('Empty description.');
@@ -133,9 +154,9 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         });
       }
     } catch (error) {
-      if (mounted) setState(() { _error = friendlyApiError(error); _copyReady = false; });
+      if (mounted && _sessionValid) setState(() { _error = friendlyApiError(error); _copyReady = false; });
     } finally {
-      if (mounted) {
+      if (mounted && _sessionValid) {
         setState(() => _busy = false);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final target = _resultKey.currentContext;
@@ -148,17 +169,16 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   Future<void> _refreshCopy() async {
-    if (_busy || _voiceBusy || _fields == null) return;
+    if (!_sessionValid || _busy || _voiceBusy || _fields == null) return;
     FocusScope.of(context).unfocus();
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() { _busy = true; _error = null; });
     try {
       final facts = {...widget.facts, ..._selectedFields};
       final result = await ref.read(aiRepositoryProvider).listingCopy(facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
-      if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+      if (!mounted || !_sessionValid) return;
       setState(() => _setCopy(result['copy']));
-    } catch (error) { if (mounted) setState(() => _error = friendlyApiError(error)); }
-    finally { if (mounted) setState(() => _busy = false); }
+    } catch (error) { if (mounted && _sessionValid) setState(() => _error = friendlyApiError(error)); }
+    finally { if (mounted && _sessionValid) setState(() => _busy = false); }
   }
 
   // Sai's numeric value already tells the reviewer what it means. Keep its
@@ -174,7 +194,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   void _applyDraft() {
-    if (!_copyReady || _busy || _voiceBusy) return;
+    if (!_sessionValid || !_copyReady || _busy || _voiceBusy) return;
     if (_title.text.trim().length < 4 || _description.text.trim().isEmpty) {
       setState(() => _error = 'راجع العنوان (4 أحرف على الأقل) والوصف قبل الاستخدام.');
       return;
@@ -186,30 +206,33 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
 
   Future<void> _voice() async {
-    if (_busy || _voiceBusy) return;
+    if (!_sessionValid || _busy || _voiceBusy) return;
     FocusScope.of(context).unfocus(); _voiceDraft = _message.text;
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() => _error = null);
     final turn = ++_voiceTurn;
     final text = await _capture.start();
-    if (mounted && turn == _voiceTurn && actor == ref.read(authControllerProvider).asData?.value?.id) await _acceptVoice(text);
+    if (mounted && _sessionValid && turn == _voiceTurn) await _acceptVoice(text);
   }
   Future<void> _retryVoice() async {
-    if (_busy || _voiceBusy || !_capture.canRetry) return;
+    if (!_sessionValid || _busy || _voiceBusy || !_capture.canRetry) return;
     _voiceDraft = _message.text;
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
     setState(() => _error = null);
     final turn = ++_voiceTurn;
     final text = await _capture.retryTranscription();
-    if (mounted && turn == _voiceTurn && actor == ref.read(authControllerProvider).asData?.value?.id) await _acceptVoice(text);
+    if (mounted && _sessionValid && turn == _voiceTurn) await _acceptVoice(text);
   }
   Future<void> _acceptVoice(String? text) async {
-    if (!mounted) return;
+    if (!mounted || !_sessionValid) return;
     if (text == null) {
       if (_capture.transcript.isNotEmpty) {
         _message.text = appendDictation(_voiceDraft, _capture.transcript);
       } else if (_capture.error != null && _capture.stablePreview.isNotEmpty) {
         _message.text = appendDictation(_voiceDraft, _capture.stablePreview);
+      } else if (_capture.error != null && _capture.preview.trim().isNotEmpty) {
+        // Leave an unconfirmed hypothesis editable, without saving it as final speech.
+        _restoringVoice = true;
+        try { _message.text = appendDictation(_voiceDraft, _capture.preview); }
+        finally { _restoringVoice = false; }
       } else { _restoreVoiceDraft(); }
       return;
     }
@@ -227,6 +250,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   void _restoreVoiceDraft() { _restoringVoice = true; _message.text = _voiceDraft; _restoringVoice = false; }
   void _cancelVoice() { if (_capture.active || _capture.canRetry) { ++_voiceTurn; _capture.cancel(); _restoreVoiceDraft(); } }
   void _restartVoice() {
+    if (!_sessionValid) return;
     if (_capture.active) { _cancelVoice(); }
     else if (_lastVoiceBase != null && _message.text == _lastVoiceText) { _message.text = _lastVoiceBase!; }
     unawaited(_voice());
@@ -254,7 +278,13 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   Widget build(BuildContext context) {
     ref.watch(authControllerProvider);
     ref.listen(authControllerProvider, (previous, next) {
-      if (previous?.asData?.value?.id != next.asData?.value?.id) _cancelVoice();
+      if (_sessionValid) return;
+      _sessionInvalidated = true;
+      _cancelVoice();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (ModalRoute.of(context)?.isCurrent == true) Navigator.of(context).pop();
+      });
     });
     return Directionality(textDirection: TextDirection.rtl, child: Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: SizedBox(
@@ -269,15 +299,15 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         if (!widget.description) ...[
           Text('صف العقار', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
-          TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 5000, minLines: 2, maxLines: 5, enabled: !_busy, readOnly: _voiceBusy,
+          TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 5000, minLines: 2, maxLines: 5, enabled: _sessionValid && !_busy, readOnly: _voiceBusy,
             decoration: InputDecoration(labelText: _voiceBusy ? null : 'صف العقار', floatingLabelBehavior: FloatingLabelBehavior.never,
               hintText: _voiceBusy ? null : 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…')),
           if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, onRestart: _restartVoice, listeningLabel: 'جارٍ إملاء تفاصيل العقار'),
-          if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: _busy ? null : () => _voice(),
+          if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: !_sessionValid || _busy ? null : () => _voice(),
             key: const ValueKey('listing-ai-voice'),
             icon: const EbrokerIcon(Icons.mic_none, size: 20), label: Text(_capture.error != null ? 'إعادة الإملاء' : 'أمْلِ تفاصيل العقار'))),
           if (_capture.canRetry) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
-            key: const ValueKey('listing-ai-retry-transcription'), onPressed: _busy ? null : _retryVoice,
+            key: const ValueKey('listing-ai-retry-transcription'), onPressed: !_sessionValid || _busy ? null : _retryVoice,
             icon: const Icon(Icons.refresh_rounded, size: 19), label: const Text('إعادة محاولة التفريغ'))),
         ],
         if (!_voiceBusy && !_busy) Wrap(spacing: 8, children: [
@@ -288,7 +318,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),
         if (_error != null || _capture.error != null) Padding(padding: const EdgeInsets.only(top: 12),
           child: AppInlineMessage(message: _error ?? _capture.error!, tone: AppStatusTone.warning)),
-        if (_capture.permissionDenied) TextButton.icon(onPressed:()=>ref.read(appPermissionSettingsProvider)(),
+        if (_capture.permissionDenied) TextButton.icon(onPressed: !_sessionValid ? null : ()=>ref.read(appPermissionSettingsProvider)(),
           icon:const Icon(Icons.settings_outlined),label:const Text('فتح إعدادات الميكروفون')),
         if (widget.prepareDraft && _notice != null) Padding(padding: const EdgeInsets.only(top: 12),
           child: AppInlineMessage(key: const ValueKey('listing-ai-source'), message: _notice!,
@@ -303,13 +333,13 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
               message: 'اعتماد هذه المسودة يستبدل الوصف الحالي بالنص الذي تراجعه هنا.', tone: AppStatusTone.info),
             Text('عنوان الإعلان', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            TextField(key: const ValueKey('listing-ai-title'), controller: _title, maxLength: 160, enabled: !_busy && !_voiceBusy,
+            TextField(key: const ValueKey('listing-ai-title'), controller: _title, maxLength: 160, enabled: _sessionValid && !_busy && !_voiceBusy,
               decoration: const InputDecoration(labelText: 'عنوان الإعلان', floatingLabelBehavior: FloatingLabelBehavior.never)),
             const SizedBox(height: 8),
             Text('نص الإعلان', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             TextField(key: const ValueKey('listing-ai-copy'), controller: _description, minLines: 3, maxLines: 7,
-              maxLength: 4000, enabled: !_busy && !_voiceBusy,
+              maxLength: 4000, enabled: _sessionValid && !_busy && !_voiceBusy,
               decoration: const InputDecoration(labelText: 'نص الإعلان', floatingLabelBehavior: FloatingLabelBehavior.never)),
             const SizedBox(height: 12),
             const Text('راجع النص والتفاصيل. بعد المتابعة تحدد نقطة الخريطة وتضيف الصور والناقص فقط.'),
@@ -327,10 +357,13 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
               SizedBox(width: width, child: Material(color: _selected.contains(entry.key)
                 ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .6) : Theme.of(context).colorScheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(16), child: InkWell(key: ValueKey('listing-ai-field-${entry.key}'),
-                  borderRadius: BorderRadius.circular(16), onTap: _busy || _voiceBusy ? null : () => setState(() {
+                borderRadius: BorderRadius.circular(16), onTap: !_sessionValid || _busy || _voiceBusy ? null : () {
+                  if (!_sessionValid) return;
+                  setState(() {
                     if (!_selected.remove(entry.key)) _selected.add(entry.key);
                     if (widget.prepareDraft) _copyReady = false;
-                  }), child: Padding(padding: const EdgeInsets.all(12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  });
+                }, child: Padding(padding: const EdgeInsets.all(12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(labels[entry.key]!, style: Theme.of(context).textTheme.bodySmall), const SizedBox(height: 5),
                       Text(_proposalValue(entry.key, entry.value), style: Theme.of(context).textTheme.labelMedium),
@@ -341,25 +374,29 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
           }),
           if (!widget.prepareDraft) ...[
             const SizedBox(height: 12), AppButton(label: 'تطبيق المواصفات المحددة', expand: true,
-              onPressed: _busy || _selected.isEmpty ? null : () => Navigator.of(context).pop(_selectedFields)),
+              onPressed: !_sessionValid || _busy || _selected.isEmpty ? null : () {
+                if (_sessionValid) Navigator.of(context).pop(_selectedFields);
+              }),
           ],
         ],
         if (_hasDescription) ...[
-          const SizedBox(height: 16), TextField(controller: _description, maxLines: 7, maxLength: 4000,
+          const SizedBox(height: 16), TextField(controller: _description, maxLines: 7, maxLength: 4000, enabled: _sessionValid && !_busy,
             decoration: const InputDecoration(labelText: 'راجع الوصف وعدّله إن احتجت')),
           const SizedBox(height: 12), AppButton(label: 'استخدام الوصف بعد المراجعة', expand: true,
-            onPressed: _busy ? null : () => Navigator.of(context).pop({'description': _description.text.trim()})),
+            onPressed: !_sessionValid || _busy ? null : () {
+              if (_sessionValid) Navigator.of(context).pop({'description': _description.text.trim()});
+            }),
         ],
       ])),
       if (!widget.prepareDraft || _fields == null) SafeArea(top: false, child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 12), child: AppButton(key: const ValueKey('listing-ai-prepare'),
           label: _busy ? widget.prepareDraft ? 'جارٍ فهم تفاصيل العقار…' : 'جار تجهيز الاقتراح…' : widget.description ? 'إنشاء وصف' : widget.prepareDraft ? 'جهّز الإعلان' : 'اقتراح الحقول',
-          onPressed: _busy || _voiceBusy ? null : _request, expand: true))),
+          onPressed: !_sessionValid || _busy || _voiceBusy ? null : _request, expand: true))),
       if (widget.prepareDraft && _fields != null) SafeArea(top: false, child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
         child: AppButton(key: ValueKey(_copyReady ? 'listing-ai-apply-draft' : 'listing-ai-refresh-copy'),
           label: _copyReady ? 'استخدام البيانات والمتابعة' : 'تجهيز النص من اختياري', expand: true,
-          onPressed: _busy || _voiceBusy ? null : _copyReady ? _applyDraft : _refreshCopy))),
+          onPressed: !_sessionValid || _busy || _voiceBusy ? null : _copyReady ? _applyDraft : _refreshCopy))),
       ]))));
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/platform/voice_capture_controller.dart';
 import 'package:real_estate_mobile/core/platform/voice_input.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
@@ -13,6 +14,7 @@ import 'package:real_estate_mobile/features/discovery/presentation/assisted_sear
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_ai_sheet.dart';
 import 'support/wave3_fakes.dart';
+import 'support/owner_ux_fixtures.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -164,6 +166,7 @@ void main() {
     addTearDown(voice.dispose);
     final saved = <String>[];
     await tester.pumpWidget(ProviderScope(overrides: [
+      authControllerProvider.overrideWith(() => UxAuth(uxUser())),
       voiceInputProvider.overrideWithValue(voice), aiRepositoryProvider.overrideWithValue(ai),
     ], child: MaterialApp(theme: AppTheme.light, home: Scaffold(body: ListingAiSheet(
       facts: const {}, initialMessage: 'شقة', onMessageChanged: saved.add)))));

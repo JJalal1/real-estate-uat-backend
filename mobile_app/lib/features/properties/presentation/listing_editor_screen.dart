@@ -160,6 +160,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   late ListingRecoveryStore _recoveryStore;
   int? _recoveryUserId, _recoveredServerId;
   bool _recoveryReady = false, _recoveryFinished = false, _recoverySaved = false, _recoveryFailed = false;
+  bool _initialAssistantPending = false;
+  bool _recoveryLoadError = false, _recoveryLoading = false;
+  BuildContext? _assistantSheetContext;
   String? _lastRecoverySignature;
   late ListingAccountDraftRepository _accountRepository;
   late String _draftKey;
@@ -172,6 +175,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool _locationNeedsSettings = false, _locationServiceDisabled = false;
   late final VoiceCaptureController _descriptionCapture;
   String _descriptionVoiceBase = '';
+  String? _unconfirmedVoiceDescription;
   String? _lastDescriptionVoiceBase, _lastDescriptionVoiceText;
   int _descriptionVoiceTurn = 0;
   bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false, _reviewingCompleted = false;
@@ -181,7 +185,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _remotePhotos = <String, String>{}, _localPhotoKeys = <String, String>{};
   final _removedPhotoKeys = <String>{};
   List<String> _photoOrder = [];
-  (Map<String, dynamic>, Map<String, String>)? _pendingAccount;
+  (Map<String, dynamic>, Map<String, String>, bool)? _pendingAccount;
   Future<void> _accountTail = Future<void>.value();
   final _photoStates = <String,String>{}, _photoErrors = <String,String>{};
   final _photoProgress = <String,double>{};
@@ -243,16 +247,18 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return data;
   }
 
-  Future<void> _saveAccount(Map<String, dynamic> snapshot, Map<String, String> photos) {
-    if (_accountConflict || !_sessionValid || _disposed) return _accountTail;
-    _pendingAccount = (_serverSnapshot(snapshot), Map.of(photos));
+  Future<void> _saveAccount(Map<String, dynamic> snapshot, Map<String, String> photos, {bool manual = false}) {
+    if (_accountConflict || !_sessionValid || _disposed || (!manual && !_autoSaveEligible())) return _accountTail;
+    if (_accountSyncing && !manual && _pendingAccount?.$3 == true) return _accountTail;
+    _pendingAccount = (_serverSnapshot(snapshot), Map.of(photos), manual);
     _accountSaved = false;
     if (_accountSyncing) return _accountTail;
     _accountSyncing = true;
     _accountTail = () async {
       try {
-        while (_pendingAccount != null) {
+        accountLoop: while (_pendingAccount != null) {
           var pending = _pendingAccount!; _pendingAccount = null;
+          if (!pending.$3 && !_autoSaveEligible()) continue accountLoop;
           if (_needsReconcile) {
             try {
               final latest=await _accountRepository.get(_draftKey).timeout(const Duration(seconds:30));
@@ -264,11 +270,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               if (latest.payload['promoted_image_keys'] is Map && (latest.payload['promoted_image_keys'] as Map).isNotEmpty) {
                 if (!await _resolveRecoveredDraft()) throw StateError('تعذر استعادة الإعلان المحفوظ. أعد المحاولة.');
                 if (_disposed || !_sessionValid || _recoveryFinished) return;
-                pending=(_serverSnapshot(_recoverySnapshot()),{for (final path in List<String>.of(_imagePaths)) _localPhotoKeys[path]!:path});
+                pending=(_serverSnapshot(_recoverySnapshot()),{for (final path in List<String>.of(_imagePaths)) _localPhotoKeys[path]!:path},pending.$3);
               }
             } on DioException catch (error) { if (error.response?.statusCode != 404 || _draftRevision != 0) rethrow; }
             _needsReconcile=false;
           }
+          if (!pending.$3 && !_autoSaveEligible()) continue accountLoop;
           final signature=jsonEncode(pending.$1);
           if (_checkpointSignature != signature) { _checkpointSignature=signature;_checkpointKey=newListingDraftKey(); }
           final payload={...pending.$1,'checkpoint_key':_checkpointKey};
@@ -279,24 +286,36 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           final order = (pending.$1['image_order'] as List? ?? const []).whereType<String>().toSet();
           for (final key in _remotePhotos.keys.toList()) {
             if (order.contains(key)) continue;
-            draft = await _draftOperation(() => _accountRepository.removeImage(_draftKey, key, _draftRevision));
+            if (!pending.$3 && !_autoSaveEligible()) continue accountLoop;
+            final removed = await _draftOperation(
+              () => _accountRepository.removeImage(_draftKey, key, _draftRevision), manual: pending.$3);
+            if (removed == null) continue accountLoop;
+            draft = removed;
             if (_disposed || !_sessionValid || _recoveryFinished) return;
             _adoptAccountDraft(draft);
           }
           for (final photo in pending.$2.entries) {
+            if (!pending.$3 && !_autoSaveEligible()) continue accountLoop;
             if (_remotePhotos.containsKey(photo.key) || !order.contains(photo.key) || _removedPhotoKeys.contains(photo.key)) continue;
             if (_photoStates[photo.key]=='failed' && !_retryPhotoKeys.remove(photo.key)) continue;
             var connectionLost=false;
             final token=CancelToken();_photoCancels[photo.key]=token;_photoStates[photo.key]='uploading';_photoErrors.remove(photo.key);
             if (mounted) super.setState(() {});
             try {
-              draft = await _draftOperation(() => _accountRepository.upload(_draftKey, photo.key, photo.value, _draftRevision,
+              final uploaded = await _draftOperation(() => _accountRepository.upload(_draftKey, photo.key, photo.value, _draftRevision,
                 cancelToken:token,onSendProgress:(sent,total) {
                   if (_disposed || !_sessionValid || _removedPhotoKeys.contains(photo.key)) return;
                   _photoProgress[photo.key]=total>0 ? sent/total : 0;
                   _photoStates[photo.key]=total>0 && sent>=total ? 'processing' : 'uploading';
                   if (mounted) super.setState(() {});
-                }));
+                }), manual: pending.$3);
+              if (uploaded == null) {
+                _photoStates[photo.key]='queued';
+                _photoProgress.remove(photo.key);
+                if (mounted) super.setState(() {});
+                continue accountLoop;
+              }
+              draft = uploaded;
               if (_disposed || !_sessionValid || _recoveryFinished) return;
               _adoptAccountDraft(draft);
             } catch (error) {
@@ -308,13 +327,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               connectionLost=error is TimeoutException || error is DioException && const [DioExceptionType.connectionError,DioExceptionType.connectionTimeout,DioExceptionType.sendTimeout,DioExceptionType.receiveTimeout].contains(error.type);
               if (error is DioException && error.response?.data is Map && error.response?.data['code']=='draft_revision_conflict') rethrow;
             } finally { _photoCancels.remove(photo.key); }
-            await _writeLocalRecovery();
+            await _writeLocalRecovery(manual: pending.$3);
             if (mounted) super.setState(() {});
             // A lost connection pauses untouched files; a file-specific failure still allows the rest.
             if (connectionLost) break;
           }
           // Persist the acknowledged revision and remote image keys even when one later file fails.
-          await _writeLocalRecovery();
+          await _writeLocalRecovery(manual: pending.$3);
         }
         final ready=_photoKeys.every((key)=>key.startsWith('property-') || _remotePhotos.containsKey(key));
         _accountSaved = ready && _checkpointSignature==jsonEncode(_serverSnapshot(_recoverySnapshot()));
@@ -332,13 +351,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return _accountTail;
   }
 
-  Future<ListingAccountDraft> _draftOperation(Future<ListingAccountDraft> Function() operation) async {
+  Future<ListingAccountDraft?> _draftOperation(Future<ListingAccountDraft> Function() operation, {required bool manual}) async {
+    if (!manual && !_autoSaveEligible()) return null;
     try { return await operation().timeout(const Duration(minutes:2)); }
     on DioException catch (error) {
       if (error.response?.statusCode != 409 || error.response?.data is! Map || error.response?.data['code'] != 'draft_revision_conflict') rethrow;
       final latest=await _accountRepository.get(_draftKey).timeout(const Duration(seconds:30));
       if (_disposed || !_sessionValid || latest.payload['checkpoint_key'] != _checkpointKey) rethrow;
       _adoptAccountDraft(latest);
+      if (!manual && !_autoSaveEligible()) return null;
       return operation().timeout(const Duration(minutes:2));
     }
   }
@@ -410,13 +431,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!mounted) return;
     if (_descriptionCapture.active && _descriptionCapture.preview.isNotEmpty) {
       final text = appendDictation(_descriptionVoiceBase, _descriptionCapture.preview);
+      _unconfirmedVoiceDescription = text;
       _description.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
     }
     super.setState(() {});
   }
   void _cancelDescriptionVoice() {
     if (!_descriptionCapture.active && !_descriptionCapture.canRetry) return;
-    ++_descriptionVoiceTurn; _descriptionCapture.cancel(); _description.text = _descriptionVoiceBase;
+    ++_descriptionVoiceTurn; _descriptionCapture.cancel(); _unconfirmedVoiceDescription = null; _description.text = _descriptionVoiceBase;
   }
   void _restartDescriptionVoice() {
     if (_descriptionCapture.active) { _cancelDescriptionVoice(); }
@@ -427,15 +449,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_busy || _descriptionBusy || _descriptionCapture.active) return;
     FocusScope.of(context).unfocus();
     _recoveryTimer?.cancel();
-    _descriptionVoiceBase = _description.text;
+    // Retrying an unconfirmed hypothesis must not append it a second time.
+    if (_unconfirmedVoiceDescription == null) _descriptionVoiceBase = _description.text;
     final actor = ref.read(authControllerProvider).asData?.value?.id, turn = ++_descriptionVoiceTurn;
     final text = retry ? await _descriptionCapture.retryTranscription() : await _descriptionCapture.start();
     if (!mounted || turn != _descriptionVoiceTurn || actor != ref.read(authControllerProvider).asData?.value?.id) return;
     final complete = text ?? (_descriptionCapture.error != null ? _descriptionCapture.stablePreview : '');
-    _description.text = appendDictation(_descriptionVoiceBase, complete);
+    final tentative = complete.isEmpty && text == null && _descriptionCapture.error != null
+        ? _descriptionCapture.preview.trim() : '';
+    final displayed = appendDictation(_descriptionVoiceBase, complete.isNotEmpty ? complete : tentative);
+    _unconfirmedVoiceDescription = tentative.isEmpty ? null : displayed;
+    _description.text = displayed;
     if (complete.isNotEmpty) { _lastDescriptionVoiceBase = _descriptionVoiceBase; _lastDescriptionVoiceText = _description.text; }
     if (_description.text.length > 5000) setState(() => _descriptionError = 'الوصف محفوظ هنا. اختصره إلى 5000 حرف قبل الحفظ.');
-    _scheduleRecovery();
+    if (tentative.isEmpty) _scheduleRecovery();
   }
 
   Set<String> _missingFields() {
@@ -621,7 +648,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'replace_images': _replaceImages, 'price_display_mode': _priceDisplayMode,
     'server_property_id': _existing?.id ?? _recoveredServerId,
     'proof_needs_reselection': _ownershipProofPath != null,
-    'fields': {for (final entry in _recoveryFields.entries) entry.key: entry.key == 'description' && _descriptionCapture.active ? _descriptionVoiceBase : entry.value.text},
+    'fields': {for (final entry in _recoveryFields.entries) entry.key: entry.key == 'description' && (_descriptionCapture.active || _unconfirmedVoiceDescription != null) ? _descriptionVoiceBase : entry.value.text},
   };
 
   @override
@@ -630,14 +657,34 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   void _scheduleRecovery() {
     if (!_recoveryReady || _recoveryFinished || _recoveryUserId == null || _busy || _descriptionCapture.active || !_sessionValid || _disposed) return;
     if (_initialEditSignature!=null && _editSignature==_initialEditSignature && _confirmedEditSignature==null && !_recoverySaved && widget.accountDraft==null) return;
-    if (_hasUnsavedChanges && _accountSaved) super.setState(() => _accountSaved=false);
+    if (!_autoSaveEligible()) {
+      _recoveryTimer?.cancel();
+      // The exit guard must still rebuild so a partial draft can be saved
+      // manually even though automatic checkpoints are disabled.
+      if (mounted) super.setState(() {});
+      return;
+    }
+    if (_hasUnsavedChanges && _accountSaved) {
+      super.setState(() => _accountSaved=false);
+    } else if (mounted) {
+      super.setState(() {});
+    }
     _recoveryTimer?.cancel();
     _recoveryTimer = Timer(const Duration(milliseconds: 650), () => unawaited(_saveRecovery()));
   }
 
-  Future<bool> _writeLocalRecovery() async {
+  void _descriptionChanged() {
+    // Editing the visible proposal is an explicit user confirmation. Voice
+    // updates keep the marker because they set it before writing the field.
+    if (_unconfirmedVoiceDescription != null && _description.text != _unconfirmedVoiceDescription) {
+      _unconfirmedVoiceDescription = null;
+    }
+    _scheduleRecovery();
+  }
+
+  Future<bool> _writeLocalRecovery({bool manual = false}) async {
     final userId = _recoveryUserId;
-    if (userId == null || !_recoveryReady || _recoveryFinished || _disposed) return false;
+    if (userId == null || !_recoveryReady || _recoveryFinished || _disposed || (!manual && !_autoSaveEligible())) return false;
     final data = _recoverySnapshot(), images = List<String>.of(_imagePaths);
     final signature = jsonEncode([data, images]);
     try {
@@ -649,16 +696,24 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     } catch (_) { if (mounted && !_disposed) super.setState(() { _recoverySaved=false;_recoveryFailed=true; });return false; }
   }
 
-  Future<void> _saveRecovery({bool retryFailed = false}) async {
+  Future<void> _saveRecovery({bool retryFailed = false, bool manual = false}) async {
     if (!_recoveryReady || _recoveryFinished || !_sessionValid || _disposed || _recoveryUserId==null || _descriptionCapture.active) return;
+    // Saving explicitly confirms the text the advertiser can see and edit.
+    if (manual) _unconfirmedVoiceDescription = null;
+    // A scheduled timer may fire after fields were removed. Every automatic
+    // write uses current progress, including previously saved drafts.
+    if (!manual && !_autoSaveEligible()) return;
     final signature=jsonEncode([_recoverySnapshot(),_imagePaths]);
     if (signature==_lastRecoverySignature && _accountSaved) return;
     if (retryFailed) _retryPhotoKeys.addAll(_photoKeys.where((key)=>_photoStates[key]=='failed'));
-    await _writeLocalRecovery();
+    await _writeLocalRecovery(manual: manual);
     if (!_sessionValid || _disposed || _recoveryFinished) return;
     final data=_recoverySnapshot();
-    await _saveAccount(data,{for (final path in List<String>.of(_imagePaths)) _localPhotoKeys[path]!:path});
+    await _saveAccount(data,{for (final path in List<String>.of(_imagePaths)) _localPhotoKeys[path]!:path},manual:manual);
   }
+
+  bool _autoSaveEligible() => DynamicPropertySchema.canBeginAutomaticSave(
+      DynamicPropertySchema.draftProgress(_recoverySnapshot()));
 
   Future<void> _requestExit() async {
     if (_exitDialogOpen || _disposed) return;
@@ -681,7 +736,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (mounted) _leaveEditor();
       } else if (choice=='save') {
         _draftSavedExplicitly = true;
-        await _saveRecovery(retryFailed:true);
+        await _saveRecovery(retryFailed:true,manual:true);
         if (!mounted) return;
         if (_accountSaved && !_recoveryFailed) { _leaveEditor(); }
         else { setState(()=>_stepError='لم يكتمل حفظ المسودة. بياناتك باقية هنا؛ أعد المحاولة أو تابع التعديل.'); }
@@ -893,9 +948,52 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
   }
 
+  bool get _entryActorCurrent => mounted && _sessionValid && _recoveryUserId != null &&
+    ref.read(authControllerProvider).asData?.value?.id == _recoveryUserId;
+
+  Future<void> _openRecoveredEditor() async {
+    if (_recoveryLoading || !mounted || !_sessionValid) return;
+    _recoveryLoading = true;
+    if (_recoveryLoadError) {
+      setState(() {
+        _recoveryLoadError = false;
+        _initialAssistantPending = widget.startWithAssistant;
+      });
+    }
+    try {
+      await _restoreRecovery();
+      if (!_entryActorCurrent) {
+        if (mounted && _sessionValid) setState(() => _sessionValid = false);
+        return;
+      }
+      if (widget.startWithAssistant) {
+        unawaited(_loadSaiPolicy());
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_entryActorCurrent) return;
+          unawaited(() async {
+            try { await _assist(prepareDraft: true); }
+            finally { if (mounted) setState(() => _initialAssistantPending = false); }
+          }());
+        });
+      } else { await _loadSaiPolicy(); }
+      try {
+        final policy = await ref.read(propertyRepositoryProvider).listingContactPolicy();
+        if (_entryActorCurrent) setState(() => _contactPolicy = policy);
+      } catch (_) {}
+    } catch (_) {
+      // A malformed or unavailable recovery remains stored. Never enter an
+      // empty editor or write a replacement snapshot after a failed restore.
+      if (mounted && _sessionValid &&
+          ref.read(authControllerProvider).asData?.value?.id == _recoveryUserId) {
+        setState(() { _recoveryLoadError = true; _initialAssistantPending = false; });
+      }
+    } finally { _recoveryLoading = false; }
+  }
+
   @override
   void initState() {
     super.initState();
+    _initialAssistantPending = widget.startWithAssistant;
     WidgetsBinding.instance.addObserver(this);
     _descriptionCapture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_descriptionVoiceChanged);
     final retryAt = ref.read(aiRepositoryProvider).descriptionRetryAt;
@@ -920,13 +1018,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           if(mounted && _sessionValid)_phone.text=ListingContactPolicy.normalize(actor?.phone ?? '');
         }
       } catch (_) {}
-      await _restoreRecovery(); if (mounted) await _loadSaiPolicy();
-      try { final policy = await ref.read(propertyRepositoryProvider).listingContactPolicy(); if (mounted && ref.read(authControllerProvider).asData?.value?.id == _recoveryUserId) setState(() => _contactPolicy = policy); } catch (_) {}
-      if (mounted && widget.startWithAssistant) { WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _assist(prepareDraft: true);
-      }); }
+      await _openRecoveredEditor();
     });
-    for (final controller in _recoveryFields.values) { controller.addListener(_scheduleRecovery); }
+    for (final controller in _recoveryFields.values) {
+      controller.addListener(controller == _description ? _descriptionChanged : _scheduleRecovery);
+    }
     final property = _existing;
     if (property == null) return;
 
@@ -996,12 +1092,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _monthlyRent.removeListener(_onPriceChanged);
     _advanceMonths.removeListener(_onPriceChanged);
     _recoveryTimer?.cancel();
+    final eligible = _autoSaveEligible();
     final snapshot=_recoverySnapshot(), paths=List<String>.of(_imagePaths), userId=_recoveryUserId;
     final temporary=[...paths,if(_ownershipProofPath!=null)_ownershipProofPath!].where((path)=>!ListingRecoveryStore.isSavedMedia(path));
     _disposed=true;_pendingAccount=null;
     for (final cancel in _photoCancels.values) { cancel.cancel('Editor closed'); }
     // Never delete the only remaining copy if the durable device write failed.
-    final backup=!_recoveryFinished && _recoveryReady && userId!=null && (_hasUnsavedChanges || _recoverySaved)
+    final backup=!_recoveryFinished && _recoveryReady && userId!=null && eligible && (_hasUnsavedChanges || _recoverySaved)
       ? _recoveryStore.write(userId,widget.existingProperty?.id,snapshot,paths) : Future<void>.value();
     unawaited(backup.then((_)=>_mediaPicker.clearTemporaryFiles(temporary)).catchError((_) {}));
     for (final controller in <TextEditingController>[
@@ -1032,7 +1129,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _documentOwnerName,
       _relationshipNote,
     ]) {
-      controller.removeListener(_scheduleRecovery);
+      controller.removeListener(controller == _description ? _descriptionChanged : _scheduleRecovery);
       controller.dispose();
     }
     super.dispose();
@@ -1042,11 +1139,18 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider,(previous,next) {
       final actor=next.asData;
-      if (actor==null || _recoveryUserId==null || actor.value?.id==_recoveryUserId || !_sessionValid) return;
+      if (_recoveryUserId==null || actor?.value?.id==_recoveryUserId || !_sessionValid) return;
       _cancelDescriptionVoice();
-      unawaited(_writeLocalRecovery());_pendingAccount=null;
+      if (_autoSaveEligible()) unawaited(_writeLocalRecovery());
+      _pendingAccount=null;
       for (final cancel in _photoCancels.values) { cancel.cancel('Account changed'); }
       super.setState(()=>_sessionValid=false);
+      final sheet = _assistantSheetContext;
+      if (sheet != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (sheet.mounted && ModalRoute.of(sheet)?.isCurrent == true) Navigator.of(sheet).pop();
+        });
+      }
     });
     final correctionReason =
         _existing?.reviewStatus == 'returned_for_correction'
@@ -1060,21 +1164,28 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       child: Scaffold(
         appBar: AppAppBar(
           title: _isEditing ? 'تعديل الإعلان' : 'إضافة عقار',
-          actions: [IconButton(key: const ValueKey('listing-completion'), tooltip: 'نواقص الإعلان',
+          actions: [if (!_initialAssistantPending && !_recoveryLoadError) IconButton(key: const ValueKey('listing-completion'), tooltip: 'نواقص الإعلان',
             onPressed: _busy || !_sessionValid || _descriptionCapture.active ? null : _reviewCompletion, icon: const EbrokerIcon(Icons.fact_check_outlined)),
-            if (!_completionOnly) Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
+            if (!_initialAssistantPending && !_recoveryLoadError && !_completionOnly) Center(child: Padding(padding: const EdgeInsetsDirectional.only(end: 16),
             child: EbrokerText('${_step + 1}/4', size: 16, weight: FontWeight.w600,
               color: Theme.of(context).colorScheme.primary)))],
         ),
-        bottomNavigationBar: !_recoveryReady || !_sessionValid ? null : _completionOnly ? _completionActions() : _actions(),
+        bottomNavigationBar: _recoveryLoadError || _initialAssistantPending || !_recoveryReady || !_sessionValid ? null : _completionOnly ? _completionActions() : _actions(),
         body: SafeArea(
           bottom: false,
-          child: !_sessionValid ? const Center(child:Text('تغيّر الحساب. عُد وافتح مسودات الحساب الحالي.')) : !_recoveryReady ? const AppLoadingState() : Column(
+          child: !_sessionValid ? const Center(child:Text('تغيّر الحساب. عُد وافتح مسودات الحساب الحالي.'))
+            : _recoveryLoadError ? Center(key: const ValueKey('listing-recovery-load-error'), child: Padding(
+              padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text('تعذر فتح المسودة بأمان. لم نغيّرها؛ أعد المحاولة أو ارجع.'),
+                TextButton(key: const ValueKey('listing-recovery-retry'), onPressed: () => unawaited(_openRecoveredEditor()), child: const Text('إعادة المحاولة')),
+                TextButton(key: const ValueKey('listing-recovery-back'), onPressed: _leaveEditor, child: const Text('رجوع')),
+              ])))
+            : _initialAssistantPending || !_recoveryReady ? const AppLoadingState() : Column(
             children: [
               if (_recoveryUserId != null) Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 0), child: Text(
                 _recoveryFailed ? 'تعذر حفظ نسخة الجهاز. مدخلاتك باقية هنا؛ أعد المحاولة قبل الخروج.' : _accountConflict ? 'تغيرت المسودة على جهاز آخر. افتح أحدث نسخة قبل المتابعة.' : _accountError != null ? 'تعذر الحفظ على الحساب. ${_recoverySaved ? 'تقدمك محفوظ على الجهاز.' : ''} أعد المحاولة.' : _accountSyncing ? 'جارٍ حفظ تقدمك على حسابك…' : _accountSaved ? 'حُفظ تقدمك وصورك على حسابك' : 'يُحفظ تقدمك تلقائيًا على حسابك',
                 style: Theme.of(context).textTheme.bodySmall)),
-              if (_accountError != null && !_accountConflict) TextButton(onPressed: _busy || _accountSyncing ? null : ()=>_saveRecovery(retryFailed:true), child: const Text('إعادة محاولة الحفظ')),
+              if (_accountError != null && !_accountConflict) TextButton(onPressed: _busy || _accountSyncing ? null : ()=>_saveRecovery(retryFailed:true,manual:true), child: const Text('إعادة محاولة الحفظ')),
               if (correctionReason != null &&
                   correctionReason.trim().isNotEmpty)
                 Padding(
@@ -1581,11 +1692,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Future<void> _retryPhoto(String key) async {
     if (_localPath(key)==null) { await _replacePhoto(key);return; }
     _retryPhotoKeys.add(key);
-    await _writeLocalRecovery();
+    await _writeLocalRecovery(manual:true);
     if (mounted && _sessionValid) {
       final pending={for (final path in _imagePaths)
         if (_localPhotoKeys[path]==key || (_photoStates[_localPhotoKeys[path]] ?? 'queued')=='queued') _localPhotoKeys[path]!:path};
-      await _saveAccount(_recoverySnapshot(),pending);
+      await _saveAccount(_recoverySnapshot(),pending,manual:true);
     }
   }
 
@@ -1968,19 +2079,32 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Future<void> _assist({bool prepareDraft = false}) async {
-    if (_busy || _descriptionCapture.active) return;
+    if (_busy || _descriptionCapture.active || !_entryActorCurrent) return;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
-    final result = await AppBottomSheet.show<Map<String, dynamic>>(context, builder: (_) => ListingAiSheet(
-      facts: _aiFacts(), propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null,
-      prepareDraft: prepareDraft, initialMessage: _assistantBrief.text,
-      hasExistingDescription: _description.text.trim().isNotEmpty,
-      onMessageChanged: (text) => _assistantBrief.text = text));
-    if (!mounted || result == null || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+    Map<String, dynamic>? result;
+    try {
+      result = await AppBottomSheet.show<Map<String, dynamic>>(context, builder: (sheetContext) {
+        _assistantSheetContext = sheetContext;
+        if (!_entryActorCurrent) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (sheetContext.mounted && ModalRoute.of(sheetContext)?.isCurrent == true) Navigator.of(sheetContext).pop();
+          });
+          return const SizedBox.shrink();
+        }
+        return ListingAiSheet(
+          facts: _aiFacts(), propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null,
+          prepareDraft: prepareDraft, initialMessage: _assistantBrief.text,
+          hasExistingDescription: _description.text.trim().isNotEmpty,
+          onMessageChanged: (text) => _assistantBrief.text = text);
+      });
+    } finally { _assistantSheetContext = null; }
+    final resultData = result;
+    if (!_entryActorCurrent || resultData == null || actor != ref.read(authControllerProvider).asData?.value?.id) return;
     final oldPurpose = _purpose;
     setState(() {
-      if (result['description'] is String) _description.text = result['description'] as String;
-      if (_typeLabels.containsKey(result['type'])) { _type = result['type'] as String; _typeConfirmed = true; }
-      if (const ['sale', 'rent'].contains(result['purpose'])) { _purpose = result['purpose'] as String; _purposeConfirmed = true; }
+      if (resultData['description'] is String) _description.text = resultData['description'] as String;
+      if (_typeLabels.containsKey(resultData['type'])) { _type = resultData['type'] as String; _typeConfirmed = true; }
+      if (const ['sale', 'rent'].contains(resultData['purpose'])) { _purpose = resultData['purpose'] as String; _purposeConfirmed = true; }
       for (final entry in <String, TextEditingController>{
         'title': _title, if (!_isRentalApartment) 'area_value': _area, 'governorate': _governorate, 'district': _neighborhood, 'street': _street,
         if (_purpose == 'sale') 'price': _price,
@@ -1991,13 +2115,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (_requiresResidential) 'bathrooms': _bathrooms,
         if (_isUnitType) 'floor_number': _floorNumber,
         if (_isUnitType) 'unit_number': _unitNumber,
-      }.entries) { if (result[entry.key] != null) entry.value.text = result[entry.key].toString(); }
-      if (propertyAreaUnitLabels.containsKey(result['area_unit'])) _areaUnit = result['area_unit'] as String;
-      if (_requiresSaleTenure && const ['freehold', 'waqf'].contains(result['tenure_type'])) _tenureType = result['tenure_type'] as String;
-      if (_requiresStructure && result['has_parking'] is bool) _parkingChoice = result['has_parking'] == true ? 'yes' : 'no';
-      if (_supportsFacade && propertyFacadeLabels.containsKey(result['building_facade'])) _facade = result['building_facade'] as String;
-      if (_applies('units_per_floor') && result['units_per_floor'] is List) { _unitsGeneration++; _unitsPerFloor = (result['units_per_floor'] as List).map((e) => e.toString()).toList(); _sameFloorUnits = _unitsPerFloor.isNotEmpty && _unitsPerFloor.toSet().length == 1; }
-      if (_supportsElevator && result['has_elevator'] is bool) _elevatorChoice = result['has_elevator'] == true ? 'yes' : 'no';
+      }.entries) { if (resultData[entry.key] != null) entry.value.text = resultData[entry.key].toString(); }
+      if (propertyAreaUnitLabels.containsKey(resultData['area_unit'])) _areaUnit = resultData['area_unit'] as String;
+      if (_requiresSaleTenure && const ['freehold', 'waqf'].contains(resultData['tenure_type'])) _tenureType = resultData['tenure_type'] as String;
+      if (_requiresStructure && resultData['has_parking'] is bool) _parkingChoice = resultData['has_parking'] == true ? 'yes' : 'no';
+      if (_supportsFacade && propertyFacadeLabels.containsKey(resultData['building_facade'])) _facade = resultData['building_facade'] as String;
+      if (_applies('units_per_floor') && resultData['units_per_floor'] is List) { _unitsGeneration++; _unitsPerFloor = (resultData['units_per_floor'] as List).map((e) => e.toString()).toList(); _sameFloorUnits = _unitsPerFloor.isNotEmpty && _unitsPerFloor.toSet().length == 1; }
+      if (_supportsElevator && resultData['has_elevator'] is bool) _elevatorChoice = resultData['has_elevator'] == true ? 'yes' : 'no';
       if (_type != 'apartment') _wholeFloor = false;
       if (_wholeFloor) _unitNumber.clear();
       if (!_requiresResidential) { _bedrooms.clear(); _bathrooms.clear(); }
@@ -2008,10 +2132,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       // Text corrections preserve the explicitly confirmed geographic point.
       if (_type != 'land') _landBoundaryGeoJson = null;
       if (oldPurpose != _purpose) { _saiAccepted = false; _saiTouched = true; }
-      if (const ['percentage','fixed'].contains(result['sai_amount_type'])) _saiAmountType = result['sai_amount_type'] as String;
-      if (result['broker_sai_rate_percent'] is num) { _saiRate.text = result['broker_sai_rate_percent'].toString(); _saiTouched = true; }
-      if (result['fixed_sai_amount'] is num) { _saiAmount.text = result['fixed_sai_amount'].toString(); _saiTouched = true; }
-      if (_purpose == 'rent' && result['rental_conditions'] is List) _rentalConditions = (result['rental_conditions'] as List).whereType<Map>().map((e) => Map<String,dynamic>.from(e)).toList();
+      if (const ['percentage','fixed'].contains(resultData['sai_amount_type'])) _saiAmountType = resultData['sai_amount_type'] as String;
+      if (resultData['broker_sai_rate_percent'] is num) { _saiRate.text = resultData['broker_sai_rate_percent'].toString(); _saiTouched = true; }
+      if (resultData['fixed_sai_amount'] is num) { _saiAmount.text = resultData['fixed_sai_amount'].toString(); _saiTouched = true; }
+      if (_purpose == 'rent' && resultData['rental_conditions'] is List) _rentalConditions = (resultData['rental_conditions'] as List).whereType<Map>().map((e) => Map<String,dynamic>.from(e)).toList();
       _clearHiddenFields();
     });
     if (oldPurpose != _purpose) await _loadSaiPolicy();
@@ -2090,7 +2214,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!mounted || !_sessionValid) return;
     final validation = submit ? _validateForSubmit() : _validateCore();
     if (validation != null) {
-      if (!submit) { await _saveRecovery(retryFailed:true); if (mounted && _sessionValid) _message(_accountSaved ? 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' : 'لم يكتمل الحفظ على الحساب. أعد المحاولة قبل الخروج.'); } else { setState(() => _stepError = validation); }
+      if (!submit) { await _saveRecovery(retryFailed:true,manual:true); if (mounted && _sessionValid) _message(_accountSaved ? 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' : 'لم يكتمل الحفظ على الحساب. أعد المحاولة قبل الخروج.'); } else { setState(() => _stepError = validation); }
       return;
     }
 
@@ -2117,7 +2241,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _recoveryTimer?.cancel();
     late PropertyDetails draft;
     try {
-      await _saveRecovery(retryFailed:true);
+      await _saveRecovery(retryFailed:true,manual:true);
       if (!mounted || !_sessionValid) return;
       if (!_accountSaved || _accountConflict) throw StateError('تعذر حفظ المسودة على الحساب.');
       if (!await _resolveRecoveredDraft()) return;
@@ -2150,7 +2274,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _adoptAccountDraft(acknowledged);
       _photoOrder.clear(); _removedPhotoKeys.clear(); _remotePhotos.clear(); _localPhotoKeys.clear();
       _accountSaved = false;
-      await _saveRecovery();
+      await _saveRecovery(manual:true);
       if (!mounted || !_sessionValid) return;
 
       // These writes follow the explicit Save/Submit action. Neither editing
@@ -2174,8 +2298,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
       if (submit) {
         try {
-          final identityReady = await _checkIdentityBeforeSubmit(draft.id);
-          if (!identityReady || !mounted || !_sessionValid) return;
           draft = await repository.submitListing(draft.id);
           if (!mounted || !_sessionValid) return;
           ref.read(propertyDataRevisionProvider.notifier).state++;
@@ -2350,109 +2472,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     } catch (_) {
       // Keep local edits and the separate policy retry available.
     }
-  }
-
-  Future<bool> _checkIdentityBeforeSubmit(int propertyId) async {
-    final repository = ref.read(propertyRepositoryProvider);
-    final result = await repository.checkPropertyIdentity(propertyId);
-    if (result.isDistinct) {
-      return true;
-    }
-    if (result.isConfirmedDuplicate) {
-      _message(
-          'هذا العقار أو هذه الوحدة مسجلة بالفعل على المنصة ولا يمكن إنشاء إعلان آخر لها.');
-      return false;
-    }
-    if ((_isRentalApartment || _type == 'shop') && !_wholeFloor && _unitNumber.text.trim().isEmpty && result.signals.contains('unit_identity_incomplete')) {
-      return true; // The server routes an unspecified unit to support identity review.
-    }
-    final answer = await _duplicateSelfVerificationDialog();
-    if (answer == null || !mounted) return false;
-    final verified = await repository.selfVerifyPropertyIdentity(
-      propertyId,
-      differenceType: answer.$1,
-      differenceNote: answer.$2,
-    );
-    if (verified.isConfirmedDuplicate) {
-      _message(
-          'بعد التحقق ما زال هذا العقار مطابقاً لعقار مسجل، لذلك لا يمكن إرساله.');
-      return false;
-    }
-    if (verified.needsSupport) {
-      _message(
-          'تم تسجيل توضيحك. بقي تشابه غير محسوم وسيشاهده موظف الدعم كمقارنة جاهزة فقط.');
-    }
-    return true;
-  }
-
-  Future<(String, String)?> _duplicateSelfVerificationDialog() async {
-    final note = TextEditingController();
-    var type = 'different_address';
-    String? error;
-    final result = await showDialog<(String, String)>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => Directionality(
-          textDirection: TextDirection.rtl,
-          child: AlertDialog(
-            title: const Text('وجدنا عقاراً مشابهاً'),
-            content: SingleChildScrollView(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text(
-                  'إذا كان هذا عقاراً مختلفاً، اختر الفرق واكتب معلومة تساعد النظام على التمييز. الحالات غير المحسومة فقط تذهب للدعم.'),
-              const SizedBox(height: 12),
-              AppSelectField<String>(
-                value: type,
-                decoration:
-                    const InputDecoration(labelText: 'ما الفرق الأساسي؟'),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'different_building', child: Text('مبنى مختلف')),
-                  DropdownMenuItem(
-                      value: 'different_unit', child: Text('وحدة مختلفة')),
-                  DropdownMenuItem(
-                      value: 'different_area', child: Text('مساحة مختلفة')),
-                  DropdownMenuItem(
-                      value: 'different_boundary',
-                      child: Text('حدود أرض مختلفة')),
-                  DropdownMenuItem(
-                      value: 'different_address',
-                      child: Text('عنوان/رقم عقار مختلف')),
-                  DropdownMenuItem(value: 'other', child: Text('فرق آخر')),
-                ],
-                onChanged: (value) =>
-                    setDialogState(() => type = value ?? type),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                  controller: note,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                      labelText: 'وضح الفرق *', errorText: error)),
-            ])),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('رجوع')),
-              EbrokerFilledButton(
-                  onPressed: () {
-                    final text = note.text.trim();
-                    if (text.length < 10) {
-                      setDialogState(
-                          () => error = 'اكتب توضيحاً من 10 أحرف على الأقل.');
-                      return;
-                    }
-                    Navigator.pop(dialogContext, (type, text));
-                  },
-                  child: const Text('أؤكد أنه عقار مختلف')),
-            ],
-          ),
-        ),
-      ),
-    );
-    note.dispose();
-    return result;
   }
 
   Future<void> _pickLandBoundary() async {

@@ -332,6 +332,29 @@ void main() {
     expect(commands.last.method, 'release');
   });
 
+  testWidgets('D10 search keeps tentative words visible without an automatic request', (tester) async {
+    tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    final voice = Wave3VoiceFake(autoComplete: false);
+    final ai = Wave3AiFake();
+    final container = searchContainer(voice, ai, Wave3PropertiesFake());
+    addTearDown(container.dispose); addTearDown(voice.dispose);
+    await pumpHome(tester, container);
+    await tester.tap(find.byKey(const ValueKey('smart-search-voice')));
+    await tester.pump();
+    voice.latest.emit(const VoiceEvent('mode', code: 'dictation'));
+    voice.latest.emit(const VoiceEvent('ready'));
+    voice.latest.emit(const VoiceEvent('speech_start'));
+    voice.latest.emit(const VoiceEvent('partial', text: 'tentative words'));
+    voice.latest.emit(const VoiceEvent('speech_end'));
+    await tester.pump(const Duration(seconds: 12));
+    await tester.pump();
+    final input = tester.widget<TextField>(find.byKey(const ValueKey('smart-search-description')));
+    expect(input.controller!.text, 'tentative words');
+    expect(ai.requests, isEmpty);
+    expect(container.read(smartSearchSessionProvider).draftText, isEmpty);
+  });
+
   testWidgets('silence beyond old watchdog keeps listening; background cancels and only post-stop processing expires', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false); addTearDown(voice.dispose);
     final capture = VoiceCaptureController(voice); addTearDown(capture.dispose);

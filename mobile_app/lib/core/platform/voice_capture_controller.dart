@@ -16,6 +16,8 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   String preview = '';
   String stablePreview = '';
   bool _speechObserved = false;
+  bool _awaitingLiveSegment = false;
+  bool _speechEndAwaitingResult = false;
   bool liveDictation = false;
   String? error;
   bool permissionDenied = false;
@@ -24,7 +26,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   StreamSubscription<VoiceEvent>? _subscription;
   Timer? _timeout;
   Timer? _clock;
-  Timer? _silence, _noSpeech, _maximum;
+  Timer? _silence, _noSpeech, _maximum, _segmentWait;
   Duration elapsed = Duration.zero;
   Completer<String?>? _completion;
   bool _disposed = false;
@@ -39,7 +41,8 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     final generation = ++_generation;
     final completion = Completer<String?>();
     _completion = completion;
-    _stopRequested = false; _speechObserved = false; stablePreview = '';
+    _stopRequested = false; _speechObserved = false; _awaitingLiveSegment = false;
+    _speechEndAwaitingResult = false; stablePreview = '';
     phase = VoicePhase.preparing; transcript = ''; preview = ''; liveDictation = false; error = null; permissionDenied=false; level = 0;
     elapsed = Duration.zero;
     notifyListeners();
@@ -63,13 +66,28 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
           case 'mode': liveDictation = event.code == 'dictation';
           case 'speech_start':
             if (phase != VoicePhase.listening || _stopRequested) return;
+            _awaitingLiveSegment = true;
+            _speechEndAwaitingResult = false;
             _observedSpeech(); _silence?.cancel(); _silence = null;
+            _segmentWait?.cancel(); _segmentWait = null;
           case 'speech_end':
             if (phase != VoicePhase.listening || _stopRequested || !_speechObserved) return;
+            // Android onEndOfSpeech can precede onResults by seconds. Wait for
+            // a confirmed segment before starting the inter-utterance timer.
+            if (liveDictation && _awaitingLiveSegment) {
+              if (!_speechEndAwaitingResult) {
+                _speechEndAwaitingResult = true;
+                _armSegmentWait();
+              }
+              return;
+            }
             _silence ??= Timer(silenceDuration, () { _silence = null; stop(); });
           case 'segment':
             if (phase != VoicePhase.listening || _stopRequested) return;
             if (event.text.length > 5000) { _failCapture('SPEECH_TOO_LONG'); return; }
+            _segmentWait?.cancel(); _segmentWait = null;
+            _awaitingLiveSegment = false;
+            _speechEndAwaitingResult = false;
             stablePreview = event.text; preview = event.text;
             if (event.text.trim().isNotEmpty) _observedSpeech();
           case 'partial':
@@ -79,7 +97,17 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
               final recording = _recording; _finish(null); unawaited(recording?.cancel() ?? Future.value()); return;
             }
             preview = event.text;
-            if (event.text.trim().isNotEmpty) _observedSpeech();
+            if (event.text.trim().isNotEmpty) {
+              _silence?.cancel(); _silence = null;
+              // A hypothesis after a confirmed segment starts another spoken
+              // cycle even if Android omits speech_start. A late hypothesis
+              // after speech_end belongs to the unfinished cycle instead and
+              // must not remove its bounded wait for onResults.
+              if (!_speechEndAwaitingResult) {
+                _awaitingLiveSegment = true;
+              }
+              _observedSpeech();
+            }
           case 'processing': if (!_stopRequested) return; phase = VoicePhase.processing; level = 0;
           case 'final':
             if (!_stopRequested) return;
@@ -100,6 +128,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   }
 
   String _message(String code) => switch (code) {
+    'SPEECH_RESULT_TIMEOUT' => 'لم يؤكد محرك الصوت النص الظاهر. حاول مجدداً أو اكتبه بنفسك.',
     'SPEECH_PERMISSION' || 'SPEECH_PERMISSION_PERMANENT' => 'اسمح باستخدام الميكروفون من إعدادات التطبيق، أو اكتب طلبك هنا.',
     'SPEECH_NO_MATCH' => 'لم نلتقط كلامًا واضحًا. حاول مرة أخرى أو اكتب طلبك.',
     'SPEECH_NETWORK' => 'تعذّر تفريغ الصوت. تحقق من الاتصال أو اكتب طلبك.',
@@ -110,6 +139,15 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   };
 
   void _observedSpeech() { _speechObserved = true; _noSpeech?.cancel(); _noSpeech = null; }
+  void _armSegmentWait() {
+    _segmentWait?.cancel();
+    _segmentWait = Timer(const Duration(seconds: 12), () {
+      _segmentWait = null;
+      if (phase == VoicePhase.listening && liveDictation && _awaitingLiveSegment) {
+        _failCapture('SPEECH_RESULT_TIMEOUT');
+      }
+    });
+  }
 
   void _failCapture(String code) {
     if (!active || _disposed) return;
@@ -119,7 +157,9 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
 
   void _finish(String? result, {bool retainRecording = false}) {
     phase = VoicePhase.idle; level = 0;
+    _speechEndAwaitingResult = false;
     _silence?.cancel(); _silence = null; _noSpeech?.cancel(); _noSpeech = null; _maximum?.cancel(); _maximum = null;
+    _segmentWait?.cancel(); _segmentWait = null;
     _timeout?.cancel(); _timeout = null;
     _clock?.cancel(); _clock = null;
     final completion = _completion; _completion = null;
@@ -142,7 +182,9 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   void stop() {
     if (phase != VoicePhase.listening || _stopRequested) return;
     _stopRequested = true;
+    _speechEndAwaitingResult = false;
     _silence?.cancel(); _silence = null; _noSpeech?.cancel(); _noSpeech = null; _maximum?.cancel(); _maximum = null;
+    _segmentWait?.cancel(); _segmentWait = null;
     phase = VoicePhase.processing; level = 0;
     _clock?.cancel(); _clock = null;
     _armTimeout();
@@ -170,7 +212,9 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     final recording = _recording! as RetryableVoiceRecording;
     final completion = Completer<String?>();
     _completion = completion; _stopRequested = true;
+    _speechEndAwaitingResult = false;
     _silence?.cancel(); _silence = null; _noSpeech?.cancel(); _noSpeech = null; _maximum?.cancel(); _maximum = null;
+    _segmentWait?.cancel(); _segmentWait = null;
     phase = VoicePhase.processing; error = null; level = 0;
     _armTimeout(); notifyListeners();
     unawaited(recording.retryTranscription());

@@ -12,6 +12,7 @@ import 'package:real_estate_mobile/features/account/domain/account_verification.
 import 'package:real_estate_mobile/features/account/presentation/account_verification_screen.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
+import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
@@ -146,7 +147,7 @@ void main() {
   }
 
   for (final outcome in ['cancel', 'error', 'empty', 'account']) {
-    testWidgets('T03 T12 $outcome never submits partial text or an obsolete final', (tester) async {
+    testWidgets('T03 T12 $outcome never automatically submits partial text or an obsolete final', (tester) async {
       final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake(), auth = UxAuth(uxUser(id: 1));
       addTearDown(voice.dispose);
       final scope = uxContainer(auth: auth, extra: [voiceInputProvider.overrideWithValue(voice), aiRepositoryProvider.overrideWithValue(ai)]);
@@ -169,7 +170,14 @@ void main() {
       }
       old.emit(const VoiceEvent('final', text: 'طلب قديم')); await tester.pumpAndSettle();
       expect(ai.requests, isEmpty);
-      expect(tester.widget<TextField>(input).controller!.text, outcome == 'account' ? '' : 'كتبت هذا');
+      // A transcription error now leaves the tentative words visible for
+      // editing or an explicit retry, without committing them to the session.
+      final expectedText = outcome == 'account' ? ''
+          : outcome == 'error' ? 'كتبت هذا كلام مؤقت' : 'كتبت هذا';
+      expect(tester.widget<TextField>(input).controller!.text, expectedText);
+      if (outcome == 'error') {
+        expect(scope.read(smartSearchSessionProvider).draftText, 'كتبت هذا');
+      }
       expect(tester.takeException(), isNull); await closeUx(tester);
     });
   }

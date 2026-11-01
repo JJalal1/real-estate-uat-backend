@@ -22,6 +22,29 @@ abstract final class DynamicPropertySchema {
         ((entry.value as Map)['required_cases'] as List? ?? const []).any((c) => _matches(c as Map, facts)))) entry.key,
   };
 
+  /// Mirrors ListingEditorDraftService::present so an unsaved editor can apply
+  /// the same basic-data progress threshold before creating an account draft.
+  static int draftProgress(Map<String, dynamic> snapshot) {
+    final fields = Map<String, dynamic>.from(snapshot['fields'] as Map? ?? const {});
+    final facts = <String, dynamic>{...snapshot, ...fields,
+      'area_value': fields['area'],
+      'has_parking': snapshot['parking'],
+      'building_facade': snapshot['facade'],
+    };
+    final needed = <String>{'title', 'latitude', 'longitude', ...required(facts)};
+    var complete = 0;
+    for (final key in needed) {
+      final value = facts[key];
+      if (value == null || value == '') { continue; }
+      if (const {'area_value', 'bedrooms', 'bathrooms'}.contains(key) &&
+          (num.tryParse(value.toString()) ?? 0) <= 0) { continue; }
+      complete++;
+    }
+    return (100 * complete / needed.length).round();
+  }
+
+  static bool canBeginAutomaticSave(int progress) => progress >= 50;
+
   static Map<String, dynamic> sanitize(Map<String, dynamic> input) {
     final result = Map<String, dynamic>.from(input);
     if (result['type'] == 'shop' && result['area_value'] is num) {

@@ -1,7 +1,7 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/wave01-complete-*, work/wave01-delivery-*, work/map-dynamic-filters-*, work/wave3-search-only-delivery-*, work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1, work/wave2-brand-trust-account, work/wave2-review-current, work/1123-release-readiness]
+    branches: [work/wave01-complete-*, work/wave01-delivery-*, work/map-dynamic-filters-*, work/wave3-search-only-delivery-*, work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1, work/wave2-brand-trust-account, work/wave2-review-current, work/1123-release-readiness, work/phase1-publication-clean-20261101]
   pull_request:
     branches: [work/wave2-review-current, work/owner-ux-wave-20261027, work/wave1-experience-20261028, work/wave2-home-search-20261028, work/branch2-*]
     paths:
@@ -19,7 +19,7 @@ concurrency:
 env:
   SOURCE_COMMIT: ${{ github.sha }}
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
-  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' || startsWith(github.head_ref, 'work/branch2-') || startsWith(github.head_ref, 'work/wave3-search-only-') || startsWith(github.ref_name, 'work/wave3-search-only-delivery-') || startsWith(github.ref_name, 'work/map-dynamic-filters-') || startsWith(github.ref_name, 'work/wave01-') || startsWith(github.head_ref, 'work/wave01-') }}
+  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' || startsWith(github.head_ref, 'work/branch2-') || startsWith(github.head_ref, 'work/wave3-search-only-') || startsWith(github.ref_name, 'work/wave3-search-only-delivery-') || startsWith(github.ref_name, 'work/map-dynamic-filters-') || startsWith(github.ref_name, 'work/wave01-') || startsWith(github.head_ref, 'work/wave01-') || github.ref_name == 'work/phase1-publication-clean-20261101' || github.head_ref == 'work/phase1-publication-clean-20261101' }}
 jobs:
   source:
     name: Tracked source checkpoint
@@ -45,6 +45,7 @@ jobs:
           git archive --format=zip --output=source-checkpoint/broker-source-${GITHUB_RUN_NUMBER}.zip HEAD
           git rev-parse HEAD > source-checkpoint/SOURCE_COMMIT.txt
       - uses: actions/upload-artifact@v4
+        if: ${{ github.ref_name != 'work/phase1-publication-clean-20261101' && github.head_ref != 'work/phase1-publication-clean-20261101' }}
         continue-on-error: true
         with:
           name: broker-private-source-${{ github.run_number }}
@@ -143,6 +144,8 @@ jobs:
           -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
       - name: Apply original migration chain to disposable database
         run: php artisan migrate --force
+      # PropertyIdentityConcurrencyTest is local-only: its guard requires
+      # loopback:55441/aqer_identity_race_test; this CI database uses 5432.
       - name: PostgreSQL schema and access regression
         run: php artisan test tests/Postgres --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Erasure, authentication and OTP lifecycle on PostgreSQL
@@ -249,6 +252,10 @@ jobs:
       - name: Static analysis with exact original INFO baseline
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Wave02 autosave and assistant session regression
+        if: ${{ github.ref_name == 'work/phase1-publication-clean-20261101' || github.head_ref == 'work/phase1-publication-clean-20261101' }}
+        working-directory: mobile_app
+        run: flutter test test/wave02_autosave_test.dart test/wave02_assistant_entry_test.dart
       - name: Broker journeys, template components and navigation acceptance
         id: stage1_ui
         working-directory: mobile_app
