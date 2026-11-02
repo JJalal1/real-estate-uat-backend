@@ -10,6 +10,12 @@ on:
       - 'scripts/**'
       - '.github/workflows/broker-experience-ci.yml'
   workflow_dispatch:
+    inputs:
+      phase1_ui_smoke:
+        description: 'Offline release startup, Flutter semantics and one non-sensitive screenshot only'
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
   actions: read
@@ -19,7 +25,8 @@ concurrency:
 env:
   SOURCE_COMMIT: ${{ github.sha }}
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
-  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' || startsWith(github.head_ref, 'work/branch2-') || startsWith(github.head_ref, 'work/wave3-search-only-') || startsWith(github.ref_name, 'work/wave3-search-only-delivery-') || startsWith(github.ref_name, 'work/map-dynamic-filters-') || startsWith(github.ref_name, 'work/wave01-') || startsWith(github.head_ref, 'work/wave01-') || github.ref_name == 'work/phase1-publication-clean-20261101' || github.head_ref == 'work/phase1-publication-clean-20261101' }}
+  AQER_ANDROID_UI_SMOKE: ${{ github.event_name == 'workflow_dispatch' && inputs.phase1_ui_smoke == true }}
+  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' || startsWith(github.head_ref, 'work/branch2-') || startsWith(github.head_ref, 'work/wave3-search-only-') || startsWith(github.ref_name, 'work/wave3-search-only-delivery-') || startsWith(github.ref_name, 'work/map-dynamic-filters-') || startsWith(github.ref_name, 'work/wave01-') || startsWith(github.head_ref, 'work/wave01-') || github.ref_name == 'work/phase1-publication-clean-20261101' || github.head_ref == 'work/phase1-publication-clean-20261101' || (github.event_name == 'workflow_dispatch' && inputs.phase1_ui_smoke == true) }}
 jobs:
   source:
     name: Tracked source checkpoint
@@ -244,6 +251,8 @@ jobs:
           flutter-version: '3.27.3'
           channel: stable
           cache: true
+      - name: Offline release UI probe safety tests
+        run: python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_android_ui.py' -v
       - name: Resolve original locked packages
         working-directory: mobile_app
         run: |
@@ -456,6 +465,19 @@ jobs:
           test "$ready" = true
           python3 -B scripts/probe_uat_android_upgrade.py
           python3 -B scripts/probe_android_push_isolation.py
+          if [ "$AQER_ANDROID_UI_SMOKE" = 'true' ]; then
+            python3 -B scripts/probe_phase1_android_ui.py
+          fi
+      - name: Upload isolated release startup evidence only
+        if: ${{ !cancelled() && env.AQER_ANDROID_UI_SMOKE == 'true' && steps.android_upgrade.outputs.phase1_ui_evidence == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-offline-release-startup-${{ github.run_id }}
+          path: |
+            android-ui-evidence/report.json
+            android-ui-evidence/startup.png
+          retention-days: 3
+          if-no-files-found: error
       - name: Upload broker UAT APK and exact commit evidence
         id: apk_artifact
         continue-on-error: true
