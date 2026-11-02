@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import struct
 import subprocess
 import tempfile
@@ -157,6 +158,19 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
             seen = observation(); seen[key] = value
             with self.subTest(key=key), self.assertRaisesRegex(ui.GateError, 'flutter_ui_not_observed'):
                 ui.validate_instrumentation(instrument_output(seen), VERSION)
+
+    def test_native_semantic_producer_consumer_and_host_receipt_agree(self):
+        java = (Path(__file__).resolve().parents[2] / 'mobile_app/android/app/src/androidTest/java/'
+                'com/example/real_estate_mobile/Phase1UiStartupTest.java').read_text()
+        produced = set(re.findall(r'found\.add\("([a-z_]+)"\)', java))
+        consumed = set(re.findall(r'keys\.contains\("([a-z_]+)"\)', java))
+        receipt_line = next(line for line in java.splitlines() if '.put("semantic_keys",' in line)
+        reported = re.findall(r'\.put\("([a-z_]+)"\)', receipt_line)
+        self.assertTrue(produced)
+        self.assertEqual(produced, consumed)
+        self.assertEqual(produced, set(reported))
+        seen = observation(); seen['semantic_keys'] = reported
+        ui.validate_instrumentation(instrument_output(seen), VERSION)
 
     def test_truncated_png_and_bad_crc_and_wrong_scanlines_are_rejected(self):
         valid = png()

@@ -84,7 +84,7 @@ public class Phase1UiStartupTest {
                 denySystemPrompt(root);
                 if (flutter[0] && PACKAGE.contentEquals(String.valueOf(root.getPackageName()))) {
                     Set<String> keys = semanticKeys(root);
-                    if (keys.contains("home") && keys.contains("account")) { observed = true; break; }
+                    if (keys.contains("marketplace") && keys.contains("account")) { observed = true; break; }
                 } else root.recycle();
             }
             SystemClock.sleep(250);
