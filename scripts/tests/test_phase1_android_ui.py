@@ -91,12 +91,17 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         (self.root / 'dist').mkdir()
-        (self.root / 'android-push-tests').mkdir()
+        (self.root / 'android-release-tests').mkdir()
         (self.root / 'sdk/build-tools/36.0.0').mkdir(parents=True)
         (self.root / 'sdk/build-tools/36.0.0/apksigner').touch()
         self.apk = b'synthetic APK process-boundary fixture'
         (self.root / 'dist/real-estate-broker-uat-449.apk').write_bytes(self.apk)
-        (self.root / 'android-push-tests/tests.apk').write_bytes(b'synthetic test package')
+        test_apk = b'synthetic test package'
+        (self.root / 'android-release-tests/tests.apk').write_bytes(test_apk)
+        (self.root / 'android-release-tests/PAIR_VERIFICATION.json').write_text(json.dumps({
+            'source_commit': SOURCE, 'variant': 'uatReleaseAndroidTest',
+            'release_sha256': ui.hashlib.sha256(self.apk).hexdigest(),
+            'tests_sha256': ui.hashlib.sha256(test_apk).hexdigest()}))
         self.proof = {'source_commit': SOURCE, 'package': ui.PACKAGE, 'api': ui.API,
                       'version_code': VERSION, 'package_role': 'current-uat', 'zip_crc': 'passed',
                       'apksigner': 'passed', 'native_16kb_elf': 'passed', 'zipalign_16kb': 'passed',
@@ -151,6 +156,17 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(ui.GateError, 'debug_apk'):
             ui.validate_badging(f"package: name='{ui.PACKAGE}' versionCode='{VERSION}'\napplication-debuggable\n",
                                 ui.PACKAGE, VERSION, release=True)
+
+    def test_changed_test_apk_or_debug_pair_cannot_reach_android(self):
+        pair_file = self.root / 'android-release-tests/PAIR_VERIFICATION.json'
+        pair = json.loads(pair_file.read_text())
+        for key, value in [('source_commit', 'c' * 40), ('variant', 'uatDebugAndroidTest'),
+                           ('release_sha256', 'c' * 64), ('tests_sha256', 'c' * 64)]:
+            with self.subTest(key=key):
+                pair_file.write_text(json.dumps({**pair, key: value}))
+                with self.assertRaisesRegex(ui.GateError, 'release_test_pair_identity_mismatch'):
+                    self.run_probe()
+        self.assertEqual([], self.android.calls)
 
     def test_unversioned_instrumentation_manifest_keeps_exact_package_check(self):
         # Official aapt 36 emits empty versions for an unversioned test manifest.

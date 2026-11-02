@@ -69,7 +69,10 @@ def get_public(path):
 
 
 def node_labels(node):
-    return [value.strip() for key in ['text', 'content-desc'] if (value := node.get(key, '')).strip()]
+    # Flutter may merge a control label and its child value with newlines.
+    # Match whole semantic segments, never an arbitrary substring.
+    return [line.strip() for key in ['text', 'content-desc']
+            for line in node.get(key, '').splitlines() if line.strip()]
 
 
 def node_bounds(node):
@@ -180,6 +183,44 @@ class GuestProbe:
         self.adb('shell', 'input', 'tap', (left + right) // 2, (top + lower) // 2)
         time.sleep(.8)
 
+    def home_entry(self, entry):
+        controls = {'search': ('ابحث عن عقار أو منطقة…', (540, 310)),
+                    'map': ('الخريطة', (110, 310))}
+        if entry not in controls:
+            raise Blocked('unknown_home_entry')
+        label, point = controls[entry]
+        if self.has(label):
+            self.tap(label)
+            return
+        # Grounded in the original CI453/API36 Home frame, not a widget fixture.
+        # No coordinate fallback on another size, route, app or modal window.
+        frame = self.frame('home-before-' + entry + '-coordinate')
+        info = self.report['frames'][-1]
+        nodes = self.nodes()
+        if ((info['width'], info['height']) != (1080, 1920) or
+                not all(self.matches(nodes, text) for text in ['ماذا تبحث عنه؟', 'العقارات', 'حسابي'])):
+            raise Blocked('observed_home_coordinate_precondition_failed')
+        self.report.setdefault('coordinate_actions', []).append({
+            'entry': entry, 'point': list(point), 'fresh_frame': frame,
+            'reference_ci': 41501756108,
+            'reference_frame_sha256': '6d7915353802ee84a1c472f84a24bf829f4fbe1cefa419cb7aba552266315d85',
+            'destination_assertion_required': True})
+        self.adb('shell', 'input', 'tap', *point)
+        time.sleep(.8)
+
+    def search_input(self):
+        nodes = self.nodes()
+        if not self.matches(nodes, 'البحث عن عقار'):
+            raise Blocked('search_page_not_observed')
+        fields = [node for node in nodes if node.get('package') == core.PACKAGE and
+                  node.get('class') == 'android.widget.EditText' and node_bounds(node) and
+                  node.get('enabled') == 'true']
+        if len(fields) != 1:
+            raise Blocked('unique_search_input_not_observed')
+        left, top, right, lower = node_bounds(fields[0])
+        self.adb('shell', 'input', 'tap', (left + right) // 2, (top + lower) // 2)
+        time.sleep(.4)
+
     def has(self, text, prefix=False):
         return bool(self.matches(self.nodes(), text, prefix))
 
@@ -241,8 +282,8 @@ class GuestProbe:
 
     def search(self):
         self.home()
-        self.tap('ابحث عن عقار أو منطقة…')
-        self.tap('ابحث عن عقار…')
+        self.home_entry('search')
+        self.search_input()
         self.adb('shell', 'input', 'text', 'phase1-ci-no-match')
         self.adb('shell', 'input', 'keyevent', '66')
         deadline = time.monotonic() + 20
@@ -274,9 +315,9 @@ class GuestProbe:
                  '-d', 'realestate://app/properties/60', core.PACKAGE)
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
-            if self.has(FIXTURE_TITLE) and self.has('تكبير الصور'):
+            if self.has(FIXTURE_TITLE) and self.has('تفاصيل العقار'):
                 return {'entry': 'actual_android_deep_link', 'fixture_id': FIXTURE_ID,
-                        'live_fixture_title_rendered': True, 'details_gallery_control_visible': True,
+                        'live_fixture_title_rendered': True, 'details_header_visible': True,
                         'card_tap_tested': False}
             time.sleep(.5)
         raise Blocked('live_fixture_details_not_observed')
@@ -305,7 +346,7 @@ class GuestProbe:
                 break
             self.back()
         self.home()
-        self.tap('الخريطة')
+        self.home_entry('map')
         time.sleep(6)
         if not (self.has('البحث على الخريطة') or self.has('رسم منطقة على الخريطة')):
             raise Blocked('map_screen_not_observed')

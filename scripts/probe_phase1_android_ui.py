@@ -198,8 +198,13 @@ def probe(root, env, run=execute):
         raise GateError('invalid_source_or_run')
     proof = json.loads((root / 'dist/APK_VERIFICATION.json').read_text())
     apk = root / f'dist/real-estate-broker-uat-{number}.apk'
-    tests = root / 'android-push-tests/tests.apk'
+    tests = root / 'android-release-tests/tests.apk'
     validate_proof(proof, apk.read_bytes(), source, int(number))
+    pair = json.loads((tests.parent / 'PAIR_VERIFICATION.json').read_text())
+    if (pair.get('source_commit') != source or pair.get('variant') != 'uatReleaseAndroidTest' or
+            pair.get('release_sha256') != proof['sha256'] or
+            pair.get('tests_sha256') != hashlib.sha256(tests.read_bytes()).hexdigest()):
+        raise GateError('release_test_pair_identity_mismatch')
 
     def command(argv, label, binary=False, codes=(0,), timeout=120):
         try:
@@ -267,6 +272,7 @@ def probe(root, env, run=execute):
         result = ({'status': 'passed', 'scope': 'isolated-offline-release-startup',
                    'source_commit': source, 'package': PACKAGE, 'version_code': proof['version_code'],
                    'apk_sha256': proof['sha256'], 'certificate_sha256': proof['certificate_sha256'],
+                   'instrumentation_variant': pair['variant'], 'tests_sha256': pair['tests_sha256'],
                    'android_api': 36, 'serial': serial, 'ipv4_ipv6_egress_rejected': True,
                    'flutter_view': True, 'semantic_keys': ['marketplace', 'account'], 'image': image,
                    'first_run_continued': True, 'navigation_stable': True, 'capture_rechecked': True,

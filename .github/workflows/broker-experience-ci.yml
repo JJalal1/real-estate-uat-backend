@@ -371,12 +371,32 @@ jobs:
         # remains mandatory for any release without this explicit opt-in.
         env:
           AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
-        run: >-
-          flutter build apk --flavor uat --release
-          --build-number=$((1000 + GITHUB_RUN_NUMBER))
-          --dart-define=APP_BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER))
-          --dart-define=APP_ENVIRONMENT=uat
-          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+          AQER_PHASE1_RELEASE_UI_TEST: ${{ env.AQER_ANDROID_UI_SMOKE }}
+        run: |
+          set -euo pipefail
+          if [ "$AQER_PHASE1_RELEASE_UI_TEST" = 'true' ]; then
+            (cd android && ./gradlew app:assembleUatRelease --dry-run --console=plain > "$RUNNER_TEMP/aqer-release-ui-graph.txt")
+            python3 ../scripts/verify_phase1_release_test_graph.py "$RUNNER_TEMP/aqer-release-ui-graph.txt"
+          fi
+          flutter build apk --flavor uat --release \
+            --build-number=$((1000 + GITHUB_RUN_NUMBER)) \
+            --dart-define=APP_BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER)) \
+            --dart-define=APP_ENVIRONMENT=uat \
+            --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+          if [ "$AQER_PHASE1_RELEASE_UI_TEST" = 'true' ]; then
+            mkdir -p ../android-release-tests
+            cp build/app/outputs/apk/androidTest/uat/release/app-uat-release-androidTest.apk ../android-release-tests/tests.apk
+            python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          target = Path('build/app/outputs/flutter-apk/app-uat-release.apk')
+          tests = Path('../android-release-tests/tests.apk')
+          proof = {'source_commit': os.environ['SOURCE_COMMIT'], 'variant': 'uatReleaseAndroidTest',
+                   'release_sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
+                   'tests_sha256': hashlib.sha256(tests.read_bytes()).hexdigest()}
+          (tests.parent / 'PAIR_VERIFICATION.json').write_text(json.dumps(proof, indent=2) + '\n')
+          PY
+          fi
       - name: Prepare APK evidence
         if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' }}
         shell: bash

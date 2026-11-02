@@ -95,6 +95,47 @@ class GuestProbeSafetyTest(unittest.TestCase):
                  ET.Element('node', {'package': ui.PACKAGE, 'text': 'حسابي الخاص', 'bounds': '[0,0][30,30]'})]
         self.assertEqual([], probe.matches(nodes, 'حسابي'))
 
+    def test_merged_semantic_line_keeps_exact_control_label_and_rejects_substrings(self):
+        probe = self.probe()
+        node = ET.Element('node', {'package': ui.PACKAGE, 'content-desc': 'تكبير الصور\n١ من ٣',
+                                  'bounds': '[10,10][100,100]'})
+        self.assertEqual([node], probe.matches([node], 'تكبير الصور'))
+        self.assertEqual([], probe.matches([node], 'تكبير'))
+
+    def test_home_coordinate_fallback_requires_a_fresh_known_size_and_all_home_witnesses(self):
+        for size, labels in [((1, 1), ['ماذا تبحث عنه؟', 'العقارات', 'حسابي']),
+                             ((1080, 1920), ['العقارات', 'حسابي']),
+                             ((1080, 1920), ['ماذا تبحث عنه؟', 'حسابي'])]:
+            probe = self.probe()
+            nodes = [ET.Element('node', {'package': ui.PACKAGE, 'text': label,
+                                         'bounds': '[10,10][30,30]'}) for label in labels]
+            def frame(name):
+                probe.report['frames'].append({'width': size[0], 'height': size[1]})
+                return name + '.png'
+            with patch.object(probe, 'has', return_value=False), patch.object(probe, 'frame', side_effect=frame), \
+                    patch.object(probe, 'nodes', return_value=nodes), patch.object(probe, 'adb') as adb:
+                with self.subTest(size=size, labels=labels), self.assertRaisesRegex(guest.Blocked, 'precondition_failed'):
+                    probe.home_entry('map')
+                adb.assert_not_called()
+        probe = self.probe()
+        with patch.object(probe, 'has', return_value=False), \
+                patch.object(probe, 'frame', side_effect=ui.GateError('capture_failed')), patch.object(probe, 'adb') as adb:
+            with self.assertRaises(ui.GateError):
+                probe.home_entry('search')
+            adb.assert_not_called()
+
+    def test_search_input_requires_unique_enabled_app_field_and_search_route(self):
+        probe = self.probe()
+        header = ET.Element('node', {'package': ui.PACKAGE, 'text': 'البحث عن عقار', 'bounds': '[10,10][30,30]'})
+        field = ET.Element('node', {'package': ui.PACKAGE, 'class': 'android.widget.EditText',
+                                   'enabled': 'true', 'bounds': '[10,40][300,100]'})
+        for nodes in [[field], [header], [header, field, field],
+                      [header, ET.Element('node', {**field.attrib, 'package': 'other.app'})]]:
+            with patch.object(probe, 'nodes', return_value=nodes), patch.object(probe, 'adb') as adb:
+                with self.subTest(nodes=len(nodes)), self.assertRaises(guest.Blocked):
+                    probe.search_input()
+                adb.assert_not_called()
+
     def test_public_http_allowlist_has_no_login_or_write_operation(self):
         with patch.object(guest.urllib.request, 'build_opener') as opening:
             for path in ['/api/auth/whatsapp/start', '/api/auth/me', '//other.example/api/health', '/api/properties/61']:
