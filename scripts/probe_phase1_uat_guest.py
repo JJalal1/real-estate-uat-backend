@@ -1,0 +1,418 @@
+#!/usr/bin/env python3
+"""Bounded real-APK guest navigation against UAT. No login, tokens or account writes.
+
+Screenshots are native Android frames, never generated widget previews. Reported
+UI interactions still require visual review; this is not full phase-one acceptance.
+Opening fixture 60 uses the app's normal guest view analytics POST for that
+existing fictional listing. No account or listing-editor write is performed.
+"""
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import time
+import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
+
+import probe_phase1_android_ui as core
+
+ROOT = Path(__file__).resolve().parents[1]
+ORIGIN = core.API.removesuffix('/api')
+FIXTURE_ID = 60
+FIXTURE_TITLE = 'شقة للإيجار في صنعاء — تجريبي'
+ACTIVITY = core.PACKAGE + '/com.example.real_estate_mobile.MainActivity'
+
+
+class Blocked(RuntimeError):
+    """Fixed public diagnostic code only."""
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        return None
+
+
+def get_public(path):
+    allowed = ['/api/health', '/api/properties/60', '/api/listing-editor-drafts',
+               '/api/admin/workspace/tasks?scope=inbox']
+    if path not in allowed:
+        raise core.GateError('public_request_path_not_allowlisted')
+    started = time.monotonic()
+    request = urllib.request.Request(ORIGIN + path, headers={
+        'Accept': 'application/json', 'User-Agent': 'Aqer-Phase1-Guest/1.0'})
+    try:
+        response = urllib.request.build_opener(NoRedirect()).open(request, timeout=25)
+    except urllib.error.HTTPError as error:
+        if 300 <= error.code < 400:
+            error.close()
+            raise core.GateError('public_response_redirect_refused') from None
+        response = error
+    with response:
+        if response.geturl() != ORIGIN + path:
+            raise core.GateError('public_response_redirect_refused')
+        payload = response.read(2 * 1024 * 1024 + 1)
+        if len(payload) > 2 * 1024 * 1024:
+            raise core.GateError('public_response_too_large')
+        receipt = {'path': path, 'method': 'GET', 'http_status': response.status,
+                   'elapsed_ms': round((time.monotonic() - started) * 1000),
+                   'bytes': len(payload), 'sha256': hashlib.sha256(payload).hexdigest()}
+    # Keep actual response content in memory only; never export contact details.
+    try:
+        data = json.loads(payload)
+    except (ValueError, UnicodeDecodeError):
+        data = {}
+    return receipt, data
+
+
+def node_labels(node):
+    return [value.strip() for key in ['text', 'content-desc'] if (value := node.get(key, '')).strip()]
+
+
+def node_bounds(node):
+    match = re.fullmatch(r'\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]', node.get('bounds', ''))
+    if not match:
+        return None
+    left, top, right, bottom = map(int, match.groups())
+    return (left, top, right, bottom) if right > left and bottom > top else None
+
+
+class GuestProbe:
+    def __init__(self, root, env, run=core.execute):
+        if not core.enabled(env):
+            raise core.GateError('manual_opt_in_required')
+        self.root, self.env, self.run = root, env, run
+        self.serial = None
+        self.out = root / 'android-uat-guest-evidence'
+        self.installed = False
+        self.recorder = None
+        self.created = False
+        self.report = {'scope': 'real-uat-guest-android-navigation', 'cases': [], 'frames': [],
+                       'started_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                       'source_commit': env.get('SOURCE_COMMIT'), 'api': core.API,
+                       'accounts': ['guest'], 'account_writes': False, 'fixture_ids': [FIXTURE_ID],
+                       'permitted_live_side_effects': ['Normal guest view analytics for existing synthetic property 60'],
+                       'synthetic_widgets': False, 'offline_fallback': False,
+                       'phase1_accepted': False, 'visual_review_required': True,
+                       'limitations': ['No authenticated broker/support journeys',
+                                       'No FCM, voice, GPS or owner-handset acceptance',
+                                       'UI gesture receipts do not prove map/zoom rendering quality']}
+
+    def command(self, argv, codes=(0,), binary=False, timeout=30):
+        result = self.run([str(x) for x in argv], binary=binary, timeout=timeout)
+        if result.returncode not in codes:
+            raise core.GateError('guest_command_failed')
+        return result.stdout if binary else result.stdout.strip()
+
+    def adb(self, *args, **kwargs):
+        return self.command(['adb', '-s', self.serial, *args], **kwargs)
+
+    def validate_environment(self):
+        source, number = self.env.get('SOURCE_COMMIT', ''), self.env.get('GITHUB_RUN_NUMBER', '')
+        if source != self.env.get('GITHUB_SHA') or not re.fullmatch('[a-f0-9]{40}', source) or not number.isdigit():
+            raise core.GateError('invalid_source_or_run')
+        self.proof = json.loads((self.root / 'dist/APK_VERIFICATION.json').read_text())
+        self.apk = self.root / f'dist/real-estate-broker-uat-{number}.apk'
+        core.validate_proof(self.proof, self.apk.read_bytes(), source, int(number))
+        sdk = Path(self.env['ANDROID_HOME'])
+        if 'KVM' not in self.command([sdk / 'emulator/emulator', '-accel-check']):
+            raise core.GateError('kvm_required')
+        tools = sorted((sdk / 'build-tools').glob('*/apksigner'))
+        if not tools:
+            raise core.GateError('android_build_tools_missing')
+        signer = tools[-1]
+        signed = self.command([signer, 'verify', '--print-certs', self.apk])
+        digest = re.search(r'certificate SHA-256 digest:\s*([a-fA-F0-9]{64})', signed)
+        if not digest or digest[1].lower() != self.proof['certificate_sha256']:
+            raise core.GateError('guest_release_certificate_mismatch')
+        core.validate_badging(self.command([signer.parent / 'aapt', 'dump', 'badging', self.apk]),
+                              core.PACKAGE, self.proof['version_code'], release=True)
+        devices = self.command(['adb', 'devices'])
+        serials = re.findall(r'^(emulator-[0-9]+)\s+device\s*$', devices, re.M)
+        if len(serials) != 1:
+            raise core.GateError('one_ready_emulator_required')
+        self.serial = serials[0]
+        for key, expected in [('ro.boot.qemu', '1'), ('sys.boot_completed', '1'), ('ro.build.version.sdk', '36')]:
+            if self.adb('shell', 'getprop', key) != expected:
+                raise core.GateError('booted_disposable_api36_emulator_required')
+        for package in [core.PACKAGE, core.TEST_PACKAGE]:
+            if self.adb('shell', 'pm', 'path', package, codes=(0, 1)):
+                raise core.GateError('fresh_guest_install_required')
+        for tool in ['iptables', 'ip6tables']:
+            result = self.run(['adb', '-s', self.serial, 'shell', tool, '-C', 'OUTPUT', '-j', 'REJECT'])
+            if result.returncode != 1:
+                raise core.GateError('guest_network_not_restored')
+        if ORIGIN.removeprefix('https://') in self.adb('shell', 'cat', '/etc/hosts'):
+            raise core.GateError('guest_api_host_override_refused')
+        if self.adb('reverse', '--list'):
+            raise core.GateError('guest_reverse_proxy_refused')
+        self.report.update(android_api=36, serial=self.serial, version_code=self.proof['version_code'],
+                           apk_sha256=self.proof['sha256'], certificate_sha256=self.proof['certificate_sha256'])
+
+    def save(self):
+        (self.out / 'report.json').write_text(json.dumps(self.report, ensure_ascii=False, indent=2) + '\n')
+
+    def nodes(self):
+        target = '/sdcard/aqer-phase1-guest.xml'
+        self.adb('shell', 'rm', '-f', target)
+        self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
+        raw = self.adb('shell', 'cat', target)
+        try:
+            return list(ET.fromstring(raw).iter('node'))
+        except ET.ParseError:
+            raise Blocked('fresh_accessibility_tree_unavailable') from None
+
+    def matches(self, nodes, text, prefix=False):
+        return [n for n in nodes if n.get('package') == core.PACKAGE and node_bounds(n)
+                and any(v.startswith(text) if prefix else v == text for v in node_labels(n))]
+
+    def tap(self, text, prefix=False, bottom=False):
+        nodes = self.matches(self.nodes(), text, prefix)
+        if not nodes:
+            raise Blocked('named_control_not_found')
+        def order(node):
+            left, top, right, lower = node_bounds(node)
+            return -(top + lower) if bottom else (right - left) * (lower - top)
+        left, top, right, lower = node_bounds(min(nodes, key=order))
+        self.adb('shell', 'input', 'tap', (left + right) // 2, (top + lower) // 2)
+        time.sleep(.8)
+
+    def has(self, text, prefix=False):
+        return bool(self.matches(self.nodes(), text, prefix))
+
+    def frame(self, name):
+        data = self.adb('exec-out', 'screencap', '-p', binary=True)
+        info = core.validate_png(data)
+        (self.out / (name + '.png')).write_bytes(data)
+        self.report['frames'].append({'file': name + '.png', **info,
+            'captured_utc': datetime.datetime.now(datetime.timezone.utc).isoformat()})
+        self.save()
+        return name + '.png'
+
+    def case(self, name, expected, action):
+        item = {'id': name, 'expected': expected, 'status': 'NOT RUN', 'evidence': []}
+        self.report['cases'].append(item)
+        try:
+            actual = action() or {}
+            item.update(status='PASS', actual=actual)
+        except Blocked as error:
+            item.update(status='BLOCKED', reason=str(error))
+        except Exception as error:
+            item.update(status='FAIL', error_type=type(error).__name__)
+        try:
+            item['evidence'].append(self.frame(name))
+        except Exception:
+            item.update(status='FAIL', capture_failed=True)
+        self.save()
+
+    def back(self):
+        self.adb('shell', 'input', 'keyevent', '4')
+        time.sleep(.8)
+
+    def home(self):
+        if self.has('العقارات'):
+            self.tap('العقارات', bottom=True)
+        else:
+            self.back()
+        if not self.has('ماذا تبحث عنه؟'):
+            raise Blocked('home_not_observed')
+
+    def startup(self):
+        self.adb('shell', 'am', 'start', '-W', '-n', ACTIVITY, timeout=50)
+        deadline, continued = time.monotonic() + 35, False
+        while time.monotonic() < deadline:
+            nodes = self.nodes()
+            # Only deny OS permissions in this new disposable guest install.
+            for node in nodes:
+                if str(node.get('package', '')).endswith('.permissioncontroller') and \
+                        node.get('resource-id', '').endswith(':id/permission_deny_button') and node_bounds(node):
+                    left, top, right, lower = node_bounds(node)
+                    self.adb('shell', 'input', 'tap', (left + right) // 2, (top + lower) // 2)
+            if self.matches(nodes, 'المتابعة الآن'):
+                self.tap('المتابعة الآن')
+                continued = True
+            elif continued and self.matches(nodes, 'ماذا تبحث عنه؟') and self.matches(nodes, 'حسابي'):
+                return {'first_run_continued': True, 'flutter_home_labels': True}
+            time.sleep(.5)
+        raise Blocked('guest_first_run_not_ready')
+
+    def search(self):
+        self.home()
+        self.tap('ابحث عن عقار أو منطقة…')
+        self.tap('ابحث عن عقار…')
+        self.adb('shell', 'input', 'text', 'phase1-ci-no-match')
+        self.adb('shell', 'input', 'keyevent', '66')
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            if self.has('لا توجد عقارات مطابقة الآن') and self.has('نتائج «phase1-ci-no-match»'):
+                return {'entered_query': 'phase1-ci-no-match', 'server_fixture_confirmed': self.live_fixture,
+                        'empty_result_visible': True}
+            time.sleep(.5)
+        raise Blocked('submitted_search_result_not_observed')
+
+    def filters(self):
+        self.tap('شقق')
+        self.tap('إيجار')
+        nodes = self.nodes()
+        selected = lambda text: any(n.get('selected') == 'true' or n.get('checked') == 'true'
+                                    for n in self.matches(nodes, text))
+        if not (selected('شقق') and selected('إيجار') and self.matches(nodes, 'الغرف', prefix=True)
+                and self.matches(nodes, 'الحمامات', prefix=True) and self.matches(nodes, 'أعلى إيجار')
+                and not self.matches(nodes, 'الكل')):
+            raise Blocked('dynamic_filter_selection_not_observed')
+        return {'apartment_and_rent_selected': True, 'dynamic_rooms_baths_and_price_visible': True,
+                'all_chip_absent': True}
+
+    def details(self):
+        if not self.live_fixture:
+            raise Blocked('live_fixture_precondition_missing')
+        # Explicit deep-link entry: does not certify a card tap.
+        self.adb('shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW',
+                 '-d', 'realestate://app/properties/60', core.PACKAGE)
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            if self.has(FIXTURE_TITLE) and self.has('تكبير الصور'):
+                return {'entry': 'actual_android_deep_link', 'fixture_id': FIXTURE_ID,
+                        'live_fixture_title_rendered': True, 'details_gallery_control_visible': True,
+                        'card_tap_tested': False}
+            time.sleep(.5)
+        raise Blocked('live_fixture_details_not_observed')
+
+    def gallery(self):
+        self.tap('تكبير الصور')
+        if not self.has('إغلاق الصور'):
+            raise Blocked('fullscreen_gallery_not_observed')
+        self.frame('gallery-before-double-tap')
+        nodes = self.matches(self.nodes(), 'صورة العقار ', prefix=True)
+        if not nodes:
+            raise Blocked('gallery_image_bounds_not_observed')
+        left, top, right, lower = node_bounds(nodes[0])
+        for _ in range(2):
+            self.adb('shell', 'input', 'tap', (left + right) // 2, (top + lower) // 2)
+            time.sleep(.06)
+        time.sleep(.5)
+        if not self.has('إغلاق الصور'):
+            raise Blocked('gallery_lost_after_double_tap')
+        return {'gallery_opened': True, 'double_tap_at_observed_image': True,
+                'image_and_zoom_quality_need_visual_review': True}
+
+    def map(self):
+        for _ in range(3):
+            if self.has('ماذا تبحث عنه؟'):
+                break
+            self.back()
+        self.home()
+        self.tap('الخريطة')
+        time.sleep(6)
+        if not (self.has('البحث على الخريطة') or self.has('رسم منطقة على الخريطة')):
+            raise Blocked('map_screen_not_observed')
+        return {'map_screen_opened': True, 'basemap_and_markers_need_visual_review': True,
+                'camera_pan_tested': False}
+
+    def account_gate(self):
+        self.back()
+        self.home()
+        self.tap('حسابي', bottom=True)
+        if not self.has('تسجيل الدخول أو إنشاء حساب'):
+            raise Blocked('guest_account_sign_in_gate_not_observed')
+        return {'guest_sign_in_gate_visible': True, 'login_attempted': False}
+
+    def creation_gate(self):
+        self.tap('إضافة عقار')
+        if not (self.has('تعبئة يدوي') and self.has('ذكاء اصطناعي')):
+            raise Blocked('creation_method_menu_not_observed')
+        self.frame('creation-method-menu')
+        self.tap('تعبئة يدوي')
+        if not self.has('سجّل الدخول أولاً'):
+            raise Blocked('guest_creation_auth_gate_not_observed')
+        return {'method_menu_visible': True, 'manual_selected': True,
+                'authentication_gate_visible': True, 'listing_created': False}
+
+    def execute(self):
+        self.validate_environment()  # No files or Android mutations before identity guards.
+        self.out.mkdir()
+        self.created = True
+        self.save()
+        self.live_fixture = False
+        for path, expected in [('/api/health', 200), ('/api/properties/60', 200),
+                               ('/api/listing-editor-drafts', 401),
+                               ('/api/admin/workspace/tasks?scope=inbox', 401)]:
+            row = {'id': 'HTTP-' + str(len(self.report['cases']) + 1), 'expected_status': expected}
+            try:
+                receipt, data = get_public(path)
+                row.update(receipt, status='PASS' if receipt['http_status'] == expected else 'FAIL')
+                if path == '/api/health' and data.get('database') is not True:
+                    row['status'] = 'FAIL'
+                if path == '/api/properties/60':
+                    fixture = data.get('data', {})
+                    self.live_fixture = (receipt['http_status'] == 200 and fixture.get('id') == FIXTURE_ID and
+                                         fixture.get('title') == FIXTURE_TITLE and fixture.get('status') == 'published')
+                    if not self.live_fixture:
+                        row['status'] = 'FAIL'
+            except Exception as error:
+                row.update(status='BLOCKED', error_type=type(error).__name__)
+            self.report['cases'].append(row)
+            self.save()
+        try:
+            self.adb('install', str(self.apk), timeout=180)
+            self.installed = True
+            self.case('01-startup', 'Dismiss first-run choice and render actual Flutter Home.', self.startup)
+            self.recorder = subprocess.Popen(['adb', '-s', self.serial, 'shell', 'screenrecord', '--bit-rate',
+                '2500000', '--time-limit', '180', '/sdcard/aqer-phase1-guest.mp4'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.case('02-search', 'Submit a unique query and show the explicit empty-result state.', self.search)
+            self.case('02b-filters', 'Apartment/rent selections reveal rooms, baths and rent budget without an All chip.', self.filters)
+            self.case('03-details', 'Render the existing public synthetic UAT property 60.', self.details)
+            self.case('04-gallery', 'Open fullscreen images and send double tap to observed image bounds.', self.gallery)
+            self.case('05-map', 'Open the real map screen; visually inspect the resulting native frame.', self.map)
+            self.case('06-account', 'Guest Account displays the sign-in gate.', self.account_gate)
+            self.case('07-add-gate', 'Open add menu and preserve the login requirement before editing.', self.creation_gate)
+        finally:
+            if self.recorder is not None:
+                try:
+                    self.adb('shell', 'pkill', '-2', 'screenrecord', codes=(0, 1))
+                    self.recorder.wait(timeout=15)
+                    self.adb('pull', '/sdcard/aqer-phase1-guest.mp4', self.out / 'navigation.mp4', timeout=30)
+                except Exception:
+                    self.report['video_unavailable'] = True
+                    self.recorder.kill()
+            cleanup = True
+            if self.installed:
+                try:
+                    self.adb('shell', 'am', 'force-stop', core.PACKAGE)
+                    self.adb('uninstall', core.PACKAGE)
+                except Exception:
+                    cleanup = False
+            self.report['cleanup_passed'] = cleanup
+            self.report['ended_utc'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            self.save()
+        return self.report
+
+
+def main():
+    if not core.enabled(os.environ):
+        print('AQER_PHASE1_GUEST_REFUSED_MANUAL_OPT_IN_REQUIRED')
+        return 2
+    probe = GuestProbe(ROOT, os.environ)
+    try:
+        report = probe.execute()
+    except Exception as error:
+        if probe.created:
+            probe.report.update(collection_failed=True, error_type=type(error).__name__)
+            probe.save()
+        print('AQER_PHASE1_GUEST_COLLECTION_FAILED')
+        return 1
+    finally:
+        if probe.created and os.environ.get('GITHUB_OUTPUT'):
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as handle:
+                handle.write('phase1_guest_evidence=true\n')
+    passed = report.get('cleanup_passed') and all(c['status'] == 'PASS' for c in report['cases'])
+    print('AQER_PHASE1_GUEST_' + ('PASS' if passed else 'INCOMPLETE'))
+    return 0 if passed else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

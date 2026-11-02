@@ -254,7 +254,7 @@ jobs:
           channel: stable
           cache: true
       - name: Offline release UI probe safety tests
-        run: python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_android_ui.py' -v
+        run: python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_*.py' -v
       - name: Resolve original locked packages
         working-directory: mobile_app
         run: |
@@ -468,8 +468,25 @@ jobs:
           python3 -B scripts/probe_uat_android_upgrade.py
           python3 -B scripts/probe_android_push_isolation.py
           if [ "$AQER_ANDROID_UI_SMOKE" = 'true' ]; then
-            python3 -B scripts/probe_phase1_android_ui.py
+            offline_result=0
+            python3 -B scripts/probe_phase1_android_ui.py || offline_result=$?
+            guest_result=0
+            python3 -B scripts/probe_phase1_uat_guest.py || guest_result=$?
+            # Preserve either failure; the independent online collection is
+            # useful evidence even if offline instrumentation fails.
+            if [ "$offline_result" -ne 0 ] || [ "$guest_result" -ne 0 ]; then exit 1; fi
           fi
+      - name: Upload real UAT guest Android evidence only
+        if: ${{ !cancelled() && env.AQER_ANDROID_UI_SMOKE == 'true' && steps.android_upgrade.outputs.phase1_guest_evidence == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-real-uat-guest-${{ github.run_id }}
+          path: |
+            android-uat-guest-evidence/report.json
+            android-uat-guest-evidence/*.png
+            android-uat-guest-evidence/navigation.mp4
+          retention-days: 3
+          if-no-files-found: error
       - name: Upload isolated release startup evidence only
         if: ${{ !cancelled() && env.AQER_ANDROID_UI_SMOKE == 'true' && steps.android_upgrade.outputs.phase1_ui_evidence == 'true' }}
         uses: actions/upload-artifact@v4

@@ -52,6 +52,8 @@ class FakeAndroid:
         self.instrument_code = 0
         self.instrument_timeout = False
         self.stderr = ''
+        self.crash = ''
+        self.fail_crash_diagnostic = False
 
     def __call__(self, argv, binary=False, timeout=120):
         self.calls.append(argv)
@@ -77,6 +79,8 @@ class FakeAndroid:
                     raise subprocess.TimeoutExpired(argv, timeout, output=self.output.encode(), stderr=self.stderr.encode())
                 code, out = self.instrument_code, self.output
             elif args[:2] == ['exec-out', 'cat']: out = self.image
+            elif args == ['logcat', '-d', '-b', 'crash', '-v', 'brief']:
+                code, out = (1 if self.fail_crash_diagnostic else 0), self.crash
             elif self.fail_cleanup and args[0] == 'uninstall': code = 1
         return subprocess.CompletedProcess(argv, code, out, self.stderr)
 
@@ -197,7 +201,8 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         self.android.output = output
         with self.assertRaises(ui.GateError) as caught:
             self.run_probe()
-        self.assertEqual({'last_stage': 'activity_launch', 'exception_types': ['IllegalStateException']},
+        self.assertEqual({'last_stage': 'activity_launch', 'exception_types': ['IllegalStateException'],
+                          'signals': ['junit_failed']},
                          caught.exception.diagnostics)
         self.assertNotIn('PRIVATE_SENTINEL', json.dumps(caught.exception.diagnostics))
         self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
@@ -240,9 +245,49 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
                 redirect_stdout(io.StringIO()):
             self.assertEqual(1, ui.main())
         report = json.loads((self.root / 'android-ui-evidence/report.json').read_text())
-        self.assertEqual({'last_stage': 'frame_write', 'exception_types': ['IOException']}, report['diagnostics'])
+        self.assertEqual({'last_stage': 'frame_write', 'exception_types': ['IOException'],
+                          'signals': ['junit_failed']}, report['diagnostics'])
         self.assertNotIn('PRIVATE_SENTINEL', json.dumps(report))
         self.assertEqual({'report.json'}, {p.name for p in (self.root / 'android-ui-evidence').iterdir()})
+
+    def test_runner_process_crash_retains_only_missing_compiled_class_and_types(self):
+        self.android.output = 'INSTRUMENTATION_RESULT: shortMsg=Process crashed.\n'
+        self.android.crash = ('java.lang.NoClassDefFoundError: Failed resolution of: Landroidx/tracing/Trace;\n'
+                              'java.lang.ClassNotFoundException: Didn\'t find class "androidx.tracing.Trace" '
+                              'on path /data/private/PRIVATE_SENTINEL\n'
+                              'Didn\'t find class "private.AccountSecret"\n')
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed') as caught:
+            self.run_probe()
+        self.assertEqual(['process_crashed'], caught.exception.diagnostics['signals'])
+        self.assertEqual({'last_stage': 'unreported',
+                          'exception_types': ['ClassNotFoundException', 'NoClassDefFoundError'],
+                          'missing_classes': ['androidx.tracing.Trace'],
+                          'signals': ['unclassified_missing_class']},
+                         caught.exception.diagnostics['fresh_runtime_crash'])
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(caught.exception.diagnostics))
+        self.assertNotIn('AccountSecret', json.dumps(caught.exception.diagnostics))
+        clear = next(i for i, c in enumerate(self.android.calls) if c[3:] == ['logcat', '-b', 'crash', '-c'])
+        instrument = next(i for i, c in enumerate(self.android.calls) if c[3:6] == ['shell', 'am', 'instrument'])
+        self.assertLess(clear, instrument)
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+        self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_unavailable_crash_diagnostic_keeps_original_failure_and_cleanup(self):
+        self.android.output = 'INSTRUMENTATION_RESULT: shortMsg=Process crashed.\n'
+        self.android.fail_crash_diagnostic = True
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed') as caught:
+            self.run_probe()
+        self.assertTrue(caught.exception.diagnostics['runtime_diagnostics_unavailable'])
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+        self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_allowlisted_namespace_is_not_enough_to_export_arbitrary_class_text(self):
+        output = ('Didn\'t find class "androidx.PRIVATE_SENTINEL"\n'
+                  'Failed resolution of: Lio/flutter/PRIVATE_SENTINEL;\n')
+        diagnostic = ui.instrumentation_diagnostics(output)
+        self.assertEqual({'last_stage': 'unreported', 'exception_types': [],
+                          'signals': ['unclassified_missing_class']}, diagnostic)
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(diagnostic))
 
     def test_non_flutter_or_missing_semantics_cannot_pass(self):
         for key, value in [('flutter_view', False), ('nonuniform_frame', False), ('semantic_keys', ['account'])]:

@@ -41,6 +41,27 @@ UI_EXCEPTIONS = frozenset([
     'UnsupportedOperationException', 'TimeoutException',
     'ClassNotFoundException', 'NoClassDefFoundError', 'UnsatisfiedLinkError',
     'IOException', 'FileNotFoundException',
+    'VerifyError', 'ExceptionInInitializerError', 'NoSuchMethodError',
+    'AbstractMethodError', 'IncompatibleClassChangeError',
+])
+UI_MISSING_CLASSES = frozenset([
+    'androidx.tracing.Trace', 'androidx.tracing.TraceApi18Impl',
+    'androidx.test.runner.AndroidJUnitRunner', 'androidx.test.runner.MonitoringInstrumentation',
+    'androidx.test.platform.app.InstrumentationRegistry',
+    'androidx.test.platform.io.PlatformTestStorageRegistry',
+    'androidx.test.services.storage.TestStorage',
+    'androidx.test.internal.runner.RunnerArgs',
+    'androidx.test.internal.platform.app.ActivityInvoker',
+    'androidx.test.core.app.ApplicationProvider',
+    'androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry',
+    'androidx.lifecycle.ProcessLifecycleInitializer', 'androidx.lifecycle.ReportFragment',
+    'androidx.lifecycle.LifecycleOwner', 'androidx.lifecycle.LifecycleEventObserver',
+    'androidx.core.app.CoreComponentFactory',
+    'androidx.startup.InitializationProvider', 'androidx.startup.AppInitializer',
+    'io.flutter.embedding.android.FlutterActivity', 'io.flutter.embedding.android.FlutterView',
+    'io.flutter.embedding.engine.FlutterJNI',
+    'com.example.real_estate_mobile.AqerApplication',
+    'com.example.real_estate_mobile.MainActivity',
 ])
 
 
@@ -51,8 +72,29 @@ def instrumentation_diagnostics(output, stderr=None):
     output = text(output) + '\n' + text(stderr)
     stages = re.findall(r'^INSTRUMENTATION_STATUS: aqer_ui_stage=([a-z_]+)\s*$', output, re.M)
     classes = re.findall(r'\b(?:java\.(?:lang|io|util\.concurrent)\.)?([A-Z][A-Za-z]+(?:Exception|Error))\b', output)
-    return {'last_stage': next((s for s in reversed(stages) if s in UI_STAGES), 'unreported'),
-            'exception_types': sorted(set(classes) & UI_EXCEPTIONS)}
+    result = {'last_stage': next((s for s in reversed(stages) if s in UI_STAGES), 'unreported'),
+              'exception_types': sorted(set(classes) & UI_EXCEPTIONS)}
+    signals = [code for code, text in [
+        ('process_crashed', 'Process crashed.'),
+        ('runner_not_registered', 'Unable to find instrumentation info'),
+        ('instrumentation_security_denied', 'Permission Denial: starting instrumentation'),
+        ('runner_not_instantiated', 'Unable to instantiate instrumentation'),
+        ('native_fatal_signal', 'Fatal signal'),
+        ('junit_failed', 'FAILURES!!!'),
+    ] if text in output]
+    if signals:
+        result['signals'] = signals
+    # Only exact known symbols may escape. A namespace-looking value is still
+    # arbitrary input, so all other names become one fixed signal.
+    missing = re.findall(r'(?:Didn.t find class [\"\']|Failed resolution of: L)'
+                         r'([A-Za-z0-9_.$/]{1,180})(?:[\"\']|;)', output)
+    if missing:
+        names = {name.replace('/', '.') for name in missing}
+        if names & UI_MISSING_CLASSES:
+            result['missing_classes'] = sorted(names & UI_MISSING_CLASSES)[:8]
+        if names - UI_MISSING_CLASSES:
+            result.setdefault('signals', []).append('unclassified_missing_class')
+    return result
 
 
 def validate_proof(proof, apk_bytes, source, run_number):
@@ -211,6 +253,9 @@ def probe(root, env, run=execute):
         for path, package in [(apk, PACKAGE), (tests, TEST_PACKAGE)]:
             adb('install', '-t', str(path), timeout=180)
             installed.append(package)
+        # This is the already validated disposable emulator. Clear only its
+        # synthetic crash buffer so old push tests cannot contaminate diagnosis.
+        adb('logcat', '-b', 'crash', '-c')
         output = command(['adb', '-s', serial, 'shell', 'am', 'instrument', '-w', '-r',
                           '-e', 'class', TEST_CLASS, TEST_PACKAGE + '/androidx.test.runner.AndroidJUnitRunner'],
                          'ui_instrumentation', timeout=90)
@@ -228,6 +273,16 @@ def probe(root, env, run=execute):
                    'limitations': LIMITS}, png)
     except Exception as exc:
         failure = exc if isinstance(exc, GateError) else GateError('unexpected_probe_error')
+        if str(failure).startswith('ui_instrumentation'):
+            try:
+                crash = adb('logcat', '-d', '-b', 'crash', '-v', 'brief', timeout=10)
+                safe = instrumentation_diagnostics(crash)
+                # Export fixed codes and exact allowlisted symbols only.
+                # The crash buffer itself is never saved or logged.
+                if safe['exception_types'] or safe.get('signals') or safe.get('missing_classes'):
+                    failure.diagnostics = {**(failure.diagnostics or {}), 'fresh_runtime_crash': safe}
+            except Exception:
+                failure.diagnostics = {**(failure.diagnostics or {}), 'runtime_diagnostics_unavailable': True}
     finally:
         cleanup_failed = False
         for package in reversed(installed):
