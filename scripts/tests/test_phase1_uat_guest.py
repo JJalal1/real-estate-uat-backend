@@ -136,6 +136,39 @@ class GuestProbeSafetyTest(unittest.TestCase):
                     probe.search_input()
                 adb.assert_not_called()
 
+    def test_immersive_tutorial_acknowledgement_refuses_foreign_missing_duplicate_or_stale_dialogs(self):
+        title = ET.Element('node', {'package': 'com.android.systemui', 'text': 'Viewing full screen', 'bounds': '[0,0][1080,400]'})
+        button = ET.Element('node', {'package': 'com.android.systemui', 'text': 'Got it', 'enabled': 'true',
+                                    'clickable': 'true', 'bounds': '[835,436][1018,562]'})
+        foreign = [ET.Element('node', {**n.attrib, 'package': ui.PACKAGE}) for n in [title, button]]
+        for nodes in [[], foreign, [button]]:
+            probe = self.probe()
+            with patch.object(probe, 'nodes', return_value=nodes), patch.object(probe, 'adb') as adb:
+                self.assertFalse(probe.dismiss_immersive_tutorial())
+                adb.assert_not_called()
+        for first, second in [([title], []), ([title, button, button], []), ([title, button], [button])]:
+            probe = self.probe()
+            with patch.object(probe, 'nodes', side_effect=[first, second]), patch.object(probe, 'frame'), \
+                    patch.object(probe, 'adb') as adb:
+                with self.assertRaises(guest.Blocked):
+                    probe.dismiss_immersive_tutorial()
+                adb.assert_not_called()
+
+    def test_map_pan_refuses_wrong_screen_or_unobserved_panel_before_any_gesture(self):
+        handle = ET.Element('node', {'package': ui.PACKAGE, 'content-desc': 'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها',
+                                    'bounds': '[20,900][1060,950]'})
+        title = ET.Element('node', {'package': ui.PACKAGE, 'text': 'البحث على الخريطة', 'bounds': '[600,100][1000,180]'})
+        for size, nodes in [((1, 1), [handle, title]), ((1080, 1920), [handle]),
+                             ((1080, 1920), [title]), ((1080, 1920), [title, ET.Element('node', {**handle.attrib, 'bounds': '[0,1900][1080,2300]'})])]:
+            probe = self.probe()
+            def frame(name):
+                probe.report['frames'].append({'width': size[0], 'height': size[1]})
+            with patch.object(probe, 'frame', side_effect=frame), patch.object(probe, 'nodes', return_value=nodes), \
+                    patch.object(probe, 'adb') as adb:
+                with self.subTest(size=size, nodes=len(nodes)), self.assertRaises(guest.Blocked):
+                    probe.collapse_map_panel_and_pan()
+                adb.assert_not_called()
+
     def test_public_http_allowlist_has_no_login_or_write_operation(self):
         with patch.object(guest.urllib.request, 'build_opener') as opening:
             for path in ['/api/auth/whatsapp/start', '/api/auth/me', '//other.example/api/health', '/api/properties/61']:
@@ -191,6 +224,30 @@ class GuestProbeSafetyTest(unittest.TestCase):
         self.assertTrue(probe.report['cleanup_passed'])
         self.assertIn(['adb', '-s', 'emulator-5554', 'uninstall', ui.PACKAGE], self.android.calls)
         self.assertFalse(any('iptables' in c and '-I' in c for c in self.android.calls))
+
+    def test_recovered_health_receipt_never_replaces_or_hides_the_initial_timeout(self):
+        probe = self.probe()
+        attempts = 0
+        def public(path):
+            nonlocal attempts
+            if path == '/api/health':
+                attempts += 1
+                if attempts == 1:
+                    raise TimeoutError('PRIVATE_SENTINEL')
+            status = 401 if path.startswith(('/api/listing-editor-drafts', '/api/admin/')) else 200
+            return {'http_status': status}, {'database': True, 'data': {
+                'id': guest.FIXTURE_ID, 'title': guest.FIXTURE_TITLE, 'status': 'published'}}
+        with patch.object(guest, 'get_public', side_effect=public), \
+                patch.object(probe, 'case', side_effect=ui.GateError('stop_before_ui')):
+            with self.assertRaises(ui.GateError):
+                probe.execute()
+        original, followup = probe.report['cases'][:2]
+        self.assertEqual(('HTTP-1', 'BLOCKED', 'TimeoutError'),
+                         (original['id'], original['status'], original['error_type']))
+        self.assertEqual(('HTTP-1-recheck', 'PASS', 'HTTP-1'),
+                         (followup['id'], followup['status'], followup['followup_of']))
+        self.assertFalse(all(row['status'] == 'PASS' for row in probe.report['cases']))
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(probe.report))
 
     def test_home_card_title_alone_cannot_pass_the_details_journey(self):
         probe = self.probe()

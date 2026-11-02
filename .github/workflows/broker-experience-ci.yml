@@ -392,6 +392,7 @@ jobs:
           target = Path('build/app/outputs/flutter-apk/app-uat-release.apk')
           tests = Path('../android-release-tests/tests.apk')
           proof = {'source_commit': os.environ['SOURCE_COMMIT'], 'variant': 'uatReleaseAndroidTest',
+                   'runner': 'com.example.real_estate_mobile.Phase1UiInstrumentation',
                    'release_sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
                    'tests_sha256': hashlib.sha256(tests.read_bytes()).hexdigest()}
           (tests.parent / 'PAIR_VERIFICATION.json').write_text(json.dumps(proof, indent=2) + '\n')
@@ -515,6 +516,11 @@ jobs:
           path: |
             android-ui-evidence/report.json
             android-ui-evidence/startup.png
+            dist/APK_VERIFICATION.json
+            dist/UPGRADE_PREDECESSOR_VERIFICATION.json
+            dist/ANDROID_UPGRADE_VERIFICATION.json
+            dist/ANDROID_PUSH_ISOLATION.json
+            android-release-tests/PAIR_VERIFICATION.json
           retention-days: 3
           if-no-files-found: error
       - name: Upload broker UAT APK and exact commit evidence

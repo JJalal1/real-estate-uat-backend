@@ -10,7 +10,6 @@ import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
-import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayDeque;
@@ -181,7 +180,7 @@ public class Phase1UiStartupTest {
     }
 
     @Test public void releaseShowsFlutterNavigationAndAnActualFrame() throws Exception {
-        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Instrumentation instrumentation = Phase1UiInstrumentation.instrumentation();
         stage(instrumentation, "target_identity");
         assertEquals(PACKAGE, instrumentation.getTargetContext().getPackageName());
         stage(instrumentation, "ui_automation");

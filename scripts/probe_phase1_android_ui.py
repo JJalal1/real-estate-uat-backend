@@ -11,6 +11,7 @@ import zlib
 
 PACKAGE = 'com.aqer.yemen.uat'
 TEST_PACKAGE = PACKAGE + '.test'
+TEST_RUNNER = 'com.example.real_estate_mobile.Phase1UiInstrumentation'
 TEST_CLASS = ('com.example.real_estate_mobile.Phase1FirstRunReadinessTest,'
               'com.example.real_estate_mobile.Phase1UiStartupTest')
 SCREENSHOT = '/data/user/0/' + PACKAGE + '/cache/phase1-ui-startup.png'
@@ -31,6 +32,7 @@ class GateError(RuntimeError):
 
 
 UI_STAGES = frozenset([
+    'runner_bootstrap', 'runner_junit_start',
     'target_identity', 'ui_automation', 'activity_launch', 'first_run_wait',
     'navigation_before_capture', 'frame_capture', 'navigation_after_capture',
     'frame_validation', 'frame_write', 'observation_report',
@@ -122,6 +124,13 @@ def validate_instrumentation(output, version):
     if (not re.search(r'\bOK \(7 tests\)', output) or
             any(s in output for s in ['FAILURES!!!', 'INSTRUMENTATION_FAILED', 'INSTRUMENTATION_ABORTED'])):
         raise GateError('ui_instrumentation_failed', instrumentation_diagnostics(output))
+    counts = re.findall(r'^INSTRUMENTATION_STATUS: aqer_junit=(\{[^\n]+\})\s*$', output, re.M)
+    if len(counts) != 1:
+        raise GateError('missing_junit_counts')
+    counts = json.loads(counts[0])
+    expected = {'run': 7, 'failures': 0, 'ignored': 0, 'assumptions': 0}
+    if counts != expected or any(type(value) is not int for value in counts.values()):
+        raise GateError('all_seven_tests_must_execute_and_pass')
     rows = re.findall(r'^INSTRUMENTATION_STATUS: aqer_ui_smoke=(\{[^\n]+\})\s*$', output, re.M)
     if len(rows) != 1:
         raise GateError('missing_ui_observation')
@@ -202,6 +211,7 @@ def probe(root, env, run=execute):
     validate_proof(proof, apk.read_bytes(), source, int(number))
     pair = json.loads((tests.parent / 'PAIR_VERIFICATION.json').read_text())
     if (pair.get('source_commit') != source or pair.get('variant') != 'uatReleaseAndroidTest' or
+            pair.get('runner') != TEST_RUNNER or
             pair.get('release_sha256') != proof['sha256'] or
             pair.get('tests_sha256') != hashlib.sha256(tests.read_bytes()).hexdigest()):
         raise GateError('release_test_pair_identity_mismatch')
@@ -262,7 +272,7 @@ def probe(root, env, run=execute):
         # synthetic crash buffer so old push tests cannot contaminate diagnosis.
         adb('logcat', '-b', 'crash', '-c')
         output = command(['adb', '-s', serial, 'shell', 'am', 'instrument', '-w', '-r',
-                          '-e', 'class', TEST_CLASS, TEST_PACKAGE + '/androidx.test.runner.AndroidJUnitRunner'],
+                          TEST_PACKAGE + '/' + TEST_RUNNER],
                          'ui_instrumentation', timeout=90)
         seen = validate_instrumentation(output, proof['version_code'])
         png = adb('exec-out', 'cat', SCREENSHOT, binary=True)
@@ -273,6 +283,8 @@ def probe(root, env, run=execute):
                    'source_commit': source, 'package': PACKAGE, 'version_code': proof['version_code'],
                    'apk_sha256': proof['sha256'], 'certificate_sha256': proof['certificate_sha256'],
                    'instrumentation_variant': pair['variant'], 'tests_sha256': pair['tests_sha256'],
+                   'instrumentation_runner': TEST_RUNNER,
+                   'junit_counts': {'run': 7, 'failures': 0, 'ignored': 0, 'assumptions': 0},
                    'android_api': 36, 'serial': serial, 'ipv4_ipv6_egress_rejected': True,
                    'flutter_view': True, 'semantic_keys': ['marketplace', 'account'], 'image': image,
                    'first_run_continued': True, 'navigation_stable': True, 'capture_rechecked': True,

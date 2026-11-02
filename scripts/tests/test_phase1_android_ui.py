@@ -35,7 +35,8 @@ def observation():
 
 
 def instrument_output(seen=None):
-    return 'INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(seen or observation()) + '\nOK (7 tests)\n'
+    return ('INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(seen or observation()) +
+            '\nINSTRUMENTATION_STATUS: aqer_junit={"run":7,"failures":0,"ignored":0,"assumptions":0}\nOK (7 tests)\n')
 
 
 class FakeAndroid:
@@ -100,6 +101,7 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         (self.root / 'android-release-tests/tests.apk').write_bytes(test_apk)
         (self.root / 'android-release-tests/PAIR_VERIFICATION.json').write_text(json.dumps({
             'source_commit': SOURCE, 'variant': 'uatReleaseAndroidTest',
+            'runner': ui.TEST_RUNNER,
             'release_sha256': ui.hashlib.sha256(self.apk).hexdigest(),
             'tests_sha256': ui.hashlib.sha256(test_apk).hexdigest()}))
         self.proof = {'source_commit': SOURCE, 'package': ui.PACKAGE, 'api': ui.API,
@@ -160,13 +162,26 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
     def test_changed_test_apk_or_debug_pair_cannot_reach_android(self):
         pair_file = self.root / 'android-release-tests/PAIR_VERIFICATION.json'
         pair = json.loads(pair_file.read_text())
-        for key, value in [('source_commit', 'c' * 40), ('variant', 'uatDebugAndroidTest'),
+        for key, value in [('source_commit', 'c' * 40), ('variant', 'uatDebugAndroidTest'), ('runner', 'other.Runner'),
                            ('release_sha256', 'c' * 64), ('tests_sha256', 'c' * 64)]:
             with self.subTest(key=key):
                 pair_file.write_text(json.dumps({**pair, key: value}))
                 with self.assertRaisesRegex(ui.GateError, 'release_test_pair_identity_mismatch'):
                     self.run_probe()
         self.assertEqual([], self.android.calls)
+
+    def test_missing_duplicate_skipped_assumed_or_failed_junit_cases_cannot_pass(self):
+        good = {'run': 7, 'failures': 0, 'ignored': 0, 'assumptions': 0}
+        for counts in [None, {**good, 'run': 6}, {**good, 'failures': 1}, {**good, 'ignored': 1},
+                       {**good, 'assumptions': 1}, {**good, 'failures': False}]:
+            output = 'INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(observation()) + '\nOK (7 tests)\n'
+            if counts is not None:
+                output += 'INSTRUMENTATION_STATUS: aqer_junit=' + json.dumps(counts) + '\n'
+            with self.subTest(counts=counts), self.assertRaises(ui.GateError):
+                ui.validate_instrumentation(output, VERSION)
+        output = instrument_output() + 'INSTRUMENTATION_STATUS: aqer_junit=' + json.dumps(good) + '\n'
+        with self.assertRaisesRegex(ui.GateError, 'missing_junit_counts'):
+            ui.validate_instrumentation(output, VERSION)
 
     def test_unversioned_instrumentation_manifest_keeps_exact_package_check(self):
         # Official aapt 36 emits empty versions for an unversioned test manifest.

@@ -301,7 +301,7 @@ class GuestProbe:
         selected = lambda text: any(n.get('selected') == 'true' or n.get('checked') == 'true'
                                     for n in self.matches(nodes, text))
         if not (selected('شقق') and selected('إيجار') and self.matches(nodes, 'الغرف', prefix=True)
-                and self.matches(nodes, 'الحمامات', prefix=True) and self.matches(nodes, 'أعلى إيجار')
+                and self.matches(nodes, 'حمامات') and self.matches(nodes, 'أعلى إيجار')
                 and not self.matches(nodes, 'الكل')):
             raise Blocked('dynamic_filter_selection_not_observed')
         return {'apartment_and_rent_selected': True, 'dynamic_rooms_baths_and_price_visible': True,
@@ -324,6 +324,7 @@ class GuestProbe:
 
     def gallery(self):
         self.tap('تكبير الصور')
+        self.dismiss_immersive_tutorial()
         if not self.has('إغلاق الصور'):
             raise Blocked('fullscreen_gallery_not_observed')
         self.frame('gallery-before-double-tap')
@@ -331,27 +332,97 @@ class GuestProbe:
         if not nodes:
             raise Blocked('gallery_image_bounds_not_observed')
         left, top, right, lower = node_bounds(nodes[0])
-        for _ in range(2):
-            self.adb('shell', 'input', 'tap', (left + right) // 2, (top + lower) // 2)
-            time.sleep(.06)
+        x, y = (left + right) // 2, (top + lower) // 2
+        # One local shell round trip keeps both real taps inside Android's
+        # double-tap interval; coordinates are validated numeric node bounds.
+        self.adb('shell', f'input tap {x} {y}; input tap {x} {y}')
         time.sleep(.5)
         if not self.has('إغلاق الصور'):
             raise Blocked('gallery_lost_after_double_tap')
         return {'gallery_opened': True, 'double_tap_at_observed_image': True,
                 'image_and_zoom_quality_need_visual_review': True}
 
+    def dismiss_immersive_tutorial(self):
+        nodes = self.nodes()
+        owned = [node for node in nodes if node.get('package') == 'com.android.systemui' and node_bounds(node)]
+        if not any('Viewing full screen' in node_labels(node) for node in owned):
+            return False
+        buttons = [node for node in owned if 'Got it' in node_labels(node) and
+                   node.get('clickable') == 'true' and node.get('enabled') == 'true']
+        if len(buttons) != 1:
+            raise Blocked('system_immersive_tutorial_button_not_observed')
+        self.frame('gallery-system-immersive-tutorial')
+        # Re-read after capture; never acknowledge a stale or foreign dialog.
+        fresh = [node for node in self.nodes() if node.get('package') == 'com.android.systemui' and node_bounds(node)]
+        if (not any('Viewing full screen' in node_labels(node) for node in fresh) or
+                not any(node.attrib == buttons[0].attrib for node in fresh)):
+            raise Blocked('system_immersive_tutorial_changed')
+        left, top, right, lower = node_bounds(buttons[0])
+        self.adb('shell', 'input', 'tap', (left + right) // 2, (top + lower) // 2)
+        self.report['system_immersive_tutorial_acknowledged'] = True
+        time.sleep(.8)
+        return True
+
     def map(self):
+        backs = 0
         for _ in range(3):
             if self.has('ماذا تبحث عنه؟'):
                 break
             self.back()
+            backs += 1
         self.home()
+        self.frame('gallery-return-home')
+        self.report['return_home_after_details_gallery'] = {'back_keyevents': backs, 'home_witnesses_visible': True}
         self.home_entry('map')
         time.sleep(6)
         if not (self.has('البحث على الخريطة') or self.has('رسم منطقة على الخريطة')):
             raise Blocked('map_screen_not_observed')
+        # Clear the known empty-result query through the real map editor.
+        nodes = self.nodes()
+        fields = [node for node in nodes if node.get('package') == core.PACKAGE and node_bounds(node) and
+                  node.get('class') == 'android.widget.EditText' and node.get('enabled') == 'true']
+        if len(fields) != 1 or 'phase1-ci-no-match' not in node_labels(fields[0]):
+            raise Blocked('inherited_map_query_not_observed')
+        left, top, right, lower = node_bounds(fields[0])
+        self.adb('shell', 'input', 'tap', (left + right) // 2, (top + lower) // 2)
+        self.adb('shell', 'input', 'keyevent', '123', *(['67'] * len('phase1-ci-no-match')), '66')
+        time.sleep(6)
+        if any('phase1-ci-no-match' in node_labels(node) for node in self.nodes()):
+            raise Blocked('map_query_not_cleared')
+        self.collapse_map_panel_and_pan()
         return {'map_screen_opened': True, 'basemap_and_markers_need_visual_review': True,
-                'camera_pan_tested': False}
+                'query_cleared_through_ui': True, 'camera_pan_sent_at_observed_map_bounds': True}
+
+    def collapse_map_panel_and_pan(self):
+        handle_label = 'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها'
+        self.frame('map-before-panel-collapse')
+        info = self.report['frames'][-1]
+        nodes = self.nodes()
+        handles, titles = self.matches(nodes, handle_label), self.matches(nodes, 'البحث على الخريطة')
+        if ((info['width'], info['height']) != (1080, 1920) or len(handles) != 1 or len(titles) != 1):
+            raise Blocked('map_panel_context_not_observed')
+        left, top, right, lower = node_bounds(handles[0])
+        title_bottom = node_bounds(titles[0])[3]
+        if not (0 <= left < right <= 1080 and title_bottom < top < lower <= 1850):
+            raise Blocked('map_panel_bounds_not_observed')
+        x, y = (left + right) // 2, (top + lower) // 2
+        self.adb('shell', 'input', 'swipe', x, y, x, min(1850, y + 650), '250')
+        time.sleep(1)
+        self.frame('map-before-pan')
+        nodes = self.nodes()
+        handles, titles = self.matches(nodes, handle_label), self.matches(nodes, 'البحث على الخريطة')
+        if len(handles) != 1 or len(titles) != 1:
+            raise Blocked('map_pan_context_not_observed')
+        left, sheet_top, right, lower = node_bounds(handles[0])
+        title_bottom = node_bounds(titles[0])[3]
+        if not (0 <= left < right <= 1080 and 1152 <= sheet_top < lower <= 1850 and title_bottom + 160 < sheet_top):
+            raise Blocked('map_panel_not_collapsed_for_pan')
+        y = (title_bottom + 100 + sheet_top) // 2
+        self.adb('shell', 'input', 'swipe', '390', y, '690', y, '500')
+        self.report['map_pan_gesture'] = {'from': [390, y], 'to': [690, y],
+                                         'bounds_from_fresh_title_and_sheet': True,
+                                         'visual_movement_review_required': True}
+        time.sleep(4)
 
     def account_gate(self):
         self.back()
@@ -378,10 +449,11 @@ class GuestProbe:
         self.created = True
         self.save()
         self.live_fixture = False
-        for path, expected in [('/api/health', 200), ('/api/properties/60', 200),
+        for index, (path, expected) in enumerate([('/api/health', 200), ('/api/properties/60', 200),
                                ('/api/listing-editor-drafts', 401),
-                               ('/api/admin/workspace/tasks?scope=inbox', 401)]:
-            row = {'id': 'HTTP-' + str(len(self.report['cases']) + 1), 'expected_status': expected}
+                               ('/api/admin/workspace/tasks?scope=inbox', 401)], 1):
+            started = time.monotonic()
+            row = {'id': 'HTTP-' + str(index), 'path': path, 'method': 'GET', 'expected_status': expected}
             try:
                 receipt, data = get_public(path)
                 row.update(receipt, status='PASS' if receipt['http_status'] == expected else 'FAIL')
@@ -394,9 +466,23 @@ class GuestProbe:
                     if not self.live_fixture:
                         row['status'] = 'FAIL'
             except Exception as error:
-                row.update(status='BLOCKED', error_type=type(error).__name__)
+                row.update(status='BLOCKED', error_type=type(error).__name__,
+                           elapsed_ms=round((time.monotonic() - started) * 1000))
             self.report['cases'].append(row)
             self.save()
+            if path == '/api/health' and row['status'] != 'PASS':
+                # Retain the original failure and the unchanged25s limit. A
+                # recovery receipt cannot turn that failed case/CI into PASS.
+                followup = {'id': 'HTTP-1-recheck', 'path': path, 'method': 'GET',
+                            'expected_status': 200, 'followup_of': 'HTTP-1'}
+                try:
+                    receipt, data = get_public(path)
+                    followup.update(receipt, status='PASS' if receipt['http_status'] == 200 and
+                                    data.get('database') is True else 'FAIL')
+                except Exception as error:
+                    followup.update(status='BLOCKED', error_type=type(error).__name__)
+                self.report['cases'].append(followup)
+                self.save()
         try:
             self.adb('install', str(self.apk), timeout=180)
             self.installed = True
