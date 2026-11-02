@@ -259,6 +259,41 @@ class GuestProbeSafetyTest(unittest.TestCase):
             with self.assertRaisesRegex(guest.Blocked, 'details_not_observed'):
                 probe.details()
 
+    def test_gallery_requires_unique_app_image_matching_counter_and_fullscreen_bounds(self):
+        probe = self.probe()
+        image = ET.Element('node', {'package': ui.PACKAGE, 'content-desc': 'صورة العقار 1 من 1',
+                                    'bounds': '[0,0][1080,1920]'})
+        counter = ET.Element('node', {'package': ui.PACKAGE, 'text': '1/1', 'bounds': '[450,30][630,140]'})
+        frame = {'width': 1080, 'height': 1920}
+        with patch.object(probe, 'nodes', return_value=[image, counter]):
+            self.assertIs(image, probe.fullscreen_gallery_image(frame))
+        invalid = [[], [image], [image, image, counter],
+                   [ET.Element('node', {**image.attrib, 'package': 'other.app'}), counter],
+                   [image, ET.Element('node', {**counter.attrib, 'text': '2/3'})],
+                   [ET.Element('node', {**image.attrib, 'content-desc': 'صورة العقار 1 من 1 extra'}), counter],
+                   [ET.Element('node', {**image.attrib, 'bounds': '[0,0][1080,600]'}), counter],
+                   [ET.Element('node', {**image.attrib, 'bounds': '[0,0][1080,2000]'}), counter]]
+        for label in ['تفاصيل العقار', 'ماذا تبحث عنه؟']:
+            invalid.append([image, counter, ET.Element('node', {'package': ui.PACKAGE, 'text': label,
+                                                               'bounds': '[0,0][500,300]'})])
+        for nodes in invalid:
+            with self.subTest(nodes=[n.attrib for n in nodes]), patch.object(probe, 'nodes', return_value=nodes), \
+                    patch.object(probe, 'adb') as adb:
+                with self.assertRaises(guest.Blocked):
+                    probe.fullscreen_gallery_image(frame)
+                adb.assert_not_called()
+
+    def test_gallery_no_gesture_is_sent_when_fullscreen_witness_fails(self):
+        probe = self.probe()
+        def frame(name):
+            probe.report['frames'].append({'width': 1080, 'height': 1920})
+        with patch.object(probe, 'tap'), patch.object(probe, 'dismiss_immersive_tutorial'), \
+                patch.object(probe, 'frame', side_effect=frame), patch.object(probe, 'nodes', return_value=[]), \
+                patch.object(probe, 'adb') as adb:
+            with self.assertRaises(guest.Blocked):
+                probe.gallery()
+            adb.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

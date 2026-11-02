@@ -264,6 +264,17 @@ jobs:
           flutter pub get --enforce-lockfile
       - name: Ensure original dependency declaration is unchanged
         run: git diff --exit-code -- mobile_app/pubspec.yaml
+      - name: Retained Home navigation specific RED and GREEN control
+        if: ${{ env.AQER_ANDROID_UI_SMOKE == 'true' }}
+        run: python3 -B scripts/check_phase1_navigation_regression.py
+      - name: Upload navigation control receipt only
+        if: ${{ !cancelled() && env.AQER_ANDROID_UI_SMOKE == 'true' && hashFiles('phase1-navigation-control/report.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-navigation-control-${{ github.run_id }}
+          path: phase1-navigation-control/report.json
+          retention-days: 3
+          if-no-files-found: error
       - name: Static analysis with exact original INFO baseline
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
@@ -387,12 +398,22 @@ jobs:
             mkdir -p ../android-release-tests
             cp build/app/outputs/apk/androidTest/uat/release/app-uat-release-androidTest.apk ../android-release-tests/tests.apk
             python3 - <<'PY'
-          import hashlib, json, os
+          import hashlib, json, os, shutil, sys
           from pathlib import Path
+          sys.path.insert(0, str(Path('../scripts').resolve()))
+          from probe_phase1_android_ui import FLUTTER_VIEW_CLASS, flutter_view_class_from_mapping
           target = Path('build/app/outputs/flutter-apk/app-uat-release.apk')
           tests = Path('../android-release-tests/tests.apk')
+          mapping = Path('build/app/outputs/mapping/uatRelease/mapping.txt')
+          alias = flutter_view_class_from_mapping(mapping.read_text())
+          # Retained privately for host validation after build-cache deletion.
+          # The raw mapping is never an artifact or console output.
+          shutil.copyfile(mapping, tests.parent / 'app-mapping.txt')
           proof = {'source_commit': os.environ['SOURCE_COMMIT'], 'variant': 'uatReleaseAndroidTest',
                    'runner': 'com.example.real_estate_mobile.Phase1UiInstrumentation',
+                   'flutter_view_original_class': FLUTTER_VIEW_CLASS,
+                   'flutter_view_runtime_class': alias,
+                   'mapping_sha256': hashlib.sha256(mapping.read_bytes()).hexdigest(),
                    'release_sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
                    'tests_sha256': hashlib.sha256(tests.read_bytes()).hexdigest()}
           (tests.parent / 'PAIR_VERIFICATION.json').write_text(json.dumps(proof, indent=2) + '\n')

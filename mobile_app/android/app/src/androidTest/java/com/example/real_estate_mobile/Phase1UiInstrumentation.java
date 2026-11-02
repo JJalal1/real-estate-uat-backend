@@ -13,10 +13,16 @@ import org.junit.runner.notification.RunListener;
 /** CI-only platform bootstrap. No shared AndroidX runner/lifecycle dependencies. */
 public final class Phase1UiInstrumentation extends Instrumentation {
     private static volatile Instrumentation current;
+    private static volatile String flutterViewType;
 
     static Instrumentation instrumentation() {
         if (current == null) throw new IllegalStateException("Phase1 platform runner is required");
         return current;
+    }
+
+    static String flutterViewType() {
+        if (flutterViewType == null) throw new IllegalStateException("Validated Flutter type is required");
+        return flutterViewType;
     }
 
     private static String diagnosticType(Throwable failure) {
@@ -30,6 +36,11 @@ public final class Phase1UiInstrumentation extends Instrumentation {
 
     @Override public void onCreate(Bundle arguments) {
         super.onCreate(arguments);
+        String type = arguments == null ? null : arguments.getString("aqer_flutter_view_class");
+        if (type == null || !type.matches("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*")) {
+            throw new IllegalArgumentException("Validated Flutter type is required");
+        }
+        flutterViewType = type;
         current = this;
         start();
     }
@@ -72,6 +83,7 @@ public final class Phase1UiInstrumentation extends Instrumentation {
             output.putString(REPORT_KEY_STREAMRESULT, "\nFAILURES!!!\n" + diagnosticType(failure) + "\n");
         } finally {
             current = null;
+            flutterViewType = null;
             finish(exit, output);
         }
     }

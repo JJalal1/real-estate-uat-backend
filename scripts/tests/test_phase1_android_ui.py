@@ -30,6 +30,7 @@ def png(raw=b'\x00\x11\x22\x33'):
 
 def observation():
     return {'package': ui.PACKAGE, 'version_code': VERSION, 'flutter_view': True,
+            'flutter_view_runtime_class': ui.FLUTTER_VIEW_CLASS,
             'first_run_continued': True, 'navigation_stable': True, 'capture_rechecked': True,
             'nonuniform_frame': True, 'semantic_keys': ['marketplace', 'account'], 'width': 1, 'height': 1}
 
@@ -99,9 +100,14 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         (self.root / 'dist/real-estate-broker-uat-449.apk').write_bytes(self.apk)
         test_apk = b'synthetic test package'
         (self.root / 'android-release-tests/tests.apk').write_bytes(test_apk)
+        mapping = (ui.FLUTTER_VIEW_CLASS + ' -> ' + ui.FLUTTER_VIEW_CLASS + ':\n').encode()
+        (self.root / 'android-release-tests/app-mapping.txt').write_bytes(mapping)
         (self.root / 'android-release-tests/PAIR_VERIFICATION.json').write_text(json.dumps({
             'source_commit': SOURCE, 'variant': 'uatReleaseAndroidTest',
             'runner': ui.TEST_RUNNER,
+            'flutter_view_original_class': ui.FLUTTER_VIEW_CLASS,
+            'flutter_view_runtime_class': ui.FLUTTER_VIEW_CLASS,
+            'mapping_sha256': ui.hashlib.sha256(mapping).hexdigest(),
             'release_sha256': ui.hashlib.sha256(self.apk).hexdigest(),
             'tests_sha256': ui.hashlib.sha256(test_apk).hexdigest()}))
         self.proof = {'source_commit': SOURCE, 'package': ui.PACKAGE, 'api': ui.API,
@@ -182,6 +188,54 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         output = instrument_output() + 'INSTRUMENTATION_STATUS: aqer_junit=' + json.dumps(good) + '\n'
         with self.assertRaisesRegex(ui.GateError, 'missing_junit_counts'):
             ui.validate_instrumentation(output, VERSION)
+
+    def test_mapping_must_have_one_exact_original_type_and_a_java_alias(self):
+        original = ui.FLUTTER_VIEW_CLASS
+        valid = original + ' -> a.b:\n'
+        self.assertEqual('a.b', ui.flutter_view_class_from_mapping(valid))
+        for invalid in ['', valid + valid, original + 'Extra -> a.b:\n',
+                        original + ' -> PRIVATE SENTINEL:\n', original + ' -> a..b:\n',
+                        original + ' -> a/b:\n', original + ' -> a.b']:
+            with self.subTest(mapping=invalid), self.assertRaises(ui.GateError):
+                ui.flutter_view_class_from_mapping(invalid)
+
+    def test_wrong_or_changed_mapping_stops_before_android(self):
+        path = self.root / 'android-release-tests/PAIR_VERIFICATION.json'
+        pair = json.loads(path.read_text())
+        for key, value in [('mapping_sha256', 'f' * 64), ('flutter_view_original_class', 'android.view.View'),
+                           ('flutter_view_runtime_class', 'android.widget.FrameLayout')]:
+            path.write_text(json.dumps({**pair, key: value}))
+            with self.subTest(key=key), self.assertRaisesRegex(ui.GateError, 'mapping_identity_mismatch'):
+                self.run_probe()
+        self.assertEqual([], self.android.calls)
+
+    def test_validated_mapped_type_is_passed_and_must_be_observed_exactly(self):
+        path = self.root / 'android-release-tests/PAIR_VERIFICATION.json'
+        pair = json.loads(path.read_text())
+        mapping = (ui.FLUTTER_VIEW_CLASS + ' -> a.b:\n').encode()
+        (path.parent / 'app-mapping.txt').write_bytes(mapping)
+        pair.update(flutter_view_runtime_class='a.b', mapping_sha256=ui.hashlib.sha256(mapping).hexdigest())
+        path.write_text(json.dumps(pair))
+        self.android.output = instrument_output({**observation(), 'flutter_view_runtime_class': 'a.b'})
+        report, _ = self.run_probe()
+        self.assertEqual('a.b', report['flutter_view_runtime_class'])
+        call = next(c for c in self.android.calls if c[3:6] == ['shell', 'am', 'instrument'])
+        index = call.index('aqer_flutter_view_class')
+        self.assertEqual('a.b', call[index + 1])
+        with self.assertRaisesRegex(ui.GateError, 'flutter_ui_not_observed'):
+            ui.validate_instrumentation(instrument_output(), VERSION, 'a.b')
+
+    def test_readiness_diagnostics_export_only_fixed_boolean_and_integer_fields(self):
+        valid = {'continued': True, 'introduction_seen': True, 'introduction_visible_last': False,
+                 'root_owned_seen': True, 'flutter_view_seen': False, 'marketplace_seen': True,
+                 'account_seen': True, 'navigation_samples': 0}
+        prefix = 'INSTRUMENTATION_STATUS: aqer_ui_readiness='
+        self.assertEqual(valid, ui.instrumentation_diagnostics(prefix + json.dumps(valid))['aqer_ui_readiness'])
+        for wrong in [{**valid, 'PRIVATE_SENTINEL': 'secret'}, {**valid, 'continued': 'PRIVATE_SENTINEL'},
+                      {**valid, 'navigation_samples': False}, {**valid, 'navigation_samples': 201}]:
+            result = ui.instrumentation_diagnostics(prefix + json.dumps(wrong))
+            self.assertNotIn('aqer_ui_readiness', result)
+            self.assertNotIn('PRIVATE_SENTINEL', json.dumps(result))
 
     def test_unversioned_instrumentation_manifest_keeps_exact_package_check(self):
         # Official aapt 36 emits empty versions for an unversioned test manifest.

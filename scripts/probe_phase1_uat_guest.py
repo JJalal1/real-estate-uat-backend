@@ -325,22 +325,36 @@ class GuestProbe:
     def gallery(self):
         self.tap('تكبير الصور')
         self.dismiss_immersive_tutorial()
-        if not self.has('إغلاق الصور'):
-            raise Blocked('fullscreen_gallery_not_observed')
         self.frame('gallery-before-double-tap')
-        nodes = self.matches(self.nodes(), 'صورة العقار ', prefix=True)
-        if not nodes:
-            raise Blocked('gallery_image_bounds_not_observed')
-        left, top, right, lower = node_bounds(nodes[0])
+        info = self.report['frames'][-1]
+        image = self.fullscreen_gallery_image(info)
+        left, top, right, lower = node_bounds(image)
         x, y = (left + right) // 2, (top + lower) // 2
         # One local shell round trip keeps both real taps inside Android's
         # double-tap interval; coordinates are validated numeric node bounds.
         self.adb('shell', f'input tap {x} {y}; input tap {x} {y}')
         time.sleep(.5)
-        if not self.has('إغلاق الصور'):
-            raise Blocked('gallery_lost_after_double_tap')
+        self.fullscreen_gallery_image(info)
         return {'gallery_opened': True, 'double_tap_at_observed_image': True,
+                'fullscreen_witness': 'unique_image_matching_counter_frame_bounds_no_home_or_details',
                 'image_and_zoom_quality_need_visual_review': True}
+
+    def fullscreen_gallery_image(self, frame):
+        nodes = self.nodes()
+        images = self.matches(nodes, 'صورة العقار ', prefix=True)
+        if (len(images) != 1 or self.matches(nodes, 'تفاصيل العقار') or self.matches(nodes, 'ماذا تبحث عنه؟')):
+            raise Blocked('fullscreen_gallery_not_observed')
+        labels = [re.fullmatch(r'صورة العقار ([1-9][0-9]*) من ([1-9][0-9]*)', value)
+                  for value in node_labels(images[0])]
+        labels = [value for value in labels if value]
+        if len(labels) != 1 or not self.matches(nodes, labels[0][1] + '/' + labels[0][2]):
+            raise Blocked('fullscreen_gallery_counter_not_observed')
+        left, top, right, lower = node_bounds(images[0])
+        width, height = frame['width'], frame['height']
+        if not (0 <= left < right <= width and 0 <= top < lower <= height and
+                right - left >= width * .9 and lower - top >= height * .9):
+            raise Blocked('fullscreen_gallery_bounds_not_observed')
+        return images[0]
 
     def dismiss_immersive_tutorial(self):
         nodes = self.nodes()

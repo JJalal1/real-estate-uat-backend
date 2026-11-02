@@ -12,6 +12,7 @@ import zlib
 PACKAGE = 'com.aqer.yemen.uat'
 TEST_PACKAGE = PACKAGE + '.test'
 TEST_RUNNER = 'com.example.real_estate_mobile.Phase1UiInstrumentation'
+FLUTTER_VIEW_CLASS = 'io.flutter.embedding.android.FlutterView'
 TEST_CLASS = ('com.example.real_estate_mobile.Phase1FirstRunReadinessTest,'
               'com.example.real_estate_mobile.Phase1UiStartupTest')
 SCREENSHOT = '/data/user/0/' + PACKAGE + '/cache/phase1-ui-startup.png'
@@ -67,6 +68,17 @@ UI_MISSING_CLASSES = frozenset([
 ])
 
 
+def flutter_view_class_from_mapping(mapping):
+    prefix = FLUTTER_VIEW_CLASS + ' -> '
+    rows = [line[len(prefix):].strip() for line in mapping.splitlines() if line.startswith(prefix)]
+    if len(rows) != 1 or not rows[0].endswith(':'):
+        raise GateError('flutter_view_mapping_missing_or_ambiguous')
+    alias = rows[0][:-1]
+    if not re.fullmatch(r'[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*', alias):
+        raise GateError('flutter_view_mapping_invalid_type')
+    return alias
+
+
 def instrumentation_diagnostics(output, stderr=None):
     """Discard all messages, stack frames, UI text and unknown diagnostic values."""
     def text(value):
@@ -96,6 +108,23 @@ def instrumentation_diagnostics(output, stderr=None):
             result['missing_classes'] = sorted(names & UI_MISSING_CLASSES)[:8]
         if names - UI_MISSING_CLASSES:
             result.setdefault('signals', []).append('unclassified_missing_class')
+    for marker, fields, booleans in [
+            ('aqer_junit', {'run', 'failures', 'ignored', 'assumptions'}, set()),
+            ('aqer_ui_readiness', {'continued', 'introduction_seen', 'introduction_visible_last',
+                                  'root_owned_seen', 'flutter_view_seen', 'marketplace_seen',
+                                  'account_seen', 'navigation_samples'},
+             {'continued', 'introduction_seen', 'introduction_visible_last', 'root_owned_seen',
+              'flutter_view_seen', 'marketplace_seen', 'account_seen'})]:
+        rows = re.findall(r'^INSTRUMENTATION_STATUS: ' + marker + r'=(\{[^\n]+\})\s*$', output, re.M)
+        if len(rows) != 1:
+            continue
+        try:
+            values = json.loads(rows[0])
+        except ValueError:
+            continue
+        if (set(values) == fields and all(type(values[k]) is bool for k in booleans) and
+                all(type(values[k]) is int and 0 <= values[k] <= 200 for k in fields - booleans)):
+            result[marker] = values
     return result
 
 
@@ -120,7 +149,7 @@ def validate_badging(badging, package, version=None, release=False):
         raise GateError('debug_apk_cannot_replace_release')
 
 
-def validate_instrumentation(output, version):
+def validate_instrumentation(output, version, flutter_class=FLUTTER_VIEW_CLASS):
     if (not re.search(r'\bOK \(7 tests\)', output) or
             any(s in output for s in ['FAILURES!!!', 'INSTRUMENTATION_FAILED', 'INSTRUMENTATION_ABORTED'])):
         raise GateError('ui_instrumentation_failed', instrumentation_diagnostics(output))
@@ -137,6 +166,7 @@ def validate_instrumentation(output, version):
     observation = json.loads(rows[0])
     if (observation.get('package') != PACKAGE or observation.get('version_code') != version or
             observation.get('flutter_view') is not True or observation.get('nonuniform_frame') is not True or
+            observation.get('flutter_view_runtime_class') != flutter_class or
             any(observation.get(key) is not True for key in ['first_run_continued', 'navigation_stable', 'capture_rechecked']) or
             observation.get('semantic_keys') != ['marketplace', 'account']):
         raise GateError('flutter_ui_not_observed')
@@ -215,6 +245,11 @@ def probe(root, env, run=execute):
             pair.get('release_sha256') != proof['sha256'] or
             pair.get('tests_sha256') != hashlib.sha256(tests.read_bytes()).hexdigest()):
         raise GateError('release_test_pair_identity_mismatch')
+    mapping = (tests.parent / 'app-mapping.txt').read_bytes()
+    if (pair.get('flutter_view_original_class') != FLUTTER_VIEW_CLASS or
+            pair.get('mapping_sha256') != hashlib.sha256(mapping).hexdigest() or
+            pair.get('flutter_view_runtime_class') != flutter_view_class_from_mapping(mapping.decode('utf-8'))):
+        raise GateError('release_flutter_mapping_identity_mismatch')
 
     def command(argv, label, binary=False, codes=(0,), timeout=120):
         try:
@@ -272,9 +307,10 @@ def probe(root, env, run=execute):
         # synthetic crash buffer so old push tests cannot contaminate diagnosis.
         adb('logcat', '-b', 'crash', '-c')
         output = command(['adb', '-s', serial, 'shell', 'am', 'instrument', '-w', '-r',
+                          '-e', 'aqer_flutter_view_class', pair['flutter_view_runtime_class'],
                           TEST_PACKAGE + '/' + TEST_RUNNER],
                          'ui_instrumentation', timeout=90)
-        seen = validate_instrumentation(output, proof['version_code'])
+        seen = validate_instrumentation(output, proof['version_code'], pair['flutter_view_runtime_class'])
         png = adb('exec-out', 'cat', SCREENSHOT, binary=True)
         image = validate_png(png)
         if (image['width'], image['height']) != (seen.get('width'), seen.get('height')):
@@ -284,6 +320,8 @@ def probe(root, env, run=execute):
                    'apk_sha256': proof['sha256'], 'certificate_sha256': proof['certificate_sha256'],
                    'instrumentation_variant': pair['variant'], 'tests_sha256': pair['tests_sha256'],
                    'instrumentation_runner': TEST_RUNNER,
+                   'flutter_view_runtime_class': pair['flutter_view_runtime_class'],
+                   'app_mapping_sha256': pair['mapping_sha256'],
                    'junit_counts': {'run': 7, 'failures': 0, 'ignored': 0, 'assumptions': 0},
                    'android_api': 36, 'serial': serial, 'ipv4_ipv6_egress_rejected': True,
                    'flutter_view': True, 'semantic_keys': ['marketplace', 'account'], 'image': image,
