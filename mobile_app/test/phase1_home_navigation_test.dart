@@ -65,6 +65,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('home-map')));
       await tester.pumpAndSettle();
+      if (navigation.state.uri.path == '/') {
+        debugPrint('AQER_PHASE1_MAP_AFTER_DEEP_LINK_NOT_OPEN');
+      }
       expect(navigation.state.uri.path, '/marketplace-search-map',
         reason: 'AQER_PHASE1_MAP_AFTER_DEEP_LINK_NOT_OPEN');
       expect(find.text('phase1 map destination'), findsOneWidget);
@@ -103,7 +106,7 @@ void main() {
       await tester.idle(); // Flush the old finally without pumping the new frame.
       await tester.tap(map);
       await tester.pumpAndSettle();
-      expect(navigation.attempts.where((path) => path == '/marketplace-search-map'), hasLength(1));
+      expect(navigation.attempts.where((path) => Uri.parse(path).path == '/marketplace-search-map'), hasLength(1));
       expect(find.text('phase1 map destination'), findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally { await closeUx(tester); }

@@ -265,10 +265,11 @@ jobs:
       - name: Ensure original dependency declaration is unchanged
         run: git diff --exit-code -- mobile_app/pubspec.yaml
       - name: Retained Home navigation specific RED and GREEN control
+        id: navigation_control
         if: ${{ env.AQER_ANDROID_UI_SMOKE == 'true' }}
         run: python3 -B scripts/check_phase1_navigation_regression.py
       - name: Upload navigation control receipt only
-        if: ${{ !cancelled() && env.AQER_ANDROID_UI_SMOKE == 'true' && hashFiles('phase1-navigation-control/report.json') != '' }}
+        if: ${{ !cancelled() && env.AQER_ANDROID_UI_SMOKE == 'true' && steps.navigation_control.outputs.phase1_navigation_evidence == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: phase1-navigation-control-${{ github.run_id }}
@@ -337,7 +338,7 @@ jobs:
         if: ${{ !cancelled() && steps.ui_preview_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_ui_previews.py
       - name: Full Flutter regression
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && (env.AQER_ANDROID_UI_SMOKE != 'true' || steps.navigation_control.outcome == 'success') }}
         id: flutter_regression
         working-directory: mobile_app
         shell: bash
@@ -364,7 +365,7 @@ jobs:
           python3 -m unittest discover -s scripts/tests -p 'test_uat_firebase_configuration.py' -v
           python3 scripts/import_ci_uat_firebase.py
       - name: Build same-source UAT upgrade predecessor with this job's signing key
-        if: ${{ !cancelled() && env.OWNER_UPGRADE_PAIR == 'true' && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
+        if: ${{ !cancelled() && (env.AQER_ANDROID_UI_SMOKE != 'true' || steps.navigation_control.outcome == 'success') && env.OWNER_UPGRADE_PAIR == 'true' && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
         working-directory: mobile_app
         env:
           AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
@@ -376,7 +377,7 @@ jobs:
           sha256sum ../dist/uat-upgrade-predecessor.apk > ../dist/UPGRADE_PREDECESSOR_SHA256.txt
       - name: Build tested broker UAT APK
         id: build_apk
-        if: ${{ !cancelled() && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
+        if: ${{ !cancelled() && (env.AQER_ANDROID_UI_SMOKE != 'true' || steps.navigation_control.outcome == 'success') && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
         working-directory: mobile_app
         # This job builds the disposable UAT package only. Production signing
         # remains mandatory for any release without this explicit opt-in.
