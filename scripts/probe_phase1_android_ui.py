@@ -38,8 +38,8 @@ def validate_proof(proof, apk_bytes, source, run_number):
 
 
 def validate_badging(badging, package, version=None, release=False):
-    match = re.search(r"^package: name='([^']+)' versionCode='([0-9]+)'", badging, re.M)
-    if not match or match[1] != package or (version is not None and int(match[2]) != version):
+    match = re.search(r"^package: name='([^']+)' versionCode='([0-9]*)'", badging, re.M)
+    if not match or match[1] != package or (version is not None and match[2] != str(version)):
         raise GateError('installed_artifact_identity_mismatch')
     if release and re.search(r'^\s*application-debuggable\b', badging, re.M):
         raise GateError('debug_apk_cannot_replace_release')

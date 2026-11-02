@@ -57,7 +57,8 @@ class FakeAndroid:
         elif 'verify' in argv: out = 'Signer #1 certificate SHA-256 digest: ' + ('c' * 64 if self.bad_signer else CERT)
         elif 'badging' in argv:
             package = ui.TEST_PACKAGE if str(argv[-1]).endswith('tests.apk') else ui.PACKAGE
-            out = f"package: name='{package}' versionCode='{VERSION}'\n"
+            version = '' if package == ui.TEST_PACKAGE else str(VERSION)
+            out = f"package: name='{package}' versionCode='{version}'\n"
         elif argv == ['adb', 'devices']: out = 'List of devices attached\n' + self.device + '\n'
         else:
             args = argv[3:]
@@ -126,6 +127,19 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(ui.GateError, 'debug_apk'):
             ui.validate_badging(f"package: name='{ui.PACKAGE}' versionCode='{VERSION}'\napplication-debuggable\n",
                                 ui.PACKAGE, VERSION, release=True)
+
+    def test_unversioned_instrumentation_manifest_keeps_exact_package_check(self):
+        # Official aapt 36 emits empty versions for an unversioned test manifest.
+        badging = f"package: name='{ui.TEST_PACKAGE}' versionCode='' versionName=''\n"
+        ui.validate_badging(badging, ui.TEST_PACKAGE)
+        with self.assertRaisesRegex(ui.GateError, 'identity_mismatch'):
+            ui.validate_badging(badging.replace(ui.TEST_PACKAGE, 'another.test'), ui.TEST_PACKAGE)
+
+    def test_release_still_requires_the_exact_numeric_version(self):
+        for version in ['', 'invalid', str(VERSION - 1)]:
+            with self.subTest(version=version), self.assertRaisesRegex(ui.GateError, 'identity_mismatch'):
+                ui.validate_badging(f"package: name='{ui.PACKAGE}' versionCode='{version}'\n",
+                                    ui.PACKAGE, VERSION, release=True)
 
     def test_mismatched_certificate_stops_before_adb(self):
         self.android.bad_signer = True
