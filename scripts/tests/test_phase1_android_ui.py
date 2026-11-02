@@ -49,6 +49,9 @@ class FakeAndroid:
         self.preinstalled = False
         self.fail_cleanup = False
         self.bad_signer = False
+        self.instrument_code = 0
+        self.instrument_timeout = False
+        self.stderr = ''
 
     def __call__(self, argv, binary=False, timeout=120):
         self.calls.append(argv)
@@ -69,10 +72,13 @@ class FakeAndroid:
                 code, out = (0, 'package:/data/app/old.apk') if self.preinstalled else (1, '')
             elif '-C' in args: code = 1
             elif self.fail_ipv6 and args[:3] == ['shell', 'ip6tables', '-I']: code = 2
-            elif args[:3] == ['shell', 'am', 'instrument']: out = self.output
+            elif args[:3] == ['shell', 'am', 'instrument']:
+                if self.instrument_timeout:
+                    raise subprocess.TimeoutExpired(argv, timeout, output=self.output.encode(), stderr=self.stderr.encode())
+                code, out = self.instrument_code, self.output
             elif args[:2] == ['exec-out', 'cat']: out = self.image
             elif self.fail_cleanup and args[0] == 'uninstall': code = 1
-        return subprocess.CompletedProcess(argv, code, out, '')
+        return subprocess.CompletedProcess(argv, code, out, self.stderr)
 
 
 class ReleaseStartupSafetyTest(unittest.TestCase):
@@ -109,6 +115,20 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
             with self.subTest(key=key), patch.dict(self.env, {key: value}):
                 with self.assertRaisesRegex(ui.GateError, 'manual_opt_in_required'): self.run_probe()
         self.assertEqual([], self.android.calls)
+
+    def test_owner_authorized_task_push_is_exactly_scoped(self):
+        self.env.update(GITHUB_EVENT_NAME='push', GITHUB_REPOSITORY=ui.TASK_REPOSITORY, GITHUB_REF=ui.TASK_REF)
+        report, _ = self.run_probe()
+        self.assertEqual('passed', report['status'])
+        for key, value in [('GITHUB_REPOSITORY', ''), ('GITHUB_REPOSITORY', 'fork/real-estate-uat-backend'),
+                           ('GITHUB_REF', ''), ('GITHUB_REF', 'refs/heads/main'),
+                           ('GITHUB_REF', ui.TASK_REF + '-other'), ('GITHUB_REF', 'refs/pull/1/merge'),
+                           ('GITHUB_EVENT_NAME', 'pull_request'), ('AQER_ANDROID_UI_SMOKE', 'false')]:
+            self.android.calls.clear()
+            with self.subTest(key=key, value=value), patch.dict(self.env, {key: value}):
+                with self.assertRaisesRegex(ui.GateError, 'manual_opt_in_required'):
+                    self.run_probe()
+            self.assertEqual([], self.android.calls)
 
     def test_wrong_source_predecessor_and_endpoint_never_reach_android(self):
         for key, value in [('source_commit', 'c' * 40), ('package_role', 'upgrade-predecessor-same-source'),
@@ -167,6 +187,62 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed'): self.run_probe()
         self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
         self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_diagnostics_keep_only_fixed_stages_and_exception_types(self):
+        output = ('INSTRUMENTATION_STATUS: aqer_ui_stage=target_identity\n'
+                  'INSTRUMENTATION_STATUS: aqer_ui_stage=activity_launch\n'
+                  'INSTRUMENTATION_STATUS: aqer_ui_stage=private_account_text\n'
+                  'java.lang.IllegalStateException: PRIVATE_SENTINEL token=secret\n'
+                  'com.private.AccountException: PRIVATE_SENTINEL\nFAILURES!!!\n')
+        self.android.output = output
+        with self.assertRaises(ui.GateError) as caught:
+            self.run_probe()
+        self.assertEqual({'last_stage': 'activity_launch', 'exception_types': ['IllegalStateException']},
+                         caught.exception.diagnostics)
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(caught.exception.diagnostics))
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+        self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_nonzero_instrumentation_exit_cannot_pass_even_with_ok_output(self):
+        self.android.instrument_code = 1
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed') as caught:
+            self.run_probe()
+        self.assertEqual('unreported', caught.exception.diagnostics['last_stage'])
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+
+    def test_stderr_only_exception_is_sanitized_without_exporting_messages(self):
+        self.android.instrument_code = 1
+        self.android.output = 'INSTRUMENTATION_STATUS: aqer_ui_stage=ui_automation\n'
+        self.android.stderr = 'java.lang.SecurityException: PRIVATE_SENTINEL token=secret\n'
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed') as caught:
+            self.run_probe()
+        self.assertEqual({'last_stage': 'ui_automation', 'exception_types': ['SecurityException']},
+                         caught.exception.diagnostics)
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(caught.exception.diagnostics))
+
+    def test_timeout_retains_sanitized_last_stage_and_still_restores_network(self):
+        self.android.instrument_timeout = True
+        self.android.output = ('INSTRUMENTATION_STATUS: aqer_ui_stage=first_run_wait\n'
+                               'java.lang.RuntimeException: PRIVATE_SENTINEL\n')
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_timeout') as caught:
+            self.run_probe()
+        self.assertEqual({'last_stage': 'first_run_wait', 'exception_types': ['RuntimeException']},
+                         caught.exception.diagnostics)
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+        self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_failure_report_exports_sanitized_diagnostics_only(self):
+        self.android.output = ('INSTRUMENTATION_STATUS: aqer_ui_stage=frame_write\n'
+                               'java.io.IOException: PRIVATE_SENTINEL\nFAILURES!!!\n')
+        original_probe = ui.probe
+        with patch.object(ui, 'ROOT', self.root), patch.dict(os.environ, self.env), \
+                patch.object(ui, 'probe', side_effect=lambda root, env: original_probe(root, env, self.android)), \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(1, ui.main())
+        report = json.loads((self.root / 'android-ui-evidence/report.json').read_text())
+        self.assertEqual({'last_stage': 'frame_write', 'exception_types': ['IOException']}, report['diagnostics'])
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(report))
+        self.assertEqual({'report.json'}, {p.name for p in (self.root / 'android-ui-evidence').iterdir()})
 
     def test_non_flutter_or_missing_semantics_cannot_pass(self):
         for key, value in [('flutter_view', False), ('nonuniform_frame', False), ('semantic_keys', ['account'])]:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One opt-in, offline release startup check; never a live-UAT acceptance."""
+"""Explicit dispatch/task-branch offline startup; never a live-UAT acceptance."""
 import hashlib
 import json
 import os
@@ -18,10 +18,41 @@ API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 ROOT = Path(__file__).resolve().parents[1]
 LIMITS = ['offline startup only', 'no account or live UAT journey',
           'no handset, FCM, provider, or upgrade acceptance']
+TASK_REPOSITORY = 'JJalal1/real-estate-uat-backend'
+TASK_REF = 'refs/heads/work/phase1-ui-diagnosis-20261102'
 
 
 class GateError(RuntimeError):
     """Only fixed diagnostic codes, never command output or credentials."""
+
+    def __init__(self, code, diagnostics=None):
+        super().__init__(code)
+        self.diagnostics = diagnostics
+
+
+UI_STAGES = frozenset([
+    'target_identity', 'ui_automation', 'activity_launch', 'first_run_wait',
+    'navigation_before_capture', 'frame_capture', 'navigation_after_capture',
+    'frame_validation', 'frame_write', 'observation_report',
+])
+UI_EXCEPTIONS = frozenset([
+    'AssertionError', 'RuntimeException', 'IllegalStateException',
+    'IllegalArgumentException', 'NullPointerException', 'SecurityException',
+    'UnsupportedOperationException', 'TimeoutException',
+    'ClassNotFoundException', 'NoClassDefFoundError', 'UnsatisfiedLinkError',
+    'IOException', 'FileNotFoundException',
+])
+
+
+def instrumentation_diagnostics(output, stderr=None):
+    """Discard all messages, stack frames, UI text and unknown diagnostic values."""
+    def text(value):
+        return value.decode('utf-8', errors='replace') if isinstance(value, bytes) else (value or '')
+    output = text(output) + '\n' + text(stderr)
+    stages = re.findall(r'^INSTRUMENTATION_STATUS: aqer_ui_stage=([a-z_]+)\s*$', output, re.M)
+    classes = re.findall(r'\b(?:java\.(?:lang|io|util\.concurrent)\.)?([A-Z][A-Za-z]+(?:Exception|Error))\b', output)
+    return {'last_stage': next((s for s in reversed(stages) if s in UI_STAGES), 'unreported'),
+            'exception_types': sorted(set(classes) & UI_EXCEPTIONS)}
 
 
 def validate_proof(proof, apk_bytes, source, run_number):
@@ -48,7 +79,7 @@ def validate_badging(badging, package, version=None, release=False):
 def validate_instrumentation(output, version):
     if (not re.search(r'\bOK \(7 tests\)', output) or
             any(s in output for s in ['FAILURES!!!', 'INSTRUMENTATION_FAILED', 'INSTRUMENTATION_ABORTED'])):
-        raise GateError('ui_instrumentation_failed')
+        raise GateError('ui_instrumentation_failed', instrumentation_diagnostics(output))
     rows = re.findall(r'^INSTRUMENTATION_STATUS: aqer_ui_smoke=(\{[^\n]+\})\s*$', output, re.M)
     if len(rows) != 1:
         raise GateError('missing_ui_observation')
@@ -110,7 +141,10 @@ def execute(argv, binary=False, timeout=120):
 
 
 def enabled(env):
-    return (env.get('GITHUB_ACTIONS') == 'true' and env.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' and
+    explicit_activation = (env.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' or
+                           (env.get('GITHUB_EVENT_NAME') == 'push' and
+                            env.get('GITHUB_REPOSITORY') == TASK_REPOSITORY and env.get('GITHUB_REF') == TASK_REF))
+    return (env.get('GITHUB_ACTIONS') == 'true' and explicit_activation and
             env.get('AQER_ANDROID_UI_SMOKE') == 'true')
 
 
@@ -128,10 +162,12 @@ def probe(root, env, run=execute):
     def command(argv, label, binary=False, codes=(0,), timeout=120):
         try:
             result = run([str(a) for a in argv], binary=binary, timeout=timeout)
-        except subprocess.TimeoutExpired:
-            raise GateError(label + '_timeout') from None
+        except subprocess.TimeoutExpired as exc:
+            diagnostic = instrumentation_diagnostics(exc.stdout, exc.stderr) if label == 'ui_instrumentation' else None
+            raise GateError(label + '_timeout', diagnostic) from None
         if result.returncode not in codes:
-            raise GateError(label + '_failed')
+            diagnostic = instrumentation_diagnostics(result.stdout, result.stderr) if label == 'ui_instrumentation' else None
+            raise GateError(label + '_failed', diagnostic)
         return result.stdout if binary else result.stdout.strip()
 
     sdk = Path(env['ANDROID_HOME'])
@@ -175,8 +211,9 @@ def probe(root, env, run=execute):
         for path, package in [(apk, PACKAGE), (tests, TEST_PACKAGE)]:
             adb('install', '-t', str(path), timeout=180)
             installed.append(package)
-        output = adb('shell', 'am', 'instrument', '-w', '-r', '-e', 'class', TEST_CLASS,
-                     TEST_PACKAGE + '/androidx.test.runner.AndroidJUnitRunner', timeout=90)
+        output = command(['adb', '-s', serial, 'shell', 'am', 'instrument', '-w', '-r',
+                          '-e', 'class', TEST_CLASS, TEST_PACKAGE + '/androidx.test.runner.AndroidJUnitRunner'],
+                         'ui_instrumentation', timeout=90)
         seen = validate_instrumentation(output, proof['version_code'])
         png = adb('exec-out', 'cat', SCREENSHOT, binary=True)
         image = validate_png(png)
@@ -205,7 +242,8 @@ def probe(root, env, run=execute):
             except Exception:
                 cleanup_failed = True
     if cleanup_failed:
-        raise GateError((str(failure) + '_and_' if failure else '') + 'cleanup_failed')
+        raise GateError((str(failure) + '_and_' if failure else '') + 'cleanup_failed',
+                        getattr(failure, 'diagnostics', None))
     if failure:
         raise failure
     return result
@@ -224,6 +262,8 @@ def main():
     except Exception as exc:
         report = {'status': 'failed', 'failure': str(exc) if isinstance(exc, GateError) else 'unexpected_error',
                   'scope': 'isolated-offline-release-startup', 'limitations': LIMITS}
+        if isinstance(exc, GateError) and exc.diagnostics is not None:
+            report['diagnostics'] = exc.diagnostics
     (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     # The upload step cannot export a stale directory or evidence from an earlier run.
     if os.environ.get('GITHUB_OUTPUT'):
