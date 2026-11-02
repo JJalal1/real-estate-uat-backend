@@ -86,23 +86,75 @@ public class Phase1UiStartupTest {
         }
     }
 
-    private boolean introductionVisible(AccessibilityNodeInfo root) {
-        for (AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByText(CONTINUE_LABEL)) {
-            if (node.isVisibleToUser()) return true;
+    // The traversal/click algorithm is shared with JVM tests, without Android stubs.
+    interface IntroductionNode {
+        String owner(); CharSequence text(); CharSequence description();
+        boolean visible(); boolean enabled(); boolean clickable(); boolean click();
+        int childCount(); IntroductionNode child(int index); IntroductionNode parent();
+        void recycle();
+    }
+
+    private static final class AndroidIntroductionNode implements IntroductionNode {
+        private final AccessibilityNodeInfo node;
+        AndroidIntroductionNode(AccessibilityNodeInfo node) { this.node = node; }
+        public String owner() { return String.valueOf(node.getPackageName()); }
+        public CharSequence text() { return node.getText(); }
+        public CharSequence description() { return node.getContentDescription(); }
+        public boolean visible() { return node.isVisibleToUser(); }
+        public boolean enabled() { return node.isEnabled(); }
+        public boolean clickable() { return node.isClickable(); }
+        public boolean click() { return node.performAction(AccessibilityNodeInfo.ACTION_CLICK); }
+        public int childCount() { return node.getChildCount(); }
+        public IntroductionNode child(int index) { return wrap(node.getChild(index)); }
+        public IntroductionNode parent() { return wrap(node.getParent()); }
+        public void recycle() { node.recycle(); }
+        private static IntroductionNode wrap(AccessibilityNodeInfo node) {
+            return node == null ? null : new AndroidIntroductionNode(node);
+        }
+    }
+
+    private static boolean clickIntroductionNode(IntroductionNode label) {
+        IntroductionNode current = label;
+        while (current != null) {
+            IntroductionNode parent = null;
+            try {
+                if (!PACKAGE.equals(current.owner()) || !current.visible() || !current.enabled()) return false;
+                if (current.clickable()) return current.click();
+                parent = current.parent();
+            } finally { if (current != label) current.recycle(); }
+            current = parent;
         }
         return false;
     }
 
-    private boolean continueIntroduction(AccessibilityNodeInfo root) {
-        for (AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByText(CONTINUE_LABEL)) {
-            while (node != null && PACKAGE.contentEquals(String.valueOf(node.getPackageName()))) {
-                if (node.isVisibleToUser() && node.isEnabled() && node.isClickable()) {
-                    return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                }
-                node = node.getParent();
+    // Owns root and every acquired child; never uses provider text-search APIs.
+    static boolean visitIntroduction(IntroductionNode root, boolean activate) {
+        ArrayDeque<IntroductionNode> pending = new ArrayDeque<>();
+        pending.add(root);
+        try {
+            while (!pending.isEmpty()) {
+                IntroductionNode node = pending.removeFirst();
+                try {
+                    boolean label = CONTINUE_LABEL.equals(String.valueOf(node.text()).trim())
+                            || CONTINUE_LABEL.equals(String.valueOf(node.description()).trim());
+                    if (PACKAGE.equals(node.owner()) && node.visible() && label
+                            && (!activate || clickIntroductionNode(node))) return true;
+                    for (int i = 0; i < node.childCount(); i++) {
+                        IntroductionNode child = node.child(i);
+                        if (child != null) pending.add(child);
+                    }
+                } finally { node.recycle(); }
             }
-        }
-        return false;
+            return false;
+        } finally { while (!pending.isEmpty()) pending.removeFirst().recycle(); }
+    }
+
+    private boolean introductionVisible(AccessibilityNodeInfo root) {
+        return visitIntroduction(new AndroidIntroductionNode(AccessibilityNodeInfo.obtain(root)), false);
+    }
+
+    private boolean continueIntroduction(AccessibilityNodeInfo root) {
+        return visitIntroduction(new AndroidIntroductionNode(AccessibilityNodeInfo.obtain(root)), true);
     }
 
     private boolean navigationVisible(Instrumentation instrumentation, Activity activity, AccessibilityNodeInfo root) {

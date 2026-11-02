@@ -46,7 +46,7 @@ def validate_badging(badging, package, version=None, release=False):
 
 
 def validate_instrumentation(output, version):
-    if (not re.search(r'\bOK \(4 tests\)', output) or
+    if (not re.search(r'\bOK \(7 tests\)', output) or
             any(s in output for s in ['FAILURES!!!', 'INSTRUMENTATION_FAILED', 'INSTRUMENTATION_ABORTED'])):
         raise GateError('ui_instrumentation_failed')
     rows = re.findall(r'^INSTRUMENTATION_STATUS: aqer_ui_smoke=(\{[^\n]+\})\s*$', output, re.M)

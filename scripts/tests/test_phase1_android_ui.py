@@ -35,7 +35,7 @@ def observation():
 
 
 def instrument_output(seen=None):
-    return 'INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(seen or observation()) + '\nOK (4 tests)\n'
+    return 'INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(seen or observation()) + '\nOK (7 tests)\n'
 
 
 class FakeAndroid:
