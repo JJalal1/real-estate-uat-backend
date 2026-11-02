@@ -11,7 +11,8 @@ import zlib
 
 PACKAGE = 'com.aqer.yemen.uat'
 TEST_PACKAGE = PACKAGE + '.test'
-TEST_CLASS = 'com.example.real_estate_mobile.Phase1UiStartupTest'
+TEST_CLASS = ('com.example.real_estate_mobile.Phase1FirstRunReadinessTest,'
+              'com.example.real_estate_mobile.Phase1UiStartupTest')
 SCREENSHOT = '/data/user/0/' + PACKAGE + '/cache/phase1-ui-startup.png'
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,7 +46,7 @@ def validate_badging(badging, package, version=None, release=False):
 
 
 def validate_instrumentation(output, version):
-    if (not re.search(r'\bOK \(1 test\)', output) or
+    if (not re.search(r'\bOK \(4 tests\)', output) or
             any(s in output for s in ['FAILURES!!!', 'INSTRUMENTATION_FAILED', 'INSTRUMENTATION_ABORTED'])):
         raise GateError('ui_instrumentation_failed')
     rows = re.findall(r'^INSTRUMENTATION_STATUS: aqer_ui_smoke=(\{[^\n]+\})\s*$', output, re.M)
@@ -54,6 +55,7 @@ def validate_instrumentation(output, version):
     observation = json.loads(rows[0])
     if (observation.get('package') != PACKAGE or observation.get('version_code') != version or
             observation.get('flutter_view') is not True or observation.get('nonuniform_frame') is not True or
+            any(observation.get(key) is not True for key in ['first_run_continued', 'navigation_stable', 'capture_rechecked']) or
             observation.get('semantic_keys') != ['marketplace', 'account']):
         raise GateError('flutter_ui_not_observed')
     return observation
@@ -185,6 +187,7 @@ def probe(root, env, run=execute):
                    'apk_sha256': proof['sha256'], 'certificate_sha256': proof['certificate_sha256'],
                    'android_api': 36, 'serial': serial, 'ipv4_ipv6_egress_rejected': True,
                    'flutter_view': True, 'semantic_keys': ['marketplace', 'account'], 'image': image,
+                   'first_run_continued': True, 'navigation_stable': True, 'capture_rechecked': True,
                    'limitations': LIMITS}, png)
     except Exception as exc:
         failure = exc if isinstance(exc, GateError) else GateError('unexpected_probe_error')

@@ -30,11 +30,12 @@ def png(raw=b'\x00\x11\x22\x33'):
 
 def observation():
     return {'package': ui.PACKAGE, 'version_code': VERSION, 'flutter_view': True,
+            'first_run_continued': True, 'navigation_stable': True, 'capture_rechecked': True,
             'nonuniform_frame': True, 'semantic_keys': ['marketplace', 'account'], 'width': 1, 'height': 1}
 
 
 def instrument_output(seen=None):
-    return 'INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(seen or observation()) + '\nOK (1 test)\n'
+    return 'INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(seen or observation()) + '\nOK (4 tests)\n'
 
 
 class FakeAndroid:
@@ -172,6 +173,15 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         seen = observation(); seen['semantic_keys'] = reported
         ui.validate_instrumentation(instrument_output(seen), VERSION)
 
+    def test_first_run_stability_and_capture_witnesses_cannot_be_missing(self):
+        for key in ['first_run_continued', 'navigation_stable', 'capture_rechecked']:
+            for missing in [False, True]:
+                seen = observation()
+                if missing: seen.pop(key)
+                else: seen[key] = False
+                with self.subTest(key=key, missing=missing), self.assertRaisesRegex(ui.GateError, 'flutter_ui_not_observed'):
+                    ui.validate_instrumentation(instrument_output(seen), VERSION)
+
     def test_truncated_png_and_bad_crc_and_wrong_scanlines_are_rejected(self):
         valid = png()
         for damaged in [valid[:-12], valid[:40] + bytes([valid[40] ^ 1]) + valid[41:], png(b'\x00')]:
@@ -194,6 +204,8 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         report, image = self.run_probe()
         self.assertEqual('isolated-offline-release-startup', report['scope'])
         self.assertTrue(report['ipv4_ipv6_egress_rejected'])
+        for key in ['first_run_continued', 'navigation_stable', 'capture_rechecked']:
+            self.assertTrue(report[key])
         self.assertEqual(['marketplace', 'account'], report['semantic_keys'])
         self.assertEqual(png(), image)
         self.assertNotIn('accessibility_tree', report)
