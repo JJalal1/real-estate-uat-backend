@@ -12,6 +12,13 @@ def aqerKeyPassword = System.getenv("AQER_RELEASE_KEY_PASSWORD")
 def aqerAllowDebugRelease = (System.getenv("AQER_ALLOW_DEBUG_RELEASE_SIGNING") ?: "false").toBoolean()
 def aqerHasReleaseSigning = [aqerStoreFile, aqerStorePassword, aqerKeyAlias, aqerKeyPassword].every { it != null && !it.trim().isEmpty() }
 def aqerBuildingRelease = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
+// CI-only: assemble instrumentation against the same shrunk release target.
+// Keep the ordinary debug push-test variant unchanged when this is false.
+def aqerReleaseUiTest = (System.getenv('AQER_PHASE1_RELEASE_UI_TEST') ?: 'false').toBoolean()
+if (aqerReleaseUiTest && (System.getenv('GITHUB_ACTIONS') != 'true' ||
+        !gradle.startParameter.taskNames.any { it == 'assembleUatRelease' || it == 'app:assembleUatRelease' || it == ':app:assembleUatRelease' })) {
+    throw new GradleException('Phase1 release instrumentation requires the explicit CI UAT release task.')
+}
 def aqerPushEnabled = (project.findProperty("AQER_PUSH_ENABLED") ?: System.getenv("AQER_PUSH_ENABLED") ?: "false").toBoolean()
 def aqerFirebaseApiKey = project.findProperty("AQER_FIREBASE_API_KEY") ?: System.getenv("AQER_FIREBASE_API_KEY") ?: ""
 def aqerFirebaseAppId = project.findProperty("AQER_FIREBASE_APP_ID") ?: System.getenv("AQER_FIREBASE_APP_ID") ?: ""
@@ -51,6 +58,7 @@ if (aqerUatClientEnabled && (aqerUatFirebase.getProperty('aqer.uat.firebase.proj
 }
 
 android {
+    if (aqerReleaseUiTest) testBuildType 'release'
     namespace = "com.example.real_estate_mobile"
     // Google Play new-app submissions require API 36 as of 2026-08-31.
     compileSdk = 36
@@ -78,7 +86,7 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        testInstrumentationRunner = aqerReleaseUiTest ? 'com.example.real_estate_mobile.Phase1UiInstrumentation' : 'androidx.test.runner.AndroidJUnitRunner'
         manifestPlaceholders["aqerAppLinkHost"] = project.findProperty("AQER_APP_LINK_HOST") ?: "real-estate-uat-api-frankfurt.onrender.com"
         manifestPlaceholders["aqerAppLinkAutoVerify"] = project.findProperty("AQER_APP_LINK_AUTO_VERIFY") ?: "false"
         buildConfigField "boolean", "AQER_PUSH_ENABLED", aqerPushEnabled.toString()
@@ -133,6 +141,14 @@ android {
                 )
             }
         }
+    }
+}
+
+if (aqerReleaseUiTest) {
+    // The Flutter invocation supplies its exact version, Dart defines and ABIs.
+    // A later bare Gradle invocation could rebuild a different release target.
+    tasks.configureEach { task ->
+        if (task.name == 'assembleUatRelease') task.finalizedBy('assembleUatReleaseAndroidTest')
     }
 }
 

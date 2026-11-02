@@ -30,12 +30,14 @@ def png(raw=b'\x00\x11\x22\x33'):
 
 def observation():
     return {'package': ui.PACKAGE, 'version_code': VERSION, 'flutter_view': True,
+            'flutter_view_runtime_class': ui.FLUTTER_VIEW_CLASS,
             'first_run_continued': True, 'navigation_stable': True, 'capture_rechecked': True,
             'nonuniform_frame': True, 'semantic_keys': ['marketplace', 'account'], 'width': 1, 'height': 1}
 
 
 def instrument_output(seen=None):
-    return 'INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(seen or observation()) + '\nOK (7 tests)\n'
+    return ('INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(seen or observation()) +
+            '\nINSTRUMENTATION_STATUS: aqer_junit={"run":7,"failures":0,"ignored":0,"assumptions":0}\nOK (7 tests)\n')
 
 
 class FakeAndroid:
@@ -49,6 +51,11 @@ class FakeAndroid:
         self.preinstalled = False
         self.fail_cleanup = False
         self.bad_signer = False
+        self.instrument_code = 0
+        self.instrument_timeout = False
+        self.stderr = ''
+        self.crash = ''
+        self.fail_crash_diagnostic = False
 
     def __call__(self, argv, binary=False, timeout=120):
         self.calls.append(argv)
@@ -69,10 +76,15 @@ class FakeAndroid:
                 code, out = (0, 'package:/data/app/old.apk') if self.preinstalled else (1, '')
             elif '-C' in args: code = 1
             elif self.fail_ipv6 and args[:3] == ['shell', 'ip6tables', '-I']: code = 2
-            elif args[:3] == ['shell', 'am', 'instrument']: out = self.output
+            elif args[:3] == ['shell', 'am', 'instrument']:
+                if self.instrument_timeout:
+                    raise subprocess.TimeoutExpired(argv, timeout, output=self.output.encode(), stderr=self.stderr.encode())
+                code, out = self.instrument_code, self.output
             elif args[:2] == ['exec-out', 'cat']: out = self.image
+            elif args == ['logcat', '-d', '-b', 'crash', '-v', 'brief']:
+                code, out = (1 if self.fail_crash_diagnostic else 0), self.crash
             elif self.fail_cleanup and args[0] == 'uninstall': code = 1
-        return subprocess.CompletedProcess(argv, code, out, '')
+        return subprocess.CompletedProcess(argv, code, out, self.stderr)
 
 
 class ReleaseStartupSafetyTest(unittest.TestCase):
@@ -81,12 +93,23 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         (self.root / 'dist').mkdir()
-        (self.root / 'android-push-tests').mkdir()
+        (self.root / 'android-release-tests').mkdir()
         (self.root / 'sdk/build-tools/36.0.0').mkdir(parents=True)
         (self.root / 'sdk/build-tools/36.0.0/apksigner').touch()
         self.apk = b'synthetic APK process-boundary fixture'
         (self.root / 'dist/real-estate-broker-uat-449.apk').write_bytes(self.apk)
-        (self.root / 'android-push-tests/tests.apk').write_bytes(b'synthetic test package')
+        test_apk = b'synthetic test package'
+        (self.root / 'android-release-tests/tests.apk').write_bytes(test_apk)
+        mapping = (ui.FLUTTER_VIEW_CLASS + ' -> ' + ui.FLUTTER_VIEW_CLASS + ':\n').encode()
+        (self.root / 'android-release-tests/app-mapping.txt').write_bytes(mapping)
+        (self.root / 'android-release-tests/PAIR_VERIFICATION.json').write_text(json.dumps({
+            'source_commit': SOURCE, 'variant': 'uatReleaseAndroidTest',
+            'runner': ui.TEST_RUNNER,
+            'flutter_view_original_class': ui.FLUTTER_VIEW_CLASS,
+            'flutter_view_runtime_class': ui.FLUTTER_VIEW_CLASS,
+            'mapping_sha256': ui.hashlib.sha256(mapping).hexdigest(),
+            'release_sha256': ui.hashlib.sha256(self.apk).hexdigest(),
+            'tests_sha256': ui.hashlib.sha256(test_apk).hexdigest()}))
         self.proof = {'source_commit': SOURCE, 'package': ui.PACKAGE, 'api': ui.API,
                       'version_code': VERSION, 'package_role': 'current-uat', 'zip_crc': 'passed',
                       'apksigner': 'passed', 'native_16kb_elf': 'passed', 'zipalign_16kb': 'passed',
@@ -110,6 +133,20 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
                 with self.assertRaisesRegex(ui.GateError, 'manual_opt_in_required'): self.run_probe()
         self.assertEqual([], self.android.calls)
 
+    def test_owner_authorized_task_push_is_exactly_scoped(self):
+        self.env.update(GITHUB_EVENT_NAME='push', GITHUB_REPOSITORY=ui.TASK_REPOSITORY, GITHUB_REF=ui.TASK_REF)
+        report, _ = self.run_probe()
+        self.assertEqual('passed', report['status'])
+        for key, value in [('GITHUB_REPOSITORY', ''), ('GITHUB_REPOSITORY', 'fork/real-estate-uat-backend'),
+                           ('GITHUB_REF', ''), ('GITHUB_REF', 'refs/heads/main'),
+                           ('GITHUB_REF', ui.TASK_REF + '-other'), ('GITHUB_REF', 'refs/pull/1/merge'),
+                           ('GITHUB_EVENT_NAME', 'pull_request'), ('AQER_ANDROID_UI_SMOKE', 'false')]:
+            self.android.calls.clear()
+            with self.subTest(key=key, value=value), patch.dict(self.env, {key: value}):
+                with self.assertRaisesRegex(ui.GateError, 'manual_opt_in_required'):
+                    self.run_probe()
+            self.assertEqual([], self.android.calls)
+
     def test_wrong_source_predecessor_and_endpoint_never_reach_android(self):
         for key, value in [('source_commit', 'c' * 40), ('package_role', 'upgrade-predecessor-same-source'),
                            ('api', 'http://10.0.2.2/api'), ('version_code', VERSION - 1)]:
@@ -127,6 +164,78 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(ui.GateError, 'debug_apk'):
             ui.validate_badging(f"package: name='{ui.PACKAGE}' versionCode='{VERSION}'\napplication-debuggable\n",
                                 ui.PACKAGE, VERSION, release=True)
+
+    def test_changed_test_apk_or_debug_pair_cannot_reach_android(self):
+        pair_file = self.root / 'android-release-tests/PAIR_VERIFICATION.json'
+        pair = json.loads(pair_file.read_text())
+        for key, value in [('source_commit', 'c' * 40), ('variant', 'uatDebugAndroidTest'), ('runner', 'other.Runner'),
+                           ('release_sha256', 'c' * 64), ('tests_sha256', 'c' * 64)]:
+            with self.subTest(key=key):
+                pair_file.write_text(json.dumps({**pair, key: value}))
+                with self.assertRaisesRegex(ui.GateError, 'release_test_pair_identity_mismatch'):
+                    self.run_probe()
+        self.assertEqual([], self.android.calls)
+
+    def test_missing_duplicate_skipped_assumed_or_failed_junit_cases_cannot_pass(self):
+        good = {'run': 7, 'failures': 0, 'ignored': 0, 'assumptions': 0}
+        for counts in [None, {**good, 'run': 6}, {**good, 'failures': 1}, {**good, 'ignored': 1},
+                       {**good, 'assumptions': 1}, {**good, 'failures': False}]:
+            output = 'INSTRUMENTATION_STATUS: aqer_ui_smoke=' + json.dumps(observation()) + '\nOK (7 tests)\n'
+            if counts is not None:
+                output += 'INSTRUMENTATION_STATUS: aqer_junit=' + json.dumps(counts) + '\n'
+            with self.subTest(counts=counts), self.assertRaises(ui.GateError):
+                ui.validate_instrumentation(output, VERSION)
+        output = instrument_output() + 'INSTRUMENTATION_STATUS: aqer_junit=' + json.dumps(good) + '\n'
+        with self.assertRaisesRegex(ui.GateError, 'missing_junit_counts'):
+            ui.validate_instrumentation(output, VERSION)
+
+    def test_mapping_must_have_one_exact_original_type_and_a_java_alias(self):
+        original = ui.FLUTTER_VIEW_CLASS
+        valid = original + ' -> a.b:\n'
+        self.assertEqual('a.b', ui.flutter_view_class_from_mapping(valid))
+        for invalid in ['', valid + valid, original + 'Extra -> a.b:\n',
+                        original + ' -> PRIVATE SENTINEL:\n', original + ' -> a..b:\n',
+                        original + ' -> a/b:\n', original + ' -> a.b']:
+            with self.subTest(mapping=invalid), self.assertRaises(ui.GateError):
+                ui.flutter_view_class_from_mapping(invalid)
+
+    def test_wrong_or_changed_mapping_stops_before_android(self):
+        path = self.root / 'android-release-tests/PAIR_VERIFICATION.json'
+        pair = json.loads(path.read_text())
+        for key, value in [('mapping_sha256', 'f' * 64), ('flutter_view_original_class', 'android.view.View'),
+                           ('flutter_view_runtime_class', 'android.widget.FrameLayout')]:
+            path.write_text(json.dumps({**pair, key: value}))
+            with self.subTest(key=key), self.assertRaisesRegex(ui.GateError, 'mapping_identity_mismatch'):
+                self.run_probe()
+        self.assertEqual([], self.android.calls)
+
+    def test_validated_mapped_type_is_passed_and_must_be_observed_exactly(self):
+        path = self.root / 'android-release-tests/PAIR_VERIFICATION.json'
+        pair = json.loads(path.read_text())
+        mapping = (ui.FLUTTER_VIEW_CLASS + ' -> a.b:\n').encode()
+        (path.parent / 'app-mapping.txt').write_bytes(mapping)
+        pair.update(flutter_view_runtime_class='a.b', mapping_sha256=ui.hashlib.sha256(mapping).hexdigest())
+        path.write_text(json.dumps(pair))
+        self.android.output = instrument_output({**observation(), 'flutter_view_runtime_class': 'a.b'})
+        report, _ = self.run_probe()
+        self.assertEqual('a.b', report['flutter_view_runtime_class'])
+        call = next(c for c in self.android.calls if c[3:6] == ['shell', 'am', 'instrument'])
+        index = call.index('aqer_flutter_view_class')
+        self.assertEqual('a.b', call[index + 1])
+        with self.assertRaisesRegex(ui.GateError, 'flutter_ui_not_observed'):
+            ui.validate_instrumentation(instrument_output(), VERSION, 'a.b')
+
+    def test_readiness_diagnostics_export_only_fixed_boolean_and_integer_fields(self):
+        valid = {'continued': True, 'introduction_seen': True, 'introduction_visible_last': False,
+                 'root_owned_seen': True, 'flutter_view_seen': False, 'marketplace_seen': True,
+                 'account_seen': True, 'navigation_samples': 0}
+        prefix = 'INSTRUMENTATION_STATUS: aqer_ui_readiness='
+        self.assertEqual(valid, ui.instrumentation_diagnostics(prefix + json.dumps(valid))['aqer_ui_readiness'])
+        for wrong in [{**valid, 'PRIVATE_SENTINEL': 'secret'}, {**valid, 'continued': 'PRIVATE_SENTINEL'},
+                      {**valid, 'navigation_samples': False}, {**valid, 'navigation_samples': 201}]:
+            result = ui.instrumentation_diagnostics(prefix + json.dumps(wrong))
+            self.assertNotIn('aqer_ui_readiness', result)
+            self.assertNotIn('PRIVATE_SENTINEL', json.dumps(result))
 
     def test_unversioned_instrumentation_manifest_keeps_exact_package_check(self):
         # Official aapt 36 emits empty versions for an unversioned test manifest.
@@ -167,6 +276,103 @@ class ReleaseStartupSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed'): self.run_probe()
         self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
         self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_diagnostics_keep_only_fixed_stages_and_exception_types(self):
+        output = ('INSTRUMENTATION_STATUS: aqer_ui_stage=target_identity\n'
+                  'INSTRUMENTATION_STATUS: aqer_ui_stage=activity_launch\n'
+                  'INSTRUMENTATION_STATUS: aqer_ui_stage=private_account_text\n'
+                  'java.lang.IllegalStateException: PRIVATE_SENTINEL token=secret\n'
+                  'com.private.AccountException: PRIVATE_SENTINEL\nFAILURES!!!\n')
+        self.android.output = output
+        with self.assertRaises(ui.GateError) as caught:
+            self.run_probe()
+        self.assertEqual({'last_stage': 'activity_launch', 'exception_types': ['IllegalStateException'],
+                          'signals': ['junit_failed']},
+                         caught.exception.diagnostics)
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(caught.exception.diagnostics))
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+        self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_nonzero_instrumentation_exit_cannot_pass_even_with_ok_output(self):
+        self.android.instrument_code = 1
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed') as caught:
+            self.run_probe()
+        self.assertEqual('unreported', caught.exception.diagnostics['last_stage'])
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+
+    def test_stderr_only_exception_is_sanitized_without_exporting_messages(self):
+        self.android.instrument_code = 1
+        self.android.output = 'INSTRUMENTATION_STATUS: aqer_ui_stage=ui_automation\n'
+        self.android.stderr = 'java.lang.SecurityException: PRIVATE_SENTINEL token=secret\n'
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed') as caught:
+            self.run_probe()
+        self.assertEqual({'last_stage': 'ui_automation', 'exception_types': ['SecurityException']},
+                         caught.exception.diagnostics)
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(caught.exception.diagnostics))
+
+    def test_timeout_retains_sanitized_last_stage_and_still_restores_network(self):
+        self.android.instrument_timeout = True
+        self.android.output = ('INSTRUMENTATION_STATUS: aqer_ui_stage=first_run_wait\n'
+                               'java.lang.RuntimeException: PRIVATE_SENTINEL\n')
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_timeout') as caught:
+            self.run_probe()
+        self.assertEqual({'last_stage': 'first_run_wait', 'exception_types': ['RuntimeException']},
+                         caught.exception.diagnostics)
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+        self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_failure_report_exports_sanitized_diagnostics_only(self):
+        self.android.output = ('INSTRUMENTATION_STATUS: aqer_ui_stage=frame_write\n'
+                               'java.io.IOException: PRIVATE_SENTINEL\nFAILURES!!!\n')
+        original_probe = ui.probe
+        with patch.object(ui, 'ROOT', self.root), patch.dict(os.environ, self.env), \
+                patch.object(ui, 'probe', side_effect=lambda root, env: original_probe(root, env, self.android)), \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(1, ui.main())
+        report = json.loads((self.root / 'android-ui-evidence/report.json').read_text())
+        self.assertEqual({'last_stage': 'frame_write', 'exception_types': ['IOException'],
+                          'signals': ['junit_failed']}, report['diagnostics'])
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(report))
+        self.assertEqual({'report.json'}, {p.name for p in (self.root / 'android-ui-evidence').iterdir()})
+
+    def test_runner_process_crash_retains_only_missing_compiled_class_and_types(self):
+        self.android.output = 'INSTRUMENTATION_RESULT: shortMsg=Process crashed.\n'
+        self.android.crash = ('java.lang.NoClassDefFoundError: Failed resolution of: Landroidx/tracing/Trace;\n'
+                              'java.lang.ClassNotFoundException: Didn\'t find class "androidx.tracing.Trace" '
+                              'on path /data/private/PRIVATE_SENTINEL\n'
+                              'Didn\'t find class "private.AccountSecret"\n')
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed') as caught:
+            self.run_probe()
+        self.assertEqual(['process_crashed'], caught.exception.diagnostics['signals'])
+        self.assertEqual({'last_stage': 'unreported',
+                          'exception_types': ['ClassNotFoundException', 'NoClassDefFoundError'],
+                          'missing_classes': ['androidx.tracing.Trace'],
+                          'signals': ['unclassified_missing_class']},
+                         caught.exception.diagnostics['fresh_runtime_crash'])
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(caught.exception.diagnostics))
+        self.assertNotIn('AccountSecret', json.dumps(caught.exception.diagnostics))
+        clear = next(i for i, c in enumerate(self.android.calls) if c[3:] == ['logcat', '-b', 'crash', '-c'])
+        instrument = next(i for i, c in enumerate(self.android.calls) if c[3:6] == ['shell', 'am', 'instrument'])
+        self.assertLess(clear, instrument)
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+        self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_unavailable_crash_diagnostic_keeps_original_failure_and_cleanup(self):
+        self.android.output = 'INSTRUMENTATION_RESULT: shortMsg=Process crashed.\n'
+        self.android.fail_crash_diagnostic = True
+        with self.assertRaisesRegex(ui.GateError, 'ui_instrumentation_failed') as caught:
+            self.run_probe()
+        self.assertTrue(caught.exception.diagnostics['runtime_diagnostics_unavailable'])
+        self.assertEqual(2, sum('uninstall' in c for c in self.android.calls))
+        self.assertEqual(2, sum('-D' in c for c in self.android.calls))
+
+    def test_allowlisted_namespace_is_not_enough_to_export_arbitrary_class_text(self):
+        output = ('Didn\'t find class "androidx.PRIVATE_SENTINEL"\n'
+                  'Failed resolution of: Lio/flutter/PRIVATE_SENTINEL;\n')
+        diagnostic = ui.instrumentation_diagnostics(output)
+        self.assertEqual({'last_stage': 'unreported', 'exception_types': [],
+                          'signals': ['unclassified_missing_class']}, diagnostic)
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(diagnostic))
 
     def test_non_flutter_or_missing_semantics_cannot_pass(self):
         for key, value in [('flutter_view', False), ('nonuniform_frame', False), ('semantic_keys', ['account'])]:

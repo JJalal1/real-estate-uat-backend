@@ -54,6 +54,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   bool _locationBusy = false;
   final _feedScroll = ScrollController();
   bool _openingSearch = false;
+  int _openingEpoch = 0;
   @override
   void dispose() { _feedScroll.dispose(); super.dispose(); }
   HomeFeedQuery get _query {
@@ -104,25 +105,34 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     else if (choice == 'device') { await _tryDeviceLocation(prompt: true); }
   }
 
-  Future<void> _openSearch({bool filters = false}) async {
+  Future<void> _pushHomeRoute(String location, VoidCallback prepare) async {
     if (_openingSearch) return;
     _openingSearch = true;
-    ref.read(marketplaceSearchControllerProvider.notifier).begin();
-    try { await context.push(filters ? '/marketplace-search?filters=1' : '/marketplace-search'); }
-    finally { _openingSearch = false; }
+    final epoch = ++_openingEpoch;
+    void release() { if (epoch == _openingEpoch) _openingSearch = false; }
+    try {
+      prepare();
+      final navigation = context.push<void>(location);
+      // A platform deep link can replace a pushed page without completing its
+      // pop Future. Guard duplicate entry only until the first pushed frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) => release());
+      await navigation;
+    } finally { release(); }
   }
 
-  Future<void> _openMap() async {
-    if (_openingSearch) return;
-    _openingSearch = true;
-    FocusScope.of(context).unfocus();
-    final controller = ref.read(marketplaceSearchControllerProvider.notifier);
-    controller.enterMap();
+  Future<void> _openSearch({bool filters = false}) => _pushHomeRoute(
+    filters ? '/marketplace-search?filters=1' : '/marketplace-search',
+    () => ref.read(marketplaceSearchControllerProvider.notifier).begin());
+
+  Future<void> _openMap() {
     final place = ref.read(homeLocationProvider);
-    try { await context.push(Uri(path: '/marketplace-search-map', queryParameters: {
+    return _pushHomeRoute(Uri(path: '/marketplace-search-map', queryParameters: {
       if (place.manual) ...{'lat': '${place.latitude}', 'lon': '${place.longitude}',
         if (place.governorate != null) 'governorate': place.governorate!},
-    }).toString()); } finally { _openingSearch = false; }
+    }).toString(), () {
+      FocusScope.of(context).unfocus();
+      ref.read(marketplaceSearchControllerProvider.notifier).enterMap();
+    });
   }
   void _section(String section,String? governorate) {
     final location=ref.read(homeLocationProvider);

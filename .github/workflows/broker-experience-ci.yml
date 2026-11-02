@@ -1,7 +1,9 @@
 name: Broker Experience CI
 on:
   push:
-    branches: [work/wave01-complete-*, work/wave01-delivery-*, work/map-dynamic-filters-*, work/wave3-search-only-delivery-*, work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1, work/wave2-brand-trust-account, work/wave2-review-current, work/1123-release-readiness, work/phase1-publication-clean-20261101]
+    # Owner-authorized diagnostic task only; remove before any product merge.
+    # All other branch activation and manual dispatch defaults remain unchanged.
+    branches: [work/phase1-ui-diagnosis-20261102, work/wave01-complete-*, work/wave01-delivery-*, work/map-dynamic-filters-*, work/wave3-search-only-delivery-*, work/broker-experience-v1, work/wave4-baseline-1039, work/wave5-baseline-1049, work/broker-ai-assistant-v1, work/voice-reference-v1, work/active-wave-v2, work/wave6-current-1069, work/current-wave-1076, work/search-query-wave-1081, work/listing-design-1087, work/template-creation-menu, work/listing-flow-1092, work/compact-cards-email-login, work/new-wave-1102, work/user-work-media-batch1, work/wave2-brand-trust-account, work/wave2-review-current, work/1123-release-readiness, work/phase1-publication-clean-20261101]
   pull_request:
     branches: [work/wave2-review-current, work/owner-ux-wave-20261027, work/wave1-experience-20261028, work/wave2-home-search-20261028, work/branch2-*]
     paths:
@@ -25,8 +27,8 @@ concurrency:
 env:
   SOURCE_COMMIT: ${{ github.sha }}
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
-  AQER_ANDROID_UI_SMOKE: ${{ github.event_name == 'workflow_dispatch' && inputs.phase1_ui_smoke == true }}
-  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' || startsWith(github.head_ref, 'work/branch2-') || startsWith(github.head_ref, 'work/wave3-search-only-') || startsWith(github.ref_name, 'work/wave3-search-only-delivery-') || startsWith(github.ref_name, 'work/map-dynamic-filters-') || startsWith(github.ref_name, 'work/wave01-') || startsWith(github.head_ref, 'work/wave01-') || github.ref_name == 'work/phase1-publication-clean-20261101' || github.head_ref == 'work/phase1-publication-clean-20261101' || (github.event_name == 'workflow_dispatch' && inputs.phase1_ui_smoke == true) }}
+  AQER_ANDROID_UI_SMOKE: ${{ (github.event_name == 'workflow_dispatch' && inputs.phase1_ui_smoke == true) || (github.event_name == 'push' && github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-ui-diagnosis-20261102') }}
+  OWNER_UPGRADE_PAIR: ${{ github.head_ref == 'work/owner-acceptance-final-20261026' || github.head_ref == 'work/phase32-owner-uat-20261026' || github.head_ref == 'work/owner-ux-wave-20261027' || github.head_ref == 'work/wave1-experience-20261028' || github.head_ref == 'work/wave2-home-search-20261028' || startsWith(github.head_ref, 'work/branch2-') || startsWith(github.head_ref, 'work/wave3-search-only-') || startsWith(github.ref_name, 'work/wave3-search-only-delivery-') || startsWith(github.ref_name, 'work/map-dynamic-filters-') || startsWith(github.ref_name, 'work/wave01-') || startsWith(github.head_ref, 'work/wave01-') || github.ref_name == 'work/phase1-publication-clean-20261101' || github.head_ref == 'work/phase1-publication-clean-20261101' || (github.event_name == 'workflow_dispatch' && inputs.phase1_ui_smoke == true) || (github.event_name == 'push' && github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-ui-diagnosis-20261102') }}
 jobs:
   source:
     name: Tracked source checkpoint
@@ -252,7 +254,7 @@ jobs:
           channel: stable
           cache: true
       - name: Offline release UI probe safety tests
-        run: python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_android_ui.py' -v
+        run: python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_*.py' -v
       - name: Resolve original locked packages
         working-directory: mobile_app
         run: |
@@ -262,6 +264,18 @@ jobs:
           flutter pub get --enforce-lockfile
       - name: Ensure original dependency declaration is unchanged
         run: git diff --exit-code -- mobile_app/pubspec.yaml
+      - name: Retained Home navigation specific RED and GREEN control
+        id: navigation_control
+        if: ${{ env.AQER_ANDROID_UI_SMOKE == 'true' }}
+        run: python3 -B scripts/check_phase1_navigation_regression.py
+      - name: Upload navigation control receipt only
+        if: ${{ !cancelled() && env.AQER_ANDROID_UI_SMOKE == 'true' && steps.navigation_control.outputs.phase1_navigation_evidence == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-navigation-control-${{ github.run_id }}
+          path: phase1-navigation-control/report.json
+          retention-days: 3
+          if-no-files-found: error
       - name: Static analysis with exact original INFO baseline
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
@@ -324,7 +338,7 @@ jobs:
         if: ${{ !cancelled() && steps.ui_preview_artifact.outcome == 'failure' }}
         run: python3 -B scripts/emit_ci_ui_previews.py
       - name: Full Flutter regression
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && (env.AQER_ANDROID_UI_SMOKE != 'true' || steps.navigation_control.outcome == 'success') }}
         id: flutter_regression
         working-directory: mobile_app
         shell: bash
@@ -351,7 +365,7 @@ jobs:
           python3 -m unittest discover -s scripts/tests -p 'test_uat_firebase_configuration.py' -v
           python3 scripts/import_ci_uat_firebase.py
       - name: Build same-source UAT upgrade predecessor with this job's signing key
-        if: ${{ !cancelled() && env.OWNER_UPGRADE_PAIR == 'true' && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
+        if: ${{ !cancelled() && (env.AQER_ANDROID_UI_SMOKE != 'true' || steps.navigation_control.outcome == 'success') && env.OWNER_UPGRADE_PAIR == 'true' && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
         working-directory: mobile_app
         env:
           AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
@@ -363,18 +377,49 @@ jobs:
           sha256sum ../dist/uat-upgrade-predecessor.apk > ../dist/UPGRADE_PREDECESSOR_SHA256.txt
       - name: Build tested broker UAT APK
         id: build_apk
-        if: ${{ !cancelled() && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
+        if: ${{ !cancelled() && (env.AQER_ANDROID_UI_SMOKE != 'true' || steps.navigation_control.outcome == 'success') && steps.compiled_environment.conclusion == 'success' && steps.flutter_regression.conclusion == 'success' && steps.stage1_ui.conclusion == 'success' }}
         working-directory: mobile_app
         # This job builds the disposable UAT package only. Production signing
         # remains mandatory for any release without this explicit opt-in.
         env:
           AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
-        run: >-
-          flutter build apk --flavor uat --release
-          --build-number=$((1000 + GITHUB_RUN_NUMBER))
-          --dart-define=APP_BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER))
-          --dart-define=APP_ENVIRONMENT=uat
-          --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+          AQER_PHASE1_RELEASE_UI_TEST: ${{ env.AQER_ANDROID_UI_SMOKE }}
+        run: |
+          set -euo pipefail
+          if [ "$AQER_PHASE1_RELEASE_UI_TEST" = 'true' ]; then
+            (cd android && ./gradlew app:assembleUatRelease --dry-run --console=plain > "$RUNNER_TEMP/aqer-release-ui-graph.txt")
+            python3 ../scripts/verify_phase1_release_test_graph.py "$RUNNER_TEMP/aqer-release-ui-graph.txt"
+          fi
+          flutter build apk --flavor uat --release \
+            --build-number=$((1000 + GITHUB_RUN_NUMBER)) \
+            --dart-define=APP_BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER)) \
+            --dart-define=APP_ENVIRONMENT=uat \
+            --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
+          if [ "$AQER_PHASE1_RELEASE_UI_TEST" = 'true' ]; then
+            mkdir -p ../android-release-tests
+            cp build/app/outputs/apk/androidTest/uat/release/app-uat-release-androidTest.apk ../android-release-tests/tests.apk
+            python3 - <<'PY'
+          import hashlib, json, os, shutil, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path('../scripts').resolve()))
+          from probe_phase1_android_ui import FLUTTER_VIEW_CLASS, flutter_view_class_from_mapping
+          target = Path('build/app/outputs/flutter-apk/app-uat-release.apk')
+          tests = Path('../android-release-tests/tests.apk')
+          mapping = Path('build/app/outputs/mapping/uatRelease/mapping.txt')
+          alias = flutter_view_class_from_mapping(mapping.read_text())
+          # Retained privately for host validation after build-cache deletion.
+          # The raw mapping is never an artifact or console output.
+          shutil.copyfile(mapping, tests.parent / 'app-mapping.txt')
+          proof = {'source_commit': os.environ['SOURCE_COMMIT'], 'variant': 'uatReleaseAndroidTest',
+                   'runner': 'com.example.real_estate_mobile.Phase1UiInstrumentation',
+                   'flutter_view_original_class': FLUTTER_VIEW_CLASS,
+                   'flutter_view_runtime_class': alias,
+                   'mapping_sha256': hashlib.sha256(mapping.read_bytes()).hexdigest(),
+                   'release_sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
+                   'tests_sha256': hashlib.sha256(tests.read_bytes()).hexdigest()}
+          (tests.parent / 'PAIR_VERIFICATION.json').write_text(json.dumps(proof, indent=2) + '\n')
+          PY
+          fi
       - name: Prepare APK evidence
         if: ${{ !cancelled() && steps.build_apk.conclusion == 'success' }}
         shell: bash
@@ -466,8 +511,25 @@ jobs:
           python3 -B scripts/probe_uat_android_upgrade.py
           python3 -B scripts/probe_android_push_isolation.py
           if [ "$AQER_ANDROID_UI_SMOKE" = 'true' ]; then
-            python3 -B scripts/probe_phase1_android_ui.py
+            offline_result=0
+            python3 -B scripts/probe_phase1_android_ui.py || offline_result=$?
+            guest_result=0
+            python3 -B scripts/probe_phase1_uat_guest.py || guest_result=$?
+            # Preserve either failure; the independent online collection is
+            # useful evidence even if offline instrumentation fails.
+            if [ "$offline_result" -ne 0 ] || [ "$guest_result" -ne 0 ]; then exit 1; fi
           fi
+      - name: Upload real UAT guest Android evidence only
+        if: ${{ !cancelled() && env.AQER_ANDROID_UI_SMOKE == 'true' && steps.android_upgrade.outputs.phase1_guest_evidence == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-real-uat-guest-${{ github.run_id }}
+          path: |
+            android-uat-guest-evidence/report.json
+            android-uat-guest-evidence/*.png
+            android-uat-guest-evidence/navigation.mp4
+          retention-days: 3
+          if-no-files-found: error
       - name: Upload isolated release startup evidence only
         if: ${{ !cancelled() && env.AQER_ANDROID_UI_SMOKE == 'true' && steps.android_upgrade.outputs.phase1_ui_evidence == 'true' }}
         uses: actions/upload-artifact@v4
@@ -476,6 +538,11 @@ jobs:
           path: |
             android-ui-evidence/report.json
             android-ui-evidence/startup.png
+            dist/APK_VERIFICATION.json
+            dist/UPGRADE_PREDECESSOR_VERIFICATION.json
+            dist/ANDROID_UPGRADE_VERIFICATION.json
+            dist/ANDROID_PUSH_ISOLATION.json
+            android-release-tests/PAIR_VERIFICATION.json
           retention-days: 3
           if-no-files-found: error
       - name: Upload broker UAT APK and exact commit evidence

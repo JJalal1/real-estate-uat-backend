@@ -10,7 +10,6 @@ import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
-import androidx.test.platform.app.InstrumentationRegistry;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayDeque;
@@ -47,7 +46,7 @@ public class Phase1UiStartupTest {
     }
 
     private boolean flutterVisible(View view) {
-        if (view.getClass().getName().equals("io.flutter.embedding.android.FlutterView")
+        if (view.getClass().getName().equals(Phase1UiInstrumentation.flutterViewType())
                 && view.isShown() && view.getWidth() > 0 && view.getHeight() > 0) return true;
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
@@ -173,24 +172,46 @@ public class Phase1UiStartupTest {
         } finally { root.recycle(); }
     }
 
+    private void stage(Instrumentation instrumentation, String name) {
+        Bundle result = new Bundle();
+        // Fixed stage identifiers only: no accessibility labels or exception messages.
+        result.putString("aqer_ui_stage", name);
+        instrumentation.sendStatus(1, result);
+    }
+
     @Test public void releaseShowsFlutterNavigationAndAnActualFrame() throws Exception {
-        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Instrumentation instrumentation = Phase1UiInstrumentation.instrumentation();
+        stage(instrumentation, "target_identity");
         assertEquals(PACKAGE, instrumentation.getTargetContext().getPackageName());
+        stage(instrumentation, "ui_automation");
         UiAutomation automation = instrumentation.getUiAutomation();
         Intent intent = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
                 .setClassName(PACKAGE, "com.example.real_estate_mobile.MainActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        stage(instrumentation, "activity_launch");
         Activity activity = instrumentation.startActivitySync(intent);
         long deadline = SystemClock.elapsedRealtime() + 45000;
         FirstRunReadiness readiness = new FirstRunReadiness();
         boolean observed = false;
+        boolean introSeen = false, introLast = false, rootSeen = false, marketplaceSeen = false, accountSeen = false;
+        boolean[] flutterSeen = {false};
+        stage(instrumentation, "first_run_wait");
         do {
             AccessibilityNodeInfo root = automation.getRootInActiveWindow();
             if (root != null) {
                 try {
                     denySystemPrompt(root);
                     boolean introduction = introductionVisible(root);
-                    if (!readiness.continued && introduction && continueIntroduction(root)) readiness.onContinueClick();
+                    introSeen |= introduction;
+                    introLast = introduction;
+                    rootSeen |= PACKAGE.equals(String.valueOf(root.getPackageName()));
+                    Set<String> keys = semanticKeys(root);
+                    marketplaceSeen |= keys.contains("marketplace");
+                    accountSeen |= keys.contains("account");
+                    instrumentation.runOnMainSync(() -> flutterSeen[0] |= flutterVisible(activity.getWindow().getDecorView()));
+                    // A fresh still-visible button may be retried; each accepted
+                    // tap resets readiness, so no pre-click samples can pass.
+                    if (introduction && continueIntroduction(root)) readiness.onContinueClick();
                     if (readiness.observe(introduction, navigationVisible(instrumentation, activity, root), SystemClock.elapsedRealtime())) {
                         observed = true; break;
                     }
@@ -200,11 +221,25 @@ public class Phase1UiStartupTest {
             }
             SystemClock.sleep(250);
         } while (SystemClock.elapsedRealtime() < deadline);
+        if (!observed) {
+            JSONObject diagnostics = new JSONObject().put("continued", readiness.continued)
+                    .put("introduction_seen", introSeen).put("introduction_visible_last", introLast)
+                    .put("root_owned_seen", rootSeen).put("flutter_view_seen", flutterSeen[0])
+                    .put("marketplace_seen", marketplaceSeen).put("account_seen", accountSeen)
+                    .put("navigation_samples", readiness.samples);
+            Bundle status = new Bundle();
+            status.putString("aqer_ui_readiness", diagnostics.toString());
+            instrumentation.sendStatus(0, status);
+        }
         assertTrue("First-run continuation and stable Flutter navigation were not observed", observed);
+        stage(instrumentation, "navigation_before_capture");
         assertTrue("Navigation changed before capture", captureReady(instrumentation, activity, automation, readiness));
+        stage(instrumentation, "frame_capture");
         Bitmap frame = automation.takeScreenshot();
         assertNotNull("Android did not capture a frame", frame);
+        stage(instrumentation, "navigation_after_capture");
         assertTrue("Navigation changed during capture", captureReady(instrumentation, activity, automation, readiness));
+        stage(instrumentation, "frame_validation");
         assertTrue(frame.getWidth() > 20 && frame.getHeight() > 20);
         // Ignore the OS bars: a clock on an otherwise black screen is insufficient.
         int marginX = frame.getWidth() / 20, marginY = frame.getHeight() / 20;
@@ -216,14 +251,17 @@ public class Phase1UiStartupTest {
             }
         }
         assertTrue("Only a uniform/black frame was captured", varied);
+        stage(instrumentation, "frame_write");
         File target = new File(instrumentation.getTargetContext().getCacheDir(), "phase1-ui-startup.png");
         try (FileOutputStream stream = new FileOutputStream(target)) {
             assertTrue(frame.compress(Bitmap.CompressFormat.PNG, 100, stream));
         }
+        stage(instrumentation, "observation_report");
         JSONObject proof = new JSONObject().put("package", PACKAGE)
                 .put("version_code", instrumentation.getTargetContext().getPackageManager()
                         .getPackageInfo(PACKAGE, 0).getLongVersionCode())
                 .put("flutter_view", true).put("nonuniform_frame", true)
+                .put("flutter_view_runtime_class", Phase1UiInstrumentation.flutterViewType())
                 .put("first_run_continued", readiness.continued).put("navigation_stable", true).put("capture_rechecked", true)
                 .put("semantic_keys", new JSONArray().put("marketplace").put("account"))
                 .put("width", frame.getWidth()).put("height", frame.getHeight());
