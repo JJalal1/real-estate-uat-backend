@@ -73,14 +73,44 @@ class AccountReadinessSafety(unittest.TestCase):
                 self.assertEqual(result['status'], 'BLOCKED')
                 self.assertNotIn(marker, json.dumps(result))
 
-    def test_other_destinations_and_actor_shapes_fail_closed(self):
-        for replacement in ['+19990000000', '+967000000002', 123]:
+    def test_duplicate_phones_and_actor_shapes_fail_closed(self):
+        for replacement in ['+967000000002', 123]:
             value = self.fake(); value['phones']['broker'] = replacement
             with self.assertRaisesRegex(ValueError, '^secure_test_access_invalid$'):
                 ready.validate_access(json.dumps(value))
         value = self.fake(); value['extra'] = 'unapproved'
         with self.assertRaises(ValueError):
             ready.validate_access(json.dumps(value))
+
+    def test_backend_phone_lengths_and_optional_plus_are_accepted_without_country_assumptions(self):
+        for length in [7, 8, 9, 10, 12, 15, 20]:
+            digits = ''.join(str((index * 3 + 1) % 10) for index in range(length))
+            for prefix in ['', '+']:
+                value = self.fake(); value['phones'] = {'broker': prefix + digits}
+                with self.subTest(length=length, optional_plus=bool(prefix)):
+                    access = ready.validate_access(json.dumps(value))
+                    self.assertEqual(access['phones']['broker'], prefix + digits)
+
+    def test_phone_whitespace_is_trimmed_like_the_existing_flutter_request(self):
+        digits = ''.join(str((index * 5 + 2) % 10) for index in range(9))
+        value = self.fake(); value['phones'] = {'broker': '  +' + digits + '\t'}
+        self.assertEqual(ready.validate_access(json.dumps(value))['phones']['broker'], '+' + digits)
+        value['phones']['support'] = digits
+        with self.assertRaisesRegex(ValueError, '^secure_test_access_invalid$'):
+            ready.validate_access(json.dumps(value))
+        value['phones'] = {'broker': '+' + digits, 'support': '00' + digits}
+        with self.assertRaisesRegex(ValueError, '^secure_test_access_invalid$'):
+            ready.validate_access(json.dumps(value))
+
+    def test_short_long_and_non_digit_phone_values_are_rejected(self):
+        digits = ''.join(str((index * 3 + 1) % 10) for index in range(21))
+        for phone in [digits[:6], '+' + digits[:6], digits, '+' + digits,
+                      '+' + digits[:8] + 'x', '++' + digits[:8],
+                      digits[:4] + ' ' + digits[4:8], digits[:4] + '-' + digits[4:8], '']:
+            value = self.fake(); value['phones'] = {'broker': phone}
+            with self.subTest(input_length=len(phone)):
+                with self.assertRaisesRegex(ValueError, '^secure_test_access_invalid$'):
+                    ready.validate_access(json.dumps(value))
 
     def test_unrelated_repository_branch_or_event_is_rejected(self):
         for name, replacement in [('GITHUB_ACTIONS', 'false'), ('GITHUB_REPOSITORY', 'foreign/repo'),

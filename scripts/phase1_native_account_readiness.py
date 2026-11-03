@@ -12,6 +12,7 @@ API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 SECRET_NAME = 'AQER_PHASE1_TEST_ACCESS_JSON'
 ROLES = {'broker', 'support', 'regular', 'manager', 'advertiser'}
 REQUIRED_ROLES = {'broker'}
+PHONE_PATTERN = r'\+?[0-9]{7,20}'
 
 
 def validate_access(raw):
@@ -29,12 +30,19 @@ def validate_access(raw):
         phones = value['phones']
         if not isinstance(phones, dict) or not REQUIRED_ROLES <= set(phones) or set(phones) - ROLES:
             raise ValueError
-        if any(not isinstance(v, str) or not re.fullmatch(r'\+?967[0-9]{9}', v)
+        # Match the existing authentication contract; account-fixture numbers
+        # are not restricted to a country or a mobile contact-field format.
+        if any(not isinstance(v, str) or not re.fullmatch(PHONE_PATTERN, v.strip())
                for v in phones.values()):
             raise ValueError
-        if len(set(v.lstrip('+') for v in phones.values())) != len(phones):
+        normalized = {role: phone.strip() for role, phone in phones.items()}
+        # The backend also treats an international 00 prefix as +. This is only
+        # a duplicate-actor guard; the supplied phone is otherwise preserved.
+        identities = {(('+' + v[2:]) if v.startswith('00') else v).lstrip('+')
+                      for v in normalized.values()}
+        if len(identities) != len(phones):
             raise ValueError
-        return value
+        return {'otp': value['otp'], 'phones': normalized}
     except (ValueError, TypeError, KeyError):
         raise ValueError('secure_test_access_invalid') from None
 

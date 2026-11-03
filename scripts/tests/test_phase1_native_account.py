@@ -64,7 +64,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
     def test_capture_refuses_auth_screens_and_visible_private_account_values(self):
         self.probe.authenticated = True
         for unsafe in ['رمز التحقق', self.access['phones']['broker'],
-                       self.access['phones']['broker'].lstrip('+')[3:]]:
+                       self.access['phones']['broker'].lstrip('+')]:
             with self.subTest(unsafe_type='auth' if unsafe == 'رمز التحقق' else 'private'):
                 self.probe.nodes = Mock(return_value=[self.node(unsafe)])
                 self.probe.adb = Mock()
@@ -72,6 +72,26 @@ class NativeAccountSafetyTest(unittest.TestCase):
                     self.probe.safe_capture('C1-refused')
                 self.probe.adb.assert_not_called()
         self.assertEqual(list(self.probe.out.glob('*.png')), [])
+
+    def test_short_backend_phone_is_kept_whole_and_not_treated_as_a_country_prefix(self):
+        digits = ''.join(str((index * 3 + 1) % 10) for index in range(7))
+        env = {native.SECRET_NAME: json.dumps({'otp': self.access['otp'], 'phones': {'broker': digits}}),
+               'GITHUB_RUN_ID': '9', 'GITHUB_SHA': 'a' * 40}
+        probe = native.NativeAccount(self.private, env)
+        self.assertEqual(probe.access['phones']['broker'], digits)
+        self.assertIn(digits, probe.private_values)
+        self.assertNotIn(digits[3:], probe.private_values)
+
+    def test_login_passes_the_provided_backend_phone_to_the_ui_without_country_rewriting(self):
+        digits = ''.join(str((index * 7 + 2) % 10) for index in range(8))
+        env = {native.SECRET_NAME: json.dumps({'otp': self.access['otp'], 'phones': {'broker': '+' + digits}}),
+               'GITHUB_RUN_ID': '9', 'GITHUB_SHA': 'a' * 40}
+        probe = native.NativeAccount(self.private, env)
+        probe.tap = Mock(); probe.wait = Mock(); probe.set = Mock()
+        probe.nodes = Mock(return_value=[self.node('عملي'), self.node('العملاء')])
+        probe.login()
+        self.assertEqual(probe.set.call_args_list[0].args, ('رقم واتساب', '+' + digits))
+        self.assertTrue(probe.report['native_auth_executed'])
 
     def test_recording_is_tainted_on_observed_auth_transition(self):
         self.probe.recorder = Mock()

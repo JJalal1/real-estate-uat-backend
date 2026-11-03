@@ -60,7 +60,12 @@ class NativeAccount:
         os.environ.pop(SECRET_NAME, None)
         self.private_values = {self.access['otp']}
         for phone in self.access['phones'].values():
-            self.private_values.update({phone, phone.lstrip('+'), phone.lstrip('+')[3:]})
+            digits = phone.lstrip('+')
+            self.private_values.update({phone, digits, '+' + digits})
+            # The backend interprets an international 00 prefix; retain that
+            # full-number display alias without stripping a guessed country.
+            if digits.startswith('00'):
+                self.private_values.update({digits[2:], '+' + digits[2:]})
         self.authenticated = False
         self.auth_attempted = False
         self.serial = None
