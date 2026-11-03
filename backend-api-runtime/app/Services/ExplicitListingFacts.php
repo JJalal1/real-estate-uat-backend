@@ -70,6 +70,8 @@ class ExplicitListingFacts
             if (!ctype_digit($floor) && !str_starts_with($floor, 'ال')) $floor = 'ال'.$floor;
             $fields['floor_number'] = app(DynamicPropertySchema::class)->normalizeFloor($floor);
         }
+        $unit = $this->unitNumber($message);
+        if ($unit !== null) $fields['unit_number'] = $unit;
         foreach (['has_parking'=>'موقف(?:\s*سيارات)?'] as $key => $word) {
             $no = preg_match('/(?:بدون|لا\s*يوجد|لا\s*يتوفر|ما\s*في)\s*'.$word.'/u', $text);
             $yes = $this->positive('(?:يوجد|يتوفر|مع)\s*'.$word, $text);
@@ -125,6 +127,36 @@ class ExplicitListingFacts
         $fee = $this->one('/(?<!\pL)(?:مبلغ\s*)?(?:السعي|العموله)\s*[:=]?\s*('.$number.')\s*ريال(?!\pL)/u', $text);
         if ($fee !== null && $rate === null) { $fields['sai_amount_type']='fixed'; $fields['fixed_sai_amount']=$fee; $fields['currency'] ??= 'YER'; }
         return $fields;
+    }
+
+    /** Unit identity needs its own explicit label; a floor is never a unit. */
+    public function unitNumber(string $message): ?string
+    {
+        $text = ArabicListingNumber::normalize($message);
+        $numberLabel = '(?<!\pL)(?:و)?(?:رقم\s+(?:ال)?(?:شقه|وحده)|(?:ال)?(?:شقه|وحده)\s+رقم)';
+        $positionLabel = '(?<!\pL)(?:و)?(?:موضع|موقع)\s+(?:ال)?(?:شقه|وحده)';
+        // Multiple labels may describe alternatives or different units. Do not
+        // decide which identity should replace the advertiser's current value.
+        if (preg_match_all('/(?:'.$numberLabel.'|'.$positionLabel.')/u', $text) !== 1) return null;
+
+        $identifier = '(?:[A-Za-z]{1,8}-?[0-9]{1,12}[A-Za-z]{0,4}(?:-[A-Za-z0-9]{1,8})?|[0-9]{1,12})';
+        $position = '(?:جهه\s+)?(?:اليمين|اليسار|اليمني|اليسري|الوسطي|الاماميه|الخلفيه|الشرقيه|الغربيه|الشماليه|الجنوبيه|يمين|يسار|وسط|امام|خلف)';
+        foreach ([[$numberLabel, $identifier, false], [$positionLabel, $position, true]] as [$label, $value, $isPosition]) {
+            if (!preg_match('/'.$label.'\s*[:=]?\s*('.$value.')(?=$|[\s،,؛.!؟?])/u', $text, $match, PREG_OFFSET_CAPTURE)) continue;
+            $whole = $match[0][0];
+            $prefix = substr($text, 0, $match[0][1]);
+            $tail = substr($text, $match[0][1] + strlen($whole));
+            if ($this->negated($text, $whole) || $this->alternativeAfter($text, $whole)
+                || preg_match('/(?:هل|ربما|لعل)(?:\s+\pL+){0,2}\s*$/u', $prefix)
+                || preg_match('/(?:لا\s+(?:يوجد|نعرف|اعرف)|لم\s+(?:يحدد|يتحدد)|(?:ليس(?:ت)?|ما)\s+(?:لدي|لدينا|عندي|عندنا))\s*$/u', $prefix)
+                || preg_match('/^\s*(?:[?؟]|\.\s*[0-9]|(?:و\s*)?[0-9])/u', $tail)
+                || preg_match('/^\s*[,،؛;]\s*(?:و\s*)?[0-9]/u', $tail)
+                || preg_match('/^\s*[,،؛;]?\s*(?:او|ام|الي|حتي|[-–\/]|(?:غير|ليس(?:ت)?|مو|مش)\s*(?:مؤكد|معروف|محدد|صحيح|متاكد|معلوم)(?:ه)?)(?!\pL)/u', $tail)) return null;
+            $unit = $match[1][0];
+            if (mb_strlen($unit) > 64) return null;
+            return $isPosition ? $this->originalPhrase($unit, $message) : $unit;
+        }
+        return null;
     }
 
     private function one(string $pattern, string $text): ?float

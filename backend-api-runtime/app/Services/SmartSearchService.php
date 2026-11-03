@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 class SmartSearchService
 {
     public const TYPES = ['apartment', 'house', 'villa', 'building', 'land', 'farm', 'shop', 'office'];
-    public const FIELDS = ['type', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
+    public const FIELDS = ['type', 'types', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
         'min_bedrooms', 'min_bathrooms', 'floor_number', 'has_parking', 'has_elevator', 'building_facade', 'unit_occupies_entire_floor'];
 
     public const CONTEXT_FIELDS = ['governorate', 'advertiser_id', 'spotlight', 'area_polygon', 'latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east'];
@@ -23,6 +23,7 @@ class SmartSearchService
             throw ValidationException::withMessages(['filters' => ['يوجد فلتر غير مدعوم.']]);
         }
         $rules = ['type' => ['nullable', Rule::in(self::TYPES)], 'purpose' => ['nullable', Rule::in(['sale', 'rent'])],
+            'types' => ['nullable', 'array', 'list', 'max:8'], 'types.*' => ['required', 'string', 'distinct', Rule::in(self::TYPES)],
             'search' => ['nullable', 'string', 'max:120'], 'currency' => ['nullable', Rule::in(['YER', 'USD', 'SAR'])],
             'floor_number' => ['nullable', 'string', 'max:32'],
             'building_facade' => ['nullable', Rule::in(['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'multiple'])]];
@@ -71,6 +72,8 @@ class SmartSearchService
             'Interpret an Arabic Yemen real-estate search follow-up as a PATCH to current_filters. Return only set and remove. '
             .'Set ONLY explicitly requested changes and remove ONLY explicitly withdrawn criteria. Preserve every unmentioned filter. '
             .'Changing type does not reset location, budget or purpose. Extract every explicitly stated criterion in the follow_up, including للبيع=sale and للإيجار=rent. '
+            .'For several property types, use types as the complete array of selected enum values; for one type use type. Never set both. '
+            .'To remove only one selected type, set types to the remaining selection; remove type or types only when withdrawing the entire type constraint. '
             .'Examples: current_filters={"search":"إب","min_price":100000000}, follow_up="خلها أرض للبيع" => {"set":{"type":"land","purpose":"sale"},"remove":[]}. '
             .'current_filters={"type":"land","purpose":"sale","search":"إب","min_price":100000000}, follow_up="في ذمار بدل إب" => {"set":{"search":"ذمار"},"remove":[]}. '
             .'current_filters={"search":"إب","min_price":100000000}, follow_up="ألغ الحد الأدنى للسعر" => {"set":{},"remove":["min_price"]}. '
@@ -87,13 +90,21 @@ class SmartSearchService
             Validator::make($patch, ['set' => ['present', 'array:'.implode(',', self::FIELDS)],
                 'remove' => ['present', 'array', 'max:'.count(self::FIELDS)], 'remove.*' => [Rule::in(self::FIELDS)]])->validate();
             $next = $current;
-            foreach ($patch['remove'] as $key) unset($next[$key]);
+            if (isset($patch['set']['type'], $patch['set']['types'])) {
+                throw ValidationException::withMessages(['types' => ['Conflicting type selections.']]);
+            }
+            foreach ($patch['remove'] as $key) {
+                if (in_array($key, ['type', 'types'], true)) unset($next['type'], $next['types']);
+                else unset($next[$key]);
+            }
             foreach ($patch['set'] as $key => $value) {
+                if ($key === 'type') unset($next['types']);
+                if ($key === 'types') unset($next['type']);
                 if ($value === null) unset($next[$key]); else $next[$key] = $value;
             }
             // A type amendment can omit a plainly spoken sale/rent purpose.
             // Complete only that closed enum; ambiguous/negative text stays AI-led.
-            if (isset($patch['set']['type']) && ($purpose = $this->literalPurpose($message)) !== null) {
+            if ((isset($patch['set']['type']) || isset($patch['set']['types'])) && ($purpose = $this->literalPurpose($message)) !== null) {
                 $next['purpose'] = $purpose;
             }
             $next = $this->validate($next);
@@ -123,7 +134,7 @@ class SmartSearchService
             'land' => ['min_area_m2', 'building_facade', 'max_area_m2', 'search'],
             'farm' => ['min_area_m2', 'max_area_m2', 'search'],
             'shop', 'office' => ['min_area_m2', 'floor_number', 'building_facade'],
-            default => ['type', 'purpose', 'search', 'max_price'],
+            default => array_merge(empty($filters['types']) ? ['type'] : [], ['purpose', 'search', 'max_price']),
         };
         $allowed=app(DynamicPropertySchema::class)->filters($filters+array_fill_keys($keys,true));
         return array_values(array_filter($keys,fn($key)=>!array_key_exists($key,$filters) && array_key_exists($key,$allowed)));
@@ -132,6 +143,7 @@ class SmartSearchService
     private function properties(): array
     {
         $result = ['type' => ['type' => 'string', 'enum' => self::TYPES],
+            'types' => ['type' => 'array', 'maxItems' => 8, 'items' => ['type' => 'string', 'enum' => self::TYPES]],
             'purpose' => ['type' => 'string', 'enum' => ['sale', 'rent']],
             'search' => ['type' => 'string', 'maxLength' => 120],
             'currency' => ['type' => 'string', 'enum' => ['YER', 'USD', 'SAR']],
@@ -139,7 +151,7 @@ class SmartSearchService
             'building_facade' => ['type' => 'string', 'enum' => ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'multiple']]];
         foreach (['min_price', 'max_price', 'min_area_m2', 'max_area_m2'] as $key) $result[$key] = ['type' => 'number', 'minimum' => 0, 'maximum' => 1000000000000];
         foreach (['min_bedrooms', 'min_bathrooms'] as $key) $result[$key] = ['type' => 'integer', 'minimum' => 0, 'maximum' => 50];
-        foreach (['has_parking', 'unit_occupies_entire_floor'] as $key) $result[$key] = ['type' => 'boolean'];
+        foreach (['has_parking', 'has_elevator', 'unit_occupies_entire_floor'] as $key) $result[$key] = ['type' => 'boolean'];
         return $result;
     }
 }

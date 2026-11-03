@@ -186,29 +186,12 @@ class PropertyIdentityService
         return $result;
     }
 
-    public function assertSubmissionAllowed(User $actor, Property $listing): array
-    {
-        $result = $this->evaluate($listing, $actor, true);
-        if ($result['decision'] === 'confirmed_duplicate') {
-            throw new ConflictHttpException('هذا العقار أو هذه الوحدة مسجلة بالفعل على المنصة ولا يمكن إنشاء إعلان آخر لها.');
-        }
-        if ($result['decision'] === 'possible_duplicate' && empty($listing->duplicate_self_verification)) {
-            if ($this->allowsUnspecifiedUnit($listing->getAttributes())
-                && in_array('unit_identity_incomplete', $result['signals'] ?? [], true)) {
-                // Missing a position is allowed, but it requires an auditable
-                // human identity decision rather than an invented unit number.
-                $listing->forceFill(['duplicate_check_status' => 'needs_support'])->save();
-                return array_merge($result, ['status' => 'needs_support']);
-            }
-            throw ValidationException::withMessages([
-                'duplicate_self_verification' => ['وجدنا عقاراً مشابهاً جداً بالقرب من هذا الموقع. أكد أنه عقار مختلف وأدخل سبب الاختلاف قبل الإرسال.'],
-            ]);
-        }
-        return $result;
-    }
-
     public function assertApprovalAllowed(User $reviewer, Property $listing, ?string $supportReason = null): array
     {
+        if ($listing->duplicate_checked_at === null
+            || ! in_array($listing->duplicate_check_status, ['distinct', 'needs_support', 'confirmed_duplicate'], true)) {
+            throw new ConflictHttpException('Identity evidence is incomplete. Retry the identity check before approval.');
+        }
         $result = $this->evaluate($listing, $reviewer, true);
         if ($result['decision'] === 'confirmed_duplicate') {
             throw new ConflictHttpException('لا يمكن اعتماد الإعلان لأنه يطابق عقاراً أو وحدة مسجلة بالفعل.');
@@ -455,7 +438,8 @@ class PropertyIdentityService
 
     private function finishEvaluation(Property $listing, ?User $actor, array $result, bool $persist): array
     {
-        $needsSupport = ! empty($listing->duplicate_self_verification)
+        $needsSupport = in_array($listing->review_status, ['submitted', 'under_review'], true)
+            || ! empty($listing->duplicate_self_verification)
             || ($this->allowsUnspecifiedUnit($listing->getAttributes())
                 && in_array('unit_identity_incomplete', $result['signals'] ?? [], true));
         $result['status'] = match ($result['decision']) {
@@ -477,7 +461,11 @@ class PropertyIdentityService
         $listing->forceFill([
             'duplicate_check_status' => $result['status'],
             'duplicate_check_score' => (int) $result['score'],
-            'duplicate_check_metadata' => ['signals' => $result['signals'], 'candidate' => $result['candidate']],
+            'duplicate_check_metadata' => [
+                'signals' => $result['signals'],
+                'candidate' => $result['candidate'],
+                'message' => $result['message'],
+            ],
             'duplicate_checked_at' => now(),
         ])->save();
         DB::table('property_identity_checks')->insert([

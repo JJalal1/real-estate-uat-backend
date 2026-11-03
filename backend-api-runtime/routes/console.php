@@ -40,7 +40,7 @@ Artisan::command('uat:video-storage-probe', function (CloudAssetStorageService $
     }
 })->purpose('Probe private Supabase Storage video protocol using disposable synthetic bytes.');
 
-Artisan::command('uat:cloud-check', function (CloudAssetStorageService $storage) {
+Artisan::command('uat:cloud-check {--skip-storage-probe}', function (CloudAssetStorageService $storage) {
     $errors = [];
 
     if (! app()->environment('staging')) {
@@ -107,7 +107,7 @@ Artisan::command('uat:cloud-check', function (CloudAssetStorageService $storage)
         }
     }
 
-    if ($errors === []) {
+    if ($errors === [] && ! $this->option('skip-storage-probe')) {
         try {
             $storage->probe();
         } catch (\Throwable) {
@@ -122,7 +122,9 @@ Artisan::command('uat:cloud-check', function (CloudAssetStorageService $storage)
         return 1;
     }
 
-    $this->info('Cloud UAT environment check passed: HTTPS, PostgreSQL/PostGIS, Supabase Storage, and UAT guards are ready.');
+    $this->info($this->option('skip-storage-probe')
+        ? 'Cloud UAT configuration check passed: HTTPS, PostgreSQL/PostGIS, Storage settings, and UAT guards are ready; remote Storage was not probed.'
+        : 'Cloud UAT environment check passed: HTTPS, PostgreSQL/PostGIS, Supabase Storage, and UAT guards are ready.');
     return 0;
 })->purpose('Verify Cloud UAT environment without printing secrets.');
 

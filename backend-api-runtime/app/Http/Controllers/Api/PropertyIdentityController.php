@@ -7,6 +7,7 @@ use App\Models\Property;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\PropertyIdentityService;
+use App\Services\ListingWorkflowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -15,6 +16,7 @@ class PropertyIdentityController extends Controller
 {
     public function __construct(
         private readonly PropertyIdentityService $identity,
+        private readonly ListingWorkflowService $workflow,
         private readonly AuditLogService $audit,
     ) {}
 
@@ -22,8 +24,13 @@ class PropertyIdentityController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $this->assertOwner($property, $user);
-        $result = $this->identity->evaluate($property, $user, true);
+        if (in_array($property->review_status, ['submitted', 'under_review'], true)) {
+            abort_unless((int) $property->user_id === (int) $user->id || $user->hasPermission('listings.moderate'), 403);
+            $result = $this->workflow->processSubmittedIdentity($user, $property);
+        } else {
+            $this->assertOwner($property, $user);
+            $result = $this->identity->evaluate($property, $user, true);
+        }
 
         return response()->json(['data' => $result]);
     }

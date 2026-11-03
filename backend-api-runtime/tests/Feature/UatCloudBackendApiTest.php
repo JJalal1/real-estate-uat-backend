@@ -121,10 +121,10 @@ class UatCloudBackendApiTest extends TestCase
         $this->assertStringContainsString('uat:cloud-check', $entrypoint);
     }
 
-    public function test_cloud_check_requires_https_postgis_and_storage_probe_without_printing_secrets(): void
+    public function test_cloud_check_requires_https_postgis_and_storage_settings_without_printing_secrets(): void
     {
         $source = (string) file_get_contents(base_path('routes/console.php'));
-        $this->assertStringContainsString("Artisan::command('uat:cloud-check'", $source);
+        $this->assertStringContainsString("Artisan::command('uat:cloud-check {--skip-storage-probe}'", $source);
         $this->assertStringContainsString('PostGIS is not enabled', $source);
         $this->assertStringContainsString('SUPABASE_STORAGE_SERVER_KEY is missing', $source);
         $this->assertStringContainsString('$storage->probe()', $source);
