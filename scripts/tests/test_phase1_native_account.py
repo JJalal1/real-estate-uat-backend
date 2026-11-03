@@ -68,27 +68,30 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.set.assert_any_call('رقم واتساب', self.access['phones']['broker'])
         self.probe.set.assert_any_call('رمز التحقق', self.access['otp'])
         self.assertIsNone(self.probe._auth_phase)
-        self.assertNotIn('native_auth_input_failure', self.probe.report)
+        self.assertEqual(self.probe.report['native_input_failures'], [])
         self.assertEqual(self.probe.report['frames'], [])
 
     def test_auth_input_failure_retains_only_fixed_phase_stage_op_and_booleans(self):
         witness = 'f' * 64
         private_blob = base64.b64encode(self.access['phones']['broker'].encode()).decode()
+        self.probe.case_phase('C1-auth')
         self.probe.auth_phase('code_request')
         self.probe.adb = Mock(return_value='\n'.join([
             'INSTRUMENTATION_RESULT: op=account-click',
             'INSTRUMENTATION_RESULT: passed=false',
             'INSTRUMENTATION_RESULT: stage=account_pointer_tap',
+            'INSTRUMENTATION_RESULT: foreground_category=APP',
             'INSTRUMENTATION_RESULT: tree_b64=' + private_blob,
             'INSTRUMENTATION_RESULT: reason=' + self.access['otp'],
             'INSTRUMENTATION_RESULT: witness=' + witness,
             'INSTRUMENTATION_CODE: 0']))
         with self.assertRaisesRegex(native.Blocked, '^native_input_not_delivered$'):
             self.probe.instrument('account-click', node_path='0.1', node_witness=witness)
-        self.assertEqual(self.probe.report['native_auth_input_failure'], {
-            'phase': 'code_request', 'op': 'account-click', 'java_stage': 'account_pointer_tap',
+        self.assertEqual(self.probe.report['native_input_failures'], [{
+            'case': 'C1-auth', 'auth_phase': 'code_request', 'op': 'account-click',
+            'java_stage': 'account_pointer_tap', 'foreground_category': 'APP',
             'passed_true': False, 'passed_false': True, 'code_minus_one': False,
-            'code_zero': True, 'reason': 'native_input_not_delivered'})
+            'code_zero': True, 'reason': 'native_input_not_delivered'}])
         serialized = (self.probe.out / 'report.json').read_text()
         for forbidden in [private_blob, witness, self.access['otp'], self.access['phones']['broker']]:
             self.assertNotIn(forbidden, serialized)
@@ -102,9 +105,11 @@ class NativeAccountSafetyTest(unittest.TestCase):
                 'INSTRUMENTATION_RESULT: op=account-set',
                 'INSTRUMENTATION_RESULT: passed=false',
                 'INSTRUMENTATION_RESULT: stage=' + raw,
+                'INSTRUMENTATION_RESULT: foreground_category=' + raw,
                 'INSTRUMENTATION_RESULT: arbitrary=' + raw,
                 'INSTRUMENTATION_CODE: 0'])]:
-            self.probe.report.pop('native_auth_input_failure', None)
+            self.probe.report['native_input_failures'] = []
+            self.probe.case_phase('C1-auth')
             self.probe.auth_phase('phone_entry')
             self.probe.adb = Mock(side_effect=observation) if isinstance(observation, Exception) \
                 else Mock(return_value=observation)
@@ -112,8 +117,9 @@ class NativeAccountSafetyTest(unittest.TestCase):
                 with self.assertRaises(native.Blocked) as failure:
                     self.probe.instrument('account-set', value_b64=base64.b64encode(raw.encode()).decode())
                 self.assertIn(str(failure.exception), native.INPUT_FAILURE_REASONS)
-                diagnostic = self.probe.report['native_auth_input_failure']
+                diagnostic = self.probe.report['native_input_failures'][0]
                 self.assertIsNone(diagnostic['java_stage'])
+                self.assertEqual(diagnostic['foreground_category'], 'UNOBSERVED')
                 self.assertIn(diagnostic['reason'], native.INPUT_FAILURE_REASONS)
                 if isinstance(observation, native.Blocked) and str(observation) in native.INPUT_FAILURE_REASONS:
                     self.assertEqual(diagnostic['reason'], str(observation))
@@ -126,22 +132,25 @@ class NativeAccountSafetyTest(unittest.TestCase):
             self.probe.auth_phase(raw)
         self.assertNotIn('native_auth_phase', self.probe.report)
         self.probe.auth_phase('account_open')
+        self.probe.case_phase('C1-auth')
         self.probe.adb = Mock(return_value='INSTRUMENTATION_RESULT: passed=false\nINSTRUMENTATION_CODE: 0')
         with self.assertRaises(native.Blocked):
             self.probe.instrument(raw)
-        self.assertNotIn('native_auth_input_failure', self.probe.report)
+        self.assertEqual(self.probe.report['native_input_failures'], [])
         self.assertNotIn(raw, (self.probe.out / 'report.json').read_text())
 
-    def test_failure_diagnostic_is_disabled_outside_active_unauthenticated_login(self):
+    def test_failure_diagnostic_is_disabled_outside_owned_case_and_covers_postauth(self):
         self.probe.adb = Mock(return_value='INSTRUMENTATION_RESULT: passed=false\nINSTRUMENTATION_CODE: 0')
         with self.assertRaises(native.Blocked):
             self.probe.instrument('account-snapshot')
-        self.assertNotIn('native_auth_input_failure', self.probe.report)
-        self.probe.auth_phase('postcondition')
+        self.assertEqual(self.probe.report['native_input_failures'], [])
+        self.probe.case_phase('C1-photo-save')
         self.probe.authenticated = True
         with self.assertRaises(native.Blocked):
             self.probe.instrument('account-snapshot')
-        self.assertNotIn('native_auth_input_failure', self.probe.report)
+        self.assertEqual(len(self.probe.report['native_input_failures']), 1)
+        self.assertEqual(self.probe.report['native_input_failures'][0]['case'], 'C1-photo-save')
+        self.assertIsNone(self.probe.report['native_input_failures'][0]['auth_phase'])
 
     def test_login_failure_clears_active_phase_without_auth_images_or_witness_hashes(self):
         self.probe.adb = Mock(return_value='\n'.join([
@@ -152,12 +161,83 @@ class NativeAccountSafetyTest(unittest.TestCase):
             self.probe.login()
         self.assertIsNone(self.probe._auth_phase)
         self.assertEqual(self.probe.report['native_auth_phase'], 'account_open')
-        self.assertEqual(self.probe.report['native_auth_input_failure']['java_stage'], 'root_ready')
+        self.assertEqual(self.probe.report['native_input_failures'][0]['java_stage'], 'root_ready')
         self.assertFalse(self.probe.auth_attempted)
         self.assertEqual(self.probe.report['frames'], [])
         self.assertEqual(self.probe.report['videos'], [])
         self.assertEqual(self.probe.report['actions'], [])
         self.assertEqual(list(self.probe.out.glob('*.png')), [])
+
+    def test_input_diagnostics_keep_only_first_failure_for_each_fixed_case_and_six_total(self):
+        self.probe.adb = Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: op=account-click', 'INSTRUMENTATION_RESULT: passed=false',
+            'INSTRUMENTATION_RESULT: stage=selected_witness',
+            'INSTRUMENTATION_RESULT: foreground_category=APP', 'INSTRUMENTATION_CODE: 0']))
+        for case in native.C1_CASES:
+            self.probe.case_phase(case)
+            self.probe.authenticated = True
+            self.probe._auth_phase = self.access['phones']['broker']
+            for repeated_failure in range(2):
+                with self.assertRaisesRegex(native.Blocked, '^native_input_not_delivered$'):
+                    self.probe.instrument('account-click', node_witness='f' * 64)
+        failures = self.probe.report['native_input_failures']
+        self.assertEqual(len(failures), 6)
+        self.assertEqual([row['case'] for row in failures], list(native.C1_CASES))
+        self.assertTrue(all(row['auth_phase'] is None and row['java_stage'] == 'selected_witness'
+                            and row['foreground_category'] == 'APP' for row in failures))
+        for row in failures:
+            self.assertEqual(set(row), {'case', 'auth_phase', 'op', 'java_stage', 'foreground_category',
+                                        'passed_true', 'passed_false', 'code_minus_one', 'code_zero', 'reason'})
+        with self.assertRaisesRegex(native.Blocked, '^fixed_native_case_required$'):
+            self.probe.case_phase(self.access['otp'])
+        serialized = (self.probe.out / 'report.json').read_text()
+        self.assertNotIn(self.access['phones']['broker'], serialized)
+        self.assertNotIn('f' * 64, serialized)
+        self.assertEqual(self.probe.report['frames'], [])
+        self.assertEqual(self.probe.report['videos'], [])
+
+    def test_cleanup_instrument_failure_is_retained_separately_from_original_case(self):
+        fixture = self.fixture()
+        self.probe.fixture_api = fixture
+        self.probe.auth_attempted = True
+        self.probe.record_stop = Mock()
+        self.probe.adb = Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: op=account-click', 'INSTRUMENTATION_RESULT: passed=false',
+            'INSTRUMENTATION_RESULT: stage=selected_path_resolve',
+            'INSTRUMENTATION_RESULT: foreground_category=SYSTEM_UI', 'INSTRUMENTATION_CODE: 0']))
+        self.probe.case_phase('C1-photo-save')
+        with self.assertRaises(native.Blocked):
+            self.probe.instrument('account-click')
+        self.probe.native_logout = Mock(side_effect=lambda: self.probe.instrument('account-click'))
+        with self.assertRaisesRegex(native.Blocked, 'native_or_api_cleanup_incomplete'):
+            self.probe.cleanup()
+        self.assertEqual([row['case'] for row in self.probe.report['native_input_failures']],
+                         ['C1-photo-save', 'C1-cleanup'])
+        fixture.cleanup.assert_called_once_with()
+
+    def test_global_diagnostic_preserves_unexpected_exception_control_flow_without_its_text(self):
+        raw = self.access['phones']['broker'] + ' private framework error'
+        self.probe.case_phase('C1-native-network')
+        self.probe.adb = Mock(side_effect=RuntimeError(raw))
+        with self.assertRaises(RuntimeError):
+            self.probe.instrument('account-snapshot')
+        failure = self.probe.report['native_input_failures'][0]
+        self.assertEqual(failure['case'], 'C1-native-network')
+        self.assertEqual(failure['reason'], 'native_instrumentation_unobserved')
+        self.assertNotIn(raw, (self.probe.out / 'report.json').read_text())
+
+    def test_diagnostic_stage_and_foreground_allowlists_match_fixed_java_literals(self):
+        source = Path(__file__).resolve().parents[1] / 'phase1_device_input/Phase1Input.java'
+        text = source.read_text()
+        stages = set(native.re.findall(r'stage="([a-z_]+)"', text))
+        self.assertTrue(native.INPUT_JAVA_STAGES <= stages)
+        classifier = text.split('private static String foregroundCategory', 1)[1].split(
+            'private static String numbers', 1)[0]
+        self.assertEqual(set(native.re.findall(r'return "([A-Z_]+)"', classifier)),
+                         set(native.FOREGROUND_CATEGORIES))
+        success, failure = text.split('} catch (Throwable failure)', 1)
+        self.assertNotIn('putString("foreground_category"', success)
+        self.assertIn('putString("foreground_category", foreground)', failure)
 
     def test_capture_requires_authenticated_state_before_any_device_read(self):
         self.probe.nodes = Mock()

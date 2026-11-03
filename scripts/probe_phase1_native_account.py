@@ -30,11 +30,17 @@ AUTH_LABELS = {'مرحبًا بعودتك', 'رقم واتساب', 'رمز ال�
                'رمز التحقق عبر واتساب', 'تأكيد والدخول', 'إرسال رمز واتساب'}
 AUTH_PHASES = frozenset({'account_open', 'login_open', 'phone_entry', 'code_request',
                          'otp_entry', 'confirm', 'postcondition'})
-AUTH_INPUT_OPS = frozenset({'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
+INPUT_OPS = frozenset({'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
+C1_CASES = ('C1-native-network', 'C1-api-empty-fixture', 'C1-auth', 'C1-photo-save',
+            'C1-force-stop-restore', 'C1-cleanup')
+FOREGROUND_CATEGORIES = frozenset({'APP', 'PERMISSION_CONTROLLER', 'DOCUMENT_PICKER',
+                                  'SYSTEM_UI', 'OTHER', 'UNOBSERVED'})
 # Literal account-operation stages from the unchanged Phase1Input.java helper.
-AUTH_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_click',
-                             'account_pointer_tap', 'account_scroll', 'account_pointer_swipe',
-                             'account_focus', 'account_focus_pointer', 'account_set', 'complete'})
+INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_click',
+                              'account_pointer_tap', 'account_scroll', 'account_pointer_swipe',
+                              'account_focus', 'account_focus_pointer', 'account_focus_request',
+                              'account_focus_observe', 'account_set_request', 'selected_path_format',
+                              'selected_path_resolve', 'selected_node_guard', 'selected_witness', 'complete'})
 INPUT_FAILURE_REASONS = frozenset({'native_input_not_delivered', 'ambiguous_native_input_receipt',
                                   'device_command_timeout', 'device_command_failed',
                                   'native_instrumentation_unobserved'})
@@ -112,6 +118,7 @@ class NativeAccount:
         self.authenticated = False
         self.auth_attempted = False
         self._auth_phase = None
+        self._active_case = None
         self.serial = None
         self.recorder = None
         self.record_tainted = False
@@ -128,7 +135,7 @@ class NativeAccount:
                        'native_auth_attempted': False,
                        'api_bootstrap_is_not_native_creation': True,
                        'submission_executed': False, 'financial_acceptance_executed': False,
-                       'cases': [], 'actions': [], 'frames': [], 'videos': [],
+                       'cases': [], 'actions': [], 'frames': [], 'videos': [], 'native_input_failures': [],
                        'visual_review_required': True, 'fixture_title': self.title,
                        'limitations': ['C2 support/isolation and C4 AI are not tested here',
                                        'API36 KVM functional evidence, not a physical handset/performance claim']}
@@ -168,19 +175,29 @@ class NativeAccount:
         self.report['native_auth_phase'] = phase
         self.save()
 
-    def auth_input_failure(self, op, result, output, reason):
-        if self.authenticated or self._auth_phase not in AUTH_PHASES or op not in AUTH_INPUT_OPS or \
-                'native_auth_input_failure' in self.report:
+    def case_phase(self, case):
+        if case not in C1_CASES:
+            raise Blocked('fixed_native_case_required')
+        self._active_case = case
+
+    def input_failure(self, op, result, output, reason):
+        if self._active_case not in C1_CASES or op not in INPUT_OPS:
             return
-        self.report['native_auth_input_failure'] = {
-            'phase': self._auth_phase, 'op': op,
-            'java_stage': result.get('stage') if result.get('stage') in AUTH_JAVA_STAGES else None,
+        failures = self.report['native_input_failures']
+        if len(failures) >= len(C1_CASES) or any(row['case'] == self._active_case for row in failures):
+            return
+        failures.append({
+            'case': self._active_case,
+            'auth_phase': self._auth_phase if self._active_case == 'C1-auth' and self._auth_phase in AUTH_PHASES else None,
+            'op': op,
+            'java_stage': result.get('stage') if result.get('stage') in INPUT_JAVA_STAGES else None,
+            'foreground_category': result.get('foreground_category') if result.get('foreground_category') in FOREGROUND_CATEGORIES else 'UNOBSERVED',
             'passed_true': result.get('passed') == 'true',
             'passed_false': result.get('passed') == 'false',
             'code_minus_one': bool(re.search(r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M)),
             'code_zero': bool(re.search(r'^INSTRUMENTATION_CODE: 0\s*$', output, re.M)),
             'reason': reason if reason in INPUT_FAILURE_REASONS else 'native_instrumentation_unobserved',
-        }
+        })
         self.save()
 
     def instrument(self, op, **extras):
@@ -201,12 +218,14 @@ class NativeAccount:
                 raise Blocked('native_input_not_delivered')
             return result
         except Exception as error:
-            if self.authenticated or self._auth_phase not in AUTH_PHASES:
+            if self._active_case not in C1_CASES:
                 raise
             reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
                 else 'native_instrumentation_unobserved'
-            self.auth_input_failure(op, result, output, reason)
-            raise Blocked(reason) from None
+            self.input_failure(op, result, output, reason)
+            if isinstance(error, Blocked) or (not self.authenticated and self._auth_phase in AUTH_PHASES):
+                raise Blocked(reason) from None
+            raise
 
     def nodes(self):
         result = self.instrument('account-snapshot')
@@ -478,6 +497,7 @@ class NativeAccount:
         raise Blocked('native_startup_not_ready')
 
     def login(self):
+        self.case_phase('C1-auth')
         try:
             self.auth_phase('account_open')
             self.tap('حسابي')
@@ -751,6 +771,7 @@ class NativeAccount:
         self.report['session_logged_out'] = True
 
     def cleanup(self):
+        self.case_phase('C1-cleanup')
         errors = []
         try:
             self.record_stop()
@@ -795,17 +816,22 @@ class NativeAccount:
 
     def execute(self):
         stage = 'C1-native-network'
+        self.case_phase(stage)
         try:
             self.validate_and_install()
             self.startup()
             self.public_network_readiness()
             stage = 'C1-api-empty-fixture'
+            self.case_phase(stage)
             self.bootstrap_fixture()
             stage = 'C1-auth'
+            self.case_phase(stage)
             self.login()
             stage = 'C1-photo-save'
+            self.case_phase(stage)
             self.create_and_save()
             stage = 'C1-force-stop-restore'
+            self.case_phase(stage)
             self.restore()
         except Blocked as error:
             self.mark(stage, 'BLOCKED', reason=str(error))
@@ -814,6 +840,7 @@ class NativeAccount:
         except Exception as error:
             self.mark(stage, 'FAIL', error_type=type(error).__name__)
         finally:
+            self.case_phase('C1-cleanup')
             try:
                 self.record_stop()
             except Exception:

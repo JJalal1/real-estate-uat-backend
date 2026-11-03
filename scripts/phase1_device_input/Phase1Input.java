@@ -30,6 +30,7 @@ public final class Phase1Input extends Instrumentation {
     private float[] lastX, lastY;
     private boolean pointerActive;
     private String stage="guard";
+    private String foreground="UNOBSERVED";
 
     @Override public void onCreate(Bundle arguments) { super.onCreate(arguments); args = arguments; start(); }
     @Override public void onStart() {
@@ -154,6 +155,7 @@ public final class Phase1Input extends Instrumentation {
             result.putBoolean("passed", false);
             result.putInt("events", events);
             result.putString("stage", stage);
+            result.putString("foreground_category", foreground);
             result.putString("event_ms", numbers(eventTimes));
             result.putString("return_ms", numbers(returnTimes));
             result.putString("reason", "input_precondition_or_delivery_failed");
@@ -164,7 +166,9 @@ public final class Phase1Input extends Instrumentation {
         long deadline=SystemClock.uptimeMillis()+5000;
         while(SystemClock.uptimeMillis()<deadline) {
             AccessibilityNodeInfo root=automation.getRootInActiveWindow();
-            if(root!=null && root.getPackageName()!=null && APP.contentEquals(root.getPackageName())) {
+            CharSequence rootPackage=root==null ? null : root.getPackageName();
+            foreground=foregroundCategory(rootPackage);
+            if(root!=null && rootPackage!=null && APP.contentEquals(rootPackage)) {
                 boolean query="fixture-query".equals(op)||"negative-query".equals(op)||"clear-query".equals(op)||"submit-query".equals(op)||"empty-query".equals(op);
                 if(op.startsWith("account-") || (query ? contains(root,"البحث عن عقار")||contains(root,"البحث على الخريطة")
                          : contains(root,"صورة العقار 1 من 1")&&contains(root,"1/1"))) return root;
@@ -172,6 +176,18 @@ public final class Phase1Input extends Instrumentation {
             SystemClock.sleep(100);
         }
         throw new IllegalStateException();
+    }
+    private static String foregroundCategory(CharSequence packageName) {
+        if(packageName==null || packageName.length()==0) return "UNOBSERVED";
+        if(APP.contentEquals(packageName)) return "APP";
+        if("com.google.android.permissioncontroller".contentEquals(packageName) ||
+           "com.android.permissioncontroller".contentEquals(packageName)) return "PERMISSION_CONTROLLER";
+        if("com.google.android.documentsui".contentEquals(packageName) ||
+           "com.android.documentsui".contentEquals(packageName) ||
+           "com.google.android.providers.media.module".contentEquals(packageName) ||
+           "com.android.providers.media.module".contentEquals(packageName)) return "DOCUMENT_PICKER";
+        if("com.android.systemui".contentEquals(packageName)) return "SYSTEM_UI";
+        return "OTHER";
     }
     private static String numbers(List<Long> values) {
         StringBuilder text=new StringBuilder();
@@ -210,15 +226,20 @@ public final class Phase1Input extends Instrumentation {
         for(int i=0;i<node.getChildCount();i++) { AccessibilityNodeInfo child=node.getChild(i); if(child!=null) snapshot(child,path+"."+i,nodes,depth+1); }
     }
     private AccessibilityNodeInfo selected(AccessibilityNodeInfo root) throws Exception {
+        stage="selected_path_format";
         String path=args.getString("node_path",""); require(path.matches("0(?:\\.[0-9]{1,4}){0,40}"));
+        stage="selected_path_resolve";
         AccessibilityNodeInfo node=atPath(root,path);
+        stage="selected_witness";
         String expected=args.getString("node_witness",""); require(expected.matches("[a-f0-9]{64}") && expected.equals(witness(node)));
         return node;
     }
     private AccessibilityNodeInfo atPath(AccessibilityNodeInfo root,String path) throws Exception {
+        stage="selected_path_resolve";
         AccessibilityNodeInfo node=root;
         String[] parts=path.split("\\.");
         for(int i=1;i<parts.length;i++) { int n=Integer.parseInt(parts[i]); require(n<node.getChildCount()); node=node.getChild(n); require(node!=null); }
+        stage="selected_node_guard";
         require(node.getPackageName()!=null && APP.contentEquals(node.getPackageName()) && node.isVisibleToUser() && node.isEnabled());
         return node;
     }
@@ -247,21 +268,26 @@ public final class Phase1Input extends Instrumentation {
             String encoded=args.getString("value_b64",""); require(encoded.length()<=12000 && encoded.matches("[A-Za-z0-9+/=]*"));
             String value=new String(Base64.decode(encoded,Base64.NO_WRAP),StandardCharsets.UTF_8); require(value.length()<=5000);
             if(!node.isFocused()) {
+                stage="account_focus_request";
                 if((node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK));
                 else { stage="account_focus_pointer"; pointerTap(node); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events); }
             }
+            stage="account_focus_observe";
             AccessibilityNodeInfo field=null; long end=SystemClock.uptimeMillis()+15000;
             while(SystemClock.uptimeMillis()<end) {
                 SystemClock.sleep(100); AccessibilityNodeInfo fresh=automation.getRootInActiveWindow();
-                if(fresh==null || !APP.contentEquals(fresh.getPackageName())) continue;
+                CharSequence rootPackage=fresh==null ? null : fresh.getPackageName();
+                foreground=foregroundCategory(rootPackage);
+                if(fresh==null || !APP.contentEquals(rootPackage)) continue;
                 AccessibilityNodeInfo candidate=atPath(fresh,args.getString("node_path",""));
+                stage="account_focus_observe";
                 require(candidate.isEditable() && plain(node.getClassName()).equals(plain(candidate.getClassName()))
                     && plain(node.getContentDescription()).equals(plain(candidate.getContentDescription()))
                     && plain(node.getHintText()).equals(plain(candidate.getHintText())));
                 if(candidate.isFocused() && (candidate.getActions()&AccessibilityNodeInfo.ACTION_SET_TEXT)!=0) field=candidate;
                 if(field!=null) break;
             }
-            require(field!=null); stage="account_set";
+            require(field!=null); stage="account_set_request";
             Bundle text=new Bundle(); text.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);
             require(field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,text));
             result.putBoolean("set_text_delivered",true);
@@ -271,18 +297,24 @@ public final class Phase1Input extends Instrumentation {
     }
     private Rect pointerBounds(AccessibilityNodeInfo node) throws Exception {
         AccessibilityNodeInfo active=automation.getRootInActiveWindow();
-        require(active!=null && active.getPackageName()!=null && APP.contentEquals(active.getPackageName()));
+        CharSequence rootPackage=active==null ? null : active.getPackageName();
+        foreground=foregroundCategory(rootPackage);
+        require(active!=null && rootPackage!=null && APP.contentEquals(rootPackage));
         AccessibilityNodeInfo fresh=selected(active);
         Rect screen=new Rect(), bounds=new Rect(); active.getBoundsInScreen(screen); fresh.getBoundsInScreen(bounds);
         require(bounds.width()>8 && bounds.height()>8 && screen.contains(bounds)); return bounds;
     }
     private void pointerTap(AccessibilityNodeInfo node) throws Exception {
-        Rect b=pointerBounds(node); float x=b.exactCenterX(),y=b.exactCenterY(); long down=SystemClock.uptimeMillis();
+        String dispatchStage=stage;
+        Rect b=pointerBounds(node); stage=dispatchStage;
+        float x=b.exactCenterX(),y=b.exactCenterY(); long down=SystemClock.uptimeMillis();
         send(down,MotionEvent.ACTION_DOWN,new float[]{x},new float[]{y}); SystemClock.sleep(60);
         send(down,MotionEvent.ACTION_UP,new float[]{x},new float[]{y});
     }
     private void pointerSwipe(AccessibilityNodeInfo node,boolean backward) throws Exception {
-        Rect b=pointerBounds(node); require(b.height()>80); float margin=Math.min(60,b.height()/4f);
+        String dispatchStage=stage;
+        Rect b=pointerBounds(node); stage=dispatchStage;
+        require(b.height()>80); float margin=Math.min(60,b.height()/4f);
         float x=b.exactCenterX(),from=backward?b.top+margin:b.bottom-margin,to=backward?b.bottom-margin:b.top+margin;
         long down=SystemClock.uptimeMillis();send(down,MotionEvent.ACTION_DOWN,new float[]{x},new float[]{from});
         for(int i=1;i<=12;i++){SystemClock.sleep(25);send(down,MotionEvent.ACTION_MOVE,new float[]{x},new float[]{from+(to-from)*i/12f});}
