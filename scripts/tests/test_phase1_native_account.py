@@ -103,6 +103,52 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertTrue(self.probe.record_tainted)
         self.assertEqual(self.probe.report['videos'], [])
 
+    def test_profile_authentication_can_pin_broker_role_from_revoked_api_setup_without_footer_assumption(self):
+        self.probe.report['api_bootstrap'] = {'status': 'PASS', 'fresh_session_cleaned': True,
+            'identity': {'actor_id': 28, 'account_type': 'broker'}}
+        self.probe.nodes = Mock(return_value=[self.node('تسجيل الخروج'), self.node('عقاراتي')])
+        result = self.probe.authenticated_account_evidence()
+        self.assertEqual(result['native_auth_witness'], 'authenticated_profile_logout_control')
+        self.assertTrue(result['broker_role_api_pinned'])
+        self.assertFalse(result['broker_role_ui_witness'])
+        self.assertTrue(result['professional_controls_visible'])
+
+    def test_profile_logout_or_professional_controls_alone_do_not_prove_broker_role(self):
+        self.probe.nodes = Mock(return_value=[self.node('تسجيل الخروج'), self.node('عقاراتي')])
+        with patch.object(native.time, 'sleep'), patch.object(native.time, 'monotonic', side_effect=[0, 1, 91]):
+            with self.assertRaisesRegex(native.Blocked, '^native_broker_auth_not_observed$'):
+                self.probe.authenticated_account_evidence()
+
+    def test_current_public_reference_and_exact_native_match_are_recorded_as_hashes_not_full_list(self):
+        references = [{'id': 71, 'title': 'fresh-host-title'}, {'id': 72, 'title': 'other-current-title'}]
+        self.probe.nodes = Mock(return_value=[self.node('fresh-host-title')])
+        with patch.object(native, 'read_public_reference', return_value=references) as read:
+            self.probe.public_network_readiness()
+        read.assert_called_once_with()
+        case = next(row for row in self.probe.report['cases'] if row['id'] == 'C1-native-network')
+        self.assertEqual(case['status'], 'PASS')
+        self.assertEqual(case['public_reference_count'], 2)
+        self.assertEqual(case['visible_match_count'], 1)
+        self.assertEqual(case['public_reference_sha256'], native.digest(references))
+        serialized = json.dumps(self.probe.report)
+        self.assertNotIn('fresh-host-title', serialized); self.assertNotIn('other-current-title', serialized)
+
+    def test_old_or_unrelated_native_title_does_not_satisfy_a_fresh_host_reference(self):
+        self.probe.nodes = Mock(return_value=[self.node('old-hardcoded-title')])
+        self.probe.scroll = Mock()
+        with patch.object(native, 'read_public_reference', return_value=[{'id': 71, 'title': 'current-host-title'}]), \
+                patch.object(native.time, 'sleep'), patch.object(native.time, 'monotonic', side_effect=[0, 1, 61]):
+            with self.assertRaisesRegex(native.Blocked, '^native_public_uat_response_not_observed$'):
+                self.probe.public_network_readiness()
+        self.assertEqual(next(row for row in self.probe.report['cases'] if row['id'] == 'C1-native-network')['status'], 'NOT RUN')
+
+    def test_missing_real_public_response_never_attempts_native_match_or_api_bootstrap(self):
+        self.probe.nodes = Mock(); self.probe.fixture_api = None
+        with patch.object(native, 'read_public_reference', side_effect=native.FixtureError('public_reference_http_or_shape')):
+            with self.assertRaises(native.FixtureError): self.probe.public_network_readiness()
+        self.probe.nodes.assert_not_called()
+        self.assertIsNone(self.probe.fixture_api)
+
     def test_failed_or_unfinished_recording_is_discarded_by_default(self):
         recorder = Mock()
         recorder.poll.return_value = 0
@@ -165,6 +211,66 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertIn(row['path'], invocation)
         self.assertIn(row['witness'], invocation)
 
+    def test_nonclickable_named_button_uses_only_that_observed_node(self):
+        button = self.node('حسابي', path='0.2.4', clickable=False,
+                           **{'class': 'android.widget.Button'})
+        self.probe.nodes = Mock(return_value=[button])
+        self.probe.act = Mock()
+        self.probe.tap('حسابي', seek=False)
+        self.probe.act.assert_called_once_with('click', button)
+
+    def test_nonclickable_generic_view_has_no_coordinate_fallback(self):
+        text = self.node('حسابي', clickable=False, **{'class': 'android.view.View'})
+        self.probe.nodes = Mock(return_value=[text])
+        self.probe.act = Mock()
+        with self.assertRaisesRegex(native.Blocked, 'semantic_native_click_unavailable'):
+            self.probe.tap('حسابي', seek=False)
+        self.probe.act.assert_not_called()
+
+    def test_duplicate_named_pointer_buttons_are_refused_instead_of_guessing_bounds(self):
+        buttons = [self.node('التالي', path='0.2', clickable=False,
+                             bounds=[0, 0, 150, 50], **{'class': 'android.widget.Button'}),
+                   self.node('التالي', path='0.3', clickable=False,
+                             bounds=[0, 80, 300, 160], **{'class': 'android.widget.Button'})]
+        self.probe.nodes = Mock(return_value=buttons)
+        self.probe.act = Mock()
+        with self.assertRaisesRegex(native.Blocked, 'ambiguous_native_pointer_target'):
+            self.probe.tap('التالي', seek=False)
+        self.probe.act.assert_not_called()
+
+    def test_existing_semantic_ancestor_remains_preferred_to_button_pointer_fallback(self):
+        container = self.node('', path='0.1', clickable=True,
+                              **{'class': 'android.view.View'})
+        button = self.node('التالي', path='0.1.3', clickable=False,
+                           **{'class': 'android.widget.Button'})
+        self.probe.nodes = Mock(return_value=[container, button])
+        self.probe.act = Mock()
+        self.probe.tap('التالي', seek=False)
+        self.probe.act.assert_called_once_with('click', container)
+
+    def test_auth_pointer_action_keeps_only_count_and_never_the_node_witness(self):
+        row = self.node('تأكيد والدخول')
+        row['witness'] = 'f' * 64
+        self.probe.instrument = Mock(return_value={
+            'account_action_delivered': 'true', 'native_pointer_used': 'true',
+            'native_pointer_events': '2'})
+        with patch.object(native.time, 'sleep'):
+            self.probe.act('click', row)
+        self.assertEqual(self.probe.report['actions'], [])
+        self.assertEqual(self.probe.report['auth_input_operations_delivered'], 1)
+        self.assertNotIn(row['witness'], (self.probe.out / 'report.json').read_text())
+
+    def test_postauth_pointer_action_keeps_the_verified_mode_and_exact_event_count(self):
+        row = self.node('التالي')
+        self.probe.authenticated = True
+        self.probe.instrument = Mock(return_value={
+            'account_action_delivered': 'true', 'native_pointer_used': 'true',
+            'native_pointer_events': '2'})
+        with patch.object(native.time, 'sleep'):
+            self.probe.act('click', row)
+        self.assertEqual(self.probe.report['actions'][0]['delivery'], 'pointer_tap')
+        self.assertEqual(self.probe.report['actions'][0]['native_pointer_events'], 2)
+
     def test_failed_device_command_does_not_expose_captured_output(self):
         raw = self.access['otp'] + ' arbitrary private framework exception'
         result = subprocess.CompletedProcess(['adb'], 1, raw.encode(), raw.encode())
@@ -215,42 +321,254 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertFalse(any(call.args[:3] == ('shell', 'input', 'tap')
                              for call in self.probe.adb.call_args_list))
 
-    def test_cleanup_does_not_delete_when_own_unique_title_is_missing(self):
-        self.probe.fixture_possible = True
-        self.probe.authenticated = True
-        self.probe.record_stop = Mock()
-        self.probe.adb = Mock(return_value='')
-        self.probe.startup = Mock()
-        self.probe.wait = Mock()
-        self.probe.manual_entry = Mock()
-        self.probe.tap = Mock()
-        self.probe.seek = Mock(return_value=([self.node('other draft')], []))
-        self.probe.act = Mock()
-        with self.assertRaisesRegex(native.Blocked, 'own_draft_cleanup_identity'):
-            self.probe.cleanup()
-        self.probe.act.assert_not_called()
-        self.assertTrue(self.probe.fixture_possible)
-        self.probe.tap.assert_called_once_with('مسوداتي')
+    def fixture(self):
+        fixture = Mock()
+        fixture.state = {'key': '83f56a55-1ee7-4b4f-a36b-7687f2e310e9',
+                         'tag': 'AQER-C1-aabbccddeeff',
+                         'title': 'مسودة اختبار الواجهة AQER-C1-aabbccddeeff',
+                         'creation_request_sent': True}
+        fixture.last_receipt = {'status': 'PASS', 'fresh_session_cleaned': True,
+                                'revoked_token_http': 401}
+        fixture.has_pending_fixture = False  # Its successful mocked cleanup removes only this UUID.
+        return fixture
 
-    def test_cleanup_does_not_select_ambiguous_foreign_delete_controls(self):
-        self.probe.fixture_possible = True
-        self.probe.authenticated = True
-        self.probe.record_stop = Mock()
-        self.probe.adb = Mock(return_value='')
-        self.probe.startup = Mock()
-        self.probe.wait = Mock()
-        self.probe.manual_entry = Mock()
-        self.probe.tap = Mock()
-        own = self.node(self.probe.title, path='0.1.5')
-        # Neither deletion control is in an observed bounded row belonging to own title.
-        foreign = [self.node('حذف المسودة', path='0.1.6'),
-                   self.node('حذف المسودة', path='0.1.7')]
-        self.probe.seek = Mock(return_value=([own, *foreign], [own]))
-        self.probe.act = Mock()
-        with self.assertRaisesRegex(native.Blocked, 'own_draft_cleanup_control_ambiguous'):
-            self.probe.cleanup()
-        self.probe.act.assert_not_called()
+    def test_bootstrap_receipt_distinguishes_api_setup_from_native_creation(self):
+        fixture = self.fixture()
+        with patch.object(native, 'FixtureApi', return_value=fixture) as factory:
+            self.probe.bootstrap_fixture()
+        fixture.bootstrap.assert_called_once_with()
+        factory.assert_called_once_with(self.access['phones']['broker'],
+                                        self.access['otp'], '9')
         self.assertTrue(self.probe.fixture_possible)
+        self.assertEqual(self.probe.bootstrap_title, fixture.state['title'])
+        self.assertIn(fixture.state['tag'], self.probe.title)
+        row = next(r for r in self.probe.report['cases'] if r['id'] == 'C1-api-empty-fixture')
+        self.assertEqual(row['status'], 'PASS')
+        self.assertFalse(row['native_creation_claim'])
+        self.assertFalse(row['facts_entered'])
+        self.assertFalse(row['photos_uploaded'])
+        self.assertFalse(self.probe.report['native_auth_executed'])
+
+    def test_native_entry_refuses_unknown_or_foreign_fixture_before_any_ui_action(self):
+        self.probe.tap = Mock()
+        self.probe.fixture_api = self.fixture()
+        for title in ['', 'protected old draft', None]:
+            with self.subTest(title=title):
+                with self.assertRaisesRegex(native.Blocked, 'known_new_fixture'):
+                    self.probe.manual_entry(title)
+        self.probe.tap.assert_not_called()
+
+    def test_saved_fixture_entry_ignores_default_old_recovery_and_opens_exact_own_title(self):
+        fixture = self.fixture()
+        self.probe.fixture_api = fixture
+        title = fixture.state['title']
+        self.probe.tap = Mock()
+        self.probe.has = Mock(return_value=False)
+        self.probe.nodes = Mock(return_value=[self.node('لديك إعلان غير مكتمل'),
+                                             self.node('protected preexisting draft')])
+        self.probe.wait = Mock()
+        own = self.node(title)
+        self.probe.seek = Mock(return_value=([own], [own]))
+        self.probe.manual_entry(title)
+        self.assertEqual([c.args[0] for c in self.probe.tap.call_args_list],
+                         ['إضافة عقار', 'مسوداتي', title])
+        self.probe.seek.assert_called_once_with(title)
+        self.assertNotIn('متابعة الإعلان', [c.args[0] for c in self.probe.tap.call_args_list])
+        self.assertNotIn('بدء إعلان جديد', [c.args[0] for c in self.probe.tap.call_args_list])
+
+    def test_saved_fixture_entry_refuses_missing_or_duplicate_owned_title(self):
+        fixture = self.fixture()
+        self.probe.fixture_api = fixture
+        title = fixture.state['title']
+        for matches in [[], [self.node(title), self.node(title, path='0.2')]]:
+            self.probe.tap = Mock()
+            self.probe.has = Mock(return_value=False)
+            self.probe.nodes = Mock(return_value=[self.node('لديك إعلان غير مكتمل')])
+            self.probe.wait = Mock()
+            self.probe.seek = Mock(return_value=(matches, matches))
+            with self.subTest(matches=len(matches)):
+                with self.assertRaisesRegex(native.Blocked, 'unique_owned_saved_fixture'):
+                    self.probe.manual_entry(title)
+            self.assertEqual([c.args[0] for c in self.probe.tap.call_args_list],
+                             ['إضافة عقار', 'مسوداتي'])
+
+    def test_network_prerequisite_prevents_api_bootstrap_or_login_when_blocked(self):
+        self.probe.validate_and_install = Mock()
+        self.probe.startup = Mock()
+        self.probe.public_network_readiness = Mock(side_effect=native.Blocked('mock_network_unready'))
+        self.probe.bootstrap_fixture = Mock()
+        self.probe.login = Mock()
+        self.probe.cleanup = Mock()
+        self.probe.record_stop = Mock()
+        self.assertFalse(self.probe.execute())
+        self.probe.bootstrap_fixture.assert_not_called()
+        self.probe.login.assert_not_called()
+        self.probe.cleanup.assert_not_called()
+        network = next(r for r in self.probe.report['cases'] if r['id'] == 'C1-native-network')
+        self.assertEqual(network['status'], 'BLOCKED')
+        self.assertFalse(self.probe.report['native_auth_executed'])
+
+    def test_execute_orders_real_network_then_api_setup_logout_then_native_login(self):
+        order = []
+        fixture = self.fixture()
+        fixture.bootstrap.side_effect = lambda: order.extend(['api-bootstrap', 'api-logout-401'])
+        self.probe.validate_and_install = Mock(side_effect=lambda: order.append('install'))
+        self.probe.startup = Mock(side_effect=lambda: order.append('startup'))
+        self.probe.public_network_readiness = Mock(side_effect=lambda: order.append('public-app-network'))
+        self.probe.login = Mock(side_effect=lambda: order.append('native-login'))
+        self.probe.create_and_save = Mock(side_effect=lambda: order.append('native-edit-save'))
+        self.probe.restore = Mock(side_effect=lambda: order.append('native-restore'))
+        self.probe.cleanup = Mock(side_effect=lambda: order.append('cleanup'))
+        self.probe.record_stop = Mock()
+        with patch.object(native, 'FixtureApi', return_value=fixture):
+            self.assertFalse(self.probe.execute())  # Mocked UI does not earn native PASS.
+        self.assertEqual(order, ['install', 'startup', 'public-app-network', 'api-bootstrap',
+                                 'api-logout-401', 'native-login', 'native-edit-save',
+                                 'native-restore', 'cleanup'])
+        self.assertFalse(self.probe.report['native_auth_executed'])
+
+    def test_api_cleanup_runs_after_partial_setup_even_without_native_authentication(self):
+        fixture = self.fixture()
+        fixture.bootstrap.side_effect = native.FixtureError('mock_setup_reply_lost')
+        fixture.last_receipt = {'status': 'BLOCKED', 'fresh_session_cleaned': True}
+        self.probe.validate_and_install = Mock()
+        self.probe.startup = Mock()
+        self.probe.public_network_readiness = Mock()
+        self.probe.login = Mock()
+        self.probe.record_stop = Mock()
+        self.probe.native_logout = Mock()
+        self.probe.adb = Mock(return_value='')
+        with patch.object(native, 'FixtureApi', return_value=fixture):
+            self.assertFalse(self.probe.execute())
+        self.probe.login.assert_not_called()
+        self.probe.native_logout.assert_not_called()
+        fixture.cleanup.assert_called_once_with()
+        self.assertFalse(self.probe.fixture_possible)
+        self.assertFalse(self.probe.report['native_auth_executed'])
+        self.assertFalse(self.probe.report['session_may_remain'])
+
+    def test_native_logout_failure_does_not_skip_known_uuid_api_cleanup(self):
+        fixture = self.fixture()
+        self.probe.fixture_api = fixture
+        self.probe.fixture_possible = True
+        self.probe.auth_attempted = True
+        self.probe.record_stop = Mock()
+        self.probe.native_logout = Mock(side_effect=native.Blocked('mock_logout_unavailable'))
+        self.probe.adb = Mock(return_value='')
+        self.probe.tap = Mock()
+        with self.assertRaisesRegex(native.Blocked, 'native_or_api_cleanup_incomplete'):
+            self.probe.cleanup()
+        fixture.cleanup.assert_called_once_with()
+        self.probe.adb.assert_called_once_with('shell', 'am', 'force-stop', native.APP)
+        self.probe.tap.assert_not_called()  # No native delete or unrelated recovery action.
+        self.assertFalse(self.probe.fixture_possible)
+        self.assertEqual(self.probe.report['api_cleanup'], fixture.last_receipt)
+
+    def test_cleanup_orders_native_logout_writer_stop_and_only_known_api_fixture(self):
+        order = []
+        fixture = self.fixture()
+        fixture.cleanup.side_effect = lambda: order.append('own-api-cleanup')
+        self.probe.fixture_api = fixture
+        self.probe.fixture_possible = True
+        self.probe.auth_attempted = True
+        self.probe.record_stop = Mock()
+        self.probe.native_logout = Mock(side_effect=lambda: order.append('native-logout'))
+        self.probe.adb = Mock(side_effect=lambda *a, **k: order.append('native-writer-stop'))
+        self.probe.tap = Mock()
+        self.probe.cleanup()
+        self.assertEqual(order, ['native-logout', 'native-writer-stop', 'own-api-cleanup'])
+        self.probe.tap.assert_not_called()
+        fixture.cleanup.assert_called_once_with()
+        self.assertFalse(self.probe.fixture_possible)
+
+    def test_api_cleanup_failure_preserves_pending_fixture_and_receipt(self):
+        fixture = self.fixture()
+        fixture.cleanup.side_effect = native.FixtureError('mock_protected_baseline_inconclusive')
+        fixture.last_receipt = {'status': 'BLOCKED', 'fresh_session_cleaned': True}
+        fixture.has_pending_fixture = True
+        self.probe.fixture_api = fixture
+        self.probe.fixture_possible = True
+        self.probe.record_stop = Mock()
+        self.probe.native_logout = Mock()
+        self.probe.adb = Mock(return_value='')
+        with self.assertRaisesRegex(native.Blocked, 'native_or_api_cleanup_incomplete'):
+            self.probe.cleanup()
+        self.probe.native_logout.assert_not_called()
+        self.assertTrue(self.probe.fixture_possible)
+        self.assertEqual(self.probe.report['api_cleanup'], fixture.last_receipt)
+        case = next(r for r in self.probe.report['cases'] if r['id'] == 'C1-cleanup')
+        self.assertNotEqual(case['status'], 'PASS')
+
+
+class AccountDeliverySafetyTest(unittest.TestCase):
+    def test_only_complete_semantic_and_native_pointer_receipts_are_accepted(self):
+        fixtures = [
+            ('click', {'semantic_action_used': 'true'}, 'semantic_action', 0),
+            ('scroll', {'semantic_action_used': 'true'}, 'semantic_action', 0),
+            ('set', {'set_text_delivered': 'true'}, 'semantic_text', 0),
+            ('click', {'native_pointer_used': 'true', 'native_pointer_events': '2'},
+             'pointer_tap', 2),
+            ('scroll', {'native_pointer_used': 'true', 'native_pointer_events': '14'},
+             'pointer_swipe', 14),
+            ('set', {'set_text_delivered': 'true', 'native_pointer_used': 'true',
+                     'native_pointer_events': '2'}, 'pointer_focus', 2),
+        ]
+        for kind, fields, mode, events in fixtures:
+            with self.subTest(kind=kind, mode=mode):
+                result = native.account_delivery({'account_action_delivered': 'true', **fields}, kind)
+                self.assertEqual(result, {'delivery': mode, 'native_pointer_events': events})
+
+    def test_pointer_attempt_without_exact_complete_event_count_is_refused(self):
+        for kind in ['click', 'scroll', 'set']:
+            right = '14' if kind == 'scroll' else '2'
+            for count in [None, '', '0', '1', '3', '02', right + '.0', int(right)]:
+                fields = {'account_action_delivered': 'true', 'native_pointer_used': 'true',
+                          'set_text_delivered': 'true'}
+                if count is not None:
+                    fields['native_pointer_events'] = count
+                with self.subTest(kind=kind, count=count):
+                    with self.assertRaisesRegex(native.Blocked, 'native_pointer_event_count_mismatch'):
+                        native.account_delivery(fields, kind)
+
+    def test_semantic_and_pointer_modes_cannot_both_claim_the_same_delivery(self):
+        fields = {'account_action_delivered': 'true', 'semantic_action_used': 'true',
+                  'native_pointer_used': 'true', 'native_pointer_events': '2',
+                  'set_text_delivered': 'true'}
+        for kind in ['click', 'scroll', 'set']:
+            with self.subTest(kind=kind):
+                with self.assertRaisesRegex(native.Blocked, 'native_delivery_receipt_ambiguous'):
+                    native.account_delivery(fields, kind)
+
+    def test_missing_delivery_or_invalid_boolean_flags_are_refused(self):
+        for kind in ['click', 'scroll']:
+            with self.subTest(kind=kind):
+                with self.assertRaisesRegex(native.Blocked, 'native_delivery_mode_missing'):
+                    native.account_delivery({'account_action_delivered': 'true'}, kind)
+        for flag in ['native_pointer_used', 'semantic_action_used']:
+            for value in [True, 1, 'yes', 'TRUE', '1', None]:
+                with self.subTest(flag=flag, value=value):
+                    with self.assertRaisesRegex(native.Blocked, 'native_delivery_receipt_invalid'):
+                        native.account_delivery({'account_action_delivered': 'true', flag: value}, 'click')
+
+    def test_semantic_receipt_cannot_include_unclaimed_pointer_events(self):
+        for count in ['0', '2', 0]:
+            with self.subTest(count=count):
+                with self.assertRaisesRegex(native.Blocked, 'unexpected_native_pointer_events'):
+                    native.account_delivery({'account_action_delivered': 'true',
+                                             'semantic_action_used': 'true',
+                                             'native_pointer_events': count}, 'click')
+
+    def test_set_requires_confirmed_text_delivery_even_when_focus_pointer_succeeded(self):
+        for fields in [{}, {'native_pointer_used': 'true', 'native_pointer_events': '2'}]:
+            with self.subTest(fields=fields):
+                with self.assertRaisesRegex(native.Blocked, 'native_set_text_not_delivered'):
+                    native.account_delivery({'account_action_delivered': 'true', **fields}, 'set')
+
+    def test_no_receipt_bypasses_failed_delivery_or_unsupported_action_kind(self):
+        with self.assertRaisesRegex(native.Blocked, 'native_action_not_delivered'):
+            native.account_delivery({'semantic_action_used': 'true'}, 'click')
+        with self.assertRaisesRegex(native.Blocked, 'native_action_kind_invalid'):
+            native.account_delivery({'account_action_delivered': 'true'}, 'shell')
 
 
 if __name__ == '__main__':

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Actual C1 UI journey, using runtime-only Actions test credentials.
 
-No API login, stored-session injection, test widgets, TLS/DNS changes or submission.
+Normal API setup labels a new empty draft; all property facts/photo/recovery use UI.
+No stored-session injection, test widgets, TLS/DNS changes or submission.
 All artifact export is performed separately, encrypted to the current recipient.
 """
 import argparse
@@ -12,11 +13,13 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import time
 import xml.etree.ElementTree as ET
 
 from phase1_native_account_readiness import preflight, validate_access, SECRET_NAME
+from phase1_native_fixture_api import FixtureApi, FixtureError, read_public_reference, digest
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = 'com.aqer.yemen.uat'
@@ -43,6 +46,36 @@ def common_depth(a, b):
             break
         count += 1
     return count
+
+
+def account_delivery(result, kind):
+    """Accept only complete, unambiguous receipts from the pinned input helper."""
+    if result.get('account_action_delivered') != 'true':
+        raise Blocked('native_action_not_delivered')
+    if kind not in {'click', 'scroll', 'set'}:
+        raise Blocked('native_action_kind_invalid')
+    for flag in ['native_pointer_used', 'semantic_action_used']:
+        if flag in result and result[flag] not in {'true', 'false'}:
+            raise Blocked('native_delivery_receipt_invalid')
+    pointer = result.get('native_pointer_used') == 'true'
+    semantic = result.get('semantic_action_used') == 'true'
+    if pointer and semantic:
+        raise Blocked('native_delivery_receipt_ambiguous')
+    if kind == 'set' and result.get('set_text_delivered') != 'true':
+        raise Blocked('native_set_text_not_delivered')
+    if kind in {'click', 'scroll'} and not (pointer or semantic):
+        raise Blocked('native_delivery_mode_missing')
+    if pointer:
+        expected = 14 if kind == 'scroll' else 2
+        if result.get('native_pointer_events') != str(expected):
+            raise Blocked('native_pointer_event_count_mismatch')
+        return {'delivery': 'pointer_swipe' if kind == 'scroll' else
+                            'pointer_focus' if kind == 'set' else 'pointer_tap',
+                'native_pointer_events': expected}
+    if 'native_pointer_events' in result:
+        raise Blocked('unexpected_native_pointer_events')
+    return {'delivery': 'semantic_text' if kind == 'set' else 'semantic_action',
+            'native_pointer_events': 0}
 
 
 class NativeAccount:
@@ -72,19 +105,24 @@ class NativeAccount:
         self.recorder = None
         self.record_tainted = False
         self.fixture_possible = False
+        self.fixture_api = None
+        self.bootstrap_title = None
         self.title = 'اختبار استعادة المسودة ' + env['GITHUB_RUN_ID']
         self.photo_name = 'phase1-account-' + env['GITHUB_RUN_ID'] + '.jpg'
         self.report = {'scope': 'C1 actual Android account draft recovery only',
                        'source_commit': env['GITHUB_SHA'], 'ci_run_id': env['GITHUB_RUN_ID'],
                        'api': API, 'synthetic_widgets': False, 'phase1_accepted': False,
+                       'c1_accepted': False, 'manual_review_completed': False,
                        'native_auth_executed': False, 'authentication_captures': False,
                        'native_auth_attempted': False,
+                       'api_bootstrap_is_not_native_creation': True,
                        'submission_executed': False, 'financial_acceptance_executed': False,
                        'cases': [], 'actions': [], 'frames': [], 'videos': [],
                        'visual_review_required': True, 'fixture_title': self.title,
                        'limitations': ['C2 support/isolation and C4 AI are not tested here',
                                        'API36 KVM functional evidence, not a physical handset/performance claim']}
-        for key in ('C1-auth', 'C1-photo-save', 'C1-force-stop-restore', 'C1-cleanup'):
+        for key in ('C1-native-network', 'C1-api-empty-fixture', 'C1-auth',
+                    'C1-photo-save', 'C1-force-stop-restore', 'C1-cleanup'):
             self.report['cases'].append({'id': key, 'status': 'NOT RUN'})
         self.save()
 
@@ -164,13 +202,10 @@ class NativeAccount:
         if kind == 'scroll':
             extra['direction'] = direction
         result = self.instrument('account-' + kind, **extra)
-        if result.get('account_action_delivered') != 'true':
-            raise Blocked('native_action_not_delivered')
-        if kind == 'set' and result.get('set_text_delivered') != 'true':
-            raise Blocked('native_set_text_not_delivered')
+        receipt = account_delivery(result, kind)
         if self.authenticated:
             self.report['actions'].append({'kind': kind, 'witness': row['witness'],
-                                           'authenticated': True})
+                                           'authenticated': True, **receipt})
         else:
             # Even a UI witness hash can fingerprint a low-entropy phone field.
             # Authentication receipts retain only a count, never node hashes.
@@ -211,6 +246,13 @@ class NativeAccount:
                              item['path'].startswith(r['path'] + '.')]
                 if ancestors:
                     candidates.append(max(ancestors, key=lambda r: len(r['path'])))
+        if not candidates:
+            # Original template Buttons can lack accessibility ACTION_CLICK.
+            # The helper still revalidates this named node/witness and injects
+            # a bounded physical tap; never fall back to an unnamed View.
+            candidates = [r for r in matched if r.get('class') == 'android.widget.Button']
+            if len(candidates) > 1:
+                raise Blocked('ambiguous_native_pointer_target')
         unique = {r['path']: r for r in candidates}
         if not unique:
             raise Blocked('semantic_native_click_unavailable')
@@ -374,20 +416,94 @@ class NativeAccount:
         self.auth_attempted = True
         self.report['native_auth_attempted'] = True
         self.tap('تأكيد والدخول')
-        deadline = time.monotonic() + 90
+        evidence = self.authenticated_account_evidence()
+        self.authenticated = True
+        self.report['native_auth_executed'] = True
+        self.mark('C1-auth', 'PASS', normal_whatsapp_ui=True, secret_capture=False, **evidence)
+
+    def authenticated_account_evidence(self, seconds=90):
+        bootstrap = self.report.get('api_bootstrap') or {}
+        identity = bootstrap.get('identity') or {}
+        api_pinned = (bootstrap.get('status') == 'PASS' and bootstrap.get('fresh_session_cleaned') is True
+                      and identity.get('actor_id') == 28 and identity.get('account_type') == 'broker')
+        deadline = time.monotonic() + seconds
+        profile_opened = False
         while time.monotonic() < deadline:
             rows = self.nodes()
-            if self.matching(rows, 'عملي') and self.matching(rows, 'العملاء') and not any(
-                    label in labels(r) for r in rows for label in AUTH_LABELS):
-                self.authenticated = True
-                self.report['native_auth_executed'] = True
-                self.mark('C1-auth', 'PASS', role_witness=['عملي', 'العملاء'],
-                          normal_whatsapp_ui=True, secret_capture=False)
-                return
+            if any(label in labels(r) for r in rows for label in AUTH_LABELS):
+                time.sleep(.7)
+                continue
+            if self.matching(rows, 'عملي') and self.matching(rows, 'العملاء'):
+                return {'native_auth_witness': 'broker_footer', 'broker_role_ui_witness': True,
+                        'broker_role_api_pinned': api_pinned}
+            profile_role = bool(self.matching(rows, 'نوع الحساب: دلال'))
+            professional_controls = any(self.matching(rows, label) for label in ['إدارة العملاء', 'عقاراتي'])
+            if self.matching(rows, 'تسجيل الخروج') and (profile_role or api_pinned):
+                return {'native_auth_witness': 'authenticated_profile_logout_control',
+                        'broker_role_ui_witness': profile_role, 'broker_role_api_pinned': api_pinned,
+                        'professional_controls_visible': professional_controls}
+            if self.matching(rows, 'حسابي') and not profile_opened:
+                self.tap('حسابي')
+                profile_opened = True
+            elif profile_opened:
+                try:
+                    self.seek('تسجيل الخروج', attempts=2)
+                except Blocked:
+                    pass
             time.sleep(.7)
         raise Blocked('native_broker_auth_not_observed')
 
-    def manual_entry(self, resume=False, chooser=False):
+    def public_network_readiness(self):
+        # Fresh install, default networking, and a real published UAT card are
+        # prerequisites only; previous guest-search acceptance is not repeated.
+        references = read_public_reference()
+        deadline = time.monotonic() + 60
+        scrolls = 0
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            matches = [reference for reference in references if self.matching(rows, reference['title'])]
+            if matches:
+                self.mark('C1-native-network', 'PASS', real_published_card_observed=True,
+                          public_reference_count=len(references), public_reference_sha256=digest(references),
+                          visible_match_count=len(matches), visible_match_sha256=digest(matches),
+                          default_network=True, host_reference_is_not_native_network_trace=True,
+                          acceptance_scope='prerequisite only')
+                return
+            if scrolls < 4:
+                try:
+                    self.scroll()
+                    scrolls += 1
+                except Blocked:
+                    pass
+            time.sleep(1)
+        raise Blocked('native_public_uat_response_not_observed')
+
+    def bootstrap_fixture(self):
+        self.fixture_api = FixtureApi(self.access['phones']['broker'], self.access['otp'],
+                                      self.env['GITHUB_RUN_ID'])
+        try:
+            self.fixture_api.bootstrap()
+        finally:
+            if self.fixture_api.state:
+                state = self.fixture_api.state
+                self.fixture_possible = bool(state.get('creation_request_sent'))
+                self.report['fixture_key'] = state.get('key')
+                self.report['fixture_tag'] = state.get('tag')
+            self.report['api_bootstrap'] = self.fixture_api.last_receipt
+            self.save()
+        state = self.fixture_api.state
+        self.bootstrap_title = state['title']
+        self.title = 'اختبار استعادة المسودة ' + state['tag']
+        self.report['fixture_title'] = self.title
+        self.mark('C1-api-empty-fixture', 'PASS', native_creation_claim=False,
+                  bootstrap_fields=['synthetic_title_label_only'],
+                  property_created=False, photos_uploaded=False,
+                  facts_entered=False, api_session_logged_out=True)
+
+    def manual_entry(self, expected_title):
+        if not self.fixture_api or not self.fixture_api.state or not expected_title or \
+                self.fixture_api.state['tag'] not in expected_title:
+            raise Blocked('known_new_fixture_required_before_native_entry')
         self.tap('إضافة عقار')
         if self.has('تعبئة يدوي'):
             self.tap('تعبئة يدوي')
@@ -397,17 +513,17 @@ class NativeAccount:
         while time.monotonic() < deadline:
             rows = self.nodes()
             if self.matching(rows, 'لديك إعلان غير مكتمل'):
-                if (not resume and not chooser) or not self.matching(rows, self.title):
-                    raise Blocked('preexisting_draft_protected')
-                if chooser:
-                    return
-                self.tap('متابعة الإعلان')
-                return
-            if not resume and not chooser and (self.matching(rows, 'عنوان الإعلان *') or
-                                               self.matching(rows, 'نوع الإعلان والعقار')):
+                # The default recovery candidate may be an old protected draft.
+                # Never continue it or start a new draft that retires it.
+                self.tap('مسوداتي')
+                self.wait('مسوداتي')
+                rows, matches = self.seek(expected_title)
+                if len(matches) != 1:
+                    raise Blocked('unique_owned_saved_fixture_not_observed')
+                self.tap(expected_title)
                 return
             time.sleep(.5)
-        raise Blocked('native_manual_editor_not_observed')
+        raise Blocked('native_owned_saved_fixture_not_observed')
 
     def photo_picker(self):
         from PIL import Image, ImageDraw
@@ -469,8 +585,7 @@ class NativeAccount:
         self.wait('صور الإعلان (1/12)', seconds=30)
 
     def create_and_save(self):
-        self.manual_entry()
-        self.fixture_possible = True
+        self.manual_entry(self.bootstrap_title)
         self.tap('للإيجار')
         self.tap('شقة')
         self.set('عنوان الإعلان *', self.title)
@@ -511,10 +626,9 @@ class NativeAccount:
         self.authenticated = False
         self.startup()
         # Normal saved session restoration; never inject or read its storage.
-        self.wait('عملي', seconds=45)
-        self.wait('العملاء')
+        self.authenticated_account_evidence(seconds=45)
         self.authenticated = True
-        self.manual_entry(resume=True)
+        self.manual_entry(self.title)
         self.wait('خيارات المسودة')
         self.tap('السابق')
         self.wait('المواصفات')
@@ -540,71 +654,79 @@ class NativeAccount:
                   same_unique_title=True, location_restored=True, bedroom_count=3,
                   bathroom_count=2, floor='2', photo_count=1, photo_state='complete')
 
-    def cleanup(self):
+    def native_logout(self):
         self.record_stop()
-        if self.fixture_possible:
-            # Start normal navigation from a known retained session, without data reset.
-            self.adb('shell', 'am', 'force-stop', APP)
-            self.authenticated = False
-            self.startup()
-            self.wait('عملي', seconds=45)
-            self.wait('العملاء')
-            self.authenticated = True
-            self.manual_entry(chooser=True)
-            self.tap('مسوداتي')
-            rows, titles = self.seek(self.title)
-            if len(titles) != 1:
-                raise Blocked('own_draft_cleanup_identity_unproven')
-            buttons = self.matching(rows, 'حذف المسودة')
-            scores = [(common_depth(titles[0]['path'], b['path']), b) for b in buttons]
-            if not scores:
-                raise Blocked('own_draft_cleanup_control_missing')
-            highest = max(score for score, _ in scores)
-            chosen = [row for score, row in scores if score == highest]
-            ancestor_path = '.'.join(titles[0]['path'].split('.')[:highest])
-            ancestors = [r for r in rows if r['path'] == ancestor_path]
-            if len(chosen) != 1 or highest < 2 or len(ancestors) != 1 or not (
-                    0 < ancestors[0]['bounds'][3] - ancestors[0]['bounds'][1] <= 250) or not (
-                    min(titles[0]['bounds'][3], chosen[0]['bounds'][3]) >
-                    max(titles[0]['bounds'][1], chosen[0]['bounds'][1])):
-                raise Blocked('own_draft_cleanup_control_ambiguous')
-            self.act('click', chosen[0])
-            self.wait('حذف المسودة المحفوظة؟')
-            self.tap('تأكيد')
-            deadline = time.monotonic() + 45
-            while time.monotonic() < deadline:
-                # Initial protection required an otherwise empty account. The
-                # settled explicit empty state proves absence beyond viewport.
-                if not self.has(self.title) and self.has('لا توجد مسودات محفوظة.'):
-                    self.fixture_possible = False
-                    break
-                time.sleep(.7)
-            if self.fixture_possible:
-                raise Blocked('own_draft_cleanup_not_confirmed')
-        for _ in range(5):
-            if self.has('حسابي'):
-                break
-            self.adb('shell', 'input', 'keyevent', '4')
-            time.sleep(.5)
+        # A known retained session avoids a Back dialog that might save/retire
+        # an unrelated recovery candidate. Do not reset or read app storage.
+        self.adb('shell', 'am', 'force-stop', APP)
+        self.authenticated = False
+        self.startup()
         self.tap('حسابي')
         self.tap('تسجيل الخروج')
         self.authenticated = False
         self.wait('تسجيل الدخول أو إنشاء حساب', seconds=45)
         self.report['session_logged_out'] = True
-        self.mark('C1-cleanup', 'PASS', only_own_tagged_draft_deleted=True,
-                  native_logout_confirmed=True)
+
+    def cleanup(self):
+        errors = []
+        try:
+            self.record_stop()
+            if self.auth_attempted:
+                try:
+                    self.native_logout()
+                except Blocked as error:
+                    errors.append(str(error))
+                except Exception:
+                    errors.append('native_logout_not_confirmed')
+        finally:
+            # Halt any delayed native writer before deleting the only new UUID.
+            if self.serial:
+                try:
+                    self.adb('shell', 'am', 'force-stop', APP)
+                except Exception:
+                    errors.append('native_writer_stop_not_confirmed')
+            if self.fixture_api and self.fixture_api.state:
+                try:
+                    self.fixture_api.cleanup()
+                except FixtureError as error:
+                    errors.append(str(error))
+                except Exception:
+                    errors.append('api_fixture_cleanup_not_confirmed')
+                finally:
+                    self.report['api_cleanup'] = self.fixture_api.last_receipt
+                    self.fixture_possible = self.fixture_api.has_pending_fixture
+                    self.save()
+        if errors:
+            self.report['cleanup_reasons'] = errors
+            raise Blocked('native_or_api_cleanup_incomplete')
+        bootstrap = self.report.get('api_bootstrap') or {}
+        cleaned = self.report.get('api_cleanup') or {}
+        protected = cleaned.get('protected_after') or {}
+        self.mark('C1-cleanup', 'PASS', only_known_new_uuid_cleaned=cleaned.get('fixture_removed', False),
+                  protected_preexisting_rows_unchanged=bool(protected) and all(
+                      row.get('all_preexisting_unchanged') and row.get('all_preexisting_present')
+                      for row in protected.values()),
+                  native_logout_confirmed=self.report.get('session_logged_out', False),
+                  bootstrap_api_session_revoked=bootstrap.get('fresh_session_cleaned', False),
+                  cleanup_api_session_revoked=cleaned.get('fresh_session_cleaned', False))
 
     def execute(self):
-        stage = 'C1-auth'
+        stage = 'C1-native-network'
         try:
             self.validate_and_install()
             self.startup()
+            self.public_network_readiness()
+            stage = 'C1-api-empty-fixture'
+            self.bootstrap_fixture()
+            stage = 'C1-auth'
             self.login()
             stage = 'C1-photo-save'
             self.create_and_save()
             stage = 'C1-force-stop-restore'
             self.restore()
         except Blocked as error:
+            self.mark(stage, 'BLOCKED', reason=str(error))
+        except FixtureError as error:
             self.mark(stage, 'BLOCKED', reason=str(error))
         except Exception as error:
             self.mark(stage, 'FAIL', error_type=type(error).__name__)
@@ -613,7 +735,7 @@ class NativeAccount:
                 self.record_stop()
             except Exception:
                 self.report['video_finalization_failed'] = True
-            if self.authenticated or self.auth_attempted:
+            if self.fixture_api or self.authenticated or self.auth_attempted:
                 try:
                     self.cleanup()
                 except Blocked as error:
@@ -621,10 +743,26 @@ class NativeAccount:
                 except Exception as error:
                     self.mark('C1-cleanup', 'FAIL', error_type=type(error).__name__)
             self.report['fixture_may_remain'] = self.fixture_possible
-            self.report['session_may_remain'] = self.auth_attempted and not self.report.get('session_logged_out', False)
+            native_session_pending = self.auth_attempted and not self.report.get('session_logged_out', False)
+            api_session_pending = False
+            for receipt in [self.report.get('api_bootstrap'), self.report.get('api_cleanup')]:
+                if not isinstance(receipt, dict):
+                    continue
+                verify = receipt.get('normal_login_verify')
+                possible_issue = (isinstance(verify, dict) and verify.get('http') == 200) or (
+                    verify is None and receipt.get('normal_login_start', {}).get('http') == 200)
+                api_session_pending = api_session_pending or receipt.get('session_cleanup_unproven', False) or (
+                    possible_issue and receipt.get('fresh_session_cleaned') is not True)
+            self.report['native_session_may_remain'] = native_session_pending
+            self.report['api_session_may_remain'] = api_session_pending
+            self.report['session_may_remain'] = native_session_pending or api_session_pending
             self.report['ended_utc'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            self.save()
-            self.access.clear()
+            try:
+                self.save()
+            finally:
+                self.access.clear()
+                if self.fixture_api:
+                    self.fixture_api.clear_credentials()
         return all(row['status'] == 'PASS' for row in self.report['cases'])
 
 
@@ -639,7 +777,16 @@ def main():
         if ROOT not in private.parents:
             raise Blocked('runner_private_directory_required')
         probe = NativeAccount(private, os.environ)
-        passed = probe.execute()
+        previous_handlers = {}
+        def interrupted(signum, frame):
+            raise Blocked('native_run_interrupted')
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            previous_handlers[signum] = signal.signal(signum, interrupted)
+        try:
+            passed = probe.execute()
+        finally:
+            for signum, handler in previous_handlers.items():
+                signal.signal(signum, handler)
         print('AQER_PHASE1_NATIVE_ACCOUNT_C1_' + ('COLLECTED' if passed else 'INCOMPLETE'))
         return 0 if passed else 2
     except Exception:

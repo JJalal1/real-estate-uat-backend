@@ -211,11 +211,15 @@ public final class Phase1Input extends Instrumentation {
     }
     private AccessibilityNodeInfo selected(AccessibilityNodeInfo root) throws Exception {
         String path=args.getString("node_path",""); require(path.matches("0(?:\\.[0-9]{1,4}){0,40}"));
+        AccessibilityNodeInfo node=atPath(root,path);
+        String expected=args.getString("node_witness",""); require(expected.matches("[a-f0-9]{64}") && expected.equals(witness(node)));
+        return node;
+    }
+    private AccessibilityNodeInfo atPath(AccessibilityNodeInfo root,String path) throws Exception {
         AccessibilityNodeInfo node=root;
         String[] parts=path.split("\\.");
         for(int i=1;i<parts.length;i++) { int n=Integer.parseInt(parts[i]); require(n<node.getChildCount()); node=node.getChild(n); require(node!=null); }
         require(node.getPackageName()!=null && APP.contentEquals(node.getPackageName()) && node.isVisibleToUser() && node.isEnabled());
-        String expected=args.getString("node_witness",""); require(expected.matches("[a-f0-9]{64}") && expected.equals(witness(node)));
         return node;
     }
     private void accountOperation(AccessibilityNodeInfo root,String op,Bundle result) throws Exception {
@@ -226,22 +230,35 @@ public final class Phase1Input extends Instrumentation {
         }
         AccessibilityNodeInfo node=selected(root);
         if("account-click".equals(op)) {
-            stage="account_click"; require((node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0);
-            require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK));
+            stage="account_click";
+            if((node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) {
+                require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK)); result.putBoolean("semantic_action_used",true);
+            } else {
+                require(node.isClickable() || node.isEditable() || "android.widget.Button".contentEquals(node.getClassName()));
+                stage="account_pointer_tap"; pointerTap(node); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events);
+            }
         } else if("account-scroll".equals(op)) {
             stage="account_scroll"; int action="backward".equals(args.getString("direction","forward")) ? AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD : AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
-            require(node.isScrollable() && (node.getActions()&action)!=0 && node.performAction(action));
+            require(node.isScrollable());
+            if((node.getActions()&action)!=0) { require(node.performAction(action)); result.putBoolean("semantic_action_used",true); }
+            else { stage="account_pointer_swipe"; pointerSwipe(node,"backward".equals(args.getString("direction","forward"))); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events); }
         } else {
             require("account-set".equals(op) && node.isEditable()); stage="account_focus";
             String encoded=args.getString("value_b64",""); require(encoded.length()<=12000 && encoded.matches("[A-Za-z0-9+/=]*"));
             String value=new String(Base64.decode(encoded,Base64.NO_WRAP),StandardCharsets.UTF_8); require(value.length()<=5000);
-            require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK));
+            if(!node.isFocused()) {
+                if((node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK));
+                else { stage="account_focus_pointer"; pointerTap(node); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events); }
+            }
             AccessibilityNodeInfo field=null; long end=SystemClock.uptimeMillis()+15000;
             while(SystemClock.uptimeMillis()<end) {
                 SystemClock.sleep(100); AccessibilityNodeInfo fresh=automation.getRootInActiveWindow();
                 if(fresh==null || !APP.contentEquals(fresh.getPackageName())) continue;
-                List<AccessibilityNodeInfo> fields=new ArrayList<>(); editable(fresh,fields);
-                for(AccessibilityNodeInfo candidate:fields) if(candidate.isFocused() && (candidate.getActions()&AccessibilityNodeInfo.ACTION_SET_TEXT)!=0) { require(field==null); field=candidate; }
+                AccessibilityNodeInfo candidate=atPath(fresh,args.getString("node_path",""));
+                require(candidate.isEditable() && plain(node.getClassName()).equals(plain(candidate.getClassName()))
+                    && plain(node.getContentDescription()).equals(plain(candidate.getContentDescription()))
+                    && plain(node.getHintText()).equals(plain(candidate.getHintText())));
+                if(candidate.isFocused() && (candidate.getActions()&AccessibilityNodeInfo.ACTION_SET_TEXT)!=0) field=candidate;
                 if(field!=null) break;
             }
             require(field!=null); stage="account_set";
@@ -251,6 +268,25 @@ public final class Phase1Input extends Instrumentation {
             // Never echo input contents, lengths, arbitrary exceptions or stack traces.
         }
         SystemClock.sleep(300); result.putBoolean("account_action_delivered",true);
+    }
+    private Rect pointerBounds(AccessibilityNodeInfo node) throws Exception {
+        AccessibilityNodeInfo active=automation.getRootInActiveWindow();
+        require(active!=null && active.getPackageName()!=null && APP.contentEquals(active.getPackageName()));
+        AccessibilityNodeInfo fresh=selected(active);
+        Rect screen=new Rect(), bounds=new Rect(); active.getBoundsInScreen(screen); fresh.getBoundsInScreen(bounds);
+        require(bounds.width()>8 && bounds.height()>8 && screen.contains(bounds)); return bounds;
+    }
+    private void pointerTap(AccessibilityNodeInfo node) throws Exception {
+        Rect b=pointerBounds(node); float x=b.exactCenterX(),y=b.exactCenterY(); long down=SystemClock.uptimeMillis();
+        send(down,MotionEvent.ACTION_DOWN,new float[]{x},new float[]{y}); SystemClock.sleep(60);
+        send(down,MotionEvent.ACTION_UP,new float[]{x},new float[]{y});
+    }
+    private void pointerSwipe(AccessibilityNodeInfo node,boolean backward) throws Exception {
+        Rect b=pointerBounds(node); require(b.height()>80); float margin=Math.min(60,b.height()/4f);
+        float x=b.exactCenterX(),from=backward?b.top+margin:b.bottom-margin,to=backward?b.bottom-margin:b.top+margin;
+        long down=SystemClock.uptimeMillis();send(down,MotionEvent.ACTION_DOWN,new float[]{x},new float[]{from});
+        for(int i=1;i<=12;i++){SystemClock.sleep(25);send(down,MotionEvent.ACTION_MOVE,new float[]{x},new float[]{from+(to-from)*i/12f});}
+        send(down,MotionEvent.ACTION_UP,new float[]{x},new float[]{to});
     }
     private int number(String key, int min, int max) {
         int value = Integer.parseInt(args.getString(key, "-1")); require(value >= min && value <= max); return value;

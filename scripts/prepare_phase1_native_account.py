@@ -27,9 +27,12 @@ ALLOWED = {
     'scripts/prepare_phase1_native_account.py',
     'scripts/phase1_native_account_readiness.py',
     'scripts/probe_phase1_native_account.py',
+    'scripts/phase1_native_fixture_api.py',
+    'scripts/phase1_device_input/Phase1Input.java',
     'scripts/tests/test_phase1_native_account.py',
     'scripts/tests/test_phase1_native_account_build.py',
     'scripts/tests/test_phase1_native_account_readiness.py',
+    'scripts/tests/test_phase1_native_account_fixture.py',
 }
 
 
