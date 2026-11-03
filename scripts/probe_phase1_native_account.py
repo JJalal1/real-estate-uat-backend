@@ -159,8 +159,13 @@ class NativeAccount:
             raise Blocked('native_action_not_delivered')
         if kind == 'set' and result.get('set_text_delivered') != 'true':
             raise Blocked('native_set_text_not_delivered')
-        self.report['actions'].append({'kind': kind, 'witness': row['witness'],
-                                       'authenticated': self.authenticated})
+        if self.authenticated:
+            self.report['actions'].append({'kind': kind, 'witness': row['witness'],
+                                           'authenticated': True})
+        else:
+            # Even a UI witness hash can fingerprint a low-entropy phone field.
+            # Authentication receipts retain only a count, never node hashes.
+            self.report['auth_input_operations_delivered'] = self.report.get('auth_input_operations_delivered', 0) + 1
         self.save()
         time.sleep(.25)
 
