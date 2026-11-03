@@ -90,6 +90,103 @@ class BrokerListingAssistantTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_floor_does_not_propose_a_unit_in_prepare_or_direct_extraction(): void
+    {
+        [, $headers] = $this->actor('floor-not-unit', 'broker');
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response($this->response([
+            'type'=>'apartment', 'purpose'=>'rent', 'floor_number'=>'2', 'unit_number'=>'2',
+        ]))]);
+        $message = 'شقة للإيجار في صنعاء، الطابق الثاني';
+        $facts = ['type'=>'apartment', 'purpose'=>'rent', 'floor_number'=>'2'];
+        $this->prepare($headers, $message, $facts)->assertOk()
+            ->assertJsonPath('data.source', 'ai')->assertJsonPath('data.requires_review', true)
+            ->assertJsonPath('data.fields.floor_number', '2')->assertJsonMissingPath('data.fields.unit_number');
+        $this->withHeaders($headers)->postJson('/api/ai/listing-fields', ['message'=>$message, 'facts'=>$facts])
+            ->assertOk()->assertJsonPath('data.fields.floor_number', '2')
+            ->assertJsonPath('data.requires_review', true)->assertJsonMissingPath('data.fields.unit_number');
+        Http::assertSentCount(2);
+        foreach (['properties', 'property_sai_terms', 'listing_editor_drafts'] as $table) $this->assertDatabaseCount($table, 0);
+    }
+
+    public function test_explicit_unit_labels_replace_model_guesses_and_complete_sparse_proposals(): void
+    {
+        [, $headers] = $this->actor('explicit-unit', 'broker');
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response($this->response([
+            'type'=>'apartment', 'purpose'=>'rent', 'unit_number'=>'99',
+        ]))]);
+        foreach (['رقم الشقة: ٧'=>'7', 'الشقة رقم 21'=>'21', 'رقم الوحدة A-12'=>'A-12',
+            'موضع الشقة: جهة اليمين'=>'جهة اليمين'] as $label=>$expected) {
+            $this->prepare($headers, 'شقة للإيجار، الطابق الثاني، '.$label)
+                ->assertOk()->assertJsonPath('data.source', 'ai')->assertJsonPath('data.fields.floor_number', '2')
+                ->assertJsonPath('data.fields.unit_number', $expected)->assertJsonPath('data.requires_review', true);
+        }
+        $this->withHeaders($headers)->postJson('/api/ai/listing-fields', [
+            'message'=>'رقم الشقة: ٨', 'facts'=>['type'=>'apartment', 'purpose'=>'rent'],
+        ])->assertOk()->assertJsonPath('data.fields.unit_number', '8');
+        Http::assertSentCount(5);
+        foreach (['properties', 'property_sai_terms', 'listing_editor_drafts'] as $table) $this->assertDatabaseCount($table, 0);
+    }
+
+    public function test_unmentioned_unit_does_not_overwrite_an_existing_advertiser_value(): void
+    {
+        [$broker, $headers] = $this->actor('current-unit', 'broker');
+        $property = $this->listing($broker);
+        $property->update(['unit_number'=>'B-8']);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response($this->response([
+            'type'=>'apartment', 'purpose'=>'sale', 'floor_number'=>'2', 'unit_number'=>'2',
+        ]))]);
+        $facts = ['type'=>'apartment', 'purpose'=>'sale', 'unit_number'=>'B-8'];
+        $this->prepare($headers, 'شقة للبيع، الطابق الثاني', $facts, ['property_id'=>$property->id])
+            ->assertOk()->assertJsonPath('data.requires_review', true)->assertJsonMissingPath('data.fields.unit_number');
+        $this->prepare($headers, 'شقة للبيع، رقم الشقة 3 أو 4', $facts, ['property_id'=>$property->id])
+            ->assertOk()->assertJsonMissingPath('data.fields.unit_number');
+        $this->prepare($headers, 'شقة للبيع، رقم الشقة 2 غير صحيح', $facts, ['property_id'=>$property->id])
+            ->assertOk()->assertJsonMissingPath('data.fields.unit_number');
+        $this->assertDatabaseHas('properties', ['id'=>$property->id, 'unit_number'=>'B-8', 'status'=>'draft', 'review_status'=>'draft']);
+        $this->assertDatabaseCount('properties', 1);
+        $this->assertDatabaseCount('property_sai_terms', 0);
+        Http::assertSentCount(3);
+    }
+
+    public function test_unit_identity_parser_omits_unlabelled_ambiguous_negated_and_questioned_values(): void
+    {
+        $parser = app(\App\Services\ExplicitListingFacts::class);
+        foreach (['الطابق الثاني', 'شقة للإيجار فيها 3 غرف', 'رقم الشقة غير معروف',
+            'رقم الشقة unknown', 'رقم الشقة none', 'رقم الشقة N/A',
+            'ليست الشقة رقم 2', 'ليس رقم الشقة 2', 'لا يوجد رقم الشقة 2',
+            'رقم الشقة 2 أو 3', 'رقم الشقة 2، أو 3', 'رقم الشقة 2 أم 3',
+            'رقم الشقة 2 إلى 3', 'رقم الشقة 2 حتى 3', 'رقم الشقة 2-3',
+            'رقم الشقة 2 / 3', 'رقم الشقة 2 و3', 'رقم الشقة 2، 3', 'رقم الشقة 2.5',
+            'رقم الشقة -2', 'رقم الشقة 2abc', 'رقم الشقة 2 ورقم الوحدة 3',
+            'هل الشقة رقم 2؟', 'ربما الشقة رقم 2', 'رقم الشقة 2 غير مؤكد',
+            'رقم الشقة 2 غير صحيح', 'الشقة رقم 2 ليست مؤكدة', 'ليس لدي رقم الشقة 2',
+            'ليس عندي رقم الشقة 2', 'رقم الوحدة 2 مو صحيح',
+            'موضع الشقة: اليمين أو اليسار', 'موضع الشقة غير معروف'] as $brief) {
+            $this->assertNull($parser->unitNumber($brief), $brief);
+        }
+        foreach (['رقم الشقة ٢'=>'2', 'رقم الوحدة ۲۱'=>'21', 'الشقة رقم A-12'=>'A-12',
+            'موقع الوحدة: اليسرى'=>'اليسرى'] as $brief=>$expected) {
+            $this->assertSame($expected, $parser->unitNumber($brief), $brief);
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_literal_fallback_uses_the_same_explicit_unit_guard(): void
+    {
+        [, $headers] = $this->actor('fallback-unit', 'broker');
+        config(['gemini.enabled'=>false]);
+        $facts = ['type'=>'apartment', 'purpose'=>'rent', 'unit_number'=>'B-8'];
+        $this->prepare($headers, 'شقة للإيجار، الطابق الثاني', $facts)->assertOk()
+            ->assertJsonPath('data.source', 'text')->assertJsonPath('data.fields.floor_number', '2')
+            ->assertJsonMissingPath('data.fields.unit_number');
+        $this->prepare($headers, 'شقة للإيجار، رقم الشقة: ٩', $facts)->assertOk()
+            ->assertJsonPath('data.source', 'text')->assertJsonPath('data.fields.unit_number', '9');
+        $this->prepare($headers, 'شقة للإيجار، رقم الشقة: 9 أو 10', $facts)->assertOk()
+            ->assertJsonMissingPath('data.fields.unit_number');
+        Http::assertNothingSent();
+        foreach (['properties', 'property_sai_terms', 'listing_editor_drafts'] as $table) $this->assertDatabaseCount($table, 0);
+    }
+
     public function test_rental_hidden_fields_foreign_money_and_new_whole_floor_claims_are_not_proposed(): void
     {
         [, $headers] = $this->actor('rental', 'broker');
