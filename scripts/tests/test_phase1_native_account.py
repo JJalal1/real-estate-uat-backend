@@ -1,5 +1,6 @@
 """Safety/control-flow tests only; no device, network or real account access."""
 import base64
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -332,8 +333,155 @@ class NativeAccountSafetyTest(unittest.TestCase):
         fixture.has_pending_fixture = False  # Its successful mocked cleanup removes only this UUID.
         return fixture
 
+    def verified_install_environment(self):
+        apk, helper = self.private / 'target.apk', self.private / 'input.apk'
+        apk.write_bytes(b'synthetic product artifact for an offline boundary test')
+        helper.write_bytes(b'synthetic helper artifact for an offline boundary test')
+        proof = {'source_commit': self.probe.env['GITHUB_SHA'], 'package': native.APP,
+                 'sha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
+                 'input_driver': {'sha256': hashlib.sha256(helper.read_bytes()).hexdigest()},
+                 'version_code': 1467}
+        (self.private / 'APK_VERIFICATION.json').write_text(json.dumps(proof))
+        self.probe.env['ANDROID_HOME'] = '/offline-test-sdk'
+        self.probe.command = Mock(side_effect=lambda args, **kwargs:
+                                  'List of devices attached\nemulator-5554\tdevice\n'
+                                  if args == ['adb', 'devices'] else 'KVM is installed and usable')
+        package_patch = patch.object(native.subprocess, 'run',
+                                     return_value=subprocess.CompletedProcess(['fixed-pm-query'], 1, b'', b''))
+        self.package_query = package_patch.start()
+        self.addCleanup(package_patch.stop)
+
+    @staticmethod
+    def ready_adb(*args, **kwargs):
+        if args[:2] == ('shell', 'getprop'):
+            return {'ro.boot.qemu': '1', 'ro.build.version.sdk': '36',
+                    'sys.boot_completed': '1', 'sys.user.0.ce_available': 'true'}[args[2]]
+        if args == ('shell', 'service', 'check', 'package'):
+            return 'Service package: found'
+        if args == ('shell', 'pidof', 'system_server'):
+            return '669'
+        return ''
+
+    def test_incomplete_boot_or_CE_blocks_package_queries_and_all_installs(self):
+        self.verified_install_environment()
+        for key, value in [('sys.boot_completed', ''), ('sys.boot_completed', '0'),
+                           ('sys.user.0.ce_available', ''), ('sys.user.0.ce_available', 'false'),
+                           ('sys.user.0.ce_available', 'True')]:
+            def adb(*args, **kwargs):
+                return value if args == ('shell', 'getprop', key) else self.ready_adb(*args, **kwargs)
+            with self.subTest(property=key, observed=value):
+                self.probe.adb = Mock(side_effect=adb)
+                with self.assertRaisesRegex(native.Blocked, 'native_boot_CE_not_ready'):
+                    self.probe.validate_and_install()
+                self.assertFalse(any(call.args[0] == 'install' or call.args[:3] == ('shell', 'pm', 'path')
+                                     for call in self.probe.adb.call_args_list))
+                self.package_query.assert_not_called()
+
+    def test_unready_or_unobserved_framework_blocks_package_queries_and_all_installs(self):
+        self.verified_install_environment()
+        checks = [
+            (('shell', 'service', 'check', 'package'), ''),
+            (('shell', 'service', 'check', 'package'), 'Service package: not found'),
+            (('shell', 'service', 'check', 'package'), native.Blocked('device_command_timeout')),
+            (('shell', 'pidof', 'system_server'), ''),
+            (('shell', 'pidof', 'system_server'), '0'),
+            (('shell', 'pidof', 'system_server'), '669 invalid'),
+            (('shell', 'pidof', 'system_server'), '669 669'),
+            (('shell', 'pidof', 'system_server'), native.Blocked('device_command_failed')),
+        ]
+        for command, value in checks:
+            def adb(*args, **kwargs):
+                if args == command:
+                    if isinstance(value, Exception):
+                        raise value
+                    return value
+                return self.ready_adb(*args, **kwargs)
+            with self.subTest(command=command[1], observation_type=type(value).__name__):
+                self.probe.adb = Mock(side_effect=adb)
+                with self.assertRaises(native.Blocked):
+                    self.probe.validate_and_install()
+                self.assertFalse(any(call.args[0] == 'install' or call.args[:3] == ('shell', 'pm', 'path')
+                                     for call in self.probe.adb.call_args_list))
+                self.package_query.assert_not_called()
+
+    def test_present_unobserved_and_error_package_queries_never_allow_install(self):
+        self.verified_install_environment()
+        self.probe.adb = Mock(side_effect=self.ready_adb)
+        observations = [
+            subprocess.CompletedProcess([], 1, b'', b'cmd: package service failed'),
+            subprocess.CompletedProcess([], 1, b'', b'\n'),
+            subprocess.CompletedProcess([], 1, b'unexpected response', b''),
+            subprocess.CompletedProcess([], 0, b'', b''),
+            subprocess.CompletedProcess([], 20, b'', b''),
+            subprocess.CompletedProcess([], 0, b'package:/data/app/base.apk\n', b''),
+            subprocess.TimeoutExpired(['fixed-pm-query'], 20),
+            OSError('synthetic unobserved transport'),
+        ]
+        for observation in observations:
+            self.probe.adb.reset_mock()
+            self.package_query.reset_mock()
+            self.package_query.side_effect = observation if isinstance(observation, Exception) else None
+            self.package_query.return_value = observation
+            with self.subTest(observation_type=type(observation).__name__):
+                with self.assertRaises(native.Blocked):
+                    self.probe.validate_and_install()
+                self.assertFalse(any(call.args[0] == 'install' for call in self.probe.adb.call_args_list))
+                self.package_query.assert_called_once_with(
+                    ['adb', '-s', 'emulator-5554', 'shell', 'pm', 'path', native.APP],
+                    capture_output=True, timeout=20)
+
+    def test_absent_package_still_requires_fresh_healthy_framework_after_query(self):
+        self.verified_install_environment()
+        def adb(*args, **kwargs):
+            if self.package_query.called and args == ('shell', 'service', 'check', 'package'):
+                return 'Service package: not found'
+            return self.ready_adb(*args, **kwargs)
+        self.probe.adb = Mock(side_effect=adb)
+        with self.assertRaisesRegex(native.Blocked, 'native_package_service_not_ready'):
+            self.probe.validate_and_install()
+        self.package_query.assert_called_once()
+        self.assertFalse(any(call.args[0] == 'install' for call in self.probe.adb.call_args_list))
+
+    def test_healthy_runtime_allows_only_verified_product_and_helper_installs(self):
+        self.verified_install_environment()
+        self.probe.adb = Mock(side_effect=self.ready_adb)
+        self.probe.validate_and_install()
+        installs = [call.args for call in self.probe.adb.call_args_list if call.args[0] == 'install']
+        self.assertEqual(installs, [('install', '--no-streaming', self.private / 'target.apk'),
+                                    ('install', '--no-streaming', '-t', self.private / 'input.apk')])
+        self.assertEqual(self.probe.report['android_api'], 36)
+        self.assertFalse(self.probe.report['native_auth_attempted'])
+
+    def test_runtime_failure_after_product_install_blocks_helper_install(self):
+        self.verified_install_environment()
+        installed = []
+        def adb(*args, **kwargs):
+            if args[0] == 'install':
+                installed.append(args)
+            if installed and args == ('shell', 'service', 'check', 'package'):
+                return 'Service package: not found'
+            return self.ready_adb(*args, **kwargs)
+        self.probe.adb = Mock(side_effect=adb)
+        with self.assertRaisesRegex(native.Blocked, 'native_package_service_not_ready'):
+            self.probe.validate_and_install()
+        self.assertEqual(installed, [('install', '--no-streaming', self.private / 'target.apk')])
+
+    def test_unhealthy_runtime_blocks_API_fixture_before_construction_or_authentication(self):
+        for command in [('shell', 'service', 'check', 'package'), ('shell', 'pidof', 'system_server')]:
+            def adb(*args, **kwargs):
+                return '' if args == command else self.ready_adb(*args, **kwargs)
+            self.probe.adb = Mock(side_effect=adb)
+            with self.subTest(command=command[1]), patch.object(native, 'FixtureApi') as factory:
+                with self.assertRaises(native.Blocked):
+                    self.probe.bootstrap_fixture()
+                factory.assert_not_called()
+                self.assertIsNone(self.probe.fixture_api)
+                self.assertFalse(self.probe.fixture_possible)
+                self.assertFalse(self.probe.report['native_auth_attempted'])
+
     def test_bootstrap_receipt_distinguishes_api_setup_from_native_creation(self):
         fixture = self.fixture()
+        self.probe.require_preauth_runtime = Mock()
         with patch.object(native, 'FixtureApi', return_value=fixture) as factory:
             self.probe.bootstrap_fixture()
         fixture.bootstrap.assert_called_once_with()
@@ -412,6 +560,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         order = []
         fixture = self.fixture()
         fixture.bootstrap.side_effect = lambda: order.extend(['api-bootstrap', 'api-logout-401'])
+        self.probe.require_preauth_runtime = Mock(side_effect=lambda: order.append('fresh-framework'))
         self.probe.validate_and_install = Mock(side_effect=lambda: order.append('install'))
         self.probe.startup = Mock(side_effect=lambda: order.append('startup'))
         self.probe.public_network_readiness = Mock(side_effect=lambda: order.append('public-app-network'))
@@ -422,7 +571,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.record_stop = Mock()
         with patch.object(native, 'FixtureApi', return_value=fixture):
             self.assertFalse(self.probe.execute())  # Mocked UI does not earn native PASS.
-        self.assertEqual(order, ['install', 'startup', 'public-app-network', 'api-bootstrap',
+        self.assertEqual(order, ['install', 'startup', 'public-app-network', 'fresh-framework', 'api-bootstrap',
                                  'api-logout-401', 'native-login', 'native-edit-save',
                                  'native-restore', 'cleanup'])
         self.assertFalse(self.probe.report['native_auth_executed'])
@@ -434,6 +583,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.validate_and_install = Mock()
         self.probe.startup = Mock()
         self.probe.public_network_readiness = Mock()
+        self.probe.require_preauth_runtime = Mock()
         self.probe.login = Mock()
         self.probe.record_stop = Mock()
         self.probe.native_logout = Mock()

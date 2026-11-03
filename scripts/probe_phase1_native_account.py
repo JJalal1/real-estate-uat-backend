@@ -341,6 +341,35 @@ class NativeAccount:
             self.adb('shell', 'rm', '-f', '/sdcard/phase1-account.mp4', codes=(0, 1))
         self.save()
 
+    def require_preauth_runtime(self):
+        # Fresh framework observations only; no app storage, UID, or credentials.
+        for key, wanted in [('sys.boot_completed', '1'), ('sys.user.0.ce_available', 'true')]:
+            if self.adb('shell', 'getprop', key, timeout=10) != wanted:
+                raise Blocked('native_boot_CE_not_ready')
+        if self.adb('shell', 'service', 'check', 'package', timeout=10) != 'Service package: found':
+            raise Blocked('native_package_service_not_ready')
+        pids = self.adb('shell', 'pidof', 'system_server', timeout=10).split()
+        if not pids or len(pids) > 16 or len(set(pids)) != len(pids) or any(
+                not re.fullmatch(r'[1-9][0-9]*', pid) for pid in pids):
+            raise Blocked('native_system_server_not_ready')
+
+    def require_fresh_package_absent(self, package):
+        if package not in {APP, 'com.aqer.phase1.input'}:
+            raise Blocked('fixed_native_package_required')
+        try:
+            result = subprocess.run(['adb', '-s', self.serial, 'shell', 'pm', 'path', package],
+                                    capture_output=True, timeout=20)
+        except (subprocess.TimeoutExpired, OSError):
+            raise Blocked('fresh_package_state_unobserved') from None
+        # ABSENT is an exact successful observation of pm's missing-package result.
+        # Error output, an empty success, and transport failures are UNOBSERVED.
+        if result.returncode == 1 and result.stdout == b'' and result.stderr == b'':
+            self.require_preauth_runtime()
+            return
+        if result.returncode == 0 and result.stdout.startswith(b'package:') and result.stderr == b'':
+            raise Blocked('fresh_native_install_required')
+        raise Blocked('fresh_package_state_unobserved')
+
     def validate_and_install(self):
         proof = json.loads((self.private / 'APK_VERIFICATION.json').read_text())
         if proof['source_commit'] != self.env['GITHUB_SHA'] or proof['package'] != APP:
@@ -354,17 +383,19 @@ class NativeAccount:
         if len(devices) != 1:
             raise Blocked('one_fresh_emulator_required')
         self.serial = devices[0]
-        for key, wanted in [('ro.boot.qemu', '1'), ('sys.boot_completed', '1'), ('ro.build.version.sdk', '36')]:
+        for key, wanted in [('ro.boot.qemu', '1'), ('ro.build.version.sdk', '36')]:
             if self.adb('shell', 'getprop', key) != wanted:
                 raise Blocked('disposable_booted_api36_required')
         if 'KVM' not in self.command([Path(self.env['ANDROID_HOME']) / 'emulator/emulator', '-accel-check']):
             raise Blocked('kvm_required')
         if self.adb('reverse', '--list') or API.split('/')[2] in self.adb('shell', 'cat', '/etc/hosts'):
             raise Blocked('unaltered_uat_network_required')
+        self.require_preauth_runtime()
         for package in (APP, 'com.aqer.phase1.input'):
-            if self.adb('shell', 'pm', 'path', package, codes=(0, 1)):
-                raise Blocked('fresh_native_install_required')
+            self.require_fresh_package_absent(package)
+        self.require_preauth_runtime()
         self.adb('install', '--no-streaming', apk, timeout=180)
+        self.require_preauth_runtime()
         self.adb('install', '--no-streaming', '-t', helper, timeout=90)
         self.report.update(version_code=proof['version_code'], apk_sha256=proof['sha256'],
                            android_api=36, acceleration='KVM', network_modified=False)
@@ -479,6 +510,7 @@ class NativeAccount:
         raise Blocked('native_public_uat_response_not_observed')
 
     def bootstrap_fixture(self):
+        self.require_preauth_runtime()
         self.fixture_api = FixtureApi(self.access['phones']['broker'], self.access['otp'],
                                       self.env['GITHUB_RUN_ID'])
         try:

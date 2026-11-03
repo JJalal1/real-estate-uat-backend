@@ -41,8 +41,24 @@ jobs:
           path: phase1-native-account-readiness/readiness.json
           retention-days: 3
           if-no-files-found: error
+  collector-safety:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-native-account-20261103'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Guard exact unchanged product components
+        run: python3 -B scripts/prepare_phase1_native_account.py --source-only
+      - name: Run only native collector safety tests
+        run: |
+          python3 -m pip install --disable-pip-version-check Pillow==12.3.0
+          python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_native_account*.py' -v
   native:
-    needs: secure-channel
+    needs: [secure-channel, collector-safety]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -71,10 +87,6 @@ jobs:
           flutter-version: '3.27.3'
           channel: stable
           cache: true
-      - name: Run only native collector safety tests
-        run: |
-          python3 -m pip install --disable-pip-version-check Pillow==12.3.0
-          python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_native_account*.py' -v
       - name: Resolve approved locked graph
         working-directory: mobile_app
         run: |
@@ -123,14 +135,18 @@ jobs:
             --package 'system-images;android-36;google_apis;x86_64'
           sudo chmod 666 /dev/kvm
           QT_QPA_PLATFORM=offscreen "$ANDROID_HOME/emulator/emulator" -avd aqer-native-account \
-            -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader \
+            -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on \
             -memory 2048 -cores 2 > "$RUNNER_TEMP/aqer-native-account-emulator.log" 2>&1 &
           emulator_pid=$!
           trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
           ready=false
           for attempt in $(seq 1 120); do
             if ! kill -0 "$emulator_pid" 2>/dev/null; then echo 'AQER_NATIVE_EMULATOR_EXITED'; exit 1; fi
-            if [ "$(timeout 3s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then ready=true; break; fi
+            if [ "$(timeout 3s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && \
+               [ "$(timeout 3s adb shell getprop sys.user.0.ce_available 2>/dev/null | tr -d '\r')" = true ]; then
+              ready=true
+              break
+            fi
             sleep 2
           done
           test "$ready" = true
