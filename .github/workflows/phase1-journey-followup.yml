@@ -1,0 +1,156 @@
+name: Phase1 incomplete Android journeys
+on:
+  push:
+    branches: [work/phase1-journeys-20261103]
+permissions:
+  contents: read
+concurrency:
+  group: phase1-journey-followup-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  SOURCE_COMMIT: ${{ github.sha }}
+  AQER_PHASE1_FOLLOWUP: 'true'
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+jobs:
+  followup:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-journeys-20261103'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Guard unchanged APK1457 product components
+        run: python3 -B scripts/prepare_phase1_followup.py --source-only
+      - name: Set up Java17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up AndroidSDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Set up pinned Flutter3.27.3
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Followup collector safety tests only
+        run: |
+          python3 -m pip install --disable-pip-version-check Pillow==12.3.0
+          python3 -B -m unittest discover -s scripts/tests -p test_phase1_followup.py -v
+      - name: Resolve the same approved locked graph
+        working-directory: mobile_app
+        run: |
+          set -euo pipefail
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+          git diff --exit-code -- pubspec.yaml
+      - name: Build unchanged release for new native evidence
+        working-directory: mobile_app
+        env:
+          AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+          AQER_PHASE1_RELEASE_UI_TEST: 'true'
+        run: |
+          set -euo pipefail
+          # Build number is independent of Broker CI. First followup=1458.
+          followup_version=$((1457 + GITHUB_RUN_NUMBER))
+          flutter build apk --flavor uat --release --build-number="$followup_version" \
+            --dart-define=APP_BUILD_NUMBER="$followup_version" \
+            --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL="$UAT_API_BASE_URL"
+      - name: Verify release bytes and compile self-targeted input helper
+        id: prepare
+        run: python3 -B scripts/prepare_phase1_followup.py
+      # CI2's original health timing and AI/network recovery evidence are reused.
+      # Only the unfocused-query dependent journeys need another native run.
+      - name: Run only incomplete native journeys on API36 KVM
+        id: native
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = true
+          test "$GITHUB_REPOSITORY" = JJalal1/real-estate-uat-backend
+          test "$GITHUB_REF" = refs/heads/work/phase1-journeys-20261103
+          test -f phase1-followup-private/APK_VERIFICATION.json
+          aqer_sdk_root="$(realpath "${ANDROID_HOME:?}")"
+          test "$aqer_sdk_root" != /
+          test -f "$aqer_sdk_root/platforms/android-36/android.jar"
+          rm -rf mobile_app/build "$HOME/.gradle/caches" "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
+          mkdir phase1-followup-sdk
+          sdk_ready=false
+          for sdk_attempt in 1 2; do
+            if sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'; then
+              sdk_exit=0
+            else
+              sdk_exit=$?
+            fi
+            python3 - "$sdk_attempt" "$sdk_exit" <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          path=Path('phase1-followup-sdk/report.json')
+          data=json.loads(path.read_text()) if path.exists() else {'source_commit':os.environ['SOURCE_COMMIT'],'scope':'disposable_GitHub_runner_SDK_provisioning','attempts':[]}
+          data['attempts'].append({'attempt':int(sys.argv[1]),'exit_code':int(sys.argv[2])})
+          data['ready']=int(sys.argv[2])==0
+          path.write_text(json.dumps(data,indent=2)+'\n')
+          PY
+            if [ "$sdk_exit" -eq 0 ]; then sdk_ready=true; break; fi
+            if [ "$sdk_attempt" -eq 1 ]; then
+              # A failed SDK ZIP is provisioning, not an app/emulator result.
+              # Discard only this disposable runner's download/selected image.
+              rm -rf "$aqer_sdk_root/.temp" "$aqer_sdk_root/system-images/android-36/google_apis/x86_64"
+              sleep 2
+            fi
+          done
+          test "$sdk_ready" = true
+          export ANDROID_USER_HOME="$RUNNER_TEMP/aqer-followup-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd --force --name aqer-followup --device pixel --path "$ANDROID_AVD_HOME/aqer-followup.avd" --package 'system-images;android-36;google_apis;x86_64'
+          sudo chmod 666 /dev/kvm
+          QT_QPA_PLATFORM=offscreen "$ANDROID_HOME/emulator/emulator" -avd aqer-followup -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -memory 2048 -cores 2 > "$RUNNER_TEMP/aqer-followup-emulator.log" 2>&1 &
+          emulator_pid=$!
+          trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in $(seq 1 120); do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then echo 'Emulator exited before boot'; exit 1; fi
+            if [ "$(timeout 3s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = '1' ]; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          python3 -B scripts/probe_phase1_followup.py
+      - name: Upload original followup evidence only
+        if: ${{ !cancelled() && steps.native.outputs.followup_evidence == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-followup-native-${{ github.run_id }}
+          retention-days: 5
+          if-no-files-found: error
+          path: |
+            phase1-followup-evidence/*.json
+            phase1-followup-evidence/*.png
+            phase1-followup-evidence/*.mp4
+      - name: Upload bounded SDK provisioning receipt
+        if: ${{ !cancelled() && hashFiles('phase1-followup-sdk/report.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-followup-sdk-${{ github.run_id }}
+          path: phase1-followup-sdk/report.json
+          retention-days: 5
+          if-no-files-found: error
+      - name: Upload safe new build identity even if later preparation fails
+        if: ${{ !cancelled() && steps.prepare.outputs.followup_build_identity == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-followup-build-${{ github.run_id }}
+          path: phase1-followup-private/APK_VERIFICATION.json
+          retention-days: 5
+          if-no-files-found: error

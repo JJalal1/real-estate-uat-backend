@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.aqer.phase1.input">
+  <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="36" />
+  <application android:label="Disposable Phase1 input" android:debuggable="true" android:testOnly="true" android:allowBackup="false" />
+  <!-- Self-targeting preserves the release app's process and current screen. -->
+  <instrumentation android:name="com.aqer.phase1.input.Phase1Input" android:targetPackage="com.aqer.phase1.input" />
+</manifest>
