@@ -39,20 +39,41 @@ public final class Phase1Input extends Instrumentation {
                 List<AccessibilityNodeInfo> fields = new ArrayList<>();
                 editable(root, fields);
                 require(fields.size() == 1);
+                // Flutter3.27.3 exposes its Dart setText handler only while
+                // focused. A bridge-side cached value is not a typed query.
+                stage="query_focus";
+                require(fields.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK));
+                long focusDeadline=SystemClock.uptimeMillis()+5000;
+                AccessibilityNodeInfo field=null;
+                while(SystemClock.uptimeMillis()<focusDeadline) {
+                    SystemClock.sleep(100);
+                    List<AccessibilityNodeInfo> fresh=new ArrayList<>();
+                    AccessibilityNodeInfo active=automation.getRootInActiveWindow();
+                    if(active!=null) editable(active,fresh);
+                    if(fresh.size()==1 && fresh.get(0).isFocused() &&
+                       (fresh.get(0).getActions() & AccessibilityNodeInfo.ACTION_SET_TEXT)!=0) {
+                        field=fresh.get(0); break;
+                    }
+                }
+                require(field!=null);
                 Bundle value = new Bundle();
                 String query = "fixture-query".equals(op) ? QUERY : "clear-query".equals(op) ? "" : "phase1-ci-no-match";
                 value.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, query);
-                stage="query_action"; require(fields.get(0).performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value));
+                stage="query_action"; require(field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value));
                 long deadline=SystemClock.uptimeMillis()+5000;
                 boolean matched=false; stage="query_match";
                 while(SystemClock.uptimeMillis()<deadline) {
                     SystemClock.sleep(100);
-                    if(fields.get(0).refresh()) {
-                        CharSequence text=fields.get(0).getText();
+                    List<AccessibilityNodeInfo> fresh=new ArrayList<>();
+                    AccessibilityNodeInfo active=automation.getRootInActiveWindow();
+                    if(active!=null) editable(active,fresh);
+                    if(fresh.size()==1 && fresh.get(0).isFocused()) {
+                        CharSequence text=fresh.get(0).getText();
                         if(query.isEmpty() ? text==null||text.length()==0 : text!=null&&query.contentEquals(text)) { matched=true; break; }
                     }
                 }
                 require(matched);
+                result.putBoolean("focused_set_text_handler", true);
                 result.putBoolean("text_matched", true);
             } else {
                 require("double-tap".equals(op) || "pinch-in".equals(op) || "pinch-out".equals(op));

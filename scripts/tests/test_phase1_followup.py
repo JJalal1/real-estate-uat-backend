@@ -56,6 +56,12 @@ class FollowupTests(unittest.TestCase):
         with self.assertRaises(Blocked): input_receipt(gesture()+'INSTRUMENTATION_RESULT: passed=true\n','double-tap')
         with self.assertRaises(Blocked): input_receipt(gesture(),'pinch-in')
 
+    def test_query_receipt_requires_focused_flutter_handler(self):
+        raw='INSTRUMENTATION_RESULT: passed=true\nINSTRUMENTATION_RESULT: op=fixture-query\nINSTRUMENTATION_RESULT: text_matched=true\n'
+        with self.assertRaises(Blocked): input_receipt(raw+'INSTRUMENTATION_CODE: -1\n','fixture-query')
+        good=raw+'INSTRUMENTATION_RESULT: focused_set_text_handler=true\nINSTRUMENTATION_CODE: -1\n'
+        self.assertTrue(input_receipt(good,'fixture-query')['focused_set_text_handler'])
+
     def test_arbitrary_output_never_enters_receipt(self):
         raw=gesture()+'secret-echo=DO_NOT_EXPORT\nINSTRUMENTATION_RESULT: unknown=DO_NOT_EXPORT\n'
         self.assertNotIn('DO_NOT_EXPORT',json.dumps(input_receipt(raw,'double-tap')))
