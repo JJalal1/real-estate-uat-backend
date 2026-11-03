@@ -46,6 +46,12 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertEqual(path.read_bytes(), before)
         self.assertNotIn(self.access['otp'], path.read_text())
 
+    def test_driver_retains_only_the_broker_and_never_activates_optional_accounts(self):
+        self.assertEqual(set(self.probe.access['phones']), {'broker'})
+        self.assertNotIn(self.access['phones']['support'], self.probe.private_values)
+        self.assertNotIn(self.access['phones']['regular'], self.probe.private_values)
+        self.assertFalse(self.probe.report['native_auth_executed'])
+
     def test_capture_requires_authenticated_state_before_any_device_read(self):
         self.probe.nodes = Mock()
         self.probe.adb = Mock()

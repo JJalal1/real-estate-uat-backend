@@ -10,7 +10,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 SECRET_NAME = 'AQER_PHASE1_TEST_ACCESS_JSON'
-ROLES = {'broker', 'support', 'regular'}
+ROLES = {'broker', 'support', 'regular', 'manager', 'advertiser'}
+REQUIRED_ROLES = {'broker'}
 
 
 def validate_access(raw):
@@ -26,12 +27,12 @@ def validate_access(raw):
         if not isinstance(value['otp'], str) or not re.fullmatch(r'[0-9]{6}', value['otp']):
             raise ValueError
         phones = value['phones']
-        if not isinstance(phones, dict) or set(phones) != ROLES:
+        if not isinstance(phones, dict) or not REQUIRED_ROLES <= set(phones) or set(phones) - ROLES:
             raise ValueError
         if any(not isinstance(v, str) or not re.fullmatch(r'\+?967[0-9]{9}', v)
                for v in phones.values()):
             raise ValueError
-        if len(set(v.lstrip('+') for v in phones.values())) != len(ROLES):
+        if len(set(v.lstrip('+') for v in phones.values())) != len(phones):
             raise ValueError
         return value
     except (ValueError, TypeError, KeyError):

@@ -43,8 +43,6 @@ jobs:
     needs: secure-channel
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/aqer-native-account-gradle
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,7 +50,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Guard exact unchanged mobile and backend components
-        run: python3 -B scripts/prepare_phase1_native_account.py --source-only
+        run: |
+          python3 -B scripts/prepare_phase1_native_account.py --source-only
+          printf 'GRADLE_USER_HOME=%s\n' "$RUNNER_TEMP/aqer-native-account-gradle" >> "$GITHUB_ENV"
       - name: Set up Java17
         uses: actions/setup-java@v4
         with:

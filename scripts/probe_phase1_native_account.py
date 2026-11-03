@@ -51,7 +51,11 @@ class NativeAccount:
         self.private = private
         self.out = ROOT / 'phase1-native-account-evidence'
         self.out.mkdir(mode=0o700, exist_ok=True)
-        self.access = validate_access(env.get(SECRET_NAME, ''))
+        validated = validate_access(env.get(SECRET_NAME, ''))
+        # This collector exercises only the broker. Optional known actors may
+        # exist in the configured secret, but are not retained or logged in.
+        self.access = {'otp': validated['otp'], 'phones': {'broker': validated['phones']['broker']}}
+        del validated
         # Credentials are needed only by this in-memory driver, never its tools.
         os.environ.pop(SECRET_NAME, None)
         self.private_values = {self.access['otp']}

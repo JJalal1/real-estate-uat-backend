@@ -39,6 +39,32 @@ class AccountReadinessSafety(unittest.TestCase):
             self.assertNotIn(secret, json.dumps(result))
         self.assertFalse(result['uat_login_executed'])
 
+    def test_minimal_broker_only_is_sufficient_for_c1(self):
+        value = self.fake()
+        value['phones'] = {'broker': value['phones']['broker']}
+        result = ready.preflight(self.env(json.dumps(value)))
+        self.assertEqual(result['status'], 'READY_FOR_REVIEWED_NATIVE_HARNESS')
+        self.assertFalse(result['native_journey_executed'])
+
+    def test_five_known_actors_are_accepted_without_expanding_c1_scope(self):
+        value = self.fake()
+        value['phones'].update(manager='+967000000004', advertiser='+967000000005')
+        result = ready.preflight(self.env(json.dumps(value)))
+        self.assertEqual(result['status'], 'READY_FOR_REVIEWED_NATIVE_HARNESS')
+        self.assertFalse(result['uat_login_executed'])
+        self.assertFalse(result['fixture_created'])
+        for phone in value['phones'].values():
+            self.assertNotIn(phone, json.dumps(result))
+
+    def test_unknown_or_missing_required_actor_is_rejected(self):
+        for name in ['other', 'production', 'BROKER']:
+            value = self.fake(); value['phones'][name] = '+967000000004'
+            with self.assertRaisesRegex(ValueError, '^secure_test_access_invalid$'):
+                ready.validate_access(json.dumps(value))
+        value = self.fake(); value['phones'].pop('broker')
+        with self.assertRaisesRegex(ValueError, '^secure_test_access_invalid$'):
+            ready.validate_access(json.dumps(value))
+
     def test_invalid_secret_errors_cannot_echo_arbitrary_input(self):
         marker = 'private-input-must-not-appear'
         for raw in [marker, json.dumps({'otp': marker}), 'null', '[]', 'x' * 5000]:
