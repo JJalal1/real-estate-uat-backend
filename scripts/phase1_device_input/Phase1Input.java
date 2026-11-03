@@ -244,6 +244,11 @@ public final class Phase1Input extends Instrumentation {
         return node;
     }
     private void accountOperation(AccessibilityNodeInfo root,String op,Bundle result) throws Exception {
+        stage="account_input_policy";
+        String inputMode=args.getString("input_mode","semantic");
+        require("semantic".equals(inputMode) || "physical_click_focus".equals(inputMode));
+        boolean physicalClickFocus="physical_click_focus".equals(inputMode);
+        require(!physicalClickFocus || "account-click".equals(op) || "account-set".equals(op));
         if("account-snapshot".equals(op)) {
             JSONArray nodes=new JSONArray(); snapshot(root,"0",nodes,0);
             String encoded=Base64.encodeToString(nodes.toString().getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP);
@@ -252,7 +257,7 @@ public final class Phase1Input extends Instrumentation {
         AccessibilityNodeInfo node=selected(root);
         if("account-click".equals(op)) {
             stage="account_click";
-            if((node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) {
+            if(!physicalClickFocus && (node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) {
                 require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK)); result.putBoolean("semantic_action_used",true);
             } else {
                 require(node.isClickable() || node.isEditable() || "android.widget.Button".contentEquals(node.getClassName()));
@@ -269,7 +274,8 @@ public final class Phase1Input extends Instrumentation {
             String value=new String(Base64.decode(encoded,Base64.NO_WRAP),StandardCharsets.UTF_8); require(value.length()<=5000);
             if(!node.isFocused()) {
                 stage="account_focus_request";
-                if((node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK));
+                if(physicalClickFocus) require(node.isClickable() || node.isEditable() || "android.widget.Button".contentEquals(node.getClassName()));
+                if(!physicalClickFocus && (node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK));
                 else { stage="account_focus_pointer"; pointerTap(node); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events); }
             }
             stage="account_focus_observe";

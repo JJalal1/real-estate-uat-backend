@@ -14,6 +14,42 @@ import probe_phase1_native_account as native
 
 
 class NativeAccountSafetyTest(unittest.TestCase):
+    def test_mode_selected_before_click_and_set_dispatch_only(self):
+        for op in ('account-click', 'account-set', 'account-scroll', 'account-snapshot'):
+            receipt = ['INSTRUMENTATION_RESULT: passed=true',
+                       'INSTRUMENTATION_RESULT: op=' + op, 'INSTRUMENTATION_CODE: -1']
+            self.probe.adb = Mock(return_value='\n'.join(receipt))
+            self.probe.instrument(op)
+            argv = self.probe.adb.call_args.args
+            if op in ('account-click', 'account-set'):
+                index = argv.index('input_mode')
+                self.assertEqual(argv[index + 1], 'physical_click_focus')
+                self.assertEqual(argv.count('input_mode'), 1)
+            else:
+                self.assertNotIn('input_mode', argv)
+            self.probe.adb.assert_called_once()
+
+    def test_caller_cannot_override_fixed_mode_before_any_dispatch(self):
+        for value in ('semantic', 'physical_click_focus', 'PRIVATE_SYNTHETIC_SENTINEL'):
+            self.probe.adb = Mock()
+            with self.assertRaisesRegex(native.Blocked, '^fixed_native_input_mode_required$'):
+                self.probe.instrument('account-click', input_mode=value)
+            self.probe.adb.assert_not_called()
+
+    def test_failed_physical_call_is_not_replayed_or_recorded_as_delivered(self):
+        self.probe.case_phase('C1-photo-save')
+        self.probe.authenticated = True
+        self.probe.adb = Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: passed=false', 'INSTRUMENTATION_RESULT: op=account-click',
+            'INSTRUMENTATION_RESULT: stage=account_pointer_tap',
+            'INSTRUMENTATION_RESULT: foreground_category=APP', 'INSTRUMENTATION_CODE: 0']))
+        with self.assertRaisesRegex(native.Blocked, '^native_input_not_delivered$'):
+            self.probe.act('click', self.node('synthetic button', clickable=True))
+        self.probe.adb.assert_called_once()
+        self.assertEqual(self.probe.report['actions'], [])
+        self.assertEqual(self.probe.report['frames'], [])
+        self.assertEqual(self.probe.report['native_input_failures'][0]['java_stage'], 'account_pointer_tap')
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

@@ -30,13 +30,14 @@ AUTH_LABELS = {'مرحبًا بعودتك', 'رقم واتساب', 'رمز ال�
                'رمز التحقق عبر واتساب', 'تأكيد والدخول', 'إرسال رمز واتساب'}
 AUTH_PHASES = frozenset({'account_open', 'login_open', 'phone_entry', 'code_request',
                          'otp_entry', 'confirm', 'postcondition'})
+ACCOUNT_CLICK_FOCUS_MODE = 'physical_click_focus'
 INPUT_OPS = frozenset({'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
 C1_CASES = ('C1-native-network', 'C1-api-empty-fixture', 'C1-auth', 'C1-photo-save',
             'C1-force-stop-restore', 'C1-cleanup')
 FOREGROUND_CATEGORIES = frozenset({'APP', 'PERMISSION_CONTROLLER', 'DOCUMENT_PICKER',
                                   'SYSTEM_UI', 'OTHER', 'UNOBSERVED'})
 # Literal account-operation stages from the unchanged Phase1Input.java helper.
-INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_click',
+INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_input_policy', 'account_click',
                               'account_pointer_tap', 'account_scroll', 'account_pointer_swipe',
                               'account_focus', 'account_focus_pointer', 'account_focus_request',
                               'account_focus_observe', 'account_set_request', 'selected_path_format',
@@ -133,6 +134,9 @@ class NativeAccount:
                        'c1_accepted': False, 'manual_review_completed': False,
                        'native_auth_executed': False, 'authentication_captures': False,
                        'native_auth_attempted': False,
+                       'native_click_focus_policy': ACCOUNT_CLICK_FOCUS_MODE,
+                       'native_scroll_policy': 'unchanged_semantic_or_existing_pointer',
+                       'native_text_policy': 'semantic_set_text',
                        'api_bootstrap_is_not_native_creation': True,
                        'submission_executed': False, 'financial_acceptance_executed': False,
                        'cases': [], 'actions': [], 'frames': [], 'videos': [], 'native_input_failures': [],
@@ -203,6 +207,11 @@ class NativeAccount:
     def instrument(self, op, **extras):
         output, result = '', {}
         try:
+            # Select physical click/focus before dispatch; never retry a semantic failure.
+            if 'input_mode' in extras:
+                raise Blocked('fixed_native_input_mode_required')
+            if op in {'account-click', 'account-set'}:
+                extras = dict(extras, input_mode=ACCOUNT_CLICK_FOCUS_MODE)
             args = ['shell', 'am', 'instrument', '-w', '-e', 'op', op]
             for key, value in extras.items():
                 args.extend(['-e', key, str(value)])
