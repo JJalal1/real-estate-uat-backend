@@ -267,7 +267,37 @@ class UatRoleJourneys extends Command
                 'duplicate_same_physical_asset');
             $this->wire('duplicate_has_valid_sai','other_publisher','PUT','/api/properties/'.$duplicateId.'/sai',
                 ['sai_amount_type'=>'percentage','broker_sai_rate_percent'=>0,'sai_payer'=>'tenant']);
-            $duplicate = $this->wire('duplicate_submission_denied','other_publisher','POST','/api/properties/'.$duplicateId.'/submit',[],409);
+            // Current identity policy accepts an explicit submission before
+            // evaluating its evidence. A confirmed duplicate stays private and
+            // must still fail publication after valid claim and media review.
+            $submittedDuplicate = $this->wire('duplicate_submission_enters_review','other_publisher','POST','/api/properties/'.$duplicateId.'/submit');
+            $this->check($submittedDuplicate->json('data.review_status') === 'submitted'
+                && $submittedDuplicate->json('data.status') === 'pending'
+                && $submittedDuplicate->json('data.duplicate_check_status') === 'confirmed_duplicate',
+                'duplicate_submission_preserves_confirmed_identity');
+            $this->check(DB::table('listing_reviews')->where('listing_id',$duplicateId)
+                ->where('action','duplicate_suspected_after_submission')->exists()
+                && DB::table('support_tasks')->where('source_type','listing_review')
+                    ->where('source_id',$duplicateId)->exists(), 'duplicate_requires_support_review');
+            $this->wire('submitted_duplicate_is_not_public',null,'GET','/api/properties/'.$duplicateId,[],404);
+            $duplicateReviewUrl = '/api/admin/listing-review/listings/'.$duplicateId;
+            $this->wire('duplicate_reviewer_claim','reviewer','POST',$duplicateReviewUrl.'/start');
+            $duplicateImage = $this->wire('reviewer_reads_duplicate_image','reviewer','GET',$duplicateReviewUrl)->json('data.images.0');
+            $this->check((int)($duplicateImage['id'] ?? 0) > 0
+                && preg_match('/^[a-f0-9]{64}$/D', (string)($duplicateImage['relevance_token'] ?? '')) === 1,
+                'duplicate_image_has_reviewable_fingerprint');
+            $this->wire('duplicate_positive_image_decision','reviewer','POST',$duplicateReviewUrl.'/media-review',
+                ['image_id'=>(int)$duplicateImage['id'], 'image_token'=>$duplicateImage['relevance_token'],
+                 'decision'=>'relevant', 'reason'=>'Synthetic affirmative duplicate-protocol fixture; not human acceptance']);
+            $duplicate = $this->wire('duplicate_publication_denied','reviewer','POST',$duplicateReviewUrl.'/approve',
+                ['reason'=>'Synthetic duplicate-publication guard; test data only'],409);
+            $this->check(Property::query()->where('property_asset_id',$approvedAssetId)
+                ->where('purpose',$duplicateInput['purpose'])->where('status','published')->count() === 1
+                && Property::query()->whereKey($id)->where('status','published')->exists()
+                && Property::query()->whereKey($duplicateId)->where('status','pending')
+                    ->where('review_status','under_review')->where('duplicate_check_status','confirmed_duplicate')->exists(),
+                'duplicate_does_not_publish_or_replace_original');
+            $this->wire('duplicate_remains_private_after_denial',null,'GET','/api/properties/'.$duplicateId,[],404);
         }
         $this->check(str_contains((string)$duplicate->json('message'),'already published'), 'duplicate_denial_is_physical_identity');
         $public = $this->wire('public_sanitized_image',null,'GET','/api/property-media/'.$imageId.'?variant=thumb');
