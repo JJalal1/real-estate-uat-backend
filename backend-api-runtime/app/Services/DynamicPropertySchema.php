@@ -69,11 +69,29 @@ class DynamicPropertySchema
 
     public function filters(array $filters): array
     {
+        // Keep legacy single-type clients and stored searches compatible. New
+        // multi-type selections are canonical, ordered and never a fake All.
+        if (array_key_exists('types', $filters)) {
+            $types = array_values(array_unique($filters['types'] ?? []));
+            sort($types, SORT_STRING);
+            unset($filters['type'], $filters['types']);
+            if (count($types) === 1) $filters['type'] = $types[0];
+            elseif ($types !== []) $filters['types'] = $types;
+        }
         foreach ($this->definition()['fields'] as $key => $field) {
-            if ($this->applies($key, $filters)) continue;
+            if ($this->appliesToFilters($key, $filters)) continue;
             foreach ($field['filters'] ?? [] as $filter) unset($filters[$filter]);
         }
         return $filters;
+    }
+
+    public function appliesToFilters(string $key, array $filters): bool
+    {
+        if (empty($filters['types'])) return $this->applies($key, $filters);
+        foreach ($filters['types'] as $type) {
+            if (!$this->applies($key, array_replace($filters, ['type' => $type]))) return false;
+        }
+        return true;
     }
 
     public function normalizeFloor(string $value): string

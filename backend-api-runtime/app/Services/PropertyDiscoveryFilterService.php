@@ -52,6 +52,8 @@ class PropertyDiscoveryFilterService
             'spotlight' => ['nullable', 'boolean'],
             'purpose' => ['nullable', Rule::in(self::PURPOSES)],
             'type' => ['nullable', Rule::in(self::TYPES)],
+            'types' => ['nullable', 'array', 'list', 'max:8'],
+            'types.*' => ['required', 'string', 'distinct', Rule::in(array_values(array_diff(self::TYPES, ['floor'])))],
             'min_price' => ['nullable', 'numeric', 'min:0'],
             'max_price' => ['nullable', 'numeric', 'min:0'],
             'min_bedrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
@@ -108,7 +110,11 @@ class PropertyDiscoveryFilterService
             }
         }
 
-        if (($validated['type'] ?? null) === 'apartment') {
+        if (!empty($validated['types'])) {
+            $types = $validated['types'];
+            if (in_array('apartment', $types, true)) $types[] = 'floor';
+            $query->whereIn('type', array_values(array_unique($types)));
+        } elseif (($validated['type'] ?? null) === 'apartment') {
             $query->whereIn('type', ['apartment', 'floor']);
         } elseif (($validated['type'] ?? null) === 'floor') {
             $query->where(fn (Builder $scope) => $scope->where('type', 'floor')
@@ -195,6 +201,9 @@ class PropertyDiscoveryFilterService
 
     public function validateGeometry(array $validated): void
     {
+        if (!empty($validated['type']) && !empty($validated['types'])) {
+            throw ValidationException::withMessages(['types' => ['استخدم اختيارًا واحدًا لأنواع العقار.']]);
+        }
         foreach (['min_price' => 'max_price', 'min_monthly_rent' => 'max_monthly_rent', 'min_area_m2' => 'max_area_m2'] as $min => $max) {
             if (isset($validated[$min], $validated[$max]) && $validated[$min] > $validated[$max]) {
                 throw ValidationException::withMessages(['filters' => ['الحد الأدنى يجب ألا يتجاوز الحد الأعلى.']]);

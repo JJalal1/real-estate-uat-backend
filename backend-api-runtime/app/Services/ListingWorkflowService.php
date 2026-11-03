@@ -10,6 +10,7 @@ use App\Models\PropertyPublicationBlock;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
@@ -67,7 +68,7 @@ class ListingWorkflowService
 
     public function submit(User $actor, Property $listing, Request $request): Property
     {
-        return DB::transaction(function () use ($actor, $listing, $request) {
+        $accepted = DB::transaction(function () use ($actor, $listing, $request) {
             $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
             if (! in_array($locked->review_status, ['draft', 'returned_for_correction'], true)) {
                 throw new ConflictHttpException('This listing is not in a submittable state.');
@@ -79,8 +80,6 @@ class ListingWorkflowService
             $this->assertAdvertiserCanPublish($actor, $locked);
             $asset = PropertyAsset::query()->whereKey($locked->property_asset_id)->lockForUpdate()->firstOrFail();
             $this->assets->assertPurposeNotBlocked($asset, $locked->purpose);
-            $this->assets->assertNotAlreadyPublished($asset, $locked->purpose, $locked->id);
-            $identityResult = $this->identity->assertSubmissionAllowed($actor, $locked);
             $this->regions->assertListingAllowed($actor, (float) $locked->latitude, (float) $locked->longitude);
 
             $from = $locked->review_status;
@@ -92,30 +91,20 @@ class ListingWorkflowService
                 'last_review_reason' => null,
                 'review_assigned_to_user_id' => null,
                 'review_assigned_at' => null,
+                'duplicate_check_status' => 'pending',
+                'duplicate_check_score' => 0,
+                'duplicate_check_metadata' => null,
+                'duplicate_checked_at' => null,
             ])->save();
 
             $this->review($actor, $locked, 'submitted', $from, 'submitted');
-
-            if (($identityResult['decision'] ?? 'distinct') === 'possible_duplicate') {
-                $this->review(
-                    $actor,
-                    $locked,
-                    'duplicate_suspected_after_self_verification',
-                    'submitted',
-                    'submitted',
-                    'Automated identity checks remained ambiguous after advertiser self-verification.',
-                    ['identity_result' => $identityResult],
-                );
-            }
-
             $this->audit->record(
                 $actor,
                 'listing.submitted',
                 $locked,
                 [
                     'review_status' => 'submitted',
-                    'property_identity_status' => $identityResult['status'] ?? 'distinct',
-                    'property_identity_score' => $identityResult['score'] ?? 0,
+                    'property_identity_status' => 'pending',
                 ],
                 $request,
                 $actor->id,
@@ -123,6 +112,104 @@ class ListingWorkflowService
 
             return $locked->fresh(['images', 'documents', 'propertyAsset']);
         });
+
+        // The accepted request is committed before identity processing starts.
+        // A failed or interrupted check remains retryable without a new submit.
+        $this->processSubmittedIdentity($actor, $accepted);
+        return $accepted->fresh(['images', 'documents', 'propertyAsset']);
+    }
+
+    public function processSubmittedIdentity(User $actor, Property $listing): array
+    {
+        try {
+            return DB::transaction(function () use ($actor, $listing): array {
+                $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
+                if (! in_array($locked->review_status, ['submitted', 'under_review'], true)) {
+                    throw new ConflictHttpException('This listing is not awaiting identity review.');
+                }
+                if ($locked->duplicate_checked_at !== null
+                    && in_array($locked->duplicate_check_status, ['distinct', 'needs_support', 'confirmed_duplicate'], true)) {
+                    $metadata = $locked->duplicate_check_metadata ?? [];
+                    return [
+                        'decision' => match ($locked->duplicate_check_status) {
+                            'confirmed_duplicate' => 'confirmed_duplicate',
+                            'needs_support' => 'possible_duplicate',
+                            default => 'distinct',
+                        },
+                        'status' => $locked->duplicate_check_status,
+                        'score' => $locked->duplicate_check_score,
+                        'signals' => $metadata['signals'] ?? [],
+                        'candidate' => $metadata['candidate'] ?? null,
+                        'message' => $metadata['message'] ?? null,
+                    ];
+                }
+
+                $result = $this->identity->evaluate($locked, $actor, true);
+                $signalContext = $this->identitySignalContext($locked, 'duplicate_suspected_after_submission');
+                if (in_array($result['decision'] ?? 'distinct', ['possible_duplicate', 'confirmed_duplicate'], true)
+                    && $signalContext !== null) {
+                    $this->review(
+                        $actor, $locked, 'duplicate_suspected_after_submission',
+                        $locked->review_status, $locked->review_status,
+                        'Automated identity evidence requires support review before publication.',
+                        $signalContext + ['identity_result' => $result],
+                    );
+                }
+                return $result;
+            });
+        } catch (\Throwable $error) {
+            Log::warning('Submitted listing identity check did not complete.', [
+                'listing_id' => $listing->id, 'error_type' => $error::class,
+            ]);
+            try {
+                DB::transaction(function () use ($actor, $listing): void {
+                    $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->first();
+                    if (! $locked || ! in_array($locked->review_status, ['submitted', 'under_review'], true)
+                        || $locked->duplicate_checked_at !== null) return;
+                    $locked->forceFill(['duplicate_check_status' => 'check_failed'])->save();
+                    $signalContext = $this->identitySignalContext($locked, 'identity_check_unavailable');
+                    if ($signalContext !== null) {
+                        $this->review($actor, $locked, 'identity_check_unavailable',
+                            $locked->review_status, $locked->review_status,
+                            'Identity evidence is unavailable; retry the check before approval.',
+                            $signalContext);
+                    }
+                });
+            } catch (\Throwable $markError) {
+                // The committed pending state remains retryable if even the
+                // failure marker cannot be stored during a database outage.
+                Log::warning('Submitted identity failure marker could not be stored.', [
+                    'listing_id' => $listing->id, 'error_type' => $markError::class,
+                ]);
+            }
+            return [
+                'decision' => 'unavailable', 'status' => 'check_failed',
+                'score' => 0, 'signals' => [], 'candidate' => null,
+            ];
+        }
+    }
+
+    /** Keep one signal per submitted review, while retaining earlier cycles as evidence. */
+    private function identitySignalContext(Property $listing, string $action): ?array
+    {
+        $submissionReviewId = (int) ListingReview::query()
+            ->where('listing_id', $listing->id)->where('action', 'submitted')
+            ->latest('id')->value('id');
+        if (ListingReview::query()->where('listing_id', $listing->id)
+            ->where('action', $action)->where('id', '>', $submissionReviewId)->exists()) {
+            return null;
+        }
+
+        $previous = ListingReview::query()->where('listing_id', $listing->id)
+            ->whereIn('action', ['duplicate_suspected_after_submission', 'identity_check_unavailable'])
+            ->where('id', '<', $submissionReviewId)->latest('id')->first();
+        $previousMetadata = $previous?->metadata ?? [];
+        return [
+            'submission_review_id' => $submissionReviewId ?: null,
+            'previous_identity_signal_review_id' => $previous?->id,
+            'previous_identity_decision' => $previous?->action === 'identity_check_unavailable'
+                ? 'unavailable' : ($previousMetadata['identity_result']['decision'] ?? null),
+        ];
     }
 
     public function startReview(User $actor, Property $listing, Request $request): Property
@@ -227,6 +314,11 @@ class ListingWorkflowService
         return DB::transaction(function () use ($actor, $listing, $reason, $request, $duplicateReviewReason) {
             $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
             $this->assertReviewable($locked, $actor);
+
+            if ($locked->duplicate_checked_at === null
+                || ! in_array($locked->duplicate_check_status, ['distinct', 'needs_support', 'confirmed_duplicate'], true)) {
+                throw new ConflictHttpException('Identity evidence is incomplete. Retry the identity check before approval.');
+            }
 
             // A listing may be published only after every current image has
             // explicit, fingerprint-bound human confirmation. Missing/uncertain

@@ -27,6 +27,10 @@ class Wave2MediaTrustTest extends TestCase
         [, $bh]=$this->user('w2-image-agent-b@example.test','+967731200003',['support_agent']);
         $ad=$this->publishedListing($owner,'Image review');
         $ad->forceFill(['status'=>'draft','review_status'=>'submitted','review_assigned_to_user_id'=>null])->save();
+        // This test isolates media decisions. Complete the independent identity
+        // check so approval reaches the media gate in the current review flow.
+        app(PropertyIdentityService::class)->evaluate($ad->fresh(), $owner);
+        $this->assertNotNull($ad->fresh()->duplicate_checked_at);
         $image=$ad->images()->create(['path'=>'listing-originals/test/source.jpg','sort_order'=>0,'is_primary'=>true]);
         $url="/api/admin/listing-review/listings/$ad->id/media-review";
         $payload=['image_id'=>$image->id,'image_token'=>hash('sha256',$image->path.'|'),'decision'=>'uncertain','reason'=>'أرض فارغة تحتاج توضيحًا من المعلن.'];

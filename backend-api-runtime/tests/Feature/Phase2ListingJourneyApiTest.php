@@ -176,6 +176,10 @@ class Phase2ListingJourneyApiTest extends TestCase
         $secondId = $this->createReady($secondHeaders, array_merge($identity, ['title' => 'محاولة تكرار نفس العقار']));
         $this->withHeaders($secondHeaders)
             ->postJson("/api/properties/$secondId/submit")
+            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $this->withHeaders($supportHeaders)->postJson("/api/admin/listing-review/listings/$secondId/start")->assertOk();
+        $this->confirmListingImages($secondId, $supportHeaders);
+        $this->withHeaders($supportHeaders)->postJson("/api/admin/listing-review/listings/$secondId/approve")
             ->assertStatus(409);
 
         $this->getJson('/api/properties')->assertOk()->assertJsonPath('meta.total', 1);

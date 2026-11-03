@@ -26,7 +26,7 @@ class ListingAccessService
     {
         $personal = $this->personalLimitApplies($user);
         $count = Property::query()->withoutGlobalScopes()->where('user_id', $user->id)
-            ->where('status', '<>', 'archived')->count() + ListingEditorDraft::query()->where('user_id',$user->id)->whereNull('property_id')->count();
+            ->where('status', '<>', 'archived')->count() + ListingEditorDraft::query()->where('user_id',$user->id)->whereNull('property_id')->where(fn($q)=>$q->whereNull('payload->draft_kind')->orWhere('payload->draft_kind','!=','retired'))->count();
         $limitReached = $personal && $count >= 1;
         return ['contact_phone_policy'=>app(ListingContactService::class)->policy(), 'mode' => $this->isProfessional($user) ? 'professional' : 'personal',
             'listing_limit' => $personal ? 1 : null, 'listing_count' => $count,
@@ -38,7 +38,7 @@ class ListingAccessService
     public function assertCanCreate(User $user, ?string $editorDraftKey = null): void
     {
         if (! $this->personalLimitApplies($user)) return;
-        if (Property::query()->withoutGlobalScopes()->where('user_id', $user->id)->where('status', '<>', 'archived')->exists() || ListingEditorDraft::query()->where('user_id',$user->id)->whereNull('property_id')->when($editorDraftKey,fn($q)=>$q->where('client_key','<>',$editorDraftKey))->exists()) {
+        if (Property::query()->withoutGlobalScopes()->where('user_id', $user->id)->where('status', '<>', 'archived')->exists() || ListingEditorDraft::query()->where('user_id',$user->id)->whereNull('property_id')->where(fn($q)=>$q->whereNull('payload->draft_kind')->orWhere('payload->draft_kind','!=','retired'))->when($editorDraftKey,fn($q)=>$q->where('client_key','<>',$editorDraftKey))->exists()) {
             throw new HttpResponseException(response()->json([
                 'message' => 'لديك عقار شخصي بالفعل. فعّل حساب دلال لإدارة عدة عقارات بعد اعتماد التوثيق.',
                 'code' => 'personal_listing_limit', 'upgrade_required' => true,

@@ -120,7 +120,11 @@ class UxRefinementApiTest extends TestCase
         $this->configure($headers, $second);
         $this->withHeaders($headers)->postJson("/api/properties/$second/identity/check")->assertOk()
             ->assertJsonPath('data.decision', 'possible_duplicate');
-        $this->withHeaders($headers)->postJson("/api/properties/$second/submit")->assertUnprocessable();
+        $this->withHeaders($headers)->postJson("/api/properties/$second/submit")
+            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $this->assertDatabaseHas('listing_reviews', [
+            'listing_id' => $second, 'action' => 'duplicate_suspected_after_submission',
+        ]);
     }
 
     public function test_rental_budget_filters_monthly_rent_and_currency_instead_of_advance_amount(): void

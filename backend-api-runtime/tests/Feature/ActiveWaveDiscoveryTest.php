@@ -13,11 +13,20 @@ use App\Services\SavedSearchAlertService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Tests\Support\SqliteMathFallback;
 use Tests\TestCase;
 
 class ActiveWaveDiscoveryTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            SqliteMathFallback::registerMissing(DB::connection()->getPdo());
+        }
+    }
 
     public function test_copy_is_a_natural_fact_bound_paragraph_and_sparse_inputs_stay_short(): void
     {
