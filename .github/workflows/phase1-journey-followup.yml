@@ -77,9 +77,39 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_ACTIONS" = true
+          test "$GITHUB_REPOSITORY" = JJalal1/real-estate-uat-backend
+          test "$GITHUB_REF" = refs/heads/work/phase1-journeys-20261103
           test -f phase1-followup-private/APK_VERIFICATION.json
+          aqer_sdk_root="$(realpath "${ANDROID_HOME:?}")"
+          test "$aqer_sdk_root" != /
+          test -f "$aqer_sdk_root/platforms/android-36/android.jar"
           rm -rf mobile_app/build "$HOME/.gradle/caches" "$ANDROID_HOME/ndk" "$ANDROID_HOME/cmake"
-          sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+          mkdir phase1-followup-sdk
+          sdk_ready=false
+          for sdk_attempt in 1 2; do
+            if sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'; then
+              sdk_exit=0
+            else
+              sdk_exit=$?
+            fi
+            python3 - "$sdk_attempt" "$sdk_exit" <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          path=Path('phase1-followup-sdk/report.json')
+          data=json.loads(path.read_text()) if path.exists() else {'source_commit':os.environ['SOURCE_COMMIT'],'scope':'disposable_GitHub_runner_SDK_provisioning','attempts':[]}
+          data['attempts'].append({'attempt':int(sys.argv[1]),'exit_code':int(sys.argv[2])})
+          data['ready']=int(sys.argv[2])==0
+          path.write_text(json.dumps(data,indent=2)+'\n')
+          PY
+            if [ "$sdk_exit" -eq 0 ]; then sdk_ready=true; break; fi
+            if [ "$sdk_attempt" -eq 1 ]; then
+              # A failed SDK ZIP is provisioning, not an app/emulator result.
+              # Discard only this disposable runner's download/selected image.
+              rm -rf "$aqer_sdk_root/.temp" "$aqer_sdk_root/system-images/android-36/google_apis/x86_64"
+              sleep 2
+            fi
+          done
+          test "$sdk_ready" = true
           export ANDROID_USER_HOME="$RUNNER_TEMP/aqer-followup-android"
           export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
           export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
@@ -108,6 +138,14 @@ jobs:
             phase1-followup-evidence/*.json
             phase1-followup-evidence/*.png
             phase1-followup-evidence/*.mp4
+      - name: Upload bounded SDK provisioning receipt
+        if: ${{ !cancelled() && hashFiles('phase1-followup-sdk/report.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-followup-sdk-${{ github.run_id }}
+          path: phase1-followup-sdk/report.json
+          retention-days: 5
+          if-no-files-found: error
       - name: Upload safe new build identity even if later preparation fails
         if: ${{ !cancelled() && steps.prepare.outputs.followup_build_identity == 'true' }}
         uses: actions/upload-artifact@v4
