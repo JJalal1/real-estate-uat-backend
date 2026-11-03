@@ -35,6 +35,7 @@ CONTROL_SERVICES = (
     'backend-api-runtime/app/Services/ListingAiService.php',
 )
 RED_METHOD = 'test_floor_does_not_propose_a_unit_in_prepare_or_direct_extraction'
+RED_WITNESS = 'AQER_UNIT_NUMBER_GROUNDING: unit_number must be absent when only a floor is supplied'
 
 
 def run(argv, cwd=ROOT, **kwargs):
@@ -112,7 +113,7 @@ def red_control(env):
                     or list(suites.iter('error')) or list(suites.iter('skipped'))):
                 raise RuntimeError('old_source_control_failed_for_unexpected_reason')
             failure_text = ''.join(cases[0].find('failure').itertext())
-            if 'unit_number' not in failure_text:
+            if RED_WITNESS not in failure_text:
                 raise RuntimeError('old_source_control_did_not_witness_unit_proposal')
         finally:
             for name, data in originals.items():

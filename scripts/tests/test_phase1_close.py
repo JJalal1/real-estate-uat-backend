@@ -102,7 +102,7 @@ class Phase1CloseSafetyTest(unittest.TestCase):
         return root, originals, contexts
 
     def test_red_control_requires_the_specific_assertion_and_restores_candidate(self):
-        xml = '<testsuites><testsuite><testcase name="' + close.RED_METHOD + '"><failure>Missing unit_number assertion</failure></testcase></testsuite></testsuites>'
+        xml = '<testsuites><testsuite><testcase name="' + close.RED_METHOD + '"><failure>' + close.RED_WITNESS + '</failure></testcase></testsuite></testsuites>'
         root, originals, contexts = self.control_case(xml)
         from contextlib import ExitStack
         with ExitStack() as stack:
@@ -114,6 +114,21 @@ class Phase1CloseSafetyTest(unittest.TestCase):
         result = json.loads((root / 'phase1-close-regression/RED_CONTROL.json').read_text())
         self.assertTrue(result['unit_number_failure_witnessed'])
         self.assertTrue(result['candidate_source_restored'])
+
+    def test_red_control_rejects_an_unidentified_assertion_and_still_restores(self):
+        for failure in ['Failed asserting that true is false.', 'An unrelated unit_number assertion']:
+            with self.subTest(failure=failure):
+                xml = '<testsuites><testsuite><testcase name="' + close.RED_METHOD + '"><failure>' + failure + '</failure></testcase></testsuite></testsuites>'
+                root, originals, contexts = self.control_case(xml)
+                from contextlib import ExitStack
+                with ExitStack() as stack:
+                    for context in contexts:
+                        stack.enter_context(context)
+                    with self.assertRaisesRegex(RuntimeError, 'did_not_witness_unit_proposal'):
+                        close.red_control(self.environment())
+                for name, content in originals.items():
+                    self.assertEqual((root / name).read_bytes(), content)
+                self.assertFalse((root / 'phase1-close-regression/RED_CONTROL.json').exists())
 
     def test_red_control_rejects_unrelated_runtime_errors_and_still_restores(self):
         xml = '<testsuites><testsuite><testcase name="' + close.RED_METHOD + '"><error>class missing</error></testcase></testsuite></testsuites>'

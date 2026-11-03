@@ -98,12 +98,16 @@ class BrokerListingAssistantTest extends TestCase
         ]))]);
         $message = 'شقة للإيجار في صنعاء، الطابق الثاني';
         $facts = ['type'=>'apartment', 'purpose'=>'rent', 'floor_number'=>'2'];
-        $this->prepare($headers, $message, $facts)->assertOk()
+        $prepared = $this->prepare($headers, $message, $facts)->assertOk()
             ->assertJsonPath('data.source', 'ai')->assertJsonPath('data.requires_review', true)
-            ->assertJsonPath('data.fields.floor_number', '2')->assertJsonMissingPath('data.fields.unit_number');
-        $this->withHeaders($headers)->postJson('/api/ai/listing-fields', ['message'=>$message, 'facts'=>$facts])
+            ->assertJsonPath('data.fields.floor_number', '2');
+        $this->assertArrayNotHasKey('unit_number', $prepared->json('data.fields'),
+            'AQER_UNIT_NUMBER_GROUNDING: unit_number must be absent when only a floor is supplied');
+        $direct = $this->withHeaders($headers)->postJson('/api/ai/listing-fields', ['message'=>$message, 'facts'=>$facts])
             ->assertOk()->assertJsonPath('data.fields.floor_number', '2')
-            ->assertJsonPath('data.requires_review', true)->assertJsonMissingPath('data.fields.unit_number');
+            ->assertJsonPath('data.requires_review', true);
+        $this->assertArrayNotHasKey('unit_number', $direct->json('data.fields'),
+            'AQER_UNIT_NUMBER_GROUNDING: unit_number must be absent when only a floor is supplied');
         Http::assertSentCount(2);
         foreach (['properties', 'property_sai_terms', 'listing_editor_drafts'] as $table) $this->assertDatabaseCount($table, 0);
     }
