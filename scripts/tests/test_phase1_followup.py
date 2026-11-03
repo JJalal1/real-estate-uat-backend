@@ -62,6 +62,11 @@ class FollowupTests(unittest.TestCase):
         good=raw+'INSTRUMENTATION_RESULT: focused_set_text_handler=true\nINSTRUMENTATION_CODE: -1\n'
         self.assertTrue(input_receipt(good,'fixture-query')['focused_set_text_handler'])
 
+    def test_semantic_submit_receipt_requires_actual_click(self):
+        raw='INSTRUMENTATION_RESULT: passed=true\nINSTRUMENTATION_RESULT: op=submit-query\n'
+        with self.assertRaises(Blocked): input_receipt(raw+'INSTRUMENTATION_CODE: -1\n','submit-query')
+        self.assertTrue(input_receipt(raw+'INSTRUMENTATION_RESULT: semantic_click_delivered=true\nINSTRUMENTATION_CODE: -1\n','submit-query')['semantic_click_delivered'])
+
     def test_arbitrary_output_never_enters_receipt(self):
         raw=gesture()+'secret-echo=DO_NOT_EXPORT\nINSTRUMENTATION_RESULT: unknown=DO_NOT_EXPORT\n'
         self.assertNotIn('DO_NOT_EXPORT',json.dumps(input_receipt(raw,'double-tap')))

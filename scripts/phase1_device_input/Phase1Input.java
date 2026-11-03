@@ -34,7 +34,15 @@ public final class Phase1Input extends Instrumentation {
             stage="automation"; automation = getUiAutomation();
             origin = SystemClock.uptimeMillis();
             AccessibilityNodeInfo root = readyRoot(op); stage="root_ready";
-            if ("fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op)) {
+            if ("submit-query".equals(op)) {
+                require(!contains(root,"شروط البحث"));
+                List<AccessibilityNodeInfo> controls=new ArrayList<>();
+                namedClickable(root,"تنفيذ",controls); require(controls.size()==1);
+                stage="submit_action";
+                require(controls.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK));
+                SystemClock.sleep(500);
+                result.putBoolean("semantic_click_delivered",true);
+            } else if ("fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op)) {
                 require(contains(root, "البحث عن عقار") || contains(root, "البحث على الخريطة"));
                 List<AccessibilityNodeInfo> fields = new ArrayList<>();
                 editable(root, fields);
@@ -140,7 +148,7 @@ public final class Phase1Input extends Instrumentation {
         while(SystemClock.uptimeMillis()<deadline) {
             AccessibilityNodeInfo root=automation.getRootInActiveWindow();
             if(root!=null && root.getPackageName()!=null && APP.contentEquals(root.getPackageName())) {
-                boolean query="fixture-query".equals(op)||"negative-query".equals(op)||"clear-query".equals(op);
+                boolean query="fixture-query".equals(op)||"negative-query".equals(op)||"clear-query".equals(op)||"submit-query".equals(op);
                 if(query ? contains(root,"البحث عن عقار")||contains(root,"البحث على الخريطة")
                          : contains(root,"صورة العقار 1 من 1")&&contains(root,"1/1")) return root;
             }
@@ -159,7 +167,7 @@ public final class Phase1Input extends Instrumentation {
         pointerActive=false;
     }
     private static String safeOp(String op) {
-        return "fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op) || "double-tap".equals(op)
+        return "fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op) || "submit-query".equals(op) || "double-tap".equals(op)
             || "pinch-in".equals(op) || "pinch-out".equals(op) ? op : "invalid";
     }
     private int number(String key, int min, int max) {
@@ -176,6 +184,15 @@ public final class Phase1Input extends Instrumentation {
     private static void editable(AccessibilityNodeInfo node, List<AccessibilityNodeInfo> fields) {
         if (node.getPackageName()!=null && APP.contentEquals(node.getPackageName()) && node.isVisibleToUser() && node.isEnabled() && node.isEditable()) fields.add(node);
         for (int i=0; i<node.getChildCount(); i++) { AccessibilityNodeInfo child=node.getChild(i); if(child!=null) editable(child,fields); }
+    }
+    private static void namedClickable(AccessibilityNodeInfo node,String text,List<AccessibilityNodeInfo> result) {
+        boolean match=false;
+        for(CharSequence value:new CharSequence[]{node.getText(),node.getContentDescription()})
+            if(value!=null) for(String line:value.toString().split("\n")) if(text.equals(line.trim())) match=true;
+        if(match && node.getPackageName()!=null && APP.contentEquals(node.getPackageName()) &&
+           node.isVisibleToUser() && node.isEnabled() && node.isClickable() &&
+           (node.getActions() & AccessibilityNodeInfo.ACTION_CLICK)!=0) result.add(node);
+        for(int i=0;i<node.getChildCount();i++) { AccessibilityNodeInfo child=node.getChild(i); if(child!=null) namedClickable(child,text,result); }
     }
     private long send(long down, int action, float[] xs, float[] ys) {
         MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[xs.length];

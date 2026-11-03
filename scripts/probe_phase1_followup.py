@@ -23,7 +23,7 @@ QUERY = 'شقة للإيجار'
 def input_receipt(output, op):
     # Read only a strict result allowlist. Never retain instrumentation output.
     values = {}
-    for key in ['passed', 'op', 'events', 'inter_tap_ms', 'inter_tap_lower_ms', 'inter_tap_upper_ms', 'event_ms', 'return_ms', 'text_matched','focused_set_text_handler']:
+    for key in ['passed', 'op', 'events', 'inter_tap_ms', 'inter_tap_lower_ms', 'inter_tap_upper_ms', 'event_ms', 'return_ms', 'text_matched','focused_set_text_handler','semantic_click_delivered']:
         rows = re.findall(r'^INSTRUMENTATION_RESULT: ' + key + r'=([^\r\n]+)', output, re.M)
         if len(rows) > 1:
             raise Blocked('ambiguous_input_receipt')
@@ -32,7 +32,10 @@ def input_receipt(output, op):
     if values.get('passed') != 'true' or values.get('op') != op or not re.search(r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M):
         raise Blocked('native_input_not_delivered')
     receipt = {'op': op, 'passed': True}
-    if op in ['fixture-query', 'negative-query', 'clear-query']:
+    if op=='submit-query':
+        if values.get('semantic_click_delivered')!='true': raise Blocked('semantic_submit_not_delivered')
+        receipt['semantic_click_delivered']=True
+    elif op in ['fixture-query', 'negative-query', 'clear-query']:
         if values.get('text_matched') != 'true' or values.get('focused_set_text_handler')!='true':
             raise Blocked('native_query_not_matched')
         receipt['text_matched'] = True
@@ -70,7 +73,7 @@ def input_failure_diagnostic(output):
         rows=re.findall(r'^INSTRUMENTATION_RESULT: '+key+r'=([^\r\n]*)',output,re.M)
         if len(rows)!=1: continue
         value=rows[0]
-        if key=='stage' and value in ['guard','automation','root_ready','query_focus','query_action','query_match','double_tap','pinch','complete']:
+        if key=='stage' and value in ['guard','automation','root_ready','query_focus','query_action','query_match','submit_action','double_tap','pinch','complete']:
             result[key]=value
         elif key=='events' and value.isdigit() and int(value)<=20: result[key]=int(value)
         elif key in ['event_ms','return_ms'] and re.fullmatch(r'[0-9]+(?:,[0-9]+){0,19}',value):
@@ -348,9 +351,11 @@ class Followup(GuestProbe):
             self.tap('مسح النص'); geometry['clear_method']='named_existing_clear_control'
         else:
             self.native('clear-query'); geometry['clear_method']='native_editable_set_empty'
-        self.tap('تنفيذ')
+        self.native('submit-query')
         time.sleep(8)
         nodes = self.nodes()
+        if not self.matches(nodes,'البحث على الخريطة') or self.matches(nodes,'شروط البحث'):
+            raise Blocked('semantic_submit_did_not_leave_map_visible')
         flags = self.selected(nodes)
         if flags != before or not flags['شقق'] or not flags['إيجار'] or flags['فلل']:
             raise Blocked('map_filter_consistency_failed')
@@ -475,12 +480,20 @@ class Followup(GuestProbe):
                 'ci_run_id':41549748457,'apk_version':1459,
                 'F04':'PASS actual AI method -> guest authentication gate',
                 'F05':'Reviewed controlled loading/error/retry -> actual public rows; targeted query not proven'}
-            self.record_start('search-and-card')
-            self.case('F01-positive-search-card','Actual positive fixture results; apartment/rent inclusion, sale exclusion and card tap.',self.positive_search)
-            self.record_stop()
-            self.record_start('gallery-gestures')
-            self.case('F02-gallery-scale','Timed native doubletap zoom/reset and true two-pointer pinch out/in.',self.gallery)
-            self.record_stop()
+            self.report['reused_followup_evidence']['CI3']={
+                'ci_run_id':41552246597,'apk_version':1460,
+                'F01':'PASS actual Arabic query, apartment/rent, sale exclusion, restored rent and result card -> matching details',
+                'F02':'PASS measured doubletap zoom/reset and two-pointer pinch out/in; original frames/video retained'}
+            # Establish the shared list criteria as a prerequisite only. Do not
+            # repeat sale contrast, details/card or gallery acceptance journeys.
+            self.home(); self.home_entry('search'); self.wait('البحث عن عقار')
+            self.native('fixture-query'); self.native('submit-query')
+            self.wait('نتائج «'+QUERY+'»')
+            for text in ['شقق','إيجار']:
+                if not self.selected()[text]: self.tap(text)
+            self.wait(FIXTURE_TITLE,60)
+            self.frame('map-prerequisite-list-apartment-rent')
+            self.report['map_list_prerequisite']={'query':QUERY,'selected':self.selected(),'fixture60_visible':True}
             self.record_start('map-and-filters')
             self.case('F03-map-clear-pan','Clear query, preserve list filters, render real markers and pan results.',self.map)
             self.record_stop()
