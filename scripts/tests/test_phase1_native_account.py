@@ -53,6 +53,112 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertNotIn(self.access['phones']['regular'], self.probe.private_values)
         self.assertFalse(self.probe.report['native_auth_executed'])
 
+    def test_login_records_fixed_phase_before_each_unchanged_normal_operation(self):
+        phases = []
+        self.probe.tap = Mock(side_effect=lambda label: phases.append(self.probe.report['native_auth_phase']))
+        self.probe.set = Mock(side_effect=lambda label, value: phases.append(self.probe.report['native_auth_phase']))
+        self.probe.wait = Mock()
+        self.probe.authenticated_account_evidence = Mock(
+            side_effect=lambda: phases.append(self.probe.report['native_auth_phase']) or {})
+        self.probe.login()
+        self.assertEqual(phases, ['account_open', 'login_open', 'phone_entry', 'code_request',
+                                  'otp_entry', 'confirm', 'postcondition'])
+        self.assertEqual([call.args[0] for call in self.probe.tap.call_args_list],
+                         ['حسابي', 'تسجيل الدخول أو إنشاء حساب', 'إرسال رمز واتساب', 'تأكيد والدخول'])
+        self.probe.set.assert_any_call('رقم واتساب', self.access['phones']['broker'])
+        self.probe.set.assert_any_call('رمز التحقق', self.access['otp'])
+        self.assertIsNone(self.probe._auth_phase)
+        self.assertNotIn('native_auth_input_failure', self.probe.report)
+        self.assertEqual(self.probe.report['frames'], [])
+
+    def test_auth_input_failure_retains_only_fixed_phase_stage_op_and_booleans(self):
+        witness = 'f' * 64
+        private_blob = base64.b64encode(self.access['phones']['broker'].encode()).decode()
+        self.probe.auth_phase('code_request')
+        self.probe.adb = Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: op=account-click',
+            'INSTRUMENTATION_RESULT: passed=false',
+            'INSTRUMENTATION_RESULT: stage=account_pointer_tap',
+            'INSTRUMENTATION_RESULT: tree_b64=' + private_blob,
+            'INSTRUMENTATION_RESULT: reason=' + self.access['otp'],
+            'INSTRUMENTATION_RESULT: witness=' + witness,
+            'INSTRUMENTATION_CODE: 0']))
+        with self.assertRaisesRegex(native.Blocked, '^native_input_not_delivered$'):
+            self.probe.instrument('account-click', node_path='0.1', node_witness=witness)
+        self.assertEqual(self.probe.report['native_auth_input_failure'], {
+            'phase': 'code_request', 'op': 'account-click', 'java_stage': 'account_pointer_tap',
+            'passed_true': False, 'passed_false': True, 'code_minus_one': False,
+            'code_zero': True, 'reason': 'native_input_not_delivered'})
+        serialized = (self.probe.out / 'report.json').read_text()
+        for forbidden in [private_blob, witness, self.access['otp'], self.access['phones']['broker']]:
+            self.assertNotIn(forbidden, serialized)
+        self.assertEqual(self.probe.report['actions'], [])
+        self.assertEqual(self.probe.report['frames'], [])
+
+    def test_private_exception_or_injected_stage_cannot_enter_auth_diagnostic(self):
+        raw = self.access['phones']['broker'] + ' private framework exception ' + self.access['otp']
+        for observation in [native.Blocked(raw), RuntimeError(raw),
+                            native.Blocked('device_command_timeout'), '\n'.join([
+                'INSTRUMENTATION_RESULT: op=account-set',
+                'INSTRUMENTATION_RESULT: passed=false',
+                'INSTRUMENTATION_RESULT: stage=' + raw,
+                'INSTRUMENTATION_RESULT: arbitrary=' + raw,
+                'INSTRUMENTATION_CODE: 0'])]:
+            self.probe.report.pop('native_auth_input_failure', None)
+            self.probe.auth_phase('phone_entry')
+            self.probe.adb = Mock(side_effect=observation) if isinstance(observation, Exception) \
+                else Mock(return_value=observation)
+            with self.subTest(observation_type=type(observation).__name__):
+                with self.assertRaises(native.Blocked) as failure:
+                    self.probe.instrument('account-set', value_b64=base64.b64encode(raw.encode()).decode())
+                self.assertIn(str(failure.exception), native.INPUT_FAILURE_REASONS)
+                diagnostic = self.probe.report['native_auth_input_failure']
+                self.assertIsNone(diagnostic['java_stage'])
+                self.assertIn(diagnostic['reason'], native.INPUT_FAILURE_REASONS)
+                if isinstance(observation, native.Blocked) and str(observation) in native.INPUT_FAILURE_REASONS:
+                    self.assertEqual(diagnostic['reason'], str(observation))
+                self.assertNotIn(raw, (self.probe.out / 'report.json').read_text())
+                self.assertNotIn(self.access['otp'], json.dumps(diagnostic))
+
+    def test_unknown_phase_and_requested_operation_never_enter_auth_diagnostic(self):
+        raw = 'private-' + self.access['phones']['broker']
+        with self.assertRaisesRegex(native.Blocked, '^fixed_native_auth_phase_required$'):
+            self.probe.auth_phase(raw)
+        self.assertNotIn('native_auth_phase', self.probe.report)
+        self.probe.auth_phase('account_open')
+        self.probe.adb = Mock(return_value='INSTRUMENTATION_RESULT: passed=false\nINSTRUMENTATION_CODE: 0')
+        with self.assertRaises(native.Blocked):
+            self.probe.instrument(raw)
+        self.assertNotIn('native_auth_input_failure', self.probe.report)
+        self.assertNotIn(raw, (self.probe.out / 'report.json').read_text())
+
+    def test_failure_diagnostic_is_disabled_outside_active_unauthenticated_login(self):
+        self.probe.adb = Mock(return_value='INSTRUMENTATION_RESULT: passed=false\nINSTRUMENTATION_CODE: 0')
+        with self.assertRaises(native.Blocked):
+            self.probe.instrument('account-snapshot')
+        self.assertNotIn('native_auth_input_failure', self.probe.report)
+        self.probe.auth_phase('postcondition')
+        self.probe.authenticated = True
+        with self.assertRaises(native.Blocked):
+            self.probe.instrument('account-snapshot')
+        self.assertNotIn('native_auth_input_failure', self.probe.report)
+
+    def test_login_failure_clears_active_phase_without_auth_images_or_witness_hashes(self):
+        self.probe.adb = Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: op=account-click', 'INSTRUMENTATION_RESULT: passed=false',
+            'INSTRUMENTATION_RESULT: stage=root_ready', 'INSTRUMENTATION_CODE: 0']))
+        self.probe.tap = Mock(side_effect=lambda label: self.probe.instrument('account-click'))
+        with self.assertRaisesRegex(native.Blocked, '^native_input_not_delivered$'):
+            self.probe.login()
+        self.assertIsNone(self.probe._auth_phase)
+        self.assertEqual(self.probe.report['native_auth_phase'], 'account_open')
+        self.assertEqual(self.probe.report['native_auth_input_failure']['java_stage'], 'root_ready')
+        self.assertFalse(self.probe.auth_attempted)
+        self.assertEqual(self.probe.report['frames'], [])
+        self.assertEqual(self.probe.report['videos'], [])
+        self.assertEqual(self.probe.report['actions'], [])
+        self.assertEqual(list(self.probe.out.glob('*.png')), [])
+
     def test_capture_requires_authenticated_state_before_any_device_read(self):
         self.probe.nodes = Mock()
         self.probe.adb = Mock()

@@ -28,6 +28,16 @@ HELPER = 'com.aqer.phase1.input/.Phase1Input'
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 AUTH_LABELS = {'مرحبًا بعودتك', 'رقم واتساب', 'رمز التحقق',
                'رمز التحقق عبر واتساب', 'تأكيد والدخول', 'إرسال رمز واتساب'}
+AUTH_PHASES = frozenset({'account_open', 'login_open', 'phone_entry', 'code_request',
+                         'otp_entry', 'confirm', 'postcondition'})
+AUTH_INPUT_OPS = frozenset({'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
+# Literal account-operation stages from the unchanged Phase1Input.java helper.
+AUTH_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_click',
+                             'account_pointer_tap', 'account_scroll', 'account_pointer_swipe',
+                             'account_focus', 'account_focus_pointer', 'account_set', 'complete'})
+INPUT_FAILURE_REASONS = frozenset({'native_input_not_delivered', 'ambiguous_native_input_receipt',
+                                  'device_command_timeout', 'device_command_failed',
+                                  'native_instrumentation_unobserved'})
 
 
 class Blocked(RuntimeError):
@@ -101,6 +111,7 @@ class NativeAccount:
                 self.private_values.update({digits[2:], '+' + digits[2:]})
         self.authenticated = False
         self.auth_attempted = False
+        self._auth_phase = None
         self.serial = None
         self.recorder = None
         self.record_tainted = False
@@ -150,22 +161,52 @@ class NativeAccount:
         row.update(status=status, **facts)
         self.save()
 
+    def auth_phase(self, phase):
+        if phase not in AUTH_PHASES:
+            raise Blocked('fixed_native_auth_phase_required')
+        self._auth_phase = phase
+        self.report['native_auth_phase'] = phase
+        self.save()
+
+    def auth_input_failure(self, op, result, output, reason):
+        if self.authenticated or self._auth_phase not in AUTH_PHASES or op not in AUTH_INPUT_OPS or \
+                'native_auth_input_failure' in self.report:
+            return
+        self.report['native_auth_input_failure'] = {
+            'phase': self._auth_phase, 'op': op,
+            'java_stage': result.get('stage') if result.get('stage') in AUTH_JAVA_STAGES else None,
+            'passed_true': result.get('passed') == 'true',
+            'passed_false': result.get('passed') == 'false',
+            'code_minus_one': bool(re.search(r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M)),
+            'code_zero': bool(re.search(r'^INSTRUMENTATION_CODE: 0\s*$', output, re.M)),
+            'reason': reason if reason in INPUT_FAILURE_REASONS else 'native_instrumentation_unobserved',
+        }
+        self.save()
+
     def instrument(self, op, **extras):
-        args = ['shell', 'am', 'instrument', '-w', '-e', 'op', op]
-        for key, value in extras.items():
-            args.extend(['-e', key, str(value)])
-        output = self.adb(*args, HELPER, timeout=45)
-        result = {}
-        for line in output.splitlines():
-            if line.startswith('INSTRUMENTATION_RESULT: '):
-                key, _, value = line.removeprefix('INSTRUMENTATION_RESULT: ').partition('=')
-                if key in result:
-                    raise Blocked('ambiguous_native_input_receipt')
-                result[key] = value
-        if result.get('passed') != 'true' or result.get('op') != op or not re.search(
-                r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M):
-            raise Blocked('native_input_not_delivered')
-        return result
+        output, result = '', {}
+        try:
+            args = ['shell', 'am', 'instrument', '-w', '-e', 'op', op]
+            for key, value in extras.items():
+                args.extend(['-e', key, str(value)])
+            output = self.adb(*args, HELPER, timeout=45)
+            for line in output.splitlines():
+                if line.startswith('INSTRUMENTATION_RESULT: '):
+                    key, _, value = line.removeprefix('INSTRUMENTATION_RESULT: ').partition('=')
+                    if key in result:
+                        raise Blocked('ambiguous_native_input_receipt')
+                    result[key] = value
+            if result.get('passed') != 'true' or result.get('op') != op or not re.search(
+                    r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M):
+                raise Blocked('native_input_not_delivered')
+            return result
+        except Exception as error:
+            if self.authenticated or self._auth_phase not in AUTH_PHASES:
+                raise
+            reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
+                else 'native_instrumentation_unobserved'
+            self.auth_input_failure(op, result, output, reason)
+            raise Blocked(reason) from None
 
     def nodes(self):
         result = self.instrument('account-snapshot')
@@ -437,20 +478,30 @@ class NativeAccount:
         raise Blocked('native_startup_not_ready')
 
     def login(self):
-        self.tap('حسابي')
-        self.tap('تسجيل الدخول أو إنشاء حساب')
-        self.wait('مرحبًا بعودتك')
-        self.set('رقم واتساب', self.access['phones']['broker'])
-        self.tap('إرسال رمز واتساب')
-        self.wait('تأكيد والدخول', seconds=60)
-        self.set('رمز التحقق', self.access['otp'])
-        self.auth_attempted = True
-        self.report['native_auth_attempted'] = True
-        self.tap('تأكيد والدخول')
-        evidence = self.authenticated_account_evidence()
-        self.authenticated = True
-        self.report['native_auth_executed'] = True
-        self.mark('C1-auth', 'PASS', normal_whatsapp_ui=True, secret_capture=False, **evidence)
+        try:
+            self.auth_phase('account_open')
+            self.tap('حسابي')
+            self.auth_phase('login_open')
+            self.tap('تسجيل الدخول أو إنشاء حساب')
+            self.wait('مرحبًا بعودتك')
+            self.auth_phase('phone_entry')
+            self.set('رقم واتساب', self.access['phones']['broker'])
+            self.auth_phase('code_request')
+            self.tap('إرسال رمز واتساب')
+            self.wait('تأكيد والدخول', seconds=60)
+            self.auth_phase('otp_entry')
+            self.set('رمز التحقق', self.access['otp'])
+            self.auth_phase('confirm')
+            self.auth_attempted = True
+            self.report['native_auth_attempted'] = True
+            self.tap('تأكيد والدخول')
+            self.auth_phase('postcondition')
+            evidence = self.authenticated_account_evidence()
+            self.authenticated = True
+            self.report['native_auth_executed'] = True
+            self.mark('C1-auth', 'PASS', normal_whatsapp_ui=True, secret_capture=False, **evidence)
+        finally:
+            self._auth_phase = None
 
     def authenticated_account_evidence(self, seconds=90):
         bootstrap = self.report.get('api_bootstrap') or {}
