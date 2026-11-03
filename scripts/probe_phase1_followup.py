@@ -97,6 +97,35 @@ def photo_difference(first, second):
             'region': list(region), 'photo_scale_requires_visual_review': True}
 
 
+def visible_map_handle(path):
+    """Locate the actually rendered centered42dp grip, not an oversized semantic rect."""
+    from PIL import Image
+    with Image.open(path) as source:
+        if source.size!=(1080,1920): raise Blocked('map_frame_geometry_changed')
+        pixels=source.convert('RGB').load()
+        def grip(x,y): return all(abs(a-b)<=2 for a,b in zip(pixels[x,y],(227,234,241)))
+        rows=[]
+        for y in range(300,1810):
+            if not grip(540,y): continue
+            left=right=540
+            while left>320 and grip(left-1,y): left-=1
+            while right<760 and grip(right+1,y): right+=1
+            if 80<=right-left+1<=150 and abs((left+right)/2-540)<=30: rows.append((y,left,right))
+        groups=[]
+        for row in rows:
+            if not groups or row[0]!=groups[-1][-1][0]+1: groups.append([])
+            groups[-1].append(row)
+        candidates=[]
+        for group in groups:
+            if not 6<=len(group)<=20: continue
+            top,bottom=group[0][0],group[-1][0]+1
+            white=sum(min(pixels[x,y])>=250 for y in [top-12,bottom+12] for x in range(400,681))/562
+            if white<.99: continue
+            candidates.append([min(r[1] for r in group),top,max(r[2] for r in group)+1,bottom])
+        if len(candidates)!=1: raise Blocked('unique_visible_map_handle_not_observed')
+        return candidates[0]
+
+
 class Followup(GuestProbe):
     def __init__(self, root, env, run=core.execute):
         self.version = build.guard(env)
@@ -347,12 +376,10 @@ class Followup(GuestProbe):
             geometry['point_inside_villa_bounds'] = any(b[0]<=point[0]<b[2] and b[1]<=point[1]<b[3] for b in map(node_bounds,villas))
             geometry['villa_bounds'] = [list(node_bounds(n)) for n in villas]
         self.report['map_clear_geometry'] = geometry; self.save()
-        if self.has('مسح النص'):
-            self.tap('مسح النص'); geometry['clear_method']='named_existing_clear_control'
-        else:
-            self.native('clear-query'); geometry['clear_method']='native_editable_set_empty'
-        self.native('submit-query')
-        time.sleep(8)
+        # CI4 already proves clearing + explicit semantic submit and unchanged
+        # list/map filters. Only previously unexecuted markers/pan are rerun.
+        self.report['map_clear_reused']={'ci_run_id':41554064729,'apk_version':1461,
+            'scope':'actual query cleared, explicit submit, apartment/rent and listing60 retained'}
         nodes = self.nodes()
         if not self.matches(nodes,'البحث على الخريطة') or self.matches(nodes,'شروط البحث'):
             raise Blocked('semantic_submit_did_not_leave_map_visible')
@@ -360,9 +387,9 @@ class Followup(GuestProbe):
         if flags != before or not flags['شقق'] or not flags['إيجار'] or flags['فلل']:
             raise Blocked('map_filter_consistency_failed')
         fresh_fields = [n for n in nodes if n.get('package') == core.PACKAGE and n.get('class')=='android.widget.EditText']
-        if any(QUERY in node_labels(n) for n in fresh_fields):
-            raise Blocked('map_query_not_cleared')
-        self.frame('map-cleared-with-apartment-rent')
+        if not any(QUERY in node_labels(n) for n in fresh_fields):
+            raise Blocked('map_pan_query_prerequisite_missing')
+        self.frame('map-query-and-apartment-rent-before-pan')
         before_count=self.settled_map_count()
         if before_count<1: raise Blocked('no_actual_map_results_before_pan')
         self.collapse_map_panel_and_pan()
@@ -379,7 +406,17 @@ class Followup(GuestProbe):
         self.report['map_result_update']={'before':before_count,'after':after_count,
                                          'counter_changed':before_count!=after_count}; self.save()
         if before_count==after_count: raise Blocked('map_result_refresh_not_proven_by_changed_counter')
-        return {'query_cleared_via_existing_named_control_and_explicit_submit': True,
+        left,top,right,bottom=self.map_handle_geometry('map-final-filter-context')
+        if (top+bottom)//2>450:
+            x=(left+right)//2
+            self.adb('shell','input','swipe',x,(top+bottom)//2,x,350,'450');time.sleep(1)
+        nodes=self.nodes()
+        fields=[n for n in nodes if n.get('package')==core.PACKAGE and n.get('class')=='android.widget.EditText']
+        if self.selected(nodes)!=before or not any(QUERY in node_labels(n) for n in fields):
+            raise Blocked('map_query_or_filters_changed_after_pan')
+        self.report['map_after_pan_criteria']={'query_retained':True,'selected':self.selected(nodes)}
+        self.frame('map-after-pan-query-and-filters')
+        return {'query_clear_reused_from_CI4_not_repeated': True,'pan_query_retained':QUERY,
                 'selected_before': before, 'selected_after': flags,
                 'pan_sent': True, 'native_marker_movement_and_result_refresh_require_visual_review': True}
 
@@ -390,22 +427,38 @@ class Followup(GuestProbe):
         if len(counts)!=1: raise Blocked('unique_map_result_counter_not_observed')
         return counts.pop()
 
-    def fresh_map_pan_y(self):
+    def map_handle_geometry(self,name):
         nodes=self.nodes()
         label='اسحب لتوسيع الفلاتر والعقارات أو تصغيرها'
         handles=self.matches(nodes,label);titles=self.matches(nodes,'البحث على الخريطة')
-        if len(handles)!=1 or len(titles)!=1: raise Blocked('fresh_map_pan_context_missing')
-        left,top,right,bottom=node_bounds(handles[0])
+        if len(handles)!=1 or len(titles)!=1 or self.matches(nodes,'شروط البحث'):
+            raise Blocked('fresh_map_pan_context_missing')
+        name=name+'-'+str(len(self.report.get('observed_map_geometry',[]))+1)
+        frame=self.frame(name);bounds=visible_map_handle(self.out/frame)
+        time.sleep(.15)
+        confirmed=self.frame(name+'-confirmed');fresh=visible_map_handle(self.out/confirmed)
+        if any(abs(a-b)>2 for a,b in zip(bounds,fresh)): raise Blocked('visible_map_handle_not_stable')
+        self.report.setdefault('observed_map_geometry',[]).append({'frame':frame,'confirmation_frame':confirmed,'visible_handle_bounds':fresh,
+            'semantic_handle_bounds':list(node_bounds(handles[0])),'semantic_title_bounds':list(node_bounds(titles[0])),
+            'coordinates_derived_from_fresh_native_pixels':True})
+        self.save();return fresh
+
+    def fresh_map_pan_y(self):
+        left,top,right,bottom=self.map_handle_geometry('map-current-handle')
         if top<1152:
             x=(left+right)//2
-            self.adb('shell','input','swipe',x,(top+bottom)//2,x,1850,'350');time.sleep(1)
-            nodes=self.nodes();handles=self.matches(nodes,label);titles=self.matches(nodes,'البحث على الخريطة')
-            if len(handles)!=1 or len(titles)!=1: raise Blocked('recollapsed_map_context_missing')
-            left,top,right,bottom=node_bounds(handles[0])
-        title_bottom=node_bounds(titles[0])[3]
-        if not (1152<=top<bottom<=1850 and title_bottom+160<top):
-            raise Blocked('fresh_map_area_not_exposed')
-        return (title_bottom+100+top)//2
+            self.adb('shell','input','swipe',x,(top+bottom)//2,x,1800,'450');time.sleep(1)
+            left,top,right,bottom=self.map_handle_geometry('map-exposed-for-pan')
+        if not 1152<=top<bottom<=1850: raise Blocked('fresh_map_area_not_exposed')
+        return (300+top-60)//2
+
+    def collapse_map_panel_and_pan(self):
+        y=self.fresh_map_pan_y()
+        self.frame('map-before-pan')
+        self.adb('shell','input','swipe','390',y,'690',y,'500')
+        self.report['map_pan_gesture']={'from':[390,y],'to':[690,y],
+            'bounds_from_fresh_visible_handle':True,'visual_movement_review_required':True}
+        time.sleep(4)
 
     def settled_map_count(self):
         deadline=time.monotonic()+50
@@ -422,13 +475,10 @@ class Followup(GuestProbe):
             if not loading and count==0:
                 # Expand the actual panel so the success-empty/error state becomes
                 # observable instead of promoting an intermediate zero counter.
-                handles=self.matches(nodes,'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها')
-                titles=self.matches(nodes,'البحث على الخريطة')
-                if len(handles)==1 and len(titles)==1:
-                    left,top,right,bottom=node_bounds(handles[0]);target=node_bounds(titles[0])[3]+80
-                    if top>target+120:
-                        x=(left+right)//2
-                        self.adb('shell','input','swipe',x,(top+bottom)//2,x,target,'350')
+                left,top,right,bottom=self.map_handle_geometry('map-zero-state-handle')
+                if (top+bottom)//2>450:
+                    x=(left+right)//2
+                    self.adb('shell','input','swipe',x,(top+bottom)//2,x,350,'450')
             time.sleep(1)
         raise Blocked('settled_successful_map_result_not_observed')
 
@@ -495,7 +545,7 @@ class Followup(GuestProbe):
             self.frame('map-prerequisite-list-apartment-rent')
             self.report['map_list_prerequisite']={'query':QUERY,'selected':self.selected(),'fixture60_visible':True}
             self.record_start('map-and-filters')
-            self.case('F03-map-clear-pan','Clear query, preserve list filters, render real markers and pan results.',self.map)
+            self.case('F03-map-markers-pan','Reuse CI4 clear; verify real price markers and viewport results while retaining the query and apartment/rent.',self.map)
             self.record_stop()
         finally:
             self.record_stop()

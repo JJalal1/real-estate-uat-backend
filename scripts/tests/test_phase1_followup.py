@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import prepare_phase1_followup as prepare
-from probe_phase1_followup import input_receipt, input_failure_diagnostic, photo_difference, Blocked, Followup
+from probe_phase1_followup import input_receipt, input_failure_diagnostic, photo_difference, visible_map_handle, Blocked, Followup
 
 
 def context():
@@ -97,6 +97,18 @@ class FollowupTests(unittest.TestCase):
             self.assertEqual(photo_difference(first,second)['changed_fraction'],0)
             ImageDraw.Draw(a).rectangle((216,720,864,1200),fill='white');a.save(second)
             self.assertGreater(photo_difference(first,second)['changed_fraction'],.99)
+
+    def test_visible_handle_rejects_ambiguous_and_wrong_geometry(self):
+        from PIL import Image,ImageDraw
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'geometry.png'
+            im=Image.new('RGB',(1080,1920),'white');draw=ImageDraw.Draw(im)
+            draw.rounded_rectangle((485,633,595,643),radius=5,fill=(227,234,241));im.save(path)
+            self.assertEqual(visible_map_handle(path),[485,633,596,644])
+            draw.rounded_rectangle((485,1233,595,1243),radius=5,fill=(227,234,241));im.save(path)
+            with self.assertRaises(Blocked): visible_map_handle(path)
+            Image.new('RGB',(540,960),'white').save(path)
+            with self.assertRaises(Blocked): visible_map_handle(path)
 
 
 if __name__=='__main__': unittest.main()
