@@ -78,7 +78,7 @@ def elf(data):
 def prepare(env):
     receipt = source_receipt(env)
     out = ROOT / 'phase1-followup-private'
-    out.mkdir()
+    out.mkdir(mode=0o700)
     sdk = Path(env['ANDROID_HOME'])
     tool = sorted((sdk / 'build-tools').glob('*/apksigner'))[-1].parent
     android = sdk / 'platforms/android-36/android.jar'
@@ -118,6 +118,11 @@ def prepare(env):
         zipalign_16kb='passed', target_sdk=36, min_sdk=23,
         firebase={'client_configured': False, 'real_fcm_delivery_tested': False})
     receipt['resolved_dependency_lock_sha256'] = hashlib.sha256((ROOT/'mobile_app/pubspec.lock').read_bytes()).hexdigest()
+    receipt.update(input_driver_preparation='pending', phase1_accepted=False)
+    (out / 'APK_VERIFICATION.json').write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + '\n')
+    if env.get('GITHUB_OUTPUT'):
+        with open(env['GITHUB_OUTPUT'], 'a') as stream:
+            stream.write('followup_build_identity=true\n')
     source = ROOT / 'scripts/phase1_device_input'
     classes, dex = out / 'classes', out / 'dex'
     classes.mkdir(); dex.mkdir()
@@ -130,16 +135,21 @@ def prepare(env):
     with zipfile.ZipFile(unsigned, 'a') as archive:
         archive.write(dex / 'classes.dex', 'classes.dex')
     run([tool / 'zipalign', '-f', '4', unsigned, aligned])
-    # Reuse this disposable job's ordinary Android debug certificate, never a delivery key.
-    key = Path.home() / '.android/debug.keystore'
-    if not key.is_file():
-        raise RuntimeError('disposable_build_debug_signer_missing')
+    # Self-targeting needs no shared signer. Give only the disposable input APK
+    # a one-day test certificate; never find/read an app or delivery private key.
+    key = out / 'input-debug.keystore'
+    run(['keytool', '-genkeypair', '-keystore', key, '-storetype', 'JKS',
+         '-storepass', 'android', '-keypass', 'android', '-alias', 'androiddebugkey',
+         '-dname', 'CN=Phase1 Disposable Input', '-keyalg', 'RSA', '-keysize', '2048', '-validity', '1'])
+    key.chmod(0o600)
     run([tool / 'apksigner', 'sign', '--ks', key,
          '--ks-key-alias', 'androiddebugkey', '--ks-pass', 'pass:android', '--key-pass', 'pass:android',
          '--out', driver, aligned])
     run([tool / 'apksigner', 'verify', driver])
     receipt['input_driver'] = {'package': 'com.aqer.phase1.input', 'target': 'self',
-                              'sha256': hashlib.sha256(driver.read_bytes()).hexdigest()}
+                              'sha256': hashlib.sha256(driver.read_bytes()).hexdigest(),
+                              'test_certificate_scope': 'disposable-driver-only-one-day'}
+    receipt['input_driver_preparation'] = 'complete'
     (out / 'APK_VERIFICATION.json').write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + '\n')
     print('AQER_PHASE1_FOLLOWUP_PREPARED')
 

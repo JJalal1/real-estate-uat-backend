@@ -66,6 +66,7 @@ jobs:
             --dart-define=APP_BUILD_NUMBER="$followup_version" \
             --dart-define=APP_ENVIRONMENT=uat --dart-define=API_BASE_URL="$UAT_API_BASE_URL"
       - name: Verify release bytes and compile self-targeted input helper
+        id: prepare
         run: python3 -B scripts/prepare_phase1_followup.py
       - name: Retain first25second health timing separately
         run: python3 -B scripts/probe_phase1_health.py
@@ -113,5 +114,13 @@ jobs:
         with:
           name: phase1-followup-health-${{ github.run_id }}
           path: phase1-followup-health/report.json
+          retention-days: 5
+          if-no-files-found: error
+      - name: Upload safe new build identity even if later preparation fails
+        if: ${{ !cancelled() && steps.prepare.outputs.followup_build_identity == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-followup-build-${{ github.run_id }}
+          path: phase1-followup-private/APK_VERIFICATION.json
           retention-days: 5
           if-no-files-found: error
