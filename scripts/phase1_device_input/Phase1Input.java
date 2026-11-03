@@ -34,7 +34,16 @@ public final class Phase1Input extends Instrumentation {
             stage="automation"; automation = getUiAutomation();
             origin = SystemClock.uptimeMillis();
             AccessibilityNodeInfo root = readyRoot(op); stage="root_ready";
-            if ("submit-query".equals(op)) {
+            if ("empty-query".equals(op)) {
+                require(!contains(root,"شروط البحث"));
+                List<AccessibilityNodeInfo> fields=new ArrayList<>(); editable(root,fields);
+                require(fields.size()==1 && !fields.get(0).isPassword());
+                stage="query_verify";
+                CharSequence text=fields.get(0).getText(), hint=fields.get(0).getHintText();
+                require(text==null || text.length()==0 || (fields.get(0).isShowingHintText() &&
+                    hint!=null && hint.toString().contentEquals(text)));
+                result.putBoolean("empty_query_verified",true);
+            } else if ("submit-query".equals(op)) {
                 require(!contains(root,"شروط البحث"));
                 List<AccessibilityNodeInfo> controls=new ArrayList<>();
                 namedClickable(root,"تنفيذ",controls); require(controls.size()==1);
@@ -148,7 +157,7 @@ public final class Phase1Input extends Instrumentation {
         while(SystemClock.uptimeMillis()<deadline) {
             AccessibilityNodeInfo root=automation.getRootInActiveWindow();
             if(root!=null && root.getPackageName()!=null && APP.contentEquals(root.getPackageName())) {
-                boolean query="fixture-query".equals(op)||"negative-query".equals(op)||"clear-query".equals(op)||"submit-query".equals(op);
+                boolean query="fixture-query".equals(op)||"negative-query".equals(op)||"clear-query".equals(op)||"submit-query".equals(op)||"empty-query".equals(op);
                 if(query ? contains(root,"البحث عن عقار")||contains(root,"البحث على الخريطة")
                          : contains(root,"صورة العقار 1 من 1")&&contains(root,"1/1")) return root;
             }
@@ -167,7 +176,7 @@ public final class Phase1Input extends Instrumentation {
         pointerActive=false;
     }
     private static String safeOp(String op) {
-        return "fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op) || "submit-query".equals(op) || "double-tap".equals(op)
+        return "fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op) || "submit-query".equals(op) || "empty-query".equals(op) || "double-tap".equals(op)
             || "pinch-in".equals(op) || "pinch-out".equals(op) ? op : "invalid";
     }
     private int number(String key, int min, int max) {

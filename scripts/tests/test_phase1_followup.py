@@ -110,5 +110,10 @@ class FollowupTests(unittest.TestCase):
             Image.new('RGB',(540,960),'white').save(path)
             with self.assertRaises(Blocked): visible_map_handle(path)
 
+    def test_empty_query_witness_requires_explicit_verified_receipt(self):
+        raw='INSTRUMENTATION_RESULT: passed=true\nINSTRUMENTATION_RESULT: op=empty-query\nINSTRUMENTATION_RESULT: text_matched=true\n'
+        with self.assertRaises(Blocked): input_receipt(raw+'INSTRUMENTATION_CODE: -1\n','empty-query')
+        self.assertTrue(input_receipt(raw+'INSTRUMENTATION_RESULT: empty_query_verified=true\nINSTRUMENTATION_CODE: -1\n','empty-query')['empty_query_verified'])
+
 
 if __name__=='__main__': unittest.main()

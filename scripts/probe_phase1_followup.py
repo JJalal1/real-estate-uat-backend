@@ -23,7 +23,7 @@ QUERY = 'شقة للإيجار'
 def input_receipt(output, op):
     # Read only a strict result allowlist. Never retain instrumentation output.
     values = {}
-    for key in ['passed', 'op', 'events', 'inter_tap_ms', 'inter_tap_lower_ms', 'inter_tap_upper_ms', 'event_ms', 'return_ms', 'text_matched','focused_set_text_handler','semantic_click_delivered']:
+    for key in ['passed', 'op', 'events', 'inter_tap_ms', 'inter_tap_lower_ms', 'inter_tap_upper_ms', 'event_ms', 'return_ms', 'text_matched','focused_set_text_handler','semantic_click_delivered','empty_query_verified']:
         rows = re.findall(r'^INSTRUMENTATION_RESULT: ' + key + r'=([^\r\n]+)', output, re.M)
         if len(rows) > 1:
             raise Blocked('ambiguous_input_receipt')
@@ -32,7 +32,10 @@ def input_receipt(output, op):
     if values.get('passed') != 'true' or values.get('op') != op or not re.search(r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M):
         raise Blocked('native_input_not_delivered')
     receipt = {'op': op, 'passed': True}
-    if op=='submit-query':
+    if op=='empty-query':
+        if values.get('empty_query_verified')!='true': raise Blocked('empty_query_not_verified')
+        receipt['empty_query_verified']=True
+    elif op=='submit-query':
         if values.get('semantic_click_delivered')!='true': raise Blocked('semantic_submit_not_delivered')
         receipt['semantic_click_delivered']=True
     elif op in ['fixture-query', 'negative-query', 'clear-query']:
@@ -73,7 +76,7 @@ def input_failure_diagnostic(output):
         rows=re.findall(r'^INSTRUMENTATION_RESULT: '+key+r'=([^\r\n]*)',output,re.M)
         if len(rows)!=1: continue
         value=rows[0]
-        if key=='stage' and value in ['guard','automation','root_ready','query_focus','query_action','query_match','submit_action','double_tap','pinch','complete']:
+        if key=='stage' and value in ['guard','automation','root_ready','query_focus','query_action','query_match','query_verify','submit_action','double_tap','pinch','complete']:
             result[key]=value
         elif key=='events' and value.isdigit() and int(value)<=20: result[key]=int(value)
         elif key in ['event_ms','return_ms'] and re.fullmatch(r'[0-9]+(?:,[0-9]+){0,19}',value):
@@ -386,10 +389,8 @@ class Followup(GuestProbe):
         flags = self.selected(nodes)
         if flags != before or not flags['شقق'] or not flags['إيجار'] or flags['فلل']:
             raise Blocked('map_filter_consistency_failed')
-        fresh_fields = [n for n in nodes if n.get('package') == core.PACKAGE and n.get('class')=='android.widget.EditText']
-        if not any(QUERY in node_labels(n) for n in fresh_fields):
-            raise Blocked('map_pan_query_prerequisite_missing')
-        self.frame('map-query-and-apartment-rent-before-pan')
+        self.native('empty-query')
+        self.frame('map-empty-query-and-apartment-rent-before-pan')
         before_count=self.settled_map_count()
         if before_count<1: raise Blocked('no_actual_map_results_before_pan')
         self.collapse_map_panel_and_pan()
@@ -411,12 +412,12 @@ class Followup(GuestProbe):
             x=(left+right)//2
             self.adb('shell','input','swipe',x,(top+bottom)//2,x,350,'450');time.sleep(1)
         nodes=self.nodes()
-        fields=[n for n in nodes if n.get('package')==core.PACKAGE and n.get('class')=='android.widget.EditText']
-        if self.selected(nodes)!=before or not any(QUERY in node_labels(n) for n in fields):
+        if self.selected(nodes)!=before:
             raise Blocked('map_query_or_filters_changed_after_pan')
-        self.report['map_after_pan_criteria']={'query_retained':True,'selected':self.selected(nodes)}
+        self.native('empty-query')
+        self.report['map_after_pan_criteria']={'query_empty':True,'selected':self.selected(nodes)}
         self.frame('map-after-pan-query-and-filters')
-        return {'query_clear_reused_from_CI4_not_repeated': True,'pan_query_retained':QUERY,
+        return {'query_clear_reused_from_CI4_not_repeated': True,'pan_query_empty':True,
                 'selected_before': before, 'selected_after': flags,
                 'pan_sent': True, 'native_marker_movement_and_result_refresh_require_visual_review': True}
 
@@ -537,16 +538,22 @@ class Followup(GuestProbe):
             # Establish the shared list criteria as a prerequisite only. Do not
             # repeat sale contrast, details/card or gallery acceptance journeys.
             self.home(); self.home_entry('search'); self.wait('البحث عن عقار')
-            self.native('fixture-query'); self.native('submit-query')
-            self.wait('نتائج «'+QUERY+'»')
+            self.native('submit-query')
+            self.wait('العقارات المطابقة')
             for text in ['شقق','إيجار']:
                 if not self.selected()[text]: self.tap(text)
             self.wait(FIXTURE_TITLE,60)
+            self.native('empty-query')
             self.frame('map-prerequisite-list-apartment-rent')
-            self.report['map_list_prerequisite']={'query':QUERY,'selected':self.selected(),'fixture60_visible':True}
+            self.report['map_list_prerequisite']={'query':'','selected':self.selected(),'fixture60_visible':True}
             self.record_start('map-and-filters')
-            self.case('F03-map-markers-pan','Reuse CI4 clear; verify real price markers and viewport results while retaining the query and apartment/rent.',self.map)
+            self.case('F03-map-markers-pan','Reuse CI4 clear; verify real price markers and viewport results with an empty query and apartment/rent.',self.map)
             self.record_stop()
+        except Exception:
+            # Preserve actual prerequisite UI before uninstalling the guest app.
+            try: self.frame('collection-prerequisite-failure')
+            except Exception: self.report['prerequisite_failure_capture_failed']=True
+            self.save();raise
         finally:
             self.record_stop()
             clean=True
