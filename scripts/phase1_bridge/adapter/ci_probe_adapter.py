@@ -363,14 +363,30 @@ def make_probe_class(*, base_class, host_capture_mixin, validate_access,
                 # silent-Vorbis layout is checked explicitly below.
                 return super()._validate_webm(path)
             except Exception as failure:
+                native_refusal = None
                 # AOSP's console recorder unconditionally adds native Vorbis.
                 # Keep one actual video stream and admit that sole audio track
                 # only when full PCM decoding proves every sample is zero.
                 if failure.args == ('host_webm_stream_or_duration_invalid',):
                     try:
                         return self._validate_native_silent_audio_webm(path)
-                    except Exception:
-                        pass  # Preserve the original refusal and diagnostics.
+                    except Exception as native_failure:
+                        codes = {'stopped_safe_native_video_required','owned_native_video_required',
+                            'bounded_native_video_required','native_webm_header_required',
+                            'native_webm_probe_required','one_video_one_silent_native_audio_required',
+                            'native_video_codec_dimensions_duration_required','native_vorbis_layout_required',
+                            'native_audio_decode_failed','native_audio_decode_empty','native_audio_decode_capped',
+                            'native_audio_decode_misaligned',
+                            'native_audio_exact_silence_required','native_video_changed_during_read'}
+                        candidate = native_failure.args[0] if len(native_failure.args)==1 else None
+                        if type(candidate) is str and candidate in codes:
+                            native_refusal = candidate
+                        elif isinstance(native_failure,FileNotFoundError):
+                            native_refusal = 'native_media_tool_unavailable'
+                        elif isinstance(native_failure,subprocess.TimeoutExpired):
+                            native_refusal = 'native_media_read_timeout'
+                        else:
+                            native_refusal = 'native_media_verification_refused'
                 try:
                     self._healthy()
                     need(self._authority('media_write').authority_kind == 'SOURCE_PLAN_ONLY'
@@ -389,6 +405,8 @@ def make_probe_class(*, base_class, host_capture_mixin, validate_access,
                     facts = {'status':'OBSERVED','acceptance_claimed':False,'code':code,
                              'file':self.video_name+'.webm','file_present':path.is_file(),
                              'probe_status':'NOT_RUN'}
+                    if native_refusal is not None:
+                        facts['native_format_refusal'] = native_refusal
                     if path.is_file():
                         size = path.stat().st_size
                         facts['bytes'] = size if 0 <= size <= 64*1024*1024 else None
@@ -396,8 +414,8 @@ def make_probe_class(*, base_class, host_capture_mixin, validate_access,
                             with path.open('rb') as stream:
                                 facts['ebml_header_observed'] = stream.read(4)==b'\x1a\x45\xdf\xa3'
                             result = subprocess.run(['ffprobe','-v','error','-protocol_whitelist','file,pipe',
-                                '-show_entries','format=format_name,duration:stream=codec_name,codec_type,width,height,avg_frame_rate',
-                                '-of','json',str(path)],capture_output=True,stdin=subprocess.DEVNULL,timeout=5)
+                                '-show_entries','format=format_name,duration:stream=codec_name,codec_type,width,height,avg_frame_rate,channels,sample_rate,nb_read_packets',
+                                '-count_packets','-of','json',str(path)],capture_output=True,stdin=subprocess.DEVNULL,timeout=5)
                             if result.returncode == 0 and len(result.stdout) <= 16384:
                                 value = json.loads(result.stdout)
                                 streams = value.get('streams',[])
@@ -416,6 +434,12 @@ def make_probe_class(*, base_class, host_capture_mixin, validate_access,
                                         row[key] = number if type(number) is int and 0 <= number <= 16384 else None
                                     rate = item.get('avg_frame_rate','')
                                     row['average_frame_rate'] = rate if type(rate) is str and re.fullmatch(r'[0-9]{1,10}/[0-9]{1,10}',rate) else None
+                                    channels = item.get('channels')
+                                    sample_rate = item.get('sample_rate')
+                                    row['channels'] = channels if type(channels) is int and 1 <= channels <= 64 else None
+                                    row['sample_rate'] = sample_rate if type(sample_rate) is str and re.fullmatch(r'[0-9]{4,6}',sample_rate) and 8000 <= int(sample_rate) <= 384000 else None
+                                    packets = item.get('nb_read_packets')
+                                    row['packet_count'] = int(packets) if type(packets) is str and re.fullmatch(r'[0-9]{1,7}',packets) and int(packets)<=1_000_000 else None
                                     facts['streams'].append(row)
                             else:
                                 facts['probe_status'] = 'UNAVAILABLE'
@@ -462,8 +486,11 @@ def make_probe_class(*, base_class, host_capture_mixin, validate_access,
             pcm=subprocess.run(['ffmpeg','-nostdin','-v','error','-protocol_whitelist','file,pipe',
                 '-i',str(path),'-map','0:a:0','-vn','-c:a','pcm_f32le','-f','f32le','-fs','50000000','pipe:1'],
                 capture_output=True,stdin=subprocess.DEVNULL,timeout=25)
-            need(pcm.returncode==0 and 0<len(pcm.stdout)<50_000_000 and len(pcm.stdout)%4==0
-                 and all(s[0]==0.0 for s in struct.iter_unpack('<f',pcm.stdout)),
+            need(pcm.returncode==0,'native_audio_decode_failed')
+            need(len(pcm.stdout)>0,'native_audio_decode_empty')
+            need(len(pcm.stdout)<50_000_000,'native_audio_decode_capped')
+            need(len(pcm.stdout)%4==0,'native_audio_decode_misaligned')
+            need(all(s[0]==0.0 for s in struct.iter_unpack('<f',pcm.stdout)),
                  'native_audio_exact_silence_required')
             after=path.stat()
             need((before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns)==

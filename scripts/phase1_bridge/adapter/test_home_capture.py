@@ -224,7 +224,7 @@ class HomeCaptureTests(unittest.TestCase):
                 return node
         normalized=Normalize().visit(tree)
         self.assertEqual(hashlib.sha256(ast.dump(normalized,include_attributes=False).encode()).hexdigest(),
-                         '4b1b464d71b971b01f62ec0fc6c9788bbd5620a1819cb2c0cd544b353435cea0')
+                         '8cbe544bd1e3afc2f78c2ab88ae7db3f730420c6abc9a18b65fa7b7b9351cfd6')
         # The reviewed extensions add only their imports, explicit native-format / diagnostic methods
         # and a timeout handler around the original base photo-picker call.
         # Strip precisely that extension and keep the prior whole-core pin.

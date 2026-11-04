@@ -423,11 +423,36 @@ class OsPickerDiagnosticTests(unittest.TestCase):
         result=p.report['host_video_diagnostic'];self.assertFalse(result['acceptance_claimed'])
         self.assertEqual((result['stream_count'],result['duration_s']),(2,31.25))
         self.assertEqual(result['streams'][0]['width'],1080)
+        self.assertEqual(result['native_format_refusal'],'one_video_one_silent_native_audio_required')
+        self.assertIsNone(result['streams'][1]['channels']);self.assertIsNone(result['streams'][1]['sample_rate'])
         self.assertEqual(result['streams'][1]['codec'],'OTHER')
         self.assertTrue(result['ebml_header_observed']);self.assertTrue(result['webm_format_observed'])
         self.assertNotIn('PRIVATE_SENTINEL',json.dumps(p.report))
         self.assertEqual((p.report['frames'],p.report['videos']),([],[]));self.assertTrue(path.exists())
         p.adb.assert_not_called();p._console.assert_not_called()
+
+    def test_native_refusal_diagnostic_has_only_fixed_codes_and_bounded_audio_metadata(self):
+        raw={'streams':[{'codec_type':'audio','codec_name':'vorbis','channels':2,'sample_rate':'44100','nb_read_packets':'0'},
+                        {'codec_type':'video','codec_name':'vp9','width':540,'height':960}],
+             'format':{'format_name':'webm','duration':'1.0'}}
+        failures=[(bridge.BridgeRefused('native_audio_exact_silence_required'),'native_audio_exact_silence_required'),
+                  (bridge.BridgeRefused('PRIVATE_SENTINEL'),'native_media_verification_refused'),
+                  (FileNotFoundError('PRIVATE_SENTINEL'),'native_media_tool_unavailable'),
+                  (subprocess.TimeoutExpired('PRIVATE_SENTINEL',25),'native_media_read_timeout')]
+        for failure,expected in failures:
+            p,_,path,frozen=self.video_probe()
+            original=bridge.BridgeRefused('host_webm_stream_or_duration_invalid')
+            with self.subTest(expected=expected),patch.object(frozen,'_validate_webm',side_effect=original), \
+                    patch.object(type(p),'_validate_native_silent_audio_webm',side_effect=failure), \
+                    patch.object(bridge.subprocess,'run',return_value=Mock(returncode=0,stdout=json.dumps(raw).encode(),stderr=b'PRIVATE_SENTINEL')):
+                with self.assertRaises(bridge.BridgeRefused) as caught:p._validate_webm(path)
+            self.assertIs(caught.exception,original)
+            facts=p.report['host_video_diagnostic'];self.assertFalse(facts['acceptance_claimed'])
+            self.assertEqual(facts['native_format_refusal'],expected)
+            self.assertEqual((facts['streams'][0]['channels'],facts['streams'][0]['sample_rate']),(2,'44100'))
+            self.assertEqual(facts['streams'][0]['packet_count'],0)
+            self.assertNotIn('PRIVATE_SENTINEL',json.dumps(p.report))
+            self.assertEqual((p.report['frames'],p.report['videos']),([],[]))
 
     def test_video_diagnostic_refuses_root_authority_or_symlink_and_never_replaces_original_failure(self):
         for mode in ('root','symlink'):
@@ -480,6 +505,21 @@ class OsPickerDiagnosticTests(unittest.TestCase):
                         p._validate_native_silent_audio_webm(path)
                     self.assertNotIn('native_silent_audio_tracks',p.report)
 
+    def test_failed_empty_or_misaligned_decoder_output_never_becomes_silence(self):
+        value={'streams':[{'codec_type':'video','codec_name':'vp9','width':540,'height':960},
+                          {'codec_type':'audio','codec_name':'vorbis','channels':2,'sample_rate':'44100'}],
+               'format':{'format_name':'webm','duration':'1.0'}}
+        for status,data,code in [(1,b'\0'*4,'native_audio_decode_failed'),
+                                 (0,b'','native_audio_decode_empty'),
+                                 (0,b'\0'*3,'native_audio_decode_misaligned')]:
+            p,_,path,_=self.video_probe()
+            def run(argv,**kwargs):
+                return Mock(returncode=0,stdout=json.dumps(value).encode()) if argv[0]=='ffprobe' else Mock(returncode=status,stdout=data)
+            with self.subTest(code=code),patch.object(bridge.subprocess,'run',side_effect=run):
+                with self.assertRaisesRegex(bridge.BridgeRefused,code):p._validate_native_silent_audio_webm(path)
+            self.assertNotIn('native_silent_audio_tracks',p.report)
+            self.assertEqual((p.report['frames'],p.report['videos']),([],[]))
+
     def test_audio_decode_size_cap_is_a_refusal_not_acceptance_of_partial_silence(self):
         class AtLimit(bytes):
             def __len__(self):return 50_000_000
@@ -492,7 +532,7 @@ class OsPickerDiagnosticTests(unittest.TestCase):
             commands.append(argv)
             return Mock(returncode=0,stdout=json.dumps(value).encode() if argv[0]=='ffprobe' else AtLimit(b'\0'*4))
         with patch.object(bridge.subprocess,'run',side_effect=run):
-            with self.assertRaisesRegex(bridge.BridgeRefused,'native_audio_exact_silence_required'):
+            with self.assertRaisesRegex(bridge.BridgeRefused,'native_audio_decode_capped'):
                 p._validate_native_silent_audio_webm(path)
         self.assertIn('-fs',commands[1]);self.assertIn('50000000',commands[1])
         self.assertNotIn('native_silent_audio_tracks',p.report)
