@@ -71,6 +71,30 @@ def exclusive(method):
 C4_FILES = {cursor: 'C4_ROOT_' + cursor + '.json' for cursor in C4_EXTRA}
 C4_FILES['C1_REVIEW'] = 'C4_ROOT_C1_REVIEW.json'
 ROOT_KEYS = {'review_completed_utc', 'checkpoint_binding_sha256'}
+C1_FAILURE_CODES = frozenset({
+    'private_c1_home_capture_refused', 'actual_broker_home_required',
+    'unique_visible_broker_home_anchor_required', 'actual_home_anchor_identity_required',
+    'visible_home_anchor_bounds_required', 'fixed_initial_c1_home_scope_required',
+    'initial_source_home_capture_only', 'fixed_initial_home_capture_name_required',
+    'initial_home_capture_already_exists', 'owned_home_capture_directory_required',
+    'unique_actual_home_console_png_required', 'broker_home_binding_changed_during_capture',
+    'home_png_destination_write_refused', 'private_home_png_write_unconfirmed',
+    'host_capture_directory_rejected', 'host_console_command_not_confirmed',
+    'host_capture_fresh_tree_invalid', 'host_png_invalid', 'host_png_crc_invalid',
+    'host_png_dimensions_or_structure_invalid', 'actual_visible_loaded_basics_required',
+    'unique_visible_basics_anchor_required', 'actual_basics_anchor_identity_required',
+    'visible_basics_anchor_bounds_required', 'private_c1_basics_capture_refused',
+    'basics_binding_changed_during_capture', 'private_or_contact_capture_refused',
+    'authenticated_editor_capture_required', 'authentication_capture_refused',
+    'native_named_add_not_stable', 'native_owned_saved_fixture_not_observed',
+    'native_owned_editor_title_not_observed', 'native_owned_editor_title_mismatch',
+    'native_basic_editor_context_changed', 'native_basic_editor_purpose_not_observed',
+    'deadline_helper_preflight_refused', 'owner_input_authority_refused',
+    'instrumentation_completion_uncertain', 'actual_c1_case_pass_required',
+})
+C1_FAILURE_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
+    'purpose', 'type', 'title', 'restore_options_wait', 'editor_basics_loaded',
+    'editor_title_seek', 'editor_basics_return', 'home_wait', 'add_stable_wait', 'add_dispatch'})
 HOME_DIAGNOSTIC_NAMES = frozenset({'C1-before-add-home.png', 'C1-restore-before-add-home.png'})
 HOME_DIAGNOSTIC_SCOPE = 'authenticated_broker_marketplace_before_add'
 HOME_DIAGNOSTIC_KEYS = frozenset({'file', 'bytes', 'sha256', 'width', 'height', 'capture',
@@ -266,7 +290,17 @@ class Controller:
                              ('C1-force-stop-restore', self.probe.restore)]:
             self._guard('SOURCE_PLAN_ONLY')
             self.probe.case_phase(case)
-            method()
+            try:
+                method()
+            except BaseException as failure:
+                candidate = failure.args[0] if type(failure.args) is tuple and len(failure.args) == 1 else None
+                code = candidate if type(candidate) is str and candidate in C1_FAILURE_CODES else 'controller_phase_failed'
+                stage = self.probe.report.get('native_journey_stages', {}).get(case)
+                self.probe.report.setdefault('initial_c1_failure_before_cleanup', {
+                    'case': case, 'code': code,
+                    'stage': stage if type(stage) is str and stage in C1_FAILURE_STAGES else None})
+                self.probe.save()
+                raise
             need(any(row.get('id') == case and row.get('status') == 'PASS'
                      for row in self.probe.report.get('cases', [])), 'actual_c1_case_pass_required')
         self.probe.hold_after_initial_c1()

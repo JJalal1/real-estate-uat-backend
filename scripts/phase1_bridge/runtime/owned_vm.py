@@ -120,6 +120,11 @@ class OwnedApi36Vm:
                 name = self._observe('emu', 'avd', 'name', deadline=until)
                 require(name is not None and name.splitlines() == ['aqer-native-account', 'OK']
                         and self.process.poll() is None, 'owned_avd_identity_unobserved')
+                display = self._observe('shell', 'wm', 'size', deadline=until)
+                match = re.fullmatch(r'Physical size: ([0-9]{2,5})x([0-9]{2,5})', display or '')
+                physical = [int(match[1]), int(match[2])] if match else None
+                self.receipt['physical_display_before_app_install'] = physical
+                require(physical == [540, 960], 'owned_physical_capture_display_mismatch')
                 self.receipt['boot_and_CE_ready'] = True
                 return
             time.sleep(max(0, min(2, until - time.monotonic())))

@@ -199,6 +199,14 @@ class HomeCaptureTests(unittest.TestCase):
         self.assertTrue(path.is_symlink())
         self.assertEqual(self.probe.console_calls,[])
 
+    def test_wrong_physical_png_dimensions_are_observed_without_resizing_or_export(self):
+        self.probe.png = png(1080,1920)
+        self.fail_capture()
+        self.assertEqual(self.probe.report['home_console_observed_dimensions'], {
+            'C1-before-add-home': {'width':1080,'height':1920,'acceptance_claimed':False}})
+        self.assertEqual(self.probe.report['frames'], [])
+        self.assertEqual(list(self.probe.out.iterdir()), [])
+
     def test_frozen_editor_path_and_all_old_probe_logic_remain_unchanged(self):
         self.assertIs(Probe.safe_capture,capture.HostConsoleCaptureMixin.safe_capture)
         self.assertIs(Probe._capture_guard,capture.HostConsoleCaptureMixin._capture_guard)

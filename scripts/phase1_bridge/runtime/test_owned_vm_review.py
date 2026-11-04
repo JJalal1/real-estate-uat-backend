@@ -136,6 +136,7 @@ class OwnedVmSourceReview(unittest.TestCase):
             return True if str(path) == '/dev/kvm' else original_access(path, mode, *args, **kwargs)
         variants = [('foreign-avd\nOK\n', [None]), ('aqer-native-account\n', [None]),
                     ('aqer-native-account\nOK\n', [None, -11]),
+                    ('aqer-native-account\nOK\n', [None, None]),
                     ('aqer-native-account\nOK\n', [None, None])]
         for index, (name, polls) in enumerate(variants):
             probe_root = self.root / ('avd-proof-' + str(index)); probe_root.mkdir()
@@ -146,6 +147,9 @@ class OwnedVmSourceReview(unittest.TestCase):
                     return subprocess.CompletedProcess(args, 0, b'List of devices attached\n\n', b'')
                 if args[-3:] == ['emu', 'avd', 'name']:
                     return subprocess.CompletedProcess(args, 0, name.encode(), b'')
+                if args[-3:] == ['shell', 'wm', 'size']:
+                    display = b'Physical size: 1080x1920\n' if index == 4 else b'Physical size: 540x960\n'
+                    return subprocess.CompletedProcess(args, 0, display, b'')
                 output = {'sys.boot_completed': b'1\n', 'sys.user.0.ce_available': b'true\n',
                           'ro.build.version.sdk': b'36\n'}[args[-1]]
                 return subprocess.CompletedProcess(args, 0, output, b'')
@@ -153,8 +157,9 @@ class OwnedVmSourceReview(unittest.TestCase):
                  patch.object(vm.os, 'access', side_effect=observed_access), \
                  patch.object(vm.subprocess, 'Popen', return_value=process) as launch, \
                  patch.object(vm.subprocess, 'run', side_effect=fake_adb):
-                if index < 3:
-                    with self.assertRaisesRegex(vm.VmBlocked, 'owned_avd_identity_unobserved'):
+                if index < 3 or index == 4:
+                    code = 'owned_physical_capture_display_mismatch' if index == 4 else 'owned_avd_identity_unobserved'
+                    with self.assertRaisesRegex(vm.VmBlocked, code):
                         instance.start(boot_seconds=1)
                     self.assertFalse(instance.receipt['boot_and_CE_ready'])
                 else:

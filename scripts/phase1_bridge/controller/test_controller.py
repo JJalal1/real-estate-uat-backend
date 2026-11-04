@@ -259,6 +259,33 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaises(module.ControllerRefused):
             self.controller.prepare_initial_native()
 
+    def test_c1_capture_failure_preserves_fixed_diagnostic_before_logout_cleanup_stage(self):
+        self.controller.prepare_runtime()
+        self.controller.prepare_initial_native()
+        self.controller.bootstrap_fixture()
+        def fail():
+            self.probe.report['native_journey_stages']={'C1-photo-save':'home_wait'}
+            raise RuntimeError('host_png_dimensions_or_structure_invalid')
+        self.probe.create_and_save=fail
+        with self.assertRaises(RuntimeError):self.controller.initial_c1()
+        self.probe.report['native_journey_stages']['C1-photo-save']='logout_confirm'
+        self.assertEqual(self.probe.report['initial_c1_failure_before_cleanup'], {
+            'case':'C1-photo-save','code':'host_png_dimensions_or_structure_invalid','stage':'home_wait'})
+        with self.assertRaises(module.ControllerRefused):self.controller.initial_c1()
+
+    def test_unknown_c1_error_never_exports_error_arguments_or_arbitrary_stage(self):
+        self.controller.prepare_runtime()
+        self.controller.prepare_initial_native()
+        self.controller.bootstrap_fixture()
+        def fail():
+            self.probe.report['native_journey_stages']={'C1-photo-save':'SYNTHETIC_PRIVATE_STAGE'}
+            raise RuntimeError('SYNTHETIC_PRIVATE_EXCEPTION')
+        self.probe.create_and_save=fail
+        with self.assertRaises(RuntimeError):self.controller.initial_c1()
+        result=self.probe.report['initial_c1_failure_before_cleanup']
+        self.assertEqual(result,{'case':'C1-photo-save','code':'controller_phase_failed','stage':None})
+        self.assertNotIn('SYNTHETIC_PRIVATE',json.dumps(result))
+
     def test_initial_cases_real_callback_order_and_minimal_summary(self):
         self.initial()
         actions = [event for event in self.probe.events if event in {'login','create','restore','hold'}]

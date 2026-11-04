@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import struct
 import tempfile
 
 
@@ -85,6 +86,11 @@ class C1HomeConsoleCaptureMixin:
                 and 32 <= files[0].stat().st_size <= 32 * 1024 * 1024,
                 'unique_actual_home_console_png_required')
             data = files[0].read_bytes()
+            if len(data) >= 24 and data.startswith(b'\x89PNG\r\n\x1a\n') and data[12:16] == b'IHDR':
+                width, height = struct.unpack('>II', data[16:24])
+                if 0 < width <= 16384 and 0 < height <= 16384:
+                    self.report.setdefault('home_console_observed_dimensions', {})[name] = {
+                        'width': width, 'height': height, 'acceptance_claimed': False}
             dimensions = self._validate_png(data)  # Unchanged frozen CRC/540x960 validator.
             after_case, after = self._c1_home_binding()  # Full privacy + Home again.
             self._c1_home_need(before_case == after_case and before == after,

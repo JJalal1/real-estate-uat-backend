@@ -172,6 +172,16 @@ jobs:
           avdmanager create avd --force --name aqer-native-account --device pixel \
             --path "$ANDROID_AVD_HOME/aqer-native-account.avd" \
             --package 'system-images;android-36;google_apis;x86_64'
+          python3 - "$ANDROID_AVD_HOME/aqer-native-account.avd/config.ini" <<'PY'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          selected = {'hw.lcd.width': '540', 'hw.lcd.height': '960',
+                      'hw.lcd.density': '210', 'showDeviceFrame': 'no'}
+          lines = [line for line in path.read_text().splitlines()
+                   if line.split('=', 1)[0].strip() not in selected]
+          path.write_text('\n'.join(lines + [key + '=' + value for key, value in selected.items()]) + '\n')
+          PY
           sudo chmod 666 /dev/kvm
           printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' \
             "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
