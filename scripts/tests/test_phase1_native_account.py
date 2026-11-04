@@ -118,6 +118,102 @@ class NativeAccountSafetyTest(unittest.TestCase):
         for forbidden in ('checkedAction(', 'pointerTap(', 'send(', 'snapshot(root,'):
             self.assertNotIn(forbidden,block)
 
+    def test_java_settle_precedes_original_set_target_binding_without_any_input(self):
+        source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
+        block=source.split('if("account-set".equals(op)) {',1)[1].split('AccessibilityNodeInfo node=selected(root);',1)[0]
+        self.assertIn('stage="account_set_settle"',block)
+        self.assertIn('waitForIdle(250,1500)',block)
+        self.assertIn('catch(java.util.concurrent.TimeoutException busy)',block)
+        self.assertLess(block.index('waitForIdle('),block.index('root=readyRoot(op)'))
+        for forbidden in ('pointerTap(', 'checkedAction(', 'send(', 'putBoolean('):
+            self.assertNotIn(forbidden,block)
+
+    def test_actual_java_pointer_focus_requires_same_source_and_stable_geometry_before_one_tap(self):
+        source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
+        bounds='private Rect pointerBounds('+source.split('    private Rect pointerBounds(',1)[1].split('\n    private void pointerTap(',1)[0]
+        tap='private void pointerTap('+source.split('    private void pointerTap(',1)[1].split('\n    private void pointerSwipe(',1)[0]
+        selection=source.split('    private Selection selectedExpected(boolean pointerRecheck,long end)',1)[1].split('    private AccessibilityNodeInfo atPath(',1)[0]
+        self.assertNotIn('uptimeMillis()+1000',selection)  # Caller owns the ONE absolute budget.
+        harness=r"""public class FocusTargetStability {
+          static final String APP="APP";
+          static class SystemClock { static long now; static long uptimeMillis(){return now;} static void sleep(long ms){now+=ms;} }
+          static class MotionEvent { static final int ACTION_DOWN=0,ACTION_UP=1; }
+          static class Rect {
+            int left,top,right,bottom;
+            Rect(){} Rect(int l,int t,int r,int b){left=l;top=t;right=r;bottom=b;}
+            int width(){return right-left;} int height(){return bottom-top;}
+            boolean contains(Rect r){return left<=r.left && top<=r.top && right>=r.right && bottom>=r.bottom;}
+            float exactCenterX(){return (left+right)/2f;} float exactCenterY(){return (top+bottom)/2f;}
+            public boolean equals(Object o){if(!(o instanceof Rect))return false;Rect r=(Rect)o;return left==r.left&&top==r.top&&right==r.right&&bottom==r.bottom;}
+            public String toString(){return left+","+top+","+right+","+bottom;}
+          }
+          static class AccessibilityNodeInfo {
+            int id; String pkg=APP,label="target"; boolean editable=true; Rect bounds; AccessibilityNodeInfo child;
+            AccessibilityNodeInfo(int id,Rect bounds){this.id=id;this.bounds=bounds;}
+            void getBoundsInScreen(Rect r){r.left=bounds.left;r.top=bounds.top;r.right=bounds.right;r.bottom=bounds.bottom;}
+            boolean isEditable(){return editable;} boolean isScrollable(){return true;} boolean isClickable(){return true;}
+            String getClassName(){return "android.widget.EditText";} String getPackageName(){return pkg;}
+            public boolean equals(Object o){return o instanceof AccessibilityNodeInfo && id==((AccessibilityNodeInfo)o).id;}
+          }
+          static class Args {
+            java.util.Map<String,String> values=new java.util.HashMap<>();
+            String getString(String key,String fallback){return values.getOrDefault(key,fallback);}
+          }
+          static class Selection { final AccessibilityNodeInfo root,node;Selection(AccessibilityNodeInfo r,AccessibilityNodeInfo n){root=r;node=n;} }
+          class Automation {
+            int clears; boolean ready=true; long readCost; AccessibilityNodeInfo root;
+            boolean clearCache(){clears++;SystemClock.now+=readCost;return ready;}
+            AccessibilityNodeInfo getRootInActiveWindow(){return root;}
+          }
+          Args args=new Args(); Automation automation=new Automation(); Selection first;
+          String stage="guard",foreground="UNOBSERVED"; int events,selections; long firstReadCost,seenEnd;
+          Selection selectedExpected(boolean recheck,long end){require(recheck);selections++;seenEnd=end;SystemClock.now+=firstReadCost;require(SystemClock.now<end);return first;}
+          AccessibilityNodeInfo atPath(AccessibilityNodeInfo root,String path){require("0.1".equals(path));return root.child;}
+          String witness(AccessibilityNodeInfo node){return node.label+"|"+node.bounds;}
+          String foregroundCategory(CharSequence pkg){return pkg==null?"UNOBSERVED":pkg.toString();}
+          static void require(boolean value){if(!value)throw new IllegalStateException();}
+          void send(long down,int action,float[] x,float[] y){events++;}
+          static FocusTargetStability scenario(){
+            SystemClock.now=0;FocusTargetStability h=new FocusTargetStability();
+            AccessibilityNodeInfo original=new AccessibilityNodeInfo(7,new Rect(10,100,200,180));
+            AccessibilityNodeInfo firstRoot=new AccessibilityNodeInfo(1,new Rect(0,0,540,960));
+            AccessibilityNodeInfo firstNode=new AccessibilityNodeInfo(7,new Rect(10,100,200,180));
+            AccessibilityNodeInfo secondRoot=new AccessibilityNodeInfo(1,new Rect(0,0,540,960));
+            secondRoot.child=new AccessibilityNodeInfo(7,new Rect(10,100,200,180));
+            h.first=new Selection(firstRoot,firstNode);h.automation.root=secondRoot;
+            h.args.values.put("op","account-set");h.args.values.put("node_path","0.1");h.args.values.put("node_witness",h.witness(original));return h;
+          }
+          void run(String expected) throws Exception {
+            AccessibilityNodeInfo original=new AccessibilityNodeInfo(7,new Rect(10,100,200,180));
+            boolean failed=false;
+            try{pointerTap(original);}catch(IllegalStateException refusal){failed=true;}
+            require(selections==1 && seenEnd==1000);
+            if(expected==null){require(!failed && events==2 && automation.clears==1 && SystemClock.now==160);}
+            else{require(failed && events==0 && expected.equals(stage));}
+          }
+          public static void main(String[] ignored) throws Exception {
+            FocusTargetStability h=scenario();h.run(null);
+            h=scenario();h.first.node.id=8;h.run("pointer_focus_source_match");require(h.automation.clears==0);
+            h=scenario();h.automation.root.child.id=8;h.run("pointer_focus_stable_source_match");
+            h=scenario();h.automation.root.child.editable=false;h.run("pointer_focus_stable_source_match");
+            h=scenario();h.automation.root.child.label="other";h.run("pointer_focus_stable_witness_match");
+            h=scenario();h.automation.root.child.bounds.top=101;h.run("pointer_focus_stable_witness_match");
+            h=scenario();h.automation.root.bounds.bottom=959;h.run("pointer_focus_stable_bounds_match");
+            h=scenario();h.automation.root.pkg="OTHER";h.run("pointer_focus_stable_root_guard");
+            h=scenario();h.automation.ready=false;h.run("pointer_focus_stable_cache_clear");
+            h=scenario();h.firstReadCost=950;h.run("pointer_focus_stable_deadline");require(h.automation.clears==0);
+            h=scenario();h.automation.readCost=950;h.run("pointer_focus_stable_deadline");
+            System.out.print("FOCUS_TARGET_STABILITY_PASS");
+          }
+        """+bounds+tap+'\n}'
+        with tempfile.TemporaryDirectory() as folder:
+            file=Path(folder)/'FocusTargetStability.java';file.write_text(harness)
+            compiled=subprocess.run(['java','-m','jdk.compiler/com.sun.tools.javac.Main','-d',folder,str(file)],
+                                    capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            result=subprocess.run(['java','-cp',folder,'FocusTargetStability'],capture_output=True,text=True,timeout=10)
+            self.assertEqual((result.returncode,result.stdout),(0,'FOCUS_TARGET_STABILITY_PASS'),result.stderr)
+
     def test_focus_identity_failure_diagnostics_never_export_field_or_input_data(self):
         stages = ('account_focus_editable_match', 'account_focus_class_match',
                   'account_focus_description_match', 'account_focus_hint_match',
@@ -184,7 +280,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         before=source.split('private Selection selectedExpected(',1)[1].split('private AccessibilityNodeInfo atPath(',1)[0]
         self.assertIn('node=atPath(fresh,path)',before)
         self.assertIn('expected.equals(witness(node))',before)
-        self.assertIn('Selection selection=selectedExpected(true)',source)
+        self.assertIn('Selection selection=selectedExpected(true,end)',source)
         for forbidden in ('pointerTap(', 'checkedAction(', 'send(', 'findAccessibilityNodeInfos'):
             self.assertNotIn(forbidden,observe)
 

@@ -27,9 +27,9 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`6077fd1d16fe02764c3fcccb7c69c1839660fd0d4283c1a27b7a5436a52f0ced`
+`47627d475c9fc550a1ad791bd4dd42e1edfc643b579e35af10d9f95ee297c0ab`
 and Java SHA
-`56b9199ea3312f55746ea12176367c26b8ccabeb13981a93f2fd7a0bde2b2a5f`.
+`f8e60a75489f22fd1c2124f10a414025c155f6a066cdeadd9c8ef30f4f63b50c`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
 source, the exact baseline diff allowlist, original unchanged mobile/backend
 trees, clean tracked paths and pinned public recipient certificate/expiry. No
@@ -179,3 +179,5 @@ The frozen video-only route remains unchanged. AOSP console screen-recorder.cpp 
 Fresh disposable VM collections use independent workflow run identifiers. Retained original artifacts are never replaced by retrying an old run. An infrastructure failure before app installation creates no account fixture and does not exercise subsequent native changes.
 
 An initial native-format refusal now retains only a fixed allowlisted condition code and bounded audio channel/sample-rate/packet-count metadata. Missing tools, read timeouts, empty/capped/misaligned decoding and nonzero PCM have distinct fixed diagnoses. The original exception, no-export decision and all validation conditions remain unchanged; arbitrary exception text, decoder output and failed media stay private.
+
+Before the single physical account-set focus, readonly idle settling reacquires the APP root. Pointer selection must retain the original Android source node and identical target/window bounds across two cache-cleared observations inside one original1000ms selection deadline. A changed source, witness or geometry refuses before DOWN; no target is adopted and no input is replayed. Postfocus original-node, hint and field checks remain mandatory. Both ffprobe and ffmpeg must be present before native preparation.

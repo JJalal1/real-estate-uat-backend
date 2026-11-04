@@ -256,6 +256,9 @@ public final class Phase1Input extends Instrumentation {
         return selectedExpected(false).node;
     }
     private Selection selectedExpected(boolean pointerRecheck) throws Exception {
+        return selectedExpected(pointerRecheck,SystemClock.uptimeMillis()+1000L);
+    }
+    private Selection selectedExpected(boolean pointerRecheck,long end) throws Exception {
         if(pointerRecheck) stage="pointer_input_guard"; else stage="initial_input_guard";
         require(events==0 && !pointerActive);
         selectionContext=pointerRecheck ? 2 : 1;
@@ -264,10 +267,9 @@ public final class Phase1Input extends Instrumentation {
             String path=args.getString("node_path",""); require(path.matches("0(?:\\.[0-9]{1,4}){0,40}"));
             if(pointerRecheck) stage="pointer_witness_format"; else stage="initial_witness_format";
             final String expected=args.getString("node_witness",""); require(expected.matches("[a-f0-9]{64}"));
-            final long end=SystemClock.uptimeMillis()+1000L;
             int reads=0;
             while(true) {
-                if(reads>0 && SystemClock.uptimeMillis()>=end) throw new IllegalStateException();
+                if(SystemClock.uptimeMillis()>=end) throw new IllegalStateException();
                 if(pointerRecheck) stage="pointer_cache_clear"; else stage="initial_cache_clear";
                 require(automation.clearCache());
                 AccessibilityNodeInfo fresh=automation.getRootInActiveWindow();
@@ -325,6 +327,15 @@ public final class Phase1Input extends Instrumentation {
             JSONArray nodes=new JSONArray(); snapshot(observed,"0",nodes,0);
             String encoded=Base64.encodeToString(nodes.toString().getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP);
             result.putString("tree_b64",encoded); return;
+        }
+        if("account-set".equals(op)) {
+            // Observe prior IME/layout event settling before binding a source
+            // node. A timeout is not an idle-success claim or permission to
+            // replace the caller's exact path/witness.
+            stage="account_set_settle";
+            try { automation.waitForIdle(250,1500); }
+            catch(java.util.concurrent.TimeoutException busy) { }
+            root=readyRoot(op);
         }
         AccessibilityNodeInfo node=selected(root);
         if("account-click".equals(op)) {
@@ -403,7 +414,8 @@ public final class Phase1Input extends Instrumentation {
             (sameNode && focused && !original.isEmpty() && current.isEmpty());
     }
     private Rect pointerBounds(AccessibilityNodeInfo node) throws Exception {
-        Selection selection=selectedExpected(true);
+        final long end=SystemClock.uptimeMillis()+1000L;
+        Selection selection=selectedExpected(true,end);
         AccessibilityNodeInfo active=selection.root,fresh=selection.node;
         stage="pointer_target_guard";
         String op=args.getString("op","");
@@ -413,7 +425,31 @@ public final class Phase1Input extends Instrumentation {
         Rect screen=new Rect(), bounds=new Rect(); active.getBoundsInScreen(screen); fresh.getBoundsInScreen(bounds);
         stage="pointer_bounds_width"; require(bounds.width()>8);
         stage="pointer_bounds_height"; require(bounds.height()>8);
-        stage="pointer_bounds_containment"; require(screen.contains(bounds)); return bounds;
+        stage="pointer_bounds_containment"; require(screen.contains(bounds));
+        if("account-set".equals(op)) {
+            // Both observations remain inside the ONE pointer-selection
+            // deadline. Never adopt a replacement source, target or witness.
+            stage="pointer_focus_source_match"; require(node.equals(fresh));
+            stage="pointer_focus_stable_wait"; SystemClock.sleep(100);
+            stage="pointer_focus_stable_deadline"; require(SystemClock.uptimeMillis()<end);
+            stage="pointer_focus_stable_cache_clear"; require(automation.clearCache());
+            AccessibilityNodeInfo stableRoot=automation.getRootInActiveWindow();
+            CharSequence pkg=stableRoot==null ? null : stableRoot.getPackageName();
+            foreground=foregroundCategory(pkg);
+            stage="pointer_focus_stable_root_guard";
+            require(stableRoot!=null && pkg!=null && APP.contentEquals(pkg));
+            AccessibilityNodeInfo stable=atPath(stableRoot,args.getString("node_path",""));
+            stage="pointer_focus_stable_source_match";
+            require(node.equals(stable) && stable.isEditable());
+            stage="pointer_focus_stable_witness_match";
+            require(args.getString("node_witness","").equals(witness(stable)));
+            Rect stableScreen=new Rect(),stableBounds=new Rect();
+            stableRoot.getBoundsInScreen(stableScreen); stable.getBoundsInScreen(stableBounds);
+            stage="pointer_focus_stable_bounds_match";
+            require(screen.equals(stableScreen) && bounds.equals(stableBounds));
+            stage="pointer_focus_stable_deadline"; require(SystemClock.uptimeMillis()<end);
+        }
+        return bounds;
     }
     private void pointerTap(AccessibilityNodeInfo node) throws Exception {
         String dispatchStage=stage;

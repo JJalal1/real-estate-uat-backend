@@ -51,7 +51,11 @@ FOREGROUND_CATEGORIES = frozenset({'APP', 'PERMISSION_CONTROLLER', 'DOCUMENT_PIC
                                   'SYSTEM_UI', 'OTHER', 'UNOBSERVED'})
 # Literal account-operation stages from the paired Phase1Input.java helper.
 INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_input_policy', 'account_click',
-                              'account_snapshot_settle',
+                              'account_snapshot_settle', 'account_set_settle',
+                              'pointer_focus_source_match', 'pointer_focus_stable_wait',
+                              'pointer_focus_stable_deadline', 'pointer_focus_stable_cache_clear',
+                              'pointer_focus_stable_root_guard', 'pointer_focus_stable_source_match',
+                              'pointer_focus_stable_witness_match', 'pointer_focus_stable_bounds_match',
                               'account_pointer_tap', 'account_scroll', 'account_pointer_swipe',
                               'account_focus', 'account_focus_pointer', 'account_focus_request',
                               'account_focus_observe', 'account_focus_editable_match', 'account_focus_class_match',
