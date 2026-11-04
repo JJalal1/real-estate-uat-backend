@@ -85,6 +85,39 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertEqual(self.probe.adb.call_args.args.count('physical_scroll'), 1)
         self.assertEqual(self.probe.report['actions'], [])
 
+    def test_scroll_waits_readonly_for_observed_container_and_never_replays_dispatch(self):
+        self.stability_clock()
+        container=self.node('',path='0.8',scrollable=True)
+        self.probe.nodes=Mock(side_effect=[[],[],[container]])
+        self.probe.act=Mock()
+        self.probe.scroll('backward')
+        self.assertEqual(self.probe.nodes.call_count,3)
+        self.probe.act.assert_called_once_with('scroll',container,direction='backward')
+        self.probe.nodes=Mock(return_value=[container])
+        self.probe.act=Mock(side_effect=native.Blocked('native_input_not_delivered'))
+        with self.assertRaisesRegex(native.Blocked,'^native_input_not_delivered$'):
+            self.probe.scroll()
+        self.probe.nodes.assert_called_once();self.probe.act.assert_called_once()
+
+    def test_missing_scroll_container_is_bounded_without_any_ui_dispatch_or_capture(self):
+        clock=self.stability_clock()
+        self.probe.nodes=Mock(return_value=[])
+        self.probe.act,self.probe.safe_capture=Mock(),Mock()
+        with self.assertRaisesRegex(native.Blocked,'^scrollable_native_container_missing$'):
+            self.probe.scroll()
+        self.assertLessEqual(clock[0],3)
+        self.probe.act.assert_not_called();self.probe.safe_capture.assert_not_called()
+
+    def test_java_snapshot_settling_is_bounded_readonly_and_reacquires_the_app_root(self):
+        source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
+        block=source.split('if("account-snapshot".equals(op)) {',1)[1].split('AccessibilityNodeInfo node=selected(root);',1)[0]
+        self.assertIn('waitForIdle(250,1500)',block)
+        self.assertIn('catch(java.util.concurrent.TimeoutException busy)',block)
+        self.assertLess(block.index('waitForIdle('),block.index('observed=readyRoot(op)'))
+        self.assertIn('snapshot(observed,',block)
+        for forbidden in ('checkedAction(', 'pointerTap(', 'send(', 'snapshot(root,'):
+            self.assertNotIn(forbidden,block)
+
     def test_focus_identity_failure_diagnostics_never_export_field_or_input_data(self):
         stages = ('account_focus_editable_match', 'account_focus_class_match',
                   'account_focus_description_match', 'account_focus_hint_match',

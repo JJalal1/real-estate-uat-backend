@@ -51,6 +51,7 @@ FOREGROUND_CATEGORIES = frozenset({'APP', 'PERMISSION_CONTROLLER', 'DOCUMENT_PIC
                                   'SYSTEM_UI', 'OTHER', 'UNOBSERVED'})
 # Literal account-operation stages from the paired Phase1Input.java helper.
 INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_input_policy', 'account_click',
+                              'account_snapshot_settle',
                               'account_pointer_tap', 'account_scroll', 'account_pointer_swipe',
                               'account_focus', 'account_focus_pointer', 'account_focus_request',
                               'account_focus_observe', 'account_focus_editable_match', 'account_focus_class_match',
@@ -311,9 +312,15 @@ class NativeAccount:
         time.sleep(.25)
 
     def scroll(self, direction='forward'):
-        rows = [r for r in self.nodes() if r.get('scrollable') and r.get('enabled')]
-        if not rows:
-            raise Blocked('scrollable_native_container_missing')
+        deadline = time.monotonic() + 3
+        while True:
+            rows = [r for r in self.nodes() if r.get('scrollable') and r.get('enabled')]
+            if rows:
+                break
+            if time.monotonic() >= deadline:
+                raise Blocked('scrollable_native_container_missing')
+            # Missing semantics authorize observations, never a guessed swipe.
+            time.sleep(max(0, min(.25, deadline-time.monotonic())))
         def area(r):
             a, b, c, d = r['bounds']
             return (c - a) * (d - b)

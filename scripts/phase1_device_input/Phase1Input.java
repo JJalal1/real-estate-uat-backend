@@ -314,7 +314,15 @@ public final class Phase1Input extends Instrumentation {
         require(!physicalScroll || "account-scroll".equals(op));
         if("account-dismiss-ime".equals(op)) { dismissIme(result); return; }
         if("account-snapshot".equals(op)) {
-            JSONArray nodes=new JSONArray(); snapshot(root,"0",nodes,0);
+            // Attaching a fresh UiAutomation can trigger Flutter semantics
+            // updates after the APP root itself is already available. Wait
+            // read-only for that event burst, then reacquire the actual root.
+            // A busy UI may time out; that is not a successful idle claim.
+            stage="account_snapshot_settle";
+            try { automation.waitForIdle(250,1500); }
+            catch(java.util.concurrent.TimeoutException busy) { }
+            AccessibilityNodeInfo observed=readyRoot(op);
+            JSONArray nodes=new JSONArray(); snapshot(observed,"0",nodes,0);
             String encoded=Base64.encodeToString(nodes.toString().getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP);
             result.putString("tree_b64",encoded); return;
         }
