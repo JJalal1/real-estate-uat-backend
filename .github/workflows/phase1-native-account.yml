@@ -114,6 +114,24 @@ jobs:
           fi
           command -v ffprobe >/dev/null
           command -v ffmpeg >/dev/null
+      - name: Verify public UAT connectivity before expensive build
+        timeout-minutes: 3
+        run: |
+          python3 -B - <<'PY'
+          import json, sys, time
+          sys.path[:0] = ['scripts', 'scripts/phase1_bridge/controller']
+          from bounded_api import DeadlineTransport, read_public_with_retry
+          from phase1_native_fixture_api import read_public_reference
+          deadline = time.monotonic() + 125
+          transport = DeadlineTransport(deadline_getter=lambda: deadline)
+          def diagnostic(value):
+              print('AQER_PUBLIC_PREFLIGHT ' + json.dumps(value, sort_keys=True), flush=True)
+          try:
+              rows = read_public_with_retry(read_public_reference, transport, diagnostic=diagnostic)
+          except Exception:
+              raise SystemExit('AQER_PUBLIC_PREFLIGHT_FAILED') from None
+          print('AQER_PUBLIC_PREFLIGHT_PASSED count=' + str(len(rows)))
+          PY
       - name: Resolve approved locked graph
         working-directory: mobile_app
         run: |

@@ -19,7 +19,7 @@ import time
 import uuid
 
 from ci_remote_evidence import C4_EXTRA, frames_wire, fresh_remote_review, video_wire
-from bounded_api import BoundedApiFactory, DeadlineTransport
+from bounded_api import BoundedApiFactory, DeadlineTransport, read_public_with_retry
 
 
 class ControllerRefused(RuntimeError):
@@ -236,7 +236,11 @@ class Controller:
         # Same actual published-card prerequisite as the source collector, with
         # bounded transport injected before the first public HTTP operation.
         with self._api_scope('source'):
-            references = self._reference(transport=self._transport)
+            def public_diagnostic(value):
+                p.report.setdefault('public_reference_attempts', []).append(value)
+                p.save()
+            references = read_public_with_retry(self._reference, self._transport,
+                diagnostic=public_diagnostic, wait=self._wait)
             need(type(references) is list and 0 < len(references) <= 50, 'actual_public_reference_required')
             p.report['initial_native_readiness_stage'] = 'native_public_card'
             p.save()

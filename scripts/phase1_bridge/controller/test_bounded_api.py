@@ -187,6 +187,63 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(self.connections, [])
         with self.assertRaises(api.ApiDeadlineError): factory('x', 'y', 'z', expected_actor_id=True)
 
+    @staticmethod
+    def public_reader(*, transport):
+        code, value, _ = transport('GET', '/properties?per_page=24', None, None)
+        if code != 200:
+            raise RuntimeError('public response unavailable')
+        return value
+
+    def test_public_transient_read_retries_once_without_credentials_or_mutations(self):
+        def setup(connection):
+            if len(self.connections) == 1:
+                connection.response = Response([b'<temporary outage>', b''], status=503)
+        self.setup_connection = setup
+        observations, waits = [], []
+        result = api.read_public_with_retry(self.public_reader, self.transport,
+            diagnostic=observations.append, wait=waits.append)
+        self.assertEqual(result, {'data': {}})
+        self.assertEqual(waits, [2])
+        self.assertEqual(len(self.connections), 2)
+        self.assertEqual([r['outcome'] for r in observations], ['failed', 'passed'])
+        self.assertEqual(observations[0]['transport']['http_status'], 503)
+        self.assertNotIn('temporary outage', str(observations))
+        for connection in self.connections:
+            self.assertEqual(connection.requests[0][0], 'GET')
+            self.assertNotIn('Authorization', connection.requests[0][3])
+            self.assertIsNone(connection.requests[0][2])
+
+    def test_public_malformed_success_is_not_retried(self):
+        self.setup_connection = lambda c: setattr(c, 'response', Response([b'PRIVATE_SENTINEL', b'']))
+        observations = []
+        with self.assertRaises(api.ApiDeadlineError):
+            api.read_public_with_retry(self.public_reader, self.transport,
+                diagnostic=observations.append, wait=lambda _: self.fail('unexpected retry'))
+        self.assertEqual(len(self.connections), 1)
+        self.assertEqual(observations[0]['transport']['error'], 'api_response_json_invalid')
+        self.assertNotIn('PRIVATE_SENTINEL', str(observations))
+
+    def test_public_retry_does_not_extend_expired_deadline(self):
+        self.setup_connection = lambda c: setattr(c, 'response', Response([b'{}', b''], status=503))
+        with self.assertRaisesRegex(api.ApiDeadlineError, 'api_deadline_expired'):
+            api.read_public_with_retry(self.public_reader, self.transport,
+                wait=lambda _: setattr(self.clock, 'now', 126))
+        self.assertEqual(len(self.connections), 1)
+        self.assertEqual(self.deadline, 125)
+
+    def test_public_transport_failure_stops_after_two_attempts(self):
+        def setup(connection):
+            def fail(): raise TimeoutError('PRIVATE_SENTINEL')
+            connection.on_request = fail
+        self.setup_connection = setup
+        observations = []
+        with self.assertRaises(api.ApiDeadlineError):
+            api.read_public_with_retry(self.public_reader, self.transport,
+                diagnostic=observations.append, wait=lambda _: None)
+        self.assertEqual(len(self.connections), 2)
+        self.assertEqual(observations[-1]['transport']['error'], 'TimeoutError')
+        self.assertNotIn('PRIVATE_SENTINEL', str(observations))
+
 
 if __name__ == '__main__':
     unittest.main()
