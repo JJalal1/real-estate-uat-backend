@@ -85,6 +85,31 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertEqual(self.probe.adb.call_args.args.count('physical_scroll'), 1)
         self.assertEqual(self.probe.report['actions'], [])
 
+    def test_focus_identity_failure_diagnostics_never_export_field_or_input_data(self):
+        stages = ('account_focus_editable_match', 'account_focus_class_match',
+                  'account_focus_description_match', 'account_focus_hint_match',
+                  'account_focus_pending', 'account_focus_text_action_pending')
+        self.probe.case_phase('C1-photo-save')
+        for stage in stages:
+            with self.subTest(stage=stage):
+                self.probe.report['native_input_failures'] = []
+                self.probe.adb = Mock(return_value='\n'.join([
+                    'INSTRUMENTATION_RESULT: passed=false',
+                    'INSTRUMENTATION_RESULT: op=account-set',
+                    'INSTRUMENTATION_RESULT: stage=' + stage,
+                    'INSTRUMENTATION_RESULT: foreground_category=APP',
+                    'INSTRUMENTATION_RESULT: hint=PRIVATE_FIELD_SENTINEL',
+                    'INSTRUMENTATION_CODE: 0']))
+                with self.assertRaises(native.Blocked):
+                    self.probe.instrument('account-set', node_path='0.999',
+                                          value_b64='PRIVATE_INPUT_SENTINEL')
+                self.probe.adb.assert_called_once()
+                failure = self.probe.report['native_input_failures'][0]
+                self.assertEqual(failure['java_stage'], stage)
+                serialized = json.dumps(self.probe.report)
+                for secret in ('PRIVATE_FIELD_SENTINEL', 'PRIVATE_INPUT_SENTINEL', '0.999'):
+                    self.assertNotIn(secret, serialized)
+
 
 
 

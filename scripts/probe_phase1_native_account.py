@@ -31,7 +31,12 @@ AUTH_LABELS = {'مرحبًا بعودتك', 'رقم واتساب', 'رمز ال�
 AUTH_PHASES = frozenset({'account_open', 'login_open', 'phone_entry', 'code_request',
                          'otp_entry', 'confirm', 'postcondition'})
 C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
-                                'purpose', 'type', 'title', 'restore_options_wait',
+                                'purpose', 'type', 'title', 'location_step', 'location_confirm',
+                                'governorate', 'city', 'specifications_step', 'floor_select',
+                                'bedrooms', 'bathrooms', 'parking_select', 'facade_select',
+                                'photo_select', 'photo_capture', 'rent_blank_check', 'draft_save',
+                                'restore_startup', 'restore_specs', 'restore_bedrooms', 'restore_bathrooms',
+                                'restore_photo', 'restore_location', 'restore_title', 'restore_options_wait',
                                 'logout_account_ready', 'logout_control', 'logout_confirm',
                                 'editor_basics_loaded', 'editor_title_seek', 'editor_basics_return',
                                 'logout_marketplace_wait', 'logout_guest_marketplace', 'logout_guest_account_wait',
@@ -47,7 +52,9 @@ FOREGROUND_CATEGORIES = frozenset({'APP', 'PERMISSION_CONTROLLER', 'DOCUMENT_PIC
 INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_input_policy', 'account_click',
                               'account_pointer_tap', 'account_scroll', 'account_pointer_swipe',
                               'account_focus', 'account_focus_pointer', 'account_focus_request',
-                              'account_focus_observe', 'account_set_request',
+                              'account_focus_observe', 'account_focus_editable_match', 'account_focus_class_match',
+                              'account_focus_description_match', 'account_focus_hint_match',
+                              'account_focus_pending', 'account_focus_text_action_pending', 'account_set_request',
                               'selected_path_resolve', 'selected_node_guard', 'complete',
                               'account_cache_clear', 'account_focus_cache_clear', 'initial_path_format', 'initial_witness_format', 'initial_cache_clear', 'initial_root_guard', 'initial_path_resolve', 'initial_node_guard', 'initial_witness_match', 'pointer_path_format', 'pointer_witness_format', 'pointer_cache_clear', 'pointer_root_guard', 'pointer_path_resolve', 'pointer_node_guard', 'pointer_witness_match', 'pointer_bounds_width', 'pointer_bounds_height', 'pointer_bounds_containment', 'pointer_swipe_height', 'initial_input_guard', 'pointer_input_guard', 'pointer_target_guard', 'input_deadline_policy', 'input_deadline_expired',
                               'ime_window_policy', 'ime_windows', 'ime_focus', 'ime_noop',
@@ -1112,29 +1119,43 @@ class NativeAccount:
         self.journey_stage('title')
         self.set('عنوان الإعلان *', self.title)
         self.record_start('C1-create-photo')
+        self.journey_stage('location_step')
         self.tap('التالي')
+        self.journey_stage('location_confirm')
         self.tap('تأكيد الموقع على الخريطة')
         self.wait('تأكيد هذا الموقع', seconds=60)
         self.tap('تأكيد هذا الموقع')
         self.wait('تم تحديد موقع العقار على الخريطة', seconds=45)
+        self.journey_stage('governorate')
         self.set('المحافظة *', 'صنعاء')
+        self.journey_stage('city')
         self.set('المدينة', 'صنعاء')
+        self.journey_stage('specifications_step')
         self.tap('التالي')
+        self.journey_stage('floor_select')
         self.tap('الشقة في الدور *')
         self.tap('الثاني')
+        self.journey_stage('bedrooms')
         self.set('غرف النوم *', '3')
+        self.journey_stage('bathrooms')
         self.set('الحمامات *', '2')
+        self.journey_stage('parking_select')
         self.tap('موقف سيارة *')
         self.tap('لا يوجد')
+        self.journey_stage('facade_select')
         self.tap('واجهة البناء *')
         self.tap('شمالية')
+        self.journey_stage('photo_select')
         self.photo_picker()
+        self.journey_stage('photo_capture')
         self.safe_capture('C1-photo-selected')
         self.record_stop(export=True)  # Never record step4's contact fields.
         self.tap('التالي')
         self.wait('خيارات المسودة')
+        self.journey_stage('rent_blank_check')
         if any(v.isdigit() and int(v) > 0 for v in labels(self.field('الإيجار الشهري بالريال اليمني *'))):
             raise Blocked('incomplete_draft_guard_not_observed')
+        self.journey_stage('draft_save')
         self.tap('خيارات المسودة')
         self.tap('حفظ مسودة')
         self.wait('حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.', seconds=120)
@@ -1143,6 +1164,7 @@ class NativeAccount:
                   property_created=False, submitted=False)
 
     def restore(self):
+        self.journey_stage('restore_startup')
         self.adb('shell', 'am', 'force-stop', APP)
         time.sleep(1)
         self.authenticated = False
@@ -1153,20 +1175,26 @@ class NativeAccount:
         self.manual_entry(self.title)
         self.journey_stage('restore_options_wait')
         self.wait('خيارات المسودة')
+        self.journey_stage('restore_specs')
         self.tap('السابق')
         self.wait('المواصفات')
         self.record_start('C1-restored-facts')
+        self.journey_stage('restore_bedrooms')
         self.require_value('غرف النوم *', '3')
+        self.journey_stage('restore_bathrooms')
         self.require_value('الحمامات *', '2')
         self.seek('الثاني')
         self.seek('لا يوجد')
         self.seek('شمالية')
+        self.journey_stage('restore_photo')
         self.seek('صور الإعلان (1/12)')
         self.wait('مكتمل', seconds=90)
         self.safe_capture('C1-restored-complete-photo')
+        self.journey_stage('restore_location')
         self.tap('السابق')
         self.wait('تم تحديد موقع العقار على الخريطة')
         self.require_value('المحافظة *', 'صنعاء')
+        self.journey_stage('restore_title')
         self.tap('السابق')
         self.require_value('عنوان الإعلان *', self.title)
         self.safe_capture('C1-restored-title')

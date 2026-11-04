@@ -345,11 +345,15 @@ public final class Phase1Input extends Instrumentation {
                 foreground=foregroundCategory(rootPackage);
                 if(fresh==null || !APP.contentEquals(rootPackage)) continue;
                 AccessibilityNodeInfo candidate=atPath(fresh,args.getString("node_path",""));
-                stage="account_focus_observe";
-                require(candidate.isEditable() && plain(node.getClassName()).equals(plain(candidate.getClassName()))
-                    && plain(node.getContentDescription()).equals(plain(candidate.getContentDescription()))
-                    && plain(node.getHintText()).equals(plain(candidate.getHintText())));
-                if(candidate.isFocused() && (candidate.getActions()&AccessibilityNodeInfo.ACTION_SET_TEXT)!=0) field=candidate;
+                stage="account_focus_editable_match"; require(candidate.isEditable());
+                stage="account_focus_class_match"; require(plain(node.getClassName()).equals(plain(candidate.getClassName())));
+                stage="account_focus_description_match"; require(plain(node.getContentDescription()).equals(plain(candidate.getContentDescription())));
+                stage="account_focus_hint_match"; require(plain(node.getHintText()).equals(plain(candidate.getHintText())));
+                stage="account_focus_pending";
+                if(candidate.isFocused()) {
+                    stage="account_focus_text_action_pending";
+                    if((candidate.getActions()&AccessibilityNodeInfo.ACTION_SET_TEXT)!=0) field=candidate;
+                }
                 if(field!=null) break;
             }
             require(field!=null); stage="account_set_request";

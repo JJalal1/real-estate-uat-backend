@@ -97,7 +97,11 @@ C1_FAILURE_CODES = frozenset({
     'native_owned_editor_title_not_stable',
 })
 C1_FAILURE_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
-    'purpose', 'type', 'title', 'restore_options_wait', 'editor_basics_loaded', 'editor_title_settle',
+    'purpose', 'type', 'title', 'location_step', 'location_confirm', 'governorate', 'city',
+    'specifications_step', 'floor_select', 'bedrooms', 'bathrooms', 'parking_select', 'facade_select',
+    'photo_select', 'photo_capture', 'rent_blank_check', 'draft_save', 'restore_startup',
+    'restore_specs', 'restore_bedrooms', 'restore_bathrooms', 'restore_photo', 'restore_location',
+    'restore_title', 'restore_options_wait', 'editor_basics_loaded', 'editor_title_settle',
     'editor_title_seek', 'editor_basics_return', 'home_wait', 'add_stable_wait', 'add_dispatch'})
 HOME_DIAGNOSTIC_NAMES = frozenset({'C1-before-add-home.png', 'C1-restore-before-add-home.png'})
 HOME_DIAGNOSTIC_SCOPE = 'authenticated_broker_marketplace_before_add'
