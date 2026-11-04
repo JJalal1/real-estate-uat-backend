@@ -26,7 +26,7 @@ API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 SECRET = 'AQER_PHASE1_TEST_ACCESS_JSON'
 MANIFEST = 'scripts/phase1_bridge/tool_manifest.json'
 HELPER_SOURCE_SHA = 'dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495'
-PAIRED_PROBE_SHA = '281f1f65f364415a5faac6c4c6eb5369866f085ac39b0619df0b2b7a2e436e6f'
+PAIRED_PROBE_SHA = 'b2a84a16fe3c6b6f39af73cbad2b481868e5e38a938c2068e81e33671e189838'
 ROOT_PUBLIC_B64 = 'JhpJ97jF4RGpskxSodJge5e1JK+usUcGdJGg9K8gInA='
 ROOT_KEY_ID = '0aa9312dfaf25e6f5b5c231ef230aa859caed22a8f464e18b77eb67333250872'
 EXPECTED_FILES = tuple(sorted((
@@ -465,6 +465,8 @@ def run_native(workspace, env, channels, run_root, tool_sha, guard):
             remaining = deadline() - time.monotonic()
             need(remaining > 0 and type(timeout) in (int, float) and math.isfinite(timeout)
                 and timeout > 0, 'probe_command_deadline_expired')
+            self.c4_prepare_command_budget(
+                getattr(self._transport, 'instrument_op', None), timeout, remaining)
             return super().command(args, timeout=min(timeout, remaining), **kwargs)
     probe_env = dict(env, **{SECRET: raw_secret})
     try:

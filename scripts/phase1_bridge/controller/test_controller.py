@@ -151,6 +151,10 @@ class C4:
     def frame(p, name): return next(row['sha256'] for row in p.report['frames'] if row['file'] == name)
     @staticmethod
     def blank_rent(p): p.events.append('nonimage_blank_rent')
+    @staticmethod
+    def prepared_brief_context(p, state):
+        p.events.append('prepared_brief_exact_readback')
+        return SHA
 
 
 class Executor:
@@ -359,6 +363,22 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaises(module.ControllerRefused): self.controller.advance(self.signed(snapshot, phase_review=record))
         self.assertTrue(self.controller.uncertain())
         with self.assertRaises(module.ControllerRefused): self.controller.advance(self.signed(snapshot, phase_review=record))
+
+    def test_prepared_request_checkpoint_needs_fresh_common_authority_and_no_visual_flags(self):
+        self.initial(); self.root()
+        state=self.controller._c4_state()
+        state.update(cursor='REQUEST',prepared_brief_scene=SHA)
+        snapshot=self.controller.snapshot()
+        self.assertEqual(snapshot['stage']['context'],'REQUEST')
+        self.assertEqual(snapshot['stage']['requested_review_fields'],[])
+        self.assertEqual(snapshot['evidence'],[])
+        self.assertIn('prepared_brief_exact_readback',self.probe.events)
+        with self.assertRaises(module.ControllerRefused):
+            self.controller.advance(self.signed(snapshot,phase_review={}))
+        self.assertEqual(self.dispatcher.calls,[])
+        self.assertTrue(self.controller.advance(self.signed(snapshot)))
+        self.assertEqual(self.dispatcher.calls,[('C4','REQUEST')])
+        self.assertEqual(state['cursor'],'AI_REVIEW')
 
     def test_c2_configuration_requires_fresh_actual_two_proofs_without_refresh(self):
         self.initial(); self.root('C2')

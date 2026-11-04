@@ -47,7 +47,7 @@ class EntryContracts(unittest.TestCase):
         for path in entry.EXPECTED_FILES:
             self.assertNotIn('private', path.lower()); self.assertNotIn('node_modules', path)
         self.assertEqual(entry.PAIRED_PROBE_SHA,
-            '281f1f65f364415a5faac6c4c6eb5369866f085ac39b0619df0b2b7a2e436e6f')
+            'b2a84a16fe3c6b6f39af73cbad2b481868e5e38a938c2068e81e33671e189838')
         self.assertIn('scripts/phase1_bridge/adapter/test_logout_home.py', entry.EXPECTED_FILES)
         for path in ('adapter/c1_home_capture.py', 'adapter/test_home_capture.py', 'controller/test_home_diagnostic.py',
                      'adapter/c1_basics_capture.py', 'adapter/test_basics_capture.py'):
@@ -296,6 +296,7 @@ class ConcreteCompositionContract(unittest.TestCase):
                     self.env = {k:v for k,v in supplied_env.items() if k != entry.SECRET}
                     self.private_values = {'SYNTHETIC_ROLE'}
                     self.report = {}
+                    self._transport = SimpleNamespace(instrument_op=None)
                     self.out = root/'phase1-native-account-evidence'; self.out.mkdir(mode=0o700)
                     record['probe'] = self
                 def command(self, args, **kwargs):
@@ -304,6 +305,8 @@ class ConcreteCompositionContract(unittest.TestCase):
                     record['command'] = kwargs
                     return 'SYNTHETIC'
                 def save(self): pass
+                def c4_prepare_command_budget(self, op, requested, remaining):
+                    record['bounded_command_budget'] = (op, requested, remaining)
             def factory(**kwargs): record['factory'] = kwargs; return Probe
             class VM:
                 def __init__(self, supplied_env): self.process = None; self.receipt = {}; record['vm_env']=supplied_env

@@ -27,7 +27,7 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`281f1f65f364415a5faac6c4c6eb5369866f085ac39b0619df0b2b7a2e436e6f`
+`b2a84a16fe3c6b6f39af73cbad2b481868e5e38a938c2068e81e33671e189838`
 and Java SHA
 `dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
@@ -316,3 +316,21 @@ and photo upload succeed; saving, error, conflict, open Save menu, or missing
 Draft options refuse confirmation. This read-only wait never repeats the write
 and exports fixed booleans/counts only, not contact fields or tree data. Full
 actual media review, reopen verification, and C4/C2 gates remain unchanged.
+
+
+Run55 completed C1 and independently passed Root review. The first signed
+continuation was published and byte-verified; the AI sheet opened, the exact
+brief was entered and the Prepare action was delivered. A response-wait native
+snapshot then timed out; no AI proposal frames were exported, and the exact
+remaining host timeout at that failure was not retained. Do not attribute it to
+the app or claim a provider outcome.
+
+C4 now holds at REQUEST after preparing/read-backing the exact brief, before
+sending the request. A separately bound fresh signed advance rechecks the same
+safe scene and exact brief, then sends once and obtains the actual response and
+proposal frames. Each segment retains its original120s authority and no replay.
+All actual AI notice, no-fallback, selected-field/copy, Apply and restore reviews
+remain unchanged. Fixed relative timeout/remaining millisecond budgets now
+distinguish host clipping from a full instrumentation timeout without exporting
+absolute clocks, values, paths or credentials. This is instrumentation evidence,
+not a claim that the new native continuation already passed.

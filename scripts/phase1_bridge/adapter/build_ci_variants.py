@@ -42,6 +42,28 @@ def transform(name, text):
             "            expected_cursor=cursor, expected_frames=frames, actual_video=state.get('restore_video'))")
         text = replace_once(text, "state['helper_or_recorder_release_unconfirmed'] = True",
                             "state['admission_or_recorder_stop_unconfirmed'] = True")
+        text = replace_once(text, "    probe.set('صف العقار', BRIEF)\n    probe.tap('جهّز الإعلان')",
+            "    probe.set('صف العقار', BRIEF)\n"
+            "    probe.require_value('صف العقار', BRIEF)\n"
+            "    state['prepared_brief_scene'] = ai_scene(probe)\n"
+            "    # End before the network request. Request/response and actual proposal\n"
+            "    # capture receive a separate original120s grant, without refreshing this one.\n"
+            "    return finish(probe, state, 'REQUEST')\n\n\n"
+            "def prepared_brief_context(probe, state):\n"
+            "    ensure_session(probe)\n"
+            "    observed = ai_scene(probe)\n"
+            "    need(observed == state.get('prepared_brief_scene'), 'c4_prepared_brief_scene_changed')\n"
+            "    probe.require_value('صف العقار', BRIEF)\n"
+            "    return observed\n\n\n"
+            "def request_prepared(probe, state):\n"
+            "    reserve(probe, state, 'prepare_request')\n"
+            "    prepared_brief_context(probe, state)\n"
+            "    probe.tap('جهّز الإعلان')")
+        text = replace_once(text,
+            "            return prepare(probe, state)\n        if cursor in {'AI_REVIEW', 'APPLY_REVIEW', 'RESTORE_REVIEW'}:",
+            "            return prepare(probe, state)\n        if cursor == 'REQUEST':\n"
+            "            return request_prepared(probe, state)\n"
+            "        if cursor in {'AI_REVIEW', 'APPLY_REVIEW', 'RESTORE_REVIEW'}:")
     elif name == 'ROOT_C2_EXECUTOR_V2/phase_extensions.py':
         text = replace_once(text, 'import time\n', 'import time\nfrom ci_remote_evidence import fresh_remote_review\n')
         text = replace_once(text,
@@ -166,6 +188,8 @@ def build(source_root, capture_source, destination):
                           'original_sha256': PINS.get(name, CAPTURE_PIN if name.startswith('runtime/') else None)}
         if name in {'ROOT_C4_EXECUTOR/phase_extensions.py', 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py'}:
             manifest[name]['delta'] = 'equivalent_generated_digit_translation_alphabet'
+        if name == 'ROOT_C4_EXECUTOR/phase_extensions.py':
+            manifest[name]['delta'] += '; separate_exact_brief_REQUEST_checkpoint_before_AI_request'
         if name == 'C2_SOURCE_PROPOSAL/c2_native_roles.py':
             manifest[name]['previous_utc_variant_sha256'] = PREVIOUS_ROLES_PIN
             manifest[name]['delta'] = 'one_logout_observed_guest_home_then_one_account_guest_gate'

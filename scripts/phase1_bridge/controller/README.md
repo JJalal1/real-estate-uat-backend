@@ -117,7 +117,7 @@ Add only the following cursor-specific entries:
 | Current cursor/stage | Additional entry |
 |---|---|
 | C4 `C1_REVIEW`, `AI_REVIEW`, `APPLY_REVIEW`, `RESTORE_REVIEW` | `phase_review`: actual complete C4 remote record from `GATE_MAP.md`, including its own same actual `review_completed_utc` |
-| C4 `SAVE`, `REOPEN` | None; fresh signed advance, original source guards and observed postconditions still required |
+| C4 `REQUEST`, `SAVE`, `REOPEN` | None; fresh signed advance, original source guards and observed postconditions still required |
 | C2 `CONFIGURE_C2` | `c1_review`, `c4_review`: the two exact original configuration proof schemas plus their actual same `review_completed_utc` |
 | C2 target/observation Root gate | `phase_review`: the exact current C2 record, `executor_cursor`, actual current frame/chain/nonimage bindings and actual review UTC |
 | Other C2 source stage | None; one authorized source stage and its actual original guards/postconditions |
@@ -128,6 +128,14 @@ common UTC. The original validators still enforce every affirmative flag,
 frame/title/UUID relation, proposal/card selection, dialog chain and policy
 condition. C2 configuration proofs require a new actual Root review at that
 configuration boundary; old C1/C4 timestamps must not be refreshed automatically.
+
+`C1_REVIEW` now prepares and reads back the exact synthetic brief, then holds at
+`REQUEST` before sending it. The `REQUEST` checkpoint rechecks that exact brief
+and the unchanged safe AI-sheet scene. Its separate fresh signed advance sends
+the request once, waits for the actual response and captures the original AI
+proposal evidence for `AI_REVIEW`. Neither segment renews its original grant or
+extends120s expiry. No request, application or visual acceptance is inferred
+from preparation; all four actual visual review gates remain required.
 
 C4 filenames/hashes are supplied as the canonical sorted `[{file,sha256}]` wire
 lists accepted by `ci_remote_evidence`. Actual restore duration uses its faithful

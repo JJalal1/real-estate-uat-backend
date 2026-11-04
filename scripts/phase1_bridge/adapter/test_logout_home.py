@@ -11,7 +11,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 ROLE_PATH = 'C2_SOURCE_PROPOSAL/c2_native_roles.py'
 PREVIOUS_UNCHANGED = {
-    'variants/ROOT_C4_EXECUTOR/phase_extensions.py': 'a2c13ede2f25cc6128dac4208e555d9615ebf4201a9c4bcddc0ad50002fdb3d9',
+    'variants/ROOT_C4_EXECUTOR/phase_extensions.py': '74f0f0c347a6d0fd3c7b07308ec70d306e8cdada2d464d9527fd91bd214e182b',
     'variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py': '01aedc9a2387fb7feff572e829bf52142bab2e51bade098d016350cb64f76906',
     'variants/ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py': '08e2f2d6647c429a25973d4915f7ac5a6f8db852af91fd31dd5a49573a8e1ced',
     'variants/LOCAL_REMAINING_PROPOSAL/local_stage_policy.py': '2a54658205998dbb02f2a0a3f4c59597d348125d0b520402e19ba8ef85527ec2',

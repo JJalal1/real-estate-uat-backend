@@ -293,6 +293,24 @@ def prepare(probe, state):
     probe.tap('جهّز الإعلان بالصوت أو المساعد')
     probe.wait('صف العقار')
     probe.set('صف العقار', BRIEF)
+    probe.require_value('صف العقار', BRIEF)
+    state['prepared_brief_scene'] = ai_scene(probe)
+    # End before the network request. Request/response and actual proposal
+    # capture receive a separate original120s grant, without refreshing this one.
+    return finish(probe, state, 'REQUEST')
+
+
+def prepared_brief_context(probe, state):
+    ensure_session(probe)
+    observed = ai_scene(probe)
+    need(observed == state.get('prepared_brief_scene'), 'c4_prepared_brief_scene_changed')
+    probe.require_value('صف العقار', BRIEF)
+    return observed
+
+
+def request_prepared(probe, state):
+    reserve(probe, state, 'prepare_request')
+    prepared_brief_context(probe, state)
     probe.tap('جهّز الإعلان')
     probe.wait(APPLY, seconds=120)
     # Notice must be observed literally on the real native sheet. This does not
@@ -469,6 +487,8 @@ def _run_phase(probe, phase):
                  and data.get('original_UUID_bound_by_existing_fixture_receipt') is True,
                  'c4_actual_c1_visual_acceptance_required')
             return prepare(probe, state)
+        if cursor == 'REQUEST':
+            return request_prepared(probe, state)
         if cursor in {'AI_REVIEW', 'APPLY_REVIEW', 'RESTORE_REVIEW'}:
             group = {'AI_REVIEW': 'ai_frames', 'APPLY_REVIEW': 'apply_frames',
                      'RESTORE_REVIEW': 'restore_frames'}[cursor]

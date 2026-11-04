@@ -14,6 +14,19 @@ import probe_phase1_native_account as native
 
 
 class NativeAccountSafetyTest(unittest.TestCase):
+    def test_c4_input_budget_records_only_bounded_relative_deadline_facts(self):
+        self.c4_prepare_scope()
+        self.probe.c4_prepare_command_budget('account-snapshot',45,3.25)
+        observed=self.probe.report['c4_prepare_diagnostic']['last_command_budget']
+        self.assertEqual(observed,{'op':'account-snapshot','requested_timeout_ms':45000,
+            'remaining_ms':3250,'effective_timeout_ms':3250,'deadline_limited':True})
+        for op,requested,remaining in [('PRIVATE_SENTINEL',45,3),('account-snapshot',True,3),
+            ('account-snapshot',45,float('nan')),('account-snapshot',45,-1),
+            ('account-snapshot',45,1_000_000_000)]:
+            self.probe.c4_prepare_command_budget(op,requested,remaining)
+            self.assertEqual(self.probe.report['c4_prepare_diagnostic']['last_command_budget'],observed)
+        self.assertNotIn('PRIVATE_SENTINEL',json.dumps(self.probe.report))
+
     def test_checked_explicit_save_can_observe_persistent_success_after_toast_expired(self):
         self.probe.authenticated = True
         menu = self.node('حفظ مسودة', clickable=True)

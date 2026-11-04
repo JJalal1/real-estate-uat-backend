@@ -10,6 +10,7 @@ import base64
 import datetime
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -230,6 +231,20 @@ class NativeAccount:
         if stage in {'WAIT_BRIEF', 'BRIEF_SET', 'WAIT_AI_RESPONSE'} and self.c4_prepare_observation_scope():
             self.report.setdefault('c4_prepare_diagnostic', {})['stage'] = stage
             self.save()
+
+    def c4_prepare_command_budget(self, op, requested, remaining):
+        if op not in INPUT_OPS or not self.c4_prepare_observation_scope():
+            return
+        if (type(requested) not in (int, float) or type(remaining) not in (int, float)
+                or not math.isfinite(requested) or not math.isfinite(remaining)
+                or not 0 < requested <= 90 or not 0 < remaining <= 125):
+            return
+        self.report.setdefault('c4_prepare_diagnostic', {})['last_command_budget'] = {
+            'op': op, 'requested_timeout_ms': int(requested*1000),
+            'remaining_ms': int(remaining*1000),
+            'effective_timeout_ms': int(min(requested, remaining)*1000),
+            'deadline_limited': remaining < requested}
+        self.save()
 
     def c4_prepare_input_failure(self, op, result, output, reason):
         if not self.c4_prepare_observation_scope() or op not in INPUT_OPS:

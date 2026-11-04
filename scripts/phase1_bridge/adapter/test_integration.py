@@ -95,6 +95,62 @@ class Context:
     cursor = 'AI_REVIEW'
 
 
+class C4RequestBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location('c4_request_boundary_actual',
+            HERE/'variants/ROOT_C4_EXECUTOR/phase_extensions.py')
+        self.c4 = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.c4)
+        self.probe = Mock()
+        self.probe.adapter = object()
+        self.probe.stop_session.side_effect = lambda *a: setattr(self.probe, 'adapter', None)
+        self.probe.start_session.side_effect = lambda: setattr(self.probe, 'adapter', object())
+        self.probe.nodes.return_value = [{'text':self.c4.AI_NOTICE, 'visible':True}]
+        self.state = {'cursor':'C1_REVIEW','inflight':None,'uncertain':False,
+                      'title':'SYNTHETIC','accepted':False}
+
+    def test_preparation_ends_before_request_then_fresh_segment_captures_actual_proposals(self):
+        with patch.object(self.c4, 'safe_rows', return_value=[{'text':self.c4.AI_NOTICE,'visible':True}]), \
+             patch.object(self.c4, 'ai_scene', return_value=DIGEST), \
+             patch.object(self.c4, 'copy_digest', return_value='b'*64), \
+             patch.object(self.c4, 'ai_capture', side_effect=lambda p,n:{n+'.png':DIGEST}) as capture:
+            result = self.c4.prepare(self.probe, self.state)
+            self.assertEqual(result['cursor'], 'REQUEST')
+            self.assertIsNone(self.state['inflight'])
+            self.assertEqual(self.state['prepared_brief_scene'], DIGEST)
+            self.assertEqual([x.args[0] for x in self.probe.tap.call_args_list],
+                             ['جهّز الإعلان بالصوت أو المساعد'])
+            self.probe.require_value.assert_any_call('صف العقار',self.c4.BRIEF)
+            capture.assert_not_called()
+            self.assertIsNone(self.probe.adapter)
+            self.probe.tap.reset_mock()
+            result = self.c4.request_prepared(self.probe, self.state)
+        self.probe.tap.assert_called_once_with('جهّز الإعلان')
+        self.probe.wait.assert_any_call(self.c4.APPLY,seconds=120)
+        self.assertEqual(result['cursor'],'AI_REVIEW')
+        self.assertEqual(len(self.state['ai_frames']),7)
+        self.assertFalse(self.state['accepted'])
+        self.assertIsNone(self.state['inflight'])
+
+    def test_changed_prepared_scene_refuses_request_and_never_replays_reserved_stage(self):
+        self.state.update(cursor='REQUEST',prepared_brief_scene=DIGEST)
+        with patch.object(self.c4,'ai_scene',return_value='f'*64):
+            with self.assertRaisesRegex(self.c4.C4Blocked,'c4_prepared_brief_scene_changed'):
+                self.c4.request_prepared(self.probe,self.state)
+            with self.assertRaisesRegex(self.c4.C4Blocked,'no_replay'):
+                self.c4.request_prepared(self.probe,self.state)
+        self.probe.tap.assert_not_called()
+
+    def test_exact_brief_is_read_again_before_request(self):
+        self.state.update(cursor='REQUEST',prepared_brief_scene=DIGEST)
+        self.probe.require_value.side_effect=RuntimeError('SYNTHETIC_BRIEF_CHANGED')
+        with patch.object(self.c4,'ai_scene',return_value=DIGEST):
+            with self.assertRaisesRegex(RuntimeError,'SYNTHETIC_BRIEF_CHANGED'):
+                self.c4.request_prepared(self.probe,self.state)
+        self.probe.require_value.assert_called_once_with('صف العقار',self.c4.BRIEF)
+        self.probe.tap.assert_not_called()
+
+
 class SyntheticAuthority:
     authority_kind = 'ROOT_VERIFIED'
     expires_utc = NOW + timedelta(seconds=120)
