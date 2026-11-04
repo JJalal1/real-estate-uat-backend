@@ -146,7 +146,7 @@ class OwnedApi36Vm:
         deadline = min(deadline, time.monotonic() + 40)
         observation = {'attempted_once': True, 'root_uid_verified': False,
                        'date_setter_exit_zero': False, 'default_shell_uid_restored': False,
-                       'clock_acceptance_claimed': False}
+                       'clock_acceptance_claimed': False, 'stage': 'root_request'}
         self.receipt['clock_preparation'] = observation
         def command(*args, maximum=5):
             remaining = min(maximum, deadline - time.monotonic())
@@ -164,23 +164,46 @@ class OwnedApi36Vm:
                 return result.stdout.decode('ascii').strip()
             except UnicodeError:
                 raise VmBlocked('owned_clock_preparation_unobserved') from None
+        def wait_uid(expected, failure_code):
+            # adbd can still expose its old connection just after root/unroot.
+            # Repeat only this read, never either daemon request or date setter.
+            until = min(deadline, time.monotonic() + 10)
+            while time.monotonic() < until:
+                try:
+                    if command('shell', 'id', '-u', maximum=min(2, until - time.monotonic())) == expected:
+                        return
+                except VmBlocked:
+                    require(self.process.poll() is None and time.monotonic() < deadline,
+                            'owned_clock_preparation_deadline_or_runtime_lost')
+                time.sleep(max(0, min(.2, until - time.monotonic())))
+            raise VmBlocked(failure_code)
         try:
             command('root')
-            command('wait-for-device', maximum=10)
-            require(command('shell', 'id', '-u') == '0', 'owned_clock_root_uid_unverified')
+            observation['stage'] = 'root_uid_wait'
+            wait_uid('0', 'owned_clock_root_uid_unverified')
             observation['root_uid_verified'] = True
             host_ns = time.time_ns()
             require(type(host_ns) is int and host_ns > 0, 'actual_host_utc_required')
             # Toybox accepts @UNIXTIME.FRACTION and -u/-s. No expiry value is
             # translated, extended or clamped, and no raw timestamp is retained.
             stamp = '@' + str(host_ns // 1000000000) + '.' + format(host_ns % 1000000000, '09d')
+            observation['stage'] = 'date_set'
             command('shell', 'date', '-u', '-s', stamp)
             observation['date_setter_exit_zero'] = True
+        except VmBlocked:
+            observation['failure_stage'] = observation['stage']
+            raise
         finally:
-            command('unroot')
-            command('wait-for-device', maximum=10)
-            require(command('shell', 'id', '-u') == '2000', 'owned_default_shell_uid_unverified')
-            observation['default_shell_uid_restored'] = True
+            try:
+                observation['stage'] = 'unroot_request'
+                command('unroot')
+                observation['stage'] = 'shell_uid_wait'
+                wait_uid('2000', 'owned_default_shell_uid_unverified')
+                observation['default_shell_uid_restored'] = True
+            except VmBlocked:
+                observation['restore_failure_stage'] = observation['stage']
+                raise
+        observation['stage'] = 'complete'
         return True
 
     def close(self, *, deadline=None):

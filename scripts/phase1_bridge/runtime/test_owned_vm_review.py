@@ -215,11 +215,55 @@ class OwnedVmSourceReview(unittest.TestCase):
             with self.assertRaises(vm.VmBlocked): instance.prepare_utc_clock(deadline=150)
             self.assertEqual(len(calls),before)
         self.assertEqual(sum(call[:2] == ['shell','date'] for call in calls),1)
-        self.assertEqual(calls[-3:],[['unroot'],['wait-for-device'],['shell','id','-u']])
+        self.assertEqual(calls[-2:],[['unroot'],['shell','id','-u']])
         self.assertEqual(instance.receipt['clock_preparation'],{
             'attempted_once':True,'root_uid_verified':True,'date_setter_exit_zero':True,
-            'default_shell_uid_restored':True,'clock_acceptance_claimed':False})
+            'default_shell_uid_restored':True,'clock_acceptance_claimed':False,'stage':'complete'})
         self.assertNotIn('1793754123',str(instance.receipt))
+
+    def test_clock_preparation_waits_for_actual_uid_without_replaying_mutations(self):
+        instance = self.clock_instance()
+        calls, phase, reads = [], ['root'], {'root':0,'shell':0}
+        def fake(args, **kwargs):
+            operation=args[3:];calls.append(operation)
+            if operation==['unroot']: phase[0]='shell'
+            elif operation==['shell','id','-u']:
+                key=phase[0];reads[key]+=1
+                if reads[key]==1:
+                    return subprocess.CompletedProcess(args,1,b'',b'SYNTHETIC_TRANSIENT_DISCONNECT')
+                uid=(b'2000\n' if key=='root' else b'0\n') if reads[key]==2 else (b'0\n' if key=='root' else b'2000\n')
+                return subprocess.CompletedProcess(args,0,uid,b'')
+            return subprocess.CompletedProcess(args,0,b'',b'')
+        with patch.object(vm.subprocess,'run',side_effect=fake), \
+             patch.object(vm.time,'time_ns',return_value=1793754123123456789), \
+             patch.object(vm.time,'monotonic',return_value=100), patch.object(vm.time,'sleep'):
+            self.assertTrue(instance.prepare_utc_clock(deadline=150))
+        self.assertEqual(sum(c==['root'] for c in calls),1)
+        self.assertEqual(sum(c==['unroot'] for c in calls),1)
+        self.assertEqual(sum(c[:2]==['shell','date'] for c in calls),1)
+        self.assertEqual(reads,{'root':3,'shell':3})
+        self.assertNotIn('SYNTHETIC_TRANSIENT',str(instance.receipt))
+        self.assertFalse(instance.receipt['clock_preparation']['clock_acceptance_claimed'])
+
+    def test_clock_uid_wait_remains_bounded_and_records_only_fixed_failure_stage(self):
+        instance = self.clock_instance()
+        calls = []
+        def fake(args, **kwargs):
+            operation=args[3:];calls.append(operation)
+            return subprocess.CompletedProcess(args,0,b'2000\n' if operation==['shell','id','-u'] else b'',b'')
+        ticks=iter(100+i*.25 for i in range(1000))
+        with patch.object(vm.subprocess,'run',side_effect=fake), \
+             patch.object(vm.time,'monotonic',side_effect=lambda:next(ticks)), patch.object(vm.time,'sleep'):
+            with self.assertRaisesRegex(vm.VmBlocked,'^owned_clock_root_uid_unverified$'):
+                instance.prepare_utc_clock(deadline=150)
+        self.assertEqual(sum(c==['root'] for c in calls),1)
+        self.assertEqual(sum(c==['unroot'] for c in calls),1)
+        self.assertFalse(any(c[:2]==['shell','date'] for c in calls))
+        observation=instance.receipt['clock_preparation']
+        self.assertEqual(observation['failure_stage'],'root_uid_wait')
+        self.assertFalse(observation['root_uid_verified'])
+        self.assertTrue(observation['default_shell_uid_restored'])
+        self.assertFalse(observation['clock_acceptance_claimed'])
 
     def test_failed_clock_setter_still_restores_shell_and_never_replays_or_exports_output(self):
         instance = self.clock_instance()
