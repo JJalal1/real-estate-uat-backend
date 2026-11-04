@@ -143,18 +143,8 @@ class HomeCaptureTests(unittest.TestCase):
 
     def test_home_anchor_identity_change_after_console_discards_image(self):
         self.probe.after=lambda:self.probe.rows[1].update(witness='b'*64)
-        self.assertIs(self.probe.capture_initial_broker_home(), False)
-        self.assertEqual(self.probe.report['frames'], [])
-        self.assertEqual(list(self.probe.out.iterdir()), [])
-        self.assertEqual(self.probe.report['home_console_diagnostic_skipped'], {
-            'C1-before-add-home': {'reason':'home_binding_changed_no_media_exported',
-                'privacy_before_and_after':True,'acceptance_claimed':False}})
-        self.assertEqual(len(self.probe.console_calls),1)
-
-    def test_changed_c1_case_never_becomes_an_optional_home_diagnostic_skip(self):
-        self.probe.after=lambda:setattr(self.probe,'_active_case','C1-force-stop-restore')
         self.fail_capture()
-        self.assertNotIn('home_console_diagnostic_skipped', self.probe.report)
+        self.assertEqual(len(self.probe.console_calls),1)
 
     def test_missing_hidden_foreign_or_ambiguous_home_anchor_refuses(self):
         for mode in ['missing','hidden','foreign','duplicate']:

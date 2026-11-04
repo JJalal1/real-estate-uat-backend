@@ -217,8 +217,8 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.wait_stable_owned_title = Mock()
         self.probe.wait_owned_title_editor(wanted)
         self.assertEqual([call.args[0] for call in self.probe.scroll.call_args_list], ['forward','backward'])
-        self.assertEqual([call.args[0] for call in self.probe.capture_basic_editor.call_args_list],
-                         ['C1-basic-editor','C1-owned-editor-title'])
+        self.probe.capture_basic_editor.assert_not_called()
+        self.probe.wait_stable_owned_title.assert_called_once()
         self.probe.tap.assert_not_called(); self.probe.set.assert_not_called()
 
     def test_reviewed_basics_and_exact_title_with_visible_input_targets_need_no_return_scroll(self):
@@ -272,7 +272,8 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.wait_stable_owned_title = Mock()
         with patch.object(native.time,'sleep'):
             self.probe.wait_owned_title_editor(wanted)
-        self.assertEqual(order[:4], ['read','read','anchored-capture','scroll'])
+        self.assertEqual(order[:4], ['read','read','scroll','read'])
+        self.probe.capture_basic_editor.assert_not_called()
 
     def test_wrong_title_or_changed_route_after_viewport_scroll_holds_without_more_input(self):
         wanted = self.fixture().state['title']
@@ -284,7 +285,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
                 self.probe.wait_owned_title_editor(wanted)
             self.probe.scroll.assert_called_once_with('forward')
             self.probe.tap.assert_not_called();self.probe.set.assert_not_called()
-            self.assertEqual(self.probe.capture_basic_editor.call_count,1)
+            self.probe.capture_basic_editor.assert_not_called()
 
     def test_uncertain_viewport_scroll_is_not_replayed(self):
         self.probe.nodes = Mock(return_value=self.editor_rows())
@@ -311,10 +312,10 @@ class NativeAccountSafetyTest(unittest.TestCase):
         with self.assertRaises(native.Blocked):self.probe.capture_basic_editor('C1-unknown','wanted')
         self.probe.safe_capture.assert_not_called()
 
-    def test_owned_title_settles_after_scroll_before_its_one_capture(self):
+    def test_owned_title_settles_before_facts_without_preinput_diagnostic_capture(self):
         wanted = self.fixture().state['title']
         field_scene = self.editor_rows(wanted, basics=False)
-        scenes = [self.editor_rows(), self.editor_rows(), field_scene,
+        scenes = [self.editor_rows(), field_scene,
                   self.editor_rows(basics=False), field_scene, field_scene, field_scene,
                   field_scene, field_scene, field_scene, field_scene, field_scene]
         self.probe.nodes = Mock(side_effect=scenes)
@@ -323,8 +324,10 @@ class NativeAccountSafetyTest(unittest.TestCase):
         ticks = iter(i * .5 for i in range(100))
         with patch.object(native.time, 'monotonic', side_effect=lambda: next(ticks)), patch.object(native.time, 'sleep'):
             self.probe.wait_owned_title_editor(wanted)
-        self.assertEqual([call.args[0] for call in self.probe.safe_capture.call_args_list],
-                         ['C1-basic-editor', 'C1-owned-editor-title'])
+        self.probe.safe_capture.assert_not_called()
+        self.assertEqual(self.probe.report['initial_owned_editor_observation'], {
+            'bootstrap_title_matched':True, 'stable_title_field_observed':True,
+            'pre_input_png_exported':False, 'acceptance_claimed':False})
         self.probe.scroll.assert_called_once_with('forward')
 
     def test_owned_title_settling_refuses_changed_identity_or_route_without_any_input(self):
@@ -540,7 +543,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.dispatch_stable_initial_add.assert_not_called()
         self.probe.capture_initial_broker_home.assert_not_called()
 
-    def test_manual_entry_orders_home_capture_stable_add_before_draft_controls(self):
+    def test_manual_entry_requires_home_and_stable_add_without_preinput_home_capture(self):
         self.initial_add_scope();self.probe.fixture_api=self.fixture();title=self.probe.fixture_api.state['title']
         order=[]
         self.probe.ensure_initial_broker_home=Mock(side_effect=lambda:order.append('home'))
@@ -550,7 +553,8 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.tap=Mock(side_effect=lambda label:order.append(label));self.probe.wait=Mock()
         self.probe.seek=Mock(return_value=([self.node(title)],[self.node(title)]))
         self.probe.manual_entry(title)
-        self.assertEqual(order,['home','capture','one-add','مسوداتي',title])
+        self.assertEqual(order,['home','one-add','مسوداتي',title])
+        self.probe.capture_initial_broker_home.assert_not_called()
         self.assertNotIn('إضافة عقار',[call.args[0] for call in self.probe.tap.call_args_list])
 
     def test_home_diagnostic_refuses_profile_auth_contact_private_values_before_image(self):

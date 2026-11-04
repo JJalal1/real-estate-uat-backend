@@ -27,7 +27,7 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`9bc1afc3fd38dfb09763ddd08ff3ebc00a94c2fa78a160f79f17b7f35a2a7167`
+`9d93349c745ac403037dd7c68def83be6e6554e944277c4e705ff1f5cfbba805`
 and Java SHA
 `d5f48e475c805a4a03020b06ffa375351f51b1bbfeb710712591745cf12da5fc`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
@@ -53,6 +53,13 @@ preserving exact KnownRoleMemory class identity. The owner getters resolve late
 to actual `active_authority` and independent `current_context`. Source-plan and
 Root command order remains the frozen OwnerSession/Controller order; the entry
 does not supply success stubs or affirmative review flags.
+
+Initial C1 retains all current Home readiness, stable Add target, exact owned
+title and bounded title-settling checks before any facts. It does not collect
+the additional pre-input Home/basics/title diagnostic PNGs. Those diagnostic
+methods retain their strict capture guards for explicit diagnostic use. C1
+acceptance still requires the actual photo/restoration PNGs and both original
+host clips, with the unchanged full privacy, identity and media validators.
 
 The owned VM callback computes a bounded boot duration from the owner's work
 deadline and requires actual API36/KVM boot/CE readiness plus a live owned

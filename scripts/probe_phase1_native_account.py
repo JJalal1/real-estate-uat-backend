@@ -876,7 +876,7 @@ class NativeAccount:
     def wait_owned_title_editor(self, expected_title, seconds=60):
         self.journey_stage('editor_wait')
         deadline = time.monotonic() + seconds
-        basics_captured = False
+        basics_observed = False
         # Before loaded basics or the exact visible title, observe only.
         while time.monotonic() < deadline:
             rows = self.nodes()
@@ -889,8 +889,7 @@ class NativeAccount:
                 break
             if self.basic_editor_loaded(rows):
                 self.journey_stage('editor_basics_loaded')
-                self.capture_basic_editor('C1-basic-editor')
-                basics_captured = True
+                basics_observed = True
                 break
             time.sleep(.5)
         else:
@@ -906,11 +905,11 @@ class NativeAccount:
                 if not self.basic_editor_context(rows):
                     raise Blocked('native_basic_editor_context_changed')
                 self.wait_stable_owned_title(expected_title, deadline)
-                self.capture_basic_editor('C1-owned-editor-title', expected_title)
                 self.return_to_basic_editor(deadline, expected_title=expected_title,
-                                            loaded_basics_observed=basics_captured)
-                if not basics_captured:
-                    self.capture_basic_editor('C1-basic-editor')
+                                            loaded_basics_observed=basics_observed)
+                self.report['initial_owned_editor_observation'] = {
+                    'bootstrap_title_matched': True, 'stable_title_field_observed': True,
+                    'pre_input_png_exported': False, 'acceptance_claimed': False}
                 self.journey_stage('editor_ready')
                 return
             if not self.basic_editor_context(rows):
@@ -1018,7 +1017,6 @@ class NativeAccount:
         self.journey_stage('manual_entry')
         if self._active_case in {'C1-photo-save', 'C1-force-stop-restore'}:
             self.ensure_initial_broker_home()
-            self.capture_initial_broker_home()
             self.dispatch_stable_initial_add()
         else:
             # Other executor/Root-reviewed flows retain their original selection.
