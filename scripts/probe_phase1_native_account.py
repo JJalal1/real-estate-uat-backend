@@ -413,7 +413,9 @@ class NativeAccount:
             for _ in range(attempts):
                 rows = self.nodes()
                 matched = self.matching(rows, label)
-                if matched:
+                # The one-photo heading can enter the viewport before its
+                # lower status. Reveal that exact completion status for callers.
+                if matched and (label != 'صور الإعلان (1/12)' or self.matching(rows, 'مكتمل')):
                     return rows, matched
                 self.scroll(direction)
         raise Blocked('named_native_control_not_found')

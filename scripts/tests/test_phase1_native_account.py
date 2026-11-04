@@ -108,6 +108,67 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertLessEqual(clock[0],3)
         self.probe.act.assert_not_called();self.probe.safe_capture.assert_not_called()
 
+    def test_one_photo_seek_reveals_lower_status_with_one_observed_physical_scroll_before_fresh_wait_and_capture(self):
+        self.initial_add_scope();self.stability_clock();state={'revealed':False};order=[]
+        heading=self.node('صور الإعلان (1/12)',bounds=[280,760,520,810])
+        container=self.node('',path='0.8',scrollable=True,bounds=[0,110,540,830])
+        hidden=dict(self.node('مكتمل',path='0.9',bounds=[300,1080,500,1110]),visible=False)
+        complete=self.node('مكتمل',path='0.9',bounds=[300,690,500,720])
+        def adb(*args,**kwargs):
+            op=args[args.index('op')+1]
+            receipt=['INSTRUMENTATION_RESULT: passed=true','INSTRUMENTATION_RESULT: op='+op]
+            if op=='account-snapshot':
+                rows=[heading,container,complete if state['revealed']else hidden]
+                order.append(('snapshot',state['revealed']))
+                receipt.append('INSTRUMENTATION_RESULT: tree_b64='+base64.b64encode(json.dumps(rows).encode()).decode())
+            else:
+                self.assertEqual(op,'account-scroll')
+                self.assertEqual(args[args.index('input_mode')+1],'physical_scroll')
+                self.assertEqual(args[args.index('node_path')+1],'0.8')
+                self.assertEqual(args[args.index('node_witness')+1],'a'*64)
+                self.assertEqual(args[args.index('direction')+1],'forward')
+                order.append(('physical_scroll',));state['revealed']=True
+                receipt.extend(['INSTRUMENTATION_RESULT: account_action_delivered=true',
+                    'INSTRUMENTATION_RESULT: native_pointer_used=true','INSTRUMENTATION_RESULT: native_pointer_events=14'])
+            return '\n'.join(receipt+['INSTRUMENTATION_CODE: -1'])
+        self.probe.adb=Mock(side_effect=adb)
+        self.probe.safe_capture=Mock(side_effect=lambda name:order.append(('capture',name)))
+        rows,matched=self.probe.seek('صور الإعلان (1/12)')
+        self.assertEqual(matched,[heading]);self.assertIn(complete,rows)
+        self.probe.wait('مكتمل',seconds=90)
+        self.probe.safe_capture('C1-restored-complete-photo')
+        self.assertEqual(order,[('snapshot',False),('snapshot',False),('physical_scroll',),
+            ('snapshot',True),('snapshot',True),('capture','C1-restored-complete-photo')])
+        self.assertEqual([row['kind']for row in self.probe.report['actions']],['scroll'])
+        self.assertEqual(self.probe.report['actions'][0]['delivery'],'pointer_swipe')
+
+    def test_one_photo_seek_requires_exact_enabled_count_and_completion_in_same_visible_app_snapshot(self):
+        heading=self.node('صور الإعلان (1/12)')
+        complete=self.node('مكتمل',path='0.2')
+        cases=[[complete],[self.node('صور الإعلان (2/12)'),complete],
+            [heading,dict(complete,enabled=False)],[heading,dict(complete,visible=False)],
+            [heading,dict(complete,package='com.example.foreign')],
+            [heading,self.node('المتطلبات مكتملة. راجع المعاينة قبل الإرسال.')],
+            [heading,self.node('مكتمل جزئيًا')],[heading,self.node('محفوظة')]]
+        for index,rows in enumerate(cases+[None]):
+            snapshots=([heading],[complete])if rows is None else (rows,)
+            receipts=[{'tree_b64':base64.b64encode(json.dumps(value).encode()).decode()}for value in snapshots]
+            self.probe.instrument=Mock(side_effect=lambda *a,**kw:receipts[(self.probe.instrument.call_count-1)%len(receipts)])
+            self.probe.scroll,self.probe.safe_capture=Mock(),Mock()
+            with self.subTest(case=index),self.assertRaisesRegex(native.Blocked,'^named_native_control_not_found$'):
+                self.probe.seek('صور الإعلان (1/12)')
+            self.assertEqual(self.probe.scroll.call_args_list,
+                [unittest.mock.call('forward')]*12+[unittest.mock.call('backward')]*12)
+            self.assertEqual(self.probe.instrument.call_count,24)
+            self.probe.safe_capture.assert_not_called()
+
+    def test_other_seek_labels_retain_original_matching_without_photo_status_requirement(self):
+        for label in ('المواصفات','صور الإعلان (2/12)','مكتمل'):
+            row=self.node(label)
+            self.probe.nodes=Mock(return_value=[row]);self.probe.scroll=Mock()
+            self.assertEqual(self.probe.seek(label),([row],[row]))
+            self.probe.nodes.assert_called_once();self.probe.scroll.assert_not_called()
+
     def test_java_snapshot_settling_is_bounded_readonly_and_reacquires_the_app_root(self):
         source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
         block=source.split('if("account-snapshot".equals(op)) {',1)[1].split('AccessibilityNodeInfo node=selected(root);',1)[0]

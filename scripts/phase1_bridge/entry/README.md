@@ -27,7 +27,7 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`9378a26678ff25f472838a960a306db5d7ad75d3803a0aed4797d30489e6acce`
+`a04360081f2b2a4fb12d99a4f198db3ccdc1eda7af65108dc1cda19d7c77246b`
 and Java SHA
 `2f5be1c6f71d79d0f4d856aa2c128c3b4dbf37c0cad01988d03a64cdb5e9464d`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
@@ -133,6 +133,17 @@ checked again before each OS dispatch, and dispatched actions are never
 replayed. This improves readiness and diagnosis; it does not claim which
 unobserved selection branch caused run44. Java cache/APP ownership, media,
 privacy, source and authority checks are unchanged.
+
+Run45 explicitly saved its account draft and observed exact blank rent both
+before save and after reopen. Restoration reached the one-photo heading near
+the viewport bottom, then its read-only completion wait timed out. The shared
+seek for that exact one-photo section now returns only when the heading and
+enabled `مكتمل` status coexist in the same fresh visible APP snapshot. Existing
+bounded physical scrolling reveals the lower status for the unchanged C1, C4
+and C2 callers. Other labels, read-only waits and scroll bounds are unchanged.
+This does not equate completion metadata with decoded image content: actual
+restored thumbnail, title, location and original restore clip still require
+the original collection and Root review.
 
 Guest UTC is observed with `date -u +%s%3N`, bracketed by host UTC and monotonic
 time. It must produce exact13-digit milliseconds, a <=2s observation, consistent
