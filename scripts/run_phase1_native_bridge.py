@@ -514,6 +514,13 @@ def offline_tests(workspace):
                 suite.addTest(case)
     with open(os.devnull, 'w') as sink:
         result = unittest.TextTestRunner(stream=sink, verbosity=0).run(suite)
+    if not result.wasSuccessful():
+        # Offline tests use only synthetic values. Emit bounded test identifiers,
+        # never traceback/exception content, so CI differences are diagnosable.
+        for case, _ in result.failures + result.errors:
+            identifier = case.id()
+            if re.fullmatch(r'[A-Za-z0-9_.]{1,240}', identifier):
+                print('AQER_BRIDGE_OFFLINE_TEST_FAILED_' + identifier, file=sys.stderr)
     need(result.wasSuccessful(), 'bridge_offline_contract_tests_failed')
     return result.testsRun
 
