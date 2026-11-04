@@ -9,8 +9,10 @@ import calendar
 from datetime import datetime, timedelta
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import threading
 import xml.etree.ElementTree as ET
@@ -352,6 +354,68 @@ def make_probe_class(*, base_class, host_capture_mixin, validate_access,
                         self.report['os_picker_diagnostic'] = {
                             'status': 'REFUSED', 'acceptance_claimed': False}
                         self.save()
+                raise
+
+        def _validate_webm(self, path):
+            try:
+                # The frozen validator alone decides acceptance. Observe a
+                # refusal before its caller deletes the owned temporary clip.
+                return super()._validate_webm(path)
+            except Exception as failure:
+                try:
+                    self._healthy()
+                    need(self._authority('media_write').authority_kind == 'SOURCE_PLAN_ONLY'
+                         and self._active_case in {'C1-photo-save','C1-force-stop-restore'}
+                         and self.video_name in {'C1-create-photo','C1-restored-facts'}
+                         and self.authenticated is True and self.recorder is None
+                         and not getattr(self,'_host_stop_unconfirmed',False),
+                         'initial_stopped_host_video_diagnostic_only')
+                    path = Path(path)
+                    need(path == self._host_video_path and path.name == 'capture.webm'
+                         and path.parent.parent == Path(self.private)/'host_console_capture_tmp'
+                         and not path.is_symlink(), 'owned_host_video_diagnostic_required')
+                    codes = {'host_webm_file_invalid','host_webm_ebml_invalid',
+                             'host_webm_probe_failed','host_webm_stream_or_duration_invalid'}
+                    code = failure.args[0] if len(failure.args)==1 and failure.args[0] in codes else 'host_video_validation_refused'
+                    facts = {'status':'OBSERVED','acceptance_claimed':False,'code':code,
+                             'file':self.video_name+'.webm','file_present':path.is_file(),
+                             'probe_status':'NOT_RUN'}
+                    if path.is_file():
+                        size = path.stat().st_size
+                        facts['bytes'] = size if 0 <= size <= 64*1024*1024 else None
+                        if 0 < size <= 64*1024*1024:
+                            with path.open('rb') as stream:
+                                facts['ebml_header_observed'] = stream.read(4)==b'\x1a\x45\xdf\xa3'
+                            result = subprocess.run(['ffprobe','-v','error','-protocol_whitelist','file,pipe',
+                                '-show_entries','format=format_name,duration:stream=codec_name,codec_type,width,height,avg_frame_rate',
+                                '-of','json',str(path)],capture_output=True,stdin=subprocess.DEVNULL,timeout=5)
+                            if result.returncode == 0 and len(result.stdout) <= 16384:
+                                value = json.loads(result.stdout)
+                                streams = value.get('streams',[])
+                                need(type(streams) is list and len(streams)<=8,'bounded_video_stream_diagnostic_required')
+                                facts['probe_status'] = 'READ'
+                                facts['stream_count'] = len(streams)
+                                facts['webm_format_observed'] = 'webm' in value.get('format',{}).get('format_name','')
+                                duration = float(value.get('format',{}).get('duration','nan'))
+                                facts['duration_s'] = round(duration,3) if math.isfinite(duration) and 0 <= duration <= 3600 else None
+                                facts['streams'] = []
+                                for item in streams:
+                                    row = {'type':item.get('codec_type') if item.get('codec_type') in {'video','audio'} else 'OTHER',
+                                           'codec':item.get('codec_name') if item.get('codec_name') in {'vp8','vp9','av1','h264','aac','vorbis','opus'} else 'OTHER'}
+                                    for key in ('width','height'):
+                                        number = item.get(key)
+                                        row[key] = number if type(number) is int and 0 <= number <= 16384 else None
+                                    rate = item.get('avg_frame_rate','')
+                                    row['average_frame_rate'] = rate if type(rate) is str and re.fullmatch(r'[0-9]{1,10}/[0-9]{1,10}',rate) else None
+                                    facts['streams'].append(row)
+                            else:
+                                facts['probe_status'] = 'UNAVAILABLE'
+                    self.report['host_video_diagnostic'] = facts
+                    self.save()
+                except Exception:
+                    self.report['host_video_diagnostic'] = {'status':'REFUSED','acceptance_claimed':False}
+                    try: self.save()
+                    except Exception: pass
                 raise
 
         def _initial_os_picker_observation(self):

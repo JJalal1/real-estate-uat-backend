@@ -286,6 +286,16 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(result,{'case':'C1-photo-save','code':'controller_phase_failed','stage':None})
         self.assertNotIn('SYNTHETIC_PRIVATE',json.dumps(result))
 
+    def test_fixed_video_refusal_is_preserved_without_arbitrary_probe_output(self):
+        self.controller.prepare_runtime();self.controller.prepare_initial_native();self.controller.bootstrap_fixture()
+        def fail():
+            self.probe.report['native_journey_stages']={'C1-photo-save':'photo_capture'}
+            raise RuntimeError('host_webm_stream_or_duration_invalid')
+        self.probe.create_and_save=fail
+        with self.assertRaises(RuntimeError):self.controller.initial_c1()
+        self.assertEqual(self.probe.report['initial_c1_failure_before_cleanup'],{
+            'case':'C1-photo-save','code':'host_webm_stream_or_duration_invalid','stage':'photo_capture'})
+
     def test_initial_cases_real_callback_order_and_minimal_summary(self):
         self.initial()
         actions = [event for event in self.probe.events if event in {'login','create','restore','hold'}]

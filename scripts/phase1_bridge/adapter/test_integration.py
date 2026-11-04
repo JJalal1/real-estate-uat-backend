@@ -389,6 +389,56 @@ class OsPickerDiagnosticTests(unittest.TestCase):
             self.assertEqual(p.report['cases'],[])
 
 
+    def video_probe(self):
+        p,authority=self.probe([])
+        folder=p._host_capture_root()/'webm-synthetic';folder.mkdir(mode=0o700)
+        path=folder/'capture.webm';path.write_bytes(b'\x1a\x45\xdf\xa3'+b'X'*2048)
+        p._host_video_path=path;p.recorder=None;p._host_stop_unconfirmed=False
+        frozen=next(cls for cls in type(p).__mro__ if cls.__name__=='HostConsoleCaptureMixin')
+        return p,authority,path,frozen
+
+    def test_valid_video_uses_original_validator_once_without_diagnostic_or_new_claim(self):
+        p,_,path,frozen=self.video_probe();actual={'duration_s':12.5,'codec':'vp8','width':540,'height':960}
+        with patch.object(frozen,'_validate_webm',return_value=actual) as validate, \
+                patch.object(bridge.subprocess,'run') as probe:
+            self.assertIs(p._validate_webm(path),actual)
+        validate.assert_called_once_with(path);probe.assert_not_called()
+        self.assertNotIn('host_video_diagnostic',p.report)
+        self.assertEqual((p.report['frames'],p.report['videos']),([],[]))
+
+    def test_refused_video_records_bounded_actual_metadata_and_rethrows_original_refusal(self):
+        p,_,path,frozen=self.video_probe();failure=bridge.BridgeRefused('host_webm_stream_or_duration_invalid')
+        raw={'streams':[{'codec_type':'video','codec_name':'vp8','width':1080,'height':1920,
+                         'avg_frame_rate':'10/1','private_extra':'PRIVATE_SENTINEL'},
+                        {'codec_type':'PRIVATE_SENTINEL','codec_name':'PRIVATE_SENTINEL'}],
+             'format':{'format_name':'matroska,webm','duration':'31.250','private_extra':'PRIVATE_SENTINEL'}}
+        with patch.object(frozen,'_validate_webm',side_effect=failure) as validate, \
+                patch.object(bridge.subprocess,'run',return_value=Mock(returncode=0,stdout=json.dumps(raw).encode(),stderr=b'PRIVATE_SENTINEL')) as probe:
+            with self.assertRaises(bridge.BridgeRefused) as caught:p._validate_webm(path)
+        self.assertIs(caught.exception,failure);validate.assert_called_once_with(path)
+        self.assertEqual(probe.call_count,1)
+        result=p.report['host_video_diagnostic'];self.assertFalse(result['acceptance_claimed'])
+        self.assertEqual((result['stream_count'],result['duration_s']),(2,31.25))
+        self.assertEqual(result['streams'][0]['width'],1080)
+        self.assertEqual(result['streams'][1]['codec'],'OTHER')
+        self.assertTrue(result['ebml_header_observed']);self.assertTrue(result['webm_format_observed'])
+        self.assertNotIn('PRIVATE_SENTINEL',json.dumps(p.report))
+        self.assertEqual((p.report['frames'],p.report['videos']),([],[]));self.assertTrue(path.exists())
+        p.adb.assert_not_called();p._console.assert_not_called()
+
+    def test_video_diagnostic_refuses_root_authority_or_symlink_and_never_replaces_original_failure(self):
+        for mode in ('root','symlink'):
+            p,_,path,frozen=self.video_probe();failure=bridge.BridgeRefused('host_webm_file_invalid')
+            if mode=='root':p._owner_authority=lambda:SyntheticAuthority()
+            else:
+                path.unlink();path.symlink_to(Path(p.private)/'foreign-missing')
+            with self.subTest(mode=mode),patch.object(frozen,'_validate_webm',side_effect=failure), \
+                    patch.object(bridge.subprocess,'run') as probe:
+                with self.assertRaises(bridge.BridgeRefused) as caught:p._validate_webm(path)
+            self.assertIs(caught.exception,failure);probe.assert_not_called()
+            self.assertEqual(p.report['host_video_diagnostic'],{'status':'REFUSED','acceptance_claimed':False})
+
+
 class VariantTests(unittest.TestCase):
     def load(self, relative):
         spec = importlib.util.spec_from_file_location('_synthetic_' + relative.replace('/', '_'),

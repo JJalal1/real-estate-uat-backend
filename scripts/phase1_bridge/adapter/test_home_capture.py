@@ -224,17 +224,17 @@ class HomeCaptureTests(unittest.TestCase):
                 return node
         normalized=Normalize().visit(tree)
         self.assertEqual(hashlib.sha256(ast.dump(normalized,include_attributes=False).encode()).hexdigest(),
-                         'f059d91f1957813606cd5ce0b1d0fdb5fa69cc077e46044c17c38c216d2c4cfa')
-        # The reviewed extension adds only its imports, two diagnostic methods
+                         'af0167dbe03c23ac10d81482e0c4c7c7eb88274164de756ee38abfa3113b91aa')
+        # The reviewed extensions add only their imports, diagnostic methods
         # and a timeout handler around the original base photo-picker call.
         # Strip precisely that extension and keep the prior whole-core pin.
         class PriorCore(Normalize):
             def visit_Import(self,node):
-                return None if all(a.name in {'hashlib','json','tempfile','xml.etree.ElementTree'} for a in node.names) else node
+                return None if all(a.name in {'hashlib','json','math','subprocess','tempfile','xml.etree.ElementTree'} for a in node.names) else node
             def visit_ImportFrom(self,node):
                 return None if node.module=='pathlib' else super().visit_ImportFrom(node)
             def visit_FunctionDef(self,node):
-                if node.name in {'_initial_os_picker_observation','capture_initial_os_picker_diagnostic'}:return None
+                if node.name in {'_initial_os_picker_observation','capture_initial_os_picker_diagnostic','_validate_webm'}:return None
                 self.generic_visit(node)
                 if node.name=='photo_picker':
                     assert isinstance(node.body[-1],ast.Try) and len(node.body[-1].body)==1

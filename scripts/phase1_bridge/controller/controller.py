@@ -98,6 +98,9 @@ C1_FAILURE_CODES = frozenset({
     'genuine_os_photo_selection_not_observed', 'genuine_os_picker_return_not_observed',
     'private_transition_during_os_picker', 'fresh_os_picker_tree_unavailable', 'os_picker_bounds_invalid',
     'native_broker_home_not_observed', 'fixed_initial_navigation_target_required',
+    'host_webm_file_invalid', 'host_webm_ebml_invalid', 'host_webm_probe_failed',
+    'host_webm_stream_or_duration_invalid', 'tainted_host_video_discarded',
+    'host_video_name_already_exists', 'host_record_stop_unconfirmed_abort_ui',
 })
 C1_FAILURE_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
     'purpose', 'type', 'title', 'location_step', 'location_confirm', 'governorate', 'city',

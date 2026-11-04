@@ -171,3 +171,7 @@ mode. A complete source mapping is required before any copying.
 A field may lose its in-field hint after focus only when Android source/window node equality proves it is the same original node. Its path, editable state, class, content description, focus and set-text capability remain checked. Changed nonempty hints and different nodes refuse; no focus action is repeated.
 
 A photo card handled by the DocumentsUI RecyclerView may be focusable without its own click listener. Such a card is admitted only within the actual document list and with the complete owned filename as the first metadata field. Preview controls, similar names, ambiguous cards and foreign packages remain excluded.
+
+## Refused video metadata diagnostic
+
+The original host video validator still makes the sole acceptance decision. On an initial C1 refusal only, the adapter may record bounded metadata from the exact stopped owned temporary clip before its normal deletion. It exports no failed clip, hashes, raw probe output, paths or arbitrary error text. The original exception is rethrown. The fixed controller diagnostic preserves known video refusal codes; all acceptance, privacy, dimensions, codec and duration checks remain unchanged.
