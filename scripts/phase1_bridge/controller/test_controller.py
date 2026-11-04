@@ -244,6 +244,21 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaises(module.ControllerRefused): self.controller.prepare_initial_native()
         self.assertIsNone(self.probe.fixture_api)
 
+    def test_preflight_failure_records_fixed_stage_without_raw_error_or_api_seed(self):
+        self.controller.prepare_runtime()
+        def fail():
+            raise RuntimeError('SYNTHETIC_PRIVATE_FAILURE')
+        self.probe.preflight_deadline_helper = fail
+        with self.assertRaises(RuntimeError):
+            self.controller.prepare_initial_native()
+        self.assertEqual(self.probe.report['initial_native_readiness_stage'], 'helper_clock_preflight')
+        self.assertNotIn('SYNTHETIC_PRIVATE_FAILURE', json.dumps(self.probe.report))
+        self.assertIsNone(self.probe.fixture_api)
+        with self.assertRaises(module.ControllerRefused):
+            self.controller.bootstrap_fixture()
+        with self.assertRaises(module.ControllerRefused):
+            self.controller.prepare_initial_native()
+
     def test_initial_cases_real_callback_order_and_minimal_summary(self):
         self.initial()
         actions = [event for event in self.probe.events if event in {'login','create','restore','hold'}]

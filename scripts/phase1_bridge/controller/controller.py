@@ -183,15 +183,22 @@ class Controller:
         self._guard('SOURCE_PLAN_ONLY')
         p = self.probe
         p.case_phase('C1-native-network')
-        p.validate_and_install()
-        p.configure_host_display()
-        p.startup()
-        p.preflight_deadline_helper()
+        for stage, callback in [('install', p.validate_and_install),
+                                ('display', p.configure_host_display),
+                                ('startup', p.startup),
+                                ('helper_clock_preflight', p.preflight_deadline_helper)]:
+            p.report['initial_native_readiness_stage'] = stage
+            p.save()
+            callback()
+        p.report['initial_native_readiness_stage'] = 'public_reference'
+        p.save()
         # Same actual published-card prerequisite as the source collector, with
         # bounded transport injected before the first public HTTP operation.
         with self._api_scope('source'):
             references = self._reference(transport=self._transport)
             need(type(references) is list and 0 < len(references) <= 50, 'actual_public_reference_required')
+            p.report['initial_native_readiness_stage'] = 'native_public_card'
+            p.save()
             until = min(self._work_deadline(), self._mono() + 60)
             scrolls = 0
             while self._mono() < until:

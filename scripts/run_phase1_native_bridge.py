@@ -281,6 +281,11 @@ class RuntimeChecks:
         self.adb = str(Path(sdk) / 'platform-tools/adb')
         self.env, self.helper_sha = dict(child_env), helper_sha
         self.deadline, self.runner, self.utc_ms, self.mono = deadline_getter, runner, utc_ms, monotonic_clock
+        self.diagnostic_sink = None
+
+    def _diagnostic(self, check, status, **values):
+        if self.diagnostic_sink is not None:
+            self.diagnostic_sink(dict(check=check, status=status, **values))
 
     def _observe(self, args):
         remaining = self.deadline() - self.mono()
@@ -299,22 +304,34 @@ class RuntimeChecks:
             raise EntryBlocked('helper_observation_invalid') from None
 
     def verify_helper_identity(self):
+        self._diagnostic('helper_identity', 'path_query')
         path = self._observe(['shell', 'pm', 'path', 'com.aqer.phase1.input'])
         need(re.fullmatch(r'package:(/data/app/[A-Za-z0-9_~=/+.-]+/base\.apk)', path),
              'single_installed_helper_required')
         installed = path.removeprefix('package:')
         need('..' not in Path(installed).parts, 'fixed_helper_apk_path_required')
+        self._diagnostic('helper_identity', 'hash_query')
         observed = self._observe(['shell', 'sha256sum', installed])
         need(observed == self.helper_sha + '  ' + installed,
              'actual_installed_helper_hash_mismatch')
+        self._diagnostic('helper_identity', 'verified')
         return True
 
     def verify_guest_utc(self):
+        self._diagnostic('guest_utc', 'clock_query')
         before = self.utc_ms()
         mono_before = self.mono()
         observed = self._observe(['shell', 'date', '-u', '+%s%3N'])
         after = self.utc_ms()
         elapsed_ms = (self.mono() - mono_before) * 1000
+        valid_format = re.fullmatch('[0-9]{13}', observed) is not None
+        def bounded(value):
+            return int(round(value)) if type(value) in (int, float) and math.isfinite(value) and abs(value) <= 1000000 else None
+        self._diagnostic('guest_utc', 'observed', format_valid=valid_format,
+            elapsed_ms=bounded(elapsed_ms),
+            wall_elapsed_ms=bounded(after-before) if type(before) is int and type(after) is int else None,
+            offset_low_ms=bounded(int(observed)-after) if valid_format and type(after) is int else None,
+            offset_high_ms=bounded(int(observed)-before) if valid_format and type(before) is int else None)
         need(type(before) is int and type(after) is int and 0 <= after-before <= 2000
             and 0 <= elapsed_ms <= 2000 and abs((after-before)-elapsed_ms) <= 100
             and re.fullmatch('[0-9]{13}', observed), 'guest_utc_observation_invalid')
@@ -322,6 +339,7 @@ class RuntimeChecks:
         # A real bracket bounds network/scheduling latency; allow at most250ms
         # host/guest offset, never a five-second unsafe deadline extension.
         need(after-250 <= guest <= before+250, 'actual_guest_host_utc_unsynchronized')
+        self._diagnostic('guest_utc', 'verified')
         return True
 
 
@@ -452,6 +470,12 @@ def run_native(workspace, env, channels, run_root, tool_sha, guard):
         probe_env.pop(SECRET, None)
         raw_secret = None
     probe.private_values.add(token)  # RAM-only protocol/packager redaction too.
+    def readiness_diagnostic(value):
+        rows = probe.report.setdefault('native_readiness_observations', [])
+        need(len(rows) < 128, 'bounded_readiness_diagnostics_required')
+        rows.append(value)
+        probe.save()
+    checks.diagnostic_sink = readiness_diagnostic
     need('GITHUB_TOKEN' not in probe.env and SECRET not in probe.env,
          'probe_environment_isolation_required')
     vm = m['owned_vm'].OwnedApi36Vm(env)

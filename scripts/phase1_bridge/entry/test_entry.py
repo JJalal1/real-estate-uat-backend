@@ -212,6 +212,29 @@ class RuntimeObservationContracts(unittest.TestCase):
         with self.assertRaisesRegex(entry.EntryBlocked, 'unsynchronized'):
             self.check.verify_guest_utc()
 
+    def test_readiness_diagnostics_export_only_fixed_status_and_bounded_clock_deltas(self):
+        rows = []
+        self.check.diagnostic_sink = rows.append
+        self.assertTrue(self.check.verify_helper_identity())
+        self.outputs = [b'1793754123300\n']
+        with self.assertRaisesRegex(entry.EntryBlocked, 'unsynchronized'):
+            self.check.verify_guest_utc()
+        self.assertEqual(rows[:3], [
+            {'check':'helper_identity','status':'path_query'},
+            {'check':'helper_identity','status':'hash_query'},
+            {'check':'helper_identity','status':'verified'}])
+        self.assertEqual(rows[-1]['offset_low_ms'], 300)
+        self.assertEqual(rows[-1]['offset_high_ms'], 300)
+        self.assertNotIn(self.paths, json.dumps(rows))
+        self.assertNotIn('a'*64, json.dumps(rows))
+        self.assertNotIn('1793754123', json.dumps(rows))
+        self.outputs = [b'PRIVATE_CLOCK_SENTINEL\n']
+        with self.assertRaisesRegex(entry.EntryBlocked, 'observation_invalid'):
+            self.check.verify_guest_utc()
+        self.assertFalse(rows[-1]['format_valid'])
+        self.assertIsNone(rows[-1]['offset_low_ms'])
+        self.assertNotIn('PRIVATE_CLOCK_SENTINEL', json.dumps(rows))
+
     def test_cleanup_deadline_uses_original_reserve_after_work_deadline(self):
         owner = SimpleNamespace(work_deadline=1,
             active_authority=SimpleNamespace(monotonic_deadline=600))
