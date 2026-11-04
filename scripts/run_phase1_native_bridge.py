@@ -26,7 +26,7 @@ API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 SECRET = 'AQER_PHASE1_TEST_ACCESS_JSON'
 MANIFEST = 'scripts/phase1_bridge/tool_manifest.json'
 HELPER_SOURCE_SHA = 'd5f48e475c805a4a03020b06ffa375351f51b1bbfeb710712591745cf12da5fc'
-PAIRED_PROBE_SHA = '9bc1afc3fd38dfb09763ddd08ff3ebc00a94c2fa78a160f79f17b7f35a2a7167'
+PAIRED_PROBE_SHA = 'b67cf01422d3a71276803f496558f29bdf0fff6075fb04e54fa3b8416c27f8f2'
 ROOT_PUBLIC_B64 = 'JhpJ97jF4RGpskxSodJge5e1JK+usUcGdJGg9K8gInA='
 ROOT_KEY_ID = '0aa9312dfaf25e6f5b5c231ef230aa859caed22a8f464e18b77eb67333250872'
 EXPECTED_FILES = tuple(sorted((
@@ -222,15 +222,19 @@ def load(name, path):
     return module
 
 
+def verify_paired_sources(hashes):
+    need(hashes['scripts/phase1_device_input/Phase1Input.java'] == HELPER_SOURCE_SHA
+        and re.fullmatch('[a-f0-9]{64}', PAIRED_PROBE_SHA)
+        and hashes['scripts/probe_phase1_native_account.py'] == PAIRED_PROBE_SHA,
+        'reviewed_paired_helper_source_required')
+
+
 def source_guard(workspace, env):
     check_ci(env)
     need(Path(env.get('GITHUB_WORKSPACE', '')).resolve() == workspace,
          'actual_workspace_source_required')
     tool_sha, hashes = verify_manifest(workspace)
-    need(hashes['scripts/phase1_device_input/Phase1Input.java'] == HELPER_SOURCE_SHA
-        and re.fullmatch('[a-f0-9]{64}', PAIRED_PROBE_SHA)
-        and hashes['scripts/probe_phase1_native_account.py'] == PAIRED_PROBE_SHA,
-        'reviewed_paired_helper_source_required')
+    verify_paired_sources(hashes)
     public_pin = strict_json(read_owned(workspace / 'scripts/phase1_bridge/root_review_public.json', 4096))
     need(set(public_pin) == {'algorithm', 'root_public_b64', 'root_key_id', 'scope'}
         and public_pin['algorithm'] == 'Ed25519' and public_pin['root_public_b64'] == ROOT_PUBLIC_B64
@@ -572,7 +576,8 @@ def main(argv=None):
         need(not args.github_env or args.source_only, 'github_env_source_only_required')
         if args.offline_tests:
             # No credentials, git/SDK/device/network operation is needed here.
-            verify_manifest(workspace)
+            _, hashes = verify_manifest(workspace)
+            verify_paired_sources(hashes)
             count = offline_tests(workspace)
             print('AQER_BRIDGE_OFFLINE_TESTS_PASS_' + str(count))
             return 0

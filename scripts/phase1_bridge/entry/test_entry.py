@@ -47,11 +47,23 @@ class EntryContracts(unittest.TestCase):
         for path in entry.EXPECTED_FILES:
             self.assertNotIn('private', path.lower()); self.assertNotIn('node_modules', path)
         self.assertEqual(entry.PAIRED_PROBE_SHA,
-            '9bc1afc3fd38dfb09763ddd08ff3ebc00a94c2fa78a160f79f17b7f35a2a7167')
+            'b67cf01422d3a71276803f496558f29bdf0fff6075fb04e54fa3b8416c27f8f2')
         self.assertIn('scripts/phase1_bridge/adapter/test_logout_home.py', entry.EXPECTED_FILES)
         for path in ('adapter/c1_home_capture.py', 'adapter/test_home_capture.py', 'controller/test_home_diagnostic.py',
                      'adapter/c1_basics_capture.py', 'adapter/test_basics_capture.py'):
             self.assertIn('scripts/phase1_bridge/' + path, entry.EXPECTED_FILES)
+
+    def test_checked_in_sources_match_the_frozen_pair_before_any_android_build(self):
+        # Regression: a changed probe and matching manifest could pass offline
+        # tests but previously fail only after a full Android build.
+        root = ENTRY.parents[1]
+        actual = {name: hashlib.sha256((root/name).read_bytes()).hexdigest() for name in (
+            'scripts/probe_phase1_native_account.py', 'scripts/phase1_device_input/Phase1Input.java')}
+        entry.verify_paired_sources(actual)
+        for name in actual:
+            changed = dict(actual, **{name: 'f' * 64})
+            with self.subTest(name=name), self.assertRaisesRegex(entry.EntryBlocked, 'paired_helper'):
+                entry.verify_paired_sources(changed)
 
     def test_runtime_channels_are_popped_before_any_child_and_unknown_env_dropped(self):
         original = dict(self.env, GITHUB_TOKEN='SYNTHETIC_TOKEN',
