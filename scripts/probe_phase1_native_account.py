@@ -1161,10 +1161,14 @@ class NativeAccount:
             # actual photo item and a separate "Preview the file ..." control.
             # Bind the complete owned filename as the first metadata field;
             # a substring or preview action is not a file-selection witness.
+            document_items = {child for n in candidates
+                              if n.get('resource-id', '').rsplit('/', 1)[-1] == 'dir_list'
+                              for child in n.iter('node')}
             files = [n for n in candidates if n.get('enabled') == 'true'
                      and n.get('resource-id', '').rsplit('/', 1)[-1] != 'preview_icon'
                      and (self.photo_name in {n.get('text', ''), n.get('content-desc', '')}
-                          or (n.get('clickable') == 'true' and
+                          or ((n.get('clickable') == 'true' or
+                               (n in document_items and n.get('focusable') == 'true')) and
                               n.get('content-desc', '').split(', ', 1)[0] == self.photo_name))]
             if len(files) == 1 and not selected:
                 self.journey_stage('photo_file_select')

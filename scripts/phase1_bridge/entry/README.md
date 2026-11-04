@@ -27,9 +27,9 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`0c0715e6d862ae038df45702537bc96e7497e1654ab21dfab2110d134533335a`
+`fb4dc4885631912e09af00d375d3cc764e6f76c0ec22c7672544ac07497c318b`
 and Java SHA
-`71620712c496138880758319a5ae85c02dae36aa3a0bcb4c2fb3b56e803bd17c`.
+`ef8341023e6a856bdcf5933c37cc6facc92cd1cca96cf73f78dd4eaa8bbe7510`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
 source, the exact baseline diff allowlist, original unchanged mobile/backend
 trees, clean tracked paths and pinned public recipient certificate/expiry. No
@@ -165,3 +165,9 @@ encrypted installer/WebM export/cache, bounded fixture tags and current build/
 fixture tests. The verifier copies those actual bytes, patches only TEMP's
 ALLOWED literal to66 paths plus manifest, and never calls source_guard or native
 mode. A complete source mapping is required before any copying.
+
+## Focused field identity and OS photo cards
+
+A field may lose its in-field hint after focus only when Android source/window node equality proves it is the same original node. Its path, editable state, class, content description, focus and set-text capability remain checked. Changed nonempty hints and different nodes refuse; no focus action is repeated.
+
+A photo card handled by the DocumentsUI RecyclerView may be focusable without its own click listener. Such a card is admitted only within the actual document list and with the complete owned filename as the first metadata field. Preview controls, similar names, ambiguous cards and foreign packages remain excluded.

@@ -143,6 +143,45 @@ class NativeAccountSafetyTest(unittest.TestCase):
                 for secret in ('PRIVATE_FIELD_SENTINEL', 'PRIVATE_INPUT_SENTINEL', '0.999'):
                     self.assertNotIn(secret, serialized)
 
+    def test_actual_java_focus_hint_policy_keeps_cross_field_and_changed_label_refusals(self):
+        source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
+        method=source.split('    private static boolean focusHintMatches(',1)[1].split('\n    }',1)[0]
+        body='private static boolean focusHintMatches('+method+'\n}'
+        harness='public class FocusHintPolicy {\n'+body+'''
+          private static void check(boolean actual,boolean expected) {
+            if(actual!=expected) throw new AssertionError("focus identity policy");
+          }
+          public static void main(String[] ignored) {
+            check(focusHintMatches("bedrooms","bedrooms",false,false),true);
+            check(focusHintMatches("bedrooms","",true,true),true);
+            check(focusHintMatches("bedrooms","",true,false),false);
+            check(focusHintMatches("bedrooms","",false,true),false);
+            check(focusHintMatches("bedrooms","bathrooms",true,true),false);
+            check(focusHintMatches("","bedrooms",true,true),false);
+            check(focusHintMatches("","",false,false),true);
+            System.out.print("FOCUS_HINT_POLICY_PASS");
+          }
+        }'''
+        with tempfile.TemporaryDirectory() as folder:
+            file=Path(folder)/'FocusHintPolicy.java';file.write_text(harness)
+            compiled=subprocess.run(['java','-m','jdk.compiler/com.sun.tools.javac.Main','-d',folder,str(file)],
+                                    capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            result=subprocess.run(['java','-cp',folder,'FocusHintPolicy'],capture_output=True,text=True,timeout=10)
+            self.assertEqual((result.returncode,result.stdout),(0,'FOCUS_HINT_POLICY_PASS'))
+
+    def test_focus_transition_retains_path_class_description_source_identity_and_single_dispatch(self):
+        source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
+        observe=source.split('stage="account_focus_observe";',1)[1].split('require(field!=null);',1)[0]
+        for required in ('atPath(fresh,args.getString("node_path",""))','require(candidate.isEditable())',
+                         'plain(node.getClassName()).equals(plain(candidate.getClassName()))',
+                         'plain(node.getContentDescription()).equals(plain(candidate.getContentDescription()))',
+                         'candidate.isFocused(),node.equals(candidate)',
+                         'candidate.getActions()&AccessibilityNodeInfo.ACTION_SET_TEXT'):
+            self.assertIn(required,observe)
+        for forbidden in ('pointerTap(', 'checkedAction(', 'send(', 'findAccessibilityNodeInfos'):
+            self.assertNotIn(forbidden,observe)
+
 
 
 
@@ -1404,6 +1443,26 @@ class NativeAccountSafetyTest(unittest.TestCase):
         taps = [c.args[3:] for c in self.probe.adb.call_args_list
                 if c.args[:3] == ('shell', 'input', 'tap')]
         self.assertEqual(taps, [(10, 10), (50, 90), (20, 20)])
+
+    def test_os_picker_recycler_photo_can_be_focusable_without_own_click_listener(self):
+        package='com.android.documentsui'
+        item=('<node package="'+package+'" enabled="true" clickable="false" focusable="true" '
+              'content-desc="'+self.probe.photo_name+', 12 kB, today" bounds="[10,20][90,100]" />')
+        for in_documents in (True,False):
+            wrapper='<node package="'+package+'" resource-id="'+package+':id/dir_list">' if in_documents else '<node package="'+package+'">'
+            xml='<hierarchy>'+wrapper+item+'</node></hierarchy>'
+            frames=iter([xml,'<hierarchy><node package="'+native.APP+'" /></hierarchy>'])
+            self.probe.adb=Mock(side_effect=lambda *a,**kw: next(frames) if a[:2]==('exec-out','cat') else '')
+            self.probe.tap,self.probe.wait=Mock(),Mock()
+            with self.subTest(in_documents=in_documents),patch.object(native.time,'sleep'):
+                if in_documents:self.probe.photo_picker()
+                else:
+                    self.probe.adb=Mock(side_effect=lambda *a,**kw: xml if a[:2]==('exec-out','cat') else '')
+                    with patch.object(native.time,'monotonic',side_effect=[0,1,46]):
+                        with self.assertRaisesRegex(native.Blocked,'^genuine_os_photo_selection_not_observed$'):
+                            self.probe.photo_picker()
+            taps=[c.args[3:] for c in self.probe.adb.call_args_list if c.args[:3]==('shell','input','tap')]
+            self.assertEqual(taps,[(50,60)] if in_documents else [])
 
     def test_os_picker_duplicate_grid_files_or_preview_only_never_select(self):
         package = 'com.android.documentsui'

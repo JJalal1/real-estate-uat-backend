@@ -362,7 +362,9 @@ public final class Phase1Input extends Instrumentation {
                 stage="account_focus_editable_match"; require(candidate.isEditable());
                 stage="account_focus_class_match"; require(plain(node.getClassName()).equals(plain(candidate.getClassName())));
                 stage="account_focus_description_match"; require(plain(node.getContentDescription()).equals(plain(candidate.getContentDescription())));
-                stage="account_focus_hint_match"; require(plain(node.getHintText()).equals(plain(candidate.getHintText())));
+                stage="account_focus_hint_match";
+                require(focusHintMatches(plain(node.getHintText()),plain(candidate.getHintText()),
+                    candidate.isFocused(),node.equals(candidate)));
                 stage="account_focus_pending";
                 if(candidate.isFocused()) {
                     stage="account_focus_text_action_pending";
@@ -377,6 +379,13 @@ public final class Phase1Input extends Instrumentation {
             // Never echo input contents, lengths, arbitrary exceptions or stack traces.
         }
         SystemClock.sleep(300); result.putBoolean("account_action_delivered",true);
+    }
+    private static boolean focusHintMatches(String original,String current,boolean focused,boolean sameNode) {
+        // Flutter may remove its in-field hint when the label floats on focus.
+        // Only the exact same Android source/window node may lose that hint.
+        // A changed nonempty label, different field or unfocused node refuses.
+        return original.equals(current) ||
+            (sameNode && focused && !original.isEmpty() && current.isEmpty());
     }
     private Rect pointerBounds(AccessibilityNodeInfo node) throws Exception {
         Selection selection=selectedExpected(true);
