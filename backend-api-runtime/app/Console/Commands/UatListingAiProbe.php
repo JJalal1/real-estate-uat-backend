@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\GeminiClient;
 use App\Services\ListingAiService;
+use App\Services\ListingDraftService;
 use Illuminate\Console\Command;
 use Illuminate\Validation\ValidationException;
 
@@ -48,21 +49,31 @@ class UatListingAiProbe extends Command
         $started = microtime(true);
         $status = 'unavailable';
         $matched = false;
+        $proposalSource = 'not_received';
+        $mismatched = [];
+        $missingProposals = [];
+        $current = ['type'=>'apartment', 'purpose'=>'rent', 'governorate'=>'صنعاء',
+            'floor_number'=>'2', 'bedrooms'=>3, 'bathrooms'=>2,
+            'has_parking'=>false, 'building_facade'=>'north'];
         try {
-            $result = (new ListingAiService($client))->extract(
+            $result = (new ListingDraftService(new ListingAiService($client)))->prepare(
                 'شقة للإيجار في صنعاء في الدور الثاني، رقم الشقة 7، ثلاث غرف نوم وحمامان، دون موقف سيارة، واجهة شمالية.',
-                ['type'=>'apartment', 'purpose'=>'rent', 'governorate'=>'صنعاء',
-                    'floor_number'=>'2', 'bedrooms'=>3, 'bathrooms'=>2,
-                    'has_parking'=>false, 'building_facade'=>'north'],
+                $current,
             );
             $fields = (array) ($result['fields'] ?? []);
-            $matched = ($fields['floor_number'] ?? null) === '2'
-                && ($fields['unit_number'] ?? null) === '7'
-                && ($fields['bedrooms'] ?? null) === 3
-                && ($fields['bathrooms'] ?? null) === 2
-                && ($fields['has_parking'] ?? null) === false
-                && ($fields['building_facade'] ?? null) === 'north';
-            $status = $matched ? 'passed' : 'required_facts_mismatch';
+            $proposalSource = in_array($result['source'] ?? '', ['ai', 'text'], true)
+                ? $result['source'] : 'other';
+            $effective = array_replace($current, $fields);
+            foreach (['floor_number'=>'2', 'unit_number'=>'7', 'bedrooms'=>3,
+                'bathrooms'=>2, 'has_parking'=>false, 'building_facade'=>'north'] as $key=>$expected) {
+                if (!array_key_exists($key, $effective) || $effective[$key] !== $expected) $mismatched[] = $key;
+            }
+            foreach (['floor_number', 'unit_number'] as $key) {
+                if (!array_key_exists($key, $fields)) $missingProposals[] = $key;
+            }
+            $matched = $proposalSource === 'ai' && $mismatched === [] && $missingProposals === [];
+            $status = $proposalSource !== 'ai' ? 'unavailable'
+                : ($matched ? 'passed' : 'required_facts_mismatch');
         } catch (\Throwable) {
             // The provider message, response, brief and facts are never printed.
         }
@@ -73,6 +84,8 @@ class UatListingAiProbe extends Command
         $this->line('AQER_LISTING_AI_PROBE '.json_encode([
             'status'=>$status, 'provider_stage'=>$reason, 'response_shape'=>$client->shape,
             'invalid_field_names'=>$client->validationFields, 'required_facts_match'=>$matched,
+            'proposal_source'=>$proposalSource, 'mismatched_required_fields'=>$mismatched,
+            'missing_required_proposals'=>$missingProposals,
             'elapsed_ms'=>(int) round((microtime(true)-$started)*1000),
             'listing_writes'=>false, 'native_acceptance'=>false,
         ], JSON_UNESCAPED_SLASHES));

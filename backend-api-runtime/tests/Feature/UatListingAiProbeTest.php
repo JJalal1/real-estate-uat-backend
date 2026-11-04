@@ -84,4 +84,27 @@ class UatListingAiProbeTest extends TestCase
         $this->assertSame(1, Artisan::call('uat:listing-ai-check'));
         $this->assertSame(['other_schema'], $this->receipt()['invalid_field_names']);
     }
+
+    public function test_sparse_valid_model_response_uses_existing_facts_and_explicit_labels(): void
+    {
+        $this->model(['fields'=>['type'=>'apartment','purpose'=>'rent']]);
+        $this->assertSame(0, Artisan::call('uat:listing-ai-check'));
+        $r = $this->receipt();
+        $this->assertSame('ai', $r['proposal_source']);
+        $this->assertSame([], $r['mismatched_required_fields']);
+        $this->assertSame([], $r['missing_required_proposals']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_literal_fallback_is_not_accepted_even_when_required_facts_are_complete(): void
+    {
+        Http::fake(['generativelanguage.googleapis.com/*'=>Http::response([],400)]);
+        $this->assertSame(1, Artisan::call('uat:listing-ai-check'));
+        $r = $this->receipt();
+        $this->assertSame('text', $r['proposal_source']);
+        $this->assertSame('unavailable', $r['status']);
+        $this->assertSame([], $r['mismatched_required_fields']);
+        $this->assertFalse($r['required_facts_match']);
+        Http::assertSentCount(1);
+    }
 }
