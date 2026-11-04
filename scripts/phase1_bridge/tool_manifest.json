@@ -33,7 +33,7 @@
     "scripts/phase1_bridge/controller/test_bounded_api.py": "7ad63d69d1d829ba96214e1c6b9c165fac85399b3e6a53a8b818bb01e5ffdeee",
     "scripts/phase1_bridge/controller/test_controller.py": "9b14da22d0fa9224df2b3b53e48613a8be3b163539fe2443f05168a99791ab1c",
     "scripts/phase1_bridge/controller/test_home_diagnostic.py": "e277ceb66892f8ddaeec66aa17b5c0afddf821735f8d8a502f15bdd59c4ae9d3",
-    "scripts/phase1_bridge/entry/README.md": "3e32b4dfc6dfa3f02d10d671f77f38c5dd3725d3ce546a0eb3ad78d849ae5456",
+    "scripts/phase1_bridge/entry/README.md": "28bfd482b165fd39da76cc8ac21c019a8134c85a4e463bf9d2c938d7567d5c86",
     "scripts/phase1_bridge/entry/test_entry.py": "7833e21c20bd14b455e485630479ee07d209accd5c154398595c0165d9db7694",
     "scripts/phase1_bridge/oneshot/README.md": "308b612b84d323e99aabee25c122cb073ace8e2bf50af469a17d92f0744a3c70",
     "scripts/phase1_bridge/oneshot/oneshot_adapter.py": "b436e55ceded20e3a11fa63600e7205bc4e079a5c2bb0fd92cbc36d09b9d3285",

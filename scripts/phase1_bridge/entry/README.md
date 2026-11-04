@@ -245,3 +245,13 @@ Owned-VM clock preparation records root/unroot request transport acknowledgments
 The unchanged editor supplies explicit labels and examples. Pinned Flutter 3.27.3 InputDecorator visits the visual hint only when focused and merges its Text label with the field label using a newline (input_decorator.dart873–896; semantics.dart5098–5105,5186–5206). On the same focused Android source node only, the helper permits the two exact label-to-label/newline/example transitions for bedrooms and bathrooms. Example-only, comma-joined, swapped, altered, other-source or unfocused variants refuse. Geometry, class, description, deadlines and one-attempt focus remain mandatory. Eight fixed hint-shape categories aid initial editor refusal diagnosis; no raw hints are exported, and diagnostic contains checks never decide acceptance. Earlier raw hint strings were not recorded and are not claimed.
 
 Before APP installation, the fresh owned VM verifies unrooted shell UID2000 and active Android user0, then issues one user0 system sound_effects_enabled=0 setting write and verifies its actual readback inside a bounded 10-second preparation window. This suppresses standard UI click effects for the test environment; it never proves recorded audio is silent. Actual original WebM still passes the unchanged adapter, checkpoint producer and Root full-PCM exact-zero checks. No media remux, audio removal, application setting or microphone/ASR acceptance is introduced. Unknown write/read outcomes refuse without replay.
+
+
+## Fresh session after explicit test-command publication approval
+
+The owner explicitly approved publishing encrypted signed UAT test-continuation
+commands on the owned public review branch after the concrete publication scope
+was explained. Start a fresh independent workflow run; never replay expired
+commands from runs49 or50. Independently inspect the actual current checkpoint
+media before each required review. This note changes no runtime, source guard,
+role, fixture, privacy, product component or acceptance requirement.
