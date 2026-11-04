@@ -97,6 +97,7 @@ C1_FAILURE_CODES = frozenset({
     'native_owned_editor_title_not_stable',
     'genuine_os_photo_selection_not_observed', 'genuine_os_picker_return_not_observed',
     'private_transition_during_os_picker', 'fresh_os_picker_tree_unavailable', 'os_picker_bounds_invalid',
+    'native_broker_home_not_observed', 'fixed_initial_navigation_target_required',
 })
 C1_FAILURE_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
     'purpose', 'type', 'title', 'location_step', 'location_confirm', 'governorate', 'city',
@@ -105,7 +106,7 @@ C1_FAILURE_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait'
     'photo_app_return', 'photo_count_wait', 'photo_capture', 'rent_blank_check', 'draft_save', 'restore_startup',
     'restore_specs', 'restore_bedrooms', 'restore_bathrooms', 'restore_photo', 'restore_location',
     'restore_title', 'restore_options_wait', 'editor_basics_loaded', 'editor_title_settle',
-    'editor_title_seek', 'editor_basics_return', 'home_wait', 'add_stable_wait', 'add_dispatch'})
+    'editor_title_seek', 'editor_basics_return', 'home_wait', 'home_dispatch', 'add_stable_wait', 'add_dispatch'})
 HOME_DIAGNOSTIC_NAMES = frozenset({'C1-before-add-home.png', 'C1-restore-before-add-home.png'})
 HOME_DIAGNOSTIC_SCOPE = 'authenticated_broker_marketplace_before_add'
 HOME_DIAGNOSTIC_KEYS = frozenset({'file', 'bytes', 'sha256', 'width', 'height', 'capture',

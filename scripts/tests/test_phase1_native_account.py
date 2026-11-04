@@ -487,7 +487,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
 
     def broker_home_rows(self, add=True, **changes):
         names = ['ماذا تبحث عنه؟','ابحث عن عقار أو منطقة…','الرئيسية','عملي','العملاء','حسابي']
-        rows = [self.node(name,path='0.'+str(i)) for i,name in enumerate(names)]
+        rows = [self.node(name,path='0.'+str(i),clickable=name=='الرئيسية') for i,name in enumerate(names)]
         if add:
             row=self.node('إضافة عقار',path='0.99',clickable=True,description='إضافة عقار')
             row.update(changes);rows.append(row)
@@ -564,20 +564,37 @@ class NativeAccountSafetyTest(unittest.TestCase):
     def test_broker_home_wait_opens_home_once_then_observes_without_further_taps(self):
         self.initial_add_scope();self.stability_clock()
         footer=self.broker_home_rows(add=False)[2:]
-        self.probe.nodes=Mock(side_effect=[footer,footer,self.broker_home_rows(add=False)])
-        self.probe.tap=Mock();self.probe.safe_capture=Mock()
+        self.probe.nodes=Mock(side_effect=[footer,footer,footer,self.broker_home_rows(add=False)])
+        self.probe.tap,self.probe.act,self.probe.safe_capture=Mock(),Mock(),Mock()
         self.probe.ensure_initial_broker_home()
-        self.probe.tap.assert_called_once_with('الرئيسية',seek=False)
+        self.probe.act.assert_called_once_with('click',{'path':'0.2','witness':'a'*64})
+        self.probe.tap.assert_not_called()
+        self.assertEqual(self.probe.nodes.call_count,4)
         self.probe.safe_capture.assert_not_called()
+
+    def test_home_navigation_resets_on_changed_or_missing_scene_and_uses_final_observed_lease(self):
+        self.initial_add_scope();self.stability_clock()
+        footer=self.broker_home_rows(add=False)[2:]
+        changed=[dict(row, witness='b'*64) if row['text']=='الرئيسية' else row for row in footer]
+        self.probe.nodes=Mock(side_effect=[footer,changed,[],changed,changed,changed,
+                                          self.broker_home_rows(add=False)])
+        def dispatch(*args):
+            self.assertEqual(self.probe.nodes.call_count,6)
+        self.probe.act=Mock(side_effect=dispatch);self.probe.tap=Mock()
+        self.probe.ensure_initial_broker_home()
+        self.probe.act.assert_called_once_with('click',{'path':'0.2','witness':'b'*64})
+        self.probe.tap.assert_not_called()
 
     def test_uncertain_home_tap_prevents_add_stability_and_is_never_replayed(self):
         self.initial_add_scope();self.stability_clock()
         self.probe.fixture_api=self.fixture()
         self.probe.nodes=Mock(return_value=self.broker_home_rows(add=False)[2:])
-        self.probe.tap=Mock(side_effect=native.Blocked('native_input_not_delivered'))
+        self.probe.act=Mock(side_effect=native.Blocked('native_input_not_delivered'))
+        self.probe.tap=Mock()
         self.probe.dispatch_stable_initial_add,self.probe.capture_initial_broker_home=Mock(),Mock()
         with self.assertRaises(native.Blocked):self.probe.manual_entry(self.probe.fixture_api.state['title'])
-        self.probe.tap.assert_called_once_with('الرئيسية',seek=False)
+        self.probe.act.assert_called_once_with('click',{'path':'0.2','witness':'a'*64})
+        self.probe.tap.assert_not_called()
         self.probe.dispatch_stable_initial_add.assert_not_called()
         self.probe.capture_initial_broker_home.assert_not_called()
 

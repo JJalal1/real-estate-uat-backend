@@ -41,7 +41,7 @@ C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait'
                                 'logout_account_ready', 'logout_control', 'logout_confirm',
                                 'editor_basics_loaded', 'editor_title_seek', 'editor_basics_return',
                                 'logout_marketplace_wait', 'logout_guest_marketplace', 'logout_guest_account_wait',
-                                'home_wait', 'add_stable_wait', 'add_dispatch', 'editor_title_settle'})
+                                'home_wait', 'home_dispatch', 'add_stable_wait', 'add_dispatch', 'editor_title_settle'})
 ACCOUNT_CLICK_FOCUS_MODE = 'physical_click_focus'
 ACCOUNT_SCROLL_MODE = 'physical_scroll'
 INPUT_OPS = frozenset({'account-dismiss-ime', 'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
@@ -958,21 +958,43 @@ class NativeAccount:
         self.journey_stage('home_wait')
         deadline = time.monotonic() + seconds
         opened = False
+        signature, since, observations = None, None, 0
         while time.monotonic() < deadline:
             rows = self.nodes()
             if self.broker_home_ready(rows):
                 return
             footer = all(self.matching(rows, label) for label in ('الرئيسية', 'عملي', 'العملاء', 'حسابي'))
             auth = any(label in labels(row) for row in rows for label in AUTH_LABELS)
-            if footer and not auth and not opened:
-                # One normal Home selection; no Home/Add replay after uncertainty.
-                self.tap('الرئيسية', seek=False)
-                opened = True
+            selected = self.initial_navigation_target(rows, 'الرئيسية') if footer and not auth and not opened else None
+            now = time.monotonic()
+            if selected is None:
+                signature, since, observations = None, None, 0
+            else:
+                row, current = selected
+                if current != signature:
+                    signature, since, observations = current, now, 1
+                else:
+                    observations += 1
+                if observations >= 3 and now - since >= 1:
+                    # Dispatch the exact target from this stable observation;
+                    # do not re-read/reselect it through tap(label).
+                    lease = {'path': row['path'], 'witness': row['witness']}
+                    self.journey_stage('home_dispatch')
+                    if time.monotonic() >= deadline:
+                        break
+                    opened = True
+                    self.act('click', lease)
+                    self.journey_stage('home_wait')
             time.sleep(.5)
         raise Blocked('native_broker_home_not_observed')
 
     def initial_add_target(self, rows):
-        matched = self.matching(rows, 'إضافة عقار')
+        return self.initial_navigation_target(rows, 'إضافة عقار')
+
+    def initial_navigation_target(self, rows, label):
+        if label not in {'إضافة عقار', 'الرئيسية'}:
+            raise Blocked('fixed_initial_navigation_target_required')
+        matched = self.matching(rows, label)
         candidates = [row for row in matched if row.get('clickable')]
         if not candidates:
             for item in matched:
