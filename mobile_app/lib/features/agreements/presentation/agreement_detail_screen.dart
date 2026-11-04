@@ -4,53 +4,74 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart' show AppErrorState, AppRefreshStatus, AppLoadingState;
+import '../../account/presentation/actor_scoped_page.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../financial/presentation/deal_financial_screen.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
 import 'agreement_forms.dart';
 
-class AgreementDetailScreen extends ConsumerStatefulWidget {
+class AgreementDetailScreen extends ConsumerWidget {
   const AgreementDetailScreen({required this.agreementId, super.key});
+  final int agreementId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(title: 'تفاصيل الاتفاق', builder: (_) =>
+    _AgreementDetailScreenForActor(key: ValueKey(agreementId), agreementId: agreementId));
+}
+
+class _AgreementDetailScreenForActor extends ConsumerStatefulWidget {
+  const _AgreementDetailScreenForActor({required this.agreementId, super.key});
   final int agreementId;
 
   @override
-  ConsumerState<AgreementDetailScreen> createState() => _AgreementDetailScreenState();
+  ConsumerState<_AgreementDetailScreenForActor> createState() => _AgreementDetailPageState();
 }
 
-class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
+class _AgreementDetailPageState extends ConsumerState<_AgreementDetailScreenForActor> {
   PropertyAgreement? _agreement;
   bool _loading = true;
   bool _busy = false;
   String? _error;
+  int _generation = 0;
+  late final AccountRequestScope _scope;
 
   @override
   void initState() {
     super.initState();
+    _scope = ref.read(accountRequestScopeProvider);
     Future.microtask(_load);
   }
 
   Future<void> _load() async {
+    if (!mounted || !_scope.isCurrent) return;
+    final generation = ++_generation;
+    if (mounted && _scope.isCurrent) setState(() { _loading = true; _error = null; });
     try {
       final value = await ref.read(agreementRepositoryProvider).agreement(widget.agreementId);
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent || generation != _generation) return;
       setState(() { _agreement = value; _loading = false; _error = null; });
     } catch (error) {
-      if (!mounted) return;
-      setState(() { _loading = false; _error = friendlyApiError(error); });
+      if (!mounted || !_scope.isCurrent || generation != _generation) return;
+      setState(() {
+        if (!isTransientApiFailure(error)) { _agreement = null; }
+        _loading = false; _error = friendlyApiError(error);
+      });
     }
   }
 
   Future<void> _accept() async {
+    if (!mounted || !_scope.isCurrent) return;
     final agreement = _agreement;
-    if (agreement == null || _busy) return;
+    if (agreement == null || _busy || _loading || _error != null) return;
     setState(() => _busy = true);
     try {
       final updated = await ref.read(agreementRepositoryProvider).acceptAgreement(
             agreement.id,
             agreement.currentRevision.id,
           );
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
-      if (!mounted) return;
       setState(() => _agreement = updated);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(updated.isAccepted
@@ -58,77 +79,81 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
             : 'تم تسجيل قبولك لهذه النسخة. بانتظار الطرف الآخر.'),
       ));
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
         await _load();
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<void> _revise() async {
+    if (!mounted || !_scope.isCurrent) return;
     final agreement = _agreement;
-    if (agreement == null || _busy) return;
-    final terms = await showAgreementTermsSheet(context, current: agreement.currentRevision);
-    if (terms == null || !mounted) return;
+    if (agreement == null || _busy || _loading || _error != null) return;
+    final terms = await showAgreementTermsSheet(context, ref: ref, current: agreement.currentRevision);
+    if (terms == null || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final updated = await ref.read(agreementRepositoryProvider).reviseAgreement(agreement.id, terms);
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
-      if (!mounted) return;
       setState(() => _agreement = updated);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم إنشاء نسخة جديدة. يحتاج الطرفان إلى قبولها من جديد.')),
       );
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<void> _cancel() async {
+    if (!mounted || !_scope.isCurrent) return;
     final agreement = _agreement;
-    if (agreement == null || _busy) return;
+    if (agreement == null || _busy || _loading || _error != null) return;
     final reason = await _reasonDialog('إلغاء مسودة الاتفاق');
-    if (reason == null || !mounted) return;
+    if (reason == null || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final updated = await ref.read(agreementRepositoryProvider).cancelAgreement(agreement.id, reason);
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
-      if (!mounted) return;
       setState(() => _agreement = updated);
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<void> _createRentalContract() async {
+    if (!mounted || !_scope.isCurrent) return;
     final agreement = _agreement;
-    if (agreement == null || !agreement.isRental || !agreement.isAccepted || _busy) return;
-    final terms = await showRentalContractTermsSheet(context, fromAgreement: agreement.currentRevision);
-    if (terms == null || !mounted) return;
+    if (agreement == null || !agreement.isRental || !agreement.isAccepted || _busy || _loading || _error != null) return;
+    final terms = await showRentalContractTermsSheet(context, ref: ref, fromAgreement: agreement.currentRevision);
+    if (terms == null || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final contract = await ref.read(agreementRepositoryProvider).startRentalContract(agreement.id, terms);
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
-      if (!mounted) return;
       await _load();
-      if (mounted) await context.push('/rental-contracts/${contract.id}');
+      if (mounted && _scope.isCurrent) await context.push('/rental-contracts/${contract.id}');
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
   Future<String?> _reasonDialog(String title) async {
+    if (!mounted || !_scope.isCurrent) return null;
     final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
+    final result = await showActorDialog<String>(
+      context: context, ref: ref,
       builder: (dialogContext) => AlertDialog(
         title: Text(title),
         content: TextField(
@@ -159,12 +184,12 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('تفاصيل الاتفاق'),
-          actions: [IconButton(onPressed: _busy ? null : _load, icon: const EbrokerIcon(Icons.refresh))],
+          actions: [IconButton(tooltip: 'تحديث', onPressed: _busy || _loading ? null : _load, icon: const EbrokerIcon(Icons.refresh))],
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!)))
+        body: _agreement == null && _loading
+            ? const AppLoadingState()
+            : _agreement == null
+                ? AppErrorState(message: _error ?? 'هذا السجل غير متاح.', onRetry: _load)
                 : _body(_agreement!),
       ),
     );
@@ -173,8 +198,10 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
   Widget _body(PropertyAgreement agreement) {
     final revision = agreement.currentRevision;
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
+        AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -211,7 +238,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
         if (agreement.canAccept) ...[
           const SizedBox(height: 16),
           EbrokerFilledButton.icon(
-            onPressed: _busy ? null : _accept,
+            onPressed: _busy || _loading || _error != null ? null : _accept,
             icon: const EbrokerIcon(Icons.verified_outlined),
             label: Text('أوافق على النسخة ${revision.revisionNumber}'),
           ),
@@ -219,7 +246,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
         if (agreement.canRevise) ...[
           const SizedBox(height: 8),
           EbrokerOutlinedButton.icon(
-            onPressed: _busy ? null : _revise,
+            onPressed: _busy || _loading || _error != null ? null : _revise,
             icon: const EbrokerIcon(Icons.edit_note_outlined),
             label: const Text('اقتراح شروط جديدة'),
           ),
@@ -227,7 +254,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
         if (agreement.canCancel) ...[
           const SizedBox(height: 8),
           TextButton.icon(
-            onPressed: _busy ? null : _cancel,
+            onPressed: _busy || _loading || _error != null ? null : _cancel,
             icon: const EbrokerIcon(Icons.cancel_outlined),
             label: const Text('إلغاء مسودة الاتفاق'),
           ),
@@ -248,7 +275,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
           const SizedBox(height: 10),
           if (agreement.rentalContractId == null)
             EbrokerFilledButton.tonalIcon(
-              onPressed: _busy ? null : _createRentalContract,
+              onPressed: _busy || _loading || _error != null ? null : _createRentalContract,
               icon: const EbrokerIcon(Icons.home_work_outlined),
               label: const Text('إنشاء عقد إيجار داخل التطبيق'),
             )
@@ -329,7 +356,7 @@ class _AgreementDetailScreenState extends ConsumerState<AgreementDetailScreen> {
   Widget _acceptance(String label, bool accepted) => Row(children: [
         EbrokerIcon(accepted ? Icons.check_circle : Icons.radio_button_unchecked, size: 20),
         const SizedBox(width: 8),
-        Text('$label: ${accepted ? 'وافق' : 'لم يوافق بعد'}'),
+        Expanded(child: Text('$label: ${accepted ? 'وافق' : 'لم يوافق بعد'}')),
       ]);
 
   Widget _row(String label, String value) => Padding(

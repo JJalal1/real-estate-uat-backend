@@ -69,7 +69,9 @@ class UatCloudBackendApiTest extends TestCase
         });
         Http::assertSent(function (HttpRequest $request): bool {
             return $request->method() === 'DELETE'
-                && str_contains($request->url(), '/storage/v1/object/real-estate-uat/private/broker_kyc/42/')
+                && $request->url() === 'https://example.supabase.co/storage/v1/object/real-estate-uat'
+                && count($request['prefixes']) === 1
+                && str_starts_with($request['prefixes'][0], 'private/broker_kyc/42/')
                 && $request->hasHeader('apikey', 'sb_secret_test_server_only');
         });
     }
@@ -119,10 +121,10 @@ class UatCloudBackendApiTest extends TestCase
         $this->assertStringContainsString('uat:cloud-check', $entrypoint);
     }
 
-    public function test_cloud_check_requires_https_postgis_and_storage_probe_without_printing_secrets(): void
+    public function test_cloud_check_requires_https_postgis_and_storage_settings_without_printing_secrets(): void
     {
         $source = (string) file_get_contents(base_path('routes/console.php'));
-        $this->assertStringContainsString("Artisan::command('uat:cloud-check'", $source);
+        $this->assertStringContainsString("Artisan::command('uat:cloud-check {--skip-storage-probe}'", $source);
         $this->assertStringContainsString('PostGIS is not enabled', $source);
         $this->assertStringContainsString('SUPABASE_STORAGE_SERVER_KEY is missing', $source);
         $this->assertStringContainsString('$storage->probe()', $source);

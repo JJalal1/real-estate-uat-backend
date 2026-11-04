@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../messages/domain/message_models.dart';
+import '../../account/data/account_request_scope.dart';
 import '../data/agreement_repository.dart';
 import '../domain/agreement_models.dart';
 import 'agreement_forms.dart';
@@ -23,14 +24,17 @@ class _ConversationAgreementCardState
   PropertyAgreement? _agreement;
   bool _loading = true;
   bool _busy = false;
+  late final AccountRequestScope _scope;
 
   @override
   void initState() {
     super.initState();
+    _scope = ref.read(accountRequestScopeProvider);
     Future.microtask(_load);
   }
 
   Future<void> _load() async {
+    if (!mounted || !_scope.isCurrent) return;
     try {
       final rows = await ref.read(agreementRepositoryProvider).mine();
       PropertyAgreement? found;
@@ -40,39 +44,40 @@ class _ConversationAgreementCardState
           if (item.status == 'draft' || item.status == 'accepted') break;
         }
       }
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       setState(() {
         _agreement = found;
         _loading = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || !_scope.isCurrent) return;
       setState(() => _loading = false);
     }
   }
 
   Future<void> _start() async {
+    if (!mounted || !_scope.isCurrent) return;
     if (_busy || widget.thread.isPropertyUnavailable) return;
-    final terms = await showAgreementTermsSheet(context);
-    if (terms == null || !mounted) return;
+    final terms = await showAgreementTermsSheet(context, ref: ref);
+    if (terms == null || !mounted || !_scope.isCurrent) return;
     setState(() => _busy = true);
     try {
       final agreement = await ref
           .read(agreementRepositoryProvider)
           .startAgreement(widget.thread.id, terms);
+      if (!mounted || !_scope.isCurrent) return;
       ref.read(agreementDataRevisionProvider.notifier).state++;
-      if (!mounted) return;
       setState(() => _agreement = agreement);
       await context.push('/agreements/${agreement.id}');
-      if (mounted) _load();
+      if (mounted && _scope.isCurrent) _load();
     } catch (error) {
-      if (mounted) {
+      if (mounted && _scope.isCurrent) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && _scope.isCurrent) setState(() => _busy = false);
     }
   }
 
@@ -96,7 +101,7 @@ class _ConversationAgreementCardState
         child: InkWell(
           onTap: () async {
             await context.push('/agreements/${agreement.id}');
-            if (mounted) _load();
+            if (mounted && _scope.isCurrent) _load();
           },
           borderRadius: BorderRadius.circular(8),
           child: Padding(

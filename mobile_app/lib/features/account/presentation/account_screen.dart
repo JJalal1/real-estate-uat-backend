@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_controller.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../financial/presentation/financial_account_screen.dart';
 import '../../properties/presentation/favorites_screen.dart';
 import '../data/auth_controller.dart';
+import '../../../core/branding/aqer_brand.dart';
 import '../../broker/data/broker_repository.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -22,7 +24,7 @@ class AccountScreen extends ConsumerWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         body: auth.when(
-          loading: () => const AppLoadingState(),
+          loading: () => const AqerAccountLoading(),
           error: (_, __) => AppErrorState(
             message: 'تعذر تحميل بيانات الحساب.',
             onRetry: () => ref.read(authControllerProvider.notifier).refresh(),
@@ -41,6 +43,23 @@ class AccountScreen extends ConsumerWidget {
                   title: 'البحث الذكي', subtitle: 'ابحث بالنص أو الصوت وعدّل شروطك بسهولة',
                   leading: const EbrokerIcon(Icons.auto_awesome_outlined),
                   onTap: () => context.push('/smart-search')),
+                const SizedBox(height: AppSpacing.s12),
+                AppListRow(
+                  title: 'شوهد مؤخرًا',
+                  subtitle: 'سجل محلي على هذا الجهاز فقط',
+                  leading: const EbrokerIcon(Icons.history_outlined),
+                  onTap: () => context.push('/recent'),
+                ),
+                const SizedBox(height: AppSpacing.s12),
+                AppListRow(
+                  title: 'المظهر',
+                  subtitle: _themeModeLabel(ref.watch(appThemeModeProvider)),
+                  leading: const EbrokerIcon(Icons.contrast_outlined),
+                  onTap: () => showModalBottomSheet<void>(
+                    context: context,
+                    builder: (_) => const _ThemeModeSheet(),
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.s12),
                 if (user == null) ...[
                   AppListRow(title: 'المفضلة', leading: const EbrokerImage('heart'),
@@ -74,6 +93,11 @@ class AccountScreen extends ConsumerWidget {
                   ],
                   _AccountGroup(
                     rows: [
+                      _AccountRow(
+                        'الأمان والخصوصية',
+                        Icons.security_outlined,
+                        () => context.push('/account-safety'),
+                      ),
                       _AccountRow(
                         'الملف الشخصي',
                         Icons.manage_accounts_outlined,
@@ -321,6 +345,53 @@ class _AccountGroup extends StatelessWidget {
     );
   }
 }
+
+String _themeModeLabel(ThemeMode mode) => switch (mode) {
+      ThemeMode.light => 'فاتح',
+      ThemeMode.dark => 'داكن',
+      _ => 'حسب إعداد الجهاز',
+    };
+
+class _ThemeModeSheet extends ConsumerWidget {
+  const _ThemeModeSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(appThemeModeProvider);
+    return SafeArea(
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('مظهر التطبيق', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              for (final entry in const [
+                (ThemeMode.system, 'حسب إعداد الجهاز', Icons.brightness_auto_outlined),
+                (ThemeMode.light, 'فاتح', Icons.light_mode_outlined),
+                (ThemeMode.dark, 'داكن', Icons.dark_mode_outlined),
+              ])
+                RadioListTile<ThemeMode>(
+                  value: entry.$1,
+                  groupValue: selected,
+                  title: Text(entry.$2),
+                  secondary: Icon(entry.$3),
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await ref.read(appThemeModeProvider.notifier).setMode(value);
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
 class _AccountRow {
   const _AccountRow(this.title, this.icon, this.onTap);

@@ -182,36 +182,47 @@ class FinancialPropertyController extends PropertyController
         if($response->getStatusCode()>=400)return $response;
         $body=$response->getData(true);if(!isset($body['data']))return $response;
         if(array_is_list($body['data']))$body['data']=$this->enrichRows($body['data'],$hideOverduePublicRows);
-        elseif(is_array($body['data'])&&isset($body['data']['id']))$body['data']=$this->enrichRow($body['data']);
+        elseif(is_array($body['data'])&&isset($body['data']['id']))$body['data']=$this->enrichRows([$body['data']], false)[0];
         $response->setData($body);return $response;
     }
 
     private function enrichRows(array $rows, bool $hideOverduePublicRows): array
     {
-        if($rows===[])return [];
-        if($hideOverduePublicRows){
-            $propertyIds=array_values(array_filter(array_map(fn(array $row)=>(int)($row['id']??0),$rows)));
-            $owners=Property::query()->withoutGlobalScopes()->whereIn('id',$propertyIds)->pluck('user_id','id');
-            $ownerIds=$owners->values()->map(fn($id)=>(int)$id)->unique()->values()->all();
-            $overdue=DB::table('property_platform_receivables')
-                ->whereIn('advertiser_user_id',$ownerIds)
-                ->whereIn('status',['open','under_review','overdue','disputed'])
-                ->whereColumn('amount_paid','<','amount_total')
-                ->where('due_at','<=',now())
-                ->pluck('advertiser_user_id')->map(fn($id)=>(int)$id)->unique()->flip();
-            $rows=array_values(array_filter($rows,function(array $row)use($owners,$overdue):bool{
-                $propertyId=(int)($row['id']??0);$ownerId=(int)($owners[$propertyId]??0);
-                return $ownerId===0||!$overdue->has($ownerId);
+        if ($rows === []) return [];
+        // One request-local snapshot for the bounded page. No cross-user or
+        // cross-request cache of financial state, terms or authorization.
+        $ids = array_values(array_filter(array_map(fn (array $row) => (int) ($row['id'] ?? 0), $rows)));
+        $properties = Property::query()->withoutGlobalScopes()->whereIn('id', $ids)->get()->keyBy('id');
+        if ($hideOverduePublicRows) {
+            $overdue = DB::table('property_platform_receivables')
+                ->whereIn('advertiser_user_id', $properties->pluck('user_id')->unique())
+                ->whereIn('status', ['open','under_review','overdue','disputed'])
+                ->whereColumn('amount_paid', '<', 'amount_total')->where('due_at', '<=', now())
+                ->pluck('advertiser_user_id')->map(fn ($id) => (int) $id)->flip();
+            $rows = array_values(array_filter($rows, function (array $row) use ($properties, $overdue): bool {
+                $owner = (int) ($properties->get((int) ($row['id'] ?? 0))?->user_id ?? 0);
+                return $owner === 0 || ! $overdue->has($owner);
             }));
         }
-        return array_map(fn(array $row)=>$this->enrichRow($row),$rows);
+        $terms = DB::table('property_sai_terms')->whereIn('id', $properties->pluck('current_sai_term_id')->filter()->unique())
+            ->get()->keyBy('id');
+        $attested = DB::table('property_sai_attestations')->whereIn('property_id', $ids)
+            ->get(['property_id', 'sai_term_id'])->mapWithKeys(fn ($row) => [$row->property_id.':'.$row->sai_term_id => true]);
+        $owners=array_map(fn (array $row)=>(int)($properties->get((int)($row['id'] ?? 0))?->user_id ?? 0),$rows);
+        $holds = $this->finance->overdueReceivablesFor($owners);
+        return array_map(function (array $row) use ($properties, $terms, $attested, $holds): array {
+            $property = $properties->get((int) ($row['id'] ?? 0));
+            if (! $property) return $row;
+            $owner = (int) $property->user_id;
+            $term = $terms->get($property->current_sai_term_id);
+            $pending = $property->status === 'published' && $property->current_sai_term_id
+                && ! $attested->has($property->id.':'.$property->current_sai_term_id);
+            return $this->enrichLoadedRow($row, $property, $term, (bool) $pending, $holds[$owner] ?? false);
+        }, $rows);
     }
 
-    private function enrichRow(array $row): array
+    private function enrichLoadedRow(array $row, Property $property, ?object $term, bool $pending, bool $overdue): array
     {
-        $id=(int)($row['id']??0);if(!$id)return $row;
-        $property=Property::query()->withoutGlobalScopes()->find($id);if(!$property)return $row;
-        $term=$property->current_sai_term_id?DB::table('property_sai_terms')->where('id',$property->current_sai_term_id)->first():null;
         $saiAmount=0.0;$sai=null;$note=null;$displayPrice=(float)$property->price;
         if($term){
             $basis=$property->purpose==='rent'?(float)($property->monthly_rent?:0):(float)$property->price;
@@ -236,9 +247,9 @@ class FinancialPropertyController extends PropertyController
             'base_price'=>(float)$property->price,'display_price'=>$displayPrice,'price_display_mode'=>$property->price_display_mode ?: (($term&&in_array($term->payer,['buyer','tenant'],true))?'excludes_sai':null),
             'price_display_note'=>$note,'monthly_rent'=>$property->monthly_rent!==null?(float)$property->monthly_rent:null,
             'rental_term_months'=>$property->rental_term_months,'advance_months'=>$property->advance_months,'sai'=>$sai,
-            'financial_hold'=>$this->finance->hasOverdueReceivable((int)$property->user_id),
-            'sai_attestation_required'=>$this->finance->pendingSaiAttestation($property),
-            'sai_attestation_text'=>(int)(request()->user()?->id ?? 0) === (int)$property->user_id ? $this->finance->attestationText($property) : null,
+            'financial_hold'=>$overdue,
+            'sai_attestation_required'=>$pending,
+            'sai_attestation_text'=>(int)(request()->user()?->id ?? 0) === (int)$property->user_id ? ($term ? $this->finance->attestationText($property, $term) : PropertyFinancialService::SAI_ATTESTATION_TEXT) : null,
         ]);
     }
 }

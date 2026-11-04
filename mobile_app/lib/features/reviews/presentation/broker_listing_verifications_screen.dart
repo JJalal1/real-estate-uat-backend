@@ -57,7 +57,7 @@ class BrokerListingVerificationsScreen extends ConsumerWidget {
             return RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(brokerVerificationQueueProvider);
-                await ref.read(brokerVerificationQueueProvider.future);
+                try { await ref.read(brokerVerificationQueueProvider.future); } catch (_) { /* The page renders failure and retry. */ }
               },
               child: ListView.separated(
                 padding: const EdgeInsets.all(14),

@@ -1,0 +1,58 @@
+# REVIEW TEMPLATE ONLY. Creating this worker costs money; owner approval required.
+# Not included by root render.yaml and never applied in this task.
+services:
+  - type: worker
+    name: aqer-uat-push-worker
+    runtime: docker
+    plan: 0.5c-512mb
+    region: frankfurt
+    branch: work/wave2-review-current
+    rootDir: backend-api-runtime
+    dockerfilePath: ./Dockerfile.queue-worker
+    dockerContext: .
+    autoDeployTrigger: off
+    numInstances: 1
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: APP_DEBUG
+        value: 'false'
+      - key: APP_KEY
+        sync: false
+      - key: APP_URL
+        value: https://real-estate-uat-api-frankfurt.onrender.com
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_URL
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: DB_PERSISTENT
+        value: 'false'
+      - key: DB_SEARCH_PATH
+        value: public,gis,extensions
+      - key: CACHE_STORE
+        value: database
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: info
+      - key: PUSH_NOTIFICATIONS_ENABLED
+        value: 'true'
+      - key: FCM_PROJECT_ID
+        value: aqer-yemen
+      - key: FCM_ANDROID_PACKAGE
+        value: com.aqer.yemen.uat
+      - key: FCM_SERVICE_ACCOUNT_FILE
+        value: /etc/secrets/fcm-uat-service-account.json
+      - key: UAT_RUN_MIGRATIONS
+        value: 'false'
+      - key: UAT_TEST_OTP_ENABLED
+        value: 'false'
+      - key: UAT_DEMO_SEED_ENABLED
+        value: 'false'
+      - key: LISTING_VIDEO_PROCESSING_ENABLED
+        value: 'false'
+# Upload the service account ONLY as a Render runtime Secret File after approval.
+# Do not add it to this file, image, source archive, or APK.

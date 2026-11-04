@@ -1,0 +1,28 @@
+{
+  "before_ms": [
+    892,
+    1324,
+    755,
+    1503,
+    942,
+    837,
+    912,
+    805,
+    965
+  ],
+  "after_ms": [
+    1072,
+    831,
+    1191,
+    1001,
+    862,
+    808,
+    824,
+    707,
+    1131
+  ],
+  "median_before_ms": 912,
+  "median_after_ms": 862,
+  "identical_derivative_hashes": 9,
+  "note": "Nine sequential unthrottled fixture reads in each observation; not a representative load test, causal performance proof or p95 SLO."
+}

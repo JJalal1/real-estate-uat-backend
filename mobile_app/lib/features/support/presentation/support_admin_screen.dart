@@ -4,20 +4,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/support_repository.dart';
 import '../domain/support_models.dart';
 
-class SupportAdminScreen extends ConsumerStatefulWidget {
+class SupportAdminScreen extends ConsumerWidget {
   const SupportAdminScreen({super.key, this.initialKind, this.initialCaseId});
   final String? initialKind;
   final int? initialCaseId;
 
   @override
-  ConsumerState<SupportAdminScreen> createState() => _SupportAdminScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
+      : _SupportAdminBody(key: ValueKey('$actor:$initialKind:$initialCaseId'), initialKind: initialKind, initialCaseId: initialCaseId);
+  }
+}
+class _SupportAdminBody extends ConsumerStatefulWidget {
+  const _SupportAdminBody({this.initialKind, this.initialCaseId, super.key});
+  final String? initialKind;
+  final int? initialCaseId;
+  @override
+  ConsumerState<_SupportAdminBody> createState() => _SupportAdminScreenState();
 }
 
-class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
+class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
   SupportAdminSummary? _summary;
   List<SupportCaseSummary> _items = const [];
   bool _loading = true;
@@ -27,6 +39,8 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
   bool _escalatedOnly = false;
   bool _assignedToMe = false;
   bool _initialCaseOpened = false;
+  int _request = 0;
+  String? _query;
 
   @override
   void initState() {
@@ -42,7 +56,11 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
     if (!mounted) {
       return;
     }
+    final request = ++_request;
+    final query = '$_kind:$_status:$_escalatedOnly:$_assignedToMe';
     setState(() {
+      if (_query != query) _items = const [];
+      _query = query;
       _loading = true;
       _error = null;
     });
@@ -56,7 +74,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
             escalated: _escalatedOnly ? true : null,
             assignedToMe: _assignedToMe),
       ]);
-      if (!mounted) {
+      if (!mounted || request != _request) {
         return;
       }
       setState(() {
@@ -65,15 +83,19 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) {
+      if (!mounted || request != _request) {
         return;
       }
       setState(() {
+        if (!isTransientApiFailure(e)) { _items = const []; _summary = null; }
         _loading = false;
         _error = friendlyApiError(e);
       });
     }
   }
+
+  @override
+  void dispose() { _request++; super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -96,27 +118,26 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
                 Text(_kind == 'report' ? 'البلاغات' : 'طلبات الدعم والبلاغات'),
             actions: [
               IconButton(
+                  tooltip: 'تحديث طلبات الدعم',
                   onPressed: _loading ? null : _load,
                   icon: const EbrokerIcon(Icons.refresh))
             ]),
         body: _loading && _summary == null
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? Center(
-                    child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(_error!, textAlign: TextAlign.center)))
+            ? const AppLoadingState(label: 'جارٍ تحميل طلبات الدعم…')
+            : _error != null && _items.isEmpty
+                ? AppErrorState(message: _error!, onRetry: _load)
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(12, 10, 12, 28),
                       children: [
                         if (_summary != null) _summaryCard(_summary!),
                         const SizedBox(height: 8),
                         _filters(),
-                        if (_loading) const LinearProgressIndicator(),
+                        if (_loading || _error != null) AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
                         const SizedBox(height: 8),
-                        if (_items.isEmpty && !_loading)
+                        if (_items.isEmpty && !_loading && _error == null)
                           const Card(
                               child: ListTile(
                                   title: Text('لا توجد حالات مطابقة.'))),
@@ -190,6 +211,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
             Row(children: [
               Expanded(
                   child: DropdownButtonFormField<String?>(
+                isExpanded: true,
                 value: _kind,
                 decoration: const InputDecoration(labelText: 'النوع'),
                 items: const [
@@ -206,6 +228,7 @@ class _SupportAdminScreenState extends ConsumerState<SupportAdminScreen> {
               const SizedBox(width: 8),
               Expanded(
                   child: DropdownButtonFormField<String?>(
+                isExpanded: true,
                 value: _status,
                 decoration: const InputDecoration(labelText: 'الحالة'),
                 items: const [

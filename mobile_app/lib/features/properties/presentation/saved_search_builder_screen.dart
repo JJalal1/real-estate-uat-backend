@@ -9,8 +9,9 @@ import '../data/saved_search_repository.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../domain/saved_property_search.dart';
 import '../domain/property_schema.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 
-class SavedSearchBuilderScreen extends ConsumerStatefulWidget {
+class SavedSearchBuilderScreen extends StatelessWidget {
   const SavedSearchBuilderScreen({
     this.initialFilters = const <String, dynamic>{},
     this.existingSearch,
@@ -23,12 +24,25 @@ class SavedSearchBuilderScreen extends ConsumerStatefulWidget {
   final bool fixedFilters;
 
   @override
-  ConsumerState<SavedSearchBuilderScreen> createState() =>
+  Widget build(BuildContext context) => ActorBoundPage(title: 'البحث المحفوظ',
+    builder: (_) => _SavedSearchBuilderPage(initialFilters: initialFilters,
+      existingSearch: existingSearch, fixedFilters: fixedFilters));
+}
+
+class _SavedSearchBuilderPage extends ConsumerStatefulWidget {
+  const _SavedSearchBuilderPage({required this.initialFilters,
+    required this.existingSearch, required this.fixedFilters});
+  final Map<String, dynamic> initialFilters;
+  final SavedPropertySearch? existingSearch;
+  final bool fixedFilters;
+
+  @override
+  ConsumerState<_SavedSearchBuilderPage> createState() =>
       _SavedSearchBuilderScreenState();
 }
 
 class _SavedSearchBuilderScreenState
-    extends ConsumerState<SavedSearchBuilderScreen> {
+    extends ConsumerState<_SavedSearchBuilderPage> {
   late final TextEditingController _name;
   late final TextEditingController _keywords;
   late final TextEditingController _minPrice;
@@ -44,12 +58,14 @@ class _SavedSearchBuilderScreenState
   bool _monthlyBudget = false;
   String _frequency = 'instant';
   bool _saving = false;
+  SavedPropertySearch? _existingSearch;
 
-  bool get _editing => widget.existingSearch != null;
+  bool get _editing => _existingSearch != null;
 
   @override
   void initState() {
     super.initState();
+    _existingSearch = widget.existingSearch;
     final filters = widget.existingSearch?.filters ?? widget.initialFilters;
     _baseFilters = Map<String, dynamic>.from(filters);
     _purpose = _nullable(filters['purpose']);
@@ -131,6 +147,7 @@ class _SavedSearchBuilderScreenState
             ),
             const SizedBox(height: AppSpacing.s16),
             TextField(
+              enabled: !_saving,
               controller: _name,
               maxLength: 120,
               decoration: const InputDecoration(
@@ -162,7 +179,7 @@ class _SavedSearchBuilderScreenState
               ],
               selected: _purpose == null ? const <String>{} : {_purpose!},
               emptySelectionAllowed: true,
-              onSelectionChanged: (value) =>
+              onSelectionChanged: _saving ? null : (value) =>
                   setState(() { _purpose = value.isEmpty ? null : value.first; _monthlyBudget = _purpose == 'rent'; _clearIrrelevant(); }),
             ),
             const SizedBox(height: AppSpacing.s12),
@@ -180,10 +197,11 @@ class _SavedSearchBuilderScreenState
                 DropdownMenuItem(value: 'office', child: Text('مكتب')),
                 DropdownMenuItem(value: 'farm', child: Text('مزرعة')),
               ],
-              onChanged: (value) => setState(() { _type = value; _clearIrrelevant(); }),
+              onChanged: _saving ? null : (value) => setState(() { _type = value; _clearIrrelevant(); }),
             ),
             const SizedBox(height: AppSpacing.s12),
             TextField(
+              enabled: !_saving,
               controller: _keywords,
               decoration: const InputDecoration(
                 labelText: 'كلمات البحث (اختياري)',
@@ -195,7 +213,7 @@ class _SavedSearchBuilderScreenState
             DropdownButtonFormField<String>(value: _currency, isExpanded: true, decoration: const InputDecoration(labelText: 'العملة'),
               items: const [DropdownMenuItem(value: null, child: Text('كل العملات')), DropdownMenuItem(value: 'YER', child: Text('ريال يمني')),
                 DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
-              onChanged: (value) => setState(() => _currency = value)),
+              onChanged: _saving ? null : (value) => setState(() => _currency = value)),
             const SizedBox(height: 12),
             const AppSectionHeader(
               title: 'الميزانية',
@@ -206,6 +224,7 @@ class _SavedSearchBuilderScreenState
               children: [
                 Expanded(
                   child: TextField(
+              enabled: !_saving,
                     controller: _minPrice,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
@@ -216,6 +235,7 @@ class _SavedSearchBuilderScreenState
                 const SizedBox(width: AppSpacing.s8),
                 Expanded(
                   child: TextField(
+              enabled: !_saving,
                     controller: _maxPrice,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
@@ -232,6 +252,7 @@ class _SavedSearchBuilderScreenState
               children: [
                 Expanded(
                   child: TextField(
+              enabled: !_saving,
                     controller: _minBedrooms,
                     keyboardType: TextInputType.number,
                     decoration:
@@ -241,6 +262,7 @@ class _SavedSearchBuilderScreenState
                 const SizedBox(width: AppSpacing.s8),
                 Expanded(
                   child: TextField(
+              enabled: !_saving,
                     controller: _minBathrooms,
                     keyboardType: TextInputType.number,
                     decoration:
@@ -254,6 +276,7 @@ class _SavedSearchBuilderScreenState
               children: [
                 Expanded(
                   child: TextField(
+              enabled: !_saving,
                     controller: _minArea,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
@@ -265,6 +288,7 @@ class _SavedSearchBuilderScreenState
                 const SizedBox(width: AppSpacing.s8),
                 Expanded(
                   child: TextField(
+              enabled: !_saving,
                     controller: _maxArea,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
@@ -298,7 +322,7 @@ class _SavedSearchBuilderScreenState
                           ),
                           const SizedBox(height: AppSpacing.s8),
                           TextButton.icon(
-                            onPressed: _removeLocationFilter,
+                            onPressed: _saving ? null : _removeLocationFilter,
                             icon: const EbrokerIcon(Icons.location_off_outlined),
                             label: const Text('إزالة قيد الموقع'),
                           ),
@@ -322,14 +346,14 @@ class _SavedSearchBuilderScreenState
               groupValue: _frequency,
               title: const Text('تنبيه فوري'),
               subtitle: const Text('عند نشر عقار جديد يطابق البحث.'),
-              onChanged: (value) =>
+              onChanged: _saving ? null : (value) =>
                   setState(() => _frequency = value ?? 'instant'),
             ),
             RadioListTile<String>(
               value: 'off',
               groupValue: _frequency,
               title: const Text('حفظ بدون تنبيهات'),
-              onChanged: (value) =>
+              onChanged: _saving ? null : (value) =>
                   setState(() => _frequency = value ?? 'off'),
             ),
             if (_frequency == 'daily')
@@ -500,13 +524,19 @@ class _SavedSearchBuilderScreenState
     setState(() => _saving = true);
     try {
       final repository = ref.read(savedSearchRepositoryProvider);
-      final existing = widget.existingSearch;
+      final existing = _existingSearch;
       if (existing == null) {
-        await repository.create(
+        final saved = await repository.create(
           name: name,
           filters: filters,
           alertFrequency: _frequency,
         );
+        if (!mounted) return;
+        if (saved.alreadySaved) {
+          setState(() => _existingSearch = saved);
+          _showMessage('هذا البحث محفوظ مسبقًا. راجع الاسم والتنبيه ثم اضغط «حفظ التعديلات» لتحديثه.');
+          return;
+        }
       } else {
         await repository.update(
           existing.id,
@@ -515,8 +545,8 @@ class _SavedSearchBuilderScreenState
           alertFrequency: _frequency,
         );
       }
-      ref.read(savedSearchRevisionProvider.notifier).state++;
       if (!mounted) return;
+      ref.read(savedSearchRevisionProvider.notifier).state++;
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;

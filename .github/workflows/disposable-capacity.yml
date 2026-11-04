@@ -1,0 +1,85 @@
+name: Disposable PostgreSQL capacity
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths:
+      - 'backend-api-runtime/**'
+      - 'scripts/probe_disposable_capacity.py'
+      - '.github/workflows/disposable-capacity.yml'
+permissions:
+  contents: read
+jobs:
+  capacity:
+    name: Isolated 10k PostgreSQL capacity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: aqer_capacity
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aqer_capacity"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: aqer_capacity
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+      AQER_CAPACITY_DISPOSABLE: '20261025'
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      UAT_CLOUD_STORAGE_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_pgsql, pdo_sqlite
+          coverage: none
+      - name: Initialize empty isolated database and synthetic metadata
+        working-directory: backend-api-runtime
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          php artisan key:generate --force
+          psql -h 127.0.0.1 -U postgres -d aqer_capacity -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          php artisan migrate --force
+          php tests/Support/seed_disposable_capacity.php
+      - name: Measure bounded real HTTP concurrency without UAT traffic
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd backend-api-runtime
+          PHP_CLI_SERVER_WORKERS=6 setsid php -S 127.0.0.1:8098 -t public public/index.php > /tmp/aqer-capacity-http.log 2>&1 &
+          aqer_capacity_pid=$!
+          trap 'kill -- -"$aqer_capacity_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail --max-time 1 http://127.0.0.1:8098/up > /dev/null; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          cd ..
+          python3 -B scripts/probe_disposable_capacity.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: disposable-capacity-evidence
+          path: |
+            capacity-fixture.json
+            capacity-report.json
+          if-no-files-found: error
+          retention-days: 14

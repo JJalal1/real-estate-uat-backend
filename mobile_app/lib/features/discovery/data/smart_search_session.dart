@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -37,6 +38,8 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   Map<String, dynamic> _defaultContext = {};
   bool _usingDefaultLocation = false;
   int _inference = 0, _results = 0;
+  CancelToken? _resultTransfer;
+  bool _failedMore = false;
 
   int _journey = 0;
   int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters}) {
@@ -86,6 +89,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 
   void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.', String? draftText}) {
     _inference++; _results++;
+    _resultTransfer?.cancel('Search criteria changed');
     state = SmartSearchState(filters: filters, revision: state.revision + 1, message: message, lastRequest: state.lastRequest, draftText: draftText ?? state.draftText);
   }
 
@@ -99,28 +103,40 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 
   void reset({bool useLocation = false}) {
     _inference++; _results++;
+    _resultTransfer?.cancel('Search journey ended');
     _defaultContext = useLocation ? Map.of(defaultLocation?.call().values ?? const <String,dynamic>{}) : {};
     _usingDefaultLocation = _defaultContext.isNotEmpty;
     state = SmartSearchState(revision: state.revision + 1, filters: SmartSearchFilters.fromMap(_defaultContext));
   }
 
   Future<void> search({bool more = false}) async {
+    if (!mounted) return;
     if (more && (state.loading || !state.more)) return;
     final request = ++_results, revision = state.revision;
     final page = more ? state.page + 1 : 1;
     final filters = state.filters;
-    state = state.copyWith(loading: true, started: true, clearResultsError: true, rows: more ? null : const []);
+    _resultTransfer?.cancel('Search superseded');
+    final transfer = _resultTransfer = CancelToken();
+    _failedMore = more;
+    state = state.copyWith(loading: true, started: true, clearResultsError: true);
     try {
-      final result = await _properties.searchListings(filters.apiFilters, page: page);
+      final result = await _properties.searchListings(filters.apiFilters, page: page, cancelToken: transfer, refresh: !more && state.page > 0);
       if (!mounted || request != _results || revision != state.revision) return;
       final rows = more ? List<PropertySummary>.of(state.rows) : <PropertySummary>[];
       final ids = rows.map((row) => row.id).toSet();
       rows.addAll(result.$1.where((row) => ids.add(row.id)));
       state = state.copyWith(rows: List.unmodifiable(rows), page: page, more: result.$2, loading: false);
     } catch (error) {
-      if (mounted && request == _results && revision == state.revision) state = state.copyWith(loading: false, resultsError: friendlyApiError(error));
+      if (mounted && request == _results && revision == state.revision) {
+        state = state.copyWith(loading: false, rows: isTransientApiFailure(error) ? null : const [], resultsError: friendlyApiError(error));
+      }
     }
   }
+
+  Future<void> retryResults() => state.loading ? Future.value() : search(more: _failedMore);
+
+  @override
+  void dispose() { _inference++; _results++; _resultTransfer?.cancel('Search disposed'); super.dispose(); }
 }
 
 // One owner route controls a journey. List/map share it; full exit invalidates it.

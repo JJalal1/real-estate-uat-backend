@@ -52,6 +52,8 @@ class PropertyDiscoveryFilterService
             'spotlight' => ['nullable', 'boolean'],
             'purpose' => ['nullable', Rule::in(self::PURPOSES)],
             'type' => ['nullable', Rule::in(self::TYPES)],
+            'types' => ['nullable', 'array', 'list', 'max:8'],
+            'types.*' => ['required', 'string', 'distinct', Rule::in(array_values(array_diff(self::TYPES, ['floor'])))],
             'min_price' => ['nullable', 'numeric', 'min:0'],
             'max_price' => ['nullable', 'numeric', 'min:0'],
             'min_bedrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
@@ -93,19 +95,26 @@ class PropertyDiscoveryFilterService
             $query->where('purpose', 'rent')->where('monthly_rent', '<=', $validated['max_monthly_rent']);
         }
         if (isset($validated['min_monthly_rent'])) $query->where('purpose', 'rent')->where('monthly_rent', '>=', $validated['min_monthly_rent']);
-        $search = trim((string) ($validated['search'] ?? ''));
+        $search = $this->normalizeArabicSearch((string) ($validated['search'] ?? ''));
         if ($search !== '') {
-            $query->where(function (Builder $nested) use ($search) {
-                $pattern = '%' . $search . '%';
-                $operator = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
-                $nested
-                    ->where('title', $operator, $pattern)
-                    ->orWhere('description', $operator, $pattern)
-                    ->orWhere('address', $operator, $pattern);
-            });
+            $tokens = preg_split('/\\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($tokens as $token) {
+                $query->where(function (Builder $tokenQuery) use ($token): void {
+                    foreach (['title', 'description', 'address'] as $field) {
+                        $tokenQuery->orWhereRaw(
+                            $this->normalizedArabicSql($field).' LIKE ?',
+                            ['%'.$token.'%'],
+                        );
+                    }
+                });
+            }
         }
 
-        if (($validated['type'] ?? null) === 'apartment') {
+        if (!empty($validated['types'])) {
+            $types = $validated['types'];
+            if (in_array('apartment', $types, true)) $types[] = 'floor';
+            $query->whereIn('type', array_values(array_unique($types)));
+        } elseif (($validated['type'] ?? null) === 'apartment') {
             $query->whereIn('type', ['apartment', 'floor']);
         } elseif (($validated['type'] ?? null) === 'floor') {
             $query->where(fn (Builder $scope) => $scope->where('type', 'floor')
@@ -135,8 +144,66 @@ class PropertyDiscoveryFilterService
         }
     }
 
+    public function applySearchOrdering(Builder $query, array $validated, string $sort): void
+    {
+        if ($sort !== 'latest') return;
+        $search = $this->normalizeArabicSearch((string) ($validated['search'] ?? ''));
+        if ($search === '') return;
+
+        $title = $this->normalizedArabicSql('title');
+        $address = $this->normalizedArabicSql('address');
+        $prefix = $search.'%';
+
+        $query->orderByRaw(
+            "CASE
+                WHEN {$title} = ? THEN 0
+                WHEN {$address} = ? THEN 1
+                WHEN {$title} LIKE ? THEN 2
+                WHEN {$address} LIKE ? THEN 3
+                WHEN {$title} LIKE ? THEN 4
+                WHEN {$address} LIKE ? THEN 5
+                ELSE 6
+            END",
+            [$search, $search, $prefix, $prefix, '%'.$search.'%', '%'.$search.'%'],
+        );
+    }
+
+    private function normalizeArabicSearch(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') return '';
+
+        $value = strtr($value, [
+            'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا',
+            'ى' => 'ي', 'ة' => 'ه',
+        ]);
+        $value = preg_replace('/[ًٌٍَُِّْٰـ]/u', '', $value) ?? $value;
+        $value = preg_replace('/\\s+/u', ' ', $value) ?? $value;
+
+        return trim($value);
+    }
+
+    private function normalizedArabicSql(string $column): string
+    {
+        $expression = "LOWER(COALESCE({$column}, ''))";
+        foreach ([
+            'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي', 'ة' => 'ه',
+            'ً' => '', 'ٌ' => '', 'ٍ' => '', 'َ' => '', 'ُ' => '', 'ِ' => '',
+            'ّ' => '', 'ْ' => '', 'ٰ' => '', 'ـ' => '',
+        ] as $from => $to) {
+            $fromSql = str_replace("'", "''", $from);
+            $toSql = str_replace("'", "''", $to);
+            $expression = "REPLACE({$expression}, '{$fromSql}', '{$toSql}')";
+        }
+
+        return $expression;
+    }
+
     public function validateGeometry(array $validated): void
     {
+        if (!empty($validated['type']) && !empty($validated['types'])) {
+            throw ValidationException::withMessages(['types' => ['استخدم اختيارًا واحدًا لأنواع العقار.']]);
+        }
         foreach (['min_price' => 'max_price', 'min_monthly_rent' => 'max_monthly_rent', 'min_area_m2' => 'max_area_m2'] as $min => $max) {
             if (isset($validated[$min], $validated[$max]) && $validated[$min] > $validated[$max]) {
                 throw ValidationException::withMessages(['filters' => ['الحد الأدنى يجب ألا يتجاوز الحد الأعلى.']]);

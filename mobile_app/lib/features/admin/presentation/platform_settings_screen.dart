@@ -3,20 +3,31 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../data/admin_workspace_repository.dart';
 import '../domain/admin_workspace_models.dart';
 
-class PlatformSettingsScreen extends ConsumerStatefulWidget {
+class PlatformSettingsScreen extends ConsumerWidget {
   const PlatformSettingsScreen({super.key});
   @override
-  ConsumerState<PlatformSettingsScreen> createState() =>
+  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(
+    title: 'إعدادات المنصة', builder: (_) => const _PlatformSettingsForActor());
+}
+
+class _PlatformSettingsForActor extends ConsumerStatefulWidget {
+  const _PlatformSettingsForActor();
+  @override
+  ConsumerState<_PlatformSettingsForActor> createState() =>
       _PlatformSettingsScreenState();
 }
 
 class _PlatformSettingsScreenState
-    extends ConsumerState<PlatformSettingsScreen> {
+    extends ConsumerState<_PlatformSettingsForActor> {
   bool _loading = true;
+  bool _hasLoaded = false;
+  int _generation = 0;
   bool _saving = false;
   String? _error;
   List<PlatformSettingItem> _items = const [];
@@ -30,12 +41,15 @@ class _PlatformSettingsScreenState
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
+    final generation = ++_generation;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final rows = await ref.read(adminWorkspaceRepositoryProvider).settings();
+      if (!mounted || generation != _generation) return;
       for (final c in _text.values) {
         c.dispose();
       }
@@ -49,20 +63,23 @@ class _PlatformSettingsScreenState
               TextEditingController(text: item.value?.toString() ?? '');
         }
       }
-      if (!mounted) {
-        return;
-      }
       setState(() {
         _items = rows;
+        _hasLoaded = true;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted || generation != _generation) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
+        if (!isTransientApiFailure(error)) {
+          _hasLoaded = false;
+          _items = const [];
+          for (final controller in _text.values) { controller.dispose(); }
+          _text.clear();
+          _bool.clear();
+        }
       });
     }
   }
@@ -111,14 +128,20 @@ class _PlatformSettingsScreenState
       child: Scaffold(
         appBar: AppBar(title: const Text('إعدادات المنصة'), actions: [
           IconButton(
-              onPressed: _loading ? null : _load,
+              tooltip: 'تحديث إعدادات المنصة',
+              onPressed: _loading || _saving ? null : _load,
               icon: const EbrokerIcon(Icons.refresh))
         ]),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? Center(child: Text(_error!))
-                : ListView(
+        body: _loading && !_hasLoaded
+            ? const AppLoadingState(label: 'جارٍ تحميل إعدادات المنصة…')
+            : _error != null && !_hasLoaded
+                ? AppErrorState(message: _error!, onRetry: _load)
+                : Column(children: [
+                  AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
+                  Expanded(child: _items.isEmpty
+                    ? AppEmptyState(title: 'لا توجد إعدادات متاحة', message: 'يمكنك تحديث الصفحة لإعادة التحقق.',
+                        actionLabel: 'تحديث', onAction: _load)
+                    : ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
                       const Card(
@@ -181,13 +204,14 @@ class _PlatformSettingsScreenState
                       if (canManage) ...[
                         const SizedBox(height: 12),
                         EbrokerFilledButton.icon(
-                            onPressed: _saving ? null : _save,
+                            onPressed: _saving || _loading ? null : _save,
                             icon: const EbrokerIcon(Icons.save_outlined),
                             label: Text(
                                 _saving ? 'جارٍ الحفظ...' : 'حفظ الإعدادات')),
                       ],
                     ],
-                  ),
+                  )),
+                ]),
       ),
     );
   }

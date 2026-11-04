@@ -1,0 +1,72 @@
+{
+  "source_commit": "3ca26f6ab39b26c0e589299f97285ae0d9b2d1e7",
+  "status": "passed",
+  "environment": "disposable-rooted-Android-emulator",
+  "android_api": 36,
+  "kernel_page_bytes": 4096,
+  "predecessor": {
+    "source_commit": "3ca26f6ab39b26c0e589299f97285ae0d9b2d1e7",
+    "version_code": 1358,
+    "sha256": "c956218073ca691e019336ce41c8a68ce244152e53b5611779851f84d86e2052",
+    "bytes": 118321708,
+    "target_sdk": 36,
+    "min_sdk": 23,
+    "native_16kb_elf": "passed",
+    "zipalign_16kb": "passed",
+    "native_64bit_libraries_verified": 10,
+    "package": "com.aqer.yemen.uat",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "architectures": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "brand_assets_match": 4,
+    "fonts_match": 5,
+    "zip_crc": "passed",
+    "apksigner": "passed",
+    "certificate_sha256": "d8fcdb36ea8066ec64cfa82156404ad3d806ec25e0f2ad9269076a5994f3d8b2",
+    "handset_acceptance": "pending",
+    "firebase": {
+      "client_configured": false,
+      "real_fcm_delivery_tested": false
+    },
+    "package_role": "upgrade-predecessor-same-source"
+  },
+  "current": {
+    "source_commit": "3ca26f6ab39b26c0e589299f97285ae0d9b2d1e7",
+    "version_code": 1359,
+    "sha256": "1871b47d7fe2e60e6292868ecc149523c5e2c3cbc05ff7aa11bdc1c9f0beafa2",
+    "bytes": 118321708,
+    "target_sdk": 36,
+    "min_sdk": 23,
+    "native_16kb_elf": "passed",
+    "zipalign_16kb": "passed",
+    "native_64bit_libraries_verified": 10,
+    "package": "com.aqer.yemen.uat",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "architectures": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "brand_assets_match": 4,
+    "fonts_match": 5,
+    "zip_crc": "passed",
+    "apksigner": "passed",
+    "certificate_sha256": "d8fcdb36ea8066ec64cfa82156404ad3d806ec25e0f2ad9269076a5994f3d8b2",
+    "handset_acceptance": "pending",
+    "firebase": {
+      "client_configured": false,
+      "real_fcm_delivery_tested": false
+    },
+    "package_role": "current-uat"
+  },
+  "same_certificate": true,
+  "install_replace_preserved_private_fixture_sha256": {
+    "files/aqer_theme_mode.txt": "e6bb5689beec52c4672bd4df92c3613d128d30cdc2b704f76953fe43d89c4ae8",
+    "no_backup/listing_recovery/u999999/p0/state.json": "acca00f8b7028eb7134cd6218b262739bdaec686db0b7ac44938a51013cde58d"
+  },
+  "offline_startup_without_process_crash": true,
+  "limits": "Same source with consecutive build codes; no signed-in session migration, official store signing, handset or FCM delivery acceptance."
+}

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'actor_scoped_page.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,16 +11,21 @@ import '../data/auth_controller.dart';
 import '../data/broker_verification_repository.dart';
 import '../domain/broker_verification.dart';
 
-class BrokerAccountVerificationScreen extends ConsumerStatefulWidget {
+class BrokerAccountVerificationScreen extends ConsumerWidget {
   const BrokerAccountVerificationScreen({super.key});
-
   @override
-  ConsumerState<BrokerAccountVerificationScreen> createState() =>
-      _BrokerAccountVerificationScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'توثيق حساب الدلال', builder: (_) => const _BrokerAccountVerificationScreenBody());
+}
+
+class _BrokerAccountVerificationScreenBody extends ConsumerStatefulWidget {
+  const _BrokerAccountVerificationScreenBody();
+  @override
+  ConsumerState<_BrokerAccountVerificationScreenBody> createState() => _BrokerAccountVerificationScreenState();
 }
 
 class _BrokerAccountVerificationScreenState
-    extends ConsumerState<BrokerAccountVerificationScreen> {
+    extends ConsumerState<_BrokerAccountVerificationScreenBody> {
   final _picker = const Stage5MediaPicker();
   String? _idFront;
   String? _idBack;
@@ -29,7 +36,7 @@ class _BrokerAccountVerificationScreenState
   @override
   void initState() {
     super.initState();
-    _future = _loadStatus();
+    _future = _loadStatus(); _future.ignore();
   }
 
   @override
@@ -67,13 +74,7 @@ class _BrokerAccountVerificationScreenState
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    return Center(
-                      child: EbrokerFilledButton.icon(
-                        onPressed: _reload,
-                        icon: const EbrokerIcon(Icons.refresh),
-                        label: const Text('إعادة المحاولة'),
-                      ),
-                    );
+                    return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _reload);
                   }
                   final application = snapshot.data!;
                   return ListView(
@@ -162,6 +163,7 @@ class _BrokerAccountVerificationScreenState
         return;
       }
       await ref.read(authControllerProvider.notifier).refresh();
+      if (!mounted) return;
       _message('تم إرسال طلب التوثيق إلى فريق الدعم.');
       _reload();
     } catch (error) {
@@ -176,13 +178,13 @@ class _BrokerAccountVerificationScreenState
   Future<BrokerVerificationApplication> _loadStatus() async {
     final application =
         await ref.read(brokerVerificationRepositoryProvider).status();
-    if (application.approved) {
+    if (mounted && application.approved) {
       await ref.read(authControllerProvider.notifier).refresh();
     }
     return application;
   }
 
-  void _reload() => setState(() => _future = _loadStatus());
+  void _reload() => setState(() { _future = _loadStatus(); _future.ignore(); });
   void _message(String text) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));

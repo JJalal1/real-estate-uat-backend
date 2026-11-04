@@ -1,0 +1,51 @@
+name: Staged Render resource template validation
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths: ['docs/operations/*.yaml', 'render.yaml', '.github/workflows/resource-template-validation.yml']
+permissions:
+  contents: read
+jobs:
+  schema:
+    name: Validate resource templates against current Render schema without applying
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Isolated validation dependencies only
+        run: |
+          python3 -m venv /tmp/aqer-render-validation
+          /tmp/aqer-render-validation/bin/pip install --disable-pip-version-check 'jsonschema>=4.23,<5' 'PyYAML==6.0.3'
+      - name: Fetch official schema and validate all proposed resources
+        run: |
+          /tmp/aqer-render-validation/bin/python - <<'PY'
+          import hashlib, importlib.metadata, json, os, re, urllib.request
+          from pathlib import Path
+          import jsonschema, yaml
+          class CoreLoader(yaml.SafeLoader): pass
+          CoreLoader.yaml_implicit_resolvers={key:[(tag,regex) for tag,regex in values if tag!='tag:yaml.org,2002:bool'] for key,values in yaml.SafeLoader.yaml_implicit_resolvers.items()}
+          CoreLoader.add_implicit_resolver('tag:yaml.org,2002:bool',re.compile(r'^(?:true|True|TRUE|false|False|FALSE)$'),list('tTfF'))
+          url='https://render.com/schema/render.yaml.json'
+          raw=urllib.request.urlopen(url,timeout=30).read(2*1024*1024)
+          schema=json.loads(raw)
+          assert schema['$id']==url
+          validator=jsonschema.Draft202012Validator(schema)
+          files=[Path('render.yaml'),*sorted(Path('docs/operations').glob('*.yaml'))]
+          assert len(files)==3
+          fingerprints={}
+          for path in files:
+              validator.validate(yaml.load(path.read_text(),Loader=CoreLoader))
+              fingerprints[str(path)]=hashlib.sha256(path.read_bytes()).hexdigest()
+          report={'source_sha':os.environ['GITHUB_SHA'],'schema_url':url,'schema_sha256':hashlib.sha256(raw).hexdigest(),'template_sha256':fingerprints,'applied':False,'resources_created':0,'jsonschema_version':importlib.metadata.version('jsonschema'),'yaml_version':yaml.__version__}
+          Path('dist').mkdir(exist_ok=True)
+          Path('dist/RENDER_TEMPLATE_VALIDATION.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: render-template-validation-${{ github.run_number }}
+          path: dist/RENDER_TEMPLATE_VALIDATION.json
+          if-no-files-found: error
+          retention-days: 14

@@ -1,5 +1,15 @@
 const String appDeepLinkScheme = 'realestate';
 const String appDeepLinkHost = 'app';
+const String _configuredShareBaseUrl = String.fromEnvironment(
+  'APP_SHARE_BASE_URL',
+  defaultValue: 'https://real-estate-uat-api-frankfurt.onrender.com',
+);
+
+Uri propertyPublicShareLink(int propertyId) {
+  _requirePositive(propertyId, 'propertyId');
+  final base = Uri.parse(_configuredShareBaseUrl);
+  return base.replace(path: '/l/properties/$propertyId', query: null, fragment: null);
+}
 
 Uri propertyAppDeepLink(int propertyId) {
   _requirePositive(propertyId, 'propertyId');
@@ -49,9 +59,27 @@ Uri rentalContractAppDeepLink(int contractId) {
 /// Converts only links owned by this app into an internal GoRouter location.
 /// Unknown hosts/schemes are intentionally ignored instead of being rewritten.
 String? internalLocationForAppLink(Uri uri) {
-  if (uri.scheme != appDeepLinkScheme || uri.host != appDeepLinkHost) {
-    return null;
+  final shareBase = Uri.tryParse(_configuredShareBaseUrl);
+  // Only canonical, unambiguous origins and paths may become app routes.
+  // Reject credentials, fragments, query-borne tokens and alternate ports.
+  if (uri.userInfo.isNotEmpty || uri.hasFragment || uri.hasQuery) return null;
+  final isCustomLink = uri.scheme == appDeepLinkScheme &&
+      uri.host == appDeepLinkHost &&
+      uri.port == 0;
+  final isPublicShareLink = shareBase != null &&
+      uri.scheme == 'https' &&
+      uri.scheme == shareBase.scheme &&
+      uri.host == shareBase.host &&
+      uri.port == shareBase.port &&
+      uri.pathSegments.length == 3 &&
+      uri.pathSegments[0] == 'l' &&
+      uri.pathSegments[1] == 'properties';
+
+  if (isPublicShareLink) {
+    final id = int.tryParse(uri.pathSegments[2]) ?? 0;
+    return id > 0 ? '/properties/$id' : null;
   }
+  if (!isCustomLink) return null;
 
   final segments = uri.pathSegments;
   if (segments.length == 3 && segments[0] == 'broker' && segments[1] == 'deals') {

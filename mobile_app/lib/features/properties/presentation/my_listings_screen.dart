@@ -39,6 +39,8 @@ class MyListingsScreen extends ConsumerStatefulWidget {
 class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   String _filter = 'all';
   final Set<int> _updating = {};
+  int? _loadedActor;
+  bool _hasLoaded = false;
 
   Future<void> _availability(PropertyDetails item, String state) async {
     if (_updating.contains(item.id)) return;
@@ -67,17 +69,23 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   @override
   Widget build(BuildContext context) {
     final listings = ref.watch(myListingsProvider);
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    if (listings.asData != null) { _loadedActor = actor; _hasLoaded = true; }
+    final retain = _hasLoaded && _loadedActor == actor && listings.hasValue && listings.hasError && isTransientApiFailure(listings.error!);
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppAppBar(title: 'عقاراتي', actions: [IconButton(tooltip: 'تحديث التوفر الجماعي', onPressed: () => context.push('/broker/availability'), icon: const EbrokerIcon(Icons.update, size: 20))]),
-        floatingActionButton: EbrokerButton(
+        floatingActionButton: listings.asData?.value.isNotEmpty == true ? EbrokerButton(
           onPressed: () => _create(context, ref),
           icon: const EbrokerIcon(Icons.add_home_work_outlined),
           child: const Text('إضافة عقار'),
-        ),
-        body: listings.when(
+        ) : null,
+        body: Column(children: [
+          if (listings.hasValue && (listings.isRefreshing || retain)) AppRefreshStatus(loading: listings.isLoading,
+            error: retain ? friendlyApiError(listings.error!) : null, onRetry: () => ref.invalidate(myListingsProvider)),
+          Expanded(child: listings.when(skipLoadingOnReload: false, skipError: retain,
           loading: () => const _MyListingsSkeleton(),
           error: (error, _) => AppErrorState(
             message: friendlyApiError(error),
@@ -99,7 +107,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
             return RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(myListingsProvider);
-                await ref.read(myListingsProvider.future);
+                try { await ref.read(myListingsProvider.future); } catch (_) { /* The state renders failure and retry. */ }
               },
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -132,7 +140,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
                   ),
                   if (filtered.isEmpty)
                     const SliverFillRemaining(
-                      hasScrollBody: false,
+                      hasScrollBody: true,
                       child: AppEmptyState(
                         title: 'لا توجد إعلانات في هذه الحالة',
                         message: 'اختر حالة ثانية لعرض بقية إعلاناتك.',
@@ -180,7 +188,8 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
               ),
             );
           },
-        ),
+        )),
+        ]),
       ),
     );
   }

@@ -1,0 +1,224 @@
+{
+  "tested_head": "ec474e2db73248c3ac32a4e2857cee9cf1e58c65",
+  "native_source_commit": "b32f02c1f768183c5147a363dba5d2c1255463c3",
+  "tested_tree": "373fcbbc76a8d14bd9a6523ab03859bd933f2834",
+  "merge": "ca184fc0c1ae67443786a72a32911b80d1ed5197",
+  "workflows": [
+    {
+      "id": 40078431028,
+      "name": "Listing Image Approval Regression",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40078431019,
+      "name": "UAT Private Video Storage Preflight",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40078431030,
+      "name": "UAT Signed TUS contract",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40078431003,
+      "name": "Release Integrity PostgreSQL Regression",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40078431014,
+      "name": "Viewport and loading acceptance",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40078431006,
+      "name": "Adaptive Image Quality",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40078430994,
+      "name": "Launch Readiness Wave 4",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 40078431384,
+      "name": "Broker Experience CI",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "jobs": [
+    {
+      "run": 40078431003,
+      "workflow": "Release Integrity PostgreSQL Regression",
+      "id": 120826706068,
+      "name": "PostgreSQL market context integer safety",
+      "summary": [
+        "2026-10-24T08:33:02.7475240Z   Tests:    1 passed (5 assertions)"
+      ]
+    },
+    {
+      "run": 40078431006,
+      "workflow": "Adaptive Image Quality",
+      "id": 120826706228,
+      "name": "Adaptive derivatives privacy and media lifecycle",
+      "summary": [
+        "2026-10-24T08:32:36.3866390Z   Tests:    18 passed (316 assertions)"
+      ]
+    },
+    {
+      "run": 40078431006,
+      "workflow": "Adaptive Image Quality",
+      "id": 120826706313,
+      "name": "Adaptive selection cache cancellation and regressions",
+      "summary": [
+        "2026-10-24T08:33:04.2398158Z V3 analysis gate OK; 0 pre-existing INFOs retained on unchanged Golden file.",
+        "2026-10-24T08:33:17.3182370Z 00:05 +47: All tests passed!"
+      ]
+    },
+    {
+      "run": 40078431006,
+      "workflow": "Adaptive Image Quality",
+      "id": 120826706359,
+      "name": "Real UAT transfer measurements and Flutter cache integration",
+      "summary": [
+        "2026-10-24T08:35:16.3364202Z 00:02 +1: All tests passed!"
+      ]
+    },
+    {
+      "run": 40078431028,
+      "workflow": "Listing Image Approval Regression",
+      "id": 120826706250,
+      "name": "All image-review and listing-approval API regressions",
+      "summary": [
+        "2026-10-24T08:32:33.1019806Z   Tests:    16 passed (278 assertions)"
+      ]
+    },
+    {
+      "run": 40078431019,
+      "workflow": "UAT Private Video Storage Preflight",
+      "id": 120826706177,
+      "name": "Private Storage protocol and existing image regressions",
+      "summary": [
+        "2026-10-24T08:32:33.4693381Z   Tests:    9 passed (23 assertions)",
+        "2026-10-24T08:32:34.9900674Z   Tests:    6 passed (133 assertions)"
+      ]
+    },
+    {
+      "run": 40078431030,
+      "workflow": "UAT Signed TUS contract",
+      "id": 120826706121,
+      "name": "Signed TUS protocol and failure-preservation tests",
+      "summary": [
+        "2026-10-24T08:32:31.4207385Z   Tests:    2 passed (13 assertions)"
+      ]
+    },
+    {
+      "run": 40078431384,
+      "workflow": "Broker Experience CI",
+      "id": 120826784419,
+      "name": "UAT Docker PNG runtime",
+      "summary": []
+    },
+    {
+      "run": 40078431384,
+      "workflow": "Broker Experience CI",
+      "id": 120826784434,
+      "name": "Laravel original regression",
+      "summary": [
+        "2026-10-24T08:33:24.9945206Z   Tests:    1 skipped, 356 passed (4390 assertions)"
+      ]
+    },
+    {
+      "run": 40078431384,
+      "workflow": "Broker Experience CI",
+      "id": 120826784487,
+      "name": "Disposable PostgreSQL 17 and PostGIS",
+      "summary": [
+        "2026-10-24T08:34:00.4863922Z   Tests:    15 passed (375 assertions)",
+        "2026-10-24T08:34:06.7111789Z   Tests:    44 passed (513 assertions)",
+        "2026-10-24T08:34:17.3442899Z   Tests:    47 passed (1089 assertions)",
+        "2026-10-24T08:34:19.7220126Z   Tests:    7 passed (75 assertions)",
+        "2026-10-24T08:34:24.3865933Z   Tests:    9 passed (116 assertions)",
+        "2026-10-24T08:34:25.8872553Z   Tests:    1 passed (6 assertions)",
+        "2026-10-24T08:34:30.7239078Z   Tests:    37 passed (503 assertions)",
+        "2026-10-24T08:34:32.7168951Z   Tests:    16 passed (150 assertions)"
+      ]
+    },
+    {
+      "run": 40078430994,
+      "workflow": "Launch Readiness Wave 4",
+      "id": 120826783362,
+      "name": "Laravel launch readiness",
+      "summary": [
+        "2026-10-24T08:33:02.5512631Z   Tests:    9 passed (76 assertions)"
+      ]
+    },
+    {
+      "run": 40078431014,
+      "workflow": "Viewport and loading acceptance",
+      "id": 120826706275,
+      "name": "Actual HTTP viewport and UAT image measurements",
+      "summary": [
+        "80 focused Flutter passed",
+        "5 actual HTTP passed",
+        "8,000px/s ballistic motion: 0 new fast-phase requests,7 after settle,0 on return"
+      ]
+    },
+    {
+      "run": 40078431384,
+      "workflow": "Broker Experience CI",
+      "id": 120827283259,
+      "name": "Flutter broker experience and UAT APK",
+      "summary": [
+        "528 passed,6 opt-in skipped; all6 run in dedicated live jobs",
+        "Strict analysis:0 diagnostics",
+        "Android native build/verify/encryption/upload successful"
+      ]
+    }
+  ],
+  "native": {
+    "source_commit": "b32f02c1f768183c5147a363dba5d2c1255463c3",
+    "version_code": 1181,
+    "sha256": "1418be601128ec5bc421a58fcdf9951b2c7b0d3d2b699f25507dfb8ef2503cad",
+    "bytes": 118091612,
+    "package": "com.example.real_estate_mobile",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "architectures": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "brand_assets_match": 4,
+    "fonts_match": 5,
+    "zip_crc": "passed",
+    "apksigner": "passed",
+    "certificate_sha256": "075b2d739c03d43ebb632f817ff82d7e2be5bc6ce0bd191dd9f2840e8b4fd840",
+    "handset_acceptance": "pending"
+  },
+  "post_rollout": [
+    {
+      "workflow": 40078431006,
+      "attempt": 2,
+      "job": 120829967667,
+      "status": "success",
+      "artifact": 12554194112,
+      "artifact_sha256": "0ab38e79b4ae0be59783f89df91bc70f422b6e3156a060e09dfff744812a0423"
+    },
+    {
+      "workflow": 40078431014,
+      "attempt": 2,
+      "job": 120829987890,
+      "status": "success",
+      "focused_flutter": 80,
+      "actual_http": 5
+    }
+  ],
+  "note": "Overlapping suites are not unique totals. Six opt-in full-Flutter skips run separately (5 viewport/discovery plus1 adaptive live). SQLite skips1 PostGIS-only overlap test covered under PostgreSQL. Native build is technical evidence, not a delivered consolidated handset acceptance APK."
+}

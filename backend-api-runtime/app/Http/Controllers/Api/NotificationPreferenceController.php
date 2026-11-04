@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\UserNotificationPreference;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class NotificationPreferenceController extends Controller
 {
@@ -23,10 +24,7 @@ class NotificationPreferenceController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $row = UserNotificationPreference::query()->firstOrCreate(
-            ['user_id' => $user->id],
-            $this->defaults(),
-        );
+        $row = DB::transaction(fn () => $this->activePreference($user), 3);
 
         return response()->json(['data' => $this->data($row)]);
     }
@@ -41,18 +39,27 @@ class NotificationPreferenceController extends Controller
         }
         $validated = $request->validate($rules);
 
-        $row = UserNotificationPreference::query()->firstOrCreate(
-            ['user_id' => $user->id],
-            $this->defaults(),
-        );
-        if ($validated !== []) {
-            $row->fill($validated)->save();
-        }
+        $row = DB::transaction(function () use ($user, $validated): UserNotificationPreference {
+            $row = $this->activePreference($user);
+            if ($validated !== []) $row->fill($validated)->save();
+            return $row;
+        }, 3);
 
         return response()->json([
             'message' => 'تم تحديث تفضيلات الإشعارات.',
-            'data' => $this->data($row->fresh()),
+            'data' => $this->data($row),
         ]);
+    }
+
+    private function activePreference(User $actor): UserNotificationPreference
+    {
+        // GET may create defaults too. Coordinate both paths with erasure,
+        // and recheck activity after the HTTP middleware snapshot.
+        $current = User::query()->whereKey($actor->id)->lockForUpdate()->firstOrFail();
+        abort_unless($current->isActive(), 403, 'هذا الحساب غير متاح حاليًا.');
+        return UserNotificationPreference::query()->firstOrCreate(
+            ['user_id' => $current->id], $this->defaults(),
+        );
     }
 
     private function defaults(): array

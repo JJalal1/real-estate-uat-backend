@@ -5,6 +5,7 @@ use App\Models\ApiToken;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ApiTokenService
@@ -13,6 +14,9 @@ class ApiTokenService
 
     public function issue(User $user, Request $request, string $name = 'android'): array
     {
+        return DB::transaction(function () use ($user,$request,$name): array {
+        $user=User::query()->whereKey($user->id)->lockForUpdate()->first();
+        abort_if(!$user || in_array($user->account_status,[User::STATUS_SUSPENDED,User::STATUS_BANNED,User::STATUS_DELETED],true),403,'هذا الحساب غير متاح.');
         $plain = 're6_'.Str::random(80);
         $expiresAt = now()->addDays(self::TOKEN_TTL_DAYS);
 
@@ -26,6 +30,7 @@ class ApiTokenService
         ]);
 
         return ['plain_text_token'=>$plain,'expires_at'=>$expiresAt->toIso8601String()];
+        });
     }
 
     public function authenticate(Request $request, bool $required = true): ?User
@@ -51,6 +56,11 @@ class ApiTokenService
         }
 
         $user = $token->user;
+        if ($user->account_status === User::STATUS_DELETED) {
+            $token->delete();
+            if ($required) throw new HttpException(401,'Authentication token is no longer valid.');
+            return null;
+        }
         if ($user->account_status === User::STATUS_SUSPENDED) {
             if ($required) throw new HttpException(403,'This account is suspended.');
             return null;

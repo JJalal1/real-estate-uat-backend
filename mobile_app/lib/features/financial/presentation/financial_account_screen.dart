@@ -7,17 +7,28 @@ import '../data/financial_repository.dart';
 import '../domain/financial_models.dart';
 import 'deal_financial_screen.dart';
 import 'receivable_payment_screen.dart';
+import '../../account/presentation/actor_scoped_page.dart';
+import '../../account/data/account_request_scope.dart';
 
-class FinancialAccountScreen extends ConsumerStatefulWidget {
+class FinancialAccountScreen extends StatelessWidget {
   const FinancialAccountScreen({this.showAccountSummary = true, super.key});
   final bool showAccountSummary;
-
   @override
-  ConsumerState<FinancialAccountScreen> createState() =>
+  Widget build(BuildContext context) => ActorBoundPage(title: 'الحساب المالي',
+    builder: (_) => _FinancialAccountPage(showAccountSummary: showAccountSummary));
+}
+
+class _FinancialAccountPage extends ConsumerStatefulWidget {
+  const _FinancialAccountPage({required this.showAccountSummary});
+  final bool showAccountSummary;
+  @override
+  ConsumerState<_FinancialAccountPage> createState() =>
       _FinancialAccountScreenState();
 }
 
-class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen> {
+class _FinancialAccountScreenState extends ConsumerState<_FinancialAccountPage> {
+  late final AccountRequestScope _scope;
+  bool get _valid => mounted && _scope.isCurrent;
   FinancialAdvertiserAccount? _account;
   List<FinancialPayment> _payments = const [];
   bool _loading = true;
@@ -26,11 +37,13 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
   @override
   void initState() {
     super.initState();
+    _scope = ref.read(accountRequestScopeProvider);
     Future.microtask(_load);
   }
 
   Future<void> _load() async {
-    if (mounted) {
+    if (!_valid) return;
+    if (_valid) {
       setState(() {
         _loading = true;
         _error = null;
@@ -39,16 +52,17 @@ class _FinancialAccountScreenState extends ConsumerState<FinancialAccountScreen>
     try {
       final repo = ref.read(financialRepositoryProvider);
       final payments = await repo.paymentsMine();
+      if (!_valid) return;
       final account =
           widget.showAccountSummary ? await repo.advertiserAccount() : null;
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() {
         _payments = payments;
         _account = account;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() {
         _error = friendlyApiError(error);
         _loading = false;

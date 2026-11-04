@@ -22,6 +22,7 @@ class SavedPropertySearchService
             }
             $normalized[$key] = match ($key) {
                 'search', 'purpose', 'type', 'area_polygon', 'currency', 'governorate', 'floor_number', 'building_facade' => trim((string) $filters[$key]),
+                'types' => array_values($filters[$key]),
                 'has_parking', 'has_elevator', 'unit_occupies_entire_floor', 'spotlight' => (bool) $filters[$key],
                 'advertiser_id' => (int) $filters[$key],
                 'min_bedrooms', 'min_bathrooms' => (int) $filters[$key],

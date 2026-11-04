@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../../account/data/account_request_scope.dart';
 import '../domain/agreement_models.dart';
 
 final agreementDataRevisionProvider = StateProvider<int>((ref) => 0);
@@ -11,19 +12,23 @@ final agreementRepositoryProvider = Provider<AgreementRepository>((ref) {
   return AgreementRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
+    requestScope: ref.watch(accountRequestScopeProvider),
   );
 });
 
 class AgreementRepository {
-  AgreementRepository(this._dio, this._auth);
+  AgreementRepository(this._dio, this._auth, {AccountRequestScope? requestScope})
+    : _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
+  Future<Options> _options() => _requestScope?.options() ?? _auth.requiredAuthOptions();
 
   Future<List<PropertyAgreement>> mine() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/agreements/mine',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return _list(response.data)
         .map(PropertyAgreement.fromJson)
@@ -33,7 +38,7 @@ class AgreementRepository {
   Future<PropertyAgreement> agreement(int id) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/agreements/$id',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return PropertyAgreement.fromJson(_dataMap(response.data));
   }
@@ -45,7 +50,7 @@ class AgreementRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/messages/threads/$threadId/agreement',
       data: terms,
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return PropertyAgreement.fromJson(_dataMap(response.data));
   }
@@ -57,7 +62,7 @@ class AgreementRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/agreements/$agreementId/revisions',
       data: terms,
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return PropertyAgreement.fromJson(_dataMap(response.data));
   }
@@ -67,7 +72,7 @@ class AgreementRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/agreements/$agreementId/accept',
       data: {'revision_id': revisionId},
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return PropertyAgreement.fromJson(_dataMap(response.data));
   }
@@ -77,7 +82,7 @@ class AgreementRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/agreements/$agreementId/cancel',
       data: {'reason': reason.trim()},
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return PropertyAgreement.fromJson(_dataMap(response.data));
   }
@@ -85,7 +90,7 @@ class AgreementRepository {
   Future<List<RentalContract>> contractsMine() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/rental-contracts/mine',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return _list(response.data)
         .map(RentalContract.fromJson)
@@ -95,7 +100,7 @@ class AgreementRepository {
   Future<RentalContract> contract(int id) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/rental-contracts/$id',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return RentalContract.fromJson(_dataMap(response.data));
   }
@@ -107,7 +112,7 @@ class AgreementRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/agreements/$agreementId/rental-contract',
       data: terms,
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return RentalContract.fromJson(_dataMap(response.data));
   }
@@ -119,7 +124,7 @@ class AgreementRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/rental-contracts/$contractId/revisions',
       data: terms,
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return RentalContract.fromJson(_dataMap(response.data));
   }
@@ -129,7 +134,7 @@ class AgreementRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/rental-contracts/$contractId/accept',
       data: {'revision_id': revisionId},
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return RentalContract.fromJson(_dataMap(response.data));
   }
@@ -139,7 +144,7 @@ class AgreementRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/rental-contracts/$contractId/cancel',
       data: {'reason': reason.trim()},
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return RentalContract.fromJson(_dataMap(response.data));
   }
@@ -149,17 +154,19 @@ class AgreementRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/rental-contracts/$contractId/terminate',
       data: {'reason': reason.trim()},
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return RentalContract.fromJson(_dataMap(response.data));
   }
 
   List<Map<String, dynamic>> _list(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final rows = body?['data'] as List<dynamic>? ?? const <dynamic>[];
     return rows.whereType<Map<String, dynamic>>().toList(growable: false);
   }
 
   Map<String, dynamic> _dataMap(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final data = body?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid agreement response.');

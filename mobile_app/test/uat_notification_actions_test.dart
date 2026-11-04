@@ -6,9 +6,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/network/api_error_message.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/messages/data/message_repository.dart';
 import 'package:real_estate_mobile/features/messages/domain/message_models.dart';
 import 'package:real_estate_mobile/features/messages/presentation/notifications_screen.dart';
+
+class _Authenticated extends AuthController {
+  @override
+  Future<AuthUser?> build() async => AuthUser.fromJson({'id': 1, 'name': 'حساب اصطناعي', 'account_status': 'active'});
+  void logoutLocally() { state = const AsyncData(null); }
+}
 
 class _NotificationsRepository implements MessageRepository {
   Object? failure;
@@ -16,9 +24,14 @@ class _NotificationsRepository implements MessageRepository {
   int singleReads = 0;
   int allReads = 0;
   bool read = false;
+  int listReads = 0;
+  Completer<List<AppNotificationItem>>? pendingList;
 
   @override
-  Future<List<AppNotificationItem>> notifications() async => [
+  Future<List<AppNotificationItem>> notifications() async {
+    listReads++;
+    if (pendingList != null) return pendingList!.future;
+    return [
         AppNotificationItem(
           id: 1,
           type: 'support_reply',
@@ -28,6 +41,7 @@ class _NotificationsRepository implements MessageRepository {
           entityId: 42,
         ),
       ];
+  }
 
   @override
   Future<void> readNotification(int id) async {
@@ -50,7 +64,7 @@ class _NotificationsRepository implements MessageRepository {
 }
 
 Future<GoRouter> _mount(
-    WidgetTester tester, _NotificationsRepository repository) async {
+    WidgetTester tester, _NotificationsRepository repository, {_Authenticated? auth}) async {
   final router = GoRouter(routes: [
     GoRoute(path: '/', builder: (_, __) => const NotificationsScreen()),
     GoRoute(
@@ -62,7 +76,8 @@ Future<GoRouter> _mount(
   ]);
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(
-    overrides: [messageRepositoryProvider.overrideWithValue(repository)],
+    overrides: [messageRepositoryProvider.overrideWithValue(repository),
+      authControllerProvider.overrideWith(() => auth ?? _Authenticated())],
     child: MaterialApp.router(routerConfig: router),
   ));
   await tester.pumpAndSettle();
@@ -130,4 +145,16 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
   });
+  testWidgets('logout hides notifications and ignores an old pending list response', (tester) async {
+    final auth = _Authenticated(), repo = _NotificationsRepository()..pendingList = Completer<List<AppNotificationItem>>();
+    await _mount(tester, repo, auth: auth);
+    expect(repo.listReads, 1);
+    auth.logoutLocally(); await tester.pumpAndSettle();
+    repo.pendingList!.complete([const AppNotificationItem(id: 1, type: 'support_reply', title: 'رد خاص اصطناعي', isRead: false)]);
+    await tester.pumpAndSettle();
+    expect(find.text('رد خاص اصطناعي'), findsNothing);
+    expect(find.text('سجّل الدخول للمتابعة.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }

@@ -14,6 +14,7 @@ class PropertyContactController extends Controller
         // Account, verification and office documents never supply a fallback.
         $listing = app(\App\Services\PropertyDiscoveryFilterService::class)->publicQuery()->whereKey($property)->firstOrFail();
         abort_unless($listing->user?->account_status === 'active', 404);
+        abort_unless(app(\App\Services\UserMessagingBlockService::class)->canSend($request->user()->id,$listing->user_id),403,'التواصل الجديد غير متاح حاليًا.');
         $phone = preg_replace('/[\s()\-]/u', '', (string) $listing->contact_phone);
         abort_unless(preg_match('/^\+?[0-9]{7,15}$/D', $phone), 422, 'لم يضف المعلن رقم اتصال صالحًا لهذا الإعلان. يمكنك مراسلته داخل التطبيق.');
         $data=['property_id'=>(int)$listing->id,'phone'=>$phone];

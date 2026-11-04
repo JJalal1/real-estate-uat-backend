@@ -1,0 +1,128 @@
+{
+  "fixture_property_ids": [
+    60,
+    61,
+    62
+  ],
+  "health": {
+    "status": 200,
+    "bytes": 46,
+    "elapsed_ms": 374,
+    "etag": null,
+    "cache_control": "no-cache, private",
+    "variant": null
+  },
+  "note": "Unthrottled wall time includes API/storage latency. Controlled reader is not OS network emulation.",
+  "samples": [
+    {
+      "fixture_property_id": 60,
+      "gallery": {
+        "status": 200,
+        "bytes": 191512,
+        "elapsed_ms": 1962,
+        "etag": null,
+        "cache_control": "max-age=86400, public",
+        "variant": null
+      },
+      "card": {
+        "status": 200,
+        "bytes": 51649,
+        "elapsed_ms": 1025,
+        "etag": null,
+        "cache_control": "max-age=86400, public",
+        "variant": null
+      },
+      "thumb": {
+        "status": 422,
+        "bytes": 133,
+        "elapsed_ms": 257,
+        "etag": null,
+        "cache_control": "no-cache, private",
+        "variant": null
+      },
+      "slow_gallery": {
+        "status": 200,
+        "bytes": 191512,
+        "elapsed_ms": 4066,
+        "etag": null,
+        "cache_control": "max-age=86400, public",
+        "variant": null
+      },
+      "slow_selected": {
+        "status": 200,
+        "bytes": 51649,
+        "elapsed_ms": 1720,
+        "etag": null,
+        "cache_control": "max-age=86400, public",
+        "variant": null
+      },
+      "controlled_reader_bytes_per_second": 65536,
+      "slow_selected_variant": "card"
+    },
+    {
+      "fixture_property_id": 61,
+      "gallery": {
+        "status": 200,
+        "bytes": 286916,
+        "elapsed_ms": 1415,
+        "etag": null,
+        "cache_control": "max-age=86400, public",
+        "variant": null
+      },
+      "card": {
+        "status": 200,
+        "bytes": 71417,
+        "elapsed_ms": 1423,
+        "etag": null,
+        "cache_control": "max-age=86400, public",
+        "variant": null
+      },
+      "thumb": {
+        "status": 422,
+        "bytes": 133,
+        "elapsed_ms": 219,
+        "etag": null,
+        "cache_control": "no-cache, private",
+        "variant": null
+      }
+    },
+    {
+      "fixture_property_id": 62,
+      "gallery": {
+        "status": 200,
+        "bytes": 286916,
+        "elapsed_ms": 4723,
+        "etag": null,
+        "cache_control": "max-age=86400, public",
+        "variant": null
+      },
+      "card": {
+        "status": 200,
+        "bytes": 71417,
+        "elapsed_ms": 1139,
+        "etag": null,
+        "cache_control": "max-age=86400, public",
+        "variant": null
+      },
+      "thumb": {
+        "status": 422,
+        "bytes": 133,
+        "elapsed_ms": 241,
+        "etag": null,
+        "cache_control": "no-cache, private",
+        "variant": null
+      }
+    }
+  ],
+  "adaptive_available": false,
+  "detail_before_bytes": 765344,
+  "detail_metered_after_bytes": 194483,
+  "detail_saving_percent": 74.59,
+  "evidence": {
+    "run_id": 40031362045,
+    "job_id": 120680122855,
+    "storage_api_commit": "23ddba16d33e50b45a954d9d5e0d2dfe67737d8a",
+    "probe_source_commit": "6adab3c7238af1435dca5b52217c966552b4702b",
+    "phase": "before-deployment"
+  }
+}

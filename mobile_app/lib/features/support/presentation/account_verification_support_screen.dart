@@ -5,27 +5,37 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../account/data/auth_controller.dart';
 import '../data/account_verification_support_repository.dart';
 
-class AccountVerificationSupportScreen extends ConsumerStatefulWidget {
+class AccountVerificationSupportScreen extends ConsumerWidget {
   const AccountVerificationSupportScreen({super.key, this.focusUserId});
 
   final int? focusUserId;
 
   @override
-  ConsumerState<AccountVerificationSupportScreen> createState() =>
-      _AccountVerificationSupportScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
+      : _VerificationSupportBody(key: ValueKey('$actor:$focusUserId'), focusUserId: focusUserId);
+  }
+}
+class _VerificationSupportBody extends ConsumerStatefulWidget {
+  const _VerificationSupportBody({this.focusUserId, super.key});
+  final int? focusUserId;
+  @override
+  ConsumerState<_VerificationSupportBody> createState() => _AccountVerificationSupportScreenState();
 }
 
 class _AccountVerificationSupportScreenState
-    extends ConsumerState<AccountVerificationSupportScreen> {
+    extends ConsumerState<_VerificationSupportBody> {
   late Future<List<AccountVerificationSupportItem>> _future;
   int? _approvingUserId;
 
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _future = _load(); _future.ignore();
   }
 
   Future<List<AccountVerificationSupportItem>> _load() async {
@@ -38,8 +48,8 @@ class _AccountVerificationSupportScreenState
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
-    await _future;
+    setState(() { _future = _load(); _future.ignore(); });
+    try { await _future; } catch (_) { /* The view displays failure and retry. */ }
   }
 
   @override

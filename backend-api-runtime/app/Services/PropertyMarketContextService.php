@@ -24,9 +24,14 @@ class PropertyMarketContextService
             ->where('type', $property->type)
             ->where('currency', $property->currency);
 
-        if ($property->area_m2 !== null && (float) $property->area_m2 > 0) {
-            $area = (float) $property->area_m2;
-            $query->whereBetween('area_m2', [max(1, $area * 0.70), $area * 1.30]);
+        if ($property->area_m2 !== null && (int) $property->area_m2 > 0) {
+            // area_m2 is an integer PostgreSQL column. Decimal bindings in
+            // BETWEEN (e.g. 143.5 for a 205 m2 listing) cause SQLSTATE 22P02.
+            // Keep the exact inclusive +/-30% band using integer arithmetic.
+            $area = (int) $property->area_m2;
+            $minimumArea = max(1, intdiv($area * 70 + 99, 100));
+            $maximumArea = intdiv($area * 130, 100);
+            $query->whereBetween('area_m2', [$minimumArea, $maximumArea]);
         }
 
         if (DB::connection()->getDriverName() === 'pgsql' && $property->location !== null) {

@@ -1,8 +1,10 @@
 services:
   - type: web
-    name: real-estate-uat-api
+    name: real-estate-uat-api-frankfurt
     runtime: docker
     plan: free
+    region: frankfurt
+    branch: work/wave2-review-current
     rootDir: backend-api-runtime
     dockerfilePath: ./Dockerfile.uat
     dockerContext: .
@@ -20,7 +22,7 @@ services:
       # Render assigns the public HTTPS URL; mirror it into Laravel APP_URL.
       - key: APP_URL
         fromService:
-          name: real-estate-uat-api
+          name: real-estate-uat-api-frankfurt
           type: web
           envVarKey: RENDER_EXTERNAL_URL
       - key: LOG_CHANNEL
@@ -35,6 +37,8 @@ services:
         sync: false
       - key: DB_SSLMODE
         value: require
+      - key: DB_PERSISTENT
+        value: "false"
       - key: DB_SEARCH_PATH
         value: public,gis,extensions
 
@@ -75,6 +79,21 @@ services:
       - key: UAT_TEST_PHONE_NUMBERS
         sync: false
 
-      # Cloud API deployment may run Laravel migrations after cloud checks pass.
+      # Prevent any historical/demo seed from running as a deploy side effect.
+      - key: UAT_DEMO_SEED_ENABLED
+        value: "false"
+      - key: UAT_CITY_DEMO_SEED_ENABLED
+        value: "false"
+      - key: UAT_WAVE3_FIXTURES_ENABLED
+        value: "false"
+
+      # Controlled on the existing service through Render. A Blueprint sync must
+      # preserve the live rollout decision instead of silently resetting it.
+      - key: LISTING_WATERMARK_ENABLED
+        sync: false
+      - key: LISTING_WATERMARK_APPROVED_SHA256
+        value: bf7611483e0689ad9ccd73458442745ff9fc4c91a07d60cf2c3521be90698b6e
+
+      # A real full backup and independent restore are required before new DDL.
       - key: UAT_RUN_MIGRATIONS
-        value: "true"
+        value: "false"

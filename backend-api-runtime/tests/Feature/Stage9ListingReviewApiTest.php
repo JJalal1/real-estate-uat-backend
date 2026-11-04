@@ -10,10 +10,12 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
+use Tests\Concerns\ConfirmsListingImages;
 
 class Stage9ListingReviewApiTest extends TestCase
 {
     use RefreshDatabase;
+    use ConfirmsListingImages;
 
     protected function setUp(): void
     {
@@ -54,6 +56,7 @@ class Stage9ListingReviewApiTest extends TestCase
         $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$id/start")
             ->assertOk()
             ->assertJsonPath('data.review_status', 'under_review');
+        $this->confirmListingImages($id, $modHeaders);
         $this->withHeaders($modHeaders)->postJson(
             "/api/admin/listing-review/listings/$id/approve",
             ['reason' => 'Verified proof and listing data.'],
@@ -134,6 +137,7 @@ class Stage9ListingReviewApiTest extends TestCase
         $id = $this->createReady($owner, 'Published edit');
         $this->withHeaders($owner)->postJson("/api/properties/$id/submit")->assertOk();
         $this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$id/start")->assertOk();
+        $this->confirmListingImages($id, $mod);
         $this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$id/approve")->assertOk();
         $this->getJson('/api/properties')->assertJsonPath('meta.total', 1);
 
@@ -167,6 +171,7 @@ class Stage9ListingReviewApiTest extends TestCase
         $id = $this->createReady($owner, 'Reviewer history');
         $this->withHeaders($owner)->postJson("/api/properties/$id/submit")->assertOk();
         $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$id/start")->assertOk();
+        $this->confirmListingImages($id, $modHeaders);
         $this->withHeaders($modHeaders)->postJson(
             "/api/admin/listing-review/listings/$id/approve",
             ['reason' => 'Reviewer history snapshot test.'],

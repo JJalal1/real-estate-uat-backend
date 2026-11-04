@@ -1,0 +1,1287 @@
+{
+  "run": "2026-10-26-109-v5",
+  "status": "passed",
+  "transport": "actual-loopback-http",
+  "cloud_storage": true,
+  "otp_login_tested": false,
+  "actor_count": 6,
+  "cleanup": true,
+  "elapsed_ms": 89142,
+  "cases": [
+    {
+      "case": "authenticated_publisher",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 592,
+      "bytes": 937,
+      "validation_fields": []
+    },
+    {
+      "case": "authenticated_other",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 220,
+      "bytes": 877,
+      "validation_fields": []
+    },
+    {
+      "case": "authenticated_other_publisher",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 285,
+      "bytes": 949,
+      "validation_fields": []
+    },
+    {
+      "case": "authenticated_reviewer",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 598,
+      "bytes": 1069,
+      "validation_fields": []
+    },
+    {
+      "case": "authenticated_second_reviewer",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 225,
+      "bytes": 1083,
+      "validation_fields": []
+    },
+    {
+      "case": "authenticated_manager",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 203,
+      "bytes": 1296,
+      "validation_fields": []
+    },
+    {
+      "case": "concurrent_saved_search_two",
+      "passed": true,
+      "status": 201,
+      "expected": [
+        200,
+        201
+      ],
+      "elapsed_ms": 721
+    },
+    {
+      "case": "concurrent_saved_search_one",
+      "passed": true,
+      "status": 200,
+      "expected": [
+        200,
+        201
+      ],
+      "elapsed_ms": 721
+    },
+    {
+      "case": "concurrent_saved_search_is_one_persistent_row",
+      "passed": true
+    },
+    {
+      "case": "duplicate_search_receipt_preserves_settings",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 221,
+      "bytes": 441,
+      "validation_fields": []
+    },
+    {
+      "case": "duplicate_search_did_not_apply_implicit_edit",
+      "passed": true
+    },
+    {
+      "case": "foreign_search_edit_denied",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 203,
+      "bytes": 83,
+      "validation_fields": []
+    },
+    {
+      "case": "foreign_search_delete_denied",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 191,
+      "bytes": 83,
+      "validation_fields": []
+    },
+    {
+      "case": "explicit_saved_search_edit",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 257,
+      "bytes": 444,
+      "validation_fields": []
+    },
+    {
+      "case": "saved_search_read_after_edit",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 138,
+      "bytes": 315,
+      "validation_fields": []
+    },
+    {
+      "case": "saved_search_edit_roundtrip",
+      "passed": true
+    },
+    {
+      "case": "second_distinct_search",
+      "status": 201,
+      "expected": 201,
+      "passed": true,
+      "elapsed_ms": 230,
+      "bytes": 419,
+      "validation_fields": []
+    },
+    {
+      "case": "search_filter_collision_returns_422",
+      "status": 422,
+      "expected": 422,
+      "passed": true,
+      "elapsed_ms": 228,
+      "bytes": 614,
+      "validation_fields": []
+    },
+    {
+      "case": "search_collision_preserves_both_rows",
+      "passed": true
+    },
+    {
+      "case": "empty_canonical_search_denied",
+      "status": 422,
+      "expected": 422,
+      "passed": true,
+      "elapsed_ms": 203,
+      "bytes": 462,
+      "validation_fields": []
+    },
+    {
+      "case": "saved_search_delete",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 197,
+      "bytes": 120,
+      "validation_fields": []
+    },
+    {
+      "case": "saved_search_read_after_delete",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 192,
+      "bytes": 265,
+      "validation_fields": []
+    },
+    {
+      "case": "saved_search_delete_roundtrip",
+      "passed": true
+    },
+    {
+      "case": "preferences_default_read",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 185,
+      "bytes": 151,
+      "validation_fields": []
+    },
+    {
+      "case": "preferences_explicit_save",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 156,
+      "bytes": 308,
+      "validation_fields": []
+    },
+    {
+      "case": "preferences_read_after_save",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 185,
+      "bytes": 153,
+      "validation_fields": []
+    },
+    {
+      "case": "notification_preferences_roundtrip",
+      "passed": true
+    },
+    {
+      "case": "other_account_preferences_are_separate",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 208,
+      "bytes": 151,
+      "validation_fields": []
+    },
+    {
+      "case": "notification_preferences_account_isolation",
+      "passed": true
+    },
+    {
+      "case": "broker_cannot_enter_platform_settings",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 180,
+      "bytes": 91,
+      "validation_fields": []
+    },
+    {
+      "case": "support_manager_cannot_enter_finance",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 209,
+      "bytes": 91,
+      "validation_fields": []
+    },
+    {
+      "case": "regular_cannot_upload_professional_photo",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 481,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "professional_photo_upload",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 1158,
+      "bytes": 26,
+      "validation_fields": []
+    },
+    {
+      "case": "public_professional_photo_is_sanitized",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 674,
+      "bytes": 1490,
+      "validation_fields": []
+    },
+    {
+      "case": "professional_photo_metadata_removed",
+      "passed": true
+    },
+    {
+      "case": "draft_save",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 461,
+      "bytes": 807,
+      "validation_fields": []
+    },
+    {
+      "case": "draft_revision_one",
+      "passed": true
+    },
+    {
+      "case": "lost_response_exact_retry",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 203,
+      "bytes": 807,
+      "validation_fields": []
+    },
+    {
+      "case": "stale_changed_checkpoint_conflict",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 218,
+      "bytes": 188,
+      "validation_fields": []
+    },
+    {
+      "case": "draft_restore",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 144,
+      "bytes": 807,
+      "validation_fields": []
+    },
+    {
+      "case": "draft_text_preserved",
+      "passed": true
+    },
+    {
+      "case": "other_cannot_read_draft",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 181,
+      "bytes": 82,
+      "validation_fields": []
+    },
+    {
+      "case": "unverified_actor_cannot_write_draft",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 214,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "other_publisher_has_no_matching_revision",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 187,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "same_uuid_is_separate_account_namespace",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 227,
+      "bytes": 682,
+      "validation_fields": []
+    },
+    {
+      "case": "original_account_draft_unchanged",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 193,
+      "bytes": 807,
+      "validation_fields": []
+    },
+    {
+      "case": "other_namespace_cannot_change_original",
+      "passed": true
+    },
+    {
+      "case": "first_real_image_upload",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 2894,
+      "bytes": 2003,
+      "validation_fields": []
+    },
+    {
+      "case": "image_upload_retry_no_duplicate",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 412,
+      "bytes": 2003,
+      "validation_fields": []
+    },
+    {
+      "case": "one_image_after_retry",
+      "passed": true
+    },
+    {
+      "case": "second_real_image_upload",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 2826,
+      "bytes": 3200,
+      "validation_fields": []
+    },
+    {
+      "case": "two_images_after_upload",
+      "passed": true
+    },
+    {
+      "case": "other_cannot_read_draft_image",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 168,
+      "bytes": 82,
+      "validation_fields": []
+    },
+    {
+      "case": "staff_cannot_read_foreign_editor_draft",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 197,
+      "bytes": 82,
+      "validation_fields": []
+    },
+    {
+      "case": "owner_sanitized_draft_image",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 736,
+      "bytes": 1947,
+      "validation_fields": []
+    },
+    {
+      "case": "real_exif_camera_gps_removed",
+      "passed": true
+    },
+    {
+      "case": "real_exif_orientation_preserved",
+      "passed": true
+    },
+    {
+      "case": "draft_image_private_no_store",
+      "passed": true
+    },
+    {
+      "case": "private_original_sha256_preserved",
+      "passed": true
+    },
+    {
+      "case": "canonical_v9_listing_create",
+      "status": 201,
+      "expected": 201,
+      "passed": true,
+      "elapsed_ms": 743,
+      "bytes": 4893,
+      "validation_fields": []
+    },
+    {
+      "case": "new_listing_private_two_images",
+      "passed": true
+    },
+    {
+      "case": "photo_gps_does_not_change_listing_pin",
+      "passed": true
+    },
+    {
+      "case": "lost_listing_create_response_no_duplicate",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 327,
+      "bytes": 347,
+      "validation_fields": []
+    },
+    {
+      "case": "public_cannot_read_unpublished",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 187,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "other_cannot_read_unpublished",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 262,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "original_variant_denied",
+      "status": 422,
+      "expected": 422,
+      "passed": true,
+      "elapsed_ms": 201,
+      "bytes": 133,
+      "validation_fields": []
+    },
+    {
+      "case": "other_cannot_edit_property",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 213,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "reorder_checkpoint",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 294,
+      "bytes": 757,
+      "validation_fields": []
+    },
+    {
+      "case": "apply_image_order_primary",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 509,
+      "bytes": 4892,
+      "validation_fields": []
+    },
+    {
+      "case": "real_image_order_primary_roundtrip",
+      "passed": true
+    },
+    {
+      "case": "remove_photo_checkpoint",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 374,
+      "bytes": 742,
+      "validation_fields": []
+    },
+    {
+      "case": "apply_photo_removal",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 4851,
+      "bytes": 4021,
+      "validation_fields": []
+    },
+    {
+      "case": "removed_photo_row_absent",
+      "passed": true
+    },
+    {
+      "case": "removed_original_cleaned",
+      "passed": true
+    },
+    {
+      "case": "replacement_checkpoint",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 329,
+      "bytes": 766,
+      "validation_fields": []
+    },
+    {
+      "case": "replacement_image_upload",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 2890,
+      "bytes": 1963,
+      "validation_fields": []
+    },
+    {
+      "case": "apply_image_replacement",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 5025,
+      "bytes": 4021,
+      "validation_fields": []
+    },
+    {
+      "case": "new_replacement_reference",
+      "passed": true
+    },
+    {
+      "case": "replaced_image_reference_inaccessible",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 78,
+      "bytes": 80,
+      "validation_fields": []
+    },
+    {
+      "case": "configure_existing_zero_rate_policy",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 335,
+      "bytes": 1426,
+      "validation_fields": []
+    },
+    {
+      "case": "submit_for_real_review",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 699,
+      "bytes": 4495,
+      "validation_fields": []
+    },
+    {
+      "case": "regular_cannot_approve",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 258,
+      "bytes": 91,
+      "validation_fields": []
+    },
+    {
+      "case": "first_reviewer_claim",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 480,
+      "bytes": 1391,
+      "validation_fields": []
+    },
+    {
+      "case": "second_reviewer_claim_denied",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 239,
+      "bytes": 270,
+      "validation_fields": []
+    },
+    {
+      "case": "second_reviewer_read_denied",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 246,
+      "bytes": 233,
+      "validation_fields": []
+    },
+    {
+      "case": "unreviewed_image_blocks_publish",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 267,
+      "bytes": 362,
+      "validation_fields": []
+    },
+    {
+      "case": "reviewer_reads_claimed_listing",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 305,
+      "bytes": 4088,
+      "validation_fields": []
+    },
+    {
+      "case": "stale_image_fingerprint_denied",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 285,
+      "bytes": 282,
+      "validation_fields": []
+    },
+    {
+      "case": "negative_image_decision",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 461,
+      "bytes": 132,
+      "validation_fields": []
+    },
+    {
+      "case": "unrelated_image_blocks_publish",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 260,
+      "bytes": 424,
+      "validation_fields": []
+    },
+    {
+      "case": "return_for_correction",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 469,
+      "bytes": 1451,
+      "validation_fields": []
+    },
+    {
+      "case": "owner_corrects_returned",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 408,
+      "bytes": 4484,
+      "validation_fields": []
+    },
+    {
+      "case": "owner_resubmits_same_listing",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 660,
+      "bytes": 4415,
+      "validation_fields": []
+    },
+    {
+      "case": "reviewer_reclaims",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 462,
+      "bytes": 1391,
+      "validation_fields": []
+    },
+    {
+      "case": "explicit_positive_image_decision",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 450,
+      "bytes": 161,
+      "validation_fields": []
+    },
+    {
+      "case": "publish_after_authorized_review",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 690,
+      "bytes": 1464,
+      "validation_fields": []
+    },
+    {
+      "case": "published_only_after_review",
+      "passed": true
+    },
+    {
+      "case": "search_canonical_arabic",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 510,
+      "bytes": 1569,
+      "validation_fields": []
+    },
+    {
+      "case": "search_canonical_arabic_exact_fixture_only",
+      "passed": true
+    },
+    {
+      "case": "search_common_spelling",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 280,
+      "bytes": 1569,
+      "validation_fields": []
+    },
+    {
+      "case": "search_common_spelling_exact_fixture_only",
+      "passed": true
+    },
+    {
+      "case": "search_diacritics",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 298,
+      "bytes": 1569,
+      "validation_fields": []
+    },
+    {
+      "case": "search_diacritics_exact_fixture_only",
+      "passed": true
+    },
+    {
+      "case": "search_true_empty",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 210,
+      "bytes": 75,
+      "validation_fields": []
+    },
+    {
+      "case": "zero_results_are_not_an_error",
+      "passed": true
+    },
+    {
+      "case": "cross_advertiser_exact_duplicate",
+      "status": 201,
+      "expected": [
+        201,
+        409
+      ],
+      "passed": true,
+      "elapsed_ms": 3298,
+      "bytes": 4086,
+      "validation_fields": []
+    },
+    {
+      "case": "duplicate_same_physical_asset",
+      "passed": true
+    },
+    {
+      "case": "duplicate_has_valid_sai",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 372,
+      "bytes": 1426,
+      "validation_fields": []
+    },
+    {
+      "case": "duplicate_submission_denied",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 245,
+      "bytes": 103,
+      "validation_fields": []
+    },
+    {
+      "case": "duplicate_denial_is_physical_identity",
+      "passed": true
+    },
+    {
+      "case": "public_sanitized_image",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 519,
+      "bytes": 1852,
+      "validation_fields": []
+    },
+    {
+      "case": "published_image_jpeg_no_exif",
+      "passed": true
+    },
+    {
+      "case": "original_still_denied_after_publish",
+      "status": 422,
+      "expected": 422,
+      "passed": true,
+      "elapsed_ms": 90,
+      "bytes": 133,
+      "validation_fields": []
+    },
+    {
+      "case": "listing_report",
+      "status": 201,
+      "expected": 201,
+      "passed": true,
+      "elapsed_ms": 582,
+      "bytes": 896,
+      "validation_fields": []
+    },
+    {
+      "case": "report_retry_returns_existing_receipt",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 281,
+      "bytes": 323,
+      "validation_fields": []
+    },
+    {
+      "case": "same_report_receipt",
+      "passed": true
+    },
+    {
+      "case": "publisher_cannot_read_other_report",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 139,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "regular_cannot_review_report",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 220,
+      "bytes": 91,
+      "validation_fields": []
+    },
+    {
+      "case": "unclaimed_report_review_denied",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 264,
+      "bytes": 214,
+      "validation_fields": []
+    },
+    {
+      "case": "reviewer_reads_report_queue",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 391,
+      "bytes": 998,
+      "validation_fields": []
+    },
+    {
+      "case": "report_is_in_shared_queue",
+      "passed": true
+    },
+    {
+      "case": "reviewer_claims_report",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 390,
+      "bytes": 1095,
+      "validation_fields": []
+    },
+    {
+      "case": "reviewer_starts_report",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 394,
+      "bytes": 1770,
+      "validation_fields": []
+    },
+    {
+      "case": "reviewer_resolves_report",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 417,
+      "bytes": 1973,
+      "validation_fields": []
+    },
+    {
+      "case": "reporter_reads_resolution",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 191,
+      "bytes": 900,
+      "validation_fields": []
+    },
+    {
+      "case": "report_resolution_roundtrip",
+      "passed": true
+    },
+    {
+      "case": "property_conversation",
+      "status": 201,
+      "expected": 201,
+      "passed": true,
+      "elapsed_ms": 452,
+      "bytes": 569,
+      "validation_fields": []
+    },
+    {
+      "case": "unrelated_staff_cannot_read_thread",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 174,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "message_before_block",
+      "status": 201,
+      "expected": 201,
+      "passed": true,
+      "elapsed_ms": 366,
+      "bytes": 296,
+      "validation_fields": []
+    },
+    {
+      "case": "conversation_report_created",
+      "status": 201,
+      "expected": 201,
+      "passed": true,
+      "elapsed_ms": 510,
+      "bytes": 443,
+      "validation_fields": []
+    },
+    {
+      "case": "conversation_report_has_receipt",
+      "passed": true
+    },
+    {
+      "case": "regular_cannot_review_private_report",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 157,
+      "bytes": 91,
+      "validation_fields": []
+    },
+    {
+      "case": "agent_without_private_permission_denied",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 210,
+      "bytes": 91,
+      "validation_fields": []
+    },
+    {
+      "case": "manager_reads_reported_private_content",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 289,
+      "bytes": 912,
+      "validation_fields": []
+    },
+    {
+      "case": "private_review_only_fixture_message",
+      "passed": true
+    },
+    {
+      "case": "private_report_read_audited",
+      "passed": true
+    },
+    {
+      "case": "manager_resolves_conversation_report",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 522,
+      "bytes": 486,
+      "validation_fields": []
+    },
+    {
+      "case": "conversation_report_resolution_roundtrip",
+      "passed": true
+    },
+    {
+      "case": "reporter_reads_private_report_notification",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 180,
+      "bytes": 1494,
+      "validation_fields": []
+    },
+    {
+      "case": "private_report_resolution_notified",
+      "passed": true
+    },
+    {
+      "case": "account_personal_block",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 298,
+      "bytes": 262,
+      "validation_fields": []
+    },
+    {
+      "case": "sender_block_enforced",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 372,
+      "bytes": 270,
+      "validation_fields": []
+    },
+    {
+      "case": "recipient_block_enforced",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 250,
+      "bytes": 270,
+      "validation_fields": []
+    },
+    {
+      "case": "new_contact_block_enforced",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 299,
+      "bytes": 270,
+      "validation_fields": []
+    },
+    {
+      "case": "blocked_external_call_denied",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 240,
+      "bytes": 182,
+      "validation_fields": []
+    },
+    {
+      "case": "blocked_property_contact_denied",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "elapsed_ms": 218,
+      "bytes": 182,
+      "validation_fields": []
+    },
+    {
+      "case": "history_remains_accessible",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 231,
+      "bytes": 925,
+      "validation_fields": []
+    },
+    {
+      "case": "personal_unblock",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 251,
+      "bytes": 176,
+      "validation_fields": []
+    },
+    {
+      "case": "message_after_unblock",
+      "status": 201,
+      "expected": 201,
+      "passed": true,
+      "elapsed_ms": 245,
+      "bytes": 296,
+      "validation_fields": []
+    },
+    {
+      "case": "unsubmitted_media_draft_created",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 287,
+      "bytes": 473,
+      "validation_fields": []
+    },
+    {
+      "case": "unsubmitted_media_uploaded",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 3022,
+      "bytes": 1669,
+      "validation_fields": []
+    },
+    {
+      "case": "unsubmitted_original_exists_before_erasure",
+      "passed": true
+    },
+    {
+      "case": "staff_cannot_use_consumer_erasure",
+      "status": 409,
+      "expected": 409,
+      "passed": true,
+      "elapsed_ms": 141,
+      "bytes": 239,
+      "validation_fields": []
+    },
+    {
+      "case": "deletion_requires_explicit_phrase",
+      "status": 422,
+      "expected": 422,
+      "passed": true,
+      "elapsed_ms": 182,
+      "bytes": 125,
+      "validation_fields": []
+    },
+    {
+      "case": "synthetic_publisher_account_erasure",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "elapsed_ms": 6199,
+      "bytes": 510,
+      "validation_fields": []
+    },
+    {
+      "case": "account_erasure_receipt",
+      "passed": true
+    },
+    {
+      "case": "erased_session_revoked",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "elapsed_ms": 199,
+      "bytes": 50,
+      "validation_fields": []
+    },
+    {
+      "case": "erased_account_image_unpublished",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 153,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "erased_professional_photo_unavailable",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "elapsed_ms": 249,
+      "bytes": 21,
+      "validation_fields": []
+    },
+    {
+      "case": "erased_professional_photo_deleted_from_storage",
+      "passed": true
+    },
+    {
+      "case": "erased_unsubmitted_original_deleted_from_storage",
+      "passed": true
+    },
+    {
+      "case": "erased_unsubmitted_derivative_thumb",
+      "passed": true
+    },
+    {
+      "case": "erased_unsubmitted_derivative_card",
+      "passed": true
+    },
+    {
+      "case": "erased_unsubmitted_derivative_preview",
+      "passed": true
+    },
+    {
+      "case": "erased_unsubmitted_derivative_detail",
+      "passed": true
+    },
+    {
+      "case": "erased_unsubmitted_derivative_gallery",
+      "passed": true
+    },
+    {
+      "case": "erased_unsubmitted_derivative_zoom",
+      "passed": true
+    },
+    {
+      "case": "erasure_archives_listing",
+      "passed": true
+    },
+    {
+      "case": "immutable_review_history_retained",
+      "passed": true
+    },
+    {
+      "case": "shared_message_history_retained",
+      "passed": true
+    }
+  ]
+}

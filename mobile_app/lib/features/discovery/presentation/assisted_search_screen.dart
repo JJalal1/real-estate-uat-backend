@@ -211,17 +211,100 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           Row(children: [Expanded(child: Text('عقارات تناسب بحثك', style: theme.textTheme.titleMedium)),
             if (state.loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))]),
           const SizedBox(height: 12),
+          // Keep successful pages visible during a temporary refresh/load-more
+          // failure, and offer retry for precisely the failed page.
+          if (state.rows.isNotEmpty &&
+              (state.loading || state.resultsError != null))
+            AppRefreshStatus(
+              loading: state.loading,
+              error: state.resultsError,
+              onRetry: controller.retryResults,
+            ),
           if (state.loading && state.rows.isEmpty) ...[
             const AppSkeleton(height: 170, radius: 12), const SizedBox(height: 12), const AppSkeleton(height: 170, radius: 12),
-          ] else if (state.resultsError != null)
-            AppErrorState(message: state.resultsError!, onRetry: () => controller.search(more: state.rows.isNotEmpty))
+          ] else if (state.resultsError != null && state.rows.isEmpty)
+            AppErrorState(message: state.resultsError!, onRetry: controller.retryResults)
           else if (state.rows.isEmpty)
-            AppEmptyState(title: 'لا توجد عقارات بهذه الشروط', message: 'وسّع الميزانية أو عدّل الموقع والنوع.', actionLabel: 'تعديل الشروط', onAction: () => _edit()),
+            _SmartSearchEmptyState(
+              filters: state.filters,
+              onRemove: controller.remove,
+              onEdit: () => _edit(),
+            ),
           for (final row in state.rows) Padding(padding: const EdgeInsets.only(bottom: 12),
             child: PropertySummaryCard(key: ValueKey('smart-search-result-${row.id}'), property: row)),
           if (state.more && state.resultsError == null) TextButton(onPressed: state.loading ? null : () => controller.search(more: true), child: const Text('المزيد من العقارات')),
         ],
       ])),
     ));
+  }
+}
+
+
+class _SmartSearchEmptyState extends StatelessWidget {
+  const _SmartSearchEmptyState({
+    required this.filters,
+    required this.onRemove,
+    required this.onEdit,
+  });
+
+  final SmartSearchFilters filters;
+  final ValueChanged<String> onRemove;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = filters.values;
+    final actions = <({String key, String label})>[
+      if (filters.hasMapArea)
+        (key: 'map_area', label: 'إزالة نطاق الخريطة'),
+      if (values.containsKey('min_price') || values.containsKey('max_price'))
+        (key: 'budget', label: 'إزالة حد السعر'),
+      if (values.containsKey('type'))
+        (key: 'type', label: 'عرض كل أنواع العقارات'),
+      if (values.containsKey('search'))
+        (key: 'search', label: 'إزالة الموقع أو عبارة البحث'),
+      if (values.containsKey('min_bedrooms'))
+        (key: 'min_bedrooms', label: 'إزالة شرط غرف النوم'),
+      if (values.containsKey('min_bathrooms'))
+        (key: 'min_bathrooms', label: 'إزالة شرط دورات المياه'),
+    ];
+
+    return AppSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'لا توجد عقارات بهذه الشروط',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'لن نغيّر بحثك تلقائيًا. اختر تعديلًا واضحًا أدناه أو افتح جميع الشروط.',
+          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final action in actions.take(4))
+                  ActionChip(
+                    key: ValueKey('zero-results-${action.key}'),
+                    label: Text(action.label),
+                    onPressed: () => onRemove(action.key),
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
+          TextButton.icon(
+            key: const ValueKey('zero-results-edit-all'),
+            onPressed: onEdit,
+            icon: const Icon(Icons.tune, size: 18),
+            label: const Text('تعديل جميع الشروط'),
+          ),
+        ],
+      ),
+    );
   }
 }

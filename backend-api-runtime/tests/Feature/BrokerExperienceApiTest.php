@@ -147,6 +147,7 @@ class BrokerExperienceApiTest extends TestCase
     public function test_reminders_merge_across_batches_and_public_photo_is_separate_from_verification(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
         [$broker,$bh]=$this->actor('photos',true);
         [, $outsider]=$this->actor('photos-outside');
         $a=$this->listing($broker);$b=$this->listing($broker);

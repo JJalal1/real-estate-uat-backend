@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -15,6 +16,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/ebroker_design.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
+import '../domain/property_marker_cluster.dart';
 import '../data/property_discovery_history_store.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
@@ -24,6 +26,8 @@ import '../../properties/domain/property_marker.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../discovery/presentation/smart_search_filter_editor.dart';
 import '../../properties/presentation/saved_search_builder_screen.dart';
+import '../../properties/presentation/adaptive_property_photo.dart';
+import '../../../core/network/adaptive_image_policy.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../../discovery/data/smart_search_session.dart';
 import '../../discovery/data/marketplace_repository.dart';
@@ -147,6 +151,64 @@ Future<Uint8List> renderMapPropertyPriceImage(
   return byteData.buffer.asUint8List();
 }
 
+String mapPropertyClusterImageName(int count) => 're_cluster_${count.clamp(2, 999)}';
+
+Future<Uint8List> renderMapPropertyClusterImage(int count) async {
+  const renderScale = 2.0;
+  final label = count > 999 ? '999+' : count.toString();
+  final diameter = count >= 100 ? 44.0 : 40.0;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder)..scale(renderScale);
+  final center = Offset(diameter / 2, diameter / 2);
+
+  canvas.drawCircle(
+    center + const Offset(0, 1.5),
+    diameter / 2 - 2,
+    Paint()
+      ..color = const Color(0x26000000)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+  );
+  canvas.drawCircle(center, diameter / 2 - 2, Paint()..color = const Color(0xFF0B8A55));
+  canvas.drawCircle(
+    center,
+    diameter / 2 - 3,
+    Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2,
+  );
+
+  final painter = TextPainter(
+    text: TextSpan(
+      text: label,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        height: 1,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  painter.paint(
+    canvas,
+    Offset(
+      (diameter - painter.width) / 2,
+      (diameter - painter.height) / 2,
+    ),
+  );
+
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(
+    (diameter * renderScale).ceil(),
+    (diameter * renderScale).ceil(),
+  );
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  if (byteData == null) throw StateError('Unable to encode map cluster image.');
+  return byteData.buffer.asUint8List();
+}
+
 class NearbyQuery {
   const NearbyQuery({
     required this.center,
@@ -233,6 +295,8 @@ final nearbyPropertiesProvider =
     FutureProvider.autoDispose.family<List<PropertyMarker>, NearbyQuery>(
   (ref, query) {
     ref.watch(propertyDataRevisionProvider);
+    final transfer = CancelToken();
+    ref.onDispose(() => transfer.cancel('Map viewport superseded'));
     if (query.extraFilters.isNotEmpty) {
       return ref.watch(propertyRepositoryProvider).nearbyFiltered({
       ...query.extraFilters, 'latitude': query.center.latitude, 'longitude': query.center.longitude, 'radius_km': query.radiusKm,
@@ -244,7 +308,7 @@ final nearbyPropertiesProvider =
       if (query.search?.isNotEmpty == true) 'search': query.search,
       if (query.south != null) 'south': query.south, if (query.west != null) 'west': query.west,
       if (query.north != null) 'north': query.north, if (query.east != null) 'east': query.east,
-    });
+    }, cancelToken: transfer);
     }
     return ref.watch(propertyRepositoryProvider).nearby(
           latitude: query.center.latitude,
@@ -263,6 +327,7 @@ final nearbyPropertiesProvider =
           west: query.west,
           north: query.north,
           east: query.east,
+          cancelToken: transfer,
         );
   },
 );
@@ -480,17 +545,48 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }, child: child,
   );
 
+  void _showLocationGuidance(
+    String message, {
+    Future<bool> Function()? openSettings,
+  }) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      content: Text(message),
+      action: openSettings == null
+          ? null
+          : SnackBarAction(
+              label: 'الإعدادات',
+              onPressed: () { unawaited(openSettings()); },
+            ),
+    ));
+  }
+
   Future<void> _loadCurrentLocation() async {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) return;
+      if (!enabled) {
+        _showLocationGuidance(
+          'خدمة الموقع مغلقة. يمكنك تشغيلها من إعدادات الهاتف.',
+          openSettings: Geolocator.openLocationSettings,
+        );
+        return;
+      }
 
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.deniedForever) {
+        _showLocationGuidance(
+          'تم منع إذن الموقع نهائيًا. يمكنك السماح به من إعدادات التطبيق.',
+          openSettings: Geolocator.openAppSettings,
+        );
+        return;
+      }
+      if (permission == LocationPermission.denied) {
+        _showLocationGuidance('لم يتم السماح بالموقع. يمكنك البحث بالخريطة دون تفعيل الموقع.');
         return;
       }
 
@@ -610,12 +706,44 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     final generation = ++_annotationGeneration;
     final visible = items.take(150).toList(growable: false);
+    final zoom = controller.cameraPosition?.zoom ?? 13.5;
+    final clusters = clusterPropertyMarkers(
+      visible,
+      zoom: zoom,
+      selectedPropertyId: _selected?.id,
+    );
 
     try {
       final options = <SymbolOptions>[];
       final data = <Map<String, dynamic>>[];
 
-      for (final property in visible) {
+      for (final cluster in clusters) {
+        if (cluster.isCluster) {
+          final imageName = mapPropertyClusterImageName(cluster.items.length);
+          await _ensureMapClusterImage(
+            controller,
+            imageName: imageName,
+            count: cluster.items.length,
+          );
+          if (generation != _annotationGeneration) return;
+          options.add(
+            SymbolOptions(
+              geometry: LatLng(cluster.latitude, cluster.longitude),
+              iconImage: imageName,
+              iconSize: 1,
+              iconAnchor: 'center',
+              zIndex: 10,
+            ),
+          );
+          data.add(<String, dynamic>{
+            'cluster_count': cluster.items.length,
+            'cluster_lat': cluster.latitude,
+            'cluster_lon': cluster.longitude,
+          });
+          continue;
+        }
+
+        final property = cluster.first;
         final selected = property.id == _selected?.id;
         final rent = property.purpose == 'rent';
         final label = mapPropertyPriceLabel(property.price);
@@ -687,7 +815,28 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _registeredPriceImages.add(imageName);
   }
 
+  Future<void> _ensureMapClusterImage(
+    MapLibreMapController controller, {
+    required String imageName,
+    required int count,
+  }) async {
+    if (_registeredPriceImages.contains(imageName)) return;
+    final bytes = await renderMapPropertyClusterImage(count);
+    await controller.addImage(imageName, bytes);
+    _registeredPriceImages.add(imageName);
+  }
+
   void _onPropertySymbolTapped(Symbol symbol) {
+    final clusterCountRaw = symbol.data?['cluster_count'];
+    final clusterCount = clusterCountRaw is int
+        ? clusterCountRaw
+        : int.tryParse('$clusterCountRaw');
+    if (clusterCount != null && clusterCount > 1) {
+      final geometry = symbol.options.geometry;
+      if (geometry != null) unawaited(_zoomIntoCluster(geometry));
+      return;
+    }
+
     final rawId = symbol.data?['property_id'];
     final propertyId = rawId is int ? rawId : int.tryParse('$rawId');
 
@@ -715,6 +864,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     setState(() {
       _selected = property;
+      _lastMarkerSignature = '';
+    });
+  }
+
+  Future<void> _zoomIntoCluster(LatLng center) async {
+    final controller = _mapController;
+    if (controller == null) return;
+    final currentZoom = controller.cameraPosition?.zoom ?? 13.5;
+    await controller.animateCamera(
+      CameraUpdate.newLatLngZoom(center, (currentZoom + 2).clamp(3, 17).toDouble()),
+    );
+    if (!mounted) return;
+    setState(() {
+      _center = center;
+      _selected = null;
       _lastMarkerSignature = '';
     });
   }
@@ -1267,7 +1431,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ])),IconButton(tooltip:'إغلاق',onPressed:()=>setState(()=>_selected=null),icon:const Icon(Icons.close,size:18)),
         ]))),
       if(state.resultsError!=null || _mapMessage!=null) PositionedDirectional(start:12,end:12,bottom:80,child:AppSurface(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        Text(state.resultsError??_mapMessage!),if(state.resultsError!=null)TextButton(onPressed:()=>ref.read(smartSearchSessionProvider.notifier).search(),child:const Text('إعادة المحاولة'))]))),
+        Text(state.resultsError??_mapMessage!),if(state.resultsError!=null)TextButton(onPressed:state.loading?null:()=>ref.read(smartSearchSessionProvider.notifier).retryResults(),child:const Text('إعادة المحاولة'))]))),
     ]);
   }
 
@@ -2363,12 +2527,7 @@ class _MapSelectionCard extends StatelessWidget {
                 height: double.infinity,
                 child: property.mainImage == null
                     ? const _PropertyImageFallback()
-                    : Image.network(
-                        property.mainImage!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const _PropertyImageFallback(),
-                      ),
+                    : AdaptivePropertyPhoto(url: property.mainImage!, use: PropertyImageUse.thumbnail),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2682,4 +2841,3 @@ String _formatPrice(double value) {
   }
   return value.toStringAsFixed(0);
 }
-

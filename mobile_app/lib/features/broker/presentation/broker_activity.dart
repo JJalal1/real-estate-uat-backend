@@ -225,7 +225,7 @@ class BrokerFinanceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => BrokerScaffold(appBar: const AppAppBar(title: 'مستحقات المنصة'), body: ref.watch(brokerFinanceProvider).when(
     loading: () => const AppLoadingState(), error: (e, _) => AppErrorState(message: friendlyApiError(e), onRetry: () => ref.invalidate(brokerFinanceProvider)),
-    data: (data) => RefreshIndicator(onRefresh: () async { ref.invalidate(brokerFinanceProvider); await ref.read(brokerFinanceProvider.future); }, child: ListView(
+    data: (data) => RefreshIndicator(onRefresh: () async { ref.invalidate(brokerFinanceProvider); try { await ref.read(brokerFinanceProvider.future); } catch (_) { /* The page renders failure and retry. */ } }, child: ListView(
       physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(16), children: [
         for (final balance in brokerRows(data['balances'])) Padding(padding: const EdgeInsets.only(bottom: 12), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('المستحق: ${brokerMoney(balance['open'], '${balance['currency']}')}', style: Theme.of(context).textTheme.titleMedium),

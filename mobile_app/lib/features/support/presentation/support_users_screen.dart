@@ -4,18 +4,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../account/data/access_control_repository.dart';
 import '../../account/domain/access_models.dart';
 import '../data/support_repository.dart';
 import '../domain/support_models.dart';
 
-class SupportUsersScreen extends ConsumerStatefulWidget {
+class SupportUsersScreen extends ConsumerWidget {
   const SupportUsersScreen({super.key});
   @override
-  ConsumerState<SupportUsersScreen> createState() => _SupportUsersScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(title: 'المستخدمون - الدعم',
+    builder: (_) => const _SupportUsersBody());
 }
 
-class _SupportUsersScreenState extends ConsumerState<SupportUsersScreen> {
+class _SupportUsersBody extends ConsumerStatefulWidget {
+  const _SupportUsersBody();
+  @override
+  ConsumerState<_SupportUsersBody> createState() => _SupportUsersScreenState();
+}
+
+class _SupportUsersScreenState extends ConsumerState<_SupportUsersBody> {
   final _search = TextEditingController();
   bool _loading = false;
   String? _error;
@@ -28,6 +37,7 @@ class _SupportUsersScreenState extends ConsumerState<SupportUsersScreen> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -50,6 +60,7 @@ class _SupportUsersScreenState extends ConsumerState<SupportUsersScreen> {
       setState(() {
         _loading = false;
         _error = friendlyApiError(e);
+        if (!isTransientApiFailure(e)) _users = const [];
       });
     }
   }
@@ -61,8 +72,8 @@ class _SupportUsersScreenState extends ConsumerState<SupportUsersScreen> {
       if (!mounted) {
         return;
       }
-      final caseId = await showDialog<int>(
-        context: context,
+      final caseId = await showActorDialog<int>(
+        context: context, ref: ref,
         builder: (_) => _UserContextDialog(contextData: data),
       );
       if (caseId != null && mounted) {
@@ -96,12 +107,13 @@ class _SupportUsersScreenState extends ConsumerState<SupportUsersScreen> {
                           onPressed: _load,
                           icon: const EbrokerIcon(Icons.arrow_forward))),
                 )),
-            if (_loading) const LinearProgressIndicator(),
-            if (_error != null)
-              Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
+            if (_users.isNotEmpty && (_loading || _error != null))
+              AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
             Expanded(
-                child: _users.isEmpty && !_loading
-                    ? const Center(child: Text('لا توجد نتائج.'))
+                child: _loading && _users.isEmpty ? const AppLoadingState()
+                    : _error != null && _users.isEmpty ? AppErrorState(message: _error!, onRetry: _load)
+                    : _users.isEmpty
+                    ? const AppEmptyState(title: 'لا توجد نتائج', message: 'جرّب اسمًا أو رقمًا آخر.')
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
                         itemCount: _users.length,

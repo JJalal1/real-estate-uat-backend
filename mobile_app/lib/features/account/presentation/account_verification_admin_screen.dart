@@ -1,22 +1,28 @@
 import 'package:flutter/material.dart';
+import 'actor_scoped_page.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../data/account_verification_repository.dart';
 import '../data/auth_controller.dart';
 import '../domain/account_verification.dart';
 
-class AccountVerificationAdminScreen extends ConsumerStatefulWidget {
+class AccountVerificationAdminScreen extends ConsumerWidget {
   const AccountVerificationAdminScreen({super.key});
-
   @override
-  ConsumerState<AccountVerificationAdminScreen> createState() =>
-      _AccountVerificationAdminScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'مراجعة التحقق', builder: (_) => const _AccountVerificationAdminScreenBody());
+}
+class _AccountVerificationAdminScreenBody extends ConsumerStatefulWidget {
+  const _AccountVerificationAdminScreenBody();
+  @override
+  ConsumerState<_AccountVerificationAdminScreenBody> createState() => _AccountVerificationAdminScreenState();
 }
 
 class _AccountVerificationAdminScreenState
-    extends ConsumerState<AccountVerificationAdminScreen> {
+    extends ConsumerState<_AccountVerificationAdminScreenBody> {
   String _status = 'pending';
   String _typeFilter = 'all';
   bool _busy = false;
@@ -25,7 +31,7 @@ class _AccountVerificationAdminScreenState
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _future = _load(); _future.ignore();
   }
 
   Future<List<AccountVerificationApplication>> _load() => ref
@@ -63,6 +69,7 @@ class _AccountVerificationAdminScreenState
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            isExpanded: true,
                             value: _status,
                             decoration: const InputDecoration(
                               labelText: 'الحالة',
@@ -92,7 +99,7 @@ class _AccountVerificationAdminScreenState
                                     if (value == null) return;
                                     setState(() {
                                       _status = value;
-                                      _future = _load();
+                                      _future = _load(); _future.ignore();
                                     });
                                   },
                           ),
@@ -100,6 +107,7 @@ class _AccountVerificationAdminScreenState
                         const SizedBox(width: 8),
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            isExpanded: true,
                             value: _typeFilter,
                             decoration: const InputDecoration(
                               labelText: 'نوع الحساب',
@@ -129,7 +137,7 @@ class _AccountVerificationAdminScreenState
                                     setState(() {
                                       if (value == null) return;
                                       _typeFilter = value;
-                                      _future = _load();
+                                      _future = _load(); _future.ignore();
                                     });
                                   },
                           ),
@@ -148,15 +156,7 @@ class _AccountVerificationAdminScreenState
                           );
                         }
                         if (snapshot.hasError) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Text(
-                                friendlyApiError(snapshot.error!),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          );
+                          return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _reload);
                         }
                         final rows = snapshot.data ?? const [];
                         if (rows.isEmpty) {
@@ -206,13 +206,17 @@ class _AccountVerificationAdminScreenState
 
   Future<void> _reviewApplication(
       AccountVerificationApplication application) async {
+    final repository = ref.read(accountVerificationRepositoryProvider);
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => _AccountVerificationReviewDetails(
-          application: application,
-          repository: ref.read(accountVerificationRepositoryProvider),
-          onAction: _performAction,
-        ),
+        builder: (_) => ActorBoundPage(title: 'مراجعة التحقق', actorId: actor,
+          builder: (_) => _AccountVerificationReviewDetails(
+            application: application,
+            repository: repository,
+            onAction: _performAction,
+          )),
       ),
     );
     if (mounted) _reload();
@@ -223,6 +227,7 @@ class _AccountVerificationAdminScreenState
     String action,
     String? note,
   ) async {
+    if (!mounted) return false;
     setState(() => _busy = true);
     try {
       final repository = ref.read(accountVerificationRepositoryProvider);
@@ -251,11 +256,11 @@ class _AccountVerificationAdminScreenState
   }
 
   void _reload() {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); _future.ignore(); });
   }
 }
 
-class _AccountVerificationReviewDetails extends StatefulWidget {
+class _AccountVerificationReviewDetails extends ConsumerStatefulWidget {
   const _AccountVerificationReviewDetails({
     required this.application,
     required this.repository,
@@ -271,12 +276,12 @@ class _AccountVerificationReviewDetails extends StatefulWidget {
   ) onAction;
 
   @override
-  State<_AccountVerificationReviewDetails> createState() =>
+  ConsumerState<_AccountVerificationReviewDetails> createState() =>
       _AccountVerificationReviewDetailsState();
 }
 
 class _AccountVerificationReviewDetailsState
-    extends State<_AccountVerificationReviewDetails> {
+    extends ConsumerState<_AccountVerificationReviewDetails> {
   bool _busy = false;
 
   @override
@@ -402,8 +407,8 @@ class _AccountVerificationReviewDetailsState
       final bytes = await widget.repository
           .documentBytes(widget.application.userId, document.kind);
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
+      await showActorDialog<void>(
+        context: context, ref: ref,
         builder: (context) => Dialog(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720, maxHeight: 760),
@@ -466,8 +471,8 @@ class _AccountVerificationReviewDetailsState
 
   Future<String?> _askNote(String title, {required bool required}) async {
     final controller = TextEditingController();
-    final result = await showDialog<String?>(
-      context: context,
+    final result = await showActorDialog<String?>(
+      context: context, ref: ref,
       builder: (context) => AlertDialog(
         title: Text(title),
         content: TextField(

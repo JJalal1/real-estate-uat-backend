@@ -7,10 +7,29 @@ import 'package:path_provider/path_provider.dart';
 final listingViewerKeyProvider = FutureProvider<String>((ref) => ListingViewerKeyStore.key());
 
 class ListingViewerKeyStore {
-  static Future<String>? _operation;
-  static Future<String> key() => _operation ??= _load();
-  static Future<String> _load() async {
-    final root = await getApplicationSupportDirectory();
+  ListingViewerKeyStore({Future<Directory> Function()? supportDirectory})
+      : _supportDirectory = supportDirectory ?? getApplicationSupportDirectory;
+
+  static final ListingViewerKeyStore _default = ListingViewerKeyStore();
+  static Future<String> key() => _default.load();
+
+  final Future<Directory> Function() _supportDirectory;
+  Future<String>? _operation;
+
+  Future<String> load() {
+    final inFlight = _operation;
+    if (inFlight != null) return inFlight;
+    final operation = _load();
+    _operation = operation;
+    // A temporary disk or plugin error must not permanently poison all
+    // later calls to obtain a valid per-installation viewer identifier.
+    operation.then<void>((_) {}, onError: (Object _, StackTrace __) {
+      if (identical(_operation, operation)) _operation = null;
+    });
+    return operation;
+  }
+  Future<String> _load() async {
+    final root = await _supportDirectory();
     await root.create(recursive: true);
     final file = File('${root.path}${Platform.pathSeparator}listing_viewer_key.txt');
     if (await file.exists()) {

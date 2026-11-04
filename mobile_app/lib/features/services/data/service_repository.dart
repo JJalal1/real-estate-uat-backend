@@ -3,26 +3,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../../account/data/account_request_scope.dart';
 import '../domain/service_models.dart';
 
 final serviceRepositoryProvider = Provider<ServiceRepository>((ref) =>
     ServiceRepository(
-        ref.watch(dioProvider), ref.watch(authRepositoryProvider)));
+        ref.watch(dioProvider), ref.watch(authRepositoryProvider),
+        requestScope: ref.watch(accountRequestScopeProvider)));
 
 final freeServicesHubProvider = FutureProvider.autoDispose<FreeServicesHubModel>(
   (ref) => ref.watch(serviceRepositoryProvider).freeHub(),
 );
 
 class ServiceRepository {
-  ServiceRepository(this._dio, this._auth);
+  ServiceRepository(this._dio, this._auth, {AccountRequestScope? requestScope})
+    : _requestScope = requestScope;
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
+  Future<Options> _options() => _requestScope?.options() ?? _auth.requiredAuthOptions();
 
   Future<FreeServicesHubModel> freeHub() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/services/hub',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
+    _requestScope?.verify();
     return FreeServicesHubModel.fromJson(_data(response.data));
   }
 
@@ -45,7 +51,7 @@ class ServiceRepository {
   Future<List<ServiceTargetListing>> myListings() async {
     final response = await _dio.get<Map<String, dynamic>>(
         '/properties/mine/list',
-        options: await _auth.requiredAuthOptions());
+        options: await _options());
     return _rows(response.data)
         .map(ServiceTargetListing.fromJson)
         .where((row) => row.eligible)
@@ -58,14 +64,14 @@ class ServiceRepository {
           'offering_id': offeringId,
           if (targetId != null) 'target_id': targetId
         },
-        options: await _auth.requiredAuthOptions());
+        options: await _options());
     return ServiceOrderModel.fromJson(_data(response.data));
   }
 
   Future<ServiceOrderModel> cancelOrder(int orderId) async {
     final response = await _dio.post<Map<String, dynamic>>(
         '/services/orders/$orderId/cancel',
-        options: await _auth.requiredAuthOptions());
+        options: await _options());
     return ServiceOrderModel.fromJson(_data(response.data));
   }
 
@@ -82,7 +88,7 @@ class ServiceRepository {
           'duration_days': durationDays,
           'is_active': isActive
         },
-        options: await _auth.requiredAuthOptions());
+        options: await _options());
     return ServiceOfferingModel.fromJson(_data(response.data));
   }
 
@@ -93,7 +99,7 @@ class ServiceRepository {
           'provider': 'manual_admin',
           'provider_reference': reference.trim()
         },
-        options: await _auth.requiredAuthOptions());
+        options: await _options());
     return ServiceOrderModel.fromJson(_data(response.data));
   }
 
@@ -101,14 +107,15 @@ class ServiceRepository {
     final response = await _dio.post<Map<String, dynamic>>(
         '/admin/payments/orders/$orderId/refund',
         data: {'reason': reason.trim()},
-        options: await _auth.requiredAuthOptions());
+        options: await _options());
     return ServiceOrderModel.fromJson(_data(response.data));
   }
 
   Future<List<T>> _authList<T>(
       String path, T Function(Map<String, dynamic>) parse) async {
     final response = await _dio.get<Map<String, dynamic>>(path,
-        options: await _auth.requiredAuthOptions());
+        options: await _options());
+    _requestScope?.verify();
     return _rows(response.data).map(parse).toList(growable: false);
   }
 
@@ -117,6 +124,7 @@ class ServiceRepository {
           .whereType<Map<String, dynamic>>()
           .toList(growable: false);
   Map<String, dynamic> _data(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final data = body?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid Stage 14 service response.');

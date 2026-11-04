@@ -1,0 +1,158 @@
+{
+  "merge_sha": "44a5429d91827f2da73938b71c877c38572dd663",
+  "code_tree": "3af2e39466e203bdd7314ab5d095100f2d49271a",
+  "source_commit": "4365a9ad4000a42a72bcfad2693e230e9b9d70af",
+  "checks": {
+    "success": 19,
+    "skipped": 1,
+    "failed": 0,
+    "head": "c72e8aa4560502d5c992433837046a4e21438731"
+  },
+  "test_results": {
+    "laravel_full": {
+      "passed": 423,
+      "assertions": 4987,
+      "existing_sqlite_postgis_skip": 1
+    },
+    "flutter_full": {
+      "passed": 791,
+      "opt_in_http_skips": 6,
+      "separate_enabled_http_cases_passed": 6
+    },
+    "flutter_focused": {
+      "passed": 156,
+      "skipped": 0,
+      "artifact_id": 12650716142
+    }
+  },
+  "apk": {
+    "source_commit": "4365a9ad4000a42a72bcfad2693e230e9b9d70af",
+    "version_code": 1340,
+    "sha256": "c0a01aad16e0ab82faf96c7007a0f0b1d746206c85fd791d9d51157e8dbfafb6",
+    "bytes": 118222826,
+    "target_sdk": 36,
+    "min_sdk": 23,
+    "native_16kb_elf": "passed",
+    "zipalign_16kb": "passed",
+    "native_64bit_libraries_verified": 10,
+    "package": "com.example.real_estate_mobile",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "architectures": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "brand_assets_match": 4,
+    "fonts_match": 5,
+    "zip_crc": "passed",
+    "apksigner": "passed",
+    "certificate_sha256": "58b02159621181d4b63d2483bf5d610da2f1595a918afde8f39109c68d916578",
+    "handset_acceptance": "pending",
+    "package_role": "current-uat"
+  },
+  "predecessor": {
+    "source_commit": "4365a9ad4000a42a72bcfad2693e230e9b9d70af",
+    "version_code": 1339,
+    "sha256": "383a626d86a44970bcdf3b5852ab12f6a6dac8948412d10238810e93d6e004c7",
+    "bytes": 118222844,
+    "target_sdk": 36,
+    "min_sdk": 23,
+    "native_16kb_elf": "passed",
+    "zipalign_16kb": "passed",
+    "native_64bit_libraries_verified": 10,
+    "package": "com.example.real_estate_mobile",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "architectures": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ],
+    "brand_assets_match": 4,
+    "fonts_match": 5,
+    "zip_crc": "passed",
+    "apksigner": "passed",
+    "certificate_sha256": "58b02159621181d4b63d2483bf5d610da2f1595a918afde8f39109c68d916578",
+    "handset_acceptance": "pending",
+    "package_role": "upgrade-predecessor-same-source"
+  },
+  "android_upgrade": {
+    "source_commit": "4365a9ad4000a42a72bcfad2693e230e9b9d70af",
+    "status": "passed",
+    "environment": "disposable-rooted-Android-emulator",
+    "android_api": 36,
+    "kernel_page_bytes": 4096,
+    "predecessor": {
+      "source_commit": "4365a9ad4000a42a72bcfad2693e230e9b9d70af",
+      "version_code": 1339,
+      "sha256": "383a626d86a44970bcdf3b5852ab12f6a6dac8948412d10238810e93d6e004c7",
+      "bytes": 118222844,
+      "target_sdk": 36,
+      "min_sdk": 23,
+      "native_16kb_elf": "passed",
+      "zipalign_16kb": "passed",
+      "native_64bit_libraries_verified": 10,
+      "package": "com.example.real_estate_mobile",
+      "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+      "architectures": [
+        "arm64-v8a",
+        "armeabi-v7a",
+        "x86_64"
+      ],
+      "brand_assets_match": 4,
+      "fonts_match": 5,
+      "zip_crc": "passed",
+      "apksigner": "passed",
+      "certificate_sha256": "58b02159621181d4b63d2483bf5d610da2f1595a918afde8f39109c68d916578",
+      "handset_acceptance": "pending",
+      "package_role": "upgrade-predecessor-same-source"
+    },
+    "current": {
+      "source_commit": "4365a9ad4000a42a72bcfad2693e230e9b9d70af",
+      "version_code": 1340,
+      "sha256": "c0a01aad16e0ab82faf96c7007a0f0b1d746206c85fd791d9d51157e8dbfafb6",
+      "bytes": 118222826,
+      "target_sdk": 36,
+      "min_sdk": 23,
+      "native_16kb_elf": "passed",
+      "zipalign_16kb": "passed",
+      "native_64bit_libraries_verified": 10,
+      "package": "com.example.real_estate_mobile",
+      "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+      "architectures": [
+        "arm64-v8a",
+        "armeabi-v7a",
+        "x86_64"
+      ],
+      "brand_assets_match": 4,
+      "fonts_match": 5,
+      "zip_crc": "passed",
+      "apksigner": "passed",
+      "certificate_sha256": "58b02159621181d4b63d2483bf5d610da2f1595a918afde8f39109c68d916578",
+      "handset_acceptance": "pending",
+      "package_role": "current-uat"
+    },
+    "same_certificate": true,
+    "install_replace_preserved_private_fixture_sha256": {
+      "files/aqer_theme_mode.txt": "e6bb5689beec52c4672bd4df92c3613d128d30cdc2b704f76953fe43d89c4ae8",
+      "no_backup/listing_recovery/u999999/p0/state.json": "acca00f8b7028eb7134cd6218b262739bdaec686db0b7ac44938a51013cde58d"
+    },
+    "offline_startup_without_process_crash": true,
+    "limits": "Same source with consecutive build codes; no signed-in session migration, official store signing, handset or FCM delivery acceptance."
+  },
+  "artifact": {
+    "file": "Aqer_Owner_UAT_1339_1340_Encrypted.zip",
+    "bytes": 236689629,
+    "sha256": "3eee7c265b4e30e105a2254a94ea5b79038f4d4aadfacbd464e296bdaa232074",
+    "helper": "decrypt_owner_uat_package.py",
+    "readme": "Aqer_Install_AR.txt"
+  },
+  "render": {
+    "service": "real-estate-uat-api-frankfurt",
+    "service_id": "srv-dahj3vlg1s2s73bdqhtg",
+    "sha": "44a5429d91827f2da73938b71c877c38572dd663",
+    "deploy_id": "dep-dbfl0h67bikc73dvfmhg",
+    "status": "live",
+    "one_shots_reset": true
+  },
+  "handset_acceptance": false
+}

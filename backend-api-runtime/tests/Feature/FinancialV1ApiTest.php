@@ -235,6 +235,35 @@ class FinancialV1ApiTest extends TestCase
         $this->assertDatabaseHas('support_tasks',['id'=>$taskId,'source_type'=>'payment_review','status'=>'waiting_user','assigned_to_user_id'=>$agent->id]);
     }
 
+    public function test_batched_overdue_checks_preserve_hold_notifications_and_financial_amounts(): void
+    {
+        [$agreementId,$property,$advertiser,$buyer,$advertiserHeaders,$buyerHeaders]=$this->acceptedSaleDeal('seller');
+        $this->withHeaders($buyerHeaders)->postJson("/api/finance/agreements/$agreementId/direct-confirmation",['decision'=>'confirmed'])->assertOk();
+        $this->withHeaders($advertiserHeaders)->postJson("/api/finance/agreements/$agreementId/direct-confirmation",['decision'=>'confirmed'])->assertOk();
+        $receivable=DB::table('property_platform_receivables')->where('advertiser_user_id',$advertiser->id)->first();
+        $this->assertNotNull($receivable);
+        DB::table('property_platform_receivables')->where('id',$receivable->id)->update(['due_at'=>now()->subMinute()]);
+        $ledgerCount=DB::table('property_financial_ledger_entries')->count();
+        $service=app(PropertyFinancialService::class);
+        $result=$service->overdueReceivablesFor([$advertiser->id,$buyer->id,$advertiser->id]);
+        $this->assertTrue($result[$advertiser->id]);$this->assertFalse($result[$buyer->id]);
+        $this->assertDatabaseHas('property_platform_receivables',['id'=>$receivable->id,'status'=>'overdue',
+            'amount_total'=>$receivable->amount_total,'amount_paid'=>$receivable->amount_paid,'currency'=>$receivable->currency]);
+        $this->assertNotNull($property->fresh()->financial_hold_at);
+        $this->assertSame($ledgerCount,DB::table('property_financial_ledger_entries')->count());
+        $count=DB::table('user_notifications')->where('user_id',$advertiser->id)->where('type','financial_hold_started')->count();
+        $this->assertSame(1,$count);
+        $service->overdueReceivablesFor([$advertiser->id,$buyer->id]);
+        $this->assertSame($count,DB::table('user_notifications')->where('user_id',$advertiser->id)->where('type','financial_hold_started')->count());
+        // Preserve disputed status and the exact paid/due predicates too.
+        DB::table('property_platform_receivables')->where('id',$receivable->id)->update(['status'=>'disputed']);
+        $this->assertTrue($service->overdueReceivablesFor([$advertiser->id])[$advertiser->id]);
+        $this->assertDatabaseHas('property_platform_receivables',['id'=>$receivable->id,'status'=>'disputed']);
+        DB::table('property_platform_receivables')->where('id',$receivable->id)->update(['amount_paid'=>$receivable->amount_total]);
+        $this->assertFalse($service->overdueReceivablesFor([$advertiser->id])[$advertiser->id]);
+        $this->assertSame([],$service->overdueReceivablesFor([]));
+    }
+
     private function acceptedSaleDeal(string $payer): array
     {
         [$advertiser, $advertiserHeaders] = $this->user('financial-deal-owner-'.$payer.'@example.test', '+96777200'.($payer === 'buyer' ? '0021' : '0031'));

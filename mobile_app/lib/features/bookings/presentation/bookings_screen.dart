@@ -6,16 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/booking_repository.dart';
 import '../domain/booking_models.dart';
 import 'booking_request_sheet.dart';
 
-typedef _BookingListKey = (bool, DateTime?, DateTime?);
+typedef _BookingListKey = (String, bool, DateTime?, DateTime?);
 final _bookingRowsProvider = FutureProvider.autoDispose.family<List<ViewingBooking>, _BookingListKey>((ref, key) {
-  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   final repo = ref.watch(bookingRepositoryProvider);
-  return key.$1 ? repo.managed(from: key.$2, before: key.$3) : repo.mine(from: key.$2, before: key.$3);
+  return key.$2 ? repo.managed(from: key.$3, before: key.$4) : repo.mine(from: key.$3, before: key.$4);
 });
 
 class BookingsScreen extends ConsumerStatefulWidget {
@@ -35,7 +35,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   _BookingListKey _key(bool managed) {
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day);
-    return (managed, _today ? start : null, _today ? DateTime(now.year, now.month, now.day + 1) : null);
+    final actor = ref.read(authControllerProvider).asData?.value;
+    final scope = '${actor?.id}:${actor?.isActive}:${actor?.roles}:${actor?.permissions}';
+    return (scope, managed, _today ? start : null, _today ? DateTime(now.year, now.month, now.day + 1) : null);
   }
   @override
   void didUpdateWidget(covariant BookingsScreen oldWidget) {
@@ -68,8 +70,10 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
       child: Scaffold(
         appBar: widget.embedded ? null : AppBar(title: const Text('المعاينات والحجوزات')),
         body: auth.when(
+          skipLoadingOnRefresh: false,
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => const Center(child: Text('تعذر تحميل الحساب.')),
+          error: (error, _) => AppErrorState(message: friendlyApiError(error),
+            onRetry: () => ref.invalidate(authControllerProvider)),
           data: (user) {
             if (user == null) {
               return Center(
@@ -93,6 +97,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                 user.hasPermission('developments.manage');
             if (!canManaged && _managed) _managed = false;
             final rows = ref.watch(_bookingRowsProvider(_key(_managed)));
+            final retain = rows.hasValue && rows.hasError && isTransientApiFailure(rows.error!);
             return Column(children: [
               Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Wrap(spacing: 8, runSpacing: 8, children: [
                 EbrokerChoiceChip(label: const Text('كل المعاينات'), selected: !_today, onSelected: (_) => setState(() => _today = false)),
@@ -112,6 +117,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                             setState(() => _managed = value.first))),
               Expanded(
                   child: rows.when(
+                skipError: retain,
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (error, _) => Center(
                     child: Padding(
@@ -127,34 +133,31 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                         ]))),
                 data: (items) {
                   final displayed = _prioritized(items);
-                  return RefreshIndicator(
+                  return Column(children: [
+                    AppRefreshStatus(loading: rows.isLoading,
+                      error: retain ? friendlyApiError(rows.error!) : null, onRetry: _refresh),
+                    Expanded(child: RefreshIndicator(
                       onRefresh: _refresh,
                       child: displayed.isEmpty
-                          ? ListView(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              children: [
-                                  const SizedBox(height: 140),
-                                  const EbrokerIcon(Icons.event_busy_outlined, size: 54),
-                                  const SizedBox(height: 12),
-                                  Center(child: Text(_today ? 'لا توجد معاينات اليوم.' : 'لا توجد طلبات معاينة حالياً.'))
-                                ])
-                          : ListView.separated(
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 10, 16, 28),
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              itemCount: displayed.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 10),
-                              itemBuilder: (context, index) {
-                                final booking = displayed[index];
-                                return _BookingCard(
-                                  booking: booking,
-                                  highlighted:
-                                      booking.id == widget.initialBookingId,
-                                  onAction: (action) =>
-                                      _action(booking, action),
-                                );
-                              }));
+                        ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
+                            const SizedBox(height: 140),
+                            const EbrokerIcon(Icons.event_busy_outlined, size: 54),
+                            const SizedBox(height: 12),
+                            Center(child: Text(_today ? 'لا توجد معاينات اليوم.' : 'لا توجد طلبات معاينة حالياً.')),
+                          ])
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount: displayed.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final booking = displayed[index];
+                              return _BookingCard(booking: booking,
+                                highlighted: booking.id == widget.initialBookingId,
+                                onAction: (action) => _action(booking, action));
+                            }),
+                    )),
+                  ]);
                 },
               )),
             ]);
@@ -165,6 +168,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   }
 
   Future<void> _refresh() async {
+    if (ref.read(authControllerProvider).asData?.value == null) return;
     ref.invalidate(_bookingRowsProvider(_key(false)));
     ref.invalidate(_bookingRowsProvider(_key(true)));
     try {

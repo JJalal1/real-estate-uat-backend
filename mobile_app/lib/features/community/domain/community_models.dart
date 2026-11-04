@@ -137,3 +137,19 @@ String? _nullable(dynamic value) {
   }
   return text;
 }
+
+class ReportReceipt {
+  const ReportReceipt({required this.id, required this.reference, required this.status, this.alreadyReceived = false});
+  final int id;
+  final String reference;
+  final String status;
+  final bool alreadyReceived;
+  String get message => alreadyReceived ? 'وصل بلاغك سابقًا. رقم المتابعة: $reference' : 'وصل البلاغ إلى الدعم. رقم المتابعة: $reference';
+  factory ReportReceipt.fromJson(Map<String, dynamic> json, {bool alreadyReceived = false}) {
+    final id = (json['id'] as num?)?.toInt() ?? 0;
+    final reference = json['reference']?.toString().trim() ?? '';
+    final status = json['status']?.toString() ?? '';
+    if (id <= 0 || reference.isEmpty || status.isEmpty) throw StateError('Invalid report receipt');
+    return ReportReceipt(id: id, reference: reference, status: status, alreadyReceived: alreadyReceived);
+  }
+}

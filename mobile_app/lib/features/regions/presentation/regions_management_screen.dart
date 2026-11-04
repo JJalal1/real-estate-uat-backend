@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../account/presentation/actor_scoped_page.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -11,16 +13,21 @@ import '../../account/data/auth_controller.dart';
 import '../data/region_repository.dart';
 import '../domain/region_models.dart';
 
-class RegionsManagementScreen extends ConsumerStatefulWidget {
+class RegionsManagementScreen extends ConsumerWidget {
   const RegionsManagementScreen({super.key});
-
   @override
-  ConsumerState<RegionsManagementScreen> createState() =>
-      _RegionsManagementScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'المحافظات والمربعات', builder: (_) => const _RegionsManagementScreenBody());
+}
+
+class _RegionsManagementScreenBody extends ConsumerStatefulWidget {
+  const _RegionsManagementScreenBody();
+  @override
+  ConsumerState<_RegionsManagementScreenBody> createState() => _RegionsManagementScreenState();
 }
 
 class _RegionsManagementScreenState
-    extends ConsumerState<RegionsManagementScreen> {
+    extends ConsumerState<_RegionsManagementScreenBody> {
   static const _style = 'https://tiles.openfreemap.org/styles/liberty';
   static const _fallback = LatLng(15.3694, 44.1910);
 
@@ -60,6 +67,7 @@ class _RegionsManagementScreenState
       final repo = ref.read(regionRepositoryProvider);
       final govs =
           _canRegions ? await repo.governorates() : <GovernorateModel>[];
+      if (!mounted) return;
       final selected =
           _selectedGovernorateId ?? (govs.isEmpty ? null : govs.first.id);
       final cells = _canRegions
@@ -233,8 +241,8 @@ class _RegionsManagementScreenState
     final code = TextEditingController();
     final nameAr = TextEditingController();
     final nameEn = TextEditingController();
-    final accepted = await showDialog<bool>(
-      context: context,
+    final accepted = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (context) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
@@ -265,7 +273,7 @@ class _RegionsManagementScreenState
         ),
       ),
     );
-    if (accepted != true ||
+    if (!mounted || accepted != true ||
         code.text.trim().isEmpty ||
         nameAr.text.trim().isEmpty) {
       return null;
@@ -278,8 +286,8 @@ class _RegionsManagementScreenState
     final code = TextEditingController();
     final ar = TextEditingController();
     final en = TextEditingController();
-    final accepted = await showDialog<bool>(
-      context: context,
+    final accepted = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (context) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
@@ -308,7 +316,7 @@ class _RegionsManagementScreenState
         ),
       ),
     );
-    if (accepted != true ||
+    if (!mounted || accepted != true ||
         code.text.trim().isEmpty ||
         ar.text.trim().isEmpty) {
       return;
@@ -351,8 +359,8 @@ class _RegionsManagementScreenState
         }
       }
       if (!mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
+      await showActorModalBottomSheet<void>(
+        context: context, ref: ref,
         isScrollControlled: true,
         builder: (context) => Directionality(
           textDirection: TextDirection.rtl,
@@ -414,16 +422,15 @@ class _RegionsManagementScreenState
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Center(
-                    child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(_error!, textAlign: TextAlign.center)))
-                : Column(children: [
+                ? AppErrorState(message: _error!, onRetry: _load)
+                : CustomScrollView(slivers: [
+                    SliverToBoxAdapter(child: Column(children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                       child: Row(children: [
                         Expanded(
                           child: DropdownButtonFormField<int>(
+                            isExpanded: true,
                             value: _selectedGovernorateId,
                             decoration:
                                 const InputDecoration(labelText: 'المحافظة'),
@@ -446,11 +453,11 @@ class _RegionsManagementScreenState
                         ],
                       ]),
                     ),
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                       child: Text(
                         'هذه المناطق لإدارة البيانات الجغرافية والعناوين فقط، ولا يتم تعيين دلال لمنطقة أو مربع.',
-                        style: TextStyle(color: Colors.black54),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ),
                     Padding(
@@ -510,12 +517,13 @@ class _RegionsManagementScreenState
                                 label:
                                     const Text('رسم خلية جديدة على الخريطة')),
                       ),
-                    Expanded(
-                      child: _cells.isEmpty
-                          ? const Center(
-                              child: Text('لا توجد خلايا في هذه المحافظة بعد.'))
-                          : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(10, 0, 10, 24),
+                    ])),
+                    if (_cells.isEmpty)
+                      const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(24),
+                        child: Text('لا توجد خلايا في هذه المحافظة بعد.')))
+                    else
+                      SliverPadding(padding: const EdgeInsets.fromLTRB(10, 0, 10, 24),
+                        sliver: SliverList.builder(
                               itemCount: _cells.length,
                               itemBuilder: (context, index) {
                                 final cell = _cells[index];
@@ -560,8 +568,7 @@ class _RegionsManagementScreenState
                                   ),
                                 );
                               },
-                            ),
-                    ),
+                            )),
                   ]),
       ),
     );

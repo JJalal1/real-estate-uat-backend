@@ -222,7 +222,7 @@ jobs:
         if: ${{ !cancelled() && steps.compiled_environment.conclusion == 'success' }}
         working-directory: mobile_app
         run: >-
-          flutter build apk --release
+          flutter build apk --flavor uat --release
           --build-number=${{ github.run_number }}
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=API_BASE_URL=${{ env.UAT_API_BASE_URL }}
@@ -232,7 +232,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          apk="mobile_app/build/app/outputs/flutter-apk/app-release.apk"
+          apk="mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk"
           test -f "$apk"
           cp "$apk" "dist/real-estate-v3-uat-${GITHUB_RUN_NUMBER}.apk"
           sha256sum dist/*.apk > dist/SHA256.txt
@@ -249,7 +249,7 @@ jobs:
           backend_expected_commit=${GOLDEN_SHA}
           api_base_url=${UAT_API_BASE_URL}
           flutter_version=3.27.3
-          android_application_id=com.example.real_estate_mobile
+          android_application_id=com.aqer.yemen.uat
           signing=original-development-debug-key
           run_number=${GITHUB_RUN_NUMBER}
           EOF

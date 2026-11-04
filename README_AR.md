@@ -7,7 +7,7 @@
 ## ثابت البناء
 
 - Flutter: `3.27.3` — مطابق لـ`.metadata` في المشروع المرفوع.
-- API: `https://real-estate-uat-api.onrender.com/api`
+- API: `https://real-estate-uat-api-frankfurt.onrender.com/api`
 - APP_ENVIRONMENT: `uat`
 - Package ID: `com.example.real_estate_mobile`
 - لا توجد Supabase keys أو DB passwords أو OTP secrets داخل APK أو workflow.

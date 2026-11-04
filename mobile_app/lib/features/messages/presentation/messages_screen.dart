@@ -5,24 +5,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../account/data/auth_controller.dart';
 import '../data/message_repository.dart';
 import '../domain/message_models.dart';
 import 'conversation_screen.dart';
 
-class MessagesScreen extends ConsumerStatefulWidget {
+class MessagesScreen extends ConsumerWidget {
   const MessagesScreen({this.embedded = false, super.key});
   final bool embedded;
 
   @override
-  ConsumerState<MessagesScreen> createState() => _MessagesScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
+      : _MessagesBody(key: ValueKey(actor), embedded: embedded);
+  }
 }
 
-class _MessagesScreenState extends ConsumerState<MessagesScreen> {
+class _MessagesBody extends ConsumerStatefulWidget {
+  const _MessagesBody({required this.embedded, super.key});
+  final bool embedded;
+  @override
+  ConsumerState<_MessagesBody> createState() => _MessagesScreenState();
+}
+
+class _MessagesScreenState extends ConsumerState<_MessagesBody> {
   bool _loading = true;
   bool _unreadOnly = false;
   int? _seenRevision;
   String? _error;
   List<MessageThreadSummary> _items = const [];
+  int _request = 0;
 
   @override
   void initState() {
@@ -31,27 +44,28 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   }
 
   Future<void> _load() async {
-    if (mounted) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
+    if (!mounted) return;
+    final request = ++_request;
+    setState(() { _loading = true; _error = null; });
     try {
       final items = await ref.read(messageRepositoryProvider).threads();
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
         _items = items;
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
+        if (!isTransientApiFailure(error)) _items = const [];
         _error = friendlyApiError(error);
         _loading = false;
       });
     }
   }
+
+  @override
+  void dispose() { _request++; super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -97,21 +111,23 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                   ),
                 ),
               ),
-              if (_loading)
+              if (_items.isNotEmpty && (_loading || _error != null))
+                SliverToBoxAdapter(child: AppRefreshStatus(loading: _loading, error: _error, onRetry: _load)),
+              if (_loading && _items.isEmpty)
                 const SliverPadding(
                   padding: EdgeInsetsDirectional.all(
                     AppLayout.compactPageGutter,
                   ),
                   sliver: SliverToBoxAdapter(child: _MessagesSkeleton()),
                 )
-              else if (_error != null)
+              else if (_error != null && _items.isEmpty)
                 SliverFillRemaining(
-                  hasScrollBody: false,
+                  hasScrollBody: true,
                   child: AppErrorState(message: _error!, onRetry: _load),
                 )
               else if (_items.isEmpty)
                 const SliverFillRemaining(
-                  hasScrollBody: false,
+                  hasScrollBody: true,
                   child: AppEmptyState(
                     title: 'لا توجد محادثات بعد',
                     message:
@@ -121,7 +137,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                 )
               else if (visible.isEmpty)
                 const SliverFillRemaining(
-                  hasScrollBody: false,
+                  hasScrollBody: true,
                   child: AppEmptyState(
                     title: 'ما عندك رسائل غير مقروءة',
                     message: 'كل المحادثات مقروءة الآن.',

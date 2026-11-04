@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'dart:async';
 import 'package:real_estate_mobile/core/platform/voice_input.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
@@ -38,7 +39,7 @@ class Wave3PropertiesFake implements PropertyRepository {
   final queries = <({Map<String, dynamic> filters, int page})>[];
   Future<(List<PropertySummary>, bool)> Function(Map<String, dynamic>, int)? onSearch;
   @override
-  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1}) async {
+  Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
     queries.add((filters: Map.of(filters), page: page));
     return onSearch == null ? ([wave3Property(11)], false) : onSearch!(filters, page);
   }
@@ -91,10 +92,12 @@ class Wave3MarketplaceFake implements MarketplaceRepository {
   final Future<MarketplaceFeed> Function(HomeFeedQuery)? onFeed;
   final queries = <HomeFeedQuery>[];
   @override
-  Future<MarketplaceFeed> feed(HomeFeedQuery query) async {
+  Future<MarketplaceFeed> feed(HomeFeedQuery query, {CancelToken? cancelToken, int cacheRevision = 0}) async {
     queries.add(query);
     return onFeed == null ? MarketplaceFeed(label: 'صنعاء', governorate: 'صنعاء', sections: {'latest': [wave3Property(11)]}) : onFeed!(query);
   }
+  @override
+  void invalidateFeed(HomeFeedQuery query) {}
   @override
   Future<List<HomeLocation>> locations() async => const [HomeLocation(governorate: 'صنعاء', manual: true), HomeLocation(label: 'تعز', governorate: 'تعز', latitude: 13.58, longitude: 44.02, manual: true)];
   @override

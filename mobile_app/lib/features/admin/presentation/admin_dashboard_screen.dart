@@ -4,12 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/admin_workspace_repository.dart';
 import '../domain/admin_workspace_models.dart';
 
 final _adminDashboardProvider =
-    FutureProvider.autoDispose<AdminDashboardSummary>((ref) {
+    FutureProvider.autoDispose.family<AdminDashboardSummary, int>((ref, actor) {
   return ref.watch(adminWorkspaceRepositoryProvider).dashboard();
 });
 
@@ -19,33 +20,33 @@ class AdminDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).asData?.value;
-    final state = ref.watch(_adminDashboardProvider);
+    if (user == null) return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
+    final provider = _adminDashboardProvider(user.id);
+    final state = ref.watch(provider);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(user?.isPlatformOwner == true
+          title: Text(user.isPlatformOwner == true
               ? 'لوحة المدير العام / صاحب النظام'
               : 'لوحة إدارة النظام'),
           actions: [
             IconButton(
-                onPressed: () => ref.invalidate(_adminDashboardProvider),
+                tooltip: 'تحديث لوحة الإدارة',
+                onPressed: state.isLoading ? null : () => ref.invalidate(provider),
                 icon: const EbrokerIcon(Icons.refresh))
           ],
         ),
         body: state.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(
-              child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(friendlyApiError(error),
-                      textAlign: TextAlign.center))),
+          loading: () => const AppLoadingState(label: 'جارٍ تحميل لوحة الإدارة…'),
+          error: (error, _) => AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(provider)),
           data: (summary) => RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(_adminDashboardProvider);
-              await ref.read(_adminDashboardProvider.future);
+              ref.invalidate(provider);
+              try { await ref.read(provider.future); } catch (_) { /* The page renders failure and retry. */ }
             },
             child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
               children: [
                 _SummaryGrid(summary: summary, user: user),
@@ -130,16 +131,11 @@ class _SummaryGrid extends StatelessWidget {
         visible: _can('payments.manage')
       ),
     ].where((row) => row.visible).toList(growable: false);
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 1.9,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8),
-      itemCount: rows.length,
-      itemBuilder: (_, i) => Card(
+    return LayoutBuilder(builder: (context, constraints) {
+      final columns = MediaQuery.textScalerOf(context).scale(14) > 20 ? 1 : 2;
+      final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+      return Wrap(spacing: 8, runSpacing: 8, children: [
+        for (var i = 0; i < rows.length; i++) SizedBox(width: width, child: Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(children: [
@@ -153,13 +149,13 @@ class _SummaryGrid extends StatelessWidget {
                   Text('${rows[i].value}',
                       style: const TextStyle(
                           fontSize: 22, fontWeight: FontWeight.w600)),
-                  Text(rows[i].label,
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(rows[i].label),
                 ])),
           ]),
         ),
-      ),
-    );
+      )),
+      ]);
+    });
   }
 }
 

@@ -1,0 +1,194 @@
+{
+  "fixture_property_ids": [
+    60,
+    61,
+    62
+  ],
+  "health": {
+    "status": 200,
+    "bytes": 46,
+    "elapsed_ms": 355,
+    "etag": null,
+    "cache_control": "no-cache, private",
+    "variant": null
+  },
+  "note": "Unthrottled wall time includes API/storage latency. Controlled reader is not OS network emulation.",
+  "samples": [
+    {
+      "fixture_property_id": 60,
+      "display_version": "v2-wm-bf7611483e0689ad9ccd",
+      "gallery": {
+        "status": 200,
+        "bytes": 191512,
+        "elapsed_ms": 1072,
+        "etag": "\"7bf270f5b611eb952e54e1e920e7490578a617940e29ca798069e09c2b7ea016\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "gallery",
+        "sha256": "6445fb47538708151284acd0c3d0320f6d77728072b0a970772e60bbac8e1fc1",
+        "exif_present": false
+      },
+      "card": {
+        "status": 200,
+        "bytes": 51649,
+        "elapsed_ms": 831,
+        "etag": "\"ec27e8146a0b1886a21f992e58198bb031e39ded4a57914042145c6009fdcc52\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "card",
+        "sha256": "5a6cc70ac03f67904888cca0f0108b5641270535776668af1524af284f87e4f6",
+        "exif_present": false
+      },
+      "thumb": {
+        "status": 200,
+        "bytes": 11337,
+        "elapsed_ms": 1191,
+        "etag": "\"2e52d2b220315a19edbd9548934c2c60be36ccff7294122f3d6845c540096227\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "thumb",
+        "sha256": "6de8fd57c80155d81cb0455fa168c5d62946b5d40956a91a5b81223f733f435b",
+        "exif_present": false
+      },
+      "conditional": {
+        "status": 304,
+        "bytes": 0,
+        "elapsed_ms": 331,
+        "etag": "\"2e52d2b220315a19edbd9548934c2c60be36ccff7294122f3d6845c540096227\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "thumb"
+      },
+      "original_variant": {
+        "status": 422,
+        "bytes": 133,
+        "elapsed_ms": 346,
+        "etag": null,
+        "cache_control": "no-cache, private",
+        "variant": null
+      },
+      "slow_gallery": {
+        "status": 200,
+        "bytes": 191512,
+        "elapsed_ms": 3710,
+        "etag": "\"7bf270f5b611eb952e54e1e920e7490578a617940e29ca798069e09c2b7ea016\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "gallery"
+      },
+      "slow_selected": {
+        "status": 200,
+        "bytes": 11337,
+        "elapsed_ms": 836,
+        "etag": "\"2e52d2b220315a19edbd9548934c2c60be36ccff7294122f3d6845c540096227\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "thumb"
+      },
+      "controlled_reader_bytes_per_second": 65536,
+      "slow_selected_variant": "thumb"
+    },
+    {
+      "fixture_property_id": 61,
+      "display_version": "v2-wm-bf7611483e0689ad9ccd",
+      "gallery": {
+        "status": 200,
+        "bytes": 286916,
+        "elapsed_ms": 1001,
+        "etag": "\"219d89fb1fed48d2719d3cb4b5f7f522dfe15bc56fc476b53a0cc189bd325403\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "gallery",
+        "sha256": "28907395947e7453eaa7b1db49ec04275f86be9a1259d7ac03b1832385cc9313",
+        "exif_present": false
+      },
+      "card": {
+        "status": 200,
+        "bytes": 71417,
+        "elapsed_ms": 862,
+        "etag": "\"57c08b991dde528ab912af8b3fba8da57eb0f3ad14cc0fdc275c2e6c48131a5e\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "card",
+        "sha256": "d48255fb495e37e49c2a18d7ce3236541c7f09d6fd1a79c44e2e6be7ae4cba6b",
+        "exif_present": false
+      },
+      "thumb": {
+        "status": 200,
+        "bytes": 14203,
+        "elapsed_ms": 808,
+        "etag": "\"950b842e215e1cd279f555d5af8f7f378b76d60aec1e262ffe1623ff32734048\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "thumb",
+        "sha256": "946f2129a76a7ff80b2c6c1763882c1da2d45987050db51361673d9032aef4f9",
+        "exif_present": false
+      },
+      "conditional": {
+        "status": 304,
+        "bytes": 0,
+        "elapsed_ms": 322,
+        "etag": "\"950b842e215e1cd279f555d5af8f7f378b76d60aec1e262ffe1623ff32734048\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "thumb"
+      },
+      "original_variant": {
+        "status": 422,
+        "bytes": 133,
+        "elapsed_ms": 310,
+        "etag": null,
+        "cache_control": "no-cache, private",
+        "variant": null
+      }
+    },
+    {
+      "fixture_property_id": 62,
+      "display_version": "v2-wm-bf7611483e0689ad9ccd",
+      "gallery": {
+        "status": 200,
+        "bytes": 286916,
+        "elapsed_ms": 824,
+        "etag": "\"5f954d6dd7c9e2e0d1a01169f94082a2f9564d7ba4cbfc7f38836a90470bbee7\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "gallery",
+        "sha256": "28907395947e7453eaa7b1db49ec04275f86be9a1259d7ac03b1832385cc9313",
+        "exif_present": false
+      },
+      "card": {
+        "status": 200,
+        "bytes": 71417,
+        "elapsed_ms": 707,
+        "etag": "\"d12e4a45e99cc44b71a23cda19a7fd51a4941f6b5544bb027c2cd04ecce2c000\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "card",
+        "sha256": "d48255fb495e37e49c2a18d7ce3236541c7f09d6fd1a79c44e2e6be7ae4cba6b",
+        "exif_present": false
+      },
+      "thumb": {
+        "status": 200,
+        "bytes": 14203,
+        "elapsed_ms": 1131,
+        "etag": "\"6d804e30300bfd1336b27631a39c4df015c12f2c041b402622002e132acdcca9\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "thumb",
+        "sha256": "946f2129a76a7ff80b2c6c1763882c1da2d45987050db51361673d9032aef4f9",
+        "exif_present": false
+      },
+      "conditional": {
+        "status": 304,
+        "bytes": 0,
+        "elapsed_ms": 258,
+        "etag": "\"6d804e30300bfd1336b27631a39c4df015c12f2c041b402622002e132acdcca9\"",
+        "cache_control": "max-age=86400, public",
+        "variant": "thumb"
+      },
+      "original_variant": {
+        "status": 422,
+        "bytes": 133,
+        "elapsed_ms": 694,
+        "etag": null,
+        "cache_control": "no-cache, private",
+        "variant": null
+      }
+    }
+  ],
+  "adaptive_available": true,
+  "watermark_active": true,
+  "detail_before_bytes": 765344,
+  "detail_metered_after_bytes": 194483,
+  "detail_saving_percent": 74.59,
+  "card_before_bytes": 194483,
+  "card_metered_after_bytes": 39743,
+  "card_saving_percent": 79.56
+}

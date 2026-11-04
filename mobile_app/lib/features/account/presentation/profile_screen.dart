@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'actor_scoped_page.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/widgets/ebroker_otp_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,14 +9,20 @@ import '../../../core/network/api_error_message.dart';
 import '../data/auth_controller.dart';
 import '../domain/auth_user.dart';
 
-class ProfileScreen extends ConsumerStatefulWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
-
   @override
-  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'الملف الشخصي', builder: (_) => const _ProfileScreenBody());
 }
 
-class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+class _ProfileScreenBody extends ConsumerStatefulWidget {
+  const _ProfileScreenBody();
+  @override
+  ConsumerState<_ProfileScreenBody> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<_ProfileScreenBody> {
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
@@ -110,7 +117,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       await ref.read(authControllerProvider.notifier).requestEmailVerification();
       if (!mounted) return;
-      final value = await showDialog<String>(context: context, builder: (_) => _EmailCodeDialog(email: user.email));
+      final value = await showActorDialog<String>(context: context, ref: ref, builder: (_) => _EmailCodeDialog(email: user.email));
       if (value == null || !mounted) return;
       await ref.read(authControllerProvider.notifier).verifyEmail(value);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تأكيد البريد. يمكنك الدخول به إلى الحساب نفسه.')));

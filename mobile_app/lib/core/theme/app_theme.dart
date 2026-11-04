@@ -225,4 +225,112 @@ abstract final class AppTheme {
       progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
     );
   }
+
+  static ThemeData get dark {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: brandSeed,
+      brightness: Brightness.dark,
+    ).copyWith(
+      primary: const Color(0xFF75D5D0),
+      onPrimary: const Color(0xFF003735),
+      primaryContainer: const Color(0xFF084E4D),
+      onPrimaryContainer: const Color(0xFFB2F1ED),
+      secondary: const Color(0xFFB8CAE0),
+      onSecondary: const Color(0xFF213547),
+      surface: const Color(0xFF121B22),
+      onSurface: const Color(0xFFE7EEF3),
+      onSurfaceVariant: const Color(0xFFB7C4CC),
+      surfaceContainerLowest: const Color(0xFF0D1419),
+      surfaceContainerLow: const Color(0xFF162128),
+      surfaceContainer: const Color(0xFF1C282F),
+      surfaceContainerHigh: const Color(0xFF233038),
+      surfaceContainerHighest: const Color(0xFF2A3841),
+      outline: const Color(0xFF83939E),
+      outlineVariant: const Color(0xFF43515A),
+      error: const Color(0xFFFFB4AB),
+      onError: const Color(0xFF690005),
+    );
+    final textTheme = AppTypography.textTheme.apply(
+      fontFamily: AppTypography.fontFamily,
+      bodyColor: scheme.onSurface,
+      displayColor: scheme.onSurface,
+    );
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: scheme,
+      extensions: const [AppSemanticColors.dark],
+      scaffoldBackgroundColor: scheme.surfaceContainerLow,
+      fontFamily: AppTypography.fontFamily,
+      fontFamilyFallback: AppTypography.fontFamilyFallback,
+      textTheme: textTheme,
+      appBarTheme: AppBarTheme(
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
+      cardTheme: CardThemeData(
+        color: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.card),
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: scheme.surfaceContainer,
+        contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: BorderSide(color: scheme.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: BorderSide(color: scheme.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: BorderSide(color: scheme.primary),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(AppSizes.touchTarget, 52),
+          foregroundColor: scheme.onPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.control),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(AppSizes.touchTarget, 52),
+          foregroundColor: scheme.onSurface,
+          side: BorderSide(color: scheme.outlineVariant),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.control),
+          ),
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: scheme.surface,
+        indicatorColor: scheme.primaryContainer,
+        elevation: 0,
+      ),
+      dividerTheme: DividerThemeData(color: scheme.outlineVariant),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: textTheme.bodyMedium?.copyWith(
+          color: scheme.onInverseSurface,
+        ),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
+    );
+  }
+
 }

@@ -1,0 +1,47 @@
+name: Nearby L1 cache gate
+
+on:
+  push:
+    branches: [work/nearby-l1-cache]
+    paths:
+      - 'backend-api-runtime/**'
+      - '.github/workflows/nearby-l1-cache.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Nearby cache regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Syntax and file-lock smoke
+        run: |
+          php -l app/Http/Controllers/Api/PropertyController.php
+          php artisan tinker --execute="cache()->store('file')->put('nearby-lock-smoke',['ok'=>true],10); if (cache()->store('file')->get('nearby-lock-smoke')['ok'] !== true) throw new RuntimeException('file cache failed'); cache()->store('file')->lock('nearby-lock-smoke-lock',2)->block(1,function(){});"
+      - name: Run property and discovery regressions
+        run: >-
+          php artisan test
+          tests/Feature/Stage5PropertyApiTest.php
+          tests/Feature/DiscoverySearchQualityTest.php
+          --display-warnings --fail-on-warning --fail-on-risky

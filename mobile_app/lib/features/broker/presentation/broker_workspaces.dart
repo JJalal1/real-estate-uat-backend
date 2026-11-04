@@ -80,7 +80,7 @@ class BrokerDashboardScreen extends ConsumerWidget {
             EbrokerIcon(item.icon, size: 19, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 10),
             Expanded(child: Text(item.text)), const EbrokerIcon(Icons.chevron_left, size: 17),
           ])));
-        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerWorkspaceProvider); await ref.read(brokerWorkspaceProvider.future); },
+        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerWorkspaceProvider); try { await ref.read(brokerWorkspaceProvider.future); } catch (_) { /* The page renders failure and retry. */ } },
           child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), physics: const AlwaysScrollableScrollPhysics(), children: [
             BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [ClipOval(child: profile?.photoUrl == null ? const EbrokerImage('defaultProfileIcon', size: 44)
@@ -135,16 +135,29 @@ class BrokerDashboardScreen extends ConsumerWidget {
   }
 }
 
-class BrokerCustomersScreen extends ConsumerStatefulWidget {
+class BrokerCustomersScreen extends ConsumerWidget {
   const BrokerCustomersScreen({this.propertyId, this.selectForDeal = false, this.initialFilter = 'all', this.embedded = false, super.key});
   final int? propertyId;
   final bool selectForDeal;
   final bool embedded;
   final String initialFilter;
   @override
-  ConsumerState<BrokerCustomersScreen> createState() => _BrokerCustomersState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
+      : _BrokerCustomersBody(key: ValueKey('$actor:$propertyId:$initialFilter:$selectForDeal'), propertyId: propertyId, selectForDeal: selectForDeal,
+        initialFilter: initialFilter, embedded: embedded);
+  }
 }
-class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
+class _BrokerCustomersBody extends ConsumerStatefulWidget {
+  const _BrokerCustomersBody({this.propertyId, required this.selectForDeal, required this.initialFilter, required this.embedded, super.key});
+  final int? propertyId;
+  final bool selectForDeal, embedded;
+  final String initialFilter;
+  @override
+  ConsumerState<_BrokerCustomersBody> createState() => _BrokerCustomersState();
+}
+class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
   final _items = <BrokerCustomer>[];
   bool _loading = true, _moreBusy = false, _helpReady = false, _helpSeen = true, _helpUsed = false;
   int? _helpActorId;
@@ -164,21 +177,31 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
     if (mounted) setState(() { _helpSeen = true; _helpUsed = true; });
     unawaited(ref.read(customerHelpStoreProvider).markSeen(id));
   }
-  String? _stage, _error;
+  String? _stage, _error, _query;
+  bool _failedMore = false;
   late String _filter;
   int _page = 1, _lastPage = 1, _request = 0;
   @override
   void initState() { super.initState(); _filter = const ['unread', 'followup_due'].contains(widget.initialFilter) ? widget.initialFilter : 'all'; Future.microtask(_loadHelp); Future.microtask(_load); }
+  @override
+  void dispose() { _request++; super.dispose(); }
   Future<void> _load({bool more = false}) async {
+    if (!mounted || (more && (_loading || _moreBusy || _page >= _lastPage))) return;
     final request = ++_request;
-    if (more) { setState(() => _moreBusy = true); } else { setState(() { _loading = true; _error = null; }); }
+    final query = '${widget.propertyId}:$_stage:$_filter';
+    _failedMore = more;
+    setState(() {
+      if (_query != query) { _items.clear(); _page = 1; _lastPage = 1; }
+      _query = query; _error = null;
+      if (more) { _moreBusy = true; } else { _loading = true; }
+    });
     try {
       final result = await ref.read(brokerRepositoryProvider).customers(stage: _stage, propertyId: widget.propertyId, filter: _filter, page: more ? _page + 1 : 1);
       if (!mounted || request != _request) return;
       if (result.items.any((item) => item.stage != 'new' || item.privateNote.isNotEmpty || item.remindAt != null)) { _helpUsed = true; unawaited(_rememberHelp()); }
       if (!mounted) return;
-      setState(() { if (!more) _items.clear(); _items.addAll(result.items); _page = result.page; _lastPage = result.lastPage; _loading = false; _moreBusy = false; });
-    } catch (error) { if (mounted && request == _request) setState(() { _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
+      setState(() { if (!more) _items.clear(); final ids = _items.map((item) => item.threadId).toSet(); _items.addAll(result.items.where((item) => ids.add(item.threadId))); _page = result.page; _lastPage = result.lastPage; _loading = false; _moreBusy = false; });
+    } catch (error) { if (mounted && request == _request) setState(() { if (!isTransientApiFailure(error)) _items.clear(); _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
   }
   Future<void> _chooseStage(BrokerCustomer item) async {
     final stage = await AppBottomSheet.show<String>(context, builder: (sheet) => Padding(padding: const EdgeInsets.fromLTRB(20,0,20,20),
@@ -198,8 +221,9 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
   @override
   Widget build(BuildContext context) => BrokerScaffold(
     appBar: widget.embedded ? null : AppAppBar(title: widget.selectForDeal ? 'اختر عميل الصفقة' : 'إدارة العملاء'),
-    body: _loading ? const AppLoadingState() : _error != null ? AppErrorState(message: _error!, onRetry: _load) : RefreshIndicator(onRefresh: _load,
+    body: _loading && _items.isEmpty ? const AppLoadingState() : _error != null && _items.isEmpty ? AppErrorState(message: _error!, onRetry: () => _load(more: _failedMore)) : RefreshIndicator(onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
+        if (_loading || _moreBusy || _error != null) AppRefreshStatus(loading: _loading || _moreBusy, error: _error, onRetry: () => _load(more: _failedMore)),
         if (!widget.selectForDeal) ...[
           if (widget.embedded) Text('إدارة العملاء', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 6),
@@ -241,7 +265,7 @@ class _BrokerCustomersState extends ConsumerState<BrokerCustomersScreen> {
             ]),
           ],
         ]))),
-        if (_page < _lastPage) AppButton(label: _moreBusy ? 'جار التحميل' : 'تحميل المزيد', onPressed: _moreBusy ? null : () => _load(more: true)),
+        if (_page < _lastPage && _error == null) AppButton(label: _moreBusy ? 'جار التحميل' : 'تحميل المزيد', onPressed: _moreBusy ? null : () => _load(more: true)),
       ])),
   );
 }
@@ -273,7 +297,7 @@ class _BrokerAvailabilityState extends ConsumerState<BrokerAvailabilityScreen> {
       data: (allItems) {
         final items = _onlyDue ? allItems.where((i) => i.needsConfirmation || i.status == 'confirmation_paused').toList() : allItems;
         if (!_initialized) { _selected.addAll(items.where((i) => i.needsConfirmation || i.status == 'confirmation_paused').map((i) => i.id)); _initialized = true; }
-        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerAvailabilityProvider); await ref.read(brokerAvailabilityProvider.future); },
+        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerAvailabilityProvider); try { await ref.read(brokerAvailabilityProvider.future); } catch (_) { /* The page renders failure and retry. */ } },
           child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
             const Text('أكد إعلانات البيع كل 14 يومًا والإيجار كل 7 أيام. الإعلانات المتوقفة بسبب التأكيد تعود عند تحديث التوفر ما دامت معتمدة.'),
             const SizedBox(height: 12),

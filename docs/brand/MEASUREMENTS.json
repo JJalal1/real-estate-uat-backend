@@ -1,0 +1,44 @@
+{
+  "source_pdf_sha256": "f96761f6422339fc8b7b5dc09d3d935a7dc76dc9f0840e317b37f9eca9781bc2",
+  "owner_approved_on": "2026-10-21",
+  "mark_frame_pixels": [
+    254,
+    242,
+    1280,
+    1270
+  ],
+  "mark_components": 5,
+  "word_components": 8,
+  "mark_contour_overlap": 0.999674450570745,
+  "word_contour_overlap": 0.9994680379466264,
+  "rdp_tolerance_px": 0.65,
+  "adaptive_foreground_scale": 0.732029,
+  "adaptive_max_radius_dp": 32.99996476117861,
+  "gradient_stops_estimated_from_reference": [
+    [
+      0,
+      "#16c1c1"
+    ],
+    [
+      0.08,
+      "#06979d"
+    ],
+    [
+      0.3,
+      "#015a60"
+    ],
+    [
+      0.55,
+      "#01484d"
+    ],
+    [
+      0.8,
+      "#003d44"
+    ],
+    [
+      1,
+      "#012a30"
+    ]
+  ],
+  "disclosed_difference": "Raster highlights and reflected drop shadows are simplified to a stable vector gradient; no pixel-identical lighting claim."
+}

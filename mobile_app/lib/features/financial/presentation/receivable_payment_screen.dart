@@ -7,8 +7,10 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../data/financial_repository.dart';
 import '../domain/financial_models.dart';
+import '../../account/presentation/actor_scoped_page.dart';
+import '../../account/data/account_request_scope.dart';
 
-class ReceivablePaymentScreen extends ConsumerStatefulWidget {
+class ReceivablePaymentScreen extends StatelessWidget {
   const ReceivablePaymentScreen({
     required this.receivableId,
     this.agreementId = 0,
@@ -23,14 +25,30 @@ class ReceivablePaymentScreen extends ConsumerStatefulWidget {
   final double remainingAmount;
   final String currency;
   final String? propertyTitle;
-
   @override
-  ConsumerState<ReceivablePaymentScreen> createState() =>
+  Widget build(BuildContext context) => ActorBoundPage(title: 'سداد المستحق',
+    builder: (_) => _ReceivablePaymentPage(receivableId: receivableId,
+      agreementId: agreementId, remainingAmount: remainingAmount,
+      currency: currency, propertyTitle: propertyTitle));
+}
+
+class _ReceivablePaymentPage extends ConsumerStatefulWidget {
+  const _ReceivablePaymentPage({required this.receivableId, required this.agreementId,
+    required this.remainingAmount, required this.currency, required this.propertyTitle});
+  final int receivableId;
+  final int agreementId;
+  final double remainingAmount;
+  final String currency;
+  final String? propertyTitle;
+  @override
+  ConsumerState<_ReceivablePaymentPage> createState() =>
       _ReceivablePaymentScreenState();
 }
 
 class _ReceivablePaymentScreenState
-    extends ConsumerState<ReceivablePaymentScreen> {
+    extends ConsumerState<_ReceivablePaymentPage> {
+  late final AccountRequestScope _scope;
+  bool get _valid => mounted && _scope.isCurrent;
   FinancialDeal? _deal;
   bool _loading = true;
   bool _busy = false;
@@ -39,23 +57,25 @@ class _ReceivablePaymentScreenState
   @override
   void initState() {
     super.initState();
+    _scope = ref.read(accountRequestScopeProvider);
     Future.microtask(_load);
   }
 
   Future<void> _load() async {
+    if (!_valid) return;
     try {
       final repo = ref.read(financialRepositoryProvider);
       final deal = widget.agreementId > 0
           ? await repo.deal(widget.agreementId)
           : await repo.receivableDeal(widget.receivableId);
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() {
         _deal = deal;
         _loading = false;
         _error = null;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() {
         _loading = false;
         _error = friendlyApiError(error);
@@ -136,6 +156,7 @@ class _ReceivablePaymentScreenState
       );
 
   Future<void> _start(FinancialPaymentMethod method) async {
+    if (!_valid) return;
     setState(() => _busy = true);
     try {
       final payment = await ref
@@ -144,11 +165,11 @@ class _ReceivablePaymentScreenState
             receivableId: widget.receivableId,
             paymentMethodId: method.id,
           );
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() => _busy = false);
       await _transfer(payment, payment.method ?? method);
     } catch (error) {
-      if (!mounted) return;
+      if (!_valid) return;
       setState(() => _busy = false);
       _message(friendlyApiError(error));
     }
@@ -156,8 +177,9 @@ class _ReceivablePaymentScreenState
 
   Future<void> _transfer(
       FinancialPayment payment, FinancialPaymentMethod method) async {
-    final complete = await showDialog<bool>(
-      context: context,
+    if (!_valid) return;
+    final complete = await showActorDialog<bool>(
+      context: context, ref: ref,
       barrierDismissible: false,
       builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
@@ -208,17 +230,18 @@ class _ReceivablePaymentScreenState
         ),
       ),
     );
-    if (complete == true && mounted) await _proof(payment, method);
+    if (complete == true && _valid) await _proof(payment, method);
   }
 
   Future<void> _proof(
       FinancialPayment payment, FinancialPaymentMethod method) async {
+    if (!_valid) return;
     final sender = TextEditingController();
     final phone = TextEditingController();
     final reference = TextEditingController();
     String? proof;
-    final ok = await showDialog<bool>(
-      context: context,
+    final ok = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setLocal) => Directionality(
           textDirection: TextDirection.rtl,
@@ -255,6 +278,10 @@ class _ReceivablePaymentScreenState
                     onPressed: () async {
                       final files =
                           await const Stage5MediaPicker().pickImages();
+                      if (!context.mounted || !_valid) {
+                        try { await const Stage5MediaPicker().clearTemporaryFiles(files); } catch (_) { /* The native cache may already be unavailable. */ }
+                        return;
+                      }
                       if (files.isNotEmpty) setLocal(() => proof = files.first);
                     },
                     icon: EbrokerIcon(proof == null
@@ -281,7 +308,7 @@ class _ReceivablePaymentScreenState
         ),
       ),
     );
-    if (ok == true && proof != null && mounted) {
+    if (ok == true && proof != null && _valid) {
       setState(() => _busy = true);
       try {
         await ref.read(financialRepositoryProvider).submitProof(
@@ -291,20 +318,23 @@ class _ReceivablePaymentScreenState
               senderPhone: phone.text,
               providerReference: reference.text,
             );
-        if (mounted) {
+        if (mounted && _valid) {
           _message(
               'جارٍ التحقق من الدفع. تم استلام الإثبات، لا تدفع مرة أخرى لهذه العملية حتى تصلك النتيجة.');
           Navigator.of(context).pop(true);
         }
       } catch (error) {
-        if (mounted) _message(friendlyApiError(error));
+        if (_valid) _message(friendlyApiError(error));
       } finally {
-        if (mounted) setState(() => _busy = false);
+        if (_valid) setState(() => _busy = false);
       }
     }
     sender.dispose();
     phone.dispose();
     reference.dispose();
+    if (proof != null) {
+      try { await const Stage5MediaPicker().clearTemporaryFiles([proof!]); } catch (_) { /* Do not mask the payment result with cache cleanup. */ }
+    }
   }
 
   Widget _copy(String label, String value, String action) => Row(children: [
@@ -312,7 +342,7 @@ class _ReceivablePaymentScreenState
         TextButton.icon(
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: value));
-            if (mounted) _message('تم النسخ');
+            if (_valid) _message('تم النسخ');
           },
           icon: const EbrokerIcon(Icons.copy, size: 18),
           label: Text(action),

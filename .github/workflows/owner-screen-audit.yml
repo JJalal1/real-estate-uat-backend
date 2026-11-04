@@ -1,0 +1,53 @@
+name: Owner active screen states
+on:
+  pull_request:
+    branches: [work/wave2-review-current]
+    paths: ['mobile_app/**', '.github/workflows/owner-screen-audit.yml']
+permissions:
+  contents: read
+jobs:
+  states:
+    name: Active role screens loading error retry RTL and large text
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve protected dependencies and run screen matrix
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          status=0
+          flutter test test/owner_active_screen_states_test.dart test/owner_secondary_privacy_layout_test.dart test/owner_auth_boundary_test.dart --reporter json > owner-screen-results.jsonl 2>&1 || status=$?
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          names={}
+          failures=0
+          for line in Path('owner-screen-results.jsonl').read_text().splitlines():
+              try: row=json.loads(line)
+              except ValueError: continue
+              if row.get('type')=='testStart': names[row['test']['id']]=row['test']['name']
+              if row.get('type')=='error':
+                  failures+=1
+                  print('SCREEN_FAILURE',names.get(row.get('testID')),str(row.get('error',''))[:1300])
+              if row.get('type')=='testDone' and row.get('result')=='success': print('SCREEN_PASS',names.get(row.get('testID')))
+          print('SCREEN_ERROR_EVENTS',failures)
+          PY
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: active-screen-state-results
+          path: mobile_app/owner-screen-results.jsonl
+          if-no-files-found: error
+          retention-days: 14

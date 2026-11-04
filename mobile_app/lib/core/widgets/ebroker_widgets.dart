@@ -200,7 +200,7 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    Widget option(ButtonSegment<T> segment) {
+    Widget option(ButtonSegment<T> segment, {bool bounded = true}) {
       final active = selected.contains(segment.value);
       final enabled = onSelectionChanged != null && segment.enabled;
       return Semantics(button: true, selected: active, enabled: enabled,
@@ -218,14 +218,15 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
                 fontFamilyFallback: const ['sans-serif'],
                 fontSize: 14.rf(context), height: 1.3, color: EbrokerDesign.text,
                 fontWeight: active ? FontWeight.w500 : FontWeight.w400),
-              child: Row(children: [
+              child: Row(mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min, children: [
                 if (showSelectedIcon) ...[
                   Icon(active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
                     size: 20, color: active ? primary : EbrokerDesign.textLight),
                   SizedBox(width: 8.rh(context)),
                 ],
                 if (segment.icon != null) ...[segment.icon!, SizedBox(width: 8.rh(context))],
-                if (segment.label != null) Expanded(child: segment.label!),
+                if (segment.label != null)
+                  if (bounded) Expanded(child: segment.label!) else segment.label!,
               ]),
             ),
           ),
@@ -233,6 +234,13 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
       );
     }
     return LayoutBuilder(builder: (context, constraints) {
+      if (!constraints.hasBoundedWidth) {
+        return Row(mainAxisSize: MainAxisSize.min, children: [
+          for (var i = 0; i < segments.length; i++) ...[
+            if (i > 0) SizedBox(width: 12.rh(context)), option(segments[i], bounded: false),
+          ],
+        ]);
+      }
       final stacked = constraints.maxWidth < 400 && MediaQuery.textScalerOf(context).scale(14) > 20;
       if (stacked) {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch,

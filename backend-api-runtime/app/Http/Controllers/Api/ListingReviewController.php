@@ -91,6 +91,18 @@ class ListingReviewController extends Controller
         ]);
     }
 
+    public function reviewMedia(Request $request, Property $property): JsonResponse
+    {
+        $v=$request->validate([
+            'image_id'=>['required','integer','min:1'],
+            'image_token'=>['required','string','regex:/^[a-f0-9]{64}$/D'],
+            'decision'=>['required',Rule::in(['relevant','uncertain','unrelated'])],
+            'reason'=>['required','string','min:5','max:2000'],
+        ]);
+        if (mb_strlen(trim($v['reason']))<5) throw \Illuminate\Validation\ValidationException::withMessages(['reason'=>['أضف سببًا واضحًا من خمسة أحرف على الأقل.']]);
+        return response()->json(['data'=>$this->workflow->reviewMedia($request->user(),$property,(int)$v['image_id'],$v['image_token'],$v['decision'],trim($v['reason']),$request)]);
+    }
+
     public function start(Request $request, Property $property): JsonResponse
     {
         return response()->json([
@@ -215,6 +227,7 @@ class ListingReviewController extends Controller
 
     private function data(Property $p, bool $full): array
     {
+        $mediaStates = $full ? $this->workflow->mediaReviewStates($p) : [];
         $p->loadMissing(['user.accountVerificationProfile.documents', 'propertyAsset', 'documents', 'images']);
         $block = $p->propertyAsset?->publicationBlocks()
             ->where('purpose', $p->purpose)
@@ -269,6 +282,8 @@ class ListingReviewController extends Controller
                 'url' => '/api/property-media/' . $image->id,
                 'is_primary' => (bool) $image->is_primary,
                 'sort_order' => (int) $image->sort_order,
+                'relevance_token' => $full ? $this->workflow->mediaFingerprint($image) : null,
+                'relevance_review' => $mediaStates[$image->id] ?? ['decision'=>'pending','checker'=>'human_review','reason'=>null],
             ])->values(),
             'proof_documents' => $p->documents->map(fn ($d) => [
                 'id' => $d->id,

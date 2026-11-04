@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,16 +9,20 @@ import '../../account/data/auth_controller.dart';
 import '../../account/domain/access_models.dart';
 import '../../account/presentation/access_control_screen.dart';
 
-class GeneralManagerAccountsScreen extends ConsumerStatefulWidget {
+class GeneralManagerAccountsScreen extends ConsumerWidget {
   const GeneralManagerAccountsScreen({super.key});
-
   @override
-  ConsumerState<GeneralManagerAccountsScreen> createState() =>
-      _GeneralManagerAccountsScreenState();
+  Widget build(BuildContext context, WidgetRef ref) => ActorBoundPage(
+    title: 'الحسابات والصلاحيات', builder: (_) => const _GeneralManagerAccountsScreenBody());
+}
+class _GeneralManagerAccountsScreenBody extends ConsumerStatefulWidget {
+  const _GeneralManagerAccountsScreenBody();
+  @override
+  ConsumerState<_GeneralManagerAccountsScreenBody> createState() => _GeneralManagerAccountsScreenState();
 }
 
 class _GeneralManagerAccountsScreenState
-    extends ConsumerState<GeneralManagerAccountsScreen> {
+    extends ConsumerState<_GeneralManagerAccountsScreenBody> {
   final _search = TextEditingController();
   List<AccessUserSummary> _users = const [];
   AccessCatalog? _catalog;
@@ -239,8 +244,8 @@ class _GeneralManagerAccountsScreenState
         .where((role) => managed.contains(role.key))
         .toList(growable: false);
 
-    final accepted = await showDialog<bool>(
-      context: context,
+    final accepted = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
           title: Text('الدور الإداري لـ ${user.name}'),
@@ -283,8 +288,8 @@ class _GeneralManagerAccountsScreenState
 
   Future<void> _editStatus(AccessUserSummary user) async {
     var status = user.accountStatus;
-    final accepted = await showDialog<bool>(
-      context: context,
+    final accepted = await showActorDialog<bool>(
+      context: context, ref: ref,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
           title: Text('حالة حساب ${user.name}'),
@@ -318,6 +323,7 @@ class _GeneralManagerAccountsScreenState
   }
 
   Future<void> _mutate(Future<void> Function() action) async {
+    if (!mounted) return;
     try {
       await action();
       await ref.read(authControllerProvider.notifier).refresh();

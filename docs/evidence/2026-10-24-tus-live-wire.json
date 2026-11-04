@@ -1,0 +1,48 @@
+{
+  "project": "ipxsgxsqzthpgthwvdno",
+  "source_sha": "23ddba16d33e50b45a954d9d5e0d2dfe67737d8a",
+  "deploy": "dep-dbdtcp5g1s2s73b18o80",
+  "utc_window": [
+    "2026-10-23T21:50:05Z",
+    "2026-10-23T21:50:11Z"
+  ],
+  "chunk_bytes": 6291456,
+  "tail_bytes": 46,
+  "total_bytes": 6291502,
+  "provider_http": [
+    {
+      "method": "HEAD",
+      "request_bytes": "",
+      "requests": 1,
+      "status": "200"
+    },
+    {
+      "method": "PATCH",
+      "request_bytes": "46",
+      "requests": 1,
+      "status": "204"
+    },
+    {
+      "method": "PATCH",
+      "request_bytes": "6291456",
+      "requests": 1,
+      "status": "204"
+    },
+    {
+      "method": "POST",
+      "request_bytes": "0",
+      "requests": 1,
+      "status": "400"
+    },
+    {
+      "method": "POST",
+      "request_bytes": "0",
+      "requests": 1,
+      "status": "201"
+    }
+  ],
+  "head_offset_and_sha256_checked_by_canary": true,
+  "offset_header_not_retained_in_provider_logs": true,
+  "completed_synthetic_objects_remaining": 0,
+  "scope": "Live storage protocol canary; not Flutter/Laravel upload-intent UAT acceptance."
+}

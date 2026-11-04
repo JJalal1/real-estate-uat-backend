@@ -36,7 +36,7 @@ class UatHttpsMediaTest extends TestCase
         DB::table('property_favorites')->insert(['user_id' => $user->id, 'property_id' => $property->id, 'created_at' => now(), 'updated_at' => now()]);
         $this->withHeaders(['Authorization' => 'Bearer '.$token, 'X-Forwarded-Proto' => 'https'])
             ->getJson('http://real-estate-uat-api-frankfurt.onrender.com/api/favorites')->assertOk()
-            ->assertJsonPath('data.0.property.main_image', 'https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/'.$image->id);
+            ->assertJsonPath('data.0.property.main_image', 'https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/'.$image->id.'?variant=card');
     }
 
     public function test_forwarded_host_and_client_ip_cannot_change_the_request_or_throttle_identity(): void

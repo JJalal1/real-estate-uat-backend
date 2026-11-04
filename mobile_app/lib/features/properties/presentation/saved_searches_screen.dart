@@ -13,10 +13,17 @@ import 'saved_search_builder_screen.dart';
 import 'property_compare_actions.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../discovery/presentation/smart_search_assistant.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 
-class SavedSearchesScreen extends ConsumerWidget {
+class SavedSearchesScreen extends StatelessWidget {
   const SavedSearchesScreen({super.key});
+  @override
+  Widget build(BuildContext context) => ActorScopedPage(title: 'البحوث المحفوظة',
+    builder: (_) => const _SavedSearchesPage());
+}
 
+class _SavedSearchesPage extends ConsumerWidget {
+  const _SavedSearchesPage();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final searches = ref.watch(savedSearchesProvider);
@@ -41,7 +48,7 @@ class SavedSearchesScreen extends ConsumerWidget {
             return RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(savedSearchesProvider);
-                await ref.read(savedSearchesProvider.future);
+                try { await ref.read(savedSearchesProvider.future); } catch (_) { /* The page renders failure and retry. */ }
               },
               child: ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -53,7 +60,7 @@ class SavedSearchesScreen extends ConsumerWidget {
                 ),
                 itemCount: items.length,
                 separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
-                itemBuilder: (context, index) => _SavedSearchCard(search: items[index]),
+                itemBuilder: (context, index) => _SavedSearchCard(key: ValueKey(items[index].id), search: items[index]),
               ),
             );
           },
@@ -64,7 +71,7 @@ class SavedSearchesScreen extends ConsumerWidget {
 }
 
 class _SavedSearchCard extends ConsumerStatefulWidget {
-  const _SavedSearchCard({required this.search});
+  const _SavedSearchCard({required this.search, super.key});
   final SavedPropertySearch search;
 
   @override
@@ -170,6 +177,7 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
           builder: (_) => SavedSearchBuilderScreen(existingSearch: widget.search),
         ),
       );
+      if (!mounted) return;
       if (changed == true) {
         ref.read(savedSearchRevisionProvider.notifier).state++;
       }
@@ -188,7 +196,7 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
           ],
         ),
       );
-      if (approved != true) return;
+      if (approved != true || !mounted) return;
     }
 
     setState(() => _busy = true);
@@ -199,6 +207,7 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
       } else {
         await repo.updateAlert(widget.search.id, alertFrequency: value);
       }
+      if (!mounted) return;
       ref.read(savedSearchRevisionProvider.notifier).state++;
     } catch (error) {
       if (!mounted) return;
@@ -211,10 +220,17 @@ class _SavedSearchCardState extends ConsumerState<_SavedSearchCard> {
   }
 }
 
-class SavedSearchResultsScreen extends ConsumerWidget {
+class SavedSearchResultsScreen extends StatelessWidget {
   const SavedSearchResultsScreen({required this.search, super.key});
   final SavedPropertySearch search;
+  @override
+  Widget build(BuildContext context) => ActorBoundPage(title: 'نتائج البحث المحفوظ',
+    builder: (_) => _SavedSearchResultsPage(search: search));
+}
 
+class _SavedSearchResultsPage extends ConsumerWidget {
+  const _SavedSearchResultsPage({required this.search});
+  final SavedPropertySearch search;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(savedSearchRevisionProvider);

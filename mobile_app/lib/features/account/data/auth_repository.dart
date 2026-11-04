@@ -16,19 +16,28 @@ class AuthRepository {
   final Dio _dio;
   final _store = Stage6SecureSessionStore.instance;
 
+  void _requireSession(int epoch) {
+    if (_store.sessionEpoch != epoch) throw StateError('ACCOUNT_CHANGED');
+  }
+
   Future<AuthUser?> restoreSession() async {
+    final epoch = _store.sessionEpoch;
     final token = await _store.readToken();
+    _requireSession(epoch);
     if (token == null) return null;
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/auth/me',
         options: _bearer(token),
       );
+      _requireSession(epoch);
       return _userFromData(response.data);
     } on DioException catch (error) {
+      _requireSession(epoch);
       if (error.response?.statusCode == 401 ||
           error.response?.statusCode == 403) {
-        await _store.deleteToken();
+        await _store.deleteTokenIfMatches(token);
+        _requireSession(epoch);
         return null;
       }
       rethrow;
@@ -36,6 +45,7 @@ class AuthRepository {
   }
 
   Future<WhatsAppAuthPending> startWhatsApp({required String phone, String? name}) async {
+    final epoch = _store.beginSessionChange();
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/whatsapp/start',
       data: {
@@ -44,6 +54,7 @@ class AuthRepository {
         if (name?.trim().isNotEmpty == true) 'name': name!.trim(),
       },
     );
+    _requireSession(epoch);
     final data = response.data?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid WhatsApp authentication response.');
@@ -58,13 +69,15 @@ class AuthRepository {
 
   Future<AuthResult> verifyWhatsApp(
       WhatsAppAuthPending pending, String code) async {
+    final epoch = _store.beginSessionChange();
     if (pending.isEmail) {
       final response = await _dio.post<Map<String, dynamic>>('/auth/email/login', data: {
         'email': pending.email, 'code': code.trim(), if (pending.name != null) 'name': pending.name!.trim(),
       });
-      return _acceptLoginResponse(response.data);
+      return _acceptLoginResponse(response.data, epoch);
     }
     final legacyKey = await Stage5DeviceStore.instance.ownerKey();
+    _requireSession(epoch);
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/whatsapp/verify',
       data: {
@@ -74,14 +87,16 @@ class AuthRepository {
         'legacy_owner_key': legacyKey,
       },
     );
-    return _acceptLoginResponse(response.data);
+    return _acceptLoginResponse(response.data, epoch);
   }
 
   Future<WhatsAppAuthPending> startEmail({required String email, String? name}) async {
+    final epoch = _store.beginSessionChange();
     final response = await _dio.post<Map<String, dynamic>>('/auth/email/start', data: {
       'intent': name?.trim().isNotEmpty == true ? 'continue' : 'login',
       'email': email.trim(), if (name?.trim().isNotEmpty == true) 'name': name!.trim(),
     });
+    _requireSession(epoch);
     final data = response.data?['data'];
     if (data is! Map<String, dynamic>) throw StateError('Invalid email authentication response.');
     return WhatsAppAuthPending(phone: '', email: data['email']?.toString() ?? email.trim(), name: name,
@@ -89,14 +104,16 @@ class AuthRepository {
   }
 
   Future<void> requestEmailVerification() async {
-    final token = await _store.readToken();
-    await _dio.post<void>('/auth/email/request', options: _bearer(token!));
+    final epoch = _store.sessionEpoch;
+    await _dio.post<void>('/auth/email/request', options: await requiredAuthOptions());
+    _requireSession(epoch);
   }
 
   Future<AuthUser> verifyEmail(String code) async {
-    final token = await _store.readToken();
+    final epoch = _store.sessionEpoch;
     final response = await _dio.post<Map<String, dynamic>>('/auth/email/verify',
-      data: {'code': code.trim()}, options: _bearer(token!));
+      data: {'code': code.trim()}, options: await requiredAuthOptions());
+    _requireSession(epoch);
     return _userFromData(response.data);
   }
 
@@ -106,7 +123,9 @@ class AuthRepository {
     required String phone,
     required String password,
   }) async {
+    final epoch = _store.beginSessionChange();
     final legacyKey = await Stage5DeviceStore.instance.ownerKey();
+    _requireSession(epoch);
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/register',
       data: {
@@ -118,14 +137,16 @@ class AuthRepository {
         'legacy_owner_key': legacyKey,
       },
     );
-    return _acceptLoginResponse(response.data);
+    return _acceptLoginResponse(response.data, epoch);
   }
 
   Future<AuthResult> login({
     required String login,
     required String password,
   }) async {
+    final epoch = _store.beginSessionChange();
     final legacyKey = await Stage5DeviceStore.instance.ownerKey();
+    _requireSession(epoch);
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/login',
       data: {
@@ -134,26 +155,29 @@ class AuthRepository {
         'legacy_owner_key': legacyKey,
       },
     );
-    return _acceptLoginResponse(response.data);
+    return _acceptLoginResponse(response.data, epoch);
   }
 
   Future<void> logout() async {
+    final epoch = _store.beginSessionChange();
     final token = await _store.readToken();
     try {
-      if (token != null) {
+      if (token != null && epoch == _store.sessionEpoch) {
         await _dio.post<void>('/auth/logout', options: _bearer(token));
       }
     } finally {
-      await _store.deleteToken();
+      if (token != null) await _store.deleteTokenIfMatches(token);
     }
   }
 
   Future<String?> requestPhoneVerification() async {
+    final epoch = _store.sessionEpoch;
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/phone/request',
       data: const <String, dynamic>{},
       options: await requiredAuthOptions(),
     );
+    _requireSession(epoch);
     final data = response.data?['data'];
     if (data is Map<String, dynamic>) {
       final code = data['debug_code']?.toString().trim();
@@ -163,20 +187,24 @@ class AuthRepository {
   }
 
   Future<AuthUser> verifyPhone(String code) async {
+    final epoch = _store.sessionEpoch;
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/phone/verify',
       data: {'code': code.trim()},
       options: await requiredAuthOptions(),
     );
+    _requireSession(epoch);
     return _userFromData(response.data);
   }
 
   Future<AuthUser> completeProfile(String name) async {
+    final epoch = _store.sessionEpoch;
     final response = await _dio.patch<Map<String, dynamic>>(
       '/auth/profile',
       data: {'name': name.trim()},
       options: await requiredAuthOptions(),
     );
+    _requireSession(epoch);
     return _userFromData(response.data);
   }
 
@@ -185,11 +213,13 @@ class AuthRepository {
     required String phone,
     String? email,
   }) async {
+    final epoch = _store.sessionEpoch;
     final response = await _dio.patch<Map<String, dynamic>>(
       '/auth/profile',
       data: {'name': name.trim(), 'phone': phone.trim(), if (email?.trim().isNotEmpty == true) 'email': email!.trim()},
       options: await requiredAuthOptions(),
     );
+    _requireSession(epoch);
     return _userFromData(response.data);
   }
 
@@ -211,6 +241,9 @@ class AuthRepository {
     required String code,
     required String password,
   }) async {
+    final epoch = _store.beginSessionChange();
+    final previous = await _store.readToken();
+    _requireSession(epoch);
     await _dio.post<void>(
       '/auth/password/reset',
       data: {
@@ -220,21 +253,28 @@ class AuthRepository {
         'password_confirmation': password,
       },
     );
-    await _store.deleteToken();
+    _requireSession(epoch);
+    if (previous != null) await _store.deleteTokenIfMatches(previous);
+    _requireSession(epoch);
   }
 
   Future<Options> requiredAuthOptions() async {
+    final epoch = _store.sessionEpoch;
     final token = await _store.readToken();
+    _requireSession(epoch);
     if (token == null) throw StateError('AUTH_REQUIRED');
     return _bearer(token);
   }
 
   Future<Options?> optionalAuthOptions() async {
+    final epoch = _store.sessionEpoch;
     final token = await _store.readToken();
+    _requireSession(epoch);
     return token == null ? null : _bearer(token);
   }
 
-  Future<AuthResult> _acceptLoginResponse(Map<String, dynamic>? body) async {
+  Future<AuthResult> _acceptLoginResponse(Map<String, dynamic>? body, int epoch) async {
+    _requireSession(epoch);
     final data = body?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid authentication response.');
@@ -244,12 +284,18 @@ class AuthRepository {
     if (token == null || token.isEmpty || userData is! Map<String, dynamic>) {
       throw StateError('Invalid authentication response.');
     }
-    await _store.writeToken(token);
+    final user = AuthUser.fromJson(userData);
+    if (user.id <= 0) throw StateError('Invalid authentication response.');
+    final written = await _store.writeTokenIfCurrent(token, epoch);
+    if (!written || epoch != _store.sessionEpoch) {
+      await _store.deleteTokenIfMatches(token);
+      throw StateError('ACCOUNT_CHANGED');
+    }
     final raw = data['legacy_listings_claimed'];
     final claimed =
         raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '') ?? 0;
     return AuthResult(
-      user: AuthUser.fromJson(userData),
+      user: user,
       legacyListingsClaimed: claimed,
     );
   }

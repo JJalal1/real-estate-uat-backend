@@ -7,6 +7,7 @@ class SavedPropertySearch {
     required this.isActive,
     required this.matchingCount,
     this.lastCheckedAt,
+    this.alreadySaved = false,
   });
 
   final int id;
@@ -16,8 +17,10 @@ class SavedPropertySearch {
   final bool isActive;
   final int matchingCount;
   final DateTime? lastCheckedAt;
+  /// A successful duplicate POST returns an existing search without changing it.
+  final bool alreadySaved;
 
-  factory SavedPropertySearch.fromJson(Map<String, dynamic> json) {
+  factory SavedPropertySearch.fromJson(Map<String, dynamic> json, {bool alreadySaved = false}) {
     final rawFilters = json['filters'];
     return SavedPropertySearch(
       id: _asInt(json['id']),
@@ -29,6 +32,7 @@ class SavedPropertySearch {
       isActive: json['is_active'] == true,
       matchingCount: _asInt(json['matching_count']),
       lastCheckedAt: DateTime.tryParse(json['last_checked_at']?.toString() ?? ''),
+      alreadySaved: alreadySaved,
     );
   }
 

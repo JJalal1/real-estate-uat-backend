@@ -74,7 +74,7 @@ class BrokerRankingService
             'account_type'=>$approved ? $profile->type : 'individual','verified'=>(bool)$approved,
             'governorate'=>$details['governorate'] ?? null,'work_areas'=>$details['work_areas'] ?? [],
             'specializations'=>$details['specialties'] ?? [],'bio'=>$user->public_professional_bio,
-            'photo_url'=>$approved && $user->public_professional_photo_path ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16) : null,
+            'photo_url'=>$approved && $user->public_professional_photo_path ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16).'&format=jpeg-v1' : null,
             'rating_average'=>round((float)($user->rating_average ?? 0),2),'rating_count'=>(int)($user->rating_count ?? 0),
             'completed_deals'=>(int)($user->completed_deals ?? 0),'active_listings'=>(int)($user->active_listings ?? 0),
             'sold_listings'=>(int)($user->sold_listings ?? 0),'rented_listings'=>(int)($user->rented_listings ?? 0),

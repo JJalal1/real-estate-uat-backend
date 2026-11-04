@@ -3,20 +3,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../../account/data/account_request_scope.dart';
+import '../../account/data/auth_controller.dart';
 import '../domain/community_models.dart';
 
 final communityRepositoryProvider = Provider<CommunityRepository>((ref) {
+  final actor = ref.watch(authControllerProvider.select((s) => s.asData?.value?.id));
   return CommunityRepository(
     ref.watch(dioProvider),
-    ref.watch(authRepositoryProvider),
+    ref.watch(authRepositoryProvider), requestScope: ref.watch(accountRequestScopeProvider), actorId: actor, currentActor: () => ref.read(authControllerProvider).asData?.value?.id,
   );
 });
 
 class CommunityRepository {
-  CommunityRepository(this._dio, this._auth);
+  CommunityRepository(this._dio, this._auth, {int? actorId, int? Function()? currentActor, AccountRequestScope? requestScope}): _actorId = actorId, _currentActor = currentActor, _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
+  final int? _actorId;
+  final int? Function()? _currentActor;
+  Future<Options> _sessionOptions() async {
+    _requestScope?.verify();
+    if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _requestScope?.verify();
+    if (_currentActor != null && _currentActor() != _actorId) throw StateError('ACCOUNT_CHANGED');
+    return options;
+  }
+
 
   Future<List<ListingCommentItem>> comments(int propertyId) async {
     final response = await _dio.get<Map<String, dynamic>>(
@@ -34,7 +49,7 @@ class CommunityRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/properties/$propertyId/comments',
       data: {'body': body.trim()},
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     return _comment(response.data);
   }
@@ -43,7 +58,7 @@ class CommunityRepository {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/comments/$commentId',
       data: {'body': body.trim()},
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     return _comment(response.data);
   }
@@ -51,7 +66,7 @@ class CommunityRepository {
   Future<void> deleteComment(int commentId) async {
     await _dio.delete<void>(
       '/comments/$commentId',
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
   }
 
@@ -77,41 +92,43 @@ class CommunityRepository {
         if (comment != null && comment.trim().isNotEmpty)
           'comment': comment.trim(),
       },
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
+    _requestScope?.verify();
     return _ratingSummary(response.data);
   }
 
   Future<void> deleteRating(int advertiserId) async {
     await _dio.delete<void>(
       '/advertisers/$advertiserId/rating',
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
   }
 
-  Future<void> report({
-    required String targetType,
-    required int targetId,
-    required String reason,
-    required String details,
+  Future<ReportReceipt> report({
+    required String targetType, required int targetId, required String reason, required String details,
   }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/reports',
-      data: {
-        'target_type': targetType,
-        'target_id': targetId,
-        'reason': reason,
-        'details': details.trim(),
-      },
-      options: await _auth.requiredAuthOptions(),
-    );
-    final data = response.data?['data'];
-    if (data is! Map<String, dynamic>) {
-      throw StateError('Invalid report response.');
+    Map<String, dynamic>? body;
+    var alreadyReceived = false;
+    try {
+      final response = await _dio.post<Map<String, dynamic>>('/reports', data: {
+        'target_type': targetType, 'target_id': targetId, 'reason': reason, 'details': details.trim(),
+      }, options: await _sessionOptions());
+      body = response.data;
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      if (error.response?.statusCode != 409 || data is! Map<String, dynamic> || data['code'] != 'report_already_received') rethrow;
+      body = data; alreadyReceived = true;
     }
+    if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
+    _requestScope?.verify();
+    final data = body?['data'];
+    if (data is! Map<String, dynamic>) throw StateError('Invalid report response');
+    return ReportReceipt.fromJson(data, alreadyReceived: alreadyReceived);
   }
 
   ListingCommentItem _comment(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final data = body?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid comment response.');

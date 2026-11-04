@@ -10,10 +10,12 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
+use Tests\Concerns\ConfirmsListingImages;
 
 class UatChangePhase3BrokerVerificationApiTest extends TestCase
 {
     use RefreshDatabase;
+    use ConfirmsListingImages;
 
     protected function setUp(): void
     {
@@ -54,6 +56,7 @@ class UatChangePhase3BrokerVerificationApiTest extends TestCase
             ->postJson('/api/admin/workspace/tasks/'.(int) $task['id'].'/claim')
             ->assertOk();
 
+        $this->confirmListingImages($listingId, $supportHeaders);
         $this->withHeaders($supportHeaders)
             ->postJson("/api/admin/listing-review/listings/$listingId/approve")
             ->assertOk()

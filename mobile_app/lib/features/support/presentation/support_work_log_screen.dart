@@ -3,18 +3,27 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/widgets/app_components.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/support_repository.dart';
 import '../domain/support_models.dart';
 
-class SupportWorkLogScreen extends ConsumerStatefulWidget {
+class SupportWorkLogScreen extends ConsumerWidget {
   const SupportWorkLogScreen({super.key});
   @override
-  ConsumerState<SupportWorkLogScreen> createState() =>
+  Widget build(BuildContext context, WidgetRef ref) => ActorScopedPage(title: 'سجل عمل الدعم',
+    builder: (_) => const _SupportWorkLogBody());
+}
+
+class _SupportWorkLogBody extends ConsumerStatefulWidget {
+  const _SupportWorkLogBody();
+  @override
+  ConsumerState<_SupportWorkLogBody> createState() =>
       _SupportWorkLogScreenState();
 }
 
-class _SupportWorkLogScreenState extends ConsumerState<SupportWorkLogScreen> {
+class _SupportWorkLogScreenState extends ConsumerState<_SupportWorkLogBody> {
   bool _loading = true;
   String? _error;
   int? _userId;
@@ -28,6 +37,7 @@ class _SupportWorkLogScreenState extends ConsumerState<SupportWorkLogScreen> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -39,6 +49,7 @@ class _SupportWorkLogScreenState extends ConsumerState<SupportWorkLogScreen> {
           current?.hasPermission('support.view_team_metrics') == true) {
         agents = await ref.read(supportRepositoryProvider).agents();
       }
+      if (!mounted) return;
       final rows =
           await ref.read(supportRepositoryProvider).worklog(userId: _userId);
       if (!mounted) return;
@@ -52,6 +63,7 @@ class _SupportWorkLogScreenState extends ConsumerState<SupportWorkLogScreen> {
       setState(() {
         _loading = false;
         _error = friendlyApiError(e);
+        if (!isTransientApiFailure(e)) { _rows = const []; _agents = const []; }
       });
     }
   }
@@ -84,13 +96,13 @@ class _SupportWorkLogScreenState extends ConsumerState<SupportWorkLogScreen> {
                       _load();
                     },
                   )),
-            if (_loading) const LinearProgressIndicator(),
-            if (_error != null)
-              Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
+            if (_rows.isNotEmpty && (_loading || _error != null))
+              AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
             Expanded(
-                child: _rows.isEmpty && !_loading
-                    ? const Center(
-                        child: Text('لا توجد إجراءات في الفترة المحددة.'))
+                child: _loading && _rows.isEmpty ? const AppLoadingState()
+                    : _error != null && _rows.isEmpty ? AppErrorState(message: _error!, onRetry: _load)
+                    : _rows.isEmpty
+                    ? const AppEmptyState(title: 'لا توجد إجراءات', message: 'لا توجد إجراءات في الفترة المحددة.')
                     : ListView.separated(
                         padding: const EdgeInsets.all(12),
                         itemCount: _rows.length,

@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../../account/data/account_request_scope.dart';
 
 final notificationPreferenceRepositoryProvider =
     Provider<NotificationPreferenceRepository>((ref) {
   return NotificationPreferenceRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
+    requestScope: ref.watch(accountRequestScopeProvider),
   );
 });
 
@@ -18,15 +20,18 @@ final notificationPreferencesProvider =
 });
 
 class NotificationPreferenceRepository {
-  const NotificationPreferenceRepository(this._dio, this._auth);
+  const NotificationPreferenceRepository(this._dio, this._auth, {AccountRequestScope? requestScope})
+    : _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
+  Future<Options> _options() => _requestScope?.options() ?? _auth.requiredAuthOptions();
 
   Future<NotificationPreferences> get() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/notification-preferences',
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return NotificationPreferences.fromJson(_data(response.data));
   }
@@ -35,12 +40,13 @@ class NotificationPreferenceRepository {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/notification-preferences',
       data: values,
-      options: await _auth.requiredAuthOptions(),
+      options: await _options(),
     );
     return NotificationPreferences.fromJson(_data(response.data));
   }
 
   Map<String, dynamic> _data(Map<String, dynamic>? body) {
+    _requestScope?.verify();
     final data = body?['data'];
     if (data is! Map<String, dynamic>) {
       throw const FormatException('Invalid notification preference response.');

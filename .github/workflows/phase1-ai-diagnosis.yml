@@ -1,0 +1,30 @@
+name: Phase1 listing AI diagnostic regression
+on:
+  push:
+    branches: [work/phase1-ai-diagnosis-20261105]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+      - name: Validate synthetic probe and unchanged AI contracts
+        run: php artisan test tests/Feature/UatListingAiProbeTest.php tests/Feature/Wave3AiAssistantTest.php --display-warnings --fail-on-warning --fail-on-risky
