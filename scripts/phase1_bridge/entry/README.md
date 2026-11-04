@@ -255,3 +255,13 @@ was explained. Start a fresh independent workflow run; never replay expired
 commands from runs49 or50. Independently inspect the actual current checkpoint
 media before each required review. This note changes no runtime, source guard,
 role, fixture, privacy, product component or acceptance requirement.
+
+
+Run51 stopped before fixture creation at the unchanged independent UTC preflight.
+Its real conservative offset bracket was -273ms to -194ms. Clock preparation
+now estimates one-way delivery as half of the immediately preceding successful
+read-only root-UID shell roundtrip and adds that estimate to the single date
+setter. Only bounded millisecond deltas are recorded. No clock acceptance is
+inferred: the original later full +/-250ms bracket, one setter, bounded original
+deadline, UID restoration and every signed expiry are unchanged. No application
+or authentication code changes.

@@ -225,8 +225,36 @@ class OwnedVmSourceReview(unittest.TestCase):
             'default_shell_uid_restored':True,
             'root_request':{'attempted_once':True,'transport':'EXIT_ZERO','stderr':'EMPTY'},
             'unroot_request':{'attempted_once':True,'transport':'EXIT_ZERO','stderr':'EMPTY'},
+            'date_transport_roundtrip_ms':0,'date_transport_compensation_ms':0,
             'clock_acceptance_claimed':False,'stage':'complete'})
         self.assertNotIn('1793754123',str(instance.receipt))
+
+    def test_clock_setter_compensates_half_latest_read_transport_but_keeps_independent_acceptance(self):
+        instance = self.clock_instance()
+        calls, rooted, clock = [], [False], [100.0]
+        def fake(args, **kwargs):
+            operation=args[3:];calls.append(operation)
+            if operation==['root']:rooted[0]=True
+            elif operation==['unroot']:rooted[0]=False
+            elif operation==['shell','id','-u']:
+                if rooted[0]:clock[0]+=.2
+                return subprocess.CompletedProcess(args,0,b'0\n' if rooted[0] else b'2000\n',b'')
+            elif operation[:4]==['shell','date','-u','-s']:
+                self.assertEqual(operation[4],'@1793754123.223456789')
+            return subprocess.CompletedProcess(args,0,b'',b'')
+        with patch.object(vm.subprocess,'run',side_effect=fake), \
+             patch.object(vm.time,'time_ns',return_value=1793754123123456789), \
+             patch.object(vm.time,'monotonic',side_effect=lambda:clock[0]):
+            self.assertTrue(instance.prepare_utc_clock(deadline=150))
+            with self.assertRaises(vm.VmBlocked):instance.prepare_utc_clock(deadline=150)
+        receipt=instance.receipt['clock_preparation']
+        self.assertEqual(receipt['date_transport_roundtrip_ms'],200)
+        self.assertEqual(receipt['date_transport_compensation_ms'],100)
+        self.assertFalse(receipt['clock_acceptance_claimed'])
+        self.assertEqual(sum(c[:2]==['shell','date'] for c in calls),1)
+        self.assertEqual(sum(c==['root'] for c in calls),1)
+        self.assertEqual(sum(c==['unroot'] for c in calls),1)
+        self.assertNotIn('1793754123',str(receipt))
 
     def test_restart_request_errors_still_require_and_accept_actual_uid_proof_once(self):
         for operation in ('root','unroot'):

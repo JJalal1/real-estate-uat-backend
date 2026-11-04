@@ -149,6 +149,7 @@ class OwnedApi36Vm:
                        'date_setter_exit_zero': False, 'default_shell_uid_restored': False,
                        'root_request': {'attempted_once': False, 'transport': 'NOT_ATTEMPTED', 'stderr': 'NOT_ATTEMPTED'},
                        'unroot_request': {'attempted_once': False, 'transport': 'NOT_ATTEMPTED', 'stderr': 'NOT_ATTEMPTED'},
+                       'date_transport_roundtrip_ms': None, 'date_transport_compensation_ms': None,
                        'clock_acceptance_claimed': False, 'stage': 'root_request'}
         self.receipt['clock_preparation'] = observation
         def restart_request(operation):
@@ -191,8 +192,12 @@ class OwnedApi36Vm:
             until = min(deadline, time.monotonic() + 10)
             while time.monotonic() < until:
                 try:
+                    read_started = time.monotonic()
                     if command('shell', 'id', '-u', maximum=min(2, until - time.monotonic())) == expected:
-                        return
+                        elapsed = time.monotonic() - read_started
+                        require(math.isfinite(elapsed) and 0 <= elapsed <= 2,
+                                'owned_clock_uid_transport_unbounded')
+                        return elapsed
                 except VmBlocked:
                     require(self.process.poll() is None and time.monotonic() < deadline,
                             'owned_clock_preparation_deadline_or_runtime_lost')
@@ -201,10 +206,18 @@ class OwnedApi36Vm:
         try:
             restart_request('root')
             observation['stage'] = 'root_uid_wait'
-            wait_uid('0', 'owned_clock_root_uid_unverified')
+            root_roundtrip = wait_uid('0', 'owned_clock_root_uid_unverified')
             observation['root_uid_verified'] = True
             host_ns = time.time_ns()
             require(type(host_ns) is int and host_ns > 0, 'actual_host_utc_required')
+            # Estimate one-way ADB delivery from the immediately preceding
+            # successful read-only shell exchange. The later independent UTC
+            # bracket still proves synchronization; this estimate grants no
+            # acceptance and changes no signed expiry or retry policy.
+            compensation_ns = int(root_roundtrip * 1000000000 / 2)
+            observation['date_transport_roundtrip_ms'] = round(root_roundtrip * 1000)
+            observation['date_transport_compensation_ms'] = round(compensation_ns / 1000000)
+            host_ns += compensation_ns
             # Toybox accepts @UNIXTIME.FRACTION and -u/-s. No expiry value is
             # translated, extended or clamped, and no raw timestamp is retained.
             stamp = '@' + str(host_ns // 1000000000) + '.' + format(host_ns % 1000000000, '09d')
